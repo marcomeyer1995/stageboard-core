@@ -61,4 +61,26 @@ describe('useClockStore', () => {
     expect(getElapsedMs()).toBe(500)
     expect(useClockStore.getState().isRunning).toBe(true)
   })
+
+  it('seek jumps to an arbitrary point while stopped', () => {
+    const { seek, getElapsedMs } = useClockStore.getState()
+    seek(9000)
+    expect(getElapsedMs()).toBe(9000)
+    expect(useClockStore.getState().isRunning).toBe(false)
+  })
+
+  it('seek jumps while running and keeps counting from there', () => {
+    const { start, seek, getElapsedMs } = useClockStore.getState()
+    start()
+    vi.setSystemTime(1000)
+    seek(9000)
+    vi.setSystemTime(1500)
+    expect(getElapsedMs()).toBe(9500)
+  })
+
+  it('seek clamps negative values to zero', () => {
+    const { seek, getElapsedMs } = useClockStore.getState()
+    seek(-500)
+    expect(getElapsedMs()).toBe(0)
+  })
 })

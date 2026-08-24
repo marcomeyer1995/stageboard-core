@@ -1,4 +1,5 @@
 import { ClockControlWidget } from '../widgets/ClockControlWidget'
+import { MidiStatusWidget } from '../widgets/MidiStatusWidget'
 import { NextSongWidget } from '../widgets/NextSongWidget'
 import { PrompterWidget } from '../widgets/PrompterWidget'
 
@@ -10,6 +11,7 @@ export function Dashboard() {
           <NextSongWidget />
         </div>
         <ClockControlWidget />
+        <MidiStatusWidget />
       </div>
       <PrompterWidget />
     </div>

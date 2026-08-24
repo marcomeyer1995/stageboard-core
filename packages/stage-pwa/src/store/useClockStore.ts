@@ -7,6 +7,7 @@ interface ClockState {
   start: () => void
   stop: () => void
   reset: () => void
+  seek: (ms: number) => void
   getElapsedMs: () => number
 }
 
@@ -30,6 +31,10 @@ export const useClockStore = create<ClockState>((set, get) => ({
   reset: () => {
     const { isRunning } = get()
     set({ accumulatedMs: 0, startedAt: isRunning ? Date.now() : null })
+  },
+  seek: (ms) => {
+    const { isRunning } = get()
+    set({ accumulatedMs: Math.max(0, ms), startedAt: isRunning ? Date.now() : null })
   },
   getElapsedMs: () => {
     const { isRunning, startedAt, accumulatedMs } = get()
