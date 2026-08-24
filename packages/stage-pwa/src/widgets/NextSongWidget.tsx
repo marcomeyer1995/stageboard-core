@@ -1,14 +1,20 @@
-import { useShowStore } from '../store/useShowStore'
+import { useSongsStore } from '../store/useSongsStore'
 
 export function NextSongWidget() {
-  const currentSong = useShowStore((state) => state.currentSong)
-  const nextSong = useShowStore((state) => state.nextSong)
-  const advanceToNextSong = useShowStore((state) => state.advanceToNextSong)
+  const currentSong = useSongsStore((state) => state.currentSong)
+  const nextSong = useSongsStore((state) => state.nextSong)
+  const advanceToNextSong = useSongsStore((state) => state.advanceToNextSong)
 
   return (
     <div className="flex items-center justify-between rounded-lg bg-neutral-900 px-4 py-3 text-sm text-neutral-300">
       <span>
-        Aktuell: <span className="font-semibold text-white">{currentSong.title}</span>
+        {currentSong ? (
+          <>
+            Aktuell: <span className="font-semibold text-white">{currentSong.title}</span>
+          </>
+        ) : (
+          'Keine Songs vorhanden'
+        )}
         {nextSong && (
           <>
             {' | '}
