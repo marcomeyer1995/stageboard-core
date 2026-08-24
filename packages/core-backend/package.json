@@ -10,7 +10,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "fastify": "^4.29.1",
+    "fastify": "^5.12.1",
     "shared-types": "^0.0.1"
   },
   "devDependencies": {

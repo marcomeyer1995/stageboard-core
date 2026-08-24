@@ -2,16 +2,13 @@
 
 Da das Projekt hochkomplex ist (Hardware, Plugins, Timecode) und mithilfe von KI-Agenten (wie Claude Code) entwickelt werden soll, muss die Architektur von Beginn an auf Testbarkeit, strikte Typisierung und Beobachtbarkeit (Observability) ausgelegt sein.
 
-## 0. ⚠️ Node.js-Version: aktuell veraltet (Node 18)
+## 0. Node.js-Version: via nvm, gepinnt in `.nvmrc`
 
-Die Entwicklungsumgebung läuft auf **Node.js 18**, dessen Maintenance-LTS bereits am 30. April 2025 endete — es gibt keine Sicherheitspatches vom Node.js-Projekt mehr, weder für die Runtime selbst noch für neue Major-Versionen der Tools, die Node 18 unterstützen.
+Node wird über [nvm](https://github.com/nvm-sh/nvm) verwaltet (installiert unter `~/.nvm`), nicht über das System-`apt`-Paket — Ubuntus eigenes Repo bietet nur ein eingefrorenes Node 18 an, das seit April 2025 keine Sicherheitspatches mehr bekommt. Die Projekt-Node-Version steht in `.nvmrc` (aktuell 24, aktuelle LTS). In einem neuen Terminal `nvm use` ausführen, um sie zu aktivieren; `nvm alias default 'lts/*'` ist bereits gesetzt, neue Shells sollten automatisch auf der richtigen Version starten.
 
-**Konkrete Auswirkungen (in Phase 1+2 aufgetreten):**
-* `create-vite@latest`, Fastify 5, Vite 6/7, Vitest 4 und aktuelles Playwright verlangen alle Node ≥20 und funktionieren auf Node 18 gar nicht (harter Crash beim Start).
-* Deshalb sind im Monorepo bewusst ältere, Node-18-kompatible Major-Versionen gepinnt: Fastify `^4`, Vite `^5`, Vitest `3.2.6`. **Nicht versehentlich auf `latest` hochziehen**, ohne vorher die Node-Version zu prüfen — das bricht den Dev-Server sofort.
-* `npm audit` zeigt bekannte, bereits gefixte Lücken, deren Fix-Version Node 20 voraussetzt (z.B. Fastify 5.12+, Vite 8) — auf Node 18 sitzen wir auf diesen Lücken fest, bis Node aktualisiert wird.
+Alle Kern-Pakete laufen auf ihren aktuellen Major-Versionen (Fastify 5, Vite 8, Vitest 4) — keine künstlichen Downgrades mehr nötig.
 
-**Empfehlung:** Sobald möglich auf Node 22 LTS (oder neuer) upgraden — das ist der einzige nachhaltige Fix, danach können auch die gepinnten Pakete wieder auf `latest`. Bis dahin: bei jeder neuen Dependency-Installation prüfen, ob sie Node ≥20 voraussetzt (`npm view <paket> engines`), bevor sie installiert wird.
+**Bekannte Stolperfalle:** In manchen (insbesondere nicht-interaktiven) Shells ist die Umgebungsvariable `npm_config_prefix` bereits gesetzt (z.B. auf `/usr/local`). nvm verweigert dann das automatische Aktivieren der Default-Version beim Sourcen und meldet das nur als Warnung, nicht als Fehler. Fix: `unset npm_config_prefix` **vor** dem Sourcen von `nvm.sh` ausführen, dann `node --version` zur Kontrolle prüfen.
 
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
