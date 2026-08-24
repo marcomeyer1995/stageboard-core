@@ -1,0 +1,13 @@
+{
+  "name": "stageboard-core",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev -w core-backend\" \"npm run dev -w stage-pwa\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
