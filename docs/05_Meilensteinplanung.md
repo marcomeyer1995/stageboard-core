@@ -26,13 +26,15 @@ Das Ziel: StageBoard bekommt ein Zeitgefühl.
 * **Schritt 3:** Die Dual-Prompter-Ansicht: Umsetzung von "Smooth Scroll" und "Paginated View". ✅ Beide Modi nutzen den Timecode für Section Highlighting; "Song-Parts"-Labels (siehe [docs/04](04_Editor_Und_Datenstruktur.md)) und echte Seiten-Grenzen für Paginated View gibt's noch nicht — aktuell hebt Paginated View nur zeilenweise hervor statt in echten "Seiten" zu blättern.
 * **Meilenstein-Test:** ✅ Du startest die Uhr, und der Text auf dem Tablet scrollt oder blättert völlig automatisch im richtigen Moment um.
 
-## Phase 4: Microkernel & Das erste Plugin (Woche 4)
+## Phase 4: Microkernel & Das erste Plugin (Woche 4) — ✅ Abgeschlossen
 Das Ziel: Die Brücke zur echten Hardware (Bühne).
 
-* **Schritt 1:** Definition des `IPlugin` Interfaces im `shared-types` Workspace. ✅ Bereits vorgezogen in Phase 1 erledigt (`packages/shared-types/src/plugin.ts`), da es zusammen mit dem Song-Schema entstand. Noch offen: der eigentliche Plugin-Loader/Show Control Gateway (Schritt 2).
-* **Schritt 2:** Das "Show Control Gateway" im Fastify-Backend bauen.
-* **Schritt 3:** Entwicklung des Plugins: "Generic WebMIDI Input".
-* **Meilenstein-Test:** Du trittst auf einen Fußtaster, und das Prompter-Widget springt zur nächsten Song-Sektion.
+Komplett ohne physische Hardware gebaut — genau wie [docs/03](03_Developer_Experience.md) es für die KI-gestützte Entwicklung vorsieht (Ports & Adapters + Hardware-Mocks).
+
+* **Schritt 1:** Definition des `IPlugin` Interfaces im `shared-types` Workspace. ✅ Bereits in Phase 1 vorgezogen; jetzt um `IShowControlPlugin` (Zod-validierte `ShowControlEvent`/`ShowControlResult`) ergänzt.
+* **Schritt 2:** Das "Show Control Gateway" im Fastify-Backend bauen. ✅ `PluginRegistry` + Mock-Mischpult-Plugin (exakt das `{status:"ok", volume:5}`-Beispiel aus docs/03), Routen `GET /plugins` und `POST /plugins/:name/trigger`.
+* **Schritt 3:** Entwicklung des Plugins: "Generic WebMIDI Input". ✅ `webMidi.ts` im Frontend (WebMIDI ist eine Browser-API, kein Backend-Plugin) — Note-On/Program-Change lösen einen Sprung zur nächsten Zeile aus. Kein Gerät angeschlossen ist ein normaler Zustand (Graceful Degradation), kein Fehler; ein "Fußtaster simulieren"-Button deckt den Meilenstein-Test ohne Hardware ab.
+* **Meilenstein-Test:** ✅ Du trittst auf einen Fußtaster, und das Prompter-Widget springt zur nächsten Song-Sektion. (Verifiziert per simuliertem Trigger — der Code-Pfad ist identisch zu einem echten MIDI-Fußtaster.)
 
 ## Phase 5: Multi-Tenant & Setlists (Woche 5)
 Das Ziel: Band-Management und Gig-Vorbereitung.
