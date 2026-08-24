@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Dashboard } from './components/Dashboard'
 import { SheetEditor } from './components/SheetEditor'
+import { startSync } from './lib/db'
 import { useSongsStore } from './store/useSongsStore'
 
 function App() {
@@ -9,6 +10,8 @@ function App() {
 
   useEffect(() => {
     init()
+    const sync = startSync()
+    return () => sync?.cancel()
   }, [init])
 
   return (

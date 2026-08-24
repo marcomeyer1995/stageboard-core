@@ -51,3 +51,18 @@ export async function seedDummySongsIfEmpty(): Promise<void> {
   if (info.doc_count > 0) return
   await songsDb.bulkDocs(dummySongs.map((song) => ({ ...song, _id: song.id })))
 }
+
+/** Starts live, bidirectional sync with the Stage-Server's CouchDB, if VITE_COUCHDB_URL is set. */
+export function startSync(): PouchDB.Replication.Sync<Song> | null {
+  const remoteUrl = import.meta.env.VITE_COUCHDB_URL as string | undefined
+  if (!remoteUrl) return null
+
+  const remoteDb = new PouchDB<Song>(remoteUrl, {
+    auth: {
+      username: import.meta.env.VITE_COUCHDB_USER as string,
+      password: import.meta.env.VITE_COUCHDB_PASSWORD as string,
+    },
+  })
+
+  return songsDb.sync(remoteDb, { live: true, retry: true })
+}
