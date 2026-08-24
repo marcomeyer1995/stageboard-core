@@ -36,13 +36,13 @@ Komplett ohne physische Hardware gebaut — genau wie [docs/03](03_Developer_Exp
 * **Schritt 3:** Entwicklung des Plugins: "Generic WebMIDI Input". ✅ `webMidi.ts` im Frontend (WebMIDI ist eine Browser-API, kein Backend-Plugin) — Note-On/Program-Change lösen einen Sprung zur nächsten Zeile aus. Kein Gerät angeschlossen ist ein normaler Zustand (Graceful Degradation), kein Fehler; ein "Fußtaster simulieren"-Button deckt den Meilenstein-Test ohne Hardware ab.
 * **Meilenstein-Test:** ✅ Du trittst auf einen Fußtaster, und das Prompter-Widget springt zur nächsten Song-Sektion. (Verifiziert per simuliertem Trigger — der Code-Pfad ist identisch zu einem echten MIDI-Fußtaster.)
 
-## Phase 5: Multi-Tenant & Setlists (Woche 5)
+## Phase 5: Multi-Tenant & Setlists (Woche 5) — ✅ Abgeschlossen
 Das Ziel: Band-Management und Gig-Vorbereitung.
 
-* **Schritt 1:** Einführung der "Workspaces" (Band A vs. Band B).
-* **Schritt 2:** Setlist-Logik.
-* **Schritt 3:** Das "Master-Token" System.
-* **Meilenstein-Test:** Der Sänger drückt auf "Nächster Song" und das Tablet des Drummers wechselt synchron mit.
+* **Schritt 1:** Einführung der "Workspaces" (Band A vs. Band B). ✅ Echte Datenisolation über separate PouchDB-/CouchDB-Datenbanken pro Workspace (`stageboard-<kind>-<workspaceId>`), nicht nur eine gefilterte Ansicht.
+* **Schritt 2:** Setlist-Logik. ✅ Anlegen/Duplizieren/Umsortieren, aktive Setlist bestimmt die Song-Reihenfolge der Live-Queue.
+* **Schritt 3:** Das "Master-Token" System. ✅ Synchronisiertes Singleton-Dokument (`ShowState`) pro Workspace; Claim/"Take Over" ist einfach ein PUT mit dem zuletzt bekannten `_rev` — CouchDBs übliche Konflikt-Behandlung reicht als "nur ein Gewinner"-Mechanismus, ganz ohne eigene Locking-Logik.
+* **Meilenstein-Test:** ✅ Der Sänger drückt auf "Nächster Song" und das Tablet des Drummers wechselt synchron mit. (Verifiziert mit zwei isolierten Browser-Kontexten im selben Workspace.)
 
 ## Phase 6: Touring-Features (Ab Woche 6 / Community-Phase)
 Das Ziel: Absicherung und Ausbau für große Gigs.
