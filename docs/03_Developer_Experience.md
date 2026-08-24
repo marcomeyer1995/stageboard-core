@@ -2,6 +2,17 @@
 
 Da das Projekt hochkomplex ist (Hardware, Plugins, Timecode) und mithilfe von KI-Agenten (wie Claude Code) entwickelt werden soll, muss die Architektur von Beginn an auf Testbarkeit, strikte Typisierung und Beobachtbarkeit (Observability) ausgelegt sein.
 
+## 0. ⚠️ Node.js-Version: aktuell veraltet (Node 18)
+
+Die Entwicklungsumgebung läuft auf **Node.js 18**, dessen Maintenance-LTS bereits am 30. April 2025 endete — es gibt keine Sicherheitspatches vom Node.js-Projekt mehr, weder für die Runtime selbst noch für neue Major-Versionen der Tools, die Node 18 unterstützen.
+
+**Konkrete Auswirkungen (in Phase 1+2 aufgetreten):**
+* `create-vite@latest`, Fastify 5, Vite 6/7, Vitest 4 und aktuelles Playwright verlangen alle Node ≥20 und funktionieren auf Node 18 gar nicht (harter Crash beim Start).
+* Deshalb sind im Monorepo bewusst ältere, Node-18-kompatible Major-Versionen gepinnt: Fastify `^4`, Vite `^5`, Vitest `3.2.6`. **Nicht versehentlich auf `latest` hochziehen**, ohne vorher die Node-Version zu prüfen — das bricht den Dev-Server sofort.
+* `npm audit` zeigt bekannte, bereits gefixte Lücken, deren Fix-Version Node 20 voraussetzt (z.B. Fastify 5.12+, Vite 8) — auf Node 18 sitzen wir auf diesen Lücken fest, bis Node aktualisiert wird.
+
+**Empfehlung:** Sobald möglich auf Node 22 LTS (oder neuer) upgraden — das ist der einzige nachhaltige Fix, danach können auch die gepinnten Pakete wieder auf `latest`. Bis dahin: bei jeder neuen Dependency-Installation prüfen, ob sie Node ≥20 voraussetzt (`npm view <paket> engines`), bevor sie installiert wird.
+
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
 
