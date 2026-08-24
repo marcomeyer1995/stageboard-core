@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { currentLineIndex, parseChordPro } from './chordpro'
+import { getQueueSnapshot } from './queue'
 import { isWebMidiSupported, listenForMidiTriggers } from './webMidi'
 import { useClockStore } from '../store/useClockStore'
-import { useSongsStore } from '../store/useSongsStore'
 
 export type MidiStatus = 'unsupported' | 'no-device' | 'connected'
 
@@ -19,7 +19,7 @@ export function useMidiTrigger() {
   )
 
   const jumpToNextSection = useCallback(() => {
-    const currentSong = useSongsStore.getState().currentSong
+    const currentSong = getQueueSnapshot().currentSong
     if (!currentSong) return
     const lines = parseChordPro(currentSong.chordProContent)
     const elapsedMs = useClockStore.getState().getElapsedMs()

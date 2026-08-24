@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { currentLineIndex, parseChordPro } from '../lib/chordpro'
 import { useElapsedMs } from '../lib/useElapsedMs'
-import { useSongsStore } from '../store/useSongsStore'
+import { useQueue } from '../lib/queue'
 
 type ViewMode = 'scroll' | 'paginated'
 
 export function PrompterWidget() {
-  const currentSong = useSongsStore((state) => state.currentSong)
+  const { currentSong } = useQueue()
   const elapsedMs = useElapsedMs()
   const [viewMode, setViewMode] = useState<ViewMode>('scroll')
   const containerRef = useRef<HTMLDivElement>(null)

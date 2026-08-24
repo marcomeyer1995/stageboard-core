@@ -1,9 +1,9 @@
-import { useSongsStore } from '../store/useSongsStore'
+import { advanceToNextSong, useQueue } from '../lib/queue'
+import { useShowStateStore } from '../store/useShowStateStore'
 
 export function NextSongWidget() {
-  const currentSong = useSongsStore((state) => state.currentSong)
-  const nextSong = useSongsStore((state) => state.nextSong)
-  const advanceToNextSong = useSongsStore((state) => state.advanceToNextSong)
+  const { currentSong, nextSong, isMaster } = useQueue()
+  const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   return (
     <div className="flex items-center justify-between rounded-lg bg-neutral-900 px-4 py-3 text-sm text-neutral-300">
@@ -23,14 +23,25 @@ export function NextSongWidget() {
           </>
         )}
       </span>
-      <button
-        type="button"
-        onClick={advanceToNextSong}
-        disabled={!nextSong}
-        className="rounded bg-neutral-700 px-3 py-1 font-medium text-white hover:bg-neutral-600 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Next Song
-      </button>
+      {isMaster ? (
+        <button
+          type="button"
+          onClick={advanceToNextSong}
+          disabled={!nextSong}
+          className="rounded bg-neutral-700 px-3 py-1 font-medium text-white hover:bg-neutral-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next Song
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={claimMaster}
+          title="Diese Ansicht hat aktuell keine Kontrolle über die Queue"
+          className="rounded bg-neutral-700 px-3 py-1 font-medium text-amber-400 hover:bg-neutral-600"
+        >
+          Master übernehmen
+        </button>
+      )}
     </div>
   )
 }

@@ -1,24 +1,15 @@
-import PouchDB from 'pouchdb-browser'
 import { SongSchema, type Song } from 'shared-types'
+import { createWorkspaceCollection, type Doc } from './workspaceCollection'
 
-export const songsDb = new PouchDB<Song>('stageboard-songs')
+export type SongDoc = Doc<Song>
 
-export type SongDoc = Song & PouchDB.Core.IdMeta & PouchDB.Core.GetMeta
+const songs = createWorkspaceCollection<Song>('songs')
 
-export async function getAllSongs(): Promise<SongDoc[]> {
-  const result = await songsDb.allDocs({ include_docs: true })
-  return result.rows
-    .map((row) => row.doc)
-    .filter((doc): doc is SongDoc => doc !== undefined)
-}
-
-export async function putSong(song: Song): Promise<void> {
-  const existing = await songsDb.get(song.id).catch(() => null)
-  const doc: PouchDB.Core.PutDocument<Song> = existing
-    ? { ...song, _id: song.id, _rev: existing._rev }
-    : { ...song, _id: song.id }
-  await songsDb.put(doc)
-}
+export const getSongsDb = songs.getDb
+export const switchSongsWorkspace = songs.switchWorkspace
+export const getAllSongs = songs.getAll
+export const putSong = songs.put
+export const startSync = songs.startSync
 
 const dummySongs: Song[] = [
   SongSchema.parse({
@@ -47,22 +38,8 @@ const dummySongs: Song[] = [
 ]
 
 export async function seedDummySongsIfEmpty(): Promise<void> {
-  const info = await songsDb.info()
+  const db = getSongsDb()
+  const info = await db.info()
   if (info.doc_count > 0) return
-  await songsDb.bulkDocs(dummySongs.map((song) => ({ ...song, _id: song.id })))
-}
-
-/** Starts live, bidirectional sync with the Stage-Server's CouchDB, if VITE_COUCHDB_URL is set. */
-export function startSync(): PouchDB.Replication.Sync<Song> | null {
-  const remoteUrl = import.meta.env.VITE_COUCHDB_URL as string | undefined
-  if (!remoteUrl) return null
-
-  const remoteDb = new PouchDB<Song>(remoteUrl, {
-    auth: {
-      username: import.meta.env.VITE_COUCHDB_USER as string,
-      password: import.meta.env.VITE_COUCHDB_PASSWORD as string,
-    },
-  })
-
-  return songsDb.sync(remoteDb, { live: true, retry: true })
+  await db.bulkDocs(dummySongs.map((song) => ({ ...song, _id: song.id })))
 }
