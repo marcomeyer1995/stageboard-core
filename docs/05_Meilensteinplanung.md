@@ -18,13 +18,13 @@ Das Ziel: Texte und Akkorde eingeben und anzeigen lassen.
 * **Schritt 3:** Zod-Validierung im Backend für das "Song-Schema", erste CouchDB-Instanz hochfahren und Sync zwischen Tablet (PouchDB) und Server (CouchDB) herstellen. ✅ (Sync läuft direkt PouchDB↔CouchDB, ohne Fastify als Zwischenschicht; Setup per `scripts/setup-couchdb.sh`.)
 * **Meilenstein-Test:** ✅ Du tippst auf Tablet A einen Songtext ein, und er taucht wenige Sekunden später automatisch auf Tablet B auf. (Verifiziert mit zwei isolierten Browser-Kontexten gegen dieselbe CouchDB.)
 
-## Phase 3: Timecode & Live-Engine (Woche 3)
+## Phase 3: Timecode & Live-Engine (Woche 3) — ✅ Abgeschlossen
 Das Ziel: StageBoard bekommt ein Zeitgefühl.
 
-* **Schritt 1:** Die Master-Clock. Implementierung eines globalen Timecodes über Zustand (State Management).
-* **Schritt 2:** Das "Tap-to-Sync" Plugin für den Editor.
-* **Schritt 3:** Die Dual-Prompter-Ansicht: Umsetzung von "Smooth Scroll" und "Paginated View".
-* **Meilenstein-Test:** Du startest die Uhr, und der Text auf dem Tablet scrollt oder blättert völlig automatisch im richtigen Moment um.
+* **Schritt 1:** Die Master-Clock. Implementierung eines globalen Timecodes über Zustand (State Management). ✅ (`useClockStore`, reaktiv über `useElapsedMs` per requestAnimationFrame statt globaler Re-Renders)
+* **Schritt 2:** Das "Tap-to-Sync" Plugin für den Editor. ✅ (`TapToSync.tsx` im Sheet Editor — Leertaste/Tap-Button schreibt pro Zeile den aktuellen Master-Clock-Timecode)
+* **Schritt 3:** Die Dual-Prompter-Ansicht: Umsetzung von "Smooth Scroll" und "Paginated View". ✅ Beide Modi nutzen den Timecode für Section Highlighting; "Song-Parts"-Labels (siehe [docs/04](04_Editor_Und_Datenstruktur.md)) und echte Seiten-Grenzen für Paginated View gibt's noch nicht — aktuell hebt Paginated View nur zeilenweise hervor statt in echten "Seiten" zu blättern.
+* **Meilenstein-Test:** ✅ Du startest die Uhr, und der Text auf dem Tablet scrollt oder blättert völlig automatisch im richtigen Moment um.
 
 ## Phase 4: Microkernel & Das erste Plugin (Woche 4)
 Das Ziel: Die Brücke zur echten Hardware (Bühne).
