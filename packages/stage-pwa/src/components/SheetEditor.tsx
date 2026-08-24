@@ -3,6 +3,7 @@ import { SongSchema, type Song } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { useSongsStore } from '../store/useSongsStore'
 import { ChordProLyrics } from './ChordProLyrics'
+import { TapToSync } from './TapToSync'
 
 function emptyDraft(): Song {
   return {
@@ -18,18 +19,26 @@ export function SheetEditor() {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
   const [draft, setDraft] = useState<Song>(() => songs[0] ?? emptyDraft())
+  const [isNewDraft, setIsNewDraft] = useState(songs.length === 0)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [isTapping, setIsTapping] = useState(false)
 
   useEffect(() => {
+    // Only re-sync onto an existing song when we're *not* mid-editing a new,
+    // unsaved draft - otherwise "+ Neuer Song" would get silently reverted.
+    if (isNewDraft) return
     if (songs.length > 0 && !songs.some((song) => song.id === draft.id)) {
       setDraft(songs[0])
     }
-  }, [songs, draft.id])
+  }, [songs, draft.id, isNewDraft])
 
   function selectSong(id: string) {
     const song = songs.find((s) => s.id === id)
-    if (song) setDraft(song)
+    if (song) {
+      setDraft(song)
+      setIsNewDraft(false)
+    }
     setError(null)
     setSavedAt(null)
   }
@@ -43,6 +52,7 @@ export function SheetEditor() {
     setError(null)
     await saveSong(result.data)
     setSavedAt(Date.now())
+    setIsNewDraft(false)
   }
 
   const preview = parseChordPro(draft.chordProContent)
@@ -54,12 +64,10 @@ export function SheetEditor() {
           Song
           <select
             className="rounded bg-neutral-800 px-2 py-1 text-white"
-            value={songs.some((song) => song.id === draft.id) ? draft.id : ''}
+            value={isNewDraft ? '' : draft.id}
             onChange={(e) => selectSong(e.target.value)}
           >
-            {!songs.some((song) => song.id === draft.id) && (
-              <option value="">(neuer Song)</option>
-            )}
+            {isNewDraft && <option value="">(neuer Song)</option>}
             {songs.map((song) => (
               <option key={song.id} value={song.id}>
                 {song.title || '(ohne Titel)'}
@@ -71,6 +79,7 @@ export function SheetEditor() {
           type="button"
           onClick={() => {
             setDraft(emptyDraft())
+            setIsNewDraft(true)
             setError(null)
             setSavedAt(null)
           }}
@@ -95,15 +104,36 @@ export function SheetEditor() {
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
         </label>
-        <label className="flex flex-1 flex-col gap-1 text-sm text-neutral-400">
-          ChordPro-Text
-          <textarea
-            className="min-h-[240px] flex-1 rounded bg-neutral-800 p-2 font-mono text-sm text-white"
-            value={draft.chordProContent}
-            onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
-            placeholder="[00:00.00] Come on baby [G] don't you wanna go"
+        {isTapping ? (
+          <TapToSync
+            content={draft.chordProContent}
+            onComplete={(content) => {
+              setDraft({ ...draft, chordProContent: content })
+              setIsTapping(false)
+            }}
+            onCancel={() => setIsTapping(false)}
           />
-        </label>
+        ) : (
+          <label className="flex flex-1 flex-col gap-1 text-sm text-neutral-400">
+            <div className="flex items-center justify-between">
+              ChordPro-Text
+              <button
+                type="button"
+                onClick={() => setIsTapping(true)}
+                disabled={!draft.chordProContent.trim()}
+                className="rounded bg-neutral-700 px-2 py-0.5 text-xs text-white hover:bg-neutral-600 disabled:opacity-40"
+              >
+                Tap-to-Sync starten
+              </button>
+            </div>
+            <textarea
+              className="min-h-[240px] flex-1 rounded bg-neutral-800 p-2 font-mono text-sm text-white"
+              value={draft.chordProContent}
+              onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
+              placeholder="[00:00.00] Come on baby [G] don't you wanna go"
+            />
+          </label>
+        )}
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="button"

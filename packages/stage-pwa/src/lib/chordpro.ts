@@ -50,3 +50,28 @@ export function parseChordPro(content: string): ChordProLine[] {
       return { timeMs, segments: parseChordSegments(rest) }
     })
 }
+
+/** Formats milliseconds as a ChordPro time tag, e.g. `74500` -> `[01:14.50]`. */
+export function formatTimeTag(ms: number): string {
+  const totalSeconds = Math.max(0, ms) / 1000
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds - minutes * 60
+  return `[${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}]`
+}
+
+/** Replaces (or adds) the leading time tag of a raw ChordPro line, used by Tap-to-Sync. */
+export function setLineTimeTag(line: string, ms: number): string {
+  const withoutTag = line.replace(TIME_TAG_RE, '')
+  return `${formatTimeTag(ms)} ${withoutTag}`
+}
+
+/** Index of the last timestamped line whose timeMs has already passed, for Section Highlighting. */
+export function currentLineIndex(lines: ChordProLine[], elapsedMs: number): number {
+  let index = 0
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].timeMs !== null && lines[i].timeMs! <= elapsedMs) {
+      index = i
+    }
+  }
+  return index
+}
