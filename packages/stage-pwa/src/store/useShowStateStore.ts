@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { randomId } from '../lib/id'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getShowState, getShowStateDb, putShowState, switchShowStateWorkspace } from '../lib/showStateDb'
 
@@ -7,7 +8,7 @@ const CLIENT_ID_KEY = 'stageboard-client-id'
 function getClientId(): string {
   let id = localStorage.getItem(CLIENT_ID_KEY)
   if (!id) {
-    id = crypto.randomUUID()
+    id = randomId()
     localStorage.setItem(CLIENT_ID_KEY, id)
   }
   return id

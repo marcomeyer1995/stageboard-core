@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { randomId } from '../lib/id'
 import { persist } from 'zustand/middleware'
 
 export interface Workspace {
@@ -30,7 +31,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeWorkspaceId: DEFAULT_WORKSPACES[0].id,
       setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
       addWorkspace: (name) => {
-        const workspace: Workspace = { id: crypto.randomUUID(), name }
+        const workspace: Workspace = { id: randomId(), name }
         set({ workspaces: [...get().workspaces, workspace], activeWorkspaceId: workspace.id })
         return workspace
       },

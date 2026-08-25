@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { randomId } from '../lib/id'
 import type { Setlist } from 'shared-types'
 import {
   getAllSetlists,
@@ -48,7 +49,7 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
   duplicateSetlist: async (id, newName) => {
     const source = get().setlists.find((setlist) => setlist.id === id)
     if (!source) return null
-    const copy: Setlist = { id: crypto.randomUUID(), name: newName, songIds: [...source.songIds] }
+    const copy: Setlist = { id: randomId(), name: newName, songIds: [...source.songIds] }
     await putSetlist(copy)
     return copy
   },
