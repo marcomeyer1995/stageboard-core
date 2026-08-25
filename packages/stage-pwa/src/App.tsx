@@ -10,6 +10,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useSetlistsStore } from './store/useSetlistsStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
+import { useThemeStore } from './store/useThemeStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 
 type Mode = 'live' | 'edit' | 'setlists'
@@ -22,6 +23,8 @@ const MODE_LABEL: Record<Mode, string> = {
 
 function App() {
   const [mode, setMode] = useState<Mode>('live')
+  const theme = useThemeStore((state) => state.theme)
+  const toggleTheme = useThemeStore((state) => state.toggle)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
 
   useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
@@ -43,6 +46,14 @@ function App() {
       {mode === 'setlists' && <SetlistManager />}
       <WorkspaceSwitcher />
       <div className="absolute bottom-3 right-3 z-10 flex gap-1">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          className="rounded bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+        >
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
         {(['live', 'edit', 'setlists'] as const).map((candidate) => (
           <button
             key={candidate}
@@ -51,7 +62,7 @@ function App() {
             className={`rounded px-3 py-1 text-xs ${
               mode === candidate
                 ? 'bg-amber-500 text-black'
-                : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+                : 'bg-control text-ink-soft hover:bg-control-hover'
             }`}
           >
             {MODE_LABEL[candidate]}

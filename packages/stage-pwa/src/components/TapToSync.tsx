@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { setLineTimeTag } from '../lib/chordpro'
+import { parsePartDirective, setLineTimeTag } from '../lib/chordpro'
 import { useElapsedMs } from '../lib/useElapsedMs'
 import { useClockStore } from '../store/useClockStore'
+
+/** Blank lines and part directives (`{part: Chorus}`) carry no lyrics, so they get no timecode. */
+function isTappable(line: string): boolean {
+  return line.trim().length > 0 && parsePartDirective(line) === null
+}
 
 interface TapToSyncProps {
   content: string
@@ -12,9 +17,7 @@ interface TapToSyncProps {
 /** Recording mode for docs/04's "Tap-to-Sync" workflow: tap once per line, in time with the song. */
 export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
   const [lines, setLines] = useState<string[]>(() => content.split('\n'))
-  const [tapIndex, setTapIndex] = useState(() =>
-    lines.findIndex((line) => line.trim().length > 0),
-  )
+  const [tapIndex, setTapIndex] = useState(() => lines.findIndex(isTappable))
   const elapsedMs = useElapsedMs()
 
   useEffect(() => {
@@ -30,7 +33,7 @@ export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
     const ms = useClockStore.getState().getElapsedMs()
     const updated = [...lines]
     updated[tapIndex] = setLineTimeTag(updated[tapIndex], ms)
-    const nextIndex = updated.findIndex((line, i) => i > tapIndex && line.trim().length > 0)
+    const nextIndex = updated.findIndex((line, i) => i > tapIndex && isTappable(line))
     setLines(updated)
     if (nextIndex === -1) {
       onComplete(updated.join('\n'))
@@ -53,19 +56,19 @@ export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between rounded bg-neutral-800 px-3 py-2 text-sm text-neutral-300">
+      <div className="flex items-center justify-between rounded bg-control px-3 py-2 text-sm text-ink-soft">
         <span>
-          Drücke <kbd className="rounded bg-neutral-700 px-1.5 py-0.5 font-mono">Leertaste</kbd>{' '}
+          Drücke <kbd className="rounded bg-control-strong px-1.5 py-0.5 font-mono">Leertaste</kbd>{' '}
           oder klicke "Tap" im Takt jeder Zeile.
         </span>
-        <span className="font-mono text-white">{(elapsedMs / 1000).toFixed(2)}s</span>
+        <span className="font-mono text-ink">{(elapsedMs / 1000).toFixed(2)}s</span>
       </div>
-      <div className="flex-1 space-y-1 overflow-y-auto rounded bg-neutral-800 p-3 font-mono text-sm">
+      <div className="flex-1 space-y-1 overflow-y-auto rounded bg-control p-3 font-mono text-sm">
         {lines.map((line, i) => (
           <p
             key={i}
             className={`rounded px-2 py-1 ${
-              i === tapIndex ? 'bg-amber-500/30 text-white' : 'text-neutral-400'
+              i === tapIndex ? 'bg-amber-500/30 text-ink' : 'text-ink-muted'
             }`}
           >
             {line || ' '}
@@ -84,7 +87,7 @@ export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-neutral-700 px-4 py-3 text-sm hover:bg-neutral-600"
+          className="rounded bg-control-strong px-4 py-3 text-sm hover:bg-control-strong-hover"
         >
           Abbrechen
         </button>

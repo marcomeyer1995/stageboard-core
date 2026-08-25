@@ -56,16 +56,16 @@ export function SetlistManager() {
   }
 
   return (
-    <div className="grid h-screen grid-cols-2 gap-3 bg-black p-3 text-white">
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-neutral-900 p-4">
+    <div className="grid h-screen grid-cols-2 gap-3 bg-stage p-3 text-ink">
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-ink-muted">
             Setlists
           </h2>
           <button
             type="button"
             onClick={createSetlist}
-            className="rounded bg-neutral-700 px-2 py-1 text-xs hover:bg-neutral-600"
+            className="rounded bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover"
           >
             + Neu
           </button>
@@ -74,22 +74,22 @@ export function SetlistManager() {
           {setlists.map((setlist) => (
             <li
               key={setlist.id}
-              className="flex items-center justify-between gap-2 rounded bg-neutral-800 px-3 py-2 text-sm"
+              className="flex items-center justify-between gap-2 rounded bg-control px-3 py-2 text-sm"
             >
               <button
                 type="button"
                 onClick={() => setSelectedId(setlist.id)}
                 className="flex-1 text-left hover:underline"
               >
-                {setlist.name} <span className="text-neutral-500">({setlist.songIds.length})</span>
+                {setlist.name} <span className="text-ink-faint">({setlist.songIds.length})</span>
                 {activeSetlist?.id === setlist.id && (
-                  <span className="ml-2 text-xs text-amber-400">● aktiv</span>
+                  <span className="ml-2 text-xs text-accent">● aktiv</span>
                 )}
               </button>
               <button
                 type="button"
                 onClick={() => handleDuplicate(setlist.id)}
-                className="rounded bg-neutral-700 px-2 py-0.5 text-xs hover:bg-neutral-600"
+                className="rounded bg-control-strong px-2 py-0.5 text-xs hover:bg-control-strong-hover"
               >
                 Duplizieren
               </button>
@@ -109,17 +109,17 @@ export function SetlistManager() {
             type="button"
             onClick={() => setActiveSetlist(null)}
             disabled={!isMaster}
-            className="self-start rounded bg-neutral-700 px-2 py-1 text-xs hover:bg-neutral-600 disabled:opacity-40"
+            className="self-start rounded bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover disabled:opacity-40"
           >
             Setlist deaktivieren (alle Songs)
           </button>
         )}
       </div>
 
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-neutral-900 p-4">
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4">
         {selected ? (
           <>
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-ink-muted">
               {selected.name}
             </h2>
             <ul className="flex flex-col gap-1">
@@ -128,7 +128,7 @@ export function SetlistManager() {
                 return (
                   <li
                     key={`${songId}-${index}`}
-                    className="flex items-center justify-between gap-2 rounded bg-neutral-800 px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-2 rounded bg-control px-3 py-2 text-sm"
                   >
                     <span>
                       {index + 1}. {song?.title ?? '(unbekannter Song)'}
@@ -137,21 +137,21 @@ export function SetlistManager() {
                       <button
                         type="button"
                         onClick={() => moveSong(index, -1)}
-                        className="rounded bg-neutral-700 px-2 hover:bg-neutral-600"
+                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ↑
                       </button>
                       <button
                         type="button"
                         onClick={() => moveSong(index, 1)}
-                        className="rounded bg-neutral-700 px-2 hover:bg-neutral-600"
+                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ↓
                       </button>
                       <button
                         type="button"
                         onClick={() => removeSong(index)}
-                        className="rounded bg-neutral-700 px-2 hover:bg-neutral-600"
+                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ×
                       </button>
@@ -160,10 +160,10 @@ export function SetlistManager() {
                 )
               })}
             </ul>
-            <label className="flex flex-col gap-1 text-sm text-neutral-400">
+            <label className="flex flex-col gap-1 text-sm text-ink-muted">
               Song hinzufügen
               <select
-                className="rounded bg-neutral-800 px-2 py-1 text-white"
+                className="rounded bg-control px-2 py-1 text-ink"
                 value=""
                 onChange={(e) => addSong(e.target.value)}
               >
@@ -181,7 +181,7 @@ export function SetlistManager() {
             </label>
           </>
         ) : (
-          <p className="text-neutral-500">Wähle links eine Setlist aus.</p>
+          <p className="text-ink-faint">Wähle links eine Setlist aus.</p>
         )}
       </div>
     </div>

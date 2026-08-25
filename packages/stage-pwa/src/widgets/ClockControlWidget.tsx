@@ -16,19 +16,19 @@ export function ClockControlWidget() {
   const elapsedMs = useElapsedMs()
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-neutral-900 px-4 py-3 text-sm text-neutral-300">
-      <span className="font-mono text-lg text-white">{formatClock(elapsedMs)}</span>
+    <div className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3 text-sm text-ink-soft">
+      <span className="font-mono text-lg text-ink">{formatClock(elapsedMs)}</span>
       <button
         type="button"
         onClick={isRunning ? stop : start}
-        className="rounded bg-neutral-700 px-3 py-1 font-medium text-white hover:bg-neutral-600"
+        className="rounded bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover"
       >
         {isRunning ? 'Stop' : 'Start'}
       </button>
       <button
         type="button"
         onClick={reset}
-        className="rounded bg-neutral-700 px-3 py-1 font-medium text-white hover:bg-neutral-600"
+        className="rounded bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover"
       >
         Reset
       </button>

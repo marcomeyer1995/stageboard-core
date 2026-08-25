@@ -2,7 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Semantic colour tokens instead of hard-coded neutrals, so the Light-Mode toggle
+ * (docs/07) is a single class on <html> rather than a `dark:` variant per widget.
+ * Dark is the default (stage lighting), light is the opt-in override.
+ */
+:root {
+  color-scheme: dark;
+  --sb-stage: 0 0 0;
+  --sb-surface: 23 23 23;
+  --sb-control: 38 38 38;
+  --sb-control-hover: 64 64 64;
+  --sb-control-strong: 64 64 64;
+  --sb-control-strong-hover: 82 82 82;
+  --sb-ink: 255 255 255;
+  --sb-ink-soft: 212 212 216;
+  --sb-ink-muted: 163 163 163;
+  --sb-ink-faint: 115 115 115;
+  --sb-accent: 251 191 36;
+}
+
+:root.light {
+  color-scheme: light;
+  --sb-stage: 244 244 245;
+  --sb-surface: 255 255 255;
+  --sb-control: 228 228 231;
+  --sb-control-hover: 212 212 216;
+  --sb-control-strong: 212 212 216;
+  --sb-control-strong-hover: 161 161 170;
+  --sb-ink: 24 24 27;
+  --sb-ink-soft: 63 63 70;
+  --sb-ink-muted: 82 82 91;
+  --sb-ink-faint: 113 113 122;
+  /* Darker amber: the dark-mode accent has too little contrast on a light surface. */
+  --sb-accent: 180 83 9;
+}
+
 html,
 body {
-  background-color: black;
+  background-color: rgb(var(--sb-stage));
 }

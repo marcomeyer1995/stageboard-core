@@ -6,11 +6,11 @@ export function NextSongWidget() {
   const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   return (
-    <div className="flex items-center justify-between rounded-lg bg-neutral-900 px-4 py-3 text-sm text-neutral-300">
+    <div className="flex items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-ink-soft">
       <span>
         {currentSong ? (
           <>
-            Aktuell: <span className="font-semibold text-white">{currentSong.title}</span>
+            Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
           </>
         ) : (
           'Keine Songs vorhanden'
@@ -18,7 +18,7 @@ export function NextSongWidget() {
         {nextSong && (
           <>
             {' | '}
-            Next: <span className="font-semibold text-white">{nextSong.title}</span>{' '}
+            Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
             ({nextSong.bpm} BPM)
           </>
         )}
@@ -28,7 +28,7 @@ export function NextSongWidget() {
           type="button"
           onClick={advanceToNextSong}
           disabled={!nextSong}
-          className="rounded bg-neutral-700 px-3 py-1 font-medium text-white hover:bg-neutral-600 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Next Song
         </button>
@@ -37,7 +37,7 @@ export function NextSongWidget() {
           type="button"
           onClick={claimMaster}
           title="Diese Ansicht hat aktuell keine Kontrolle über die Queue"
-          className="rounded bg-neutral-700 px-3 py-1 font-medium text-amber-400 hover:bg-neutral-600"
+          className="rounded bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
         >
           Master übernehmen
         </button>

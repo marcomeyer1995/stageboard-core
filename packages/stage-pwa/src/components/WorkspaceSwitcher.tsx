@@ -9,7 +9,7 @@ export function WorkspaceSwitcher() {
   return (
     <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2">
       <select
-        className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-300"
+        className="rounded bg-control px-2 py-1 text-xs text-ink-soft"
         value={activeWorkspaceId}
         onChange={(e) => setActiveWorkspace(e.target.value)}
       >
@@ -26,7 +26,7 @@ export function WorkspaceSwitcher() {
           if (name?.trim()) addWorkspace(name.trim())
         }}
         title="Neue Band anlegen"
-        className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-700"
+        className="rounded bg-control px-2 py-1 text-xs text-ink-soft hover:bg-control-hover"
       >
         +
       </button>
