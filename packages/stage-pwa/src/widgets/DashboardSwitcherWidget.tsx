@@ -31,9 +31,9 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
           key={dashboard.id}
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`flex-1 rounded-lg px-4 text-base font-bold uppercase tracking-wide transition-colors ${
+          className={`flex-1 rounded-sb px-4 text-base font-bold uppercase tracking-wide transition-colors ${
             dashboard.id === activeId
-              ? 'bg-amber-500 text-black'
+              ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
@@ -55,7 +55,7 @@ export function DashboardSwitcherConfigPanel({
     <label className="flex flex-col gap-1 text-xs text-ink-muted">
       Ausrichtung
       <select
-        className="rounded bg-control px-2 py-1 text-sm text-ink"
+        className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
         value={config.orientation}
         onChange={(e) =>
           onChange({ ...config, orientation: e.target.value as DashboardSwitcherConfig['orientation'] })

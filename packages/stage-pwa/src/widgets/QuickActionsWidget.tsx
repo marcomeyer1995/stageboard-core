@@ -18,9 +18,9 @@ export function QuickActionsWidget() {
           key={action}
           type="button"
           onClick={() => setLastFired(action)}
-          className={`rounded-lg text-sm font-bold uppercase tracking-wide transition-colors ${
+          className={`rounded-sb text-sm font-bold uppercase tracking-wide transition-colors ${
             lastFired === action
-              ? 'bg-amber-500 text-black'
+              ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >

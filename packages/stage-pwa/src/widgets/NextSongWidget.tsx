@@ -6,7 +6,7 @@ export function NextSongWidget() {
   const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   return (
-    <div className="flex items-center justify-between rounded-lg bg-surface px-4 py-3 text-sm text-ink-soft">
+    <div className="flex h-full items-center justify-between text-sm text-ink-soft">
       <span>
         {currentSong ? (
           <>
@@ -28,7 +28,7 @@ export function NextSongWidget() {
           type="button"
           onClick={advanceToNextSong}
           disabled={!nextSong}
-          className="rounded bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Next Song
         </button>
@@ -37,7 +37,7 @@ export function NextSongWidget() {
           type="button"
           onClick={claimMaster}
           title="Diese Ansicht hat aktuell keine Kontrolle über die Queue"
-          className="rounded bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
+          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
         >
           Master übernehmen
         </button>

@@ -53,7 +53,7 @@ export function PluginManager() {
   )
 
   return (
-    <div className="h-screen overflow-y-auto bg-stage p-4 text-ink">
+    <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Plugins</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Installierte Plugins replizieren über das Bühnen-Netz zu allen Tablets und zum
@@ -67,7 +67,7 @@ export function PluginManager() {
         {installed.map((plugin) => (
           <div
             key={plugin.id}
-            className="flex flex-wrap items-center gap-3 rounded-lg bg-surface px-4 py-3"
+            className="flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">
@@ -81,9 +81,9 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void setEnabled(plugin.id, !plugin.enabled)}
-              className={`rounded px-3 py-1 text-xs font-medium ${
+              className={`rounded-sb-sm px-3 py-1 text-xs font-medium ${
                 plugin.enabled
-                  ? 'bg-amber-500 text-black hover:bg-amber-400'
+                  ? 'bg-accent text-accent-ink hover:bg-accent-hover'
                   : 'bg-control-strong text-ink hover:bg-control-strong-hover'
               }`}
             >
@@ -92,7 +92,7 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}
-              className="rounded bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+              className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -110,7 +110,7 @@ export function PluginManager() {
         {notInstalled.map((candidate) => (
           <div
             key={candidate.id}
-            className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3"
+            className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">{candidate.name}</p>
@@ -121,7 +121,7 @@ export function PluginManager() {
               onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }
-              className="rounded bg-control-strong px-3 py-1 text-xs font-medium text-ink hover:bg-control-strong-hover"
+              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-medium text-ink hover:bg-control-strong-hover"
             >
               Installieren
             </button>

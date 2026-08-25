@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { randomId } from '../lib/id'
 import type { Dashboard, LayoutItem, Breakpoint } from 'shared-types'
 import {
   getAllDashboards,
@@ -34,6 +35,8 @@ interface DashboardsState {
   rename: (id: string, name: string) => Promise<void>
   /** Refuses to delete the last dashboard - a device with none has nothing to show. */
   remove: (id: string) => Promise<void>
+  /** Throws away every dashboard and re-seeds the defaults. */
+  resetToDefaults: () => Promise<void>
   setLayout: (id: string, breakpoint: Breakpoint, layout: LayoutItem[]) => Promise<void>
 }
 
@@ -70,7 +73,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
   },
   create: async (name) => {
     const order = get().dashboards.reduce((max, item) => Math.max(max, item.order), -1) + 1
-    const dashboard: Dashboard = { id: crypto.randomUUID(), name, order, widgets: [], layouts: {} }
+    const dashboard: Dashboard = { id: randomId(), name, order, widgets: [], layouts: {} }
     await putDashboard(dashboard)
     return dashboard
   },
@@ -80,7 +83,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     const order = get().dashboards.reduce((max, item) => Math.max(max, item.order), -1) + 1
     const copy: Dashboard = {
       ...structuredClone(source),
-      id: crypto.randomUUID(),
+      id: randomId(),
       name: newName,
       order,
     }
@@ -95,6 +98,11 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
   remove: async (id) => {
     if (get().dashboards.length <= 1) return
     await removeDashboard(id)
+  },
+  resetToDefaults: async () => {
+    for (const dashboard of get().dashboards) await removeDashboard(dashboard.id)
+    for (const dashboard of defaultDashboards()) await putDashboard(dashboard)
+    await refresh(set)
   },
   setLayout: async (id, breakpoint, layout) => {
     const existing = get().dashboards.find((dashboard) => dashboard.id === id)

@@ -1,38 +1,31 @@
 import { useState } from 'react'
+import { AppMenu } from './components/AppMenu'
 import { Dashboard } from './components/Dashboard'
-import { EditLock } from './components/EditLock'
 import { PluginManager } from './components/PluginManager'
 import { SetlistManager } from './components/SetlistManager'
 import { SheetEditor } from './components/SheetEditor'
-import { WorkspaceSwitcher } from './components/WorkspaceSwitcher'
 import { startSync } from './lib/db'
 import { startDashboardsSync } from './lib/dashboardsDb'
+import { MODE_LABEL, type Mode } from './lib/modes'
 import { startPluginsSync } from './lib/pluginsDb'
 import { startSetlistsSync } from './lib/setlistsDb'
 import { startShowStateSync } from './lib/showStateDb'
+import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useDashboardsStore } from './store/useDashboardsStore'
+import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
-import { useThemeStore } from './store/useThemeStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
-
-type Mode = 'live' | 'edit' | 'setlists' | 'plugins'
-
-const MODE_LABEL: Record<Mode, string> = {
-  live: 'Live',
-  edit: 'Songs',
-  setlists: 'Setlists',
-  plugins: 'Plugins',
-}
 
 function App() {
   const [mode, setMode] = useState<Mode>('live')
+  const [menuOpen, setMenuOpen] = useState(false)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const theme = useThemeStore((state) => state.theme)
-  const toggleTheme = useThemeStore((state) => state.toggle)
+  const isEditingDashboard = useEditModeStore((state) => state.isEditing)
+  useFullscreenOnLaunch()
 
   useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
   useWorkspaceResource(
@@ -57,37 +50,34 @@ function App() {
   )
 
   return (
-    <div className="relative h-screen">
+    <div className="relative h-dvh">
       {mode === 'live' && <Dashboard />}
       {mode === 'edit' && <SheetEditor />}
       {mode === 'setlists' && <SetlistManager />}
       {mode === 'plugins' && <PluginManager />}
-      <WorkspaceSwitcher />
-      <div className="absolute bottom-3 right-3 z-10 flex gap-1">
-        {mode === 'live' && <EditLock />}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          className="rounded bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
-        >
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-        {(['live', 'edit', 'setlists', 'plugins'] as const).map((candidate) => (
+
+      {/* Band, Theme, Fullscreen, Edit-Lock and screen navigation live behind one menu
+          button, not as permanently visible controls: none of them is touched often, and
+          at a real touch-target size they don't fit along one edge anyway. Hidden entirely
+          while the dashboard is unlocked for editing - it used to sit exactly where a
+          bottom-of-grid widget's resize handle needed to be, and the edit toolbar's own
+          "Fertig" button is already the way back out. */}
+      {!isEditingDashboard && (
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
           <button
-            key={candidate}
             type="button"
-            onClick={() => setMode(candidate)}
-            className={`rounded px-3 py-1 text-xs ${
-              mode === candidate
-                ? 'bg-amber-500 text-black'
-                : 'bg-control text-ink-soft hover:bg-control-hover'
-            }`}
+            onClick={() => setMenuOpen(true)}
+            className="flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
           >
-            {MODE_LABEL[candidate]}
+            <span className="text-xl leading-none">☰</span>
+            {MODE_LABEL[mode]}
           </button>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {menuOpen && (
+        <AppMenu mode={mode} onSelectMode={setMode} onClose={() => setMenuOpen(false)} />
+      )}
     </div>
   )
 }

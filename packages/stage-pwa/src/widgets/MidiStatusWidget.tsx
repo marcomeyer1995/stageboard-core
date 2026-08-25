@@ -16,7 +16,7 @@ export function MidiStatusWidget() {
   const { status, jumpToNextSection } = useMidiTrigger()
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3 text-sm text-ink-soft">
+    <div className="flex h-full items-center gap-3 text-sm text-ink-soft">
       <span className="flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
         {STATUS_LABEL[status]}
@@ -24,7 +24,7 @@ export function MidiStatusWidget() {
       <button
         type="button"
         onClick={jumpToNextSection}
-        className="rounded bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover"
+        className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover"
       >
         Fußtaster simulieren
       </button>

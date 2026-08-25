@@ -38,14 +38,14 @@ export function PrompterWidget() {
 
   if (!currentSong) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg bg-surface p-8 text-ink-faint">
+      <div className="flex h-full items-center justify-center text-ink-faint">
         Keine Songs vorhanden
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col rounded-lg bg-surface p-8">
+    <div className="flex h-full flex-col">
       <div className="mb-2 flex items-start justify-between">
         <div>
           <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
@@ -54,7 +54,7 @@ export function PrompterWidget() {
         <button
           type="button"
           onClick={() => setViewMode(viewMode === 'scroll' ? 'paginated' : 'scroll')}
-          className="rounded bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+          className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
         >
           {viewMode === 'scroll' ? 'Smooth Scroll' : 'Paginated View'}
         </button>
@@ -62,11 +62,11 @@ export function PrompterWidget() {
 
       {viewMode === 'paginated' && page ? (
         <>
-          <div className="flex items-baseline justify-between border-b border-control pb-2">
+          <div className="flex items-baseline justify-between border-b border-line pb-2">
             <p className="text-xl font-bold uppercase tracking-widest text-accent">
               {page.label ?? `Seite ${pageIndex + 1}`}
             </p>
-            <p className="font-mono text-sm text-ink-faint">
+            <p className="font-sb-mono text-sm text-ink-faint">
               {pageIndex + 1}/{pages.length}
               {pages[pageIndex + 1]?.label && (
                 <span className="ml-3 text-ink-faint">

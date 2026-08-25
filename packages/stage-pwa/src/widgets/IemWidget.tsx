@@ -28,9 +28,12 @@ export function IemWidget() {
             value={levels[channel]}
             onChange={(e) => setLevels({ ...levels, [channel]: Number(e.target.value) })}
             // Vertical faders: rotating a range input is the only way that stays touch-draggable.
-            className="h-full w-2 flex-1 appearance-none rounded bg-control-strong accent-amber-500 [writing-mode:vertical-lr] [direction:rtl]"
+            // Inline style, not Tailwind's own `accent-*` utility: that utility shares our
+            // color palette too, so `accent-accent` would be the (confusing) class name.
+            style={{ accentColor: 'rgb(var(--sb-accent))' }}
+            className="h-full w-2 flex-1 appearance-none rounded-sb-sm bg-control-strong [writing-mode:vertical-lr] [direction:rtl]"
           />
-          <span className="font-mono text-sm text-ink">{levels[channel]}</span>
+          <span className="font-sb-mono text-sm text-ink">{levels[channel]}</span>
         </div>
       ))}
     </div>
