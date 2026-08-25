@@ -11,6 +11,7 @@ import { startPluginsSync } from './lib/pluginsDb'
 import { startSetlistsSync } from './lib/setlistsDb'
 import { startShowStateSync } from './lib/showStateDb'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
+import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useEditModeStore } from './store/useEditModeStore'
@@ -26,6 +27,7 @@ function App() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   useFullscreenOnLaunch()
+  useWakeLock()
 
   useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
   useWorkspaceResource(
