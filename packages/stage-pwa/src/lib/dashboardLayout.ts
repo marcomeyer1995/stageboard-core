@@ -95,80 +95,97 @@ export function hasOverlap(items: LayoutItem[]): boolean {
   return false
 }
 
+function createOccupancyGrid(cols: number, rows: number) {
+  const occupied: boolean[][] = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false))
+
+  return {
+    isFree(x: number, y: number, w: number, h: number): boolean {
+      for (let row = y; row < y + h; row++) {
+        for (let col = x; col < x + w; col++) {
+          if (occupied[row][col]) return false
+        }
+      }
+      return true
+    },
+    occupy(x: number, y: number, w: number, h: number): void {
+      for (let row = y; row < y + h; row++) {
+        for (let col = x; col < x + w; col++) {
+          occupied[row][col] = true
+        }
+      }
+    },
+  }
+}
+
 /**
- * Dense first-fit fallback: places every item in reading order (top to bottom, then left
- * to right) at the first free cell, preferring its own column. Only reached when the
+ * Places one item at the first free cell (top to bottom, then left to right), preferring
+ * its own column, trying progressively smaller sizes before giving up. Shrinking beats
+ * overlapping: a smaller widget is still usable, one buried under another is not. Shared by
+ * pack() (an empty grid - every item competes for space) and resolveInteraction() (a grid
+ * pre-occupied by every item that does NOT need to move - only the genuinely blocked ones
+ * are placed into whatever gaps that leaves).
+ */
+function placeInGrid(
+  grid: ReturnType<typeof createOccupancyGrid>,
+  item: LayoutItem,
+  cols: number,
+  rows: number,
+): LayoutItem {
+  let w = item.w
+  let h = item.h
+  let spot: { x: number; y: number } | null = null
+
+  outer: for (h = item.h; h >= 1; h--) {
+    for (w = item.w; w >= 1; w--) {
+      const preferredX = Math.min(Math.max(0, item.x), cols - w)
+      for (let y = 0; y + h <= rows; y++) {
+        if (grid.isFree(preferredX, y, w, h)) {
+          spot = { x: preferredX, y }
+          break outer
+        }
+        for (let x = 0; x + w <= cols; x++) {
+          if (grid.isFree(x, y, w, h)) {
+            spot = { x, y }
+            break outer
+          }
+        }
+      }
+    }
+  }
+
+  // Not a single free cell left. Park it in the last row rather than lose a widget
+  // silently - an overlapping widget can still be moved, a missing one cannot.
+  const position = spot ?? { x: 0, y: rows - 1 }
+  if (spot === null) {
+    w = item.w
+    h = 1
+  }
+
+  grid.occupy(position.x, position.y, w, h)
+  return {
+    ...item,
+    x: position.x,
+    y: position.y,
+    w,
+    h,
+    ...(item.minW === undefined ? {} : { minW: Math.min(item.minW, w) }),
+    ...(item.minH === undefined ? {} : { minH: Math.min(item.minH, h) }),
+  }
+}
+
+/**
+ * Dense first-fit fallback: places every item in reading order. Only reached when the
  * layout is actually broken (see normalizeLayout) - on a clean layout this reproduces
  * dense, gap-free positions, which is exactly what must NOT happen to a layout a musician
  * left gaps in on purpose.
  */
 function pack(layout: LayoutItem[], cols: number, rows: number): LayoutItem[] {
-  const occupied: boolean[][] = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false))
-
-  function isFree(x: number, y: number, w: number, h: number): boolean {
-    for (let row = y; row < y + h; row++) {
-      for (let col = x; col < x + w; col++) {
-        if (occupied[row][col]) return false
-      }
-    }
-    return true
-  }
-
-  function occupy(x: number, y: number, w: number, h: number): void {
-    for (let row = y; row < y + h; row++) {
-      for (let col = x; col < x + w; col++) {
-        occupied[row][col] = true
-      }
-    }
-  }
-
+  const grid = createOccupancyGrid(cols, rows)
   const placed = new Map<string, LayoutItem>()
   const ordered = [...layout].sort((a, b) => a.y - b.y || a.x - b.x)
 
   for (const item of ordered) {
-    const wanted = { w: item.w, h: item.h }
-    let w = wanted.w
-    let h = wanted.h
-    let spot: { x: number; y: number } | null = null
-
-    // Try the requested size first, then progressively smaller ones. Shrinking beats
-    // overlapping: a smaller widget is still usable, one buried under another is not.
-    outer: for (h = wanted.h; h >= 1; h--) {
-      for (w = wanted.w; w >= 1; w--) {
-        const preferredX = Math.min(Math.max(0, item.x), cols - w)
-        for (let y = 0; y + h <= rows; y++) {
-          if (isFree(preferredX, y, w, h)) {
-            spot = { x: preferredX, y }
-            break outer
-          }
-          for (let x = 0; x + w <= cols; x++) {
-            if (isFree(x, y, w, h)) {
-              spot = { x, y }
-              break outer
-            }
-          }
-        }
-      }
-    }
-
-    // Not a single free cell left. Park it in the last row rather than lose a widget
-    // silently - an overlapping widget can still be moved, a missing one cannot.
-    const position = spot ?? { x: 0, y: rows - 1 }
-    if (spot === null) {
-      w = wanted.w
-      h = 1
-    }
-
-    occupy(position.x, position.y, w, h)
-    placed.set(item.i, {
-      ...item,
-      x: position.x,
-      y: position.y,
-      w,
-      h,
-      ...(item.minW === undefined ? {} : { minW: Math.min(item.minW, w) }),
-      ...(item.minH === undefined ? {} : { minH: Math.min(item.minH, h) }),
-    })
+    placed.set(item.i, placeInGrid(grid, item, cols, rows))
   }
 
   return layout.map((item) => placed.get(item.i) ?? item)
@@ -194,6 +211,52 @@ export function normalizeLayout(
   const clamped = layout.map((item) => clampItem(item, cols, rows))
   if (!hasOverlap(clamped)) return clamped
   return pack(clamped, cols, rows)
+}
+
+/** True when two items share a grid cell - the pairwise version hasOverlap checks all pairs for. */
+function collides(a: LayoutItem, b: LayoutItem): boolean {
+  return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y)
+}
+
+/**
+ * Undoes react-grid-layout's own collision-avoidance shuffling once a drag or resize ends.
+ * While the active item is being dragged across the grid, the library pushes any widget it
+ * passes over out of the way - but it never moves them back once the active item has moved
+ * on, so sliding one widget past another permanently shoves that other widget aside (and,
+ * left unchecked, clean off the visible grid). This restores every item but the active one
+ * to its pre-interaction position, and only re-places the ones that genuinely still overlap
+ * the active item's final spot - not the whole layout, so nothing else drifts either.
+ */
+export function resolveInteraction(
+  baseline: LayoutItem[],
+  activeId: string,
+  current: LayoutItem[],
+  cols = GRID_COLUMNS,
+  rows = GRID_ROWS,
+): LayoutItem[] {
+  const activeItem = current.find((item) => item.i === activeId)
+  if (!activeItem) return current
+
+  const baselineById = new Map(baseline.map((item) => [item.i, item]))
+  const restored = current.map((item) =>
+    item.i === activeId ? item : (baselineById.get(item.i) ?? item),
+  )
+
+  const blocked = restored.filter((item) => item.i !== activeId && collides(item, activeItem))
+  if (blocked.length === 0) return restored
+
+  const grid = createOccupancyGrid(cols, rows)
+  const blockedIds = new Set(blocked.map((item) => item.i))
+  for (const item of restored) {
+    if (!blockedIds.has(item.i)) grid.occupy(item.x, item.y, item.w, item.h)
+  }
+
+  const placed = new Map(
+    [...blocked]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((item) => [item.i, placeInGrid(grid, item, cols, rows)] as const),
+  )
+  return restored.map((item) => placed.get(item.i) ?? item)
 }
 
 /**

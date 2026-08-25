@@ -9,6 +9,7 @@ import {
   gridMetrics,
   hasOverlap,
   normalizeLayout,
+  resolveInteraction,
   withWidgetAppended,
   withWidgetRemoved,
 } from './dashboardLayout'
@@ -312,6 +313,79 @@ describe('normalizeLayout', () => {
         }
       }
     }
+  })
+})
+
+describe('resolveInteraction', () => {
+  it('restores a widget the active one only passed over, not actually blocking it anymore', () => {
+    // The reported bug: dragging "a" down across "b" pushes "b" aside; once "a" clears "b"'s
+    // original cell entirely, "b" has no reason left to stay displaced.
+    const baseline = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 3, w: 4, h: 3 },
+    ]
+    // react-grid-layout's own collision-avoidance, mid-drag: "a" landed where "b" used to
+    // be, and "b" got shoved down out of the way - but "a" isn't over "b" anymore.
+    const current = [
+      { i: 'a', x: 0, y: 6, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 9, w: 4, h: 3 },
+    ]
+    const result = resolveInteraction(baseline, 'a', current)
+    expect(result).toEqual([
+      { i: 'a', x: 0, y: 6, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 3, w: 4, h: 3 },
+    ])
+  })
+
+  it('leaves a widget displaced only while it is still genuinely in the way', () => {
+    const baseline = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 3, w: 4, h: 3 },
+    ]
+    // "a" was dropped exactly on top of "b"'s old spot - restoring "b" there would overlap.
+    const current = [
+      { i: 'a', x: 0, y: 3, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 6, w: 4, h: 3 },
+    ]
+    const result = resolveInteraction(baseline, 'a', current)
+    expect(overlaps(result)).toBe(false)
+    const a = result.find((item) => item.i === 'a')
+    const b = result.find((item) => item.i === 'b')
+    expect(a).toEqual({ i: 'a', x: 0, y: 3, w: 4, h: 3 })
+    expect(b?.y).not.toBe(3)
+  })
+
+  it('does not touch a widget uninvolved in the interaction, even if others moved', () => {
+    const baseline = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 3, w: 4, h: 3 },
+      { i: 'c', x: 8, y: 8, w: 4, h: 3 },
+    ]
+    const current = [
+      { i: 'a', x: 0, y: 6, w: 4, h: 3 },
+      { i: 'b', x: 0, y: 9, w: 4, h: 3 },
+      { i: 'c', x: 8, y: 8, w: 4, h: 3 },
+    ]
+    const result = resolveInteraction(baseline, 'a', current)
+    expect(result.find((item) => item.i === 'c')).toEqual(baseline[2])
+  })
+
+  it('leaves a deliberate gap alone when the interaction never touched it', () => {
+    const baseline = [
+      { i: 'a', x: 0, y: 0, w: 12, h: 2 },
+      { i: 'b', x: 0, y: 8, w: 12, h: 2 },
+    ]
+    const current = [
+      { i: 'a', x: 4, y: 0, w: 12, h: 2 },
+      { i: 'b', x: 0, y: 8, w: 12, h: 2 },
+    ]
+    expect(resolveInteraction(baseline, 'a', current)).toEqual(current)
+  })
+
+  it('falls back to the current layout unchanged if the active widget went missing', () => {
+    const baseline = [{ i: 'a', x: 0, y: 0, w: 4, h: 3 }]
+    const current = [{ i: 'b', x: 0, y: 0, w: 4, h: 3 }]
+    expect(resolveInteraction(baseline, 'a', current)).toEqual(current)
   })
 })
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { noCompactor, ResponsiveGridLayout, type Layout } from 'react-grid-layout'
+import { noCompactor, ResponsiveGridLayout, type Layout, type LayoutItem as RglLayoutItem } from 'react-grid-layout'
 import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-types'
 import { capabilityStatusFor } from '../lib/capabilities'
 import {
@@ -8,6 +8,7 @@ import {
   GRID_ROWS,
   gridMetrics,
   normalizeLayout,
+  resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
 import { useCapabilities } from '../lib/useCapabilities'
@@ -35,6 +36,20 @@ function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint): LayoutItem[
   return normalizeLayout(dashboard.layouts[breakpoint] ?? [])
 }
 
+// Only our own LayoutItem fields, not react-grid-layout's interaction bookkeeping (moved,
+// static, ...) - that's meaningless once persisted and just noise the next read carries.
+function toItems(layout: Layout): LayoutItem[] {
+  return layout.map(({ i, x, y, w, h, minW, minH }) => ({
+    i,
+    x,
+    y,
+    w,
+    h,
+    ...(minW === undefined ? {} : { minW }),
+    ...(minH === undefined ? {} : { minH }),
+  }))
+}
+
 export function Dashboard() {
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const loaded = useDashboardsStore((state) => state.loaded)
@@ -57,6 +72,13 @@ export function Dashboard() {
   const breakpoint = breakpointFor(width)
   const metrics = gridMetrics(height)
   const pendingLayout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The layout as it stood right before the current drag/resize, plus which widget that
+  // interaction belongs to - resolveInteraction needs both to tell "genuinely still in the
+  // way" apart from "just passed over a moment ago" once the interaction ends.
+  const interactionBaseline = useRef<{ layout: LayoutItem[]; activeId: string } | null>(null)
+  const captureBaseline = (layout: Layout, item: RglLayoutItem | null) => {
+    if (item) interactionBaseline.current = { layout: toItems(layout), activeId: item.i }
+  }
 
   useEffect(() => () => {
     if (pendingLayout.current) clearTimeout(pendingLayout.current)
@@ -134,25 +156,25 @@ export function Dashboard() {
               enabled: isEditing,
               handles: ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'],
             }}
+            // react-grid-layout pushes other widgets out of the active one's way while it's
+            // being dragged across the grid, but never moves them back once it's passed -
+            // left alone, that permanently shoves them aside. Snapshotting the layout right
+            // before each interaction is what lets onLayoutChange's resolveInteraction call
+            // undo that afterwards for every widget that isn't actually still in the way.
+            onDragStart={captureBaseline}
+            onResizeStart={captureBaseline}
             onLayoutChange={(layout: Layout) => {
               if (!isEditing) return
               // Debounced: a drag ends in a flurry of layout callbacks, and each write
               // would otherwise become its own CouchDB revision to replicate.
               if (pendingLayout.current) clearTimeout(pendingLayout.current)
-              // Only our own LayoutItem fields, not react-grid-layout's interaction
-              // bookkeeping (moved, static, ...) - that's meaningless once persisted and
-              // just noise the next read has to carry around.
-              const items: LayoutItem[] = layout.map(({ i, x, y, w, h, minW, minH }) => ({
-                i,
-                x,
-                y,
-                w,
-                h,
-                ...(minW === undefined ? {} : { minW }),
-                ...(minH === undefined ? {} : { minH }),
-              }))
+              const items = toItems(layout)
+              const baseline = interactionBaseline.current
+              const resolved = baseline
+                ? resolveInteraction(baseline.layout, baseline.activeId, items)
+                : items
               pendingLayout.current = setTimeout(() => {
-                void setLayout(active.id, breakpoint, items)
+                void setLayout(active.id, breakpoint, resolved)
               }, 400)
             }}
           >
