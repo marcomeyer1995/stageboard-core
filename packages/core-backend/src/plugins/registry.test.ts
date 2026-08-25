@@ -11,7 +11,9 @@ describe('PluginRegistry', () => {
   it('lists a registered plugin', async () => {
     const registry = new PluginRegistry()
     await registry.register(createMockMixerPlugin(), testContext())
-    expect(registry.list()).toEqual([{ name: 'mock-mixer', version: '0.0.1' }])
+    expect(registry.list()).toEqual([
+      { name: 'mock-mixer', version: '0.0.1', capabilities: ['mixer'] },
+    ])
   })
 
   it('routes a trigger to the matching plugin', async () => {
@@ -22,6 +24,22 @@ describe('PluginRegistry', () => {
       payload: { volume: 9 },
     })
     expect(result).toEqual({ status: 'ok', data: { volume: 9 } })
+  })
+
+  it('drops a plugin on unregister, calling its shutdown hook', async () => {
+    const registry = new PluginRegistry()
+    const shutdown = vi.fn()
+    const plugin = { ...createMockMixerPlugin(), shutdown }
+    await registry.register(plugin, testContext())
+    await registry.unregister('mock-mixer')
+    expect(shutdown).toHaveBeenCalledOnce()
+    expect(registry.list()).toEqual([])
+    expect(await registry.trigger('mock-mixer', { type: 'anything' })).toBeNull()
+  })
+
+  it('ignores unregistering a plugin that was never registered', async () => {
+    const registry = new PluginRegistry()
+    await expect(registry.unregister('nope')).resolves.toBeUndefined()
   })
 
   it('returns null for an unknown plugin', async () => {

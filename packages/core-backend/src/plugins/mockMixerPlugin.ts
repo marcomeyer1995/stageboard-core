@@ -1,4 +1,4 @@
-import type { IShowControlPlugin, PluginContext, ShowControlEvent, ShowControlResult } from 'shared-types'
+import { CAPABILITIES, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 
 /**
  * Hardware-mock per docs/03_Developer_Experience.md: stands in for a real
@@ -13,6 +13,7 @@ export function createMockMixerPlugin(): IShowControlPlugin {
   return {
     name: 'mock-mixer',
     version: '0.0.1',
+    capabilities: [CAPABILITIES.mixer],
     init(ctx: PluginContext) {
       context = ctx
       context.log.info('mock-mixer plugin initialized')

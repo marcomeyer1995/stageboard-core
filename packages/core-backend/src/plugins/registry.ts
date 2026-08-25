@@ -1,4 +1,4 @@
-import type { IShowControlPlugin, PluginContext, ShowControlEvent } from 'shared-types'
+import type { CapabilityId, IShowControlPlugin, PluginContext, ShowControlEvent } from 'shared-types'
 
 /**
  * Minimal Show Control Gateway: holds every registered hardware-facing plugin
@@ -14,8 +14,20 @@ export class PluginRegistry {
     this.plugins.set(plugin.name, plugin)
   }
 
-  list(): Array<{ name: string; version: string }> {
-    return [...this.plugins.values()].map(({ name, version }) => ({ name, version }))
+  list(): Array<{ name: string; version: string; capabilities: CapabilityId[] }> {
+    return [...this.plugins.values()].map(({ name, version, capabilities }) => ({
+      name,
+      version,
+      capabilities,
+    }))
+  }
+
+  /** Removes a plugin, e.g. after it was disabled in the replicated installation docs. */
+  async unregister(name: string): Promise<void> {
+    const plugin = this.plugins.get(name)
+    if (!plugin) return
+    await plugin.shutdown?.()
+    this.plugins.delete(name)
   }
 
   get(name: string): IShowControlPlugin | undefined {

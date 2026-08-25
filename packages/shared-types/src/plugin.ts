@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { CapabilityId } from './capability.js'
 
 export interface PluginContext {
   log: {
@@ -10,6 +11,8 @@ export interface PluginContext {
 export interface IPlugin {
   name: string
   version: string
+  /** What this plugin enables in the UI - the same vocabulary widgets declare in `requires`. */
+  capabilities: CapabilityId[]
   init(context: PluginContext): Promise<void> | void
   shutdown?(): Promise<void> | void
 }

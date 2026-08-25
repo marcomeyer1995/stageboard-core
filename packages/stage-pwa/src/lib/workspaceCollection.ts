@@ -8,6 +8,8 @@ export interface WorkspaceCollection<T extends { id: string }> {
   switchWorkspace: (workspaceId: string) => PouchDB.Database<T>
   getAll: () => Promise<Doc<T>[]>
   put: (doc: T) => Promise<void>
+  /** Deleting a missing document is a no-op, so callers don't have to check first. */
+  remove: (id: string) => Promise<void>
   /**
    * Stays synchronous on purpose: PouchDB's Sync object is itself thenable,
    * so `await`ing anything that returns it (even indirectly through an
@@ -46,6 +48,12 @@ export function createWorkspaceCollection<T extends { id: string }>(
         ? { ...doc, _id: doc.id, _rev: existing._rev }
         : { ...doc, _id: doc.id }
       await db.put(putDoc as PouchDB.Core.PutDocument<T>)
+    },
+
+    remove: async (id) => {
+      const existing = await db.get(id).catch(() => null)
+      if (!existing) return
+      await db.remove(existing)
     },
 
     startSync: (workspaceId) => {

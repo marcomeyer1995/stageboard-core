@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import { ShowControlEventSchema, SongSchema, type Song } from 'shared-types'
-import { createMockMixerPlugin } from './plugins/mockMixerPlugin.js'
+import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
 
 const app = Fastify({ logger: true })
@@ -44,7 +44,21 @@ async function main() {
     info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
     error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
   }
-  await registry.register(createMockMixerPlugin(), { log: pluginLog })
+
+  // Which plugins run is not configured here: the band installs them in the PWA, and the
+  // installation documents replicate to this server over CouchDB (docs/01, mesh).
+  const sync = createPluginSync({
+    couch: {
+      url: process.env.COUCHDB_URL ?? 'http://localhost:5984',
+      user: process.env.COUCHDB_USER ?? 'admin',
+      password: process.env.COUCHDB_PASSWORD ?? 'admin',
+    },
+    workspaceId: process.env.STAGEBOARD_WORKSPACE ?? 'band-a',
+    registry,
+    log: pluginLog,
+  })
+  app.addHook('onClose', async () => sync.stop())
+
   await app.listen({ port, host: '0.0.0.0' })
 }
 
