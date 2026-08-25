@@ -48,6 +48,6 @@ Das Ziel: Band-Management und Gig-Vorbereitung.
 Das Ziel: Absicherung und Ausbau für große Gigs.
 
 * **Schritt 1:** Das Backup-Plugin.
-* **Schritt 2:** Das "Venue Profile" (Graceful Degradation von UI-Widgets).
+* **Schritt 2:** Das "Venue Profile" (Graceful Degradation von UI-Widgets). ✅ Umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)): Plugins deklarieren Capabilities, Widgets fordern sie an. Installierte Plugins replizieren über das Bühnen-Netz; der Stage-Server startet/stoppt daraufhin seine Implementierungen und schreibt einen Heartbeat. Fehlt ein Plugin, fehlt das Widget in der Bibliothek; ist die Hardware nur unerreichbar (oder der Heartbeat >15 s alt), bleibt das Widget an seinem Platz und graut aus. Dazu: beliebig viele frei konfigurierbare **Dashboards** mit Drag&Drop-Raster pro Bildschirmklasse, Edit-Lock per Long-Press und ein Umschalt-Widget.
 * **Schritt 3 (Optional):** Erster Architektur-Test für das Redundanz-Plugin (Virtual IP / B-Rig).
 * **Schritt 4:** Community-Plugins (Mischpult-Adapter, DMX-Licht).
