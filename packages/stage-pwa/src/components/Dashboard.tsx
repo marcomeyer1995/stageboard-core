@@ -76,7 +76,6 @@ export function Dashboard() {
   // portrait tablet writing its edits into the landscape layout.
   const breakpoint = breakpointFor(width)
   const metrics = gridMetrics(height)
-  const pendingLayout = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The layout as it stood right before the current drag/resize, plus which widget that
   // interaction belongs to - resolveInteraction needs both to tell "genuinely still in the
   // way" apart from "just passed over a moment ago", live as the interaction happens. null
@@ -85,8 +84,16 @@ export function Dashboard() {
   const captureBaseline = (layout: Layout, item: RglLayoutItem | null) => {
     if (item) interactionBaseline.current = { layout: toItems(layout), activeId: item.i }
   }
-  const releaseBaseline = () => {
+  // Persisting from onDragStop/onResizeStop themselves, not from the grid's general
+  // onLayoutChange - that fires for ANY layout-prop change, including ones this component
+  // caused itself (e.g. Zurücksetzen rewriting the active dashboard while still in edit
+  // mode). Writing those back too created a loop: our own write became a CouchDB change,
+  // which updated the layouts prop, which the grid dutifully "changed" again, which got
+  // written back again - editing had to stop or the dashboard had to switch to break it.
+  // onDragStop/onResizeStop only fire once, at the true end of an actual gesture.
+  const stopInteraction = (layout: Layout) => {
     interactionBaseline.current = null
+    if (active) void setLayout(active.id, breakpoint, toItems(layout))
   }
   // react-grid-layout pushes other widgets out of the active one's way as it passes over
   // them, then calls compact() on every single drag/resize frame to settle the result -
@@ -118,13 +125,18 @@ export function Dashboard() {
     [],
   )
 
-  useEffect(() => () => {
-    if (pendingLayout.current) clearTimeout(pendingLayout.current)
-  }, [])
-
   // A dashboard the device remembers may have been deleted on another tablet.
   const active =
     dashboards.find((dashboard) => dashboard.id === byWorkspace[workspaceId]) ?? dashboards[0]
+
+  // A baseline belongs to one specific dashboard's widgets and must never outlive it - e.g.
+  // switching away mid-drag, or the active dashboard being rewritten out from under the grid
+  // (Zurücksetzen re-creates it with the same default widget ids), would otherwise leave a
+  // stale baseline that the compactor below keeps trying to enforce against data it no
+  // longer describes.
+  useEffect(() => {
+    interactionBaseline.current = null
+  }, [active?.id])
 
   const layouts = useMemo(() => {
     if (!active) return {}
@@ -191,20 +203,8 @@ export function Dashboard() {
             }}
             onDragStart={captureBaseline}
             onResizeStart={captureBaseline}
-            onDragStop={releaseBaseline}
-            onResizeStop={releaseBaseline}
-            onLayoutChange={(layout: Layout) => {
-              if (!isEditing) return
-              // Debounced: a drag ends in a flurry of layout callbacks, and each write
-              // would otherwise become its own CouchDB revision to replicate. The
-              // rubber-band compactor above has already resolved every displaced widget
-              // by the time this fires, so there is nothing left to do here but persist.
-              if (pendingLayout.current) clearTimeout(pendingLayout.current)
-              const items = toItems(layout)
-              pendingLayout.current = setTimeout(() => {
-                void setLayout(active.id, breakpoint, items)
-              }, 400)
-            }}
+            onDragStop={stopInteraction}
+            onResizeStop={stopInteraction}
           >
             {active.widgets.map((widget) => {
               const definition = WIDGET_REGISTRY[widget.type]
