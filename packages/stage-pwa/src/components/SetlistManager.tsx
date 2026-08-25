@@ -4,6 +4,7 @@ import { useQueue } from '../lib/queue'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { randomId } from '../lib/id'
 
 export function SetlistManager() {
   const songs = useSongsStore((state) => state.songs)
@@ -20,7 +21,7 @@ export function SetlistManager() {
     const name = window.prompt('Name der neuen Setlist?')
     if (!name?.trim()) return
     const setlist: Setlist = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       name: name.trim(),
       songIds: songs.map((song) => song.id),
     }
@@ -56,8 +57,8 @@ export function SetlistManager() {
   }
 
   return (
-    <div className="grid h-screen grid-cols-2 gap-3 bg-stage p-3 text-ink">
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4">
+    <div className="grid h-dvh grid-cols-2 gap-3 sb-app-bg p-3 text-ink">
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-ink-muted">
             Setlists
@@ -65,7 +66,7 @@ export function SetlistManager() {
           <button
             type="button"
             onClick={createSetlist}
-            className="rounded bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover"
+            className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover"
           >
             + Neu
           </button>
@@ -74,7 +75,7 @@ export function SetlistManager() {
           {setlists.map((setlist) => (
             <li
               key={setlist.id}
-              className="flex items-center justify-between gap-2 rounded bg-control px-3 py-2 text-sm"
+              className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm"
             >
               <button
                 type="button"
@@ -89,7 +90,7 @@ export function SetlistManager() {
               <button
                 type="button"
                 onClick={() => handleDuplicate(setlist.id)}
-                className="rounded bg-control-strong px-2 py-0.5 text-xs hover:bg-control-strong-hover"
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs hover:bg-control-strong-hover"
               >
                 Duplizieren
               </button>
@@ -97,7 +98,7 @@ export function SetlistManager() {
                 type="button"
                 onClick={() => setActiveSetlist(setlist.id)}
                 disabled={!isMaster}
-                className="rounded bg-amber-500 px-2 py-0.5 text-xs font-medium text-black hover:bg-amber-400 disabled:opacity-40"
+                className="rounded-sb-sm bg-accent-2 px-2 py-0.5 text-xs font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
               >
                 Aktivieren
               </button>
@@ -109,14 +110,14 @@ export function SetlistManager() {
             type="button"
             onClick={() => setActiveSetlist(null)}
             disabled={!isMaster}
-            className="self-start rounded bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover disabled:opacity-40"
+            className="self-start rounded-sb-sm bg-control-strong px-2 py-1 text-xs hover:bg-control-strong-hover disabled:opacity-40"
           >
             Setlist deaktivieren (alle Songs)
           </button>
         )}
       </div>
 
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4">
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
         {selected ? (
           <>
             <h2 className="text-sm font-semibold uppercase tracking-widest text-ink-muted">
@@ -128,7 +129,7 @@ export function SetlistManager() {
                 return (
                   <li
                     key={`${songId}-${index}`}
-                    className="flex items-center justify-between gap-2 rounded bg-control px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm"
                   >
                     <span>
                       {index + 1}. {song?.title ?? '(unbekannter Song)'}
@@ -137,21 +138,21 @@ export function SetlistManager() {
                       <button
                         type="button"
                         onClick={() => moveSong(index, -1)}
-                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
+                        className="rounded-sb-sm bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ↑
                       </button>
                       <button
                         type="button"
                         onClick={() => moveSong(index, 1)}
-                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
+                        className="rounded-sb-sm bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ↓
                       </button>
                       <button
                         type="button"
                         onClick={() => removeSong(index)}
-                        className="rounded bg-control-strong px-2 hover:bg-control-strong-hover"
+                        className="rounded-sb-sm bg-control-strong px-2 hover:bg-control-strong-hover"
                       >
                         ×
                       </button>
@@ -163,7 +164,7 @@ export function SetlistManager() {
             <label className="flex flex-col gap-1 text-sm text-ink-muted">
               Song hinzufügen
               <select
-                className="rounded bg-control px-2 py-1 text-ink"
+                className="rounded-sb-sm bg-control px-2 py-1 text-ink"
                 value=""
                 onChange={(e) => addSong(e.target.value)}
               >

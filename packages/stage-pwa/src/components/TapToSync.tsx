@@ -56,19 +56,19 @@ export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between rounded bg-control px-3 py-2 text-sm text-ink-soft">
+      <div className="flex items-center justify-between rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
         <span>
-          Drücke <kbd className="rounded bg-control-strong px-1.5 py-0.5 font-mono">Leertaste</kbd>{' '}
+          Drücke <kbd className="rounded-sb-sm bg-control-strong px-1.5 py-0.5 font-sb-mono">Leertaste</kbd>{' '}
           oder klicke "Tap" im Takt jeder Zeile.
         </span>
-        <span className="font-mono text-ink">{(elapsedMs / 1000).toFixed(2)}s</span>
+        <span className="font-sb-mono text-ink">{(elapsedMs / 1000).toFixed(2)}s</span>
       </div>
-      <div className="flex-1 space-y-1 overflow-y-auto rounded bg-control p-3 font-mono text-sm">
+      <div className="flex-1 space-y-1 overflow-y-auto rounded-sb-sm bg-control p-3 font-sb-mono text-sm">
         {lines.map((line, i) => (
           <p
             key={i}
-            className={`rounded px-2 py-1 ${
-              i === tapIndex ? 'bg-amber-500/30 text-ink' : 'text-ink-muted'
+            className={`rounded-sb-sm px-2 py-1 ${
+              i === tapIndex ? 'bg-accent-2/30 text-ink' : 'text-ink-muted'
             }`}
           >
             {line || ' '}
@@ -80,14 +80,14 @@ export function TapToSync({ content, onComplete, onCancel }: TapToSyncProps) {
           type="button"
           onClick={tap}
           disabled={tapIndex < 0}
-          className="flex-1 rounded bg-amber-500 py-3 text-lg font-bold text-black hover:bg-amber-400 disabled:opacity-40"
+          className="flex-1 rounded-sb-sm bg-accent-2 py-3 text-lg font-bold text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
         >
           Tap
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded bg-control-strong px-4 py-3 text-sm hover:bg-control-strong-hover"
+          className="rounded-sb-sm bg-control-strong px-4 py-3 text-sm hover:bg-control-strong-hover"
         >
           Abbrechen
         </button>

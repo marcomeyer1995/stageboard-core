@@ -4,13 +4,14 @@ import { parseChordPro } from '../lib/chordpro'
 import { useSongsStore } from '../store/useSongsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { TapToSync } from './TapToSync'
+import { randomId } from '../lib/id'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
 
 function emptyDraft(): Song {
   return {
-    id: crypto.randomUUID(),
+    id: randomId(),
     title: '',
     bpm: 120,
     chordProContent: '',
@@ -81,12 +82,12 @@ export function SheetEditor() {
   const preview = parseChordPro(draft.chordProContent)
 
   return (
-    <div className="grid h-screen grid-cols-2 gap-3 bg-stage p-3 text-ink">
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-4">
+    <div className="grid h-dvh grid-cols-2 gap-3 sb-app-bg p-3 text-ink">
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Song
           <select
-            className="rounded bg-control px-2 py-1 text-ink"
+            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
             value={isNewDraft ? '' : draft.id}
             onChange={(e) => selectSong(e.target.value)}
           >
@@ -106,14 +107,14 @@ export function SheetEditor() {
             setError(null)
             setSavedAt(null)
           }}
-          className="self-start rounded bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
+          className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
         >
           + Neuer Song
         </button>
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Titel
           <input
-            className="rounded bg-control px-2 py-1 text-ink"
+            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           />
@@ -122,7 +123,7 @@ export function SheetEditor() {
           BPM
           <input
             type="number"
-            className="rounded bg-control px-2 py-1 text-ink"
+            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
             value={draft.bpm}
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
@@ -144,7 +145,7 @@ export function SheetEditor() {
                 type="button"
                 onClick={() => setIsTapping(true)}
                 disabled={!draft.chordProContent.trim()}
-                className="rounded bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
               >
                 Tap-to-Sync starten
               </button>
@@ -155,7 +156,7 @@ export function SheetEditor() {
                   key={label}
                   type="button"
                   onClick={() => insertPart(label)}
-                  className="rounded bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
+                  className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
                 >
                   + {label}
                 </button>
@@ -163,7 +164,7 @@ export function SheetEditor() {
             </div>
             <textarea
               ref={textareaRef}
-              className="min-h-[240px] flex-1 rounded bg-control p-2 font-mono text-sm text-ink"
+              className="min-h-[240px] flex-1 rounded-sb-sm bg-control p-2 font-sb-mono text-sm text-ink"
               value={draft.chordProContent}
               onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
               placeholder="[00:00.00] Come on baby [G] don't you wanna go"
@@ -174,13 +175,13 @@ export function SheetEditor() {
         <button
           type="button"
           onClick={handleSave}
-          className="rounded bg-amber-500 px-4 py-2 font-medium text-black hover:bg-amber-400"
+          className="rounded-sb-sm bg-accent-2 px-4 py-2 font-medium text-accent-ink hover:bg-accent-2-hover"
         >
           Speichern
         </button>
         {savedAt && <p className="text-xs text-ink-faint">Gespeichert.</p>}
       </div>
-      <div className="overflow-y-auto rounded-lg bg-surface p-6">
+      <div className="overflow-y-auto rounded-sb border border-line bg-surface p-6 shadow-sb">
         <ChordProLyrics lines={preview} />
       </div>
     </div>

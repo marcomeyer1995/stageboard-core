@@ -24,7 +24,7 @@ export function ChordProLyrics({
   }
 
   return (
-    <div className="space-y-3 pt-4 font-mono text-lg leading-loose text-ink">
+    <div className="space-y-3 pt-4 font-sb-mono text-lg leading-loose text-ink">
       {lines.map((line, offset) => {
         const lineIndex = startIndex + offset
         const previous = offset > 0 ? lines[offset - 1] : null
@@ -34,14 +34,14 @@ export function ChordProLyrics({
           <div key={lineIndex}>
             {!hidePartLabels && startsPart && (
               // Song part label from docs/04 - the visual bracket that groups a block of lines.
-              <p className="mb-1 mt-4 border-l-2 border-amber-500 pl-2 font-sans text-xs font-bold uppercase tracking-widest text-accent first:mt-0">
+              <p className="mb-1 mt-4 border-l-2 border-accent pl-2 font-sans text-xs font-bold uppercase tracking-widest text-accent first:mt-0">
                 {line.partLabel}
               </p>
             )}
             <p
               data-line-index={lineIndex}
-              className={`-mx-2 whitespace-pre-wrap rounded px-2 transition-colors duration-300 ${
-                lineIndex === activeIndex ? 'bg-amber-500/20' : ''
+              className={`-mx-2 whitespace-pre-wrap rounded-sb-sm px-2 transition-colors duration-300 ${
+                lineIndex === activeIndex ? 'bg-accent-2/20' : ''
               }`}
             >
               {line.segments.map((segment, segmentIndex) => (
