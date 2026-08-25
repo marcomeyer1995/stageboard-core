@@ -7,7 +7,7 @@ Das Ziel: Eine rudimentäre Web-App (PWA), die lokal Daten speichert, und ein le
 
 * **Schritt 1:** Monorepo-Setup (`stageboard-core`). ✅
 * **Schritt 2:** PouchDB Integration im Frontend (Lokales Speichern von Dummy-Songs). ✅
-* **Schritt 3:** Das Basis-UI. Implementierung des "Widget-Grids" mit Tailwind CSS (leere Kacheln) und dem Dark/Light-Mode Toggle. ✅ Dark Mode als Standard steht; der eigentliche Toggle (Light Mode, siehe [docs/07](07_UI_Konzept.md)) fehlt noch — kein Blocker für spätere Phasen, aber offen.
+* **Schritt 3:** Das Basis-UI. Implementierung des "Widget-Grids" mit Tailwind CSS (leere Kacheln) und dem Dark/Light-Mode Toggle. ✅ Dark Mode ist Standard, der Light-Mode-Toggle ist umgesetzt (persistiert in `localStorage`). Die Widgets nutzen dafür keine `dark:`-Varianten, sondern semantische Farb-Tokens (`bg-surface`, `text-ink`, `text-accent`, …) aus CSS-Variablen — Theme-Wechsel ist eine einzige Klasse auf `<html>`.
 * **Meilenstein-Test:** ✅ Du kannst die PWA ohne Internetverbindung öffnen, einen Song anlegen, die App neu laden und der Song ist noch da.
 
 ## Phase 2: Der "Song-Studio" Editor & ChordPro (Woche 2) — ✅ Abgeschlossen
@@ -23,7 +23,7 @@ Das Ziel: StageBoard bekommt ein Zeitgefühl.
 
 * **Schritt 1:** Die Master-Clock. Implementierung eines globalen Timecodes über Zustand (State Management). ✅ (`useClockStore`, reaktiv über `useElapsedMs` per requestAnimationFrame statt globaler Re-Renders)
 * **Schritt 2:** Das "Tap-to-Sync" Plugin für den Editor. ✅ (`TapToSync.tsx` im Sheet Editor — Leertaste/Tap-Button schreibt pro Zeile den aktuellen Master-Clock-Timecode)
-* **Schritt 3:** Die Dual-Prompter-Ansicht: Umsetzung von "Smooth Scroll" und "Paginated View". ✅ Beide Modi nutzen den Timecode für Section Highlighting; "Song-Parts"-Labels (siehe [docs/04](04_Editor_Und_Datenstruktur.md)) und echte Seiten-Grenzen für Paginated View gibt's noch nicht — aktuell hebt Paginated View nur zeilenweise hervor statt in echten "Seiten" zu blättern.
+* **Schritt 3:** Die Dual-Prompter-Ansicht: Umsetzung von "Smooth Scroll" und "Paginated View". ✅ Beide Modi nutzen den Timecode für Section Highlighting. "Song-Parts" (`{part: Chorus}`, siehe [docs/04](04_Editor_Und_Datenstruktur.md)) sind umgesetzt und bilden zugleich die echten Seiten-Grenzen: Paginated View zeigt genau einen Part pro Seite (mit Label und `n/m`-Anzeige) und blättert den ganzen Block um, statt zeilenweise zu scrollen. Songs ohne Parts fallen auf feste Blöcke à 6 Zeilen zurück.
 * **Meilenstein-Test:** ✅ Du startest die Uhr, und der Text auf dem Tablet scrollt oder blättert völlig automatisch im richtigen Moment um.
 
 ## Phase 4: Microkernel & Das erste Plugin (Woche 4) — ✅ Abgeschlossen
@@ -33,7 +33,7 @@ Komplett ohne physische Hardware gebaut — genau wie [docs/03](03_Developer_Exp
 
 * **Schritt 1:** Definition des `IPlugin` Interfaces im `shared-types` Workspace. ✅ Bereits in Phase 1 vorgezogen; jetzt um `IShowControlPlugin` (Zod-validierte `ShowControlEvent`/`ShowControlResult`) ergänzt.
 * **Schritt 2:** Das "Show Control Gateway" im Fastify-Backend bauen. ✅ `PluginRegistry` + Mock-Mischpult-Plugin (exakt das `{status:"ok", volume:5}`-Beispiel aus docs/03), Routen `GET /plugins` und `POST /plugins/:name/trigger`.
-* **Schritt 3:** Entwicklung des Plugins: "Generic WebMIDI Input". ✅ `webMidi.ts` im Frontend (WebMIDI ist eine Browser-API, kein Backend-Plugin) — Note-On/Program-Change lösen einen Sprung zur nächsten Zeile aus. Kein Gerät angeschlossen ist ein normaler Zustand (Graceful Degradation), kein Fehler; ein "Fußtaster simulieren"-Button deckt den Meilenstein-Test ohne Hardware ab.
+* **Schritt 3:** Entwicklung des Plugins: "Generic WebMIDI Input". ✅ `webMidi.ts` im Frontend (WebMIDI ist eine Browser-API, kein Backend-Plugin) — Note-On/Program-Change lösen einen Sprung zum nächsten Song-Part aus (`nextSectionIndex`), bzw. zur nächsten Zeile, wenn der Song keine Parts definiert. Kein Gerät angeschlossen ist ein normaler Zustand (Graceful Degradation), kein Fehler; ein "Fußtaster simulieren"-Button deckt den Meilenstein-Test ohne Hardware ab.
 * **Meilenstein-Test:** ✅ Du trittst auf einen Fußtaster, und das Prompter-Widget springt zur nächsten Song-Sektion. (Verifiziert per simuliertem Trigger — der Code-Pfad ist identisch zu einem echten MIDI-Fußtaster.)
 
 ## Phase 5: Multi-Tenant & Setlists (Woche 5) — ✅ Abgeschlossen

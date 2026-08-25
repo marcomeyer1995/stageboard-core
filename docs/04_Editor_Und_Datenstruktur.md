@@ -14,6 +14,8 @@ Der Musiker soll beim Eintragen keinen Code schreiben müssen. Die UI bietet ein
 * **Smart Import:** Der User kopiert einen Text von Ultimate Guitar (wo die Akkorde einfach über dem Text stehen) und fügt ihn ein. Die App erkennt per Regex (Mustererkennung) automatisch die Struktur und wandelt es unsichtbar in sauberes ChordPro um.
 * **Inline-Editing:** Will der User einen Akkord hinzufügen, klickt er einfach auf ein Wort. Es poppt ein kleines Fenster auf (wie bei einem Kommentar in Google Docs), in das er z.B. "Am" tippt. Die App platziert den Akkord visuell exakt über dem Wort.
 * **Song-Parts definieren:** Mit großen Buttons am Rand kann der User Textblöcke markieren und ihnen Labels zuweisen (z.B. "Verse 1", "Chorus", "Bridge", "Solo"). Diese Blöcke bekommen dadurch automatisch eine visuelle Klammer und eine Farbe.
+ * **Syntax:** Ein Part beginnt mit einer eigenen Direktiven-Zeile `{part: Chorus}` und läuft bis zum nächsten `{part: ...}` (oder bis zu einem `{end_of_part}`). Die ChordPro-Standard-Direktiven `{soc}` / `{start_of_chorus: ...}` (analog `sov`/`sob` und die `end_of_*`-Gegenstücke) werden ebenfalls verstanden, damit importierte Fremddateien nicht umgeschrieben werden müssen. Unbekannte Direktiven (z.B. `{title: ...}`) bleiben unangetastet und werden als normaler Text gerendert.
+ * **Wirkung:** Die Parts sind gleichzeitig die Seiten-Grenzen der "Paginated View" (siehe [docs/07](07_UI_Konzept.md)) und werden von Tap-to-Sync übersprungen — eine Label-Zeile bekommt keinen Timecode.
 
 ## 3. Tab 2: Die Timecode-Generierung (Plugin-basiert)
 Um den Texten, Akkorden und Cues eine Zeitachse zuzuweisen, gibt es zwei verschiedene Workflows (als Plugins wählbar), um dem Arbeitsstil jedes Musikers gerecht zu werden.
