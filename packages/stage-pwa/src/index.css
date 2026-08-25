@@ -3,13 +3,21 @@
 @tailwind utilities;
 
 /*
- * Semantic colour tokens instead of hard-coded neutrals, so the Light-Mode toggle
- * (docs/07) is a single class on <html> rather than a `dark:` variant per widget.
- * Dark is the default (stage lighting), light is the opt-in override.
+ * Semantic colour + shape tokens instead of hard-coded values, so switching the visual
+ * theme (docs/07, "StageBoard Look and Feel") is a single attribute on <html> rather than
+ * a rewrite of every widget. `default` is the theme every component was originally built
+ * against; the four others (stage-console, soft-cards, high-contrast, neon-live) redefine
+ * the same tokens with a different color/shape/type language.
+ *
+ * Two axes, independent: `data-theme` picks the visual language, `.light` (default theme
+ * only) picks stage lighting vs. daylight prep. The four new themes are dark-only - they
+ * were designed for the stage, and a light variant of e.g. Neon Live's gradient was never
+ * explored, so the light toggle is hidden whenever a non-default theme is active.
  */
 :root {
   color-scheme: dark;
   --sb-stage: 0 0 0;
+  --sb-stage-image: none;
   --sb-surface: 23 23 23;
   --sb-control: 38 38 38;
   --sb-control-hover: 64 64 64;
@@ -19,10 +27,24 @@
   --sb-ink-soft: 212 212 216;
   --sb-ink-muted: 163 163 163;
   --sb-ink-faint: 115 115 115;
-  --sb-accent: 251 191 36;
+  /* Matches the buttons' pre-theming amber-500/amber-400 fill/hover exactly. */
+  --sb-accent: 245 158 11;
+  --sb-accent-hover: 251 191 36;
+  --sb-accent-ink: 0 0 0;
+  /* Reserved for a second hue on themes that want one (Neon Live's magenta CTAs); every
+     other theme aliases it to --sb-accent so it is a no-op everywhere else. */
+  --sb-accent-2: 245 158 11;
+  --sb-accent-2-hover: 251 191 36;
+  --sb-line: rgba(255, 255, 255, 0.06);
+  --sb-radius: 0.5rem;
+  --sb-radius-sm: 0.25rem;
+  --sb-radius-pill: 9999px;
+  --sb-shadow: none;
+  --sb-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --sb-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
-:root.light {
+:root[data-theme="default"].light {
   color-scheme: light;
   --sb-stage: 244 244 245;
   --sb-surface: 255 255 255;
@@ -36,9 +58,226 @@
   --sb-ink-faint: 113 113 122;
   /* Darker amber: the dark-mode accent has too little contrast on a light surface. */
   --sb-accent: 180 83 9;
+  --sb-accent-hover: 217 119 6;
+  /* White reads better than black on this darker amber-700 fill (WCAG contrast ~5.8:1
+     vs ~3.6:1). */
+  --sb-accent-ink: 255 255 255;
+  --sb-accent-2: 180 83 9;
+  --sb-accent-2-hover: 217 119 6;
+  --sb-line: rgba(0, 0, 0, 0.08);
+}
+
+/*
+ * Stage Console - satte Schwarztöne, Hairlines statt Schatten, LED-Indikatoren,
+ * IBM Plex Mono. Wirkt wie Bühnen-Hardware, nicht wie eine App.
+ */
+:root[data-theme="stage-console"] {
+  color-scheme: dark;
+  --sb-stage: 10 10 12;
+  --sb-stage-image: none;
+  --sb-surface: 16 16 19;
+  --sb-control: 20 20 23;
+  --sb-control-hover: 34 34 38;
+  --sb-control-strong: 34 34 38;
+  --sb-control-strong-hover: 48 48 53;
+  --sb-ink: 245 245 244;
+  --sb-ink-soft: 201 201 205;
+  --sb-ink-muted: 138 138 144;
+  --sb-ink-faint: 85 85 92;
+  --sb-accent: 202 138 4;
+  --sb-accent-hover: 234 165 30;
+  --sb-accent-ink: 10 10 12;
+  --sb-accent-2: 202 138 4;
+  --sb-accent-2-hover: 234 165 30;
+  --sb-line: rgba(255, 255, 255, 0.1);
+  --sb-radius: 0px;
+  --sb-radius-sm: 0px;
+  --sb-radius-pill: 0px;
+  --sb-shadow: none;
+  /* Plex Sans for body text, not Plex Mono: a monospace font is wider per character than
+     a proportional one at the same size, and with fixed-width widget columns that silently
+     overflows into wrapped, cramped labels ("Fußtaster simulieren" broke onto two lines).
+     Numbers and chord letters still get the mono face via font-sb-mono - that's where a
+     monospace grid actually earns its keep. */
+  --sb-font-body: "IBM Plex Sans", ui-sans-serif, sans-serif;
+  --sb-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/*
+ * Soft Cards - abgerundete Karten, weiche Schatten, mehr Luft, Manrope. Der
+ * Home-Assistant-Vergleich.
+ */
+:root[data-theme="soft-cards"] {
+  color-scheme: dark;
+  --sb-stage: 20 21 25;
+  --sb-stage-image: radial-gradient(120% 100% at 50% 0%, rgb(28 30 36) 0%, rgb(20 21 25) 60%);
+  --sb-surface: 31 33 38;
+  --sb-control: 38 40 46;
+  --sb-control-hover: 48 50 57;
+  --sb-control-strong: 48 50 57;
+  --sb-control-strong-hover: 60 62 70;
+  --sb-ink: 242 241 239;
+  --sb-ink-soft: 197 195 192;
+  --sb-ink-muted: 169 167 163;
+  --sb-ink-faint: 111 109 106;
+  --sb-accent: 251 146 60;
+  --sb-accent-hover: 253 186 116;
+  --sb-accent-ink: 36 26 15;
+  --sb-accent-2: 251 146 60;
+  --sb-accent-2-hover: 253 186 116;
+  --sb-line: rgba(255, 255, 255, 0.05);
+  --sb-radius: 1.25rem;
+  --sb-radius-sm: 0.875rem;
+  --sb-radius-pill: 9999px;
+  --sb-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  --sb-font-body: "Manrope", ui-sans-serif, sans-serif;
+  --sb-font-mono: "Manrope", ui-sans-serif, sans-serif;
+}
+
+/*
+ * High Contrast Minimal - fast reines Schwarz/Weiß, ein Akzent, keine Dekoration,
+ * riesige Typografie (Archivo). Lesbar auf drei Meter Entfernung.
+ */
+:root[data-theme="high-contrast"] {
+  color-scheme: dark;
+  --sb-stage: 0 0 0;
+  --sb-stage-image: none;
+  --sb-surface: 0 0 0;
+  /* Not pure black: a button that fills with the exact color of its own background is
+     invisible - Stop/Reset/Fußtaster simulieren had no way to read as buttons at all. */
+  --sb-control: 26 26 26;
+  --sb-control-hover: 48 48 48;
+  --sb-control-strong: 26 26 26;
+  --sb-control-strong-hover: 48 48 48;
+  --sb-ink: 255 255 255;
+  --sb-ink-soft: 255 255 255;
+  --sb-ink-muted: 138 138 138;
+  --sb-ink-faint: 90 90 90;
+  --sb-accent: 250 204 21;
+  --sb-accent-hover: 253 224 71;
+  --sb-accent-ink: 0 0 0;
+  --sb-accent-2: 250 204 21;
+  --sb-accent-2-hover: 253 224 71;
+  /* Opaque, not a hairline: with every surface pure black, the divider IS the only
+     structure on screen. */
+  --sb-line: rgba(255, 255, 255, 0.9);
+  --sb-radius: 0px;
+  --sb-radius-sm: 0px;
+  --sb-radius-pill: 0px;
+  --sb-shadow: none;
+  --sb-font-body: "Archivo", ui-sans-serif, sans-serif;
+  --sb-font-mono: "Archivo", ui-sans-serif, sans-serif;
+}
+
+/*
+ * Neon Live - dunkler Verlauf, Cyan + Magenta als Doppelakzent, sanftes Glow,
+ * Space Grotesk. Mehr Bühnenenergie als die anderen drei.
+ *
+ * Simplified from the mockup's translucent glass panels to solid deep-violet ones: real
+ * glassmorphism needs a backdrop blur plus per-layer alpha tokens for every surface, a lot
+ * of machinery for an effect that isn't the direction's actual identity - the gradient,
+ * the dual neon hue and the glow are. The gradient still shows through around and behind
+ * the panels via --sb-stage-image.
+ */
+:root[data-theme="neon-live"] {
+  color-scheme: dark;
+  --sb-stage: 11 7 20;
+  --sb-stage-image: linear-gradient(160deg, rgb(11 7 20) 0%, rgb(23 10 36) 45%, rgb(5 6 15) 100%);
+  --sb-surface: 26 18 40;
+  --sb-control: 33 23 50;
+  --sb-control-hover: 43 30 64;
+  --sb-control-strong: 43 30 64;
+  --sb-control-strong-hover: 55 39 79;
+  --sb-ink: 245 244 255;
+  --sb-ink-soft: 201 199 224;
+  --sb-ink-muted: 148 144 176;
+  --sb-ink-faint: 92 89 117;
+  /* Cyan: tabs, status, chord letters. */
+  --sb-accent: 34 211 238;
+  --sb-accent-hover: 103 232 249;
+  --sb-accent-ink: 8 6 15;
+  /* Magenta: primary actions and the "sing this now" highlight - the second half of the
+     duality the direction asks for. */
+  --sb-accent-2: 232 121 249;
+  --sb-accent-2-hover: 240 171 252;
+  --sb-line: rgba(34, 211, 238, 0.22);
+  --sb-radius: 1rem;
+  --sb-radius-sm: 0.75rem;
+  --sb-radius-pill: 9999px;
+  --sb-shadow: 0 0 24px rgba(34, 211, 238, 0.12);
+  --sb-font-body: "Space Grotesk", ui-sans-serif, sans-serif;
+  --sb-font-mono: "Space Grotesk", ui-sans-serif, sans-serif;
 }
 
 html,
 body {
+  height: 100%;
   background-color: rgb(var(--sb-stage));
+  background-image: var(--sb-stage-image);
+  font-family: var(--sb-font-body);
+  /* The app is a fixed stage surface, not a document: the page itself never scrolls or
+     bounces, and nothing zooms. Widgets that need to scroll do it inside their own box. */
+  overflow: hidden;
+  overscroll-behavior: none;
+  /* Also kills the 300ms double-tap-to-zoom gesture. */
+  touch-action: manipulation;
+}
+
+/* Full-screen views (Dashboard, Songs, Setlists, Plugins) paint the same themed
+   background as <body> - including a theme's gradient (--sb-stage-image), which a plain
+   `bg-stage` utility class can't express since it only sets a flat color. */
+.sb-app-bg {
+  background-color: rgb(var(--sb-stage));
+  background-image: var(--sb-stage-image);
+}
+
+#root {
+  height: 100%;
+  /* Standalone auf iOS zeichnet unter Statusleiste und Notch (viewport-fit=cover),
+     sonst sind diese Werte 0 - im Browser ändert sich also nichts. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/*
+ * react-grid-layout ships all eight resize handles (Dashboard.tsx enables them all) but
+ * draws each as a nearly invisible 5px corner-bracket inside a 20px hit box, opacity 0
+ * until hover - built for a mouse, not a finger. This replaces it with a solid accent dot
+ * in a bigger hit box, always visible once resizing is on (i.e. only in edit mode, since
+ * that's the only time these handles render at all).
+ *
+ * The per-handle position/rotation rules (top/right/bottom/left, `transform: rotate(...)`)
+ * are react-grid-layout's own and stay in effect - a centered dot looks centered under any
+ * rotation of its own box, so only the box size and the dot itself need overriding.
+ */
+.react-grid-item > .react-resizable-handle {
+  width: 28px;
+  height: 28px;
+  opacity: 1;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: none;
+  background: rgb(var(--sb-accent));
+  box-shadow: 0 0 0 2px rgb(var(--sb-stage));
+  transform: translate(-50%, -50%);
+}
+
+/* The library centers a 20px box with -10px margins; ours is 28px, so re-center by half. */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  margin-top: -14px;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  margin-left: -14px;
 }
