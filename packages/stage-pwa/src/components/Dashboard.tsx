@@ -58,6 +58,7 @@ function toItems(layout: Layout): LayoutItem[] {
 export function Dashboard() {
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const loaded = useDashboardsStore((state) => state.loaded)
+  const resetNonce = useDashboardsStore((state) => state.resetNonce)
   const setLayout = useDashboardsStore((state) => state.setLayout)
   const save = useDashboardsStore((state) => state.save)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -181,6 +182,17 @@ export function Dashboard() {
       <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
         {mounted && (
           <ResponsiveGridLayout
+            // A fresh instance per dashboard (and per reset of the active one, via
+            // resetNonce), not one instance reconciled in place: react-grid-layout keeps
+            // its own internal copy of the layout and resyncs it from props via a
+            // useEffect whose dependencies include that same internal copy. Switching
+            // dashboards, or Zurücksetzen rewriting the active one, can otherwise land it
+            // resyncing against its own now-stale internal state instead of the fresh
+            // props for a render or two - which regenerates a slightly different (and
+            // still wrong) layout every time, forever, entirely inside the library.
+            // Remounting sidesteps that class of bug outright: the initial state a fresh
+            // instance computes always comes straight from the current, consistent props.
+            key={`${active.id}:${resetNonce}`}
             width={width}
             layouts={layouts}
             breakpoints={BREAKPOINT_WIDTHS}

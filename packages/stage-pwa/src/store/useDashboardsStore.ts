@@ -28,6 +28,16 @@ function byOrder(a: Dashboard, b: Dashboard): number {
 interface DashboardsState {
   dashboards: Dashboard[]
   loaded: boolean
+  /**
+   * Bumped by resetToDefaults - a signal for Dashboard.tsx to force a fresh
+   * react-grid-layout instance rather than let it reconcile in place. Reset removes and
+   * recreates every dashboard document with the same ids, so a dashboard.id-based React
+   * key alone doesn't change; without a fresh mount, react-grid-layout's own internal
+   * effect can end up resyncing against its own stale internal state instead of the fresh
+   * props mid-churn, regenerating a slightly different (and equally wrong) layout on every
+   * render forever - a real infinite loop purely inside the library, not our own code.
+   */
+  resetNonce: number
   init: (workspaceId: string) => Promise<void>
   save: (dashboard: Dashboard) => Promise<void>
   create: (name: string) => Promise<Dashboard>
@@ -50,6 +60,7 @@ async function refresh(set: (partial: Partial<DashboardsState>) => void) {
 export const useDashboardsStore = create<DashboardsState>((set, get) => ({
   dashboards: [],
   loaded: false,
+  resetNonce: 0,
   init: async (workspaceId) => {
     changesHandle?.cancel()
     changesHandle = null
@@ -103,6 +114,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     for (const dashboard of get().dashboards) await removeDashboard(dashboard.id)
     for (const dashboard of defaultDashboards()) await putDashboard(dashboard)
     await refresh(set)
+    set({ resetNonce: get().resetNonce + 1 })
   },
   setLayout: async (id, breakpoint, layout) => {
     const existing = get().dashboards.find((dashboard) => dashboard.id === id)
