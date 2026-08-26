@@ -17,6 +17,18 @@ export interface WidgetSize {
   minH?: number
 }
 
+/**
+ * Fixed taxonomy for the widget library's grouping - unlike CapabilityId/role, this is
+ * StageBoard's own browsing structure, not something community plugins need to extend.
+ */
+export type WidgetCategory =
+  | 'performance'
+  | 'monitoring'
+  | 'show-control'
+  | 'system-crew'
+  | 'utility'
+  | 'post-show'
+
 /** A widget as the dashboard grid sees it: config already parsed, type parameter erased. */
 export interface WidgetDefinition {
   type: string
@@ -24,6 +36,9 @@ export interface WidgetDefinition {
   description: string
   /** Capabilities this widget needs. Empty means core - it can never grey out. */
   requires: CapabilityId[]
+  category: WidgetCategory
+  /** Roles this widget is relevant to. Unset means relevant to everyone. */
+  relevantRoles?: string[]
   defaultLayout: WidgetSize
   Component: ComponentType<{ config: unknown }>
   ConfigPanel?: ComponentType<{
@@ -37,6 +52,8 @@ interface WidgetSpec<C> {
   title: string
   description: string
   requires?: CapabilityId[]
+  category: WidgetCategory
+  relevantRoles?: string[]
   defaultLayout: WidgetSize
   configSchema?: z.ZodType<C>
   Component: ComponentType<{ config: C }>
@@ -63,6 +80,8 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
     title: spec.title,
     description: spec.description,
     requires: spec.requires ?? [],
+    category: spec.category,
+    relevantRoles: spec.relevantRoles,
     defaultLayout: spec.defaultLayout,
     Component: ({ config }) => <Component config={parse(config)} />,
     ConfigPanel: ConfigPanel
@@ -81,6 +100,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     type: 'prompter',
     title: 'Prompter',
     description: 'Text und Akkorde, wahlweise Smooth Scroll oder Paginated View.',
+    category: 'performance',
     defaultLayout: { w: 12, h: 16, minW: 3, minH: 6 },
     Component: PrompterWidget,
   }),
@@ -88,6 +108,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     type: 'next-song',
     title: 'Next Song',
     description: 'Aktueller und nächster Song, Master-Token, "Nächster Song".',
+    category: 'performance',
     defaultLayout: { w: 7, h: 2, minW: 3, minH: 2 },
     Component: NextSongWidget,
   }),
@@ -95,6 +116,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     type: 'clock',
     title: 'Show Cockpit',
     description: 'Master-Clock mit Start/Stop und Reset.',
+    category: 'performance',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
     Component: ClockControlWidget,
   }),
@@ -103,6 +125,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Fußtaster',
     description: 'Status des MIDI-Fußtasters, Sprung zum nächsten Song-Part.',
     requires: [CAPABILITIES.midiInput],
+    category: 'performance',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
     Component: MidiStatusWidget,
   }),
@@ -110,6 +133,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     type: 'dashboard-switcher',
     title: 'Dashboard-Umschalter',
     description: 'Große Buttons, um zwischen den Dashboards zu wechseln.',
+    category: 'performance',
     defaultLayout: { w: 12, h: 2, minW: 2, minH: 2 },
     configSchema: DashboardSwitcherConfigSchema,
     Component: DashboardSwitcherView,
@@ -120,6 +144,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'More Me (IEM)',
     description: 'Eigene Fader für den In-Ear-Mix.',
     requires: [CAPABILITIES.mixer],
+    category: 'monitoring',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 5 },
     Component: IemWidget,
   }),
@@ -128,6 +153,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Quick Actions',
     description: 'Große Buttons für Ad-Hoc Show Cues.',
     requires: [CAPABILITIES.showControl],
+    category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     Component: QuickActionsWidget,
   }),

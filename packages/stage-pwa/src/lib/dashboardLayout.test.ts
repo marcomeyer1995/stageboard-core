@@ -127,6 +127,28 @@ describe('availableWidgets', () => {
   it('offers core widgets even with no plugins at all', () => {
     expect(availableWidgets(definitions, new Map()).map((d) => d.type)).toEqual(['prompter'])
   })
+
+  it('offers a widget with no relevantRoles set to everyone', () => {
+    expect(availableWidgets(definitions, new Map(), 'Vocalist').map((d) => d.type)).toEqual([
+      'prompter',
+    ])
+  })
+
+  it('hides a role-restricted widget from a profile whose role does not match', () => {
+    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['Crew'] }]
+    expect(availableWidgets(roleRestricted, new Map(), 'Vocalist').map((d) => d.type)).toEqual([
+      'prompter',
+    ])
+    expect(availableWidgets(roleRestricted, new Map(), 'Crew').map((d) => d.type)).toEqual([
+      'prompter',
+      'system-health',
+    ])
+  })
+
+  it('hides a role-restricted widget when no role is active at all', () => {
+    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['Crew'] }]
+    expect(availableWidgets(roleRestricted, new Map()).map((d) => d.type)).toEqual(['prompter'])
+  })
 })
 
 describe('gridMetrics', () => {

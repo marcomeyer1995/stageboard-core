@@ -1,19 +1,13 @@
 import { useState } from 'react'
-import { randomId } from '../lib/id'
 import type { CapabilityId, Dashboard } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
-import {
-  availableWidgets,
-  GRID_COLUMNS,
-  isDashboardVisible,
-  withWidgetAppended,
-} from '../lib/dashboardLayout'
+import { isDashboardVisible } from '../lib/dashboardLayout'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { ALL_WIDGETS } from '../widgets/registry'
+import { WidgetLibrary } from './WidgetLibrary'
 
 interface DashboardEditBarProps {
   dashboard: Dashboard
@@ -36,9 +30,6 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
   const visibleDashboards = dashboards.filter((item) => isDashboardVisible(item, activeProfile))
   const publicDashboardCount = dashboards.filter((item) => item.visibility !== 'private').length
   const isLastPublicDashboard = dashboard.visibility !== 'private' && publicDashboardCount <= 1
-
-  // docs/07: the library only offers what the band's plugins actually support.
-  const available = availableWidgets(ALL_WIDGETS, capabilities)
 
   return (
     <div className="z-20 flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2 text-xs">
@@ -135,33 +126,15 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       </button>
 
       {showLibrary && (
-        <div className="flex w-full flex-wrap gap-2 pt-2">
-          {available.map((definition) => (
-            <button
-              key={definition.type}
-              type="button"
-              title={definition.description}
-              onClick={() => {
-                void save(
-                  withWidgetAppended(
-                    dashboard,
-                    definition.type,
-                    {
-                      ...definition.defaultLayout,
-                      w: Math.min(definition.defaultLayout.w, GRID_COLUMNS),
-                    },
-                    `${definition.type}-${randomId().slice(0, 8)}`,
-                  ),
-                )
-                setShowLibrary(false)
-              }}
-              className="rounded-sb-sm bg-control px-3 py-2 text-left text-ink hover:bg-control-hover"
-            >
-              <span className="block font-semibold">{definition.title}</span>
-              <span className="block text-[10px] text-ink-muted">{definition.description}</span>
-            </button>
-          ))}
-        </div>
+        <WidgetLibrary
+          dashboard={dashboard}
+          capabilities={capabilities}
+          activeRole={activeProfile?.role}
+          onAdd={(next) => {
+            void save(next)
+            setShowLibrary(false)
+          }}
+        />
       )}
     </div>
   )

@@ -354,12 +354,20 @@ export function isDashboardVisible(dashboard: Dashboard, activeProfile: Profile 
  * The widget library from docs/07 section 4: a widget whose plugin the band does not have
  * is not offered at all - that is what keeps simple setups uncluttered. Merely unreachable
  * hardware still shows up, because those widgets are allowed to sit in a layout greyed out.
+ *
+ * `activeRole` is a second, independent filter on top: a widget with `relevantRoles` set
+ * is only offered to a profile whose role is in that list - unset `relevantRoles` (every
+ * widget today) or no active role (nobody signed in on this tablet) means "relevant to
+ * everyone," so this is a no-op until widgets actually start declaring roles.
  */
-export function availableWidgets<T extends { requires: CapabilityId[] }>(
+export function availableWidgets<T extends { requires: CapabilityId[]; relevantRoles?: string[] }>(
   definitions: T[],
   capabilities: Map<CapabilityId, CapabilityStatus>,
+  activeRole?: string,
 ): T[] {
-  return definitions.filter(
-    (definition) => capabilityStatusFor(definition.requires, capabilities) !== 'missing',
-  )
+  return definitions.filter((definition) => {
+    if (capabilityStatusFor(definition.requires, capabilities) === 'missing') return false
+    if (definition.relevantRoles && !definition.relevantRoles.includes(activeRole ?? '')) return false
+    return true
+  })
 }
