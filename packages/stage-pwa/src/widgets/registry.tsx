@@ -6,12 +6,15 @@ import { ClockControlWidget } from './ClockControlWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
 import { IemWidget } from './IemWidget'
+import { LightingCuesWidget } from './LightingCuesWidget'
 import { LiveQueueWidget } from './LiveQueueWidget'
 import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { ShowNoteWidget } from './ShowNoteWidget'
+import { SystemHealthWidget } from './SystemHealthWidget'
+import { TunerWidget } from './TunerWidget'
 
 export interface WidgetSize {
   w: number
@@ -167,6 +170,32 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     Component: QuickActionsWidget,
+  }),
+  defineWidget({
+    type: 'lighting-cues',
+    title: 'Lighting Cues',
+    description: 'Große Buttons für Licht-Cues am DMX-Pult.',
+    requires: [CAPABILITIES.lighting],
+    category: 'show-control',
+    defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
+    Component: LightingCuesWidget,
+  }),
+  defineWidget({
+    type: 'system-health',
+    title: 'System-Status',
+    description: 'Ampel-Übersicht aller Plugin-Capabilities, für Setup/Soundcheck.',
+    category: 'system-crew',
+    relevantRoles: ['Crew'],
+    defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
+    Component: SystemHealthWidget,
+  }),
+  defineWidget({
+    type: 'tuner',
+    title: 'Stimmgerät',
+    description: 'Chromatisches Stimmgerät über das Mikrofon des Tablets.',
+    category: 'utility',
+    defaultLayout: { w: 4, h: 6, minW: 3, minH: 4 },
+    Component: TunerWidget,
   }),
   defineWidget({
     type: 'show-notes',
