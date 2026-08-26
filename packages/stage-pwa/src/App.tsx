@@ -3,6 +3,7 @@ import { AppMenu } from './components/AppMenu'
 import { BackupManager } from './components/BackupManager'
 import { Dashboard } from './components/Dashboard'
 import { PluginManager } from './components/PluginManager'
+import { PostShowReport } from './components/PostShowReport'
 import { SetlistManager } from './components/SetlistManager'
 import { SheetEditor } from './components/SheetEditor'
 import { startSync } from './lib/db'
@@ -11,8 +12,10 @@ import { MODE_LABEL, type Mode } from './lib/modes'
 import { startPluginsSync } from './lib/pluginsDb'
 import { startProfilesSync } from './lib/profilesDb'
 import { startSetlistsSync } from './lib/setlistsDb'
+import { startShowLogSync } from './lib/showLogDb'
 import { startShowStateSync } from './lib/showStateDb'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
+import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useDashboardsStore } from './store/useDashboardsStore'
@@ -20,6 +23,7 @@ import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { useProfilesStore } from './store/useProfilesStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
+import { useShowLogStore } from './store/useShowLogStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
@@ -31,6 +35,7 @@ function App() {
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   useFullscreenOnLaunch()
   useWakeLock()
+  useShowLogTracker()
 
   useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
   useWorkspaceResource(
@@ -58,6 +63,11 @@ function App() {
     startProfilesSync,
     activeWorkspaceId,
   )
+  useWorkspaceResource(
+    useShowLogStore((state) => state.init),
+    startShowLogSync,
+    activeWorkspaceId,
+  )
 
   return (
     <div className="relative h-dvh">
@@ -66,6 +76,7 @@ function App() {
       {mode === 'setlists' && <SetlistManager />}
       {mode === 'plugins' && <PluginManager />}
       {mode === 'backup' && <BackupManager />}
+      {mode === 'post-show' && <PostShowReport />}
 
       {/* Band, Theme, Fullscreen, Edit-Lock and screen navigation live behind one menu
           button, not as permanently visible controls: none of them is touched often, and

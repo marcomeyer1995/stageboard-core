@@ -11,6 +11,7 @@ import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
+import { ShowNoteWidget } from './ShowNoteWidget'
 
 export interface WidgetSize {
   w: number
@@ -166,6 +167,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     Component: QuickActionsWidget,
+  }),
+  defineWidget({
+    type: 'show-notes',
+    title: 'Show-Notizen',
+    description: 'Live-Notizen von Band und Crew, zum Nachbericht sichtbar.',
+    category: 'system-crew',
+    defaultLayout: { w: 4, h: 8, minW: 3, minH: 4 },
+    Component: ShowNoteWidget,
   }),
   defineWidget({
     type: 'backup-status',

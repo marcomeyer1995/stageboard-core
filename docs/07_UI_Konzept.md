@@ -29,6 +29,9 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 * **Das "Show Cockpit" (Für Master/Drummer):** Große Stoppuhr, Timecode, visuelles Metronom (Blinken), System-Status-Ampel.
 * **Das "Quick Action" Grid:** Große Buttons für Ad-Hoc Cues (z.B. "Strobo", "Kaltfunken", "Talkback-Mic").
 * **Der "Dashboard-Umschalter":** Große Buttons, die zwischen den Dashboards wechseln (siehe Abschnitt 2). Pro Instanz horizontal oder vertikal.
+* **Das "Show-Notizen" Widget:** Live-Notizen von Band und Crew während der Show (z.B. "Gitarre bei diesem Song zu laut"), später im automatisch erfassten Nachbericht ("Nachbericht"-Modus) einsehbar - siehe `packages/shared-types/src/showLog.ts` und `packages/stage-pwa/src/lib/useShowLogTracker.ts`.
+
+**Zurückgestellte Idee - explizite Pause/Stop-Kontrolle:** Der Show Cockpit hat aktuell nur Start/Stop/Reset für die Stoppuhr, keine Möglichkeit, "gerade spielt kein Song" als eigenen Zustand festzuhalten - `ShowState.activeSongId` kennt nur "welcher Song ist gerade aktiv", keinen Leerzustand. Der Nachbericht kann deshalb Pausen zwischen Songs (Bandansage, Nachstimmen) nicht von der Spielzeit des vorherigen Songs unterscheiden - beides ist bis auf Weiteres derselbe Zeitpunkt: der nächste Tap auf "Next Song". Eine echte Lösung bräuchte einen expliziten Pause/Stop-Button neben "Next Song", der `activeSongId` bewusst auf "nichts spielt gerade" setzt - das würde auch computeQueue.ts's Vorstellung von "aktueller Song" berühren, nicht nur das Logging. Bewusst zurückgestellt (2026), aber hier festgehalten, damit die Idee nicht verloren geht.
 
 ## 4. Responsive Szenarien (Geräte & Orientierung)
 

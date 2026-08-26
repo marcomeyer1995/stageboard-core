@@ -1,9 +1,9 @@
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { capabilityStatusFor, type CapabilityStatus } from './capabilities'
 
-export type Mode = 'live' | 'edit' | 'setlists' | 'plugins' | 'backup'
+export type Mode = 'live' | 'edit' | 'setlists' | 'plugins' | 'backup' | 'post-show'
 
-export const MODES: Mode[] = ['live', 'edit', 'setlists', 'plugins', 'backup']
+export const MODES: Mode[] = ['live', 'edit', 'setlists', 'plugins', 'backup', 'post-show']
 
 export const MODE_LABEL: Record<Mode, string> = {
   live: 'Live',
@@ -11,6 +11,7 @@ export const MODE_LABEL: Record<Mode, string> = {
   setlists: 'Setlists',
   plugins: 'Plugins',
   backup: 'Backup',
+  'post-show': 'Nachbericht',
 }
 
 /**
