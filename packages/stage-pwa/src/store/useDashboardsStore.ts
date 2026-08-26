@@ -43,7 +43,10 @@ interface DashboardsState {
   resetNonce: number
   init: (workspaceId: string) => Promise<void>
   save: (dashboard: Dashboard) => Promise<void>
-  create: (name: string) => Promise<Dashboard>
+  create: (
+    name: string,
+    owner?: { ownerProfileId?: string; ownerRole?: string; visibility?: Dashboard['visibility'] },
+  ) => Promise<Dashboard>
   duplicate: (id: string, newName: string) => Promise<Dashboard | null>
   rename: (id: string, name: string) => Promise<void>
   /**
@@ -89,9 +92,18 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
   save: async (dashboard) => {
     await putDashboard(dashboard)
   },
-  create: async (name) => {
+  create: async (name, owner) => {
     const order = get().dashboards.reduce((max, item) => Math.max(max, item.order), -1) + 1
-    const dashboard: Dashboard = { id: randomId(), name, order, widgets: [], layouts: {} }
+    const dashboard: Dashboard = {
+      id: randomId(),
+      name,
+      order,
+      widgets: [],
+      layouts: {},
+      ownerProfileId: owner?.ownerProfileId,
+      ownerRole: owner?.ownerRole,
+      visibility: owner?.visibility ?? 'public',
+    }
     await putDashboard(dashboard)
     return dashboard
   },
