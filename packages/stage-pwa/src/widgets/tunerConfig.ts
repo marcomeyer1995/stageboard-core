@@ -11,12 +11,13 @@ export const TunerConfigSchema = z.object({
 })
 export type TunerConfig = z.infer<typeof TunerConfigSchema>
 
-// Roughly a 15x range end to end - the first version of these (0.02/0.01/0.003) was too
-// narrow a spread to actually notice switching between levels.
+// Marco's preferred setting from testing (old "high", 0.002) is now the "medium"
+// reference point, with low/high rebuilt around it at roughly the same ~4x-per-step
+// spread the first version used end to end.
 export const SENSITIVITY_MIN_RMS: Record<TunerConfig['sensitivity'], number> = {
-  low: 0.03,
-  medium: 0.01,
-  high: 0.002,
+  low: 0.008,
+  medium: 0.002,
+  high: 0.0005,
 }
 
 export interface ResponsivenessSettings {
@@ -27,16 +28,18 @@ export interface ResponsivenessSettings {
 
 // The tick loop runs at up to ~60fps (one detectPitch call per animation frame), so
 // maxMisses in "frames" translates roughly to maxMisses/60 seconds of grace before the
-// note disappears. The first version of these (4/8/16 misses - 67/133/267ms) all landed
-// in the same barely-perceptible fraction-of-a-second range; these are spread across
-// roughly a tenth of a second up to 1.5 seconds instead, which should actually be felt.
+// note disappears. Marco's preferred setting from testing (old "fast": size 5,
+// minReadings 2, maxMisses 6 - ~0.1s grace) is now the "balanced" reference point, with
+// stable/fast rebuilt around it at roughly the same ~3x-per-step spread the first
+// version used end to end - fast keeps just enough window (size 3) to still reject a
+// single-frame octave-error outlier, since going all the way to no smoothing at all
+// would bring back the original "jumps around wildly" bug this was built to fix.
 export const RESPONSIVENESS_SETTINGS: Record<TunerConfig['responsiveness'], ResponsivenessSettings> = {
-  // ~1.5s grace before a faded note disappears, ~0.65s to fully settle onto a newly
-  // played one - best for a sustained, decaying note (an open chord left ringing)
-  // rather than fast passages.
-  stable: { size: 40, minReadings: 15, maxMisses: 90 },
-  balanced: { size: 15, minReadings: 6, maxMisses: 30 },
-  // Reacts almost immediately (~0.1s to settle on a new note), at the cost of looking
-  // more jumpy and losing the display almost as soon as a note actually stops.
-  fast: { size: 5, minReadings: 2, maxMisses: 6 },
+  // ~0.3s grace before a faded note disappears - noticeably steadier than balanced
+  // without swinging back to the old extreme (1.5s).
+  stable: { size: 15, minReadings: 6, maxMisses: 18 },
+  balanced: { size: 5, minReadings: 2, maxMisses: 6 },
+  // ~0.05s grace - about as snappy as it can get while still median-filtering out a
+  // single bad reading.
+  fast: { size: 3, minReadings: 1, maxMisses: 3 },
 }
