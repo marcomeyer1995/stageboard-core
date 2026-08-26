@@ -7,12 +7,16 @@ import { useQueue } from '../lib/queue'
 type ViewMode = 'scroll' | 'paginated'
 
 export function PrompterWidget() {
-  const { currentSong } = useQueue()
+  const { currentSong, currentVariant } = useQueue()
   const elapsedMs = useElapsedMs()
   const [viewMode, setViewMode] = useState<ViewMode>('scroll')
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const lines = currentSong ? parseChordPro(currentSong.chordProContent) : []
+  // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
+  // so the actual content to render comes from the variant, not the Song mirror - falling
+  // back to the Song only for a song Phase 1's lazy migration hasn't touched yet.
+  const chordProContent = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
+  const lines = currentSong ? parseChordPro(chordProContent) : []
   const activeIndex = currentLineIndex(lines, elapsedMs)
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)

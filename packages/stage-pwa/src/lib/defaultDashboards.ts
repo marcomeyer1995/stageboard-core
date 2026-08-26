@@ -45,7 +45,7 @@ function build(id: string, name: string, order: number, placed: Placed[]): Dashb
     BREAKPOINTS.map((breakpoint) => [breakpoint, normalizeLayout(items)]),
   )
 
-  return { id, name, order, widgets, layouts }
+  return { id, name, order, widgets, layouts, visibility: 'public' }
 }
 
 /**

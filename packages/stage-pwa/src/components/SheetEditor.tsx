@@ -1,62 +1,167 @@
 import { useEffect, useRef, useState } from 'react'
-import { SongSchema, type Song } from 'shared-types'
+import { SongSchema, SongVariantSchema, type Song, type SongVariant, type TimecodeMarker } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
+import { randomId } from '../lib/id'
+import { ensureDefaultVariant } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
-import { BackingTrackField } from './BackingTrackField'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { TapToSync } from './TapToSync'
-import { randomId } from '../lib/id'
+import { TrackManagerField } from './TrackManagerField'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
 
-function emptyDraft(): Song {
+/** The editor's working state: a song's title plus one of its variant's playable content -
+ * two separate documents (Song, SongVariant) presented as one form, since that's how a
+ * musician thinks about "the song I'm editing right now". */
+interface EditorDraft {
+  songId: string
+  title: string
+  variantId: string
+  variantLabel: string
+  isDefaultVariant: boolean
+  bpm: number
+  chordProContent: string
+  timecodes: TimecodeMarker[]
+}
+
+function emptyDraft(): EditorDraft {
   return {
-    id: randomId(),
+    songId: randomId(),
     title: '',
+    variantId: randomId(),
+    variantLabel: 'Original',
+    isDefaultVariant: true,
     bpm: 120,
     chordProContent: '',
     timecodes: [],
   }
 }
 
+function draftFrom(song: Song, variant: SongVariant): EditorDraft {
+  return {
+    songId: song.id,
+    title: song.title,
+    variantId: variant.id,
+    variantLabel: variant.label,
+    isDefaultVariant: variant.isDefault,
+    bpm: variant.bpm,
+    chordProContent: variant.chordProContent,
+    timecodes: variant.timecodes,
+  }
+}
+
 export function SheetEditor() {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
-  const [draft, setDraft] = useState<Song>(() => songs[0] ?? emptyDraft())
-  const [isNewDraft, setIsNewDraft] = useState(songs.length === 0)
+  const variants = useSongVariantsStore((state) => state.variants)
+  const saveVariant = useSongVariantsStore((state) => state.saveVariant)
+  const [draft, setDraft] = useState<EditorDraft>(emptyDraft())
+  const [isNewDraft, setIsNewDraft] = useState(true)
+  const [initialSongLoaded, setInitialSongLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const variantsForSong = variants.filter((v) => v.songId === draft.songId)
+  const currentTracks = variants.find((v) => v.id === draft.variantId)?.tracks ?? []
+
+  async function selectSong(id: string) {
+    const song = songs.find((s) => s.id === id)
+    if (!song) return
+    const variant = await ensureDefaultVariant(song)
+    setDraft(draftFrom(song, variant))
+    setIsNewDraft(false)
+    setError(null)
+    setSavedAt(null)
+  }
+
+  useEffect(() => {
+    // First paint has no songs loaded from PouchDB yet - load the first one in once they
+    // arrive, exactly once, so we don't fight a user who's already picked something else.
+    if (initialSongLoaded || isNewDraft === false) return
+    if (songs.length === 0) return
+    setInitialSongLoaded(true)
+    void selectSong(songs[0].id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songs, initialSongLoaded])
+
   useEffect(() => {
     // Only re-sync onto an existing song when we're *not* mid-editing a new,
     // unsaved draft - otherwise "+ Neuer Song" would get silently reverted.
     if (isNewDraft) return
-    if (songs.length > 0 && !songs.some((song) => song.id === draft.id)) {
-      setDraft(songs[0])
+    if (songs.length > 0 && !songs.some((song) => song.id === draft.songId)) {
+      void selectSong(songs[0].id)
     }
-  }, [songs, draft.id, isNewDraft])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songs, draft.songId, isNewDraft])
 
-  function selectSong(id: string) {
-    const song = songs.find((s) => s.id === id)
-    if (song) {
-      setDraft(song)
-      setIsNewDraft(false)
-    }
+  function selectVariant(variantId: string) {
+    const variant = variantsForSong.find((v) => v.id === variantId)
+    if (!variant) return
+    setDraft({
+      ...draft,
+      variantId: variant.id,
+      variantLabel: variant.label,
+      isDefaultVariant: variant.isDefault,
+      bpm: variant.bpm,
+      chordProContent: variant.chordProContent,
+      timecodes: variant.timecodes,
+    })
+    setError(null)
+    setSavedAt(null)
+  }
+
+  function addVariant() {
+    setDraft({
+      ...draft,
+      variantId: randomId(),
+      variantLabel: 'Neue Variante',
+      isDefaultVariant: false,
+    })
     setError(null)
     setSavedAt(null)
   }
 
   async function handleSave() {
-    const result = SongSchema.safeParse(draft)
-    if (!result.success) {
-      setError(result.error.issues[0]?.message ?? 'Ungültige Eingabe')
+    const variant: SongVariant = {
+      id: draft.variantId,
+      songId: draft.songId,
+      label: draft.variantLabel.trim() || 'Original',
+      isDefault: draft.isDefaultVariant,
+      bpm: draft.bpm,
+      chordProContent: draft.chordProContent,
+      timecodes: draft.timecodes,
+      tracks: currentTracks,
+    }
+    const variantResult = SongVariantSchema.safeParse(variant)
+    if (!variantResult.success) {
+      setError(variantResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
       return
     }
+
+    // Song.bpm/chordProContent/timecodes are a read-compatibility mirror of the *default*
+    // variant, not whatever variant happens to be open right now - every widget that hasn't
+    // been migrated to read variants directly still reads these fields.
+    const defaultVariant = draft.isDefaultVariant ? variant : variantsForSong.find((v) => v.isDefault)
+    const song: Song = {
+      id: draft.songId,
+      title: draft.title,
+      bpm: defaultVariant?.bpm ?? draft.bpm,
+      chordProContent: defaultVariant?.chordProContent ?? draft.chordProContent,
+      timecodes: defaultVariant?.timecodes ?? draft.timecodes,
+    }
+    const songResult = SongSchema.safeParse(song)
+    if (!songResult.success) {
+      setError(songResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
+      return
+    }
+
     setError(null)
-    await saveSong(result.data)
+    await saveSong(songResult.data)
+    await saveVariant(variantResult.data)
     setSavedAt(Date.now())
     setIsNewDraft(false)
   }
@@ -89,8 +194,8 @@ export function SheetEditor() {
           Song
           <select
             className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-            value={isNewDraft ? '' : draft.id}
-            onChange={(e) => selectSong(e.target.value)}
+            value={isNewDraft ? '' : draft.songId}
+            onChange={(e) => void selectSong(e.target.value)}
           >
             {isNewDraft && <option value="">(neuer Song)</option>}
             {songs.map((song) => (
@@ -112,6 +217,44 @@ export function SheetEditor() {
         >
           + Neuer Song
         </button>
+        {!isNewDraft && (
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+            Variante
+            <div className="flex items-center gap-2">
+              <select
+                className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
+                value={draft.variantId}
+                onChange={(e) => selectVariant(e.target.value)}
+              >
+                {!variantsForSong.some((v) => v.id === draft.variantId) && (
+                  <option value={draft.variantId}>{draft.variantLabel} (neu)</option>
+                )}
+                {variantsForSong.map((variant) => (
+                  <option key={variant.id} value={variant.id}>
+                    {variant.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={addVariant}
+                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
+              >
+                + Neue Variante
+              </button>
+            </div>
+          </label>
+        )}
+        {!draft.isDefaultVariant && (
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+            Varianten-Name
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.variantLabel}
+              onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Titel
           <input
@@ -129,7 +272,7 @@ export function SheetEditor() {
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
         </label>
-        <BackingTrackField songId={draft.id} disabled={isNewDraft} />
+        <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}

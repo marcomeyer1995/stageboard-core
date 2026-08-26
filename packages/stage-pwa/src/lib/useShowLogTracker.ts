@@ -3,15 +3,19 @@ import { randomId } from './id'
 import type { CapabilityStatus } from './capabilities'
 import { diffCapabilities, shouldConfirmSong, shouldStartNewShow, type PendingSong } from './showLogTracking'
 import { useCapabilities } from './useCapabilities'
+import { useQueue } from './queue'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { useSongsStore } from '../store/useSongsStore'
 
 /**
  * Derives show-started / song-played / capability-changed events from ShowState and
  * capability changes over time. Mount once, always (App.tsx, like useWakeLock) - it
  * no-ops entirely unless this tablet currently holds the Master-Token, the same trust
- * primitive setActiveSong already relies on, so only one device ever writes these.
+ * primitive setActiveEntry already relies on, so only one device ever writes these.
+ *
+ * Tracks by setlist entry, not bare songId: the same song can appear twice in a setlist
+ * (e.g. full version then a shortened encore), and each occurrence must log as its own
+ * song-played event rather than being mistaken for one continuous play.
  *
  * Known limitation, not solved here: each tablet keeps its own in-memory tracking state.
  * If the Master-Token changes hands mid-song, before the outgoing master's 20-second
@@ -21,7 +25,7 @@ import { useSongsStore } from '../store/useSongsStore'
  */
 export function useShowLogTracker(): void {
   const isMaster = useShowStateStore((state) => state.isMaster)
-  const activeSongId = useShowStateStore((state) => state.state.activeSongId)
+  const { currentEntry, currentSong } = useQueue()
   const capabilities = useCapabilities()
   const append = useShowLogStore((state) => state.append)
 
@@ -31,9 +35,9 @@ export function useShowLogTracker(): void {
   const previousCapabilitiesRef = useRef<Map<string, CapabilityStatus> | null>(null)
 
   useEffect(() => {
-    if (!isMaster || activeSongId === null) return
+    if (!isMaster || currentEntry === null || currentSong === null) return
     const pending = pendingRef.current
-    if (pending && pending.songId === activeSongId) return
+    if (pending && pending.entryId === currentEntry.id) return
 
     const now = Date.now()
 
@@ -59,13 +63,17 @@ export function useShowLogTracker(): void {
     }
     lastActivityAtRef.current = now
 
-    const song = useSongsStore.getState().songs.find((candidate) => candidate.id === activeSongId)
     pendingRef.current = {
-      songId: activeSongId,
-      songTitle: song?.title ?? 'Unbekannter Song',
+      entryId: currentEntry.id,
+      songId: currentSong.id,
+      songTitle: currentSong.title,
       startedAt: now,
     }
-  }, [isMaster, activeSongId, append])
+    // computeQueue returns fresh objects every render (even with no real change) - depending
+    // on entry/song identity (id), not the objects themselves, is what keeps this from
+    // re-firing on every unrelated re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMaster, currentEntry?.id, currentSong?.id, append])
 
   useEffect(() => {
     if (!isMaster) return

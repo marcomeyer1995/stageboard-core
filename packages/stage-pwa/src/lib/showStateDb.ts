@@ -21,7 +21,9 @@ export function switchShowStateWorkspace(workspaceId: string): PouchDB.Database<
 export async function getShowState(): Promise<ShowState> {
   try {
     const doc = await db.get(SHOW_STATE_DOC_ID)
-    return doc
+    // A doc written before activeEntryId existed (it was activeSongId) simply lacks the key -
+    // merging over the default fills it in as null rather than leaking `undefined` through.
+    return { ...DEFAULT_SHOW_STATE, ...doc }
   } catch {
     return { ...DEFAULT_SHOW_STATE }
   }

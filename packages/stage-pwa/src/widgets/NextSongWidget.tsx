@@ -2,7 +2,7 @@ import { advanceToNextSong, useQueue } from '../lib/queue'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 export function NextSongWidget() {
-  const { currentSong, nextSong, isMaster } = useQueue()
+  const { currentSong, nextSong, currentVariant, nextVariant, isMaster } = useQueue()
   const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   return (
@@ -11,6 +11,9 @@ export function NextSongWidget() {
         {currentSong ? (
           <>
             Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
+            {currentVariant && !currentVariant.isDefault && (
+              <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
+            )}
           </>
         ) : (
           'Keine Songs vorhanden'
@@ -19,7 +22,10 @@ export function NextSongWidget() {
           <>
             {' | '}
             Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
-            ({nextSong.bpm} BPM)
+            ({(nextVariant ?? nextSong).bpm} BPM)
+            {nextVariant && !nextVariant.isDefault && (
+              <span className="ml-1 text-xs text-accent">({nextVariant.label})</span>
+            )}
           </>
         )}
       </span>

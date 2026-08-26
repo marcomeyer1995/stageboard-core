@@ -8,6 +8,9 @@ export const MIN_SONG_DURATION_MS = 20_000
 export const SHOW_GAP_THRESHOLD_MS = 45 * 60_000
 
 export interface PendingSong {
+  /** The setlist entry this play-through belongs to - distinguishes two occurrences of the
+   * same song (e.g. full version then a shortened encore) from one continuous play. */
+  entryId: string
   songId: string
   songTitle: string
   startedAt: number

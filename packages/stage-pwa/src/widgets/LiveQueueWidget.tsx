@@ -14,20 +14,21 @@ const WINDOW_SIZE = 8
  * section for why that matters here).
  */
 export function LiveQueueWidget() {
-  const { activeSetlist, orderedSongs, currentSong, isMaster } = useQueue()
+  const { activeSetlist, orderedItems, currentSong, isMaster } = useQueue()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   const currentIndex = currentSong
-    ? orderedSongs.findIndex((song) => song.id === currentSong.id)
+    ? orderedItems.findIndex((item) => item.song.id === currentSong.id)
     : -1
-  const upcoming = orderedSongs.slice(currentIndex + 1, currentIndex + 1 + WINDOW_SIZE)
+  const upcoming = orderedItems.slice(currentIndex + 1, currentIndex + 1 + WINDOW_SIZE)
 
-  function playNext(songId: string) {
+  function playNext(entryId: string) {
     if (!activeSetlist) return
+    const currentEntryId = currentIndex >= 0 ? (orderedItems[currentIndex]?.entry.id ?? null) : null
     void saveSetlist({
       ...activeSetlist,
-      songIds: reorderToPlayNext(activeSetlist.songIds, songId, currentSong?.id ?? null),
+      entries: reorderToPlayNext(activeSetlist.entries, entryId, currentEntryId),
     })
   }
 
@@ -53,19 +54,22 @@ export function LiveQueueWidget() {
         </p>
       )}
 
-      {upcoming.map((song, i) => (
+      {upcoming.map((item, i) => (
         <div
-          key={song.id}
+          key={item.entry.id}
           className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-2 py-1"
         >
           <span className="min-w-0 flex-1 truncate">
             <span className="mr-2 text-ink-faint">{i + 1}.</span>
-            {song.title}
+            {item.song.title}
+            {item.variant && !item.variant.isDefault && (
+              <span className="ml-2 text-xs text-accent">({item.variant.label})</span>
+            )}
           </span>
           {isMaster && activeSetlist && i > 0 && (
             <button
               type="button"
-              onClick={() => playNext(song.id)}
+              onClick={() => playNext(item.entry.id)}
               title="Als nächstes spielen"
               className="flex-shrink-0 rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
             >

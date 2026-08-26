@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
-import type { Setlist } from 'shared-types'
+import type { Setlist, SetlistEntry } from 'shared-types'
 import {
   getAllSetlists,
   getSetlistsDb,
@@ -9,8 +9,19 @@ import {
   type SetlistDoc,
 } from '../lib/setlistsDb'
 
+/**
+ * A setlist replicated before per-entry variants existed has `songIds: string[]` and no
+ * `entries` at all - PouchDB returns exactly what was stored, unvalidated, so this read-time
+ * fallback matters even though the type says `entries` is always present. Synthesizes one
+ * entry per song id, defaulting to that song's isDefault variant; the setlist becomes a real
+ * `entries` document the next time anything saves it (same lazy-migration spirit as
+ * ensureDefaultVariant in songVariantsDb.ts).
+ */
 function toSetlist(doc: SetlistDoc): Setlist {
-  return { id: doc.id, name: doc.name, songIds: doc.songIds }
+  const raw = doc as unknown as { entries?: SetlistEntry[]; songIds?: string[] }
+  const entries: SetlistEntry[] =
+    raw.entries ?? (raw.songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null }))
+  return { id: doc.id, name: doc.name, entries }
 }
 
 interface SetlistsState {
@@ -49,7 +60,11 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
   duplicateSetlist: async (id, newName) => {
     const source = get().setlists.find((setlist) => setlist.id === id)
     if (!source) return null
-    const copy: Setlist = { id: randomId(), name: newName, songIds: [...source.songIds] }
+    const copy: Setlist = {
+      id: randomId(),
+      name: newName,
+      entries: source.entries.map((entry) => ({ ...entry, id: randomId() })),
+    }
     await putSetlist(copy)
     return copy
   },

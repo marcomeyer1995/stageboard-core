@@ -44,8 +44,12 @@ export function createWorkspaceCollection<T extends { id: string }>(
 
     put: async (doc) => {
       const existing = await db.get(doc.id).catch(() => null)
+      // A revision's _attachments is only carried forward if the new body explicitly
+      // repeats the stub metadata - callers here only ever pass the plain content fields,
+      // so without this, saving e.g. a song's title after attaching a backing track would
+      // silently delete the attachment.
       const putDoc = existing
-        ? { ...doc, _id: doc.id, _rev: existing._rev }
+        ? { ...doc, _id: doc.id, _rev: existing._rev, _attachments: existing._attachments }
         : { ...doc, _id: doc.id }
       await db.put(putDoc as PouchDB.Core.PutDocument<T>)
     },

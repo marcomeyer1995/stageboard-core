@@ -14,6 +14,7 @@ import { startProfilesSync } from './lib/profilesDb'
 import { startSetlistsSync } from './lib/setlistsDb'
 import { startShowLogSync } from './lib/showLogDb'
 import { startShowStateSync } from './lib/showStateDb'
+import { startVariantsSync } from './lib/songVariantsDb'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
@@ -26,6 +27,7 @@ import { useSetlistsStore } from './store/useSetlistsStore'
 import { useShowLogStore } from './store/useShowLogStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
+import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 
 function App() {
@@ -38,6 +40,11 @@ function App() {
   useShowLogTracker()
 
   useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
+  useWorkspaceResource(
+    useSongVariantsStore((state) => state.init),
+    startVariantsSync,
+    activeWorkspaceId,
+  )
   useWorkspaceResource(
     useSetlistsStore((state) => state.init),
     startSetlistsSync,

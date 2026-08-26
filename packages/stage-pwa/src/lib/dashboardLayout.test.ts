@@ -20,7 +20,7 @@ import type { CapabilityStatus } from './capabilities'
 const overlaps = hasOverlap
 
 function emptyDashboard(): Dashboard {
-  return { id: 'd1', name: 'Test', order: 0, widgets: [], layouts: {} }
+  return { id: 'd1', name: 'Test', order: 0, widgets: [], layouts: {}, visibility: 'public' }
 }
 
 describe('defaultDashboards', () => {
@@ -540,7 +540,7 @@ describe('isDashboardVisible', () => {
   })
 
   it('treats a legacy dashboard document with no visibility field as public', () => {
-    const legacy = { id: 'd1', name: 'Old', order: 0, widgets: [], layouts: {} } as Dashboard
+    const legacy = { id: 'd1', name: 'Old', order: 0, widgets: [], layouts: {} } as unknown as Dashboard
     expect(isDashboardVisible(legacy, undefined)).toBe(true)
   })
 

@@ -3,13 +3,13 @@ import { diffCapabilities, shouldConfirmSong, shouldStartNewShow } from './showL
 
 describe('shouldConfirmSong', () => {
   it('confirms a song that has been active at least the minimum duration', () => {
-    const pending = { songId: 'a', songTitle: 'A', startedAt: 1000 }
+    const pending = { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 }
     expect(shouldConfirmSong(pending, 1000 + 20_000, 20_000)).toBe(true)
     expect(shouldConfirmSong(pending, 1000 + 30_000, 20_000)).toBe(true)
   })
 
   it('discards a song stopped before the minimum duration - a corrected wrong tap', () => {
-    const pending = { songId: 'a', songTitle: 'A', startedAt: 1000 }
+    const pending = { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 }
     expect(shouldConfirmSong(pending, 1000 + 5_000, 20_000)).toBe(false)
   })
 })

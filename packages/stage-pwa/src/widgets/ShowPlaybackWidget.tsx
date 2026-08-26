@@ -7,11 +7,12 @@ import { usePluginsStore } from '../store/usePluginsStore'
 
 interface PlaybackState {
   songId: string | null
+  variantId: string | null
   isPlaying: boolean
   positionMs: number
 }
 
-const DEFAULT_STATE: PlaybackState = { songId: null, isPlaying: false, positionMs: 0 }
+const DEFAULT_STATE: PlaybackState = { songId: null, variantId: null, isPlaying: false, positionMs: 0 }
 
 /**
  * Show-side backing-track control (docs/01 "Flexible Audio-Routing-Matrix"): sends transport
@@ -21,7 +22,7 @@ const DEFAULT_STATE: PlaybackState = { songId: null, isPlaying: false, positionM
  * end-to-end and reflects the state the Stage-Server actually reports back.
  */
 export function ShowPlaybackWidget() {
-  const { currentSong } = useQueue()
+  const { currentSong, currentVariant } = useQueue()
   const installed = usePluginsStore((state) => state.installed)
   const pluginId = pluginProviding(installed, CAPABILITIES.audioPlayback)
   const [state, setState] = useState<PlaybackState>(DEFAULT_STATE)
@@ -41,10 +42,13 @@ export function ShowPlaybackWidget() {
 
   useEffect(() => {
     if (!pluginId || !currentSong) return
-    void send({ type: 'load', payload: { songId: currentSong.id } })
-    // Re-fires only on a genuine song change, not on every re-render of the queue/store.
+    void send({
+      type: 'load',
+      payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null },
+    })
+    // Re-fires on a genuine song or variant change, not on every re-render of the queue/store.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pluginId, currentSong?.id])
+  }, [pluginId, currentSong?.id, currentVariant?.id])
 
   if (!pluginId) {
     return (
@@ -60,6 +64,9 @@ export function ShowPlaybackWidget() {
         {currentSong ? (
           <>
             Track: <span className="font-semibold text-ink">{currentSong.title}</span>
+            {currentVariant && !currentVariant.isDefault && (
+              <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
+            )}
           </>
         ) : (
           'Kein Song aktiv'

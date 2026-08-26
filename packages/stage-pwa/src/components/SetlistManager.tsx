@@ -4,10 +4,12 @@ import { useQueue } from '../lib/queue'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { randomId } from '../lib/id'
 
 export function SetlistManager() {
   const songs = useSongsStore((state) => state.songs)
+  const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const duplicateSetlist = useSetlistsStore((state) => state.duplicateSetlist)
@@ -23,7 +25,7 @@ export function SetlistManager() {
     const setlist: Setlist = {
       id: randomId(),
       name: name.trim(),
-      songIds: songs.map((song) => song.id),
+      entries: songs.map((song) => ({ id: randomId(), songId: song.id, variantId: null })),
     }
     saveSetlist(setlist)
     setSelectedId(setlist.id)
@@ -40,20 +42,36 @@ export function SetlistManager() {
   function moveSong(index: number, direction: -1 | 1) {
     if (!selected) return
     const target = index + direction
-    if (target < 0 || target >= selected.songIds.length) return
-    const songIds = [...selected.songIds]
-    ;[songIds[index], songIds[target]] = [songIds[target], songIds[index]]
-    saveSetlist({ ...selected, songIds })
+    if (target < 0 || target >= selected.entries.length) return
+    const entries = [...selected.entries]
+    ;[entries[index], entries[target]] = [entries[target], entries[index]]
+    saveSetlist({ ...selected, entries })
   }
 
   function removeSong(index: number) {
     if (!selected) return
-    saveSetlist({ ...selected, songIds: selected.songIds.filter((_, i) => i !== index) })
+    saveSetlist({ ...selected, entries: selected.entries.filter((_, i) => i !== index) })
   }
 
+  /** Adds a new occurrence of a song - deliberately allowed even if the song is already in
+   * the setlist, so e.g. a shortened "Kurzfassung" can be added as an encore of a song that
+   * already played earlier in its full-length variant. */
   function addSong(songId: string) {
-    if (!selected || !songId || selected.songIds.includes(songId)) return
-    saveSetlist({ ...selected, songIds: [...selected.songIds, songId] })
+    if (!selected || !songId) return
+    saveSetlist({
+      ...selected,
+      entries: [...selected.entries, { id: randomId(), songId, variantId: null }],
+    })
+  }
+
+  function setVariant(entryId: string, variantId: string) {
+    if (!selected) return
+    saveSetlist({
+      ...selected,
+      entries: selected.entries.map((entry) =>
+        entry.id === entryId ? { ...entry, variantId } : entry,
+      ),
+    })
   }
 
   return (
@@ -82,7 +100,7 @@ export function SetlistManager() {
                 onClick={() => setSelectedId(setlist.id)}
                 className="flex-1 text-left hover:underline"
               >
-                {setlist.name} <span className="text-ink-faint">({setlist.songIds.length})</span>
+                {setlist.name} <span className="text-ink-faint">({setlist.entries.length})</span>
                 {activeSetlist?.id === setlist.id && (
                   <span className="ml-2 text-xs text-accent">● aktiv</span>
                 )}
@@ -124,17 +142,33 @@ export function SetlistManager() {
               {selected.name}
             </h2>
             <ul className="flex flex-col gap-1">
-              {selected.songIds.map((songId, index) => {
-                const song = songs.find((s) => s.id === songId)
+              {selected.entries.map((entry, index) => {
+                const song = songs.find((s) => s.id === entry.songId)
+                const songVariants = variants.filter((v) => v.songId === entry.songId)
+                const selectedVariantId =
+                  entry.variantId ?? songVariants.find((v) => v.isDefault)?.id ?? ''
                 return (
                   <li
-                    key={`${songId}-${index}`}
+                    key={entry.id}
                     className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm"
                   >
-                    <span>
+                    <span className="min-w-0 flex-1 truncate">
                       {index + 1}. {song?.title ?? '(unbekannter Song)'}
                     </span>
-                    <span className="flex gap-1">
+                    {songVariants.length > 1 && (
+                      <select
+                        value={selectedVariantId}
+                        onChange={(e) => setVariant(entry.id, e.target.value)}
+                        className="rounded-sb-sm bg-control-strong px-1 py-0.5 text-xs text-ink"
+                      >
+                        {songVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <span className="flex flex-shrink-0 gap-1">
                       <button
                         type="button"
                         onClick={() => moveSong(index, -1)}
@@ -171,13 +205,11 @@ export function SetlistManager() {
                 <option value="" disabled>
                   Song wählen...
                 </option>
-                {songs
-                  .filter((song) => !selected.songIds.includes(song.id))
-                  .map((song) => (
-                    <option key={song.id} value={song.id}>
-                      {song.title}
-                    </option>
-                  ))}
+                {songs.map((song) => (
+                  <option key={song.id} value={song.id}>
+                    {song.title}
+                  </option>
+                ))}
               </select>
             </label>
           </>

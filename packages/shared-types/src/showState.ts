@@ -7,7 +7,11 @@ import { z } from 'zod'
  */
 export const ShowStateSchema = z.object({
   activeSetlistId: z.string().nullable(),
-  activeSongId: z.string().nullable(),
+  /** The current SetlistEntry's id, not a bare songId - a songId alone can't tell which
+   * occurrence is current when the same song appears twice in a setlist (e.g. full version
+   * then a shortened encore). With no active setlist, computeQueue synthesizes one entry per
+   * catalog song whose id equals the songId, so this still just works. */
+  activeEntryId: z.string().nullable(),
   masterHolderId: z.string().nullable(),
   masterClaimedAt: z.number().nullable(),
 })
@@ -15,7 +19,7 @@ export type ShowState = z.infer<typeof ShowStateSchema>
 
 export const DEFAULT_SHOW_STATE: ShowState = {
   activeSetlistId: null,
-  activeSongId: null,
+  activeEntryId: null,
   masterHolderId: null,
   masterClaimedAt: null,
 }

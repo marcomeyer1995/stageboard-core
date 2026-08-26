@@ -18,9 +18,9 @@ const useMidiStatusStore = create<{ status: MidiStatus }>(() => ({
  * Section Highlighting the Master-Clock already drives.
  */
 export function jumpToNextSection(): void {
-  const currentSong = getQueueSnapshot().currentSong
+  const { currentSong, currentVariant } = getQueueSnapshot()
   if (!currentSong) return
-  const lines = parseChordPro(currentSong.chordProContent)
+  const lines = parseChordPro(currentVariant?.chordProContent ?? currentSong.chordProContent)
   const elapsedMs = useClockStore.getState().getElapsedMs()
   const index = currentLineIndex(lines, elapsedMs)
   const next = nextSectionIndex(lines, index)

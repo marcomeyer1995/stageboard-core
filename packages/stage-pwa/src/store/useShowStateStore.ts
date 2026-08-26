@@ -21,7 +21,7 @@ interface ShowStateStore {
   init: (workspaceId: string) => Promise<void>
   /** Claims (or re-claims, e.g. "Take Over" after a crashed master) the token for this tablet. */
   claimMaster: () => Promise<void>
-  setActiveSong: (songId: string) => Promise<void>
+  setActiveEntry: (entryId: string) => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
 }
 
@@ -52,9 +52,9 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     const fresh = await getShowState()
     set({ state: fresh, isMaster: fresh.masterHolderId === clientId })
   },
-  setActiveSong: async (songId) => {
+  setActiveEntry: async (entryId) => {
     if (!get().isMaster) return
-    await putShowState({ activeSongId: songId })
+    await putShowState({ activeEntryId: entryId })
   },
   setActiveSetlist: async (setlistId) => {
     if (!get().isMaster) return
