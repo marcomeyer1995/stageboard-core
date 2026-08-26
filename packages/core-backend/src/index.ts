@@ -1,6 +1,8 @@
 import cors from '@fastify/cors'
 import Fastify from 'fastify'
 import { ShowControlEventSchema, SongSchema, type Song } from 'shared-types'
+import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
+import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
 
@@ -44,6 +46,50 @@ app.post('/plugins/:name/trigger', async (request, reply) => {
   return result
 })
 
+const lookupRegistry = new LookupRegistry()
+
+app.get('/lookup/:provider/search', async (request, reply) => {
+  const { provider } = request.params as { provider: string }
+  const { q } = request.query as { q?: string }
+  if (!q) {
+    return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
+  }
+
+  try {
+    const results = await lookupRegistry.search(provider, q)
+    if (results === null) {
+      return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
+    }
+    return results
+  } catch (err) {
+    app.log.error(err)
+    return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+// resultId travels as a query param, not a path param: an opaque id can embed a full source
+// URL (see ultimateGuitarPlugin.ts), and Fastify's router rejects any single path param over
+// 100 characters by default - a limit a real URL clears easily. Query strings have no such
+// per-segment ceiling.
+app.get('/lookup/:provider/detail', async (request, reply) => {
+  const { provider } = request.params as { provider: string }
+  const { resultId } = request.query as { resultId?: string }
+  if (!resultId) {
+    return reply.status(400).send({ status: 'error', message: 'Missing query parameter resultId' })
+  }
+
+  try {
+    const detail = await lookupRegistry.fetchDetail(provider, resultId)
+    if (detail === null) {
+      return reply.status(404).send({ status: 'error', message: `Unknown provider: ${provider}` })
+    }
+    return detail
+  } catch (err) {
+    app.log.error(err)
+    return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+  }
+})
+
 const port = Number(process.env.PORT ?? 3001)
 
 async function main() {
@@ -65,6 +111,18 @@ async function main() {
     log: pluginLog,
   })
   app.addHook('onClose', async () => sync.stop())
+
+  // Lookup plugins aren't band-installed hardware - they're always-available read-only data
+  // sources, so every catalog entry just starts up directly rather than waiting on a
+  // replicated installation doc the way PLUGIN_CATALOG's show-control plugins do.
+  for (const createLookupPlugin of Object.values(LOOKUP_CATALOG)) {
+    await lookupRegistry.register(createLookupPlugin(), { log: pluginLog })
+  }
+  app.addHook('onClose', async () => {
+    for (const { name } of lookupRegistry.list()) {
+      await lookupRegistry.unregister(name)
+    }
+  })
 
   await app.listen({ port, host: '0.0.0.0' })
 }

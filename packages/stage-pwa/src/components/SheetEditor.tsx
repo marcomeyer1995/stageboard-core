@@ -6,24 +6,30 @@ import { ensureDefaultVariant } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
+import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapToSync } from './TapToSync'
 import { TrackManagerField } from './TrackManagerField'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
 
-/** The editor's working state: a song's title plus one of its variant's playable content -
- * two separate documents (Song, SongVariant) presented as one form, since that's how a
- * musician thinks about "the song I'm editing right now". */
+/** The editor's working state: a song's title/artist plus one of its variant's playable
+ * content - two separate documents (Song, SongVariant) presented as one form, since that's
+ * how a musician thinks about "the song I'm editing right now". Key/tuning/capo live on the
+ * variant, not the song, since a different arrangement can genuinely use a different one. */
 interface EditorDraft {
   songId: string
   title: string
+  artist?: string
   variantId: string
   variantLabel: string
   isDefaultVariant: boolean
   bpm: number
   chordProContent: string
   timecodes: TimecodeMarker[]
+  key?: string
+  tuning?: string
+  capo?: number
 }
 
 function emptyDraft(): EditorDraft {
@@ -43,12 +49,16 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
   return {
     songId: song.id,
     title: song.title,
+    artist: song.artist,
     variantId: variant.id,
     variantLabel: variant.label,
     isDefaultVariant: variant.isDefault,
     bpm: variant.bpm,
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
+    key: variant.key,
+    tuning: variant.tuning,
+    capo: variant.capo,
   }
 }
 
@@ -63,6 +73,7 @@ export function SheetEditor() {
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const variantsForSong = variants.filter((v) => v.songId === draft.songId)
@@ -109,6 +120,9 @@ export function SheetEditor() {
       bpm: variant.bpm,
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
+      key: variant.key,
+      tuning: variant.tuning,
+      capo: variant.capo,
     })
     setError(null)
     setSavedAt(null)
@@ -135,6 +149,9 @@ export function SheetEditor() {
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       tracks: currentTracks,
+      key: draft.key,
+      tuning: draft.tuning,
+      capo: draft.capo,
     }
     const variantResult = SongVariantSchema.safeParse(variant)
     if (!variantResult.success) {
@@ -149,6 +166,7 @@ export function SheetEditor() {
     const song: Song = {
       id: draft.songId,
       title: draft.title,
+      artist: draft.artist,
       bpm: defaultVariant?.bpm ?? draft.bpm,
       chordProContent: defaultVariant?.chordProContent ?? draft.chordProContent,
       timecodes: defaultVariant?.timecodes ?? draft.timecodes,
@@ -182,6 +200,21 @@ export function SheetEditor() {
       const caretAfter = lineStart + directive.length
       textarea?.focus()
       textarea?.setSelectionRange(caretAfter, caretAfter)
+    })
+  }
+
+  /** Ultimate Guitar's own bpm/key/tuning/capo only ever come in on top of whatever the
+   * import found - a missing field there must not silently overwrite a value already in the
+   * editor (e.g. a capo the previous variant had that this particular tab just doesn't list). */
+  function handleImport(imported: ImportedSongData) {
+    setDraft({
+      ...draft,
+      chordProContent: imported.chordProContent,
+      artist: imported.artist ?? draft.artist,
+      key: imported.key ?? draft.key,
+      tuning: imported.tuning ?? draft.tuning,
+      capo: imported.capo ?? draft.capo,
+      bpm: imported.bpm ?? draft.bpm,
     })
   }
 
@@ -255,23 +288,63 @@ export function SheetEditor() {
             />
           </label>
         )}
-        <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Titel
-          <input
-            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-            value={draft.title}
-            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          BPM
-          <input
-            type="number"
-            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-            value={draft.bpm}
-            onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
-          />
-        </label>
+        <div className="flex gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            Titel
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            Band
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.artist ?? ''}
+              onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
+            />
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            BPM
+            <input
+              type="number"
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.bpm}
+              onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            Key
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.key ?? ''}
+              onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            Tuning
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.tuning ?? ''}
+              onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
+            />
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+            Capo
+            <input
+              type="number"
+              min={0}
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.capo ?? ''}
+              onChange={(e) =>
+                setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })
+              }
+            />
+          </label>
+        </div>
         <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
         {isTapping ? (
           <TapToSync
@@ -286,14 +359,23 @@ export function SheetEditor() {
           <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
             <div className="flex items-center justify-between">
               ChordPro-Text
-              <button
-                type="button"
-                onClick={() => setIsTapping(true)}
-                disabled={!draft.chordProContent.trim()}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Tap-to-Sync starten
-              </button>
+              <span className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsImporting(true)}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
+                >
+                  Song importieren
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTapping(true)}
+                  disabled={!draft.chordProContent.trim()}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  Tap-to-Sync starten
+                </button>
+              </span>
             </div>
             <div className="flex flex-wrap gap-1">
               {PART_LABELS.map((label) => (
@@ -329,6 +411,7 @@ export function SheetEditor() {
       <div className="overflow-y-auto rounded-sb border border-line bg-surface p-6 shadow-sb">
         <ChordProLyrics lines={preview} />
       </div>
+      {isImporting && <TabImportOverlay onImport={handleImport} onClose={() => setIsImporting(false)} />}
     </div>
   )
 }

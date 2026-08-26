@@ -12,5 +12,8 @@ export const SongSchema = z.object({
   bpm: z.number().positive(),
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
+  /** The band/artist who performed it - unlike bpm/key/tuning/capo, this doesn't change
+   * between arrangements of the same song, so it lives here rather than on SongVariant. */
+  artist: z.string().optional(),
 })
 export type Song = z.infer<typeof SongSchema>

@@ -39,5 +39,15 @@ export const SongVariantSchema = z.object({
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
   tracks: z.array(TrackMetaSchema).default([]),
+  /** Musical key, e.g. "F#m" - genuinely arrangement-specific (a capo/tuning change can
+   * shift it), so it lives here rather than on Song. Optional/absent, not a forced default:
+   * most sources (including Ultimate Guitar's own data) simply omit it when unknown, and a
+   * blank string would be indistinguishable from "known to have no key". */
+  key: z.string().optional(),
+  /** e.g. "E A D G B E" or "Drop D". */
+  tuning: z.string().optional(),
+  /** Fret number. Absent (not 0) means "no capo", matching how Ultimate Guitar itself only
+   * includes this field at all when a capo is actually used. */
+  capo: z.number().int().nonnegative().optional(),
 })
 export type SongVariant = z.infer<typeof SongVariantSchema>
