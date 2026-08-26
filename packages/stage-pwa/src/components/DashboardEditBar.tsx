@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { randomId } from '../lib/id'
 import type { CapabilityId, Dashboard } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
-import { availableWidgets, GRID_COLUMNS, withWidgetAppended } from '../lib/dashboardLayout'
+import {
+  availableWidgets,
+  GRID_COLUMNS,
+  isDashboardVisible,
+  withWidgetAppended,
+} from '../lib/dashboardLayout'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
@@ -26,6 +32,10 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
   const setActive = useActiveDashboardStore((state) => state.setActive)
   const setEditing = useEditModeStore((state) => state.setEditing)
   const [showLibrary, setShowLibrary] = useState(false)
+  const activeProfile = useActiveProfile()
+  const visibleDashboards = dashboards.filter((item) => isDashboardVisible(item, activeProfile))
+  const publicDashboardCount = dashboards.filter((item) => item.visibility !== 'private').length
+  const isLastPublicDashboard = dashboard.visibility !== 'private' && publicDashboardCount <= 1
 
   // docs/07: the library only offers what the band's plugins actually support.
   const available = availableWidgets(ALL_WIDGETS, capabilities)
@@ -39,7 +49,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
         value={dashboard.id}
         onChange={(e) => setActive(workspaceId, e.target.value)}
       >
-        {dashboards.map((item) => (
+        {visibleDashboards.map((item) => (
           <option key={item.id} value={item.id}>
             {item.name}
           </option>
@@ -91,8 +101,10 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
 
       <button
         type="button"
-        disabled={dashboards.length <= 1}
-        title={dashboards.length <= 1 ? 'Das letzte Dashboard bleibt bestehen' : undefined}
+        disabled={isLastPublicDashboard}
+        title={
+          isLastPublicDashboard ? 'Das letzte öffentliche Dashboard bleibt bestehen' : undefined
+        }
         onClick={() => {
           if (window.confirm(`"${dashboard.name}" löschen?`)) void remove(dashboard.id)
         }}

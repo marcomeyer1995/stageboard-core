@@ -12,11 +12,13 @@ import {
   GRID_COLUMNS,
   GRID_ROWS,
   gridMetrics,
+  isDashboardVisible,
   normalizeLayout,
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
 import { fmtItems, gridLog } from '../lib/gridDebug'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
@@ -151,9 +153,20 @@ export function Dashboard() {
     [],
   )
 
-  // A dashboard the device remembers may have been deleted on another tablet.
+  // Private Stations are filtered out before anything else picks an active dashboard, so
+  // a device never lands on - or falls back to - a dashboard it has no business showing.
+  const activeProfile = useActiveProfile()
+  const visibleDashboards = useMemo(
+    () => dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile)),
+    [dashboards, activeProfile],
+  )
+
+  // A dashboard the device remembers may have been deleted on another tablet, or turned
+  // private by someone else since - either way, it's the same "fall back to the first one
+  // that's actually usable" case.
   const active =
-    dashboards.find((dashboard) => dashboard.id === byWorkspace[workspaceId]) ?? dashboards[0]
+    visibleDashboards.find((dashboard) => dashboard.id === byWorkspace[workspaceId]) ??
+    visibleDashboards[0]
 
   // A baseline belongs to one specific dashboard's widgets and must never outlive it - e.g.
   // switching away mid-drag, or the active dashboard being rewritten out from under the grid

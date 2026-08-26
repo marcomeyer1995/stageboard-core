@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BREAKPOINTS, type Dashboard } from 'shared-types'
+import { BREAKPOINTS, DashboardSchema, type Dashboard, type Profile } from 'shared-types'
 import {
   availableWidgets,
   breakpointFor,
@@ -8,6 +8,7 @@ import {
   gridHeight,
   gridMetrics,
   hasOverlap,
+  isDashboardVisible,
   normalizeLayout,
   resolveInteraction,
   withWidgetAppended,
@@ -474,5 +475,57 @@ describe('withWidgetAppended (bounds)', () => {
     dashboard = withWidgetAppended(dashboard, 'clock', { w: 12, h: 6 }, 'c1')
     const clock = dashboard.layouts.lg?.find((item) => item.i === 'c1')
     expect(clock).toMatchObject({ y: 22, h: 2 })
+  })
+})
+
+describe('isDashboardVisible', () => {
+  const vocalist: Profile = { id: 'p1', name: 'Anna', role: 'Vocalist' }
+  const guitarist: Profile = { id: 'p2', name: 'Tom', role: 'Gitarre' }
+
+  it('is always visible when public, regardless of active profile', () => {
+    const dashboard = { ...emptyDashboard(), visibility: 'public' as const }
+    expect(isDashboardVisible(dashboard, undefined)).toBe(true)
+    expect(isDashboardVisible(dashboard, vocalist)).toBe(true)
+  })
+
+  it('is hidden from an anonymous device (no active profile) when private', () => {
+    const dashboard = { ...emptyDashboard(), visibility: 'private' as const, ownerProfileId: 'p1' }
+    expect(isDashboardVisible(dashboard, undefined)).toBe(false)
+  })
+
+  it('is visible only to the matching owner profile when private', () => {
+    const dashboard = { ...emptyDashboard(), visibility: 'private' as const, ownerProfileId: 'p1' }
+    expect(isDashboardVisible(dashboard, vocalist)).toBe(true)
+    expect(isDashboardVisible(dashboard, guitarist)).toBe(false)
+  })
+
+  it('is visible to any profile with the matching role when role-owned', () => {
+    const dashboard = { ...emptyDashboard(), visibility: 'private' as const, ownerRole: 'Vocalist' }
+    expect(isDashboardVisible(dashboard, vocalist)).toBe(true)
+    expect(isDashboardVisible(dashboard, guitarist)).toBe(false)
+  })
+
+  it('prefers ownerProfileId over ownerRole when both are set', () => {
+    const dashboard = {
+      ...emptyDashboard(),
+      visibility: 'private' as const,
+      ownerProfileId: 'p2',
+      ownerRole: 'Vocalist',
+    }
+    // Tom (p2) owns it by id even though Anna's role matches ownerRole.
+    expect(isDashboardVisible(dashboard, guitarist)).toBe(true)
+    expect(isDashboardVisible(dashboard, vocalist)).toBe(false)
+  })
+
+  it('treats a legacy dashboard document with no visibility field as public', () => {
+    const legacy = { id: 'd1', name: 'Old', order: 0, widgets: [], layouts: {} } as Dashboard
+    expect(isDashboardVisible(legacy, undefined)).toBe(true)
+  })
+
+  it('DashboardSchema defaults visibility to public for a pre-existing document', () => {
+    const parsed = DashboardSchema.parse({ id: 'd1', name: 'Old', order: 0 })
+    expect(parsed.visibility).toBe('public')
+    expect(parsed.ownerProfileId).toBeUndefined()
+    expect(parsed.ownerRole).toBeUndefined()
   })
 })

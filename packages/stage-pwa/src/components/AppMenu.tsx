@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
+import { ProfileSwitcher } from './ProfileSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useFullscreen } from '../lib/useFullscreen'
@@ -68,6 +69,10 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
         <Section title="Band">
           <WorkspaceSwitcher />
+        </Section>
+
+        <Section title="Profil">
+          <ProfileSwitcher />
         </Section>
 
         <Section title="Darstellung">

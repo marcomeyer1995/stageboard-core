@@ -18,6 +18,9 @@ function toDashboard(doc: DashboardDoc): Dashboard {
     order: doc.order,
     widgets: doc.widgets,
     layouts: doc.layouts,
+    ownerProfileId: doc.ownerProfileId,
+    ownerRole: doc.ownerRole,
+    visibility: doc.visibility ?? 'public',
   }
 }
 
@@ -43,7 +46,11 @@ interface DashboardsState {
   create: (name: string) => Promise<Dashboard>
   duplicate: (id: string, newName: string) => Promise<Dashboard | null>
   rename: (id: string, name: string) => Promise<void>
-  /** Refuses to delete the last dashboard - a device with none has nothing to show. */
+  /**
+   * Refuses to delete the last *public* dashboard - a device with no profile picked (or a
+   * profile that owns nothing here) would otherwise be left with nothing it's allowed to
+   * show. Private Stations don't count toward, or need protection from, this floor.
+   */
   remove: (id: string) => Promise<void>
   /** Throws away every dashboard and re-seeds the defaults. */
   resetToDefaults: () => Promise<void>
@@ -107,7 +114,10 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     await putDashboard({ ...existing, name })
   },
   remove: async (id) => {
-    if (get().dashboards.length <= 1) return
+    const target = get().dashboards.find((dashboard) => dashboard.id === id)
+    if (!target) return
+    const publicCount = get().dashboards.filter((dashboard) => dashboard.visibility !== 'private').length
+    if (target.visibility !== 'private' && publicCount <= 1) return
     await removeDashboard(id)
   },
   resetToDefaults: async () => {

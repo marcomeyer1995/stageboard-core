@@ -1,4 +1,6 @@
 import type { DashboardSwitcherConfig } from './dashboardSwitcherConfig'
+import { isDashboardVisible } from '../lib/dashboardLayout'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -12,13 +14,17 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const byWorkspace = useActiveDashboardStore((state) => state.byWorkspace)
   const setActive = useActiveDashboardStore((state) => state.setActive)
+  const activeProfile = useActiveProfile()
 
+  // A private Station never appears as a switch target for anyone but its owner, whether
+  // it was picked explicitly in this instance's config or just fell out of "show all."
+  const selectable = dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile))
   const visible = config.dashboardIds
     ? config.dashboardIds
-        .map((id) => dashboards.find((dashboard) => dashboard.id === id))
+        .map((id) => selectable.find((dashboard) => dashboard.id === id))
         .filter((dashboard) => dashboard !== undefined)
-    : dashboards
-  const activeId = byWorkspace[workspaceId] ?? dashboards[0]?.id
+    : selectable
+  const activeId = byWorkspace[workspaceId] ?? selectable[0]?.id
 
   return (
     <div

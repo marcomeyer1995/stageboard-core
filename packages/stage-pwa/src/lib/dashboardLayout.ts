@@ -1,5 +1,5 @@
 import { BREAKPOINTS, type Breakpoint, type Dashboard, type LayoutItem } from 'shared-types'
-import type { CapabilityId } from 'shared-types'
+import type { CapabilityId, Profile } from 'shared-types'
 import { capabilityStatusFor, type CapabilityStatus } from './capabilities'
 import { fmtItems, gridLog } from './gridDebug'
 import type { WidgetSize } from '../widgets/registry'
@@ -331,6 +331,23 @@ export function withWidgetRemoved(dashboard: Dashboard, instanceId: string): Das
       ]),
     ),
   }
+}
+
+/**
+ * Whether a dashboard should be listed/selectable for the given (possibly absent) active
+ * profile. Public dashboards are visible to everyone, always - including when no profile
+ * is active, which is what keeps a fresh device usable before anyone's picked who they
+ * are. A private one is visible only to its owner: either the matching profile, or (for a
+ * role-level Station meant for whoever fills that role that night) a profile with the
+ * matching role. This is a client-side filter only, not real access control - see the
+ * Dashboard.visibility doc comment in shared-types.
+ */
+export function isDashboardVisible(dashboard: Dashboard, activeProfile: Profile | undefined): boolean {
+  if (dashboard.visibility !== 'private') return true
+  if (!activeProfile) return false
+  if (dashboard.ownerProfileId) return dashboard.ownerProfileId === activeProfile.id
+  if (dashboard.ownerRole) return dashboard.ownerRole === activeProfile.role
+  return true
 }
 
 /**

@@ -8,6 +8,7 @@ import { startSync } from './lib/db'
 import { startDashboardsSync } from './lib/dashboardsDb'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { startPluginsSync } from './lib/pluginsDb'
+import { startProfilesSync } from './lib/profilesDb'
 import { startSetlistsSync } from './lib/setlistsDb'
 import { startShowStateSync } from './lib/showStateDb'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
@@ -16,6 +17,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
+import { useProfilesStore } from './store/useProfilesStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
@@ -48,6 +50,11 @@ function App() {
   useWorkspaceResource(
     useDashboardsStore((state) => state.init),
     startDashboardsSync,
+    activeWorkspaceId,
+  )
+  useWorkspaceResource(
+    useProfilesStore((state) => state.init),
+    startProfilesSync,
     activeWorkspaceId,
   )
 
