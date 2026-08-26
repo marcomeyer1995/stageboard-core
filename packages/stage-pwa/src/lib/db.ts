@@ -43,3 +43,40 @@ export async function seedDummySongsIfEmpty(): Promise<void> {
   if (info.doc_count > 0) return
   await db.bulkDocs(dummySongs.map((song) => ({ ...song, _id: song.id })))
 }
+
+/**
+ * A song's backing track (docs/08 Phase 2, home rehearsal + docs/01 audio-playback) rides as
+ * a PouchDB attachment on its own document rather than a field in `Song` - CouchDB replicates
+ * it over the same mesh as everything else, with no second transport path, but it stays out
+ * of the Zod content schema since it's storage, not song data.
+ */
+const BACKING_TRACK_ATTACHMENT_ID = 'backing-track'
+
+export async function putBackingTrack(songId: string, file: Blob): Promise<void> {
+  const db = getSongsDb()
+  const doc = await db.get(songId)
+  await db.putAttachment(songId, BACKING_TRACK_ATTACHMENT_ID, doc._rev, file, file.type)
+}
+
+export async function removeBackingTrack(songId: string): Promise<void> {
+  const db = getSongsDb()
+  const doc = await db.get(songId)
+  if (!doc._attachments?.[BACKING_TRACK_ATTACHMENT_ID]) return
+  await db.removeAttachment(songId, BACKING_TRACK_ATTACHMENT_ID, doc._rev)
+}
+
+export async function hasBackingTrack(songId: string): Promise<boolean> {
+  const db = getSongsDb()
+  const doc = await db.get(songId).catch(() => null)
+  return Boolean(doc?._attachments?.[BACKING_TRACK_ATTACHMENT_ID])
+}
+
+export async function getBackingTrack(songId: string): Promise<Blob | null> {
+  const db = getSongsDb()
+  try {
+    return (await db.getAttachment(songId, BACKING_TRACK_ATTACHMENT_ID)) as Blob
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null
+    throw err
+  }
+}

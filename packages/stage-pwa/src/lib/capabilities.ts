@@ -60,6 +60,19 @@ function pluginStatus(
   return 'available'
 }
 
+/**
+ * Which installed, enabled plugin to send a trigger for a given capability to - the
+ * PluginRegistry on the Stage-Server keys plugins by this same id (see catalog.ts), so it
+ * doubles as the `:name` path segment for `/plugins/:name/trigger`. Several plugins could
+ * offer the same capability; the first enabled one wins, same tie-break as resolveCapabilities.
+ */
+export function pluginProviding(
+  installed: PluginInstallation[],
+  capability: CapabilityId,
+): string | null {
+  return installed.find((plugin) => plugin.enabled && plugin.capabilities.includes(capability))?.id ?? null
+}
+
 /** Status of a whole widget: the weakest of everything it requires. */
 export function capabilityStatusFor(
   requires: CapabilityId[],

@@ -36,6 +36,13 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     runtime: 'server',
     capabilities: [CAPABILITIES.backup],
   },
+  {
+    id: 'mock-playback',
+    name: 'Mock Playback',
+    version: '0.0.1',
+    runtime: 'server',
+    capabilities: [CAPABILITIES.audioPlayback],
+  },
 ]
 
 export function PluginManager() {

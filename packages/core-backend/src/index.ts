@@ -1,9 +1,16 @@
+import cors from '@fastify/cors'
 import Fastify from 'fastify'
 import { ShowControlEventSchema, SongSchema, type Song } from 'shared-types'
 import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
 
 const app = Fastify({ logger: true })
+
+// Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
+// same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
+await app.register(cors, {
+  origin: (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173').split(','),
+})
 
 app.get('/health', async () => ({ status: 'ok' }))
 

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
+import { BackingTrackPlayerWidget } from './BackingTrackPlayerWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
 import { ClockControlWidget } from './ClockControlWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
@@ -13,6 +14,7 @@ import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { ShowNoteWidget } from './ShowNoteWidget'
+import { ShowPlaybackWidget } from './ShowPlaybackWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
@@ -182,6 +184,15 @@ const DEFINITIONS: WidgetDefinition[] = [
     Component: LightingCuesWidget,
   }),
   defineWidget({
+    type: 'show-playback',
+    title: 'Show-Playback',
+    description: 'Play/Pause/Stop für den Backing-Track über den Stage-Server.',
+    requires: [CAPABILITIES.audioPlayback],
+    category: 'show-control',
+    defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
+    Component: ShowPlaybackWidget,
+  }),
+  defineWidget({
     type: 'system-health',
     title: 'System-Status',
     description: 'Ampel-Übersicht aller Plugin-Capabilities, für Setup/Soundcheck.',
@@ -203,6 +214,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: TunerConfigSchema,
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,
+  }),
+  defineWidget({
+    type: 'backing-track-player',
+    title: 'Backing-Track Player',
+    description: 'Backing-Track fürs Üben zuhause, Text folgt der Wiedergabe (docs/08 Phase 2).',
+    category: 'utility',
+    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
+    Component: BackingTrackPlayerWidget,
   }),
   defineWidget({
     type: 'show-notes',

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SongSchema, type Song } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { useSongsStore } from '../store/useSongsStore'
+import { BackingTrackField } from './BackingTrackField'
 import { ChordProLyrics } from './ChordProLyrics'
 import { TapToSync } from './TapToSync'
 import { randomId } from '../lib/id'
@@ -128,6 +129,7 @@ export function SheetEditor() {
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
         </label>
+        <BackingTrackField songId={draft.id} disabled={isNewDraft} />
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}

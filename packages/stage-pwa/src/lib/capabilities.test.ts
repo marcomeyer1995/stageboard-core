@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HEALTH_TIMEOUT_MS, type PluginHealth, type PluginInstallation } from 'shared-types'
-import { capabilityStatusFor, resolveCapabilities } from './capabilities'
+import { capabilityStatusFor, pluginProviding, resolveCapabilities } from './capabilities'
 
 const NOW = 1_000_000
 
@@ -93,5 +93,26 @@ describe('capabilityStatusFor', () => {
 
   it('reports missing when a requirement is provided by nobody', () => {
     expect(capabilityStatusFor(['mixer', 'audio-playback'], statuses)).toBe('missing')
+  })
+})
+
+describe('pluginProviding', () => {
+  it('finds the installed plugin offering a capability', () => {
+    expect(pluginProviding([plugin({ id: 'mock-playback', capabilities: ['audio-playback'] })], 'audio-playback')).toBe(
+      'mock-playback',
+    )
+  })
+
+  it('ignores a disabled plugin', () => {
+    expect(
+      pluginProviding(
+        [plugin({ id: 'mock-playback', capabilities: ['audio-playback'], enabled: false })],
+        'audio-playback',
+      ),
+    ).toBeNull()
+  })
+
+  it('returns null when nobody provides the capability', () => {
+    expect(pluginProviding([plugin()], 'audio-playback')).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import type { IShowControlPlugin } from 'shared-types'
 import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
+import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
 
 /**
  * The server-side plugins this build knows how to construct, keyed by the id used in the
@@ -11,4 +12,5 @@ import { createMockMixerPlugin } from './mockMixerPlugin.js'
 export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-mixer': createMockMixerPlugin,
   'mock-lighting': createMockLightingPlugin,
+  'mock-playback': createMockPlaybackPlugin,
 }
