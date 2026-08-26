@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { detectPitch } from '../lib/pitchDetection'
 import { noteFromFrequency, type NoteMatch } from '../lib/noteFromFrequency'
 import { PitchHistory } from '../lib/pitchSmoothing'
-import { RESPONSIVENESS_SETTINGS, SENSITIVITY_MIN_RMS, type TunerConfig } from './tunerConfig'
+import {
+  minRmsToSlider,
+  responsivenessFromWindow,
+  sliderToMinRms,
+  type TunerConfig,
+} from './tunerConfig'
 
 type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -35,7 +40,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
 
   useEffect(() => {
     configRef.current = config
-    const settings = RESPONSIVENESS_SETTINGS[config.responsiveness]
+    const settings = responsivenessFromWindow(config.smoothingWindow)
     historyRef.current = new PitchHistory(settings.size, settings.maxMisses)
   }, [config])
 
@@ -73,9 +78,10 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
 
       const tick = () => {
         analyser.getFloatTimeDomainData(buffer)
-        const minRms = SENSITIVITY_MIN_RMS[configRef.current.sensitivity]
-        const settings = RESPONSIVENESS_SETTINGS[configRef.current.responsiveness]
-        historyRef.current.push(detectPitch(buffer, audioContext.sampleRate, minRms))
+        const settings = responsivenessFromWindow(configRef.current.smoothingWindow)
+        historyRef.current.push(
+          detectPitch(buffer, audioContext.sampleRate, configRef.current.minRms),
+        )
         const smoothed = historyRef.current.smoothed(settings.minReadings)
         if (smoothed) {
           setFrequency(smoothed)
@@ -152,34 +158,44 @@ export function TunerConfigPanel({
   onChange: (next: TunerConfig) => void
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Empfindlichkeit
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.sensitivity}
-          onChange={(e) =>
-            onChange({ ...config, sensitivity: e.target.value as TunerConfig['sensitivity'] })
-          }
-        >
-          <option value="low">Niedrig (weniger Störgeräusche)</option>
-          <option value="medium">Mittel</option>
-          <option value="high">Hoch (erkennt leise/ausklingende Töne)</option>
-        </select>
+        <div className="flex items-center justify-between">
+          <span>Empfindlichkeit</span>
+          <span className="text-ink-faint">{config.minRms.toFixed(4)} RMS</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={minRmsToSlider(config.minRms)}
+          onChange={(e) => onChange({ ...config, minRms: sliderToMinRms(Number(e.target.value)) })}
+          className="w-full accent-accent"
+        />
+        <div className="flex justify-between text-[10px] text-ink-faint">
+          <span>Unempfindlich</span>
+          <span>Empfindlich</span>
+        </div>
       </label>
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Reaktionsgeschwindigkeit
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.responsiveness}
-          onChange={(e) =>
-            onChange({ ...config, responsiveness: e.target.value as TunerConfig['responsiveness'] })
-          }
-        >
-          <option value="stable">Stabil (ausklingende Töne bleiben länger sichtbar)</option>
-          <option value="balanced">Ausgewogen</option>
-          <option value="fast">Schnell (reagiert sofort, etwas unruhiger)</option>
-        </select>
+        <div className="flex items-center justify-between">
+          <span>Reaktionsgeschwindigkeit</span>
+          <span className="text-ink-faint">{config.smoothingWindow}</span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={60}
+          step={1}
+          value={config.smoothingWindow}
+          onChange={(e) => onChange({ ...config, smoothingWindow: Number(e.target.value) })}
+          className="w-full accent-accent"
+        />
+        <div className="flex justify-between text-[10px] text-ink-faint">
+          <span>Schnell</span>
+          <span>Stabil</span>
+        </div>
       </label>
     </div>
   )
