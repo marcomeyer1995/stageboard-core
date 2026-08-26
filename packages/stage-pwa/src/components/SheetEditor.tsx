@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SongSchema, SongVariantSchema, type Song, type SongVariant, type TimecodeMarker } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
-import { ensureDefaultVariant } from '../lib/songVariantsDb'
+import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
@@ -74,10 +74,34 @@ export function SheetEditor() {
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const variantsForSong = variants.filter((v) => v.songId === draft.songId)
   const currentTracks = variants.find((v) => v.id === draft.variantId)?.tracks ?? []
+  // Prefer the band's own mix; a reference track (e.g. extracted YouTube audio) is still
+  // useful to tap along to when no band-mix has been recorded yet.
+  const tapTrack =
+    currentTracks.find((t) => t.kind === 'band-mix') ?? currentTracks.find((t) => t.kind === 'reference') ?? null
+
+  useEffect(() => {
+    setTapTrackSrc(null)
+    if (!isTapping || !tapTrack) return
+    let cancelled = false
+    let objectUrl: string | null = null
+    getTrack(draft.variantId, tapTrack.id).then((blob) => {
+      if (cancelled || !blob) return
+      objectUrl = URL.createObjectURL(blob)
+      setTapTrackSrc(objectUrl)
+    })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+    // Only the ids matter here - re-running on every tracks-array reference change (a new
+    // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTapping, draft.variantId, tapTrack?.id])
 
   async function selectSong(id: string) {
     const song = songs.find((s) => s.id === id)
@@ -349,6 +373,7 @@ export function SheetEditor() {
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}
+            trackSrc={tapTrackSrc}
             onComplete={(content) => {
               setDraft({ ...draft, chordProContent: content })
               setIsTapping(false)
