@@ -1,6 +1,7 @@
 import { BREAKPOINTS, type Breakpoint, type Dashboard, type LayoutItem } from 'shared-types'
 import type { CapabilityId } from 'shared-types'
 import { capabilityStatusFor, type CapabilityStatus } from './capabilities'
+import { fmtItems, gridLog } from './gridDebug'
 import type { WidgetSize } from '../widgets/registry'
 
 /**
@@ -210,7 +211,12 @@ export function normalizeLayout(
 ): LayoutItem[] {
   const clamped = layout.map((item) => clampItem(item, cols, rows))
   if (!hasOverlap(clamped)) return clamped
-  return pack(clamped, cols, rows)
+  const packed = pack(clamped, cols, rows)
+  gridLog('normalizeLayout: repacked an overlapping/out-of-bounds layout', {
+    before: fmtItems(layout),
+    after: fmtItems(packed),
+  })
+  return packed
 }
 
 /** True when two items share a grid cell - the pairwise version hasOverlap checks all pairs for. */
@@ -226,16 +232,30 @@ function collides(a: LayoutItem, b: LayoutItem): boolean {
  * left unchecked, clean off the visible grid). This restores every item but the active one
  * to its pre-interaction position, and only re-places the ones that genuinely still overlap
  * the active item's final spot - not the whole layout, so nothing else drifts either.
+ *
+ * `previous` is that same frame-by-frame placement, fed back in by the caller (null outside
+ * an interaction, or on its first frame). A blocked item that still fits where the last
+ * frame put it keeps that spot instead of calling placeInGrid again from scratch - without
+ * this, a widget with almost no slack around it (e.g. one nearly as large as the whole grid)
+ * gets a different shrink/position solution on every single frame as the active item passes
+ * over it by a single cell, which reads as that widget frantically resizing many times a
+ * second for the length of the drag.
  */
 export function resolveInteraction(
   baseline: LayoutItem[],
   activeId: string,
   current: LayoutItem[],
+  previous: LayoutItem[] | null = null,
   cols = GRID_COLUMNS,
   rows = GRID_ROWS,
 ): LayoutItem[] {
   const activeItem = current.find((item) => item.i === activeId)
-  if (!activeItem) return current
+  if (!activeItem) {
+    gridLog(`resolveInteraction: active item ${activeId} not found in current layout`, {
+      current: fmtItems(current),
+    })
+    return current
+  }
 
   const baselineById = new Map(baseline.map((item) => [item.i, item]))
   const restored = current.map((item) =>
@@ -243,7 +263,15 @@ export function resolveInteraction(
   )
 
   const blocked = restored.filter((item) => item.i !== activeId && collides(item, activeItem))
-  if (blocked.length === 0) return restored
+  if (blocked.length === 0) {
+    gridLog(`resolveInteraction active=${activeId}@[${activeItem.x},${activeItem.y} ${activeItem.w}x${activeItem.h}] no collisions`)
+    return restored
+  }
+
+  gridLog(
+    `resolveInteraction active=${activeId}@[${activeItem.x},${activeItem.y} ${activeItem.w}x${activeItem.h}] blocked=${blocked.map((item) => item.i).join(',')}`,
+  )
+  gridLog('  restored (pre-placement):', fmtItems(restored))
 
   const grid = createOccupancyGrid(cols, rows)
   const blockedIds = new Set(blocked.map((item) => item.i))
@@ -251,12 +279,19 @@ export function resolveInteraction(
     if (!blockedIds.has(item.i)) grid.occupy(item.x, item.y, item.w, item.h)
   }
 
-  const placed = new Map(
-    [...blocked]
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map((item) => [item.i, placeInGrid(grid, item, cols, rows)] as const),
-  )
-  return restored.map((item) => placed.get(item.i) ?? item)
+  const previousById = new Map((previous ?? []).map((item) => [item.i, item]))
+  const placed = new Map<string, LayoutItem>()
+  for (const item of [...blocked].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const sticky = previousById.get(item.i)
+    const keepSticky =
+      sticky !== undefined && !collides(sticky, activeItem) && grid.isFree(sticky.x, sticky.y, sticky.w, sticky.h)
+    const placement = keepSticky ? sticky : placeInGrid(grid, item, cols, rows)
+    placed.set(item.i, placement)
+    grid.occupy(placement.x, placement.y, placement.w, placement.h)
+  }
+  const result = restored.map((item) => placed.get(item.i) ?? item)
+  gridLog('  result:', fmtItems(result))
+  return result
 }
 
 /**

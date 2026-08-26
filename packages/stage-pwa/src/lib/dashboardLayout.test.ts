@@ -387,6 +387,50 @@ describe('resolveInteraction', () => {
     const current = [{ i: 'b', x: 0, y: 0, w: 4, h: 3 }]
     expect(resolveInteraction(baseline, 'a', current)).toEqual(current)
   })
+
+  it('keeps a blocked widget where the previous frame placed it, instead of re-solving it to a different equally-valid spot', () => {
+    // Reproduces the tablet bug: a widget ("big") with almost no slack around it gets
+    // re-shrunk to a *different* size/position on every single drag frame as the active
+    // widget passes over it by as little as one column - visibly flickering many times a
+    // second for the length of the drag, even though the previous frame's placement was
+    // still perfectly valid.
+    const baseline = [
+      { i: 'top', x: 0, y: 0, w: 12, h: 3 },
+      { i: 'left', x: 0, y: 3, w: 5, h: 3 },
+      { i: 'active', x: 5, y: 3, w: 2, h: 3 },
+      { i: 'right', x: 9, y: 3, w: 3, h: 3 },
+      { i: 'big', x: 0, y: 6, w: 12, h: 18 },
+    ]
+    const frame1 = [
+      baseline[0],
+      baseline[1],
+      { i: 'active', x: 4, y: 6, w: 2, h: 3 },
+      baseline[3],
+      baseline[4],
+    ]
+    const result1 = resolveInteraction(baseline, 'active', frame1)
+    const big1 = result1.find((item) => item.i === 'big')
+
+    // One column left - "big"'s frame-1 placement is still entirely free of it.
+    const frame2 = [
+      baseline[0],
+      baseline[1],
+      { i: 'active', x: 3, y: 6, w: 2, h: 3 },
+      baseline[3],
+      baseline[4],
+    ]
+
+    // Without the previous frame's placement, the solver has no reason to prefer "big"'s
+    // old spot over any other free one, and does in fact land somewhere else.
+    const freshBig2 = resolveInteraction(baseline, 'active', frame2).find((item) => item.i === 'big')
+    expect(freshBig2).not.toEqual(big1)
+
+    // With it fed back in as `previous`, "big" stays exactly where it already was.
+    const stickyBig2 = resolveInteraction(baseline, 'active', frame2, result1).find(
+      (item) => item.i === 'big',
+    )
+    expect(stickyBig2).toEqual(big1)
+  })
 })
 
 describe('withWidgetAppended (bounds)', () => {

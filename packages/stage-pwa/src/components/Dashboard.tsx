@@ -16,6 +16,7 @@ import {
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
+import { fmtItems, gridLog } from '../lib/gridDebug'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
@@ -82,8 +83,16 @@ export function Dashboard() {
   // way" apart from "just passed over a moment ago", live as the interaction happens. null
   // outside of an active interaction, so the rubber-band effect below is a no-op then.
   const interactionBaseline = useRef<{ layout: LayoutItem[]; activeId: string } | null>(null)
+  // The previous frame's resolveInteraction output, fed back in as the next frame's
+  // hysteresis anchor (see resolveInteraction's own doc comment) - reset whenever a fresh
+  // interaction begins so nothing sticks across separate gestures.
+  const previousResolved = useRef<LayoutItem[] | null>(null)
   const captureBaseline = (layout: Layout, item: RglLayoutItem | null) => {
-    if (item) interactionBaseline.current = { layout: toItems(layout), activeId: item.i }
+    if (item) {
+      interactionBaseline.current = { layout: toItems(layout), activeId: item.i }
+      previousResolved.current = null
+      gridLog(`interaction start active=${item.i}`, fmtItems(toItems(layout)))
+    }
   }
   // Persisting from onDragStop/onResizeStop themselves, not from the grid's general
   // onLayoutChange - that fires for ANY layout-prop change, including ones this component
@@ -93,7 +102,9 @@ export function Dashboard() {
   // written back again - editing had to stop or the dashboard had to switch to break it.
   // onDragStop/onResizeStop only fire once, at the true end of an actual gesture.
   const stopInteraction = (layout: Layout) => {
+    gridLog('interaction stop, persisting', fmtItems(toItems(layout)))
     interactionBaseline.current = null
+    previousResolved.current = null
     if (active) void setLayout(active.id, breakpoint, toItems(layout))
   }
   // react-grid-layout pushes other widgets out of the active one's way as it passes over
@@ -106,17 +117,31 @@ export function Dashboard() {
   // like it's on a rubber band anchored to where it started.
   const compactor = useMemo<Compactor>(
     () => ({
-      type: null,
+      // Not null: react-grid-layout's own onDrag/onResize call its built-in moveElement
+      // BEFORE compact() below ever runs, and type: null specifically opts moveElement's
+      // collision handling into a "swap" - it silently relocates the ACTIVE item itself
+      // (not just the widget it collided with) based on whatever the *previous* frame's
+      // compact() output looked like. Since that output is our own rubber-band result,
+      // this closed a feedback loop: our compaction fed react-grid-layout's own collision
+      // engine, which fed back a different active-item position next frame, which changed
+      // what our compaction saw next - visible as the dragged widget's row flickering
+      // between two values many times a second near a large neighbor. 'wrap' is the one
+      // other CompactType react-grid-layout ships that hits none of moveElement's
+      // vertical/horizontal/null branches, so that pre-pass becomes a no-op and collision
+      // resolution is entirely ours, as intended.
+      type: 'wrap',
       allowOverlap: false,
       compact(layout) {
         const baseline = interactionBaseline.current
         if (!baseline) return [...layout]
-        const resolved = new Map(
-          resolveInteraction(baseline.layout, baseline.activeId, toItems(layout)).map((item) => [
-            item.i,
-            item,
-          ]),
+        const resolvedItems = resolveInteraction(
+          baseline.layout,
+          baseline.activeId,
+          toItems(layout),
+          previousResolved.current,
         )
+        previousResolved.current = resolvedItems
+        const resolved = new Map(resolvedItems.map((item) => [item.i, item]))
         return layout.map((item) => {
           const r = resolved.get(item.i)
           return r ? { ...item, x: r.x, y: r.y, w: r.w, h: r.h } : item
@@ -137,6 +162,7 @@ export function Dashboard() {
   // longer describes.
   useEffect(() => {
     interactionBaseline.current = null
+    previousResolved.current = null
   }, [active?.id])
 
   const layouts = useMemo(() => {

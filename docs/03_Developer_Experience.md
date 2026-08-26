@@ -17,6 +17,47 @@ Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `
 * **Die Live-Debug-Console:** Das Frontend (PWA) bekommt – versteckt hinter einem Entwickler-Menü – eine Live-Konsole (wie bei Home Assistant). Hier laufen die Logs aller verbundenen Geräte und Plugins in Echtzeit auf.
 * **Plugin-Sandboxing:** Stürzt ein schlecht programmiertes Community-Plugin ab, darf das nicht den Core (Stage-Server) mitreißen. Plugins laufen isoliert (z.B. in separaten Worker-Threads). Der Core fängt den Crash ab, deaktiviert das Plugin automatisch, schreibt einen FATAL-Log und hält die restliche Show am Laufen.
 
+### 1a. Live-Tablet-Debugging (bis die Live-Debug-Console existiert)
+
+Manche Bugs zeigen sich nur auf dem Tablet - Touch-Drag-Timing, Geometrie bei echten
+Bildschirmgrößen, Dinge, die sich am Laptop nicht reproduzieren lassen (siehe
+[[stageboard-lan-testing]] für das LAN-Setup selbst). Bis es die oben skizzierte
+Live-Debug-Console gibt, hat sich dieses Vorgehen bewährt und sollte für neue
+tablet-only Bugs wiederverwendet werden:
+
+1. **Togglable Debug-Logger pro Feature**, nicht dauerhaft aktives `console.log`. Muster
+   siehe `packages/stage-pwa/src/lib/gridDebug.ts`: ein `localStorage`-Flag
+   (`sb:debug:<feature>`), aus für normale Nutzung, und ein `gridLog(...)`-Wrapper mit
+   festem `[grid]`-Tag-Präfix, den man an den relevanten Stellen (State-Übergänge,
+   die interessante Zwischenwerte einer live laufenden Berechnung) platziert. Für ein
+   neues Feature dieselbe Datei kopieren/anpassen statt eine gemeinsame Abstraktion zu
+   bauen - der Tag-Präfix ist es, was das Filtern später erlaubt.
+2. **Tablet per adb verbinden:** USB-Debugging in den Android-Entwickleroptionen aktivieren,
+   Kabel anschließen, am Tablet den "USB-Debugging erlauben?"-Dialog bestätigen. Zeigt
+   `adb devices` das Gerät als `no permissions (missing udev rules?)` statt `device`, fehlt
+   eine udev-Regel für die Vendor-ID (per `lsusb` ermitteln): eine Zeile wie
+   `SUBSYSTEM=="usb", ATTR{idVendor}=="<vendor-id>", MODE="0666", GROUP="plugdev"` nach
+   `/etc/udev/rules.d/51-android.rules`, dann `sudo udevadm control --reload-rules && sudo udevadm trigger`
+   und neu einstecken. (`sudo` braucht ein echtes Terminal - der `!`-Präfix in Claude Code
+   liefert keins, dafür also ein eigenes Terminal-Fenster nutzen.)
+3. **CDP-Port weiterleiten:** `adb forward tcp:9222 localabstract:chrome_devtools_remote` -
+   danach ist die Chrome-DevTools-Protocol-Schnittstelle des Tablet-Chrome unter
+   `localhost:9222` erreichbar, ganz ohne die `chrome://inspect`-GUI.
+4. **`scripts/tablet-debug.mjs`** treibt das von dort aus:
+   * `node scripts/tablet-debug.mjs list` - offene Tabs auf dem Tablet auflisten.
+   * `node scripts/tablet-debug.mjs eval "5173" "localStorage.setItem('sb:debug:grid','1'); location.reload()"` -
+     das Debug-Flag setzen und neu laden, ohne das Tablet in die Hand zu nehmen.
+   * `node scripts/tablet-debug.mjs watch "5173" out.txt grid` - den Live-Log-Stream des
+     Tablets (gefiltert auf das Tag) mitschneiden, während der Bug am Gerät reproduziert wird.
+5. **Reproduzieren lassen, Log lesen.** Die Person am Tablet triggert das Problem; das
+   mitgeschnittene Log zeigt den genauen Frame-für-Frame-Zustand - oft aussagekräftiger
+   als eine Bildschirmbeschreibung, gerade bei Timing-/Reihenfolge-Bugs.
+
+Damit ließ sich z.B. ein Widget-Resize-Flackern beim Drag-and-Drop (Kompaktierung, die auf
+jedem Drag-Frame neu und ohne Gedächtnis an den letzten Frame gelöst wurde, plus ein
+`compactType`-Detail von react-grid-layout, das den Aktiv-Widget selbst verschob) direkt am
+Gerät nachvollziehen, statt raten zu müssen.
+
 ## 2. Testing-Strategie (Hardware-Abstraktion)
 KI-Entwicklung funktioniert am besten mit Test-Driven Development (TDD). Die Herausforderung: Die KI (und die CI/CD-Pipeline) hat physisch keinen Kemper-Amp und kein Soundcraft-Mischpult angeschlossen.
 
