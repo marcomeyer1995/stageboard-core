@@ -5,16 +5,28 @@
  * refines it with parabolic interpolation for sub-sample precision. Standard technique,
  * same family as the commonly used "ACF2+" web tuner algorithm. Returns null for
  * silence/noise with no clear periodicity.
+ *
+ * `minRms` is the "is anything playing at all" gate - lower catches a note further into
+ * its decay, at the cost of also picking up more background noise as a false positive.
  */
-export function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
+export function detectPitch(buffer: Float32Array, sampleRate: number, minRms = 0.01): number | null {
   const size = buffer.length
 
   let rms = 0
-  for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i]
+  let peak = 0
+  for (let i = 0; i < size; i++) {
+    rms += buffer[i] * buffer[i]
+    const abs = Math.abs(buffer[i])
+    if (abs > peak) peak = abs
+  }
   rms = Math.sqrt(rms / size)
-  if (rms < 0.01) return null
+  if (rms < minRms) return null
 
-  const threshold = 0.2
+  // Relative to this buffer's own peak, not a fixed absolute level - a fixed threshold
+  // (e.g. 0.2) silently finds nothing to trim to for a quiet-but-real, decaying note
+  // whose peak never reaches it, which used to kill detection long before the note was
+  // actually inaudible, well before the RMS gate above ever got a say.
+  const threshold = peak * 0.2
   let start = 0
   for (; start < size / 2; start++) if (Math.abs(buffer[start]) >= threshold) break
   let end = size - 1

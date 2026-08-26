@@ -14,7 +14,8 @@ import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { ShowNoteWidget } from './ShowNoteWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
-import { TunerWidget } from './TunerWidget'
+import { TunerConfigPanel, TunerWidget } from './TunerWidget'
+import { TunerConfigSchema } from './tunerConfig'
 
 export interface WidgetSize {
   w: number
@@ -195,7 +196,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Chromatisches Stimmgerät über das Mikrofon des Tablets.',
     category: 'utility',
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 4 },
+    configSchema: TunerConfigSchema,
     Component: TunerWidget,
+    ConfigPanel: TunerConfigPanel,
   }),
   defineWidget({
     type: 'show-notes',

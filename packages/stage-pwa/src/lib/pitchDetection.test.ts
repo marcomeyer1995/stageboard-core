@@ -36,4 +36,21 @@ describe('detectPitch', () => {
     const buffer = new Float32Array(2048).map((_, i) => (i % 2 === 0 ? 0.001 : -0.001))
     expect(detectPitch(buffer, 44100)).toBeNull()
   })
+
+  it('still detects a quiet, decaying note whose peak never reaches the old fixed 0.2 trim threshold', () => {
+    // A real held note well into its decay - clearly above the RMS gate (0.01), but with
+    // a peak far below what a fixed absolute trim threshold of 0.2 would ever catch.
+    const quiet = sineWave(440, 44100, 2048).map((sample) => sample * 0.05)
+    const detected = detectPitch(quiet, 44100)
+    expect(detected).not.toBeNull()
+    expect(detected as number).toBeCloseTo(440, -1)
+  })
+
+  it('honors a lower minRms to catch an even quieter note', () => {
+    const veryQuiet = sineWave(440, 44100, 2048).map((sample) => sample * 0.008)
+    expect(detectPitch(veryQuiet, 44100)).toBeNull() // below the default gate
+    const detected = detectPitch(veryQuiet, 44100, 0.003)
+    expect(detected).not.toBeNull()
+    expect(detected as number).toBeCloseTo(440, -1)
+  })
 })

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { detectPitch } from '../lib/pitchDetection'
 import { noteFromFrequency, type NoteMatch } from '../lib/noteFromFrequency'
 import { PitchHistory } from '../lib/pitchSmoothing'
+import { RESPONSIVENESS_SETTINGS, SENSITIVITY_MIN_RMS, type TunerConfig } from './tunerConfig'
 
 type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -19,7 +20,7 @@ type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-cont
  * isSecureContext first, before the generic feature check, is what tells those two
  * apart instead of showing a misleading "not supported here" on hardware that's fine.
  */
-export function TunerWidget() {
+export function TunerWidget({ config }: { config: TunerConfig }) {
   const [status, setStatus] = useState<MicStatus>('idle')
   const [note, setNote] = useState<NoteMatch | null>(null)
   const [frequency, setFrequency] = useState<number | null>(null)
@@ -27,6 +28,16 @@ export function TunerWidget() {
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
   const historyRef = useRef(new PitchHistory())
+  // Read from a ref, not the `config` closure the tick loop was set up with, so changing
+  // the ConfigPanel's settings takes effect immediately on an already-listening widget
+  // instead of only after the mic is stopped and restarted.
+  const configRef = useRef(config)
+
+  useEffect(() => {
+    configRef.current = config
+    const settings = RESPONSIVENESS_SETTINGS[config.responsiveness]
+    historyRef.current = new PitchHistory(settings.size, settings.maxMisses)
+  }, [config])
 
   function stop() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
@@ -59,12 +70,13 @@ export function TunerWidget() {
       analyser.fftSize = 2048
       source.connect(analyser)
       const buffer = new Float32Array(analyser.fftSize)
-      const history = historyRef.current
 
       const tick = () => {
         analyser.getFloatTimeDomainData(buffer)
-        history.push(detectPitch(buffer, audioContext.sampleRate))
-        const smoothed = history.smoothed()
+        const minRms = SENSITIVITY_MIN_RMS[configRef.current.sensitivity]
+        const settings = RESPONSIVENESS_SETTINGS[configRef.current.responsiveness]
+        historyRef.current.push(detectPitch(buffer, audioContext.sampleRate, minRms))
+        const smoothed = historyRef.current.smoothed(settings.minReadings)
         if (smoothed) {
           setFrequency(smoothed)
           setNote(noteFromFrequency(smoothed))
@@ -128,6 +140,47 @@ export function TunerWidget() {
         ) : (
           <p className="text-sm text-ink-faint">Spiele eine Note…</p>
         ))}
+    </div>
+  )
+}
+
+export function TunerConfigPanel({
+  config,
+  onChange,
+}: {
+  config: TunerConfig
+  onChange: (next: TunerConfig) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Empfindlichkeit
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.sensitivity}
+          onChange={(e) =>
+            onChange({ ...config, sensitivity: e.target.value as TunerConfig['sensitivity'] })
+          }
+        >
+          <option value="low">Niedrig (weniger Störgeräusche)</option>
+          <option value="medium">Mittel</option>
+          <option value="high">Hoch (erkennt leise/ausklingende Töne)</option>
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Reaktionsgeschwindigkeit
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.responsiveness}
+          onChange={(e) =>
+            onChange({ ...config, responsiveness: e.target.value as TunerConfig['responsiveness'] })
+          }
+        >
+          <option value="stable">Stabil (ausklingende Töne bleiben länger sichtbar)</option>
+          <option value="balanced">Ausgewogen</option>
+          <option value="fast">Schnell (reagiert sofort, etwas unruhiger)</option>
+        </select>
+      </label>
     </div>
   )
 }
