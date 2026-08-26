@@ -41,8 +41,14 @@ export function ChordProLyrics({
             <p
               data-line-index={lineIndex}
               className={`-mx-2 whitespace-pre-wrap rounded-sb-sm px-2 transition-colors duration-300 ${
-                lineIndex === activeIndex ? 'bg-accent-2/20' : ''
-              }`}
+                // A chord sits absolutely -top-4 above its line's text. Normally the previous
+                // line's own leading-loose height absorbs that overlap, but the part label
+                // above it (small font-sans text, no leading-loose) doesn't - without this,
+                // the first line's chords render on top of the label text. mt-6 (not just
+                // enough to clear -top-4) leaves a few px of breathing room, since sibling
+                // margins collapse to the larger of the two rather than summing.
+                !hidePartLabels && startsPart ? 'mt-6' : ''
+              } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
             >
               {line.segments.map((segment, segmentIndex) => (
                 <span key={segmentIndex} className="relative inline-block">
