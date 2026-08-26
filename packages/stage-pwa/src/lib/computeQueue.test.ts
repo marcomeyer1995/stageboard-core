@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Setlist, ShowState, Song } from 'shared-types'
-import { computeQueue } from './computeQueue'
+import { computeQueue, reorderToPlayNext } from './computeQueue'
 
 function song(id: string, title: string): Song {
   return { id, title, bpm: 120, chordProContent: '', timecodes: [] }
@@ -57,5 +57,31 @@ describe('computeQueue', () => {
     const queue = computeQueue([], [], emptyShowState)
     expect(queue.currentSong).toBeNull()
     expect(queue.nextSong).toBeNull()
+  })
+})
+
+describe('reorderToPlayNext', () => {
+  it('moves a later song to right after the current one', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c', 'd'], 'd', 'a')).toEqual(['a', 'd', 'b', 'c'])
+  })
+
+  it('moves an earlier song forward to right after the current one', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c', 'd'], 'a', 'c')).toEqual(['b', 'c', 'a', 'd'])
+  })
+
+  it('is a no-op when the song is already immediately next', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c'], 'b', 'a')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('puts the song at the front when there is no current song', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c'], 'c', null)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('puts the song at the front when the current song is not in the list', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c'], 'c', 'not-in-list')).toEqual(['c', 'a', 'b'])
+  })
+
+  it('leaves every other song in relative order', () => {
+    expect(reorderToPlayNext(['a', 'b', 'c', 'd', 'e'], 'e', 'b')).toEqual(['a', 'b', 'e', 'c', 'd'])
   })
 })

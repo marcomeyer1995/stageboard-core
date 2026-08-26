@@ -30,3 +30,23 @@ export function computeQueue(songs: Song[], setlists: Setlist[], showState: Show
     nextSong: orderedSongs[index + 1] ?? null,
   }
 }
+
+/**
+ * Moves one song to play immediately after the current one - the Live-Queue widget's
+ * "Als nächstes spielen" action (docs/07 section 3): reorder the running order on the
+ * fly, not skip ShowState past whatever's in between. Operates on the setlist's raw id
+ * array since that's what's persisted. If the current song isn't in `songIds` (e.g. it
+ * was removed from the setlist after the show started), the chosen song lands at the
+ * front - still "as next" in the sense that matters when there's no current position to
+ * anchor to.
+ */
+export function reorderToPlayNext(
+  songIds: string[],
+  songId: string,
+  currentSongId: string | null,
+): string[] {
+  const withoutSong = songIds.filter((id) => id !== songId)
+  const currentIndex = currentSongId ? withoutSong.indexOf(currentSongId) : -1
+  const insertAt = currentIndex + 1
+  return [...withoutSong.slice(0, insertAt), songId, ...withoutSong.slice(insertAt)]
+}

@@ -5,6 +5,7 @@ import { ClockControlWidget } from './ClockControlWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
 import { IemWidget } from './IemWidget'
+import { LiveQueueWidget } from './LiveQueueWidget'
 import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
@@ -103,6 +104,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     defaultLayout: { w: 12, h: 16, minW: 3, minH: 6 },
     Component: PrompterWidget,
+  }),
+  defineWidget({
+    type: 'live-queue',
+    title: 'Live-Queue',
+    description: 'Die nächsten Songs der Setlist, mit "Als nächstes spielen".',
+    category: 'performance',
+    defaultLayout: { w: 4, h: 12, minW: 3, minH: 4 },
+    Component: LiveQueueWidget,
   }),
   defineWidget({
     type: 'next-song',
