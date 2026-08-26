@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AppMenu } from './components/AppMenu'
+import { BackupManager } from './components/BackupManager'
 import { Dashboard } from './components/Dashboard'
 import { PluginManager } from './components/PluginManager'
 import { SetlistManager } from './components/SetlistManager'
@@ -64,6 +65,7 @@ function App() {
       {mode === 'edit' && <SheetEditor />}
       {mode === 'setlists' && <SetlistManager />}
       {mode === 'plugins' && <PluginManager />}
+      {mode === 'backup' && <BackupManager />}
 
       {/* Band, Theme, Fullscreen, Edit-Lock and screen navigation live behind one menu
           button, not as permanently visible controls: none of them is touched often, and

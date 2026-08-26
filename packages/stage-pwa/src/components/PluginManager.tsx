@@ -29,6 +29,13 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     runtime: 'server',
     capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
   },
+  {
+    id: 'mock-backup',
+    name: 'Mock Backup',
+    version: '0.0.1',
+    runtime: 'server',
+    capabilities: [CAPABILITIES.backup],
+  },
 ]
 
 export function PluginManager() {

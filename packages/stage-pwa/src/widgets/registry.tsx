@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
+import { BackupStatusWidget } from './BackupStatusWidget'
 import { ClockControlWidget } from './ClockControlWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
@@ -165,6 +166,15 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     Component: QuickActionsWidget,
+  }),
+  defineWidget({
+    type: 'backup-status',
+    title: 'Backup-Status',
+    description: 'Glanceable Indikator, ob das Backup-Plugin erreichbar ist.',
+    requires: [CAPABILITIES.backup],
+    category: 'system-crew',
+    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
+    Component: BackupStatusWidget,
   }),
 ]
 

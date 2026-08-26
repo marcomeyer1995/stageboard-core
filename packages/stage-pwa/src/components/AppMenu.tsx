@@ -3,8 +3,10 @@ import { EditLock } from './EditLock'
 import { ProfileSwitcher } from './ProfileSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import { useActiveProfile } from '../lib/useActiveProfile'
+import { useCapabilities } from '../lib/useCapabilities'
 import { useFullscreen } from '../lib/useFullscreen'
-import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
+import { availableModes, MODE_LABEL, type Mode } from '../lib/modes'
 
 interface AppMenuProps {
   mode: Mode
@@ -29,6 +31,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
+  const capabilities = useCapabilities()
+  const activeProfile = useActiveProfile()
+  const modes = availableModes(capabilities, activeProfile?.role)
 
   return (
     <div
@@ -41,7 +46,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
       >
         <Section title="Ansicht">
           <div className="grid grid-cols-2 gap-2">
-            {MODES.map((candidate) => (
+            {modes.map((candidate) => (
               <button
                 key={candidate}
                 type="button"
