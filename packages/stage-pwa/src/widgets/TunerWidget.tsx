@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { centsToColor } from '../lib/centsColor'
 import { detectPitch } from '../lib/pitchDetection'
 import { noteFromFrequency, type NoteMatch } from '../lib/noteFromFrequency'
 import { PitchHistory } from '../lib/pitchSmoothing'
@@ -85,7 +86,12 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
         const smoothed = historyRef.current.smoothed(settings.minReadings)
         if (smoothed) {
           setFrequency(smoothed)
-          setNote(noteFromFrequency(smoothed))
+          setNote(
+            noteFromFrequency(smoothed, {
+              referenceFrequency: configRef.current.referenceFrequency,
+              naming: configRef.current.noteNaming,
+            }),
+          )
         } else {
           setFrequency(null)
           setNote(null)
@@ -100,7 +106,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-ink-soft">
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-ink-soft">
       {status === 'idle' && (
         <button
           type="button"
@@ -126,19 +132,23 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
       {status === 'listening' &&
         (note ? (
           <>
-            <p className="text-4xl font-bold text-ink">
+            <p className="text-8xl font-bold leading-none text-ink">
               {note.name}
-              <span className="text-xl text-ink-faint">{note.octave}</span>
+              <span className="text-3xl text-ink-faint">{note.octave}</span>
             </p>
-            <div className="relative h-2 w-full max-w-[200px] rounded-full bg-control">
+            {/* The meter: a fixed center tick marks exactly where "in tune" is, separate
+                from the moving indicator - without it there's nothing to see the ball
+                actually reach. The indicator itself is oversized on purpose (readable
+                from a music-stand's distance) and colored on a red-yellow-green gradient
+                by how close it is, not just a two-state color flip. */}
+            <div className="relative h-4 w-full max-w-xs rounded-full bg-control">
+              <div className="absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
               <div
-                className={`absolute top-0 h-2 w-2 -translate-x-1/2 rounded-full ${
-                  Math.abs(note.cents) <= 5 ? 'bg-green-500' : 'bg-amber-500'
-                }`}
-                style={{ left: `${50 + note.cents}%` }}
+                className="absolute top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-ink shadow-lg transition-[left] duration-100"
+                style={{ left: `${50 + note.cents}%`, backgroundColor: centsToColor(note.cents) }}
               />
             </div>
-            <p className="text-xs text-ink-faint">
+            <p className="text-lg text-ink-faint">
               {note.cents > 0 ? '+' : ''}
               {note.cents} Cent · {frequency?.toFixed(1)} Hz
             </p>
@@ -186,7 +196,7 @@ export function TunerConfigPanel({
         <input
           type="range"
           min={1}
-          max={60}
+          max={119}
           step={1}
           value={config.smoothingWindow}
           onChange={(e) => onChange({ ...config, smoothingWindow: Number(e.target.value) })}
@@ -196,6 +206,39 @@ export function TunerConfigPanel({
           <span>Schnell</span>
           <span>Stabil</span>
         </div>
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        <div className="flex items-center justify-between">
+          <span>Referenzton</span>
+          <span className="text-ink-faint">{config.referenceFrequency.toFixed(1)} Hz</span>
+        </div>
+        <input
+          type="range"
+          min={400}
+          max={480}
+          step={0.5}
+          value={config.referenceFrequency}
+          onChange={(e) => onChange({ ...config, referenceFrequency: Number(e.target.value) })}
+          className="w-full accent-accent"
+        />
+        <div className="flex justify-between text-[10px] text-ink-faint">
+          <span>400 Hz</span>
+          <span>440 Hz (Standard)</span>
+          <span>480 Hz</span>
+        </div>
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Notennamen
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.noteNaming}
+          onChange={(e) =>
+            onChange({ ...config, noteNaming: e.target.value as TunerConfig['noteNaming'] })
+          }
+        >
+          <option value="sharp">Kreuz (F#)</option>
+          <option value="flat">B (Gb)</option>
+        </select>
       </label>
     </div>
   )

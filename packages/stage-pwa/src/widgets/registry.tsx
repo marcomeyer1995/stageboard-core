@@ -195,7 +195,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Stimmgerät',
     description: 'Chromatisches Stimmgerät über das Mikrofon des Tablets.',
     category: 'utility',
-    defaultLayout: { w: 4, h: 6, minW: 3, minH: 4 },
+    defaultLayout: { w: 5, h: 9, minW: 4, minH: 7 },
     configSchema: TunerConfigSchema,
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,

@@ -3,8 +3,8 @@ import { minRmsToSlider, responsivenessFromWindow, sliderToMinRms } from './tune
 
 describe('sliderToMinRms / minRmsToSlider', () => {
   it('maps slider 0 to the floor and 100 to the ceiling', () => {
-    expect(sliderToMinRms(0)).toBeCloseTo(0.0001, 5)
-    expect(sliderToMinRms(100)).toBeCloseTo(0.05, 5)
+    expect(sliderToMinRms(0)).toBeCloseTo(0.00005, 6)
+    expect(sliderToMinRms(100)).toBeCloseTo(0.007, 6)
   })
 
   it('round-trips a mid-range value', () => {
@@ -12,10 +12,8 @@ describe('sliderToMinRms / minRmsToSlider', () => {
     expect(slider).toBeCloseTo(50, 5)
   })
 
-  it('places the previously-preferred value (0.002) away from either extreme', () => {
-    const slider = minRmsToSlider(0.002)
-    expect(slider).toBeGreaterThan(10)
-    expect(slider).toBeLessThan(90)
+  it('places the current default (0.0006) at the middle of the slider', () => {
+    expect(minRmsToSlider(0.0006)).toBeCloseTo(50, 0)
   })
 
   it('is monotonically increasing', () => {
@@ -30,8 +28,8 @@ describe('sliderToMinRms / minRmsToSlider', () => {
 })
 
 describe('responsivenessFromWindow', () => {
-  it('reproduces the previously-preferred settings for window=5', () => {
-    expect(responsivenessFromWindow(5)).toEqual({ size: 5, minReadings: 2, maxMisses: 6 })
+  it('reproduces the current default settings for window=60', () => {
+    expect(responsivenessFromWindow(60)).toEqual({ size: 60, minReadings: 24, maxMisses: 72 })
   })
 
   it('never lets minReadings or maxMisses fall below 1, even for the smallest window', () => {
@@ -39,8 +37,8 @@ describe('responsivenessFromWindow', () => {
   })
 
   it('scales all three parameters up together for a larger window', () => {
-    const small = responsivenessFromWindow(5)
-    const large = responsivenessFromWindow(30)
+    const small = responsivenessFromWindow(10)
+    const large = responsivenessFromWindow(100)
     expect(large.size).toBeGreaterThan(small.size)
     expect(large.minReadings).toBeGreaterThan(small.minReadings)
     expect(large.maxMisses).toBeGreaterThan(small.maxMisses)
