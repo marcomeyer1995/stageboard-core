@@ -195,7 +195,11 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Stimmgerät',
     description: 'Chromatisches Stimmgerät über das Mikrofon des Tablets.',
     category: 'utility',
-    defaultLayout: { w: 5, h: 9, minW: 4, minH: 7 },
+    // A tuner that's been squeezed down to something like 4x4 grid units is illegible on
+    // stage - there's no useful "small" size for this widget the way there is for, say, a
+    // status light. minW/minH are set high enough that even the smallest allowed size
+    // still reads at a glance from arm's length.
+    defaultLayout: { w: 6, h: 14, minW: 6, minH: 12 },
     configSchema: TunerConfigSchema,
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,

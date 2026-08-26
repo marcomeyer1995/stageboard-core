@@ -143,10 +143,10 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
         // visually extend past its thin track - can no longer collide with the note name
         // above it; they now have a full row reserved for them.
         <div className="flex flex-1 flex-col items-center [container-type:size]">
-          <div className="flex w-full flex-[5] items-center justify-center">
-            <p className="text-[24cqh] font-bold leading-none text-ink">
+          <div className="flex w-full flex-[6] items-center justify-center">
+            <p className="text-[32cqh] font-bold leading-none text-ink">
               {note.name}
-              <span className="text-[9cqh] text-ink-faint">{note.octave}</span>
+              <span className="text-[11cqh] text-ink-faint">{note.octave}</span>
             </p>
           </div>
           {/* The meter: a fixed center tick marks exactly where "in tune" is, taller
@@ -154,18 +154,20 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
               the ball sits right on top of it - otherwise the wider ball fully hides a
               same-height tick the moment it's actually centered, which is exactly the
               moment you most want to see it. The indicator itself is colored on a
-              strict-green/orange-to-red gradient (centsColor.ts) by how close it is. */}
+              strict-green/orange-to-red gradient (centsColor.ts) by how close it is - no
+              border or shadow on it, that's decoration a glance from across the stage
+              doesn't need, and it only muddies the color that's the actual signal. */}
           <div className="flex w-full flex-[4] items-center justify-center">
-            <div className="relative h-[5cqh] w-[92cqw] rounded-full bg-control">
-              <div className="absolute left-1/2 top-1/2 h-[16cqh] w-[1.2cqw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
+            <div className="relative h-[6cqh] w-[94cqw] rounded-full bg-control">
+              <div className="absolute left-1/2 top-1/2 h-[20cqh] w-[1.4cqw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
               <div
-                className="absolute top-1/2 h-[12cqh] w-[12cqh] -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-ink shadow-lg transition-[left] duration-100"
+                className="absolute top-1/2 h-[15cqh] w-[15cqh] -translate-x-1/2 -translate-y-1/2 rounded-full transition-[left] duration-100"
                 style={{ left: `${50 + note.cents}%`, backgroundColor: centsToColor(note.cents) }}
               />
             </div>
           </div>
           <div className="flex w-full flex-[2] items-center justify-center">
-            <p className="text-[6cqh] text-ink-faint">
+            <p className="text-[9cqh] font-medium text-ink-faint">
               {note.cents > 0 ? '+' : ''}
               {note.cents} Cent · {frequency?.toFixed(1)} Hz
             </p>
@@ -177,30 +179,30 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             <button
               type="button"
               onClick={() => void start()}
-              className="rounded-sb-sm bg-control-strong px-[4cqw] py-[2cqh] text-[4cqh] font-medium text-ink hover:bg-control-strong-hover"
+              className="rounded-sb-sm bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink hover:bg-control-strong-hover"
             >
               Mikrofon aktivieren
             </button>
           )}
           {status === 'requesting' && (
-            <p className="text-[4cqh] text-ink-faint">Warte auf Mikrofon-Zugriff…</p>
+            <p className="text-[5cqh] text-ink-faint">Warte auf Mikrofon-Zugriff…</p>
           )}
           {status === 'insecure-context' && (
-            <p className="px-[4cqw] text-center text-[3.5cqh] text-ink-faint">
+            <p className="px-[4cqw] text-center text-[4cqh] text-ink-faint">
               Mikrofon braucht eine sichere Verbindung (HTTPS oder localhost) - im LAN per
               http nicht verfügbar, unabhängig vom Gerät.
             </p>
           )}
           {status === 'unsupported' && (
-            <p className="text-[3.5cqh] text-ink-faint">
+            <p className="text-[4cqh] text-ink-faint">
               Mikrofon wird von diesem Browser nicht unterstützt.
             </p>
           )}
           {status === 'denied' && (
-            <p className="text-[3.5cqh] text-ink-faint">Kein Zugriff aufs Mikrofon.</p>
+            <p className="text-[4cqh] text-ink-faint">Kein Zugriff aufs Mikrofon.</p>
           )}
           {status === 'listening' && !note && (
-            <p className="text-[4cqh] text-ink-faint">Spiele eine Note…</p>
+            <p className="text-[5cqh] text-ink-faint">Spiele eine Note…</p>
           )}
         </div>
       )}
