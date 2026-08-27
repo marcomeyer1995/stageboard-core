@@ -1,4 +1,5 @@
 import PouchDB from 'pouchdb-browser'
+import { trackedSync } from './trackedSync'
 import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
 
 export type Doc<T> = T & PouchDB.Core.IdMeta & PouchDB.Core.GetMeta
@@ -69,7 +70,7 @@ export function createWorkspaceCollection<T extends { id: string }>(
       })
 
       const remoteDb = new PouchDB<T>(url, { auth: remoteAuth() })
-      syncHandle = db.sync(remoteDb, { live: true, retry: true })
+      syncHandle = trackedSync(kind, db, remoteDb)
       return syncHandle
     },
   }

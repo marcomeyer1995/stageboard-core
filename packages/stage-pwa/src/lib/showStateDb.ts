@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb-browser'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
+import { trackedSync } from './trackedSync'
 import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
 
 const SHOW_STATE_DOC_ID = 'show-state'
@@ -48,6 +49,6 @@ export function startShowStateSync(workspaceId: string): PouchDB.Replication.Syn
   })
 
   const remoteDb = new PouchDB<ShowState>(url, { auth: remoteAuth() })
-  syncHandle = db.sync(remoteDb, { live: true, retry: true })
+  syncHandle = trackedSync('show-state', db, remoteDb)
   return syncHandle
 }

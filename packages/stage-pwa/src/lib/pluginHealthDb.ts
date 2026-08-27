@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb-browser'
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth } from 'shared-types'
+import { trackedSync } from './trackedSync'
 import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
 
 const PLUGIN_HEALTH_DOC_ID = 'plugin-health'
@@ -43,6 +44,6 @@ export function startPluginHealthSync(
   })
 
   const remoteDb = new PouchDB<PluginHealth>(url, { auth: remoteAuth() })
-  syncHandle = db.sync(remoteDb, { live: true, retry: true })
+  syncHandle = trackedSync('plugin-health', db, remoteDb)
   return syncHandle
 }
