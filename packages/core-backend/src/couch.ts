@@ -75,6 +75,50 @@ export async function putDoc(config: CouchConfig, db: string, doc: CouchDoc): Pr
   }
 }
 
+/** Downloads a binary attachment; `null` if the document or attachment does not exist. */
+export async function getAttachment(
+  config: CouchConfig,
+  db: string,
+  docId: string,
+  attachmentId: string,
+): Promise<Buffer | null> {
+  const url = `${dbUrl(config, db)}/${encodeURIComponent(docId)}/${encodeURIComponent(attachmentId)}`
+  const response = await request(config, url)
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new Error(`Failed to read attachment ${db}/${docId}/${attachmentId}: HTTP ${response.status}`)
+  }
+  return Buffer.from(await response.arrayBuffer())
+}
+
+/**
+ * Uploads a binary attachment, creating or overwriting it. `rev` is the current document
+ * revision (required unless this is the very first write to a brand-new document) and is
+ * not the attachment's own revision - CouchDB returns the document's new `_rev` on success.
+ */
+export async function putAttachment(
+  config: CouchConfig,
+  db: string,
+  docId: string,
+  attachmentId: string,
+  rev: string | undefined,
+  contentType: string,
+  data: Buffer | Uint8Array,
+): Promise<{ rev: string }> {
+  const revQuery = rev ? `?rev=${encodeURIComponent(rev)}` : ''
+  const url = `${dbUrl(config, db)}/${encodeURIComponent(docId)}/${encodeURIComponent(attachmentId)}${revQuery}`
+  const response = await request(config, url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: data,
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to write attachment ${db}/${docId}/${attachmentId}: HTTP ${response.status}`)
+  }
+  const body = (await response.json()) as { ok: boolean; id: string; rev: string }
+  return { rev: body.rev }
+}
+
 /**
  * Long-polls the changes feed. Long-poll rather than a continuous stream because it is a
  * plain request/response per change batch - no stream parsing, and a dropped connection
