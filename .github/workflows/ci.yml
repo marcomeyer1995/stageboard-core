@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+
+      # shared-types must build first: core-backend and stage-pwa import its
+      # compiled dist/ output, not its source.
+      - name: Build shared-types
+        run: npm run build -w shared-types
+
+      - name: Lint
+        run: npm run lint --workspaces --if-present
+
+      - name: Build
+        run: npm run build --workspaces --if-present
+
+      - name: Test
+        run: npm test --workspaces --if-present
