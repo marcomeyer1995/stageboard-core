@@ -1,21 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify from 'fastify'
-import { ShowControlEventSchema, SongSchema, type Song } from 'shared-types'
+import { ShowControlEventSchema } from 'shared-types'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
-
-const dummySongs: Song[] = [
-  SongSchema.parse({
-    id: 'song-1',
-    title: 'Sweet Home Chicago',
-    bpm: 118,
-    chordProContent: '[E7] Come on baby [A7] don\'t you wanna go',
-    timecodes: [{ timeMs: 0, label: 'Verse 1' }],
-  }),
-]
 
 /**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
@@ -33,7 +23,6 @@ export async function buildApp() {
   })
 
   app.get('/health', async () => ({ status: 'ok' }))
-  app.get('/songs', async () => dummySongs)
 
   const registry = new PluginRegistry()
 
