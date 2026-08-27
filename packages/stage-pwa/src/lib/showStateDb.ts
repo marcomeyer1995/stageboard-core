@@ -1,12 +1,13 @@
 import PouchDB from 'pouchdb-browser'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
-import { trackedSync } from './trackedSync'
+import { PLUGIN_HEALTH_DOC_ID } from './pluginHealthDb'
+import { trackedSync, type TrackedSync } from './trackedSync'
 import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
 
 const SHOW_STATE_DOC_ID = 'show-state'
 
 let db = new PouchDB<ShowState>(localDbName('meta', 'default'))
-let syncHandle: PouchDB.Replication.Sync<ShowState> | null = null
+let syncHandle: TrackedSync | null = null
 
 export function getShowStateDb(): PouchDB.Database<ShowState> {
   return db
@@ -40,7 +41,7 @@ export async function putShowState(patch: Partial<ShowState>): Promise<void> {
 }
 
 /** Same synchronous-on-purpose reasoning as workspaceCollection.ts's startSync. */
-export function startShowStateSync(workspaceId: string): PouchDB.Replication.Sync<ShowState> | null {
+export function startShowStateSync(workspaceId: string): TrackedSync | null {
   const url = remoteDbUrl('meta', workspaceId)
   if (!url) return null
 
@@ -49,6 +50,10 @@ export function startShowStateSync(workspaceId: string): PouchDB.Replication.Syn
   })
 
   const remoteDb = new PouchDB<ShowState>(url, { auth: remoteAuth() })
-  syncHandle = trackedSync('show-state', db, remoteDb)
+  // Excludes the plugin-health heartbeat doc from counting as sync activity - it shares
+  // this 'meta' database and writes every few seconds by design (see #33 follow-up).
+  syncHandle = trackedSync('show-state', db, remoteDb, {
+    isNoiseDocId: (id) => id === PLUGIN_HEALTH_DOC_ID,
+  })
   return syncHandle
 }
