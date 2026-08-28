@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { ShowControlEventSchema } from 'shared-types'
+import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
@@ -27,13 +28,18 @@ export async function buildApp() {
   // caller, and `main()`'s `.listen()` only use transport-agnostic Fastify methods, never
   // the underlying `server` property directly, so one shared `FastifyInstance` type serves
   // both branches without spreading this union through every consumer.
+  // Audio track uploads (see #30) regularly exceed Fastify's 1 MB default bodyLimit -
+  // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
+  const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
+
   const app: FastifyInstance =
     existsSync(certFile) && existsSync(keyFile)
       ? (Fastify({
           logger: true,
+          bodyLimit,
           https: { cert: readFileSync(certFile), key: readFileSync(keyFile) },
         }) as unknown as FastifyInstance)
-      : Fastify({ logger: true })
+      : Fastify({ logger: true, bodyLimit })
 
   // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
   // same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
@@ -42,6 +48,47 @@ export async function buildApp() {
   })
 
   app.get('/health', async () => ({ status: 'ok' }))
+
+  // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
+  // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
+  // anything else needs an explicit parser or gets rejected as unsupported media type.
+  // A '*' fallback only ever applies to content types with no more specific parser
+  // registered, so this doesn't touch the existing JSON routes above/below it.
+  app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, payload, done) => {
+    done(null, payload)
+  })
+
+  app.put('/audio/:variantId/:trackId', async (request, reply) => {
+    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
+    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
+      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
+    }
+    await writeAudioFile(variantId, trackId, request.body as Buffer)
+    return reply.status(204).send()
+  })
+
+  app.get('/audio/:variantId/:trackId', async (request, reply) => {
+    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
+    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
+      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
+    }
+    const data = await readAudioFile(variantId, trackId)
+    if (data === null) {
+      return reply.status(404).send({ status: 'error', message: 'Track not found' })
+    }
+    // The client already carries the real mime type in TrackMeta (synced as plain JSON)
+    // and builds its own Blob with it - this response doesn't need to track or guess it.
+    return reply.type('application/octet-stream').send(data)
+  })
+
+  app.delete('/audio/:variantId/:trackId', async (request, reply) => {
+    const { variantId, trackId } = request.params as { variantId: string; trackId: string }
+    if (!isSafeAudioId(variantId) || !isSafeAudioId(trackId)) {
+      return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
+    }
+    await deleteAudioFile(variantId, trackId)
+    return reply.status(204).send()
+  })
 
   const registry = new PluginRegistry()
 

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
@@ -142,6 +145,65 @@ describe('Fastify routes', () => {
       const response = await app.inject({ method: 'GET', url: '/lookup/fake-lookup/detail?resultId=result-1' })
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({ chordProContent: 'content for result-1' })
+    })
+  })
+
+  describe('Audio tracks', () => {
+    let storageDir: string
+
+    beforeEach(() => {
+      storageDir = mkdtempSync(join(tmpdir(), 'stageboard-audio-test-'))
+      process.env.AUDIO_STORAGE_DIR = storageDir
+    })
+
+    afterEach(() => {
+      delete process.env.AUDIO_STORAGE_DIR
+      rmSync(storageDir, { recursive: true, force: true })
+    })
+
+    it('round-trips an uploaded track through PUT then GET', async () => {
+      const bytes = Buffer.from('fake mp3 bytes')
+      const put = await app.inject({
+        method: 'PUT',
+        url: '/audio/variant-1/track-1',
+        headers: { 'content-type': 'audio/mpeg' },
+        payload: bytes,
+      })
+      expect(put.statusCode).toBe(204)
+
+      const get = await app.inject({ method: 'GET', url: '/audio/variant-1/track-1' })
+      expect(get.statusCode).toBe(200)
+      expect(get.rawPayload).toEqual(bytes)
+    })
+
+    it('returns 404 for a track that was never uploaded', async () => {
+      const response = await app.inject({ method: 'GET', url: '/audio/variant-1/missing' })
+      expect(response.statusCode).toBe(404)
+    })
+
+    it('deletes a track, after which GET 404s', async () => {
+      await app.inject({
+        method: 'PUT',
+        url: '/audio/variant-1/track-1',
+        headers: { 'content-type': 'audio/mpeg' },
+        payload: Buffer.from('bytes'),
+      })
+
+      const del = await app.inject({ method: 'DELETE', url: '/audio/variant-1/track-1' })
+      expect(del.statusCode).toBe(204)
+
+      const get = await app.inject({ method: 'GET', url: '/audio/variant-1/track-1' })
+      expect(get.statusCode).toBe(404)
+    })
+
+    it('deleting a track that was never uploaded is a no-op, not an error', async () => {
+      const response = await app.inject({ method: 'DELETE', url: '/audio/variant-1/never-uploaded' })
+      expect(response.statusCode).toBe(204)
+    })
+
+    it('rejects an id containing characters outside the safe filename charset', async () => {
+      const response = await app.inject({ method: 'GET', url: '/audio/..%2Fetc/passwd' })
+      expect(response.statusCode).toBe(400)
     })
   })
 
