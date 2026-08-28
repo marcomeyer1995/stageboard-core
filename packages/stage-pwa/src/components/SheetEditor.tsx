@@ -269,7 +269,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const preview = parseChordPro(draft.chordProContent)
 
   return (
-    <div className="grid h-dvh grid-cols-2 gap-3 sb-app-bg p-3 text-ink">
+    // Below lg (tablet portrait, phones - docs/07), the form and the chord preview stack
+    // and the whole page scrolls, rather than squeezing two columns into a narrow screen;
+    // at lg and up it's the same fixed-height two-column layout as before.
+    <div className="flex h-dvh flex-col gap-3 overflow-y-auto sb-app-bg p-3 text-ink lg:grid lg:grid-cols-2">
       <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
         {onBack && (
           <button
@@ -363,8 +366,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         </div>
-        <div className="flex gap-2">
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             BPM
             <input
               type="number"
@@ -373,7 +376,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -381,7 +384,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Tuning
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -389,7 +392,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Capo
             <input
               type="number"

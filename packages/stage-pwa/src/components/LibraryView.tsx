@@ -66,9 +66,17 @@ export function LibraryView() {
     )
   }
 
+  // Below lg (tablet portrait and phones - docs/07's "phone"/"tablet portrait" classes),
+  // there isn't room for both panes side by side: show the tree until something is picked,
+  // then swap to just the detail pane with a way back. At lg and up, both stay visible at
+  // once like before - no need to hide either.
   return (
-    <div className="grid h-dvh grid-cols-[minmax(0,1fr)_2fr] gap-3 sb-app-bg p-3 text-ink">
-      <div className="flex flex-col gap-4 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
+    <div className="flex h-dvh flex-col gap-3 sb-app-bg p-3 text-ink lg:grid lg:grid-cols-[minmax(0,1fr)_2fr]">
+      <div
+        className={`flex-col gap-4 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb lg:flex ${
+          selection ? 'hidden' : 'flex'
+        }`}
+      >
         <input
           type="text"
           value={search}
@@ -129,12 +137,25 @@ export function LibraryView() {
         </div>
       </div>
 
-      <div className="overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
+      <div
+        className={`flex-col overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb lg:flex ${
+          selection ? 'flex' : 'hidden'
+        }`}
+      >
         {selection?.type === 'setlist' ? (
-          <SetlistDetail
-            setlistId={selection.id}
-            onSelectSong={(songId, variantId) => setSelection({ type: 'song', songId, variantId })}
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => setSelection(null)}
+              className="mb-3 self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover lg:hidden"
+            >
+              ← Bibliothek
+            </button>
+            <SetlistDetail
+              setlistId={selection.id}
+              onSelectSong={(songId, variantId) => setSelection({ type: 'song', songId, variantId })}
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-ink-faint">
             Wähle links eine Setlist oder einen Song aus.
