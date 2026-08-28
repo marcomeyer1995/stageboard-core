@@ -1,6 +1,14 @@
+import { useRef, useState } from 'react'
 import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useNow } from '../lib/useNow'
+import {
+  buildWorkspaceSnapshot,
+  downloadWorkspaceSnapshot,
+  parseWorkspaceSnapshot,
+  restoreWorkspaceSnapshot,
+} from '../lib/workspaceSnapshot'
 
 /**
  * A focused view of just the band's backup-capability plugin(s), for the "gated built-in
@@ -14,10 +22,39 @@ export function BackupManager() {
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const now = useNow()
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const backupPlugins = installed.filter((plugin) =>
     plugin.capabilities.includes(CAPABILITIES.backup),
   )
+
+  async function handleExport() {
+    setSnapshotStatus('Erstelle Backup…')
+    try {
+      const snapshot = await buildWorkspaceSnapshot(workspaceId)
+      downloadWorkspaceSnapshot(snapshot)
+      setSnapshotStatus('Backup heruntergeladen.')
+    } catch (err) {
+      setSnapshotStatus(err instanceof Error ? err.message : 'Backup fehlgeschlagen.')
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    if (!window.confirm(`"${file.name}" wiederherstellen und mit den lokalen Daten zusammenführen?`)) {
+      return
+    }
+    setSnapshotStatus('Stelle Backup wieder her…')
+    try {
+      const raw = await file.text()
+      const snapshot = parseWorkspaceSnapshot(raw)
+      await restoreWorkspaceSnapshot(snapshot, workspaceId)
+      setSnapshotStatus('Backup wiederhergestellt.')
+    } catch (err) {
+      setSnapshotStatus(err instanceof Error ? err.message : 'Wiederherstellung fehlgeschlagen.')
+    }
+  }
 
   function healthLabel(plugin: PluginInstallation): string {
     if (plugin.runtime === 'client') return 'läuft auf dem Tablet'
@@ -65,6 +102,42 @@ export function BackupManager() {
           </div>
         ))}
       </div>
+
+      <h2 className="mb-1 mt-8 text-xl font-bold">Lokale Snapshots</h2>
+      <p className="mb-4 text-sm text-ink-muted">
+        Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieses Workspaces
+        (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und
+        Wiederherstellen - ideal vor größeren Änderungen oder Tourbeginn.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void handleExport()}
+          className="rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink"
+        >
+          Backup herunterladen
+        </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-sb border border-line bg-surface px-4 py-2 font-semibold"
+        >
+          Backup wiederherstellen…
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void handleImportFile(file)
+          }}
+        />
+      </div>
+      {snapshotStatus && <p className="mt-2 text-sm text-ink-muted">{snapshotStatus}</p>}
     </div>
   )
 }
