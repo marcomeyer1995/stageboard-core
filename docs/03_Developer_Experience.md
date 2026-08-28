@@ -10,6 +10,21 @@ Alle Kern-Pakete laufen auf ihren aktuellen Major-Versionen (Fastify 5, Vite 8, 
 
 **Bekannte Stolperfalle:** In manchen (insbesondere nicht-interaktiven) Shells ist die Umgebungsvariable `npm_config_prefix` bereits gesetzt (z.B. auf `/usr/local`). nvm verweigert dann das automatische Aktivieren der Default-Version beim Sourcen und meldet das nur als Warnung, nicht als Fehler. Fix: `unset npm_config_prefix` **vor** dem Sourcen von `nvm.sh` ausführen, dann `node --version` zur Kontrolle prüfen.
 
+## 0a. HTTPS für lokale Entwicklung (secure context, #34)
+
+`getUserMedia()` (Tuner) und `requestMIDIAccess()` (WebMIDI) verlangen einen Secure Context - reines HTTP reicht nicht, auch nicht über eine LAN-IP. Da Offline-Bühnen-Router kein Let's-Encrypt-Zertifikat erneuern können, läuft das über ein einziges, selbstsigniertes Zertifikat, das sich Vite, Fastify und CouchDB teilen:
+
+```
+./scripts/generate-dev-certs.sh          # nur localhost/127.0.0.1
+LAN_IP=192.168.x.x ./scripts/generate-dev-certs.sh   # + LAN-Adresse für Tablets
+```
+
+Schreibt `certs/dev-cert.pem` + `certs/dev-key.pem` (gitignored, pro Maschine neu erzeugt). `vite.config.ts` und `packages/core-backend/src/index.ts` lesen diese Dateien selbst und schalten automatisch auf HTTPS um, sobald sie existieren - **graceful fallback**: ohne generierte Zertifikate läuft alles wie bisher über HTTP, nichts crasht. CouchDB braucht das Docker-Volume-Mount aus `docker-compose.yml` (`docker/couchdb-ssl.ini`, `[ssl] enable = true`) und liefert HTTPS zusätzlich zu HTTP auf Port 6984, ohne 5984 abzuschalten.
+
+Sobald HTTPS aktiv ist: `.env` auf `https://` + Port 6984 für `VITE_COUCHDB_URL` und `https://` für `VITE_STAGE_SERVER_URL` umstellen (siehe `.env.example`), und `FRONTEND_ORIGIN` beim Start von `core-backend` auf die passende(n) HTTPS-Origin(s) setzen (`FRONTEND_ORIGIN="https://localhost:5173,https://<lan-ip>:5173"`) - sonst schlägt CORS fehl, weil der Default (`http://localhost:5173`) bewusst nicht automatisch mitwechselt (der CORS-Test in `index.test.ts` hängt an diesem stabilen Default).
+
+Jedes Tablet braucht beim ersten Aufruf einen manuellen "Trotzdem fortfahren"-Tap (selbstsigniert, keine CA) - danach merkt sich der Browser die Ausnahme.
+
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
 

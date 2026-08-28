@@ -5,6 +5,10 @@
 # app database, and enables CORS so the browser-side PouchDB can sync to it.
 set -euo pipefail
 
+# -k on every curl call: harmless against plain HTTP, but required if COUCHDB_URL points
+# at the self-signed HTTPS port (6984, see #34/generate-dev-certs.sh) - this script only
+# ever talks to CouchDB directly on localhost, never to a browser, so skipping cert
+# verification here doesn't weaken the actual secure-context guarantee that matters.
 COUCHDB_URL="${COUCHDB_URL:-http://localhost:5984}"
 COUCHDB_USER="${COUCHDB_USER:-admin}"
 COUCHDB_PASSWORD="${COUCHDB_PASSWORD:-admin}"
@@ -15,33 +19,33 @@ AUTH="${COUCHDB_USER}:${COUCHDB_PASSWORD}"
 
 echo "Waiting for CouchDB at ${COUCHDB_URL} ..."
 for _ in $(seq 1 30); do
-  if curl -sf -u "$AUTH" "${COUCHDB_URL}/" > /dev/null; then
+  if curl -skf -u "$AUTH" "${COUCHDB_URL}/" > /dev/null; then
     break
   fi
   sleep 1
 done
-curl -sf -u "$AUTH" "${COUCHDB_URL}/" > /dev/null || {
+curl -skf -u "$AUTH" "${COUCHDB_URL}/" > /dev/null || {
   echo "CouchDB did not become ready at ${COUCHDB_URL}" >&2
   exit 1
 }
 
 echo "Finishing single-node cluster setup (no-op if already done) ..."
-curl -s -X POST -H "Content-Type: application/json" -u "$AUTH" \
+curl -sk -X POST -H "Content-Type: application/json" -u "$AUTH" \
   "${COUCHDB_URL}/_cluster_setup" -d '{"action": "finish_cluster"}' > /dev/null
 
 echo "Ensuring database '${COUCHDB_DB}' exists ..."
-status=$(curl -s -o /dev/null -w '%{http_code}' -X PUT -u "$AUTH" "${COUCHDB_URL}/${COUCHDB_DB}")
+status=$(curl -sk -o /dev/null -w '%{http_code}' -X PUT -u "$AUTH" "${COUCHDB_URL}/${COUCHDB_DB}")
 if [ "$status" != "201" ] && [ "$status" != "412" ]; then
   echo "Unexpected response creating database: HTTP $status" >&2
   exit 1
 fi
 
 echo "Enabling CORS for ${FRONTEND_ORIGIN} ..."
-curl -s -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/httpd/enable_cors" -d '"true"' > /dev/null
-curl -s -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/origins" -d "\"${FRONTEND_ORIGIN}\"" > /dev/null
-curl -s -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/credentials" -d '"true"' > /dev/null
-curl -s -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/methods" -d '"GET, PUT, POST, HEAD, DELETE"' > /dev/null
-curl -s -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/headers" \
+curl -sk -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/httpd/enable_cors" -d '"true"' > /dev/null
+curl -sk -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/origins" -d "\"${FRONTEND_ORIGIN}\"" > /dev/null
+curl -sk -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/credentials" -d '"true"' > /dev/null
+curl -sk -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/methods" -d '"GET, PUT, POST, HEAD, DELETE"' > /dev/null
+curl -sk -X PUT -u "$AUTH" "${COUCHDB_URL}/_node/_local/_config/cors/headers" \
   -d '"accept, authorization, content-type, origin, referer, x-csrf-token"' > /dev/null
 
 echo "Done. CouchDB ready at ${COUCHDB_URL}/${COUCHDB_DB} (CORS allowed from ${FRONTEND_ORIGIN})."

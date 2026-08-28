@@ -2,13 +2,25 @@ services:
   couchdb:
     image: couchdb:3
     restart: unless-stopped
+    # Runs as the image's own couchdb user (uid/gid 5984) from the start, not root-then-
+    # drop-privileges: the entrypoint's root branch chowns everything under /opt/couchdb
+    # to couchdb:couchdb on every start, including bind-mounted host paths - it silently
+    # took ownership of ./certs on the *host* the first time this ran as root, leaving it
+    # unwritable outside a container. Skipping that branch entirely keeps the shared
+    # certs/ dir (and docker/couchdb-ssl.ini) owned by whoever runs docker compose.
+    user: "5984:5984"
     ports:
       - "5984:5984"
+      # HTTPS listener (see #34, scripts/generate-dev-certs.sh) - kept alongside plain 5984
+      # rather than replacing it, so anyone who hasn't generated certs yet keeps working.
+      - "6984:6984"
     environment:
       COUCHDB_USER: admin
       COUCHDB_PASSWORD: admin
     volumes:
       - couchdb-data:/opt/couchdb/data
+      - ./docker/couchdb-ssl.ini:/opt/couchdb/etc/local.d/00-ssl.ini:ro
+      - ./certs:/opt/couchdb/etc/certs:ro
 
 volumes:
   couchdb-data:
