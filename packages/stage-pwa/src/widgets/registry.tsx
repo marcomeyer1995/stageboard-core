@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
+import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackingTrackPlayerWidget } from './BackingTrackPlayerWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
 import { ClockControlWidget } from './ClockControlWidget'
@@ -128,6 +129,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     defaultLayout: { w: 7, h: 2, minW: 3, minH: 2 },
     Component: NextSongWidget,
+  }),
+  defineWidget({
+    type: 'active-setlist',
+    title: 'Aktive Setlist',
+    description: 'Zeigt, welche Setlist gerade aktiv ist - auch ohne Live-Queue/Next Song.',
+    category: 'performance',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: ActiveSetlistWidget,
   }),
   defineWidget({
     type: 'clock',

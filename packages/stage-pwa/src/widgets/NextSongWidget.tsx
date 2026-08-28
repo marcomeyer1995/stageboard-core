@@ -42,7 +42,7 @@ export function NextSongWidget() {
         <button
           type="button"
           onClick={claimMaster}
-          title="Diese Ansicht hat aktuell keine Kontrolle über die Queue"
+          title="Dieses Gerät hat aktuell keine Kontrolle über die Queue"
           className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
         >
           Master übernehmen

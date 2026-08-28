@@ -8,6 +8,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useMemo, useState } from 'react'
 import type { Setlist, Song } from 'shared-types'
@@ -175,7 +176,12 @@ export function LibraryView() {
     // against the droppable - confirmed live that it never registers a hit here even with
     // full geometric overlap. pointerWithin checks the pointer's own coordinates instead,
     // which is what "drop it anywhere in this pane" actually means.
-    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      modifiers={[restrictToHorizontalAxis]}
+      onDragEnd={handleDragEnd}
+    >
       {/* Below lg (tablet portrait and phones - docs/07's "phone"/"tablet portrait" classes),
           there isn't room for both panes side by side: show the tree until something is
           picked, then swap to just the detail pane with a way back. At lg and up, both stay
@@ -253,6 +259,17 @@ export function LibraryView() {
                       >
                         ({setlist.entries.length})
                       </span>
+                      {activeSetlist?.id === setlist.id && (
+                        <span
+                          className={`ml-2 text-xs font-semibold ${
+                            selection?.type === 'setlist' && selection.id === setlist.id
+                              ? 'text-accent-ink'
+                              : 'text-accent'
+                          }`}
+                        >
+                          ● Aktiv
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

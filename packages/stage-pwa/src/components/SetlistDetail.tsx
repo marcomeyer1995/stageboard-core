@@ -192,8 +192,11 @@ export function SetlistDetail({ setlistId, onSelectSong }: SetlistDetailProps) {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-ink-muted">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
           {setlist.name}
+          {activeSetlist?.id === setlist.id && (
+            <span className="text-xs font-semibold normal-case text-accent">● Aktiv</span>
+          )}
         </h2>
         <span className="flex flex-shrink-0 gap-1">
           <button
