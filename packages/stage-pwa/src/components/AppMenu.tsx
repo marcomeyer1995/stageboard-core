@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
 import { ProfileSwitcher } from './ProfileSwitcher'
+import { SyncIndicator } from './SyncIndicator'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useActiveProfile } from '../lib/useActiveProfile'
@@ -96,6 +97,10 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             </button>
           </Section>
         )}
+
+        <Section title="Synchronisation">
+          <SyncIndicator />
+        </Section>
 
         <button
           type="button"
