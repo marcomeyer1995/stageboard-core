@@ -1,11 +1,15 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
-import Fastify from 'fastify'
+import Fastify, { type FastifyInstance } from 'fastify'
 import { ShowControlEventSchema } from 'shared-types'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
+
+const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
+const keyFile = fileURLToPath(new URL('../../../certs/dev-key.pem', import.meta.url))
 
 /**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
@@ -14,7 +18,22 @@ import { PluginRegistry } from './plugins/registry.js'
  * only caller that goes on to populate the registries and actually start the server.
  */
 export async function buildApp() {
-  const app = Fastify({ logger: true })
+  // Same shared cert as Vite and CouchDB (see #34, scripts/generate-dev-certs.sh) - the
+  // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
+  // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
+  // fetching a plain-HTTP API is mixed content and gets blocked. Falls back to plain HTTP
+  // if the certs haven't been generated yet, same as vite.config.ts.
+  // Cast away the HTTP-vs-HTTPS server generic once, here: every route handler, `.inject()`
+  // caller, and `main()`'s `.listen()` only use transport-agnostic Fastify methods, never
+  // the underlying `server` property directly, so one shared `FastifyInstance` type serves
+  // both branches without spreading this union through every consumer.
+  const app: FastifyInstance =
+    existsSync(certFile) && existsSync(keyFile)
+      ? (Fastify({
+          logger: true,
+          https: { cert: readFileSync(certFile), key: readFileSync(keyFile) },
+        }) as unknown as FastifyInstance)
+      : Fastify({ logger: true })
 
   // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
   // same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
