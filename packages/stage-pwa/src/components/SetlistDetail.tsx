@@ -62,6 +62,7 @@ function EntryRow({
         type="button"
         {...listeners}
         {...attributes}
+        style={{ touchAction: 'none' }}
         className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >

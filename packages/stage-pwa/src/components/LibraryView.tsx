@@ -61,6 +61,11 @@ function DraggableSongRow({ song, onClick }: { song: Song; onClick: () => void }
         style={{
           transform: CSS.Translate.toString(transform),
           transition: isDragging ? undefined : 'transform 200ms ease',
+          // Without this, a touch device's browser claims the gesture as a native scroll
+          // before dnd-kit's PointerSensor ever sees it - drags never start at all on a
+          // real tablet/phone (confirmed live). pan-y (not none) keeps vertical list
+          // scrolling working natively; only the horizontal swipe/drag is JS-driven.
+          touchAction: 'pan-y',
         }}
         className="relative z-10 w-full truncate rounded-sb-sm bg-control px-4 py-3 text-left text-base hover:bg-control-hover"
       >
