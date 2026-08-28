@@ -62,7 +62,19 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
   }
 }
 
-export function SheetEditor() {
+interface SheetEditorProps {
+  /** Controlled selection from LibraryView's tree (#20) - omitted for standalone/legacy
+   * usage, which keeps today's self-contained behavior (defaults to songs[0], owns its own
+   * Song/Variant pickers). `variantId: null` means the song's default variant, matching
+   * SetlistEntry's own convention. */
+  songId?: string
+  variantId?: string | null
+  /** Present only when embedded in LibraryView - renders a way back to the tree instead of
+   * SheetEditor's own full-page chrome assuming it's the whole screen. */
+  onBack?: () => void
+}
+
+export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
   const variants = useSongVariantsStore((state) => state.variants)
@@ -103,10 +115,13 @@ export function SheetEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTapping, draft.variantId, tapTrack?.id])
 
-  async function selectSong(id: string) {
+  async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
     if (!song) return
-    const variant = await ensureDefaultVariant(song)
+    const defaultVariant = await ensureDefaultVariant(song)
+    const variant = preferredVariantId
+      ? (variants.find((v) => v.id === preferredVariantId) ?? defaultVariant)
+      : defaultVariant
     setDraft(draftFrom(song, variant))
     setIsNewDraft(false)
     setError(null)
@@ -116,12 +131,21 @@ export function SheetEditor() {
   useEffect(() => {
     // First paint has no songs loaded from PouchDB yet - load the first one in once they
     // arrive, exactly once, so we don't fight a user who's already picked something else.
+    // Skipped entirely when controlled from outside (LibraryView) - the effect below owns
+    // selection in that case.
+    if (songId) return
     if (initialSongLoaded || isNewDraft === false) return
     if (songs.length === 0) return
     setInitialSongLoaded(true)
     void selectSong(songs[0].id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songs, initialSongLoaded])
+  }, [songs, initialSongLoaded, songId])
+
+  useEffect(() => {
+    if (!songId) return
+    void selectSong(songId, variantId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId, variantId])
 
   useEffect(() => {
     // Only re-sync onto an existing song when we're *not* mid-editing a new,
@@ -247,6 +271,15 @@ export function SheetEditor() {
   return (
     <div className="grid h-dvh grid-cols-2 gap-3 sb-app-bg p-3 text-ink">
       <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
+          >
+            ← Bibliothek
+          </button>
+        )}
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Song
           <select
