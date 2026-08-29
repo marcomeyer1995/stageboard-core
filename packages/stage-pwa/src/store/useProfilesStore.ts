@@ -3,7 +3,7 @@ import { randomId } from '../lib/id'
 import type { Profile } from 'shared-types'
 import {
   getAllProfiles,
-  getProfilesDb,
+  profilesChanges,
   putProfile,
   removeProfile,
   switchProfilesWorkspace,
@@ -43,7 +43,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = getProfilesDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = profilesChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
   },
   create: async (name, role) => {

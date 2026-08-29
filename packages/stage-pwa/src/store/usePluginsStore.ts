@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth, type PluginInstallation } from 'shared-types'
 import {
   getAllPlugins,
-  getPluginsDb,
+  pluginsChanges,
   putPlugin,
   removePlugin,
   switchPluginsWorkspace,
@@ -56,7 +56,7 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = getPluginsDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = pluginsChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
 
     unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health }))

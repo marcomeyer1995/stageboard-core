@@ -10,4 +10,4 @@ export const switchDashboardsWorkspace = dashboards.switchWorkspace
 export const getAllDashboards = dashboards.getAll
 export const putDashboard = dashboards.put
 export const removeDashboard = dashboards.remove
-export const startDashboardsSync = dashboards.startSync
+export const dashboardsChanges = dashboards.changes

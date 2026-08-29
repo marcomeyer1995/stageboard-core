@@ -5,20 +5,14 @@ import { Dashboard } from './components/Dashboard'
 import { LibraryView } from './components/LibraryView'
 import { PluginManager } from './components/PluginManager'
 import { PostShowReport } from './components/PostShowReport'
-import { startSync } from './lib/db'
-import { startDashboardsSync } from './lib/dashboardsDb'
 import { MODE_LABEL, type Mode } from './lib/modes'
-import { startPluginsSync } from './lib/pluginsDb'
-import { startProfilesSync } from './lib/profilesDb'
-import { startSetlistsSync } from './lib/setlistsDb'
-import { startShowLogSync } from './lib/showLogDb'
-import { startShowStateSync } from './lib/showStateDb'
-import { startVariantsSync } from './lib/songVariantsDb'
+import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
+import { startWorkspaceSync } from './lib/workspaceDb'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
@@ -30,6 +24,14 @@ import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 
+// Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
+// identity, so a fresh arrow function on every render would re-run it on every render too,
+// not just on a real workspace change.
+async function noopInit() {}
+function noopStart(): TrackedSync | null {
+  return null
+}
+
 function App() {
   const [mode, setMode] = useState<Mode>('live')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -39,42 +41,19 @@ function App() {
   useWakeLock()
   useShowLogTracker()
 
-  useWorkspaceResource(useSongsStore((state) => state.init), startSync, activeWorkspaceId)
-  useWorkspaceResource(
-    useSongVariantsStore((state) => state.init),
-    startVariantsSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    useSetlistsStore((state) => state.init),
-    startSetlistsSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    useShowStateStore((state) => state.init),
-    startShowStateSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    usePluginsStore((state) => state.init),
-    startPluginsSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    useDashboardsStore((state) => state.init),
-    startDashboardsSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    useProfilesStore((state) => state.init),
-    startProfilesSync,
-    activeWorkspaceId,
-  )
-  useWorkspaceResource(
-    useShowLogStore((state) => state.init),
-    startShowLogSync,
-    activeWorkspaceId,
-  )
+  // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
+  // below still runs its own init (loading + a local, filtered change listener for just its
+  // own document kind), but none of them starts an independent remote sync anymore.
+  useWorkspaceResource(noopInit, startWorkspaceSync, activeWorkspaceId)
+
+  useWorkspaceResource(useSongsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useSongVariantsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useSetlistsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
 
   return (

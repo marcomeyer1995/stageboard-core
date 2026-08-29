@@ -14,4 +14,4 @@ export const switchPluginsWorkspace = plugins.switchWorkspace
 export const getAllPlugins = plugins.getAll
 export const putPlugin = plugins.put
 export const removePlugin = plugins.remove
-export const startPluginsSync = plugins.startSync
+export const pluginsChanges = plugins.changes

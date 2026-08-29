@@ -2,9 +2,9 @@ import { create } from 'zustand'
 import type { Song } from 'shared-types'
 import {
   getAllSongs,
-  getSongsDb,
   putSong,
   seedDummySongsIfEmpty,
+  songsChanges,
   switchSongsWorkspace,
   type SongDoc,
 } from '../lib/db'
@@ -47,7 +47,7 @@ export const useSongsStore = create<SongsState>((set) => ({
     await refreshSongs(set)
     set({ loaded: true })
 
-    changesHandle = getSongsDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = songsChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refreshSongs(set))
   },
   saveSong: async (song) => {

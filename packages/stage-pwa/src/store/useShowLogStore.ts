@@ -3,8 +3,8 @@ import { randomId } from '../lib/id'
 import { ShowLogEventSchema, type ShowLogEvent } from 'shared-types'
 import {
   getAllShowLogEvents,
-  getShowLogDb,
   putShowLogEvent,
+  showLogChanges,
   switchShowLogWorkspace,
   type ShowLogEventDoc,
 } from '../lib/showLogDb'
@@ -62,7 +62,7 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = getShowLogDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = showLogChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
   },
   addNote: async (text, authorProfileId) => {

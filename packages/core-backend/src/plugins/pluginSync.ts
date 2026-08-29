@@ -23,9 +23,15 @@ export interface PluginSyncHandle {
   writeHeartbeat: () => Promise<void>
 }
 
-function pluginsDbName(workspaceId: string): string {
-  return `stageboard-plugins-${workspaceId}`
+/** Plugin installations now live in the one shared per-workspace database (see #49
+ * follow-up: consolidating away from one CouchDB database per collection), alongside every
+ * other document kind - `readInstallations`'s id-prefix range query below is what scopes
+ * this read to just the installation docs. */
+function workspaceDbName(workspaceId: string): string {
+  return `stageboard-${workspaceId}`
 }
+
+const INSTALLATION_PREFIX = 'plugins:'
 
 /** Only documents that parse are trusted - a half-replicated doc must not crash the server. */
 export function readInstallations(docs: unknown[]): PluginInstallation[] {
@@ -76,13 +82,18 @@ export function reconcile(
  */
 export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   const { couch, workspaceId, registry, log } = options
-  const pluginsDb = pluginsDbName(workspaceId)
+  const workspaceDb = workspaceDbName(workspaceId)
   let stopped = false
 
   const pluginContext = { log }
 
   async function syncOnce(): Promise<void> {
-    const installations = readInstallations(await allDocs<unknown>(couch, pluginsDb))
+    const installations = readInstallations(
+      await allDocs<unknown>(couch, workspaceDb, {
+        startkey: INSTALLATION_PREFIX,
+        endkey: `${INSTALLATION_PREFIX}￰`,
+      }),
+    )
     const { toRegister, toUnregister, unavailable } = reconcile(
       installations,
       registry.list().map(({ name }) => name),
@@ -113,7 +124,12 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
     let since = 'now'
     while (!stopped) {
       try {
-        const { lastSeq, changed } = await waitForChange(couch, pluginsDb, since, CHANGES_TIMEOUT_MS)
+        // Watches the whole shared workspace db now, not a plugins-only one - this wakes on
+        // any document's change, not just plugin installs, so `syncOnce` runs a bit more
+        // often than strictly necessary. Its own reconcile logic is cheap and idempotent
+        // (a no-op unless the installation list actually changed), so this is a minor
+        // efficiency note, not a correctness problem.
+        const { lastSeq, changed } = await waitForChange(couch, workspaceDb, since, CHANGES_TIMEOUT_MS)
         since = lastSeq
         if (changed && !stopped) await syncOnce()
       } catch (err) {
@@ -129,7 +145,7 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   }, HEARTBEAT_INTERVAL_MS)
 
   async function start(): Promise<void> {
-    await ensureDb(couch, pluginsDb)
+    await ensureDb(couch, workspaceDb)
     await syncOnce()
     await writeHeartbeat()
     void watchChanges()

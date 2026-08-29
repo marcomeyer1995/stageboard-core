@@ -9,4 +9,4 @@ export const getShowLogDb = showLog.getDb
 export const switchShowLogWorkspace = showLog.switchWorkspace
 export const getAllShowLogEvents = showLog.getAll
 export const putShowLogEvent = showLog.put
-export const startShowLogSync = showLog.startSync
+export const showLogChanges = showLog.changes

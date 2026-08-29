@@ -46,8 +46,20 @@ export async function ensureDb(config: CouchConfig, db: string): Promise<void> {
   }
 }
 
-export async function allDocs<T>(config: CouchConfig, db: string): Promise<T[]> {
-  const response = await request(config, `${dbUrl(config, db)}/_all_docs?include_docs=true`)
+/** `startkey`/`endkey` scope the read to an id-prefix range - CouchDB's `_all_docs`
+ * supports this natively, no secondary index needed (see workspaceCollection.ts's client
+ * equivalent, which uses the same prefix scheme for the same reason: several document kinds
+ * now share one physical database, see #49 follow-up). */
+export async function allDocs<T>(
+  config: CouchConfig,
+  db: string,
+  options: { startkey?: string; endkey?: string } = {},
+): Promise<T[]> {
+  const params = new URLSearchParams({ include_docs: 'true' })
+  if (options.startkey !== undefined) params.set('startkey', JSON.stringify(options.startkey))
+  if (options.endkey !== undefined) params.set('endkey', JSON.stringify(options.endkey))
+
+  const response = await request(config, `${dbUrl(config, db)}/_all_docs?${params.toString()}`)
   if (!response.ok) throw new Error(`Failed to read ${db}: HTTP ${response.status}`)
   const body = (await response.json()) as { rows: Array<{ doc?: T }> }
   return body.rows.map((row) => row.doc).filter((doc): doc is T => doc !== undefined)
