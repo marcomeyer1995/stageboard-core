@@ -26,10 +26,17 @@ function fakeLocalDb() {
   return { db: { sync: vi.fn(() => handle) }, emit }
 }
 
-/** A PouchDB.Replication.SyncResult<T>-shaped 'change' event payload, with just the field
- * trackedSync.ts actually reads. */
-function changeInfo(docIds: string[]) {
-  return { direction: 'pull', change: { docs: docIds.map((id) => ({ _id: id })) } }
+/** A PouchDB.Replication.SyncResult<T>-shaped 'change' event payload, with just the fields
+ * trackedSync.ts actually reads. `pending` isn't in @types/pouchdb-replication's declared
+ * shape but is present at runtime when the remote is CouchDB 2.0+ (see trackedSync.ts). */
+function changeInfo(
+  docIds: string[],
+  options: { direction?: 'push' | 'pull'; pending?: number } = {},
+) {
+  return {
+    direction: options.direction ?? 'pull',
+    change: { docs: docIds.map((id) => ({ _id: id })), pending: options.pending },
+  }
 }
 
 /** trackedSync's start queue advances on a microtask chain (see trackedSync.ts) - a
@@ -39,7 +46,7 @@ function flush() {
 }
 
 beforeEach(() => {
-  useSyncStore.setState({ streams: {} })
+  useSyncStore.setState({ streams: {}, progress: {} })
   __resetSyncQueueForTests()
 })
 
@@ -168,6 +175,99 @@ describe('trackedSync', () => {
 
       expect(setlists.db.sync).toHaveBeenCalledOnce()
       expect(useSyncStore.getState().streams.setlists).toBe('active')
+    })
+  })
+
+  describe('pull progress (see #49 follow-up: sync percentage)', () => {
+    it('records pending from a pull change batch', async () => {
+      const { db, emit } = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('songs', db as any, {} as any)
+      await flush()
+
+      emit('change', changeInfo(['song-1'], { direction: 'pull', pending: 7 }))
+
+      expect(useSyncStore.getState().progress.songs).toEqual({ pending: 7, initialPending: 7 })
+    })
+
+    it('ignores pending on a push change batch - the local adapter never reports one', async () => {
+      const { db, emit } = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('songs', db as any, {} as any)
+      await flush()
+
+      emit('change', changeInfo(['song-1'], { direction: 'push', pending: 7 }))
+
+      expect(useSyncStore.getState().progress.songs).toBeUndefined()
+    })
+
+    it('clears progress on a real "paused" (caught up), so a finished run does not linger', async () => {
+      const { db, emit } = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('songs', db as any, {} as any)
+      await flush()
+
+      emit('change', changeInfo(['song-1'], { pending: 7 }))
+      expect(useSyncStore.getState().progress.songs).toBeDefined()
+
+      emit('paused')
+      expect(useSyncStore.getState().progress.songs).toBeUndefined()
+    })
+
+    it('clears progress on "error" and on "complete", same as a real pause', async () => {
+      const errored = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('songs', errored.db as any, {} as any)
+      await flush()
+      errored.emit('change', changeInfo(['song-1'], { pending: 7 }))
+      errored.emit('error', new Error('fatal'))
+      expect(useSyncStore.getState().progress.songs).toBeUndefined()
+
+      const completed = fakeLocalDb()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      trackedSync('setlists', completed.db as any, {} as any)
+      await flush()
+      completed.emit('change', changeInfo(['setlist-1'], { pending: 3 }))
+      completed.emit('complete')
+      expect(useSyncStore.getState().progress.setlists).toBeUndefined()
+    })
+
+    it('a noise-only batch does not reset the progress a real batch already reported (regression: was stuck at 0%)', async () => {
+      const { db, emit } = fakeLocalDb()
+      trackedSync(
+        'show-state',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        db as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        {} as any,
+        { isNoiseDocId: (id) => id === 'heartbeat-noise' },
+      )
+      await flush()
+
+      // A real batch establishes real progress...
+      emit('change', changeInfo(['show-state-1'], { direction: 'pull', pending: 10 }))
+      expect(useSyncStore.getState().progress['show-state']).toEqual({
+        pending: 10,
+        initialPending: 10,
+      })
+
+      // ...the next batch makes real headway...
+      emit('change', changeInfo(['show-state-2'], { direction: 'pull', pending: 6 }))
+      expect(useSyncStore.getState().progress['show-state']).toEqual({
+        pending: 6,
+        initialPending: 10,
+      })
+
+      // ...and a noisy heartbeat-style batch in between (which reports its own "pending",
+      // since it's a real change batch, just not user-visible activity) must not wipe or
+      // reseed that progress - previously this synthesized a 'paused' via report(), which
+      // cleared progress, then immediately re-seeded a fresh 0%-done baseline from this
+      // batch's own pending value, pinning the percentage at 0% forever.
+      emit('change', changeInfo(['heartbeat-noise'], { direction: 'pull', pending: 5 }))
+      expect(useSyncStore.getState().progress['show-state']).toEqual({
+        pending: 6,
+        initialPending: 10,
+      })
     })
   })
 
