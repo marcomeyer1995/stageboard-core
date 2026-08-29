@@ -1,13 +1,11 @@
 /**
- * Minimal local blob cache for downloaded audio tracks (see #30) - "fetch once, keep
- * forever", no eviction or quota awareness at all. That's deliberate: the quota-aware
- * None/Selective/Full strategy is a separate follow-up issue's job, layered on top of this
- * same cache later. Without even this much, offline playback would regress the moment
- * audio stops riding along on PouchDB's own replication - a track fetched once still needs
- * to survive a reload with no network.
+ * Local blob cache for downloaded audio tracks (see #30). This module itself stays a plain
+ * key/value store with no opinion on *what* should be cached - audioStorageManager.ts (#49)
+ * owns the None/Selective/Full quota strategy and decides what to fetch or evict, using
+ * `listCachedKeys` to see current state.
  *
  * Hand-rolled IndexedDB rather than a dependency: this project keeps its dependency list
- * lean on purpose (see couch.ts), and the surface needed here is three tiny operations.
+ * lean on purpose (see couch.ts), and the surface needed here is a handful of tiny operations.
  */
 
 const DB_NAME = 'stageboard-audio-cache'
@@ -47,6 +45,21 @@ export async function setCached(key: string, blob: Blob): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put(blob, key)
       request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/** Every key currently cached - the AudioStorageManager's reconciler needs this to know what
+ * to evict when the sync mode or pins shrink the target set. */
+export async function listCachedKeys(): Promise<string[]> {
+  const db = await openDb()
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAllKeys()
+      request.onsuccess = () => resolve(request.result as string[])
       request.onerror = () => reject(request.error)
     })
   } finally {

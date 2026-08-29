@@ -14,6 +14,7 @@ import { startSetlistsSync } from './lib/setlistsDb'
 import { startShowLogSync } from './lib/showLogDb'
 import { startShowStateSync } from './lib/showStateDb'
 import { startVariantsSync } from './lib/songVariantsDb'
+import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
@@ -74,6 +75,7 @@ function App() {
     startShowLogSync,
     activeWorkspaceId,
   )
+  useAudioSyncReconciler(activeWorkspaceId)
 
   return (
     <div className="relative h-dvh">
