@@ -1,6 +1,5 @@
 import PouchDB from 'pouchdb-browser'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
-import { PLUGIN_HEALTH_DOC_ID } from './pluginHealthDb'
 import { trackedSync, type TrackedSync } from './trackedSync'
 import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
 
@@ -50,10 +49,9 @@ export function startShowStateSync(workspaceId: string): TrackedSync | null {
   })
 
   const remoteDb = new PouchDB<ShowState>(url, { auth: remoteAuth() })
-  // Excludes the plugin-health heartbeat doc from counting as sync activity - it shares
-  // this 'meta' database and writes every few seconds by design (see #33 follow-up).
-  syncHandle = trackedSync('show-state', db, remoteDb, {
-    isNoiseDocId: (id) => id === PLUGIN_HEALTH_DOC_ID,
-  })
+  // No noise filtering needed here anymore (see #49 follow-up): the plugin-health heartbeat
+  // that used to share this 'meta' database and write every few seconds now goes through a
+  // separate push channel (pluginHealthStream.ts) instead of PouchDB sync.
+  syncHandle = trackedSync('show-state', db, remoteDb)
   return syncHandle
 }

@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { ShowControlEventSchema } from 'shared-types'
+import { HealthReportSchema, ShowControlEventSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
@@ -87,6 +88,49 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: 'Invalid variantId or trackId' })
     }
     await deleteAudioFile(variantId, trackId)
+    return reply.status(204).send()
+  })
+
+  // Named '/plugin-health', not '/health', to avoid colliding with the plain server-liveness
+  // route above - this is a different concept (per-plugin reachability, not "is this
+  // process up"). SSE, not WebSocket: the traffic is one-directional broadcast plus
+  // occasional one-shot reports, which fits a kept-open Fastify reply and a plain POST with
+  // no new dependency (see #49 follow-up - this replaces the old CouchDB `plugin-health` doc).
+  app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+
+    // hijack() hands the raw response fully to us - Fastify's normal send/serialize
+    // lifecycle never runs for this request. We copy whatever it already queued (e.g. CORS
+    // headers from the cors plugin's onRequest hook) so this stream keeps carrying them -
+    // set individually rather than passed to writeHead(), which has no overload accepting an
+    // arbitrary Record<string, ...> alongside a status code.
+    reply.hijack()
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) reply.raw.setHeader(name, value)
+    }
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.writeHead(200)
+
+    const unsubscribe = healthStore.subscribe(workspaceId, (snapshot) => {
+      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/plugin-health/:workspaceId/report', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = HealthReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    healthStore.setEntry(workspaceId, parsed.data.pluginName, {
+      status: parsed.data.status,
+      lastSeenAt: Date.now(),
+      message: parsed.data.message,
+    })
     return reply.status(204).send()
   })
 

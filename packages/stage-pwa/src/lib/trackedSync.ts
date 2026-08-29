@@ -26,12 +26,14 @@ export function __resetSyncQueueForTests(): void {
 
 export interface TrackedSyncOptions {
   /**
-   * Marks a changed doc id as background noise rather than a real user-visible change - the
-   * backend's plugin-health heartbeat is the motivating case (see #33 follow-up): it writes
-   * into the shared 'meta' db every few seconds by design, faster than the changes feed's
-   * own idle window, so 'paused' may rarely or never fire natively and the indicator gets
-   * stuck on "syncing" for a database that's actually perfectly caught up. A change batch
-   * made up ENTIRELY of noise ids is treated as an immediate settle instead of 'active'.
+   * Marks a changed doc id as background noise rather than a real user-visible change - for
+   * a doc that writes far more often than any real user action would, faster than the
+   * changes feed's own idle window, so 'paused' may rarely or never fire natively and the
+   * indicator gets stuck on "syncing" for a database that's actually perfectly caught up
+   * (see #33's original plugin-health follow-up, since moved off PouchDB sync entirely - see
+   * #49 - but the mechanism itself stays generically useful for any future noisy doc). A
+   * change batch made up ENTIRELY of noise ids is treated as an immediate settle instead of
+   * 'active'.
    */
   isNoiseDocId?: (id: string) => boolean
 }

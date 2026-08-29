@@ -171,57 +171,57 @@ describe('trackedSync', () => {
     })
   })
 
-  describe('isNoiseDocId (see #33 follow-up: plugin-health heartbeat)', () => {
+  describe('isNoiseDocId (general-purpose noise filtering, not tied to any one stream)', () => {
     it('treats a change batch made up entirely of noise doc ids as settled, not active', async () => {
       const { db, emit } = fakeLocalDb()
       trackedSync(
-        'show-state',
+        'example-stream',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         db as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {} as any,
-        { isNoiseDocId: (id) => id === 'plugin-health' },
+        { isNoiseDocId: (id) => id === 'heartbeat-noise' },
       )
       await flush()
 
-      emit('change', changeInfo(['plugin-health']))
+      emit('change', changeInfo(['heartbeat-noise']))
 
-      expect(useSyncStore.getState().streams['show-state']).toBe('paused')
+      expect(useSyncStore.getState().streams['example-stream']).toBe('paused')
     })
 
     it('still counts as real activity when the batch has any non-noise doc mixed in', async () => {
       const { db, emit } = fakeLocalDb()
       trackedSync(
-        'show-state',
+        'example-stream',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         db as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {} as any,
-        { isNoiseDocId: (id) => id === 'plugin-health' },
+        { isNoiseDocId: (id) => id === 'heartbeat-noise' },
       )
       await flush()
 
-      emit('change', changeInfo(['plugin-health', 'show-state']))
+      emit('change', changeInfo(['heartbeat-noise', 'real-doc']))
 
-      expect(useSyncStore.getState().streams['show-state']).toBe('active')
+      expect(useSyncStore.getState().streams['example-stream']).toBe('active')
     })
 
     it('a noise-only settle releases the next queued stream, same as a real pause', async () => {
-      const meta = fakeLocalDb()
+      const noisy = fakeLocalDb()
       const setlists = fakeLocalDb()
       trackedSync(
-        'show-state',
+        'example-stream',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        meta.db as any,
+        noisy.db as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {} as any,
-        { isNoiseDocId: (id) => id === 'plugin-health' },
+        { isNoiseDocId: (id) => id === 'heartbeat-noise' },
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       trackedSync('setlists', setlists.db as any, {} as any)
       await flush()
 
-      meta.emit('change', changeInfo(['plugin-health']))
+      noisy.emit('change', changeInfo(['heartbeat-noise']))
       await flush()
 
       expect(setlists.db.sync).toHaveBeenCalledOnce()
@@ -241,18 +241,18 @@ describe('trackedSync', () => {
     it('an empty docs array is not treated as noise-only', async () => {
       const { db, emit } = fakeLocalDb()
       trackedSync(
-        'show-state',
+        'example-stream',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         db as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {} as any,
-        { isNoiseDocId: (id) => id === 'plugin-health' },
+        { isNoiseDocId: (id) => id === 'heartbeat-noise' },
       )
       await flush()
 
       emit('change', changeInfo([]))
 
-      expect(useSyncStore.getState().streams['show-state']).toBe('active')
+      expect(useSyncStore.getState().streams['example-stream']).toBe('active')
     })
   })
 })

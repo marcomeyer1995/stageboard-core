@@ -28,3 +28,16 @@ export const DEFAULT_PLUGIN_HEALTH: PluginHealth = { plugins: {} }
  * so a stale entry is the only signal the tablets get - and it has to be one.
  */
 export const HEALTH_TIMEOUT_MS = 15_000
+
+/**
+ * Body a tablet POSTs to report its own client-hosted plugin's status (e.g. a WebMIDI foot
+ * pedal, or the tuner's mic input) - not every plugin is Stage-Server-hosted (docs/02: Tier 1
+ * has no server at all), so health can originate from either side. `lastSeenAt` is stamped
+ * server-side on receipt, not supplied by the reporting tablet.
+ */
+export const HealthReportSchema = z.object({
+  pluginName: z.string().min(1),
+  status: PluginStatusSchema,
+  message: z.string().optional(),
+})
+export type HealthReport = z.infer<typeof HealthReportSchema>

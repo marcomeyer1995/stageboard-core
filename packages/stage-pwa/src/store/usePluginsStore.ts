@@ -8,11 +8,7 @@ import {
   switchPluginsWorkspace,
   type PluginInstallationDoc,
 } from '../lib/pluginsDb'
-import {
-  getPluginHealth,
-  getPluginHealthDb,
-  switchPluginHealthWorkspace,
-} from '../lib/pluginHealthDb'
+import { subscribeToPluginHealth } from '../lib/pluginHealthStream'
 
 function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
   return {
@@ -38,7 +34,7 @@ interface PluginsState {
 }
 
 let changesHandle: PouchDB.Core.Changes<PluginInstallation> | null = null
-let healthChangesHandle: PouchDB.Core.Changes<PluginHealth> | null = null
+let unsubscribeHealth: (() => void) | null = null
 
 async function refresh(set: (partial: Partial<PluginsState>) => void) {
   const docs = await getAllPlugins()
@@ -51,21 +47,19 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
   loaded: false,
   init: async (workspaceId) => {
     changesHandle?.cancel()
-    healthChangesHandle?.cancel()
     changesHandle = null
-    healthChangesHandle = null
+    unsubscribeHealth?.()
+    unsubscribeHealth = null
     switchPluginsWorkspace(workspaceId)
-    switchPluginHealthWorkspace(workspaceId)
     set({ installed: [], health: DEFAULT_PLUGIN_HEALTH, loaded: false })
 
     await refresh(set)
-    set({ health: await getPluginHealth(), loaded: true })
+    set({ loaded: true })
 
     changesHandle = getPluginsDb().changes({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
 
-    healthChangesHandle = getPluginHealthDb().changes({ since: 'now', live: true })
-    healthChangesHandle.on('change', async () => set({ health: await getPluginHealth() }))
+    unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health }))
   },
   install: async (installation) => {
     await putPlugin(installation)
