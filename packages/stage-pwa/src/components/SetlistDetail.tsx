@@ -19,6 +19,9 @@ interface SetlistDetailProps {
   /** Drives LibraryView's right pane over to SheetEditor for that song - `null` variantId
    * means "the song's default variant", same convention SetlistEntry itself uses. */
   onSelectSong: (songId: string, variantId: string | null) => void
+  /** Called after the setlist is actually deleted, so LibraryView can clear a selection
+   * that would otherwise point at a setlist that no longer exists. */
+  onDeleted: () => void
 }
 
 interface EntryRowProps {
@@ -123,12 +126,13 @@ function EntryRow({
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
  */
-export function SetlistDetail({ setlistId, onSelectSong }: SetlistDetailProps) {
+export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const duplicateSetlist = useSetlistsStore((state) => state.duplicateSetlist)
+  const removeSetlist = useSetlistsStore((state) => state.remove)
   const { activeSetlist, isMaster } = useQueue()
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -140,6 +144,22 @@ export function SetlistDetail({ setlistId, onSelectSong }: SetlistDetailProps) {
     const name = window.prompt('Name der Kopie?', `${setlist.name} (Kopie)`)
     if (!name?.trim()) return
     await duplicateSetlist(setlist.id, name.trim())
+  }
+
+  async function handleDelete() {
+    if (!setlist) return
+    if (!window.confirm(`"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) {
+      return
+    }
+    // Deleting the active setlist shouldn't leave ShowState pointing at a document that no
+    // longer exists - the app already tolerates that (this same file's own "Setlist wurde
+    // entfernt" fallback), but clearing it here is the cleaner outcome for whoever's
+    // watching the queue elsewhere (e.g. NextSongWidget) right as this happens.
+    if (activeSetlist?.id === setlist.id && isMaster) {
+      await setActiveSetlist(null)
+    }
+    await removeSetlist(setlist.id)
+    onDeleted()
   }
 
   function moveSong(index: number, direction: -1 | 1) {
@@ -205,6 +225,13 @@ export function SetlistDetail({ setlistId, onSelectSong }: SetlistDetailProps) {
             className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
           >
             Duplizieren
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm text-red-400 hover:bg-control-strong-hover"
+          >
+            Löschen
           </button>
           <button
             type="button"

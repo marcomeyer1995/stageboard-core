@@ -5,6 +5,7 @@ import {
   getAllSetlists,
   getSetlistsDb,
   putSetlist,
+  removeSetlist,
   switchSetlistsWorkspace,
   type SetlistDoc,
 } from '../lib/setlistsDb'
@@ -34,6 +35,7 @@ interface SetlistsState {
   init: (workspaceId: string) => Promise<void>
   saveSetlist: (setlist: Setlist) => Promise<void>
   duplicateSetlist: (id: string, newName: string) => Promise<Setlist | null>
+  remove: (id: string) => Promise<void>
 }
 
 let changesHandle: PouchDB.Core.Changes<Setlist> | null = null
@@ -72,5 +74,8 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
     }
     await putSetlist(copy)
     return copy
+  },
+  remove: async (id) => {
+    await removeSetlist(id)
   },
 }))

@@ -41,7 +41,17 @@ function songEntry(songId: string) {
   return { id: randomId(), songId, variantId: null as string | null }
 }
 
-function DraggableSongRow({ song, onClick }: { song: Song; onClick: () => void }) {
+interface DraggableSongRowProps {
+  song: Song
+  onClick: () => void
+  /** Mouse+keyboard alternative to the swipe gesture below - dragging is a natural touch
+   * interaction but an awkward one with a mouse, per Marco. `null` means no setlist is
+   * active right now, which disables the button instead of hiding it (same "tell the user
+   * why, don't just make it disappear" instinct as the swipe's own message). */
+  onAddToActiveSetlist: (() => void) | null
+}
+
+function DraggableSongRow({ song, onClick, onAddToActiveSetlist }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
   })
@@ -53,26 +63,37 @@ function DraggableSongRow({ song, onClick }: { song: Song; onClick: () => void }
       <div className="absolute inset-0 flex items-center bg-accent-2 px-4 text-sm font-medium text-accent-ink">
         + Zur aktiven Setlist
       </div>
-      <button
-        ref={setNodeRef}
-        type="button"
-        onClick={onClick}
-        {...listeners}
-        {...attributes}
-        style={{
-          transform: CSS.Translate.toString(transform),
-          transition: isDragging ? undefined : 'transform 200ms ease',
-          // Without this, a touch device's browser claims the gesture as a native scroll
-          // before dnd-kit's PointerSensor ever sees it - drags never start at all on a
-          // real tablet/phone (confirmed live). pan-y (not none) keeps vertical list
-          // scrolling working natively; only the horizontal swipe/drag is JS-driven.
-          touchAction: 'pan-y',
-        }}
-        className="relative z-10 w-full truncate rounded-sb-sm bg-control px-4 py-3 text-left text-base hover:bg-control-hover"
-      >
-        {song.title || '(ohne Titel)'}
-        {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
-      </button>
+      <div className="relative z-10 flex gap-1">
+        <button
+          ref={setNodeRef}
+          type="button"
+          onClick={onClick}
+          {...listeners}
+          {...attributes}
+          style={{
+            transform: CSS.Translate.toString(transform),
+            transition: isDragging ? undefined : 'transform 200ms ease',
+            // Without this, a touch device's browser claims the gesture as a native scroll
+            // before dnd-kit's PointerSensor ever sees it - drags never start at all on a
+            // real tablet/phone (confirmed live). pan-y (not none) keeps vertical list
+            // scrolling working natively; only the horizontal swipe/drag is JS-driven.
+            touchAction: 'pan-y',
+          }}
+          className="min-w-0 flex-1 truncate rounded-sb-sm bg-control px-4 py-3 text-left text-base hover:bg-control-hover"
+        >
+          {song.title || '(ohne Titel)'}
+          {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
+        </button>
+        <button
+          type="button"
+          onClick={() => onAddToActiveSetlist?.()}
+          disabled={!onAddToActiveSetlist}
+          title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
+          className="h-auto w-12 flex-shrink-0 rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
     </li>
   )
 }
@@ -123,7 +144,7 @@ export function LibraryView() {
     const setlist: Setlist = {
       id: randomId(),
       name: name.trim(),
-      entries: songs.map((song) => songEntry(song.id)),
+      entries: [],
       createdAt: Date.now(),
     }
     saveSetlist(setlist)
@@ -136,6 +157,22 @@ export function LibraryView() {
     saveSetlist({ ...target, entries: [...target.entries, songEntry(songId)] })
   }
 
+  function showTransientMessage(text: string) {
+    setSwipeMessage(text)
+    setTimeout(() => setSwipeMessage(null), 2000)
+  }
+
+  /** Shared by the swipe gesture and the "+" button (Marco: dragging is natural on touch,
+   * awkward with a mouse) - both land on whichever setlist is currently active. */
+  function addToActiveSetlist(songId: string) {
+    if (!activeSetlist) {
+      showTransientMessage('Keine aktive Setlist')
+      return
+    }
+    addSongToSetlist(activeSetlist.id, songId)
+    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const songId = typeof event.active.id === 'string' ? event.active.id.replace('song:', '') : ''
     if (!songId) return
@@ -146,14 +183,7 @@ export function LibraryView() {
     }
 
     if (event.delta.x >= SWIPE_THRESHOLD_PX) {
-      if (!activeSetlist) {
-        setSwipeMessage('Keine aktive Setlist')
-        setTimeout(() => setSwipeMessage(null), 2000)
-        return
-      }
-      addSongToSetlist(activeSetlist.id, songId)
-      setSwipeMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
-      setTimeout(() => setSwipeMessage(null), 2000)
+      addToActiveSetlist(songId)
     }
   }
 
@@ -286,6 +316,7 @@ export function LibraryView() {
                     key={song.id}
                     song={song}
                     onClick={() => setSelection({ type: 'song', songId: song.id, variantId: null })}
+                    onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                   />
                 ))}
               </ul>
@@ -313,6 +344,7 @@ export function LibraryView() {
                 onSelectSong={(songId, variantId) =>
                   setSelection({ type: 'song', songId, variantId })
                 }
+                onDeleted={() => setSelection(null)}
               />
             </>
           ) : (
