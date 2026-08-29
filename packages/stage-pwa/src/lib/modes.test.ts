@@ -21,7 +21,7 @@ describe('availableModes', () => {
 
   it('always offers core modes regardless of capabilities', () => {
     expect(availableModes(new Map())).toEqual(
-      expect.arrayContaining(['live', 'edit', 'setlists', 'plugins']),
+      expect.arrayContaining(['live', 'library', 'plugins']),
     )
   })
 })

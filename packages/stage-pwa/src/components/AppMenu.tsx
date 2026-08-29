@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
+import { MasterControl } from './MasterControl'
 import { ProfileSwitcher } from './ProfileSwitcher'
 import { SyncIndicator } from './SyncIndicator'
 import { ThemeSwitcher } from './ThemeSwitcher'
@@ -65,6 +66,10 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
               </button>
             ))}
           </div>
+        </Section>
+
+        <Section title="Master-Kontrolle">
+          <MasterControl />
         </Section>
 
         {mode === 'live' && (

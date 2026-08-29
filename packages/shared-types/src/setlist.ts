@@ -18,5 +18,9 @@ export const SetlistSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   entries: z.array(SetlistEntrySchema),
+  /** Drives the Bibliothek's "newest first" ordering (#20 follow-up). Defaults to 0 for
+   * setlists that predate this field - they simply sort as the oldest, which is correct:
+   * no migration needed, nothing before this field genuinely has a creation time to recover. */
+  createdAt: z.number().int().nonnegative().default(0),
 })
 export type Setlist = z.infer<typeof SetlistSchema>

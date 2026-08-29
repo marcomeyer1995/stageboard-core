@@ -23,7 +23,7 @@ function entry(id: string, songId: string, variantId: string | null = null): Set
 }
 
 function setlist(id: string, entries: SetlistEntry[]): Setlist {
-  return { id, name: 'Gig', entries }
+  return { id, name: 'Gig', entries, createdAt: 0 }
 }
 
 const songs: Song[] = [song('a', 'Song A'), song('b', 'Song B'), song('c', 'Song C')]

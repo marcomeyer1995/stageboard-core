@@ -62,7 +62,19 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
   }
 }
 
-export function SheetEditor() {
+interface SheetEditorProps {
+  /** Controlled selection from LibraryView's tree (#20) - omitted for standalone/legacy
+   * usage, which keeps today's self-contained behavior (defaults to songs[0], owns its own
+   * Song/Variant pickers). `variantId: null` means the song's default variant, matching
+   * SetlistEntry's own convention. */
+  songId?: string
+  variantId?: string | null
+  /** Present only when embedded in LibraryView - renders a way back to the tree instead of
+   * SheetEditor's own full-page chrome assuming it's the whole screen. */
+  onBack?: () => void
+}
+
+export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
   const variants = useSongVariantsStore((state) => state.variants)
@@ -103,10 +115,13 @@ export function SheetEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTapping, draft.variantId, tapTrack?.id])
 
-  async function selectSong(id: string) {
+  async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
     if (!song) return
-    const variant = await ensureDefaultVariant(song)
+    const defaultVariant = await ensureDefaultVariant(song)
+    const variant = preferredVariantId
+      ? (variants.find((v) => v.id === preferredVariantId) ?? defaultVariant)
+      : defaultVariant
     setDraft(draftFrom(song, variant))
     setIsNewDraft(false)
     setError(null)
@@ -116,12 +131,21 @@ export function SheetEditor() {
   useEffect(() => {
     // First paint has no songs loaded from PouchDB yet - load the first one in once they
     // arrive, exactly once, so we don't fight a user who's already picked something else.
+    // Skipped entirely when controlled from outside (LibraryView) - the effect below owns
+    // selection in that case.
+    if (songId) return
     if (initialSongLoaded || isNewDraft === false) return
     if (songs.length === 0) return
     setInitialSongLoaded(true)
     void selectSong(songs[0].id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songs, initialSongLoaded])
+  }, [songs, initialSongLoaded, songId])
+
+  useEffect(() => {
+    if (!songId) return
+    void selectSong(songId, variantId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId, variantId])
 
   useEffect(() => {
     // Only re-sync onto an existing song when we're *not* mid-editing a new,
@@ -245,8 +269,20 @@ export function SheetEditor() {
   const preview = parseChordPro(draft.chordProContent)
 
   return (
-    <div className="grid h-dvh grid-cols-2 gap-3 sb-app-bg p-3 text-ink">
+    // Below lg (tablet portrait, phones - docs/07), the form and the chord preview stack
+    // and the whole page scrolls, rather than squeezing two columns into a narrow screen;
+    // at lg and up it's the same fixed-height two-column layout as before.
+    <div className="flex h-dvh flex-col gap-3 overflow-y-auto sb-app-bg p-3 text-ink lg:grid lg:grid-cols-2">
       <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
+          >
+            ← Bibliothek
+          </button>
+        )}
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Song
           <select
@@ -330,8 +366,8 @@ export function SheetEditor() {
             />
           </label>
         </div>
-        <div className="flex gap-2">
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             BPM
             <input
               type="number"
@@ -340,7 +376,7 @@ export function SheetEditor() {
               onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -348,7 +384,7 @@ export function SheetEditor() {
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Tuning
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -356,7 +392,7 @@ export function SheetEditor() {
               onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Capo
             <input
               type="number"

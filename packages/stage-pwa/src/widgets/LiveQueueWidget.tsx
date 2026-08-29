@@ -40,7 +40,7 @@ export function LiveQueueWidget() {
           <button
             type="button"
             onClick={claimMaster}
-            title="Diese Ansicht hat aktuell keine Kontrolle über die Queue"
+            title="Dieses Gerät hat aktuell keine Kontrolle über die Queue"
             className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs font-medium text-accent hover:bg-control-strong-hover"
           >
             Master übernehmen

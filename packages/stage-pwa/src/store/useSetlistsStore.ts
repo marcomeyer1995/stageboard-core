@@ -5,6 +5,7 @@ import {
   getAllSetlists,
   getSetlistsDb,
   putSetlist,
+  removeSetlist,
   switchSetlistsWorkspace,
   type SetlistDoc,
 } from '../lib/setlistsDb'
@@ -18,10 +19,14 @@ import {
  * ensureDefaultVariant in songVariantsDb.ts).
  */
 function toSetlist(doc: SetlistDoc): Setlist {
-  const raw = doc as unknown as { entries?: SetlistEntry[]; songIds?: string[] }
+  const raw = doc as unknown as {
+    entries?: SetlistEntry[]
+    songIds?: string[]
+    createdAt?: number
+  }
   const entries: SetlistEntry[] =
     raw.entries ?? (raw.songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null }))
-  return { id: doc.id, name: doc.name, entries }
+  return { id: doc.id, name: doc.name, entries, createdAt: raw.createdAt ?? 0 }
 }
 
 interface SetlistsState {
@@ -30,6 +35,7 @@ interface SetlistsState {
   init: (workspaceId: string) => Promise<void>
   saveSetlist: (setlist: Setlist) => Promise<void>
   duplicateSetlist: (id: string, newName: string) => Promise<Setlist | null>
+  remove: (id: string) => Promise<void>
 }
 
 let changesHandle: PouchDB.Core.Changes<Setlist> | null = null
@@ -64,8 +70,12 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
       id: randomId(),
       name: newName,
       entries: source.entries.map((entry) => ({ ...entry, id: randomId() })),
+      createdAt: Date.now(),
     }
     await putSetlist(copy)
     return copy
+  },
+  remove: async (id) => {
+    await removeSetlist(id)
   },
 }))

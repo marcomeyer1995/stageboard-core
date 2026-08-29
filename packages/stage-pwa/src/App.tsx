@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { AppMenu } from './components/AppMenu'
 import { BackupManager } from './components/BackupManager'
 import { Dashboard } from './components/Dashboard'
+import { LibraryView } from './components/LibraryView'
 import { PluginManager } from './components/PluginManager'
 import { PostShowReport } from './components/PostShowReport'
-import { SetlistManager } from './components/SetlistManager'
-import { SheetEditor } from './components/SheetEditor'
 import { startSync } from './lib/db'
 import { startDashboardsSync } from './lib/dashboardsDb'
 import { MODE_LABEL, type Mode } from './lib/modes'
@@ -79,8 +78,7 @@ function App() {
   return (
     <div className="relative h-dvh">
       {mode === 'live' && <Dashboard />}
-      {mode === 'edit' && <SheetEditor />}
-      {mode === 'setlists' && <SetlistManager />}
+      {mode === 'library' && <LibraryView />}
       {mode === 'plugins' && <PluginManager />}
       {mode === 'backup' && <BackupManager />}
       {mode === 'post-show' && <PostShowReport />}
