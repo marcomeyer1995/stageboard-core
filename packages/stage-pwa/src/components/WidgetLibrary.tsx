@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { randomId } from '../lib/id'
-import type { CapabilityId, Dashboard } from 'shared-types'
+import type { CapabilityId, Dashboard, StageRole } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { availableWidgets, GRID_COLUMNS, withWidgetAppended } from '../lib/dashboardLayout'
 import { ALL_WIDGETS, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
@@ -26,7 +26,7 @@ const CATEGORY_ORDER: WidgetCategory[] = [
 interface WidgetLibraryProps {
   dashboard: Dashboard
   capabilities: Map<CapabilityId, CapabilityStatus>
-  activeRole?: string
+  activeRoles?: StageRole[]
   onAdd: (dashboard: Dashboard) => void
 }
 
@@ -35,12 +35,12 @@ interface WidgetLibraryProps {
  * grouped by category and filtered by a text search - both on top of, not instead of,
  * the existing capability/role gating in availableWidgets().
  */
-export function WidgetLibrary({ dashboard, capabilities, activeRole, onAdd }: WidgetLibraryProps) {
+export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd }: WidgetLibraryProps) {
   const [search, setSearch] = useState('')
 
   const available = useMemo(
-    () => availableWidgets(ALL_WIDGETS, capabilities, activeRole),
-    [capabilities, activeRole],
+    () => availableWidgets(ALL_WIDGETS, capabilities, activeRoles),
+    [capabilities, activeRoles],
   )
 
   const filtered = useMemo(() => {

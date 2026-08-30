@@ -1,15 +1,10 @@
 import type { ReactNode } from 'react'
-import { AudioSyncSettings } from './AudioSyncSettings'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
 import { ProfileSwitcher } from './ProfileSwitcher'
-import { SyncIndicator } from './SyncIndicator'
-import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
-import { useActiveProfile } from '../lib/useActiveProfile'
-import { useCapabilities } from '../lib/useCapabilities'
 import { useFullscreen } from '../lib/useFullscreen'
-import { availableModes, MODE_LABEL, type Mode } from '../lib/modes'
+import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 
 interface AppMenuProps {
   mode: Mode
@@ -27,16 +22,17 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Everything that used to sit in a row of tiny buttons along the bottom edge - band,
- * theme, fullscreen, and screen navigation. None of it is touched often enough to earn
- * permanent space on a touch device, and at the size a real touch target needs, eight
- * buttons in a row simply don't fit. One menu button opens this instead.
+ * Just what's actually touched during a show - band/theme/sync-detail settings moved out to
+ * SystemView.tsx's "Einstellungen" tab in the 2026-08-30 menu-decluttering pass (this menu had
+ * grown to nine always-expanded sections, most of them "set once, forget it" device settings
+ * crowding out the handful of things someone actually reaches for mid-gig). What's left:
+ * screen navigation, Master-Kontrolle (live token handoff), the Dashboard edit-lock (live mode
+ * only), "Wer bin ich" (which band + which profile), and Vollbild - Fullscreen stayed here
+ * (not moved to SystemView with the rest) because it's something reached for at the start of
+ * a set, not a set-once device setting like the others.
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
-  const capabilities = useCapabilities()
-  const activeProfile = useActiveProfile()
-  const modes = availableModes(capabilities, activeProfile?.role)
 
   return (
     <div
@@ -48,8 +44,8 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <Section title="Ansicht">
-          <div className="grid grid-cols-2 gap-2">
-            {modes.map((candidate) => (
+          <div className="grid grid-cols-3 gap-2">
+            {MODES.map((candidate) => (
               <button
                 key={candidate}
                 type="button"
@@ -79,16 +75,9 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           </Section>
         )}
 
-        <Section title="Band">
+        <Section title="Wer bin ich">
           <WorkspaceSwitcher />
-        </Section>
-
-        <Section title="Profil">
           <ProfileSwitcher />
-        </Section>
-
-        <Section title="Darstellung">
-          <ThemeSwitcher />
         </Section>
 
         {fullscreen.supported && (
@@ -103,14 +92,6 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             </button>
           </Section>
         )}
-
-        <Section title="Synchronisation">
-          <SyncIndicator />
-        </Section>
-
-        <Section title="Speicher & Sync">
-          <AudioSyncSettings />
-        </Section>
 
         <button
           type="button"

@@ -1,13 +1,14 @@
+import { getStageServerUrl } from './stageServer'
+
 /**
  * Talks to core-backend's `/audio/:variantId/:trackId` routes (see #30) - the canonical
  * store for track audio now lives on the Stage-Server's disk, not as a PouchDB attachment,
  * so tablets no longer receive every band's whole audio catalog through the `song-variants`
- * live sync stream. Mirrors showControlClient.ts's shape (inline base-URL read, no shared
- * helper extracted across these client files).
+ * live sync stream.
  */
 
 function audioUrl(variantId: string, trackId: string): string | null {
-  const base = import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
+  const base = getStageServerUrl()
   if (!base) return null
   return `${base}/audio/${encodeURIComponent(variantId)}/${encodeURIComponent(trackId)}`
 }

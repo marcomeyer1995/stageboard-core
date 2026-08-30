@@ -1,4 +1,5 @@
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth } from 'shared-types'
+import { getStageServerUrl } from './stageServer'
 
 /**
  * Server-Sent Events stream of plugin/hardware health for one workspace - replaces the old
@@ -15,7 +16,7 @@ export function subscribeToPluginHealth(
   workspaceId: string,
   onHealth: (health: PluginHealth) => void,
 ): () => void {
-  const base = import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
+  const base = getStageServerUrl()
   if (!base) {
     onHealth(DEFAULT_PLUGIN_HEALTH)
     return () => {}

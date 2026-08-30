@@ -1,4 +1,5 @@
 import type { PluginStatus } from 'shared-types'
+import { getStageServerUrl } from './stageServer'
 
 /**
  * POSTs a client-runtime plugin's current status (e.g. WebMIDI, whose reachability only this
@@ -16,7 +17,7 @@ export async function reportClientHealth(
   pluginName: string,
   status: PluginStatus,
 ): Promise<void> {
-  const base = import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
+  const base = getStageServerUrl()
   if (!base) return
 
   try {

@@ -15,6 +15,7 @@ import type { Setlist, Song } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
+import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -141,6 +142,7 @@ export function LibraryView() {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const togglePin = useAudioPinsStore((state) => state.togglePin)
+  const promptText = useDialogStore((state) => state.promptText)
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
@@ -166,8 +168,8 @@ export function LibraryView() {
     return [...matches].sort((a, b) => a.title.localeCompare(b.title))
   }, [songs, term])
 
-  function createSetlist() {
-    const name = window.prompt('Name der neuen Setlist?')
+  async function createSetlist() {
+    const name = await promptText('Neue Setlist', { label: 'Name der neuen Setlist' })
     if (!name?.trim()) return
     const setlist: Setlist = {
       id: randomId(),

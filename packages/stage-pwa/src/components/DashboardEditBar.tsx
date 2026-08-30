@@ -3,6 +3,7 @@ import type { CapabilityId, Dashboard } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useDashboardsStore } from '../store/useDashboardsStore'
+import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { DashboardManager } from './DashboardManager'
 import { WidgetLibrary } from './WidgetLibrary'
@@ -16,6 +17,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
   const save = useDashboardsStore((state) => state.save)
   const resetToDefaults = useDashboardsStore((state) => state.resetToDefaults)
   const setEditing = useEditModeStore((state) => state.setEditing)
+  const confirm = useDialogStore((state) => state.confirm)
   const [showLibrary, setShowLibrary] = useState(false)
   const [showManager, setShowManager] = useState(false)
   const activeProfile = useActiveProfile()
@@ -44,8 +46,8 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       <button
         type="button"
         title="Alle Dashboards verwerfen und die Standard-Layouts neu anlegen"
-        onClick={() => {
-          if (window.confirm('Alle Dashboards verwerfen und zurücksetzen?')) {
+        onClick={async () => {
+          if (await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true })) {
             void resetToDefaults()
           }
         }}
@@ -66,7 +68,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
         <WidgetLibrary
           dashboard={dashboard}
           capabilities={capabilities}
-          activeRole={activeProfile?.role}
+          activeRoles={activeProfile?.stageRoles}
           onAdd={(next) => {
             void save(next)
             setShowLibrary(false)

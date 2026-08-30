@@ -1,5 +1,5 @@
 import { BREAKPOINTS, type Breakpoint, type Dashboard, type LayoutItem } from 'shared-types'
-import type { CapabilityId, Profile } from 'shared-types'
+import type { CapabilityId, Profile, StageRole } from 'shared-types'
 import { capabilityStatusFor, type CapabilityStatus } from './capabilities'
 import { fmtItems, gridLog } from './gridDebug'
 import type { WidgetSize } from '../widgets/registry'
@@ -338,15 +338,18 @@ export function withWidgetRemoved(dashboard: Dashboard, instanceId: string): Das
  * profile. Public dashboards are visible to everyone, always - including when no profile
  * is active, which is what keeps a fresh device usable before anyone's picked who they
  * are. A private one is visible only to its owner: either the matching profile, or (for a
- * role-level Station meant for whoever fills that role that night) a profile with the
- * matching role. This is a client-side filter only, not real access control - see the
- * Dashboard.visibility doc comment in shared-types.
+ * role-level Station meant for whoever fills that role that night) a profile holding that
+ * stage role (#57 - `ownerRole` matches against `Profile.stageRoles`, the closed multi-value
+ * field, not the free-text `role`). A dashboard's `ownerRole` that no longer matches any known
+ * StageRole (e.g. a legacy value from before #57) just matches nobody rather than throwing -
+ * `stageRoles.includes` is a plain runtime check, not a parse. This is a client-side filter
+ * only, not real access control - see the Dashboard.visibility doc comment in shared-types.
  */
 export function isDashboardVisible(dashboard: Dashboard, activeProfile: Profile | undefined): boolean {
   if (dashboard.visibility !== 'private') return true
   if (!activeProfile) return false
   if (dashboard.ownerProfileId) return dashboard.ownerProfileId === activeProfile.id
-  if (dashboard.ownerRole) return dashboard.ownerRole === activeProfile.role
+  if (dashboard.ownerRole) return activeProfile.stageRoles.includes(dashboard.ownerRole as StageRole)
   return true
 }
 
@@ -355,19 +358,20 @@ export function isDashboardVisible(dashboard: Dashboard, activeProfile: Profile 
  * is not offered at all - that is what keeps simple setups uncluttered. Merely unreachable
  * hardware still shows up, because those widgets are allowed to sit in a layout greyed out.
  *
- * `activeRole` is a second, independent filter on top: a widget with `relevantRoles` set
- * is only offered to a profile whose role is in that list - unset `relevantRoles` (every
- * widget today) or no active role (nobody signed in on this tablet) means "relevant to
- * everyone," so this is a no-op until widgets actually start declaring roles.
+ * `activeRoles` is a second, independent filter on top (#57): a widget with `relevantRoles`
+ * set is only offered to a profile holding at least one of those stage roles - unset
+ * `relevantRoles` (most widgets today) or no active roles (nobody signed in, or signed in with
+ * none assigned) means "relevant to everyone," so this is a no-op until widgets actually start
+ * declaring roles.
  */
-export function availableWidgets<T extends { requires: CapabilityId[]; relevantRoles?: string[] }>(
+export function availableWidgets<T extends { requires: CapabilityId[]; relevantRoles?: StageRole[] }>(
   definitions: T[],
   capabilities: Map<CapabilityId, CapabilityStatus>,
-  activeRole?: string,
+  activeRoles?: StageRole[],
 ): T[] {
   return definitions.filter((definition) => {
     if (capabilityStatusFor(definition.requires, capabilities) === 'missing') return false
-    if (definition.relevantRoles && !definition.relevantRoles.includes(activeRole ?? '')) return false
+    if (definition.relevantRoles && !definition.relevantRoles.some((role) => activeRoles?.includes(role))) return false
     return true
   })
 }

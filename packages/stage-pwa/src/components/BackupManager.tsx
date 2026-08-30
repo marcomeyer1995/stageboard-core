@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
+import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useNow } from '../lib/useNow'
@@ -23,6 +24,7 @@ export function BackupManager() {
   const health = usePluginsStore((state) => state.health)
   const now = useNow()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const confirm = useDialogStore((state) => state.confirm)
   const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -42,7 +44,10 @@ export function BackupManager() {
   }
 
   async function handleImportFile(file: File) {
-    if (!window.confirm(`"${file.name}" wiederherstellen und mit den lokalen Daten zusammenführen?`)) {
+    const confirmed = await confirm(`"${file.name}" wiederherstellen und mit den lokalen Daten zusammenführen?`, {
+      confirmLabel: 'Wiederherstellen',
+    })
+    if (!confirmed) {
       return
     }
     setSnapshotStatus('Stelle Backup wieder her…')

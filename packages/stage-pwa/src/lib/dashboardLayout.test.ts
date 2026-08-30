@@ -129,24 +129,32 @@ describe('availableWidgets', () => {
   })
 
   it('offers a widget with no relevantRoles set to everyone', () => {
-    expect(availableWidgets(definitions, new Map(), 'Vocalist').map((d) => d.type)).toEqual([
+    expect(availableWidgets(definitions, new Map(), ['performer']).map((d) => d.type)).toEqual([
       'prompter',
     ])
   })
 
-  it('hides a role-restricted widget from a profile whose role does not match', () => {
-    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['Crew'] }]
-    expect(availableWidgets(roleRestricted, new Map(), 'Vocalist').map((d) => d.type)).toEqual([
+  it('hides a role-restricted widget from a profile whose stage roles do not overlap', () => {
+    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['crew' as const] }]
+    expect(availableWidgets(roleRestricted, new Map(), ['performer']).map((d) => d.type)).toEqual([
       'prompter',
     ])
-    expect(availableWidgets(roleRestricted, new Map(), 'Crew').map((d) => d.type)).toEqual([
+    expect(availableWidgets(roleRestricted, new Map(), ['crew']).map((d) => d.type)).toEqual([
+      'prompter',
+      'system-health',
+    ])
+  })
+
+  it('offers a role-restricted widget when any one of several stage roles matches', () => {
+    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['crew' as const] }]
+    expect(availableWidgets(roleRestricted, new Map(), ['performer', 'crew']).map((d) => d.type)).toEqual([
       'prompter',
       'system-health',
     ])
   })
 
   it('hides a role-restricted widget when no role is active at all', () => {
-    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['Crew'] }]
+    const roleRestricted = [...definitions, { type: 'system-health', requires: [], relevantRoles: ['crew' as const] }]
     expect(availableWidgets(roleRestricted, new Map()).map((d) => d.type)).toEqual(['prompter'])
   })
 })
@@ -501,8 +509,8 @@ describe('withWidgetAppended (bounds)', () => {
 })
 
 describe('isDashboardVisible', () => {
-  const vocalist: Profile = { id: 'p1', name: 'Anna', role: 'Vocalist' }
-  const guitarist: Profile = { id: 'p2', name: 'Tom', role: 'Gitarre' }
+  const vocalist: Profile = { id: 'p1', name: 'Anna', role: 'Vocalist', stageRoles: ['performer'] }
+  const guitarist: Profile = { id: 'p2', name: 'Tom', role: 'Gitarre', stageRoles: [] }
 
   it('is always visible when public, regardless of active profile', () => {
     const dashboard = { ...emptyDashboard(), visibility: 'public' as const }
@@ -521,8 +529,8 @@ describe('isDashboardVisible', () => {
     expect(isDashboardVisible(dashboard, guitarist)).toBe(false)
   })
 
-  it('is visible to any profile with the matching role when role-owned', () => {
-    const dashboard = { ...emptyDashboard(), visibility: 'private' as const, ownerRole: 'Vocalist' }
+  it('is visible to any profile holding the matching stage role when role-owned', () => {
+    const dashboard = { ...emptyDashboard(), visibility: 'private' as const, ownerRole: 'performer' }
     expect(isDashboardVisible(dashboard, vocalist)).toBe(true)
     expect(isDashboardVisible(dashboard, guitarist)).toBe(false)
   })
@@ -532,9 +540,9 @@ describe('isDashboardVisible', () => {
       ...emptyDashboard(),
       visibility: 'private' as const,
       ownerProfileId: 'p2',
-      ownerRole: 'Vocalist',
+      ownerRole: 'performer',
     }
-    // Tom (p2) owns it by id even though Anna's role matches ownerRole.
+    // Tom (p2) owns it by id even though Anna's stage roles match ownerRole.
     expect(isDashboardVisible(dashboard, guitarist)).toBe(true)
     expect(isDashboardVisible(dashboard, vocalist)).toBe(false)
   })

@@ -1,11 +1,12 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
+import { getStageServerUrl } from './stageServer'
 
 /** The low-latency cue channel CueGrid/ShowPlaybackWidget's comments have been waiting for. */
 export async function triggerShowControl(
   pluginName: string,
   event: ShowControlEvent,
 ): Promise<ShowControlResult> {
-  const base = import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
+  const base = getStageServerUrl()
   if (!base) return { status: 'error', message: 'VITE_STAGE_SERVER_URL is not configured' }
 
   try {
