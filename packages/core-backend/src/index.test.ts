@@ -1,5 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs'
-import { request as httpsRequest } from 'node:https'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -267,7 +268,11 @@ describe('Fastify routes', () => {
       const address = app.server.address()
       if (typeof address !== 'object' || address === null) throw new Error('server has no address')
 
-      const req = httpsRequest(
+      // buildApp() only serves HTTPS when dev certs exist on disk (see index.ts) - present
+      // locally (scripts/generate-dev-certs.sh), absent in CI, so this can't assume either
+      // protocol and has to ask the actual running server which one it got.
+      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      const req = request(
         {
           hostname: '127.0.0.1',
           port: address.port,
