@@ -19,6 +19,9 @@ export const TrackMetaSchema = z.object({
   parentTrackId: z.string().nullable(),
   mimeType: z.string(),
   addedAt: z.number().int().nonnegative(),
+  /** Absent (not 0) means "unknown" - tracks uploaded before this field existed. Excluded
+   * from catalog-size totals rather than counted as zero (see audioStorageManager.ts). */
+  sizeBytes: z.number().int().nonnegative().optional(),
 })
 export type TrackMeta = z.infer<typeof TrackMetaSchema>
 

@@ -14,8 +14,10 @@ import { useMemo, useState } from 'react'
 import type { Setlist, Song } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
+import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 
@@ -49,9 +51,20 @@ interface DraggableSongRowProps {
    * active right now, which disables the button instead of hiding it (same "tell the user
    * why, don't just make it disappear" instinct as the swipe's own message). */
   onAddToActiveSetlist: (() => void) | null
+  /** Pinned = always kept cached offline in "Selective" audio-sync mode (#49), independent
+   * of whether the song is in the active setlist. Shown regardless of the current mode, so
+   * pins can be set up in advance of switching to Selective. */
+  pinned: boolean
+  onTogglePin: () => void
 }
 
-function DraggableSongRow({ song, onClick, onAddToActiveSetlist }: DraggableSongRowProps) {
+function DraggableSongRow({
+  song,
+  onClick,
+  onAddToActiveSetlist,
+  pinned,
+  onTogglePin,
+}: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
   })
@@ -93,6 +106,18 @@ function DraggableSongRow({ song, onClick, onAddToActiveSetlist }: DraggableSong
         >
           +
         </button>
+        <button
+          type="button"
+          onClick={onTogglePin}
+          title={pinned ? 'Offline-Pin entfernen' : 'Immer offline verfügbar halten'}
+          className={`h-auto w-12 flex-shrink-0 rounded-sb-sm text-xl ${
+            pinned
+              ? 'bg-accent text-accent-ink'
+              : 'bg-control-strong text-ink-soft hover:bg-control-strong-hover'
+          }`}
+        >
+          📌
+        </button>
       </div>
     </li>
   )
@@ -113,6 +138,9 @@ export function LibraryView() {
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
+  const togglePin = useAudioPinsStore((state) => state.togglePin)
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
@@ -317,6 +345,8 @@ export function LibraryView() {
                     song={song}
                     onClick={() => setSelection({ type: 'song', songId: song.id, variantId: null })}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
+                    pinned={pinnedSongIds.includes(song.id)}
+                    onTogglePin={() => togglePin(workspaceId, song.id)}
                   />
                 ))}
               </ul>

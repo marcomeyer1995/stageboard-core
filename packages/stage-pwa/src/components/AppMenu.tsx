@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { AudioSyncSettings } from './AudioSyncSettings'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
 import { ProfileSwitcher } from './ProfileSwitcher'
@@ -105,6 +106,10 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
         <Section title="Synchronisation">
           <SyncIndicator />
+        </Section>
+
+        <Section title="Speicher & Sync">
+          <AudioSyncSettings />
         </Section>
 
         <button

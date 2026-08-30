@@ -45,6 +45,7 @@ vi.mock('./audioCache', () => ({
   removeCached: async (key: string) => {
     cacheStore.delete(key)
   },
+  listCachedKeys: async () => [...cacheStore.keys()],
 }))
 
 const { getVariantsDb, putTrack, getTrack, removeTrack } = await import('./songVariantsDb')
@@ -81,7 +82,7 @@ describe('songVariantsDb track storage', () => {
     expect(cacheStore.get('variant-1:track-1')).toBe(file)
     const db = getVariantsDb()
     const doc = (await db.get('variant-1')) as { tracks: TrackMeta[] }
-    expect(doc.tracks).toEqual([meta])
+    expect(doc.tracks).toEqual([{ ...meta, sizeBytes: file.size }])
   })
 
   it('putTrack throws and does not record metadata when the upload fails', async () => {
