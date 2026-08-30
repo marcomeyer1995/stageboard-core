@@ -1,10 +1,13 @@
 import { mkdtempSync, rmSync } from 'node:fs'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 import { buildApp } from './index.js'
+import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 
 function testContext(): PluginContext {
   return { log: { info: vi.fn(), error: vi.fn() } }
@@ -204,6 +207,106 @@ describe('Fastify routes', () => {
     it('rejects an id containing characters outside the safe filename charset', async () => {
       const response = await app.inject({ method: 'GET', url: '/audio/..%2Fetc/passwd' })
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /plugin-health/:workspaceId/report', () => {
+    beforeEach(() => {
+      __resetHealthStoreForTests()
+    })
+
+    it('records the reported status with a server-stamped lastSeenAt', async () => {
+      const before = Date.now()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/plugin-health/band-a/report',
+        payload: { pluginName: 'generic-webmidi', status: 'online' },
+      })
+
+      expect(response.statusCode).toBe(204)
+      const entry = getSnapshot('band-a').plugins['generic-webmidi']
+      expect(entry.status).toBe('online')
+      expect(entry.lastSeenAt).toBeGreaterThanOrEqual(before)
+    })
+
+    it('carries an optional message through', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/plugin-health/band-a/report',
+        payload: { pluginName: 'generic-webmidi', status: 'error', message: 'no MIDI device found' },
+      })
+
+      expect(getSnapshot('band-a').plugins['generic-webmidi'].message).toBe('no MIDI device found')
+    })
+
+    it('rejects a body missing required fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/plugin-health/band-a/report',
+        payload: { status: 'online' },
+      })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('keeps reports scoped to their own workspace', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/plugin-health/band-a/report',
+        payload: { pluginName: 'generic-webmidi', status: 'online' },
+      })
+      expect(getSnapshot('band-b').plugins['generic-webmidi']).toBeUndefined()
+    })
+  })
+
+  describe('GET /plugin-health/:workspaceId/stream', () => {
+    beforeEach(() => {
+      __resetHealthStoreForTests()
+    })
+
+    it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
+      await app.listen({ port: 0 })
+      const address = app.server.address()
+      if (typeof address !== 'object' || address === null) throw new Error('server has no address')
+
+      // buildApp() only serves HTTPS when dev certs exist on disk (see index.ts) - present
+      // locally (scripts/generate-dev-certs.sh), absent in CI, so this can't assume either
+      // protocol and has to ask the actual running server which one it got.
+      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      const req = request(
+        {
+          hostname: '127.0.0.1',
+          port: address.port,
+          path: '/plugin-health/band-a/stream',
+          headers: { origin: 'http://localhost:5173' },
+          rejectUnauthorized: false,
+        },
+        () => {},
+      )
+      req.end()
+
+      const res = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+        req.on('response', resolve)
+        req.on('error', reject)
+      })
+
+      // CORS headers still apply even though the route bypasses Fastify's normal send path
+      // (see index.ts's reply.hijack() comment) - this is the whole reason for copying them.
+      expect(res.headers['content-type']).toBe('text/event-stream')
+      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173')
+
+      const chunks = res[Symbol.asyncIterator]()
+
+      const first = await chunks.next()
+      expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"plugins":{}}\n\n')
+
+      setEntry('band-a', 'mock-mixer', { status: 'online', lastSeenAt: 123 })
+
+      const second = await chunks.next()
+      expect(Buffer.from(second.value as Buffer).toString()).toBe(
+        `data: ${JSON.stringify({ plugins: { 'mock-mixer': { status: 'online', lastSeenAt: 123 } } })}\n\n`,
+      )
+
+      req.destroy()
     })
   })
 

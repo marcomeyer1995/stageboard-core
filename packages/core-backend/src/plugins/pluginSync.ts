@@ -1,14 +1,9 @@
-import {
-  HEALTH_TIMEOUT_MS,
-  PluginInstallationSchema,
-  type PluginHealth,
-  type PluginInstallation,
-} from 'shared-types'
-import { allDocs, ensureDb, getDoc, putDoc, waitForChange, type CouchConfig } from '../couch.js'
+import { HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } from 'shared-types'
+import { allDocs, ensureDb, waitForChange, type CouchConfig } from '../couch.js'
 import { PLUGIN_CATALOG } from './catalog.js'
+import * as healthStore from './healthStore.js'
 import type { PluginRegistry } from './registry.js'
 
-const HEALTH_DOC_ID = 'plugin-health'
 /** Comfortably inside HEALTH_TIMEOUT_MS, so a healthy server never looks stale. */
 const HEARTBEAT_INTERVAL_MS = Math.floor(HEALTH_TIMEOUT_MS / 3)
 const CHANGES_TIMEOUT_MS = 30_000
@@ -30,10 +25,6 @@ export interface PluginSyncHandle {
 
 function pluginsDbName(workspaceId: string): string {
   return `stageboard-plugins-${workspaceId}`
-}
-
-function metaDbName(workspaceId: string): string {
-  return `stageboard-meta-${workspaceId}`
 }
 
 /** Only documents that parse are trusted - a half-replicated doc must not crash the server. */
@@ -77,14 +68,15 @@ export function reconcile(
 }
 
 /**
- * Reconciles the plugins the band installed (replicated to us over the stage mesh) with
- * the plugins actually running in this server's registry, and publishes a heartbeat so
- * every tablet can tell "installed" from "reachable right now" (docs/07).
+ * Reconciles the plugins the band installed (replicated to us over the stage mesh) with the
+ * plugins actually running in this server's registry, and writes a heartbeat into
+ * healthStore.ts so every tablet can tell "installed" from "reachable right now" (docs/07) -
+ * pushed out over `GET /plugin-health/:workspaceId/stream` (index.ts), not CouchDB sync
+ * (see #49 follow-up: a heartbeat has no offline/multi-master value).
  */
 export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
   const { couch, workspaceId, registry, log } = options
   const pluginsDb = pluginsDbName(workspaceId)
-  const metaDb = metaDbName(workspaceId)
   let stopped = false
 
   const pluginContext = { log }
@@ -112,19 +104,9 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
 
   async function writeHeartbeat(): Promise<void> {
     const now = Date.now()
-    const plugins = Object.fromEntries(
-      registry.list().map(({ name }) => [name, { status: 'online' as const, lastSeenAt: now }]),
-    )
-    const existing = await getDoc<PluginHealth & { _id: string; _rev?: string }>(
-      couch,
-      metaDb,
-      HEALTH_DOC_ID,
-    )
-    await putDoc(couch, metaDb, {
-      _id: HEALTH_DOC_ID,
-      ...(existing?._rev ? { _rev: existing._rev } : {}),
-      plugins,
-    })
+    for (const { name } of registry.list()) {
+      healthStore.setEntry(workspaceId, name, { status: 'online', lastSeenAt: now })
+    }
   }
 
   async function watchChanges(): Promise<void> {
@@ -148,7 +130,6 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
 
   async function start(): Promise<void> {
     await ensureDb(couch, pluginsDb)
-    await ensureDb(couch, metaDb)
     await syncOnce()
     await writeHeartbeat()
     void watchChanges()
