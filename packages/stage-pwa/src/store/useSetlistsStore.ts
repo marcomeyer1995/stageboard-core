@@ -3,9 +3,9 @@ import { randomId } from '../lib/id'
 import type { Setlist, SetlistEntry } from 'shared-types'
 import {
   getAllSetlists,
-  getSetlistsDb,
   putSetlist,
   removeSetlist,
+  setlistsChanges,
   switchSetlistsWorkspace,
   type SetlistDoc,
 } from '../lib/setlistsDb'
@@ -57,7 +57,7 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = getSetlistsDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = setlistsChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
   },
   saveSetlist: async (setlist) => {

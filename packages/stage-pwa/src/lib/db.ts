@@ -9,7 +9,7 @@ export const getSongsDb = songs.getDb
 export const switchSongsWorkspace = songs.switchWorkspace
 export const getAllSongs = songs.getAll
 export const putSong = songs.put
-export const startSync = songs.startSync
+export const songsChanges = songs.changes
 
 const dummySongs: Song[] = [
   SongSchema.parse({
@@ -39,9 +39,9 @@ const dummySongs: Song[] = [
 
 export async function seedDummySongsIfEmpty(): Promise<void> {
   const db = getSongsDb()
-  const info = await db.info()
-  if (info.doc_count > 0) return
-  await db.bulkDocs(dummySongs.map((song) => ({ ...song, _id: song.id })))
+  const existing = await getAllSongs()
+  if (existing.length > 0) return
+  await db.bulkDocs(dummySongs.map((song) => ({ ...song, _id: songs.docId(song.id) })))
 }
 
 /**
@@ -54,27 +54,29 @@ const BACKING_TRACK_ATTACHMENT_ID = 'backing-track'
 
 export async function putBackingTrack(songId: string, file: Blob): Promise<void> {
   const db = getSongsDb()
-  const doc = await db.get(songId)
-  await db.putAttachment(songId, BACKING_TRACK_ATTACHMENT_ID, doc._rev, file, file.type)
+  const id = songs.docId(songId)
+  const doc = await db.get(id)
+  await db.putAttachment(id, BACKING_TRACK_ATTACHMENT_ID, doc._rev, file, file.type)
 }
 
 export async function removeBackingTrack(songId: string): Promise<void> {
   const db = getSongsDb()
-  const doc = await db.get(songId)
+  const id = songs.docId(songId)
+  const doc = await db.get(id)
   if (!doc._attachments?.[BACKING_TRACK_ATTACHMENT_ID]) return
-  await db.removeAttachment(songId, BACKING_TRACK_ATTACHMENT_ID, doc._rev)
+  await db.removeAttachment(id, BACKING_TRACK_ATTACHMENT_ID, doc._rev)
 }
 
 export async function hasBackingTrack(songId: string): Promise<boolean> {
   const db = getSongsDb()
-  const doc = await db.get(songId).catch(() => null)
+  const doc = await db.get(songs.docId(songId)).catch(() => null)
   return Boolean(doc?._attachments?.[BACKING_TRACK_ATTACHMENT_ID])
 }
 
 export async function getBackingTrack(songId: string): Promise<Blob | null> {
   const db = getSongsDb()
   try {
-    return (await db.getAttachment(songId, BACKING_TRACK_ATTACHMENT_ID)) as Blob
+    return (await db.getAttachment(songs.docId(songId), BACKING_TRACK_ATTACHMENT_ID)) as Blob
   } catch (err) {
     if ((err as { status?: number }).status === 404) return null
     throw err

@@ -10,4 +10,4 @@ export const switchProfilesWorkspace = profiles.switchWorkspace
 export const getAllProfiles = profiles.getAll
 export const putProfile = profiles.put
 export const removeProfile = profiles.remove
-export const startProfilesSync = profiles.startSync
+export const profilesChanges = profiles.changes

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
-import { getShowState, getShowStateDb, putShowState, switchShowStateWorkspace } from '../lib/showStateDb'
+import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
 
 const CLIENT_ID_KEY = 'stageboard-client-id'
 
@@ -40,7 +40,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     const state = await getShowState()
     set({ state, isMaster: state.masterHolderId === get().clientId })
 
-    changesHandle = getShowStateDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = showStateChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', async () => {
       const fresh = await getShowState()
       set({ state: fresh, isMaster: fresh.masterHolderId === get().clientId })

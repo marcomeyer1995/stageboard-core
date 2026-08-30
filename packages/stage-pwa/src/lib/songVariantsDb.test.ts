@@ -68,7 +68,9 @@ describe('songVariantsDb track storage', () => {
     store.clear()
     cacheStore.clear()
     vi.clearAllMocks()
-    store.set('variant-1', { _id: 'variant-1', id: 'variant-1', tracks: [] })
+    // 'song-variants:' prefix - collections now share one physical database, discriminated
+    // by id prefix (see workspaceCollection.ts, #49 follow-up).
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', id: 'variant-1', tracks: [] })
   })
 
   it('putTrack uploads to the server, caches locally, and records track metadata', async () => {
@@ -81,7 +83,7 @@ describe('songVariantsDb track storage', () => {
     expect(audioClientMocks.uploadTrack).toHaveBeenCalledWith('variant-1', 'track-1', file)
     expect(cacheStore.get('variant-1:track-1')).toBe(file)
     const db = getVariantsDb()
-    const doc = (await db.get('variant-1')) as { tracks: TrackMeta[] }
+    const doc = (await db.get('song-variants:variant-1')) as { tracks: TrackMeta[] }
     expect(doc.tracks).toEqual([{ ...meta, sizeBytes: file.size }])
   })
 
@@ -92,7 +94,7 @@ describe('songVariantsDb track storage', () => {
     await expect(putTrack('variant-1', makeTrackMeta(), file)).rejects.toThrow('HTTP 500')
 
     const db = getVariantsDb()
-    const doc = (await db.get('variant-1')) as { tracks: TrackMeta[] }
+    const doc = (await db.get('song-variants:variant-1')) as { tracks: TrackMeta[] }
     expect(doc.tracks).toEqual([])
     expect(cacheStore.size).toBe(0)
   })
@@ -124,7 +126,7 @@ describe('songVariantsDb track storage', () => {
 
   it('removeTrack deletes server-side and cached copies and drops the metadata entry', async () => {
     const meta = makeTrackMeta()
-    store.set('variant-1', { _id: 'variant-1', id: 'variant-1', tracks: [meta] })
+    store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', id: 'variant-1', tracks: [meta] })
     cacheStore.set('variant-1:track-1', new Blob(['bytes']))
 
     await removeTrack('variant-1', 'track-1')
@@ -132,7 +134,7 @@ describe('songVariantsDb track storage', () => {
     expect(audioClientMocks.deleteTrackFile).toHaveBeenCalledWith('variant-1', 'track-1')
     expect(cacheStore.has('variant-1:track-1')).toBe(false)
     const db = getVariantsDb()
-    const doc = (await db.get('variant-1')) as { tracks: TrackMeta[] }
+    const doc = (await db.get('song-variants:variant-1')) as { tracks: TrackMeta[] }
     expect(doc.tracks).toEqual([])
   })
 })

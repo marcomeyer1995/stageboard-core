@@ -2,9 +2,9 @@ import { create } from 'zustand'
 import type { SongVariant } from 'shared-types'
 import {
   getAllVariants,
-  getVariantsDb,
   putVariant,
   switchVariantsWorkspace,
+  variantsChanges,
   type SongVariantDoc,
 } from '../lib/songVariantsDb'
 
@@ -48,7 +48,7 @@ export const useSongVariantsStore = create<SongVariantsState>((set) => ({
     await refreshVariants(set)
     set({ loaded: true })
 
-    changesHandle = getVariantsDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = variantsChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refreshVariants(set))
   },
   saveVariant: async (variant) => {

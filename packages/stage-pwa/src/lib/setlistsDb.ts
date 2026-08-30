@@ -10,4 +10,4 @@ export const switchSetlistsWorkspace = setlists.switchWorkspace
 export const getAllSetlists = setlists.getAll
 export const putSetlist = setlists.put
 export const removeSetlist = setlists.remove
-export const startSetlistsSync = setlists.startSync
+export const setlistsChanges = setlists.changes

@@ -14,7 +14,7 @@ export const getVariantsDb = variants.getDb
 export const switchVariantsWorkspace = variants.switchWorkspace
 export const getAllVariants = variants.getAll
 export const putVariant = variants.put
-export const startVariantsSync = variants.startSync
+export const variantsChanges = variants.changes
 
 /**
  * Creates the one isDefault variant for a song that predates variants, copying its content
@@ -69,7 +69,7 @@ export async function putTrack(variantId: string, meta: TrackMeta, file: Blob): 
   await getAudioStorageBackend().set(cacheKey(variantId, metaWithSize.id), file)
 
   const db = getVariantsDb()
-  const current = await db.get(variantId)
+  const current = await db.get(variants.docId(variantId))
   const tracks = [...current.tracks.filter((t) => t.id !== metaWithSize.id), metaWithSize]
   await putVariant({ ...current, tracks })
 }
@@ -95,7 +95,7 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   await getAudioStorageBackend().remove(cacheKey(variantId, trackId))
 
   const db = getVariantsDb()
-  const current = await db.get(variantId)
+  const current = await db.get(variants.docId(variantId))
   const tracks = current.tracks.filter((t) => t.id !== trackId)
   await putVariant({ ...current, tracks })
 }

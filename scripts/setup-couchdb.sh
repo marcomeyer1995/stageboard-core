@@ -12,7 +12,7 @@ set -euo pipefail
 COUCHDB_URL="${COUCHDB_URL:-http://localhost:5984}"
 COUCHDB_USER="${COUCHDB_USER:-admin}"
 COUCHDB_PASSWORD="${COUCHDB_PASSWORD:-admin}"
-COUCHDB_DB="${COUCHDB_DB:-stageboard-songs}"
+COUCHDB_DB="${COUCHDB_DB:-stageboard-band-a}"
 FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-http://localhost:5173}"
 
 AUTH="${COUCHDB_USER}:${COUCHDB_PASSWORD}"

@@ -1,5 +1,4 @@
-import PouchDB from 'pouchdb-browser'
-import { localDbName } from './workspaceDb'
+import { getWorkspaceDb } from './workspaceDb'
 
 /** Every workspace-scoped collection worth restoring. Deliberately excludes 'meta' (show
  * state + plugin health): both are live runtime state, not content a musician would want
@@ -30,13 +29,20 @@ export interface WorkspaceSnapshot {
 }
 
 /** Reads every snapshot-eligible collection for a workspace, attachments included (base64 -
- * PouchDB's `binary: false` default), so a single JSON file is a complete, restorable dump. */
+ * PouchDB's `binary: false` default), so a single JSON file is a complete, restorable dump.
+ * All collections now share one physical database (see workspaceDb.ts) - each kind's slice
+ * is just an `_all_docs` id-prefix range query, the same scoping workspaceCollection.ts uses. */
 export async function buildWorkspaceSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
+  const db = getWorkspaceDb(workspaceId)
   const collections: WorkspaceSnapshot['collections'] = {}
 
   for (const kind of SNAPSHOT_COLLECTIONS) {
-    const db = new PouchDB(localDbName(kind, workspaceId))
-    const result = await db.allDocs({ include_docs: true, attachments: true })
+    const result = await db.allDocs({
+      include_docs: true,
+      attachments: true,
+      startkey: `${kind}:`,
+      endkey: `${kind}:￰`,
+    })
     collections[kind] = result.rows
       .map((row) => row.doc)
       .filter((doc): doc is SnapshotDoc => doc !== undefined)
@@ -86,28 +92,38 @@ export function parseWorkspaceSnapshot(raw: string): WorkspaceSnapshot {
   return snapshot as WorkspaceSnapshot
 }
 
-/** Bulk-writes a parsed snapshot back into the given workspace. Every document is matched
+/**
+ * Bulk-writes a parsed snapshot back into the given workspace. Every document is matched
  * against whatever already exists locally by id and re-stamped with its current `_rev` (or
  * left new) instead of carrying over the exported `_rev` - that exported revision almost
  * certainly doesn't exist in the target database (a different workspace, or the same one
- * after further edits), and PouchDB rejects a `_rev` it doesn't recognize as a conflict. */
+ * after further edits), and PouchDB rejects a `_rev` it doesn't recognize as a conflict.
+ *
+ * The target `_id` is rebuilt as `${kind}:${doc.id}` rather than trusting the snapshot's own
+ * stored `_id` - `doc.id` is the plain application-level field, unprefixed both before and
+ * after the per-collection-database consolidation, so this restores correctly regardless of
+ * whether the backup file predates that change.
+ */
 export async function restoreWorkspaceSnapshot(
   snapshot: WorkspaceSnapshot,
   workspaceId: string,
 ): Promise<void> {
+  const db = getWorkspaceDb(workspaceId)
+  const existing = await db.allDocs()
+  const revById = new Map(existing.rows.map((row) => [row.id, row.value.rev]))
+
   for (const kind of SNAPSHOT_COLLECTIONS) {
     const docs = snapshot.collections[kind]
     if (!docs || docs.length === 0) continue
 
-    const db = new PouchDB(localDbName(kind, workspaceId))
-    const existing = await db.allDocs()
-    const revById = new Map(existing.rows.map((row) => [row.id, row.value.rev]))
-
     const prepared = docs.map((doc) => {
-      const currentRev = revById.get(doc._id)
-      const withoutRev: Partial<SnapshotDoc> = { ...doc }
-      delete withoutRev._rev
-      return currentRev ? { ...withoutRev, _rev: currentRev } : withoutRev
+      const cdbId = `${kind}:${doc.id as string}`
+      const currentRev = revById.get(cdbId)
+      const withoutMeta: Partial<SnapshotDoc> = { ...doc }
+      delete withoutMeta._rev
+      return currentRev
+        ? { ...withoutMeta, _id: cdbId, _rev: currentRev }
+        : { ...withoutMeta, _id: cdbId }
     })
 
     await db.bulkDocs(prepared)

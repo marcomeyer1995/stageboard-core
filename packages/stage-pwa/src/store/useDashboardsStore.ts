@@ -2,8 +2,8 @@ import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import type { Dashboard, LayoutItem, Breakpoint } from 'shared-types'
 import {
+  dashboardsChanges,
   getAllDashboards,
-  getDashboardsDb,
   putDashboard,
   removeDashboard,
   switchDashboardsWorkspace,
@@ -86,7 +86,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     }
     set({ loaded: true })
 
-    changesHandle = getDashboardsDb().changes({ since: 'now', live: true, include_docs: true })
+    changesHandle = dashboardsChanges({ since: 'now', live: true, include_docs: true })
     changesHandle.on('change', () => refresh(set))
   },
   save: async (dashboard) => {

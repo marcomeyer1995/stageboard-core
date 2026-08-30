@@ -1,21 +1,18 @@
-import PouchDB from 'pouchdb-browser'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
-import { trackedSync, type TrackedSync } from './trackedSync'
-import { ensureRemoteDbExists, localDbName, remoteAuth, remoteDbUrl } from './workspaceDb'
+import { getWorkspaceDb } from './workspaceDb'
 
+/** A bare, unprefixed id - a reserved singleton, not a plural "kind" of many documents, so
+ * there's no collision risk with any `${kind}:` prefix a real collection might use. */
 const SHOW_STATE_DOC_ID = 'show-state'
 
-let db = new PouchDB<ShowState>(localDbName('meta', 'default'))
-let syncHandle: TrackedSync | null = null
+let db = getWorkspaceDb<ShowState>('default')
 
 export function getShowStateDb(): PouchDB.Database<ShowState> {
   return db
 }
 
 export function switchShowStateWorkspace(workspaceId: string): PouchDB.Database<ShowState> {
-  syncHandle?.cancel()
-  syncHandle = null
-  db = new PouchDB<ShowState>(localDbName('meta', workspaceId))
+  db = getWorkspaceDb<ShowState>(workspaceId)
   return db
 }
 
@@ -39,19 +36,10 @@ export async function putShowState(patch: Partial<ShowState>): Promise<void> {
   await db.put(doc)
 }
 
-/** Same synchronous-on-purpose reasoning as workspaceCollection.ts's startSync. */
-export function startShowStateSync(workspaceId: string): TrackedSync | null {
-  const url = remoteDbUrl('meta', workspaceId)
-  if (!url) return null
-
-  ensureRemoteDbExists(url).catch((err) => {
-    console.error('Failed to provision remote meta database', err)
-  })
-
-  const remoteDb = new PouchDB<ShowState>(url, { auth: remoteAuth() })
-  // No noise filtering needed here anymore (see #49 follow-up): the plugin-health heartbeat
-  // that used to share this 'meta' database and write every few seconds now goes through a
-  // separate push channel (pluginHealthStream.ts) instead of PouchDB sync.
-  syncHandle = trackedSync('show-state', db, remoteDb)
-  return syncHandle
+/** Local-only, filtered to just the show-state doc - the shared workspace db holds every
+ * other collection's docs too (see workspaceCollection.ts's `changes` for the same reasoning). */
+export function showStateChanges(
+  options: PouchDB.Core.ChangesOptions,
+): PouchDB.Core.Changes<ShowState> {
+  return db.changes({ ...options, filter: (doc) => doc._id === SHOW_STATE_DOC_ID })
 }
