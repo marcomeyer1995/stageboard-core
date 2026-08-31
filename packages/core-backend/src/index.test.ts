@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 import { buildApp } from './index.js'
+import { __resetInviteStoreForTests } from './inviteStore.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 
 function testContext(): PluginContext {
@@ -307,6 +308,398 @@ describe('Fastify routes', () => {
       )
 
       req.destroy()
+    })
+  })
+
+  describe('POST /workspaces', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('provisions a new workspace and returns the founder\'s own personal credential', async () => {
+      stubFetch([
+        { ok: false, status: 404 }, // userExists
+        { ok: true, status: 201 }, // createUser (founder)
+        { ok: true, status: 201 }, // ensureDb
+        { ok: true, status: 200 }, // putSecurity
+        { ok: true, status: 201 }, // putDoc (_design/roster)
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces',
+        payload: { workspaceId: 'band-c', founderId: 'p1' },
+      })
+
+      expect(response.statusCode).toBe(201)
+      const body = response.json()
+      expect(body.username).toBe('stageboard-band-c-p1')
+      expect(typeof body.password).toBe('string')
+    })
+
+    it('returns 409 when the workspace is already provisioned', async () => {
+      stubFetch([{ ok: true, status: 200, json: async () => ({ name: 'stageboard-band-a-p1' }) }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces',
+        payload: { workspaceId: 'band-a', founderId: 'p1' },
+      })
+
+      expect(response.statusCode).toBe(409)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/members', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function stubAdminVerify() {
+      return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    }
+
+    it('provisions a new member with a server-generated password when none is given', async () => {
+      const fetchMock = stubFetch([stubAdminVerify(), { ok: true, status: 201 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', profileId: 'p2' },
+      })
+
+      expect(response.statusCode).toBe(201)
+      const body = response.json()
+      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(typeof body.password).toBe('string')
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member'] })
+    })
+
+    it('uses the given password (PIN) instead of generating one, and grants admin when asked', async () => {
+      const fetchMock = stubFetch([stubAdminVerify(), { ok: true, status: 201 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members',
+        payload: {
+          adminUsername: 'stageboard-band-a-p1',
+          adminPassword: 'correct-pw',
+          profileId: 'p2',
+          password: '4711',
+          isAdmin: true,
+        },
+      })
+
+      expect(response.json()).toEqual({ username: 'stageboard-band-a-p2', password: '4711' })
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member', 'admin'], password: '4711' })
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw', profileId: 'p2' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/members', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/members/:profileId/admin', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function stubAdminVerify() {
+      return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    }
+
+    function stubRoster(profiles: Array<{ id: string; stageRoles: string[] }>) {
+      return { ok: true, status: 200, json: async () => ({ rows: profiles.map((p) => ({ doc: { _id: `profiles:${p.id}`, ...p } })) }) }
+    }
+
+    it('grants admin', async () => {
+      const fetchMock = stubFetch([
+        stubAdminVerify(),
+        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member'] }) }, // setUserRoles GET
+        { ok: true, status: 200 }, // setUserRoles PUT
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/admin',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', isAdmin: true },
+      })
+
+      expect(response.statusCode).toBe(204)
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({ roles: ['member', 'admin'] })
+    })
+
+    it('revokes admin when another admin remains', async () => {
+      stubFetch([
+        stubAdminVerify(),
+        stubRoster([
+          { id: 'p1', stageRoles: ['admin'] },
+          { id: 'p2', stageRoles: ['admin'] },
+        ]), // countOtherAdmins
+        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member', 'admin'] }) },
+        { ok: true, status: 200 },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/admin',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', isAdmin: false },
+      })
+
+      expect(response.statusCode).toBe(204)
+    })
+
+    it('rejects revoking the sole remaining admin', async () => {
+      stubFetch([stubAdminVerify(), stubRoster([{ id: 'p1', stageRoles: ['admin'] }])])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/admin',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', isAdmin: false },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/admin',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw', isAdmin: true },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('DELETE /workspaces/:workspaceId/members/:profileId', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function stubAdminVerify() {
+      return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    }
+
+    function stubRoster(profiles: Array<{ id: string; stageRoles: string[] }>) {
+      return { ok: true, status: 200, json: async () => ({ rows: profiles.map((p) => ({ doc: { _id: `profiles:${p.id}`, ...p } })) }) }
+    }
+
+    it('deletes a plain member', async () => {
+      stubFetch([
+        stubAdminVerify(),
+        stubRoster([{ id: 'p1', stageRoles: ['admin'] }]), // countOtherAdmins excluding p2 (not admin) - still 1
+        { ok: false, status: 404 }, // deleteUser GET - already gone is fine
+      ])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p2',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(204)
+    })
+
+    it('rejects deleting the sole remaining admin', async () => {
+      stubFetch([stubAdminVerify(), stubRoster([{ id: 'p1', stageRoles: ['admin'] }])])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p1',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p2',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/invite and POST /invites/:code/resolve', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    beforeEach(() => {
+      __resetInviteStoreForTests()
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('mints an invite when the caller verifies as an admin, and resolves it back', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        },
+      ])
+
+      const inviteResponse = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/invite',
+        payload: {
+          adminUsername: 'stageboard-band-a-p1',
+          adminPassword: 'correct-admin-pw',
+          memberUsername: 'stageboard-band-a-p2',
+          memberPassword: 'member-pw',
+          workspaceName: 'Band A',
+        },
+      })
+
+      expect(inviteResponse.statusCode).toBe(201)
+      const { code, expiresAt } = inviteResponse.json()
+      expect(code).toMatch(/^\d{8}$/)
+      expect(expiresAt).toBeGreaterThan(Date.now())
+
+      const resolveResponse = await app.inject({ method: 'POST', url: `/invites/${code}/resolve` })
+      expect(resolveResponse.statusCode).toBe(200)
+      expect(resolveResponse.json()).toEqual({
+        workspaceId: 'band-a',
+        name: 'Band A',
+        username: 'stageboard-band-a-p2',
+        password: 'member-pw',
+        isAdmin: false,
+      })
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/invite',
+        payload: {
+          adminUsername: 'stageboard-band-a-p1',
+          adminPassword: 'wrong-pw',
+          memberUsername: 'stageboard-band-a-p2',
+          memberPassword: 'member-pw',
+          workspaceName: 'Band A',
+        },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/invite', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('resolve returns 404 for an unknown or expired code', async () => {
+      const response = await app.inject({ method: 'POST', url: '/invites/00000000/resolve' })
+      expect(response.statusCode).toBe(404)
+    })
+  })
+
+  describe('DELETE /workspaces/:workspaceId', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('deletes the workspace (reading the roster, then the db, then every member) when the caller verifies as an admin', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+        { ok: true, status: 200, json: async () => ({ rows: [{ doc: { _id: 'profiles:p1', id: 'p1' } }] }) }, // allDocs (roster)
+        { ok: true, status: 200 }, // deleteDb
+        { ok: false, status: 404 }, // deleteUser(p1) GET - not found is fine
+      ])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-admin-pw' },
+      })
+
+      expect(response.statusCode).toBe(204)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'DELETE', url: '/workspaces/band-a', payload: {} })
+      expect(response.statusCode).toBe(400)
     })
   })
 

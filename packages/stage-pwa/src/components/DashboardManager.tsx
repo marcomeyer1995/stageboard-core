@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import type { Dashboard, Profile } from 'shared-types'
+import { STAGE_ROLES, type Dashboard, type Profile, type StageRole } from 'shared-types'
 import { isDashboardVisible } from '../lib/dashboardLayout'
+import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
+import { useDialogStore } from '../store/useDialogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -15,7 +17,9 @@ function ownerLabel(dashboard: Dashboard, profiles: Profile[]): string {
   if (dashboard.ownerProfileId) {
     return profiles.find((profile) => profile.id === dashboard.ownerProfileId)?.name ?? 'Unbekannt'
   }
-  if (dashboard.ownerRole) return `Rolle: ${dashboard.ownerRole}`
+  if (dashboard.ownerRole) {
+    return `Rolle: ${STAGE_ROLE_LABELS[dashboard.ownerRole as StageRole] ?? dashboard.ownerRole}`
+  }
   return 'Geteilt'
 }
 
@@ -32,12 +36,11 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
   const duplicate = useDashboardsStore((state) => state.duplicate)
   const rename = useDashboardsStore((state) => state.rename)
   const remove = useDashboardsStore((state) => state.remove)
+  const confirm = useDialogStore((state) => state.confirm)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActive = useActiveDashboardStore((state) => state.setActive)
   const profiles = useProfilesStore((state) => state.profiles)
   const activeProfile = useActiveProfile()
-
-  const roles = [...new Set(profiles.map((profile) => profile.role))]
 
   const [newName, setNewName] = useState('')
   const [newOwner, setNewOwner] = useState(activeProfile ? `profile:${activeProfile.id}` : 'public')
@@ -51,7 +54,7 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         (dashboard) =>
           dashboard.visibility === 'private' &&
           (dashboard.ownerProfileId === activeProfile.id ||
-            dashboard.ownerRole === activeProfile.role),
+            (dashboard.ownerRole && activeProfile.stageRoles.includes(dashboard.ownerRole as StageRole))),
       )
     : []
   const shared = visible.filter((dashboard) => !mine.includes(dashboard))
@@ -147,8 +150,10 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           type="button"
           disabled={locked}
           title={locked ? 'Das letzte öffentliche Dashboard bleibt bestehen' : undefined}
-          onClick={() => {
-            if (window.confirm(`"${dashboard.name}" löschen?`)) void remove(dashboard.id)
+          onClick={async () => {
+            if (await confirm(`"${dashboard.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
+              void remove(dashboard.id)
+            }
           }}
           className="rounded-sb-sm bg-control px-2 py-1 text-xs text-ink-soft hover:bg-control-hover disabled:opacity-40"
         >
@@ -211,9 +216,9 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
                 {profile.name} (privat)
               </option>
             ))}
-            {roles.map((role) => (
+            {STAGE_ROLES.map((role) => (
               <option key={role} value={`role:${role}`}>
-                Rolle: {role} (privat)
+                Rolle: {STAGE_ROLE_LABELS[role]} (privat)
               </option>
             ))}
           </select>

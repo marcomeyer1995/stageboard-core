@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
+import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
@@ -133,6 +134,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const duplicateSetlist = useSetlistsStore((state) => state.duplicateSetlist)
   const removeSetlist = useSetlistsStore((state) => state.remove)
+  const promptText = useDialogStore((state) => state.promptText)
+  const confirm = useDialogStore((state) => state.confirm)
   const { activeSetlist, isMaster } = useQueue()
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -141,14 +144,21 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
 
   async function handleDuplicate() {
     if (!setlist) return
-    const name = window.prompt('Name der Kopie?', `${setlist.name} (Kopie)`)
+    const name = await promptText('Setlist duplizieren', {
+      label: 'Name der Kopie',
+      defaultValue: `${setlist.name} (Kopie)`,
+    })
     if (!name?.trim()) return
     await duplicateSetlist(setlist.id, name.trim())
   }
 
   async function handleDelete() {
     if (!setlist) return
-    if (!window.confirm(`"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) {
+    const confirmed = await confirm(
+      `"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
+      { confirmLabel: 'Löschen', danger: true },
+    )
+    if (!confirmed) {
       return
     }
     // Deleting the active setlist shouldn't leave ShowState pointing at a document that no

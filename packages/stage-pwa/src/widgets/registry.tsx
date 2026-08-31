@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import { z } from 'zod'
-import { CAPABILITIES, type CapabilityId } from 'shared-types'
+import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackingTrackPlayerWidget } from './BackingTrackPlayerWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
@@ -48,7 +48,7 @@ export interface WidgetDefinition {
   requires: CapabilityId[]
   category: WidgetCategory
   /** Roles this widget is relevant to. Unset means relevant to everyone. */
-  relevantRoles?: string[]
+  relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
   Component: ComponentType<{ config: unknown }>
   ConfigPanel?: ComponentType<{
@@ -63,7 +63,7 @@ interface WidgetSpec<C> {
   description: string
   requires?: CapabilityId[]
   category: WidgetCategory
-  relevantRoles?: string[]
+  relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
   configSchema?: z.ZodType<C>
   Component: ComponentType<{ config: C }>
@@ -206,7 +206,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'System-Status',
     description: 'Ampel-Übersicht aller Plugin-Capabilities, für Setup/Soundcheck.',
     category: 'system-crew',
-    relevantRoles: ['Crew'],
+    relevantRoles: ['crew'],
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
     Component: SystemHealthWidget,
   }),

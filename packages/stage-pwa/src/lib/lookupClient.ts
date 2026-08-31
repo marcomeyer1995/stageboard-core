@@ -1,13 +1,10 @@
 import type { LookupResult } from 'shared-types'
+import { getStageServerUrl } from './stageServer'
 
 export type LookupClientResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string }
 
-function stageServerUrl(): string | null {
-  return (import.meta.env.VITE_STAGE_SERVER_URL as string | undefined) ?? null
-}
-
 async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
-  const base = stageServerUrl()
+  const base = getStageServerUrl()
   if (!base) return { status: 'error', message: 'VITE_STAGE_SERVER_URL is not configured' }
 
   try {

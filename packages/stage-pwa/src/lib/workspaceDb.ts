@@ -32,25 +32,6 @@ export function remoteDbUrl(workspaceId: string): string | null {
   return url.toString()
 }
 
-export function remoteAuth(): { username: string; password: string } {
-  return {
-    username: import.meta.env.VITE_COUCHDB_USER as string,
-    password: import.meta.env.VITE_COUCHDB_PASSWORD as string,
-  }
-}
-
-/** PUTs the database into existence if it doesn't exist yet (mirrors scripts/setup-couchdb.sh). */
-export async function ensureRemoteDbExists(url: string): Promise<void> {
-  const { username, password } = remoteAuth()
-  const headers = new Headers()
-  if (username) headers.set('Authorization', `Basic ${btoa(`${username}:${password}`)}`)
-
-  const response = await fetch(url, { method: 'PUT', headers })
-  if (!response.ok && response.status !== 412) {
-    throw new Error(`Failed to provision database at ${url}: HTTP ${response.status}`)
-  }
-}
-
 let currentWorkspaceId: string | null = null
 let db: PouchDB.Database<Record<string, unknown>> = new PouchDB(localDbName('default'))
 let syncHandle: TrackedSync | null = null
@@ -83,18 +64,24 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
 
 /**
  * The one and only live `.sync()` for the whole app - see the module doc comment above for
- * why this replaced 8 independent per-collection syncs. Called once from App.tsx.
+ * why this replaced 8 independent per-collection syncs. Called once from App.tsx, gated
+ * there on the active workspace's stored credentials already being present.
+ *
+ * `auth` is the workspace-scoped CouchDB user's credentials (see #12) - this device never
+ * holds admin credentials, so unlike the old admin-authenticated version, it can no longer
+ * create the remote database itself (CouchDB requires admin rights for that): the database
+ * only ever comes into existence via scripts/setup-couchdb.sh or core-backend's
+ * `POST /workspaces` route, both of which run with admin credentials.
  */
-export function startWorkspaceSync(workspaceId: string): TrackedSync | null {
+export function startWorkspaceSync(
+  workspaceId: string,
+  auth: { username: string; password: string },
+): TrackedSync | null {
   const url = remoteDbUrl(workspaceId)
   if (!url) return null
 
-  ensureRemoteDbExists(url).catch((err) => {
-    console.error('Failed to provision remote workspace database', err)
-  })
-
   const localDb = getWorkspaceDb(workspaceId)
-  const remoteDb = new PouchDB(url, { auth: remoteAuth() })
+  const remoteDb = new PouchDB(url, { auth })
   syncHandle = trackedSync('workspace', localDb, remoteDb)
   return syncHandle
 }

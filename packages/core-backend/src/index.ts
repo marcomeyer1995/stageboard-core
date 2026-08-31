@@ -2,16 +2,62 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { HealthReportSchema, ShowControlEventSchema } from 'shared-types'
+import {
+  CreateMemberRequestSchema,
+  HealthReportSchema,
+  RemoveMemberRequestSchema,
+  SetMemberAdminRequestSchema,
+  ShowControlEventSchema,
+  WorkspaceDeleteRequestSchema,
+  WorkspaceInviteRequestSchema,
+  WorkspaceProvisionRequestSchema,
+} from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import { allDocs, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
 import { PluginRegistry } from './plugins/registry.js'
+import { createInvite, resolveInvite } from './inviteStore.js'
+import {
+  deprovisionMember,
+  deprovisionWorkspace,
+  generateMemberPassword,
+  memberUsername,
+  provisionMember,
+  provisionWorkspace,
+  setMemberAdmin,
+  workspaceDbName,
+  WorkspaceAlreadyProvisionedError,
+} from './workspaceProvisioning.js'
 
 const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
 const keyFile = fileURLToPath(new URL('../../../certs/dev-key.pem', import.meta.url))
+
+/** True if `username`/`password` authenticate as a genuine admin *of this specific workspace*
+ * (see per-person-accounts follow-up) - every admin-gated route below uses this instead of
+ * comparing against one fixed, derivable username. `verifyUser` already confirms the
+ * credentials are real; this just adds the role check. */
+async function verifyAdmin(couch: CouchConfig, username: string, password: string): Promise<boolean> {
+  const verified = await verifyUser(couch, username, password)
+  return verified !== null && verified.roles.includes('admin')
+}
+
+const PROFILE_ID_PREFIX = 'profiles:'
+
+/** How many roster members other than `excludingProfileId` currently have `stageRoles`
+ * including `'admin'` - the source of truth for the "at least one admin must remain" checks
+ * below. Reads the roster itself (not CouchDB `_users`) since the roster's `stageRoles` field
+ * and each account's actual CouchDB role are meant to always move together (the frontend
+ * updates both in the same action) - the roster is the simpler, single query. */
+async function countOtherAdmins(couch: CouchConfig, workspaceId: string, excludingProfileId: string): Promise<number> {
+  const profiles = await allDocs<CouchDoc & { id?: string; stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), {
+    startkey: PROFILE_ID_PREFIX,
+    endkey: `${PROFILE_ID_PREFIX}￰`,
+  })
+  return profiles.filter((profile) => profile.id !== excludingProfileId && (profile.stageRoles ?? []).includes('admin')).length
+}
 
 /**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
@@ -33,6 +79,16 @@ export async function buildApp() {
   // this is a LAN-only server (docs/01), so a generous ceiling costs nothing real.
   const bodyLimit = Number(process.env.MAX_AUDIO_UPLOAD_BYTES ?? 200 * 1024 * 1024)
 
+  // Admin CouchDB credentials - core-backend is the trusted, physically-secured Stage-Server
+  // process, so unlike the PWA (see #12) it keeps using these directly, both for its own
+  // plugin-sync data access and for the /workspaces provisioning route below, which needs
+  // admin rights to create CouchDB users and databases.
+  const couch: CouchConfig = {
+    url: process.env.COUCHDB_URL ?? 'http://localhost:5984',
+    user: process.env.COUCHDB_USER ?? 'admin',
+    password: process.env.COUCHDB_PASSWORD ?? 'admin',
+  }
+
   const app: FastifyInstance =
     existsSync(certFile) && existsSync(keyFile)
       ? (Fastify({
@@ -44,8 +100,16 @@ export async function buildApp() {
 
   // Tablets fetch this cross-origin (their own dev-server or PWA origin, not this server's) -
   // same FRONTEND_ORIGIN convention as scripts/setup-couchdb.sh's CouchDB CORS setup.
+  //
+  // `methods` isn't derived from whatever routes actually exist - @fastify/cors defaults it to
+  // the static string 'GET,HEAD,POST' if left unset, silently CORS-blocking every cross-origin
+  // PUT/DELETE/PATCH (audio upload/delete, and now DELETE /workspaces/:id) at the browser's
+  // preflight step, before the request even reaches a route handler. Found live, 2026-08-30:
+  // DELETE /workspaces/:id's own test suite never caught this because fastify.inject() doesn't
+  // go through real CORS at all.
   await app.register(cors, {
     origin: (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173').split(','),
+    methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
   })
 
   app.get('/health', async () => ({ status: 'ok' }))
@@ -196,13 +260,159 @@ export async function buildApp() {
     }
   })
 
-  return { app, registry, lookupRegistry }
+  // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
+  // the founding device's own personal CouchDB account (see per-person-accounts follow-up -
+  // every roster member gets their own account, the founder is just the first one, auto-admin).
+  app.post('/workspaces', async (request, reply) => {
+    const parsed = WorkspaceProvisionRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    try {
+      const credentials = await provisionWorkspace(couch, parsed.data.workspaceId, parsed.data.founderId)
+      return reply.status(201).send(credentials)
+    } catch (err) {
+      if (err instanceof WorkspaceAlreadyProvisionedError) {
+        return reply.status(409).send({ status: 'error', message: err.message })
+      }
+      app.log.error(err)
+      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  // Provisions one additional roster member's personal CouchDB account (see
+  // per-person-accounts follow-up) - the roster doc itself is a separate, ordinary write the
+  // calling (already-admin) device does itself right after this returns, not something
+  // core-backend does. `password` is the admin's optional PIN choice; omitted means a long
+  // random one is generated here and returned (it can never be read back out again later).
+  app.post('/workspaces/:workspaceId/members', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = CreateMemberRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    const password = parsed.data.password ?? generateMemberPassword()
+    const credentials = await provisionMember(couch, workspaceId, parsed.data.profileId, password, parsed.data.isAdmin ?? false)
+    return reply.status(201).send(credentials)
+  })
+
+  // Grants or revokes admin for one already-provisioned member - rejects a revoke that would
+  // leave zero admins (see countOtherAdmins above): unlike before, there's no shared fallback
+  // admin account to fall back on if the last one is removed, so this has to be enforced here,
+  // not just disabled in the UI.
+  app.post('/workspaces/:workspaceId/members/:profileId/admin', async (request, reply) => {
+    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
+    const parsed = SetMemberAdminRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    if (!parsed.data.isAdmin && (await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
+      return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
+    }
+
+    await setMemberAdmin(couch, workspaceId, profileId, parsed.data.isAdmin)
+    return reply.status(204).send()
+  })
+
+  // Deprovisions one member's personal CouchDB account - same last-admin rejection as the
+  // admin-toggle route above (removing the sole remaining admin is just as terminal as
+  // demoting them). The roster doc itself is removed separately by the calling device, as
+  // always.
+  app.delete('/workspaces/:workspaceId/members/:profileId', async (request, reply) => {
+    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
+    const parsed = RemoveMemberRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    // Only actually blocks removing the sole remaining *admin* - deleting a plain member never
+    // changes the admin count, so this only rejects when the target itself is that one admin.
+    if ((await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
+      return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
+    }
+
+    await deprovisionMember(couch, workspaceId, profileId)
+    return reply.status(204).send()
+  })
+
+  // Mints a short-lived join code carrying one specific, already-provisioned person's account
+  // (see per-person-accounts follow-up - every invite is for one person now, not "the" shared
+  // member secret) - only a device that holds *some* admin account for this workspace can call
+  // this. The caller proves that by including its own username/password, verified directly
+  // against CouchDB (verifyAdmin) rather than trusting a claimed identity.
+  app.post('/workspaces/:workspaceId/invite', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = WorkspaceInviteRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    const invite = createInvite(
+      workspaceId,
+      parsed.data.workspaceName,
+      parsed.data.memberUsername,
+      parsed.data.memberPassword,
+      parsed.data.isAdmin ?? false,
+    )
+    return reply.status(201).send(invite)
+  })
+
+  // Irreversibly destroys a workspace - same admin-verification pattern as the routes above.
+  // Deletes the CouchDB database and every member's personal account
+  // (workspaceProvisioning.ts's deprovisionWorkspace); does not, and can't, notify any other
+  // device that already joined.
+  app.delete('/workspaces/:workspaceId', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = WorkspaceDeleteRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    await deprovisionWorkspace(couch, workspaceId)
+    return reply.status(204).send()
+  })
+
+  // Public, no auth (see #21) - anyone holding the code can resolve it, same trust level the
+  // raw workspace password already had. Its only protection is the short TTL in inviteStore.ts.
+  app.post('/invites/:code/resolve', async (request, reply) => {
+    const { code } = request.params as { code: string }
+    const resolved = resolveInvite(code)
+    if (!resolved) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown or expired invite code' })
+    }
+    return resolved
+  })
+
+  return { app, registry, lookupRegistry, couch }
 }
 
 const port = Number(process.env.PORT ?? 3001)
 
 async function main() {
-  const { app, registry, lookupRegistry } = await buildApp()
+  const { app, registry, lookupRegistry, couch } = await buildApp()
 
   try {
     const pluginLog = {
@@ -213,11 +423,7 @@ async function main() {
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).
     const sync = createPluginSync({
-      couch: {
-        url: process.env.COUCHDB_URL ?? 'http://localhost:5984',
-        user: process.env.COUCHDB_USER ?? 'admin',
-        password: process.env.COUCHDB_PASSWORD ?? 'admin',
-      },
+      couch,
       workspaceId: process.env.STAGEBOARD_WORKSPACE ?? 'band-a',
       registry,
       log: pluginLog,

@@ -7,3 +7,4 @@ coverage/
 .claude/settings.local.json
 certs/
 packages/core-backend/data/
+docker/couchdb-credentials.env

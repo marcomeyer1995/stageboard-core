@@ -46,6 +46,134 @@ export async function ensureDb(config: CouchConfig, db: string): Promise<void> {
   }
 }
 
+function userDocUrl(config: CouchConfig, username: string): string {
+  return `${config.url.replace(/\/$/, '')}/_users/org.couchdb.user:${encodeURIComponent(username)}`
+}
+
+/** True if a CouchDB user with this name already exists (used to make provisioning idempotent
+ * without ever silently rotating an existing user's password - see workspaceProvisioning.ts). */
+export async function userExists(config: CouchConfig, username: string): Promise<boolean> {
+  const response = await request(config, userDocUrl(config, username))
+  if (response.status === 404) return false
+  if (!response.ok) throw new Error(`Failed to check user ${username}: HTTP ${response.status}`)
+  return true
+}
+
+/** Deletes the database - a no-op (not an error) if it's already gone. Irreversible: see
+ * workspaceProvisioning.ts's `deprovisionWorkspace`, the only caller. */
+export async function deleteDb(config: CouchConfig, db: string): Promise<void> {
+  const response = await request(config, dbUrl(config, db), { method: 'DELETE' })
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Failed to delete database ${db}: HTTP ${response.status}`)
+  }
+}
+
+/** Deletes the CouchDB user document - a no-op if it doesn't exist. CouchDB requires a
+ * document's current `_rev` to delete it, so this looks the doc up first. */
+export async function deleteUser(config: CouchConfig, username: string): Promise<void> {
+  const getResponse = await request(config, userDocUrl(config, username))
+  if (getResponse.status === 404) return
+  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
+  const doc = (await getResponse.json()) as { _rev: string }
+
+  const deleteResponse = await request(config, `${userDocUrl(config, username)}?rev=${encodeURIComponent(doc._rev)}`, {
+    method: 'DELETE',
+  })
+  if (!deleteResponse.ok && deleteResponse.status !== 404) {
+    throw new Error(`Failed to delete user ${username}: HTTP ${deleteResponse.status}`)
+  }
+}
+
+/**
+ * Confirms `username`/`password` genuinely authenticate against CouchDB as that exact user, and
+ * returns their roles (see per-person-accounts follow-up - callers check for `'admin'` in the
+ * returned roles rather than comparing against one hardcoded username). `null` if the
+ * credentials don't check out. Deliberately doesn't use `request()`/`authHeader()` above: those
+ * always authenticate as `config`'s own trusted admin credentials, never a caller-supplied pair
+ * - this is the one place core-backend authenticates as someone else's identity, so it builds
+ * its own Basic auth header rather than risk that distinction getting blurred later.
+ */
+export async function verifyUser(
+  config: CouchConfig,
+  username: string,
+  password: string,
+): Promise<{ name: string; roles: string[] } | null> {
+  const response = await fetch(`${config.url.replace(/\/$/, '')}/_session`, {
+    headers: { Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` },
+  })
+  if (!response.ok) return null
+  const body = (await response.json()) as { userCtx?: { name?: string | null; roles?: string[] } }
+  if (body.userCtx?.name !== username) return null
+  return { name: username, roles: body.userCtx.roles ?? [] }
+}
+
+/** Creates a CouchDB user document with the given roles (see per-person-accounts follow-up -
+ * `roles` is what `_design/roster`'s static validator and `_security`'s role-based grants key
+ * off, not this user's name). Requires admin credentials in `config` - only `core-backend`
+ * itself calls this (its own admin `couch` config, see index.ts), never the PWA. A 409 (user
+ * already exists) is swallowed so re-provisioning never rotates a password out from under an
+ * already-paired tablet. */
+export async function createUser(config: CouchConfig, username: string, password: string, roles: string[] = []): Promise<void> {
+  const response = await request(config, userDocUrl(config, username), {
+    method: 'PUT',
+    body: JSON.stringify({
+      _id: `org.couchdb.user:${username}`,
+      name: username,
+      password,
+      roles,
+      type: 'user',
+    }),
+  })
+  if (!response.ok && response.status !== 409) {
+    throw new Error(`Failed to create user ${username}: HTTP ${response.status}`)
+  }
+}
+
+/** Overwrites an existing CouchDB user's roles (grant/revoke admin - see per-person-accounts
+ * follow-up). Fetch-then-PUT because CouchDB requires the doc's current `_rev` to update it.
+ * Throws if the user doesn't exist - callers already know it does (they just authenticated as
+ * it, or looked it up), so a 404 here means something else is wrong, not a case to swallow. */
+export async function setUserRoles(config: CouchConfig, username: string, roles: string[]): Promise<void> {
+  const getResponse = await request(config, userDocUrl(config, username))
+  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
+  const doc = (await getResponse.json()) as CouchDoc & { name: string; password?: string; type: string }
+
+  const putResponse = await request(config, userDocUrl(config, username), {
+    method: 'PUT',
+    body: JSON.stringify({ ...doc, roles }),
+  })
+  if (!putResponse.ok) {
+    throw new Error(`Failed to update roles for user ${username}: HTTP ${putResponse.status}`)
+  }
+}
+
+export interface CouchSecurityDoc {
+  /** Database-level admins (see #56) - can administer this one database (e.g. change its own
+   * `_security`), still scoped to just this database, not server admins. NOT automatically
+   * exempt from `validate_doc_update` the way a true server admin is (verified live against a
+   * real CouchDB instance) - workspaceProvisioning.ts's roster validator checks `userCtx.roles`
+   * explicitly rather than relying on that.
+   *
+   * Per-person-accounts follow-up: `.names` stays empty forever on both - every workspace user
+   * gets in purely via `.roles` (every CouchDB user for this workspace is created with
+   * `roles: ['member']`, or `['member', 'admin']` for a band admin), so adding/removing a
+   * member never means touching this doc again after the workspace is founded. */
+  admins?: { names: string[]; roles: string[] }
+  members: { names: string[]; roles: string[] }
+}
+
+/** Restricts a database's non-admin access to exactly the given security doc's members (see
+ * #12 - each workspace database is locked to its own single CouchDB user this way). */
+export async function putSecurity(config: CouchConfig, db: string, securityDoc: CouchSecurityDoc): Promise<void> {
+  const response = await request(config, `${dbUrl(config, db)}/_security`, {
+    method: 'PUT',
+    body: JSON.stringify(securityDoc),
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to set security for ${db}: HTTP ${response.status}`)
+  }
+}
+
 /** `startkey`/`endkey` scope the read to an id-prefix range - CouchDB's `_all_docs`
  * supports this natively, no secondary index needed (see workspaceCollection.ts's client
  * equivalent, which uses the same prefix scheme for the same reason: several document kinds

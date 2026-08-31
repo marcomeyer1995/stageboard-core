@@ -44,10 +44,68 @@ Das Ziel: Band-Management und Gig-Vorbereitung.
 * **Schritt 3:** Das "Master-Token" System. ✅ Synchronisiertes Singleton-Dokument (`ShowState`) pro Workspace; Claim/"Take Over" ist einfach ein PUT mit dem zuletzt bekannten `_rev` — CouchDBs übliche Konflikt-Behandlung reicht als "nur ein Gewinner"-Mechanismus, ganz ohne eigene Locking-Logik.
 * **Meilenstein-Test:** ✅ Der Sänger drückt auf "Nächster Song" und das Tablet des Drummers wechselt synchron mit. (Verifiziert mit zwei isolierten Browser-Kontexten im selben Workspace.)
 
-## Phase 6: Touring-Features (Ab Woche 6 / Community-Phase)
-Das Ziel: Absicherung und Ausbau für große Gigs.
+## Phase 6: Touring-Features & Ausbau (Ab Woche 6 / Community-Phase)
+Das Ziel: Absicherung und Ausbau für große Gigs. Anders als Phase 1–5 ist dies kein linearer Wochenplan mehr, sondern ein nach echten Abhängigkeiten geordneter Issue-Backlog (siehe GitHub) — Stand 2026-08-31, nach Abgleich von [docs/00](00_System_Vision_und_Architektur.md) gegen den Code und den Issue-Tracker. Reihenfolge der Unterphasen ist verbindlich, Reihenfolge *innerhalb* einer Unterphase nicht.
 
-* **Schritt 1:** Das Backup-Plugin.
-* **Schritt 2:** Das "Venue Profile" (Graceful Degradation von UI-Widgets). ✅ Umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)): Plugins deklarieren Capabilities, Widgets fordern sie an. Installierte Plugins replizieren über das Bühnen-Netz; der Stage-Server startet/stoppt daraufhin seine Implementierungen und schreibt einen Heartbeat. Fehlt ein Plugin, fehlt das Widget in der Bibliothek; ist die Hardware nur unerreichbar (oder der Heartbeat >15 s alt), bleibt das Widget an seinem Platz und graut aus. Dazu: beliebig viele frei konfigurierbare **Dashboards** mit Drag&Drop-Raster pro Bildschirmklasse, Edit-Lock per Long-Press und ein Umschalt-Widget.
-* **Schritt 3 (Optional):** Erster Architektur-Test für das Redundanz-Plugin (Virtual IP / B-Rig).
-* **Schritt 4:** Community-Plugins (Mischpult-Adapter, DMX-Licht).
+### 6a: Kern-Engine (höchste Priorität)
+Schließt die größte Lücke zwischen [docs/00](00_System_Vision_und_Architektur.md) und dem tatsächlichen Code: Das "Venue Profile" (Graceful Degradation von UI-Widgets) ist bereits ✅ umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)) — Plugins deklarieren Capabilities, Widgets fordern sie an, Heartbeats steuern den Disabled-State. Was fehlt, ist das, was docs/00 §4–5 als Fundament der Präzisions-Bühnenausführung beschreibt, bisher aber nirgends im Code existiert:
+
+* **#31 — NTP-Style Clock Sync:** Der "Burst-Handshake" und die Ahead-of-Time-Dispatch-Logik aus docs/00 §4. Der heutige `useClockStore` ist eine rein lokale Uhr pro Gerät, kein netzwerksynchronisierter Master-Clock.
+* **#10 — Logical Devices & Hardware Setup Profiles:** Die HAL/Auto-Binding-Schicht aus docs/00 §5. `pluginProviding` greift heute einfach zum ersten Plugin mit passender Capability — keine benannten Logical Devices, keine Hardware-Setup-Profile, kein Routing pro Gerät.
+
+Beide sind Voraussetzung für mehrere Punkte in 6c (u.a. #25, #23, #62) — deshalb zuerst.
+
+### 6b: Live-Ausführung
+Bringt aufgezeichnete/ausgelöste Cues tatsächlich zur Hardware — baut auf 6a auf, kann aber parallel begonnen werden, wo kein HAL-Routing nötig ist:
+
+* **#3** — Transition IEM Faders and Lighting Cue Widgets to Live Triggers
+* **#6** — Implement Cue Schema & Manual Cue Recorder UI
+* **#7** — Automatic Cue-Detection Assist (baut auf #6 auf)
+* **#8** — Live Cue Firing & Post-Show Persistence (baut auf #6/#7 auf)
+* **#13** — Differentiate Pause/Stop States in ShowLog
+* **#32** — Implement Master-Token Heartbeat and Force-Override
+* **#4** — Prevent Song Play Log Loss During Master-Token Handoff
+
+### 6c: UX- & Live-Feature-Ausbau
+Alles, was Musiker im Alltag/auf der Bühne direkt spüren. Einiges hängt an 6a/6b (vermerkt), der Rest ist unabhängig und kann jederzeit eingeschoben werden:
+
+* **#59** — Advanced Transposition & Capo Engine
+* **#60** — Multi-User "Ready Check" Pre-Flight Protocol
+* **#61** — Smart Rehearsal Looper & Speed Trainer
+* **#28** — Dynamic Setlist Time Management / Festival Clock (enthält die gemergte Curfew-Warnung)
+* **#26** — Stage Messenger & Flash Alerts (enthält den gemergten timeline-getriggerten `[alert:]`-Teil)
+* **#25** — Visual Metronome & Hardware-Routed Click Generator *(hängt an #10)*
+* **#62** — Spatial Stage Layout & Interactive Hardware Matrix *(hängt an #10)*
+* **#63** — "Stage Call" IEM Text-to-Speech Announcer *(hängt an #3)*
+* **#64** — Post-Gig Telemetry & Rehearsal Analytics *(hängt an #13)*
+* **#23** — Expand Widget Library (Clock, Status, Grouping, Custom Buttons) *(Status-Widget hängt an #10)*
+* **#24** — Musical Reference Widgets (Chord Lookup & Circle of Fifths)
+* **#18** — Touch Gestures and Drag-and-Drop for Live Queue
+* **#22** — Widget Gallery Overlay & Resize Constraints
+* **#35** — Main Menu Dashboard Selector & Sub-Navigation
+* **#16** — "Read-Only" Template Dashboards & Edit Protection
+* **#14** — Build "Live-Debug-Console" UI
+* **#29** — Setlist Transition Notes & Show Flow Items
+* **#36** — Define Core vs. Plugin System Boundary & Standard Widgets
+* **#57** — Role-Based Access to Widgets & Dashboards *(braucht erst ein Scoping-Gespräch, siehe Issue)*
+* **#58** — Band-Umbenennen (Workspace-Name nicht synchronisiert)
+* **#27** — Bluetooth Foot Switch Integration (Keybindings)
+* **#15** — Robustness for Ultimate Guitar & MusicBrainz Plugins
+* **#17** — Implement Dynamic Plugin Code Loading via Dynamic Imports
+* **#12** — Implement CouchDB Multi-Tenancy & User Roles
+
+### 6d: Touring, Cloud & optionale Plugins
+Größter Hardware-/Infra-Aufwand, entsprechend zuletzt:
+
+* Das Backup-Plugin.
+* Erster Architektur-Test für das Redundanz-Plugin (Virtual IP / B-Rig, docs/00 §Stage Mesh / docs/01 §2.3).
+* Community-Plugins (Mischpult-Adapter, DMX-Licht).
+* **#9** — Stem Separation Pipeline
+* **#5** — Implement Async-Job Infrastructure & YouTube Extraction
+* **#66** — Tone Match (IR) Engine *(hängt an #9)*
+* **#65** — Audience QR "Live Jukebox" & Request Relay *(optionales Plugin — bewusste, dokumentierte Ausnahme vom Local-First-Prinzip, siehe Issue)*
+
+### Laufende Bugs
+Unabhängig von der Phasen-Reihenfolge, sobald wie möglich beheben:
+
+* **#44** — Fix Infinite Re-render Loop in Dashboard Grid Layout
