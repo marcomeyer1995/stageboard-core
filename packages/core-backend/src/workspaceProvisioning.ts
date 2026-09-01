@@ -7,6 +7,7 @@ import {
   ensureDb,
   putDoc,
   putSecurity,
+  resetUserPassword,
   setUserRoles,
   userExists,
   type CouchConfig,
@@ -129,6 +130,26 @@ export async function provisionMember(
  * admin-supplied PIN before provisioning. */
 export function generateMemberPassword(): string {
   return randomPassword()
+}
+
+/**
+ * Resets an already-provisioned member's password to a fresh random one - the admin
+ * "forgot/never knew the password" escape hatch (2026-08-31: BandManagementView.tsx's
+ * "Einladen" always goes through this now, rather than asking the admin to already know and
+ * re-type the account's password). Unlike `provisionMember`/`createUser`, this *does* rotate an
+ * existing account's password on purpose - any device already synced with the old one stops
+ * authenticating until it's re-invited with the new one, an accepted tradeoff of "forgot my
+ * password" always meaning "the old one no longer works anywhere."
+ */
+export async function resetMemberPassword(
+  config: CouchConfig,
+  workspaceId: string,
+  profileId: string,
+): Promise<WorkspaceCredentialPair> {
+  const username = memberUsername(workspaceId, profileId)
+  const password = randomPassword()
+  await resetUserPassword(config, username, password)
+  return { username, password }
 }
 
 /** Grants or revokes admin for one already-provisioned member (see per-person-accounts

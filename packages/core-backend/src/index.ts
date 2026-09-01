@@ -5,7 +5,9 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import {
   CreateMemberRequestSchema,
   HealthReportSchema,
+  JoinAsMemberRequestSchema,
   RemoveMemberRequestSchema,
+  ResetMemberPasswordRequestSchema,
   SetMemberAdminRequestSchema,
   ShowControlEventSchema,
   WorkspaceDeleteRequestSchema,
@@ -13,7 +15,7 @@ import {
   WorkspaceProvisionRequestSchema,
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
-import { allDocs, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
@@ -27,6 +29,7 @@ import {
   memberUsername,
   provisionMember,
   provisionWorkspace,
+  resetMemberPassword,
   setMemberAdmin,
   workspaceDbName,
   WorkspaceAlreadyProvisionedError,
@@ -57,6 +60,24 @@ async function countOtherAdmins(couch: CouchConfig, workspaceId: string, excludi
     endkey: `${PROFILE_ID_PREFIX}￰`,
   })
   return profiles.filter((profile) => profile.id !== excludingProfileId && (profile.stageRoles ?? []).includes('admin')).length
+}
+
+/** The roster as shown to a device mid-join (`POST /invites/:code/roster`, 2026-09-01 redesign)
+ * - every profile, plus whether each one's CouchDB account already exists (`requiresPassword`),
+ * so the joining device knows whether to prompt for a password or auto-provision on pick. */
+async function readRoster(couch: CouchConfig, workspaceId: string) {
+  const profiles = await allDocs<CouchDoc & { id?: string; name?: string; role?: string }>(couch, workspaceDbName(workspaceId), {
+    startkey: PROFILE_ID_PREFIX,
+    endkey: `${PROFILE_ID_PREFIX}￰`,
+  })
+  return Promise.all(
+    profiles.map(async (profile) => ({
+      profileId: profile.id!,
+      name: profile.name!,
+      role: profile.role!,
+      requiresPassword: await userExists(couch, memberUsername(workspaceId, profile.id!)),
+    })),
+  )
 }
 
 /**
@@ -113,6 +134,11 @@ export async function buildApp() {
   })
 
   app.get('/health', async () => ({ status: 'ok' }))
+
+  // The NTP-style "burst handshake" target (docs/00 §4, #31): clients hit this repeatedly and
+  // keep the lowest-RTT sample's offset (see stage-pwa's clockSync.ts) - a single Date.now()
+  // read is all a client needs, no session/state on this end.
+  app.get('/time', async () => ({ serverTime: Date.now() }))
 
   // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
   // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
@@ -209,7 +235,15 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    const result = await registry.trigger(name, parsed.data)
+    // scheduledAt is a Gateway-only concern (see the schema doc comment) - the plugin itself
+    // only ever sees type/payload, same shape as before #31.
+    const { scheduledAt, ...event } = parsed.data
+    if (scheduledAt !== undefined) {
+      const delayMs = scheduledAt - Date.now()
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+
+    const result = await registry.trigger(name, event)
     if (result === null) {
       return reply.status(404).send({ status: 'error', message: `Unknown plugin: ${name}` })
     }
@@ -350,11 +384,30 @@ export async function buildApp() {
     return reply.status(204).send()
   })
 
-  // Mints a short-lived join code carrying one specific, already-provisioned person's account
-  // (see per-person-accounts follow-up - every invite is for one person now, not "the" shared
-  // member secret) - only a device that holds *some* admin account for this workspace can call
-  // this. The caller proves that by including its own username/password, verified directly
-  // against CouchDB (verifyAdmin) rather than trusting a claimed identity.
+  // Resets an already-provisioned member's password to a fresh random one (2026-08-31,
+  // BandManagementView.tsx's "Einladen" - the admin "forgot/never knew it" escape hatch).
+  // No last-admin check needed - unlike remove/demote, a password reset can't reduce the
+  // admin count.
+  app.post('/workspaces/:workspaceId/members/:profileId/reset-password', async (request, reply) => {
+    const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
+    const parsed = ResetMemberPasswordRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    const credentials = await resetMemberPassword(couch, workspaceId, profileId)
+    return reply.status(200).send(credentials)
+  })
+
+  // Mints a short-lived, workspace-level join code (2026-09-01 redesign - see
+  // WorkspaceInviteRequestSchema's doc comment) - not tied to any one person, so only a device
+  // that holds *some* admin account for this workspace can mint one. The caller proves that by
+  // including its own username/password, verified directly against CouchDB (verifyAdmin)
+  // rather than trusting a claimed identity.
   app.post('/workspaces/:workspaceId/invite', async (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
     const parsed = WorkspaceInviteRequestSchema.safeParse(request.body)
@@ -366,13 +419,7 @@ export async function buildApp() {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
-    const invite = createInvite(
-      workspaceId,
-      parsed.data.workspaceName,
-      parsed.data.memberUsername,
-      parsed.data.memberPassword,
-      parsed.data.isAdmin ?? false,
-    )
+    const invite = createInvite(workspaceId, parsed.data.workspaceName)
     return reply.status(201).send(invite)
   })
 
@@ -395,15 +442,59 @@ export async function buildApp() {
     return reply.status(204).send()
   })
 
-  // Public, no auth (see #21) - anyone holding the code can resolve it, same trust level the
-  // raw workspace password already had. Its only protection is the short TTL in inviteStore.ts.
-  app.post('/invites/:code/resolve', async (request, reply) => {
+  // Public, no auth (see #21, 2026-09-01 redesign) - anyone holding the code can look up the
+  // roster, same trust level the raw workspace password already had. Its only protection is
+  // the short TTL in inviteStore.ts. Hands back names/roles only, never credentials - the
+  // joining device still has to pick who it is (POST /invites/:code/join/:profileId below)
+  // before it gets anything it could actually sync with.
+  app.post('/invites/:code/roster', async (request, reply) => {
     const { code } = request.params as { code: string }
     const resolved = resolveInvite(code)
     if (!resolved) {
       return reply.status(404).send({ status: 'error', message: 'Unknown or expired invite code' })
     }
-    return resolved
+
+    const members = await readRoster(couch, resolved.workspaceId)
+    return reply.status(200).send({ workspaceId: resolved.workspaceId, workspaceName: resolved.workspaceName, members })
+  })
+
+  // Public, no auth - the second half of the self-service join (2026-09-01 redesign). Still
+  // requires the code to be valid/unexpired (re-resolved here, not just trusted from an earlier
+  // /roster call), then either verifies the supplied password against an already-provisioned
+  // account, or auto-provisions a brand-new one (never as admin - self-service join can't grant
+  // that) when none exists yet.
+  app.post('/invites/:code/join/:profileId', async (request, reply) => {
+    const { code, profileId } = request.params as { code: string; profileId: string }
+    const parsed = JoinAsMemberRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    const resolved = resolveInvite(code)
+    if (!resolved) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown or expired invite code' })
+    }
+    const { workspaceId } = resolved
+
+    const profile = await getDoc(couch, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`)
+    if (!profile) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown roster member' })
+    }
+
+    const username = memberUsername(workspaceId, profileId)
+    if (await userExists(couch, username)) {
+      if (!parsed.data.password) {
+        return reply.status(400).send({ status: 'error', message: 'Password required' })
+      }
+      const verified = await verifyUser(couch, username, parsed.data.password)
+      if (!verified) {
+        return reply.status(403).send({ status: 'error', message: 'Wrong password' })
+      }
+      return reply.status(200).send({ username, password: parsed.data.password, isAdmin: verified.roles.includes('admin') })
+    }
+
+    const credentials = await provisionMember(couch, workspaceId, profileId, generateMemberPassword(), false)
+    return reply.status(201).send({ ...credentials, isAdmin: false })
   })
 
   return { app, registry, lookupRegistry, couch }

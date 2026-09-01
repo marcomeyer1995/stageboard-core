@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { WorkspaceRoster } from 'shared-types'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
 import { persist } from 'zustand/middleware'
@@ -52,11 +53,33 @@ interface WorkspaceState {
   ) => Promise<{ username: string; password: string } | null>
   setMemberAdmin: (workspaceId: string, profileId: string, isAdmin: boolean) => Promise<boolean>
   removeMember: (workspaceId: string, profileId: string) => Promise<boolean>
-  createInvite: (
+  /** Admin "forgot/never knew the password" escape hatch (2026-08-31, BandManagementView.tsx's
+   * "Einladen") - rotates the member's account to a fresh random password and returns it, for
+   * the caller to immediately wrap into an invite. `null` on failure (not this workspace's
+   * admin, or the Stage-Server is unreachable). */
+  resetMemberPassword: (workspaceId: string, profileId: string) => Promise<{ username: string; password: string } | null>
+  /** Mints a workspace-level (not per-person) join code (2026-09-01 redesign, at Marco's
+   * request) - reusable by anyone until it expires, wrapped into a QR/code via
+   * InviteBandView.tsx. Replaces the old per-person invite: a joining device now looks up the
+   * roster with the code (`fetchRoster`) and self-service-picks who it is (`joinAsMember`)
+   * instead of the admin pre-selecting a specific person's account. */
+  createInvite: (workspaceId: string) => Promise<{ code: string; expiresAt: number } | null>
+  /** First half of the self-service join (2026-09-01 redesign) - resolves a workspace-level
+   * code to its roster (names/roles only, no credentials), for JoinBandView.tsx to render a
+   * "who are you" picker. `requiresPassword` per member tells the picker whether tapping that
+   * name needs a password prompt first. */
+  fetchRoster: (code: string) => Promise<WorkspaceRoster | null>
+  /** Second half of the self-service join - the device has picked which roster entry is theirs
+   * and (if that entry's account already exists) supplied its password. Verifies it server-side
+   * and returns real credentials, or auto-provisions a fresh account if none existed yet. Adds
+   * or updates the workspace locally and activates it on success. */
+  joinAsMember: (
+    code: string,
     workspaceId: string,
-    member: { username: string; password: string; isAdmin?: boolean },
-  ) => Promise<{ code: string; expiresAt: number } | null>
-  joinWithInviteCode: (code: string) => Promise<Workspace | null>
+    workspaceName: string,
+    profileId: string,
+    password?: string,
+  ) => Promise<Workspace | null>
 }
 
 /**
@@ -315,10 +338,40 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return false
         }
       },
-      // Mints a short-lived join code carrying one specific member's already-provisioned
-      // account (see per-person-accounts follow-up - every invite is for one person now, not
-      // "the" shared member secret).
-      createInvite: async (workspaceId, member) => {
+      resetMemberPassword: async (workspaceId, profileId) => {
+        const base = getStageServerUrl()
+        const workspace = get().workspaces.find((w) => w.id === workspaceId)
+        if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
+          return null
+        }
+
+        try {
+          const response = await fetch(
+            `${base}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(profileId)}/reset-password`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+            },
+          )
+          if (!response.ok) {
+            if (response.status === 403) {
+              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+            } else {
+              throw new Error(`HTTP ${response.status}`)
+            }
+            return null
+          }
+          return (await response.json()) as { username: string; password: string }
+        } catch (err) {
+          console.error('Failed to reset member password', err)
+          void useDialogStore.getState().alert('Passwort konnte nicht zurückgesetzt werden - Stage-Server nicht erreichbar.')
+          return null
+        }
+      },
+      // Mints a short-lived, workspace-level join code (2026-09-01 redesign) - not tied to any
+      // one person, reusable by anyone until it expires.
+      createInvite: async (workspaceId) => {
         const base = getStageServerUrl()
         const workspace = get().workspaces.find((w) => w.id === workspaceId)
         if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) {
@@ -332,10 +385,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             body: JSON.stringify({
               adminUsername: workspace.username,
               adminPassword: workspace.couchPassword,
-              memberUsername: member.username,
-              memberPassword: member.password,
               workspaceName: workspace.name,
-              isAdmin: member.isAdmin,
             }),
           })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -345,44 +395,106 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      joinWithInviteCode: async (code) => {
+      fetchRoster: async (code) => {
         const base = getStageServerUrl()
         if (!base) {
           void useDialogStore.getState().alert('Stage-Server nicht konfiguriert - Beitritt nicht möglich.')
           return null
         }
 
+        // Split from the HTTP-status branch below on purpose (see the 2026-08-31 tablet
+        // debugging session): a thrown fetch (network down, cert not trusted on this device,
+        // CORS block, ...) and a real 404/expired code from the server are different problems
+        // with different fixes - collapsing them into one "Code ungültig" message sent a real
+        // network issue down a completely wrong debugging path.
+        let response: Response
         try {
-          const response = await fetch(`${base}/invites/${encodeURIComponent(code)}/resolve`, { method: 'POST' })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const resolved = (await response.json()) as {
-            workspaceId: string
-            name: string
-            username: string
-            password: string
-            isAdmin: boolean
-          }
+          response = await fetch(`${base}/invites/${encodeURIComponent(code)}/roster`, { method: 'POST' })
+        } catch (err) {
+          console.error('Failed to reach Stage-Server for invite code', err)
+          void useDialogStore
+            .getState()
+            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+          return null
+        }
 
-          const existing = get().workspaces.find((w) => w.id === resolved.workspaceId)
+        if (!response.ok) {
+          if (response.status === 404) {
+            void useDialogStore.getState().alert('Code ungültig oder abgelaufen - Beitritt nicht möglich.')
+          } else {
+            console.error('Failed to fetch roster', new Error(`HTTP ${response.status}`))
+            void useDialogStore.getState().alert('Beitritt fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+          }
+          return null
+        }
+
+        try {
+          return (await response.json()) as WorkspaceRoster
+        } catch (err) {
+          console.error('Failed to parse roster response', err)
+          void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          return null
+        }
+      },
+      joinAsMember: async (code, workspaceId, workspaceName, profileId, password) => {
+        const base = getStageServerUrl()
+        if (!base) {
+          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert - Beitritt nicht möglich.')
+          return null
+        }
+
+        let response: Response
+        try {
+          response = await fetch(`${base}/invites/${encodeURIComponent(code)}/join/${encodeURIComponent(profileId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }),
+          })
+        } catch (err) {
+          console.error('Failed to reach Stage-Server to join', err)
+          void useDialogStore
+            .getState()
+            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+          return null
+        }
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            void useDialogStore.getState().alert('Falsches Passwort.')
+          } else if (response.status === 400) {
+            void useDialogStore.getState().alert('Passwort erforderlich.')
+          } else if (response.status === 404) {
+            void useDialogStore.getState().alert('Code ungültig oder abgelaufen - Beitritt nicht möglich.')
+          } else {
+            console.error('Failed to join as member', new Error(`HTTP ${response.status}`))
+            void useDialogStore.getState().alert('Beitritt fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+          }
+          return null
+        }
+
+        try {
+          const resolved = (await response.json()) as { username: string; password: string; isAdmin: boolean }
+
+          const existing = get().workspaces.find((w) => w.id === workspaceId)
           const workspace: Workspace = existing
             ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
             : {
-                id: resolved.workspaceId,
-                name: resolved.name,
+                id: workspaceId,
+                name: workspaceName,
                 couchPassword: resolved.password,
                 username: resolved.username,
                 isAdmin: resolved.isAdmin,
               }
           set({
             workspaces: existing
-              ? get().workspaces.map((w) => (w.id === workspace.id ? workspace : w))
+              ? get().workspaces.map((w) => (w.id === workspaceId ? workspace : w))
               : [...get().workspaces, workspace],
-            activeWorkspaceId: workspace.id,
+            activeWorkspaceId: workspaceId,
           })
           return workspace
         } catch (err) {
-          console.error('Failed to join with invite code', err)
-          void useDialogStore.getState().alert('Code ungültig oder abgelaufen - Beitritt nicht möglich.')
+          console.error('Failed to parse join response', err)
+          void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
           return null
         }
       },

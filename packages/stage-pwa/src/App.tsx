@@ -10,6 +10,7 @@ import { SystemView } from './components/SystemView'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
+import { useClockSync } from './lib/useClockSync'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
@@ -90,6 +91,7 @@ function App() {
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
+  useClockSync()
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a

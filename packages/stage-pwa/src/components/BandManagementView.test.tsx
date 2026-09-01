@@ -47,14 +47,25 @@ describe('BandManagementView', () => {
     expect(screen.getByText('Band A')).toBeInTheDocument()
     expect(screen.getByText('Band B')).toBeInTheDocument()
     // No band-level "Umbenennen" at all (see the component's own doc comment) - the one
-    // "Umbenennen" that does exist is the active band's roster section (member rename). No
-    // band-level "Einladen" either (per-person-accounts follow-up - inviting is now always
-    // tied to a specific newly-created member, part of "+ Neues Mitglied", not a standalone
-    // band-level action). "Löschen" appears twice: band-a's own delete, plus the roster
-    // member's delete.
+    // "Umbenennen" that does exist is the active band's roster section (member rename). One
+    // band-level "Einladen" (2026-09-01 redesign, next to the band's own name/Löschen - not
+    // per roster row, not per new member) for the already-server-connected band-a; band-b is
+    // this device's non-admin band, so it gets neither. "Löschen" appears twice: band-a's own
+    // delete, plus the roster member's delete.
     expect(screen.getAllByText('Umbenennen')).toHaveLength(1)
-    expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
+    expect(screen.getByText('Einladen')).toBeInTheDocument()
     expect(screen.getAllByText('Löschen')).toHaveLength(2)
+  })
+
+  it('does not offer "Einladen" for a band that is still local-only (nothing to invite anyone to yet)', () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' },
+        { id: 'band-b', name: 'Band B', isAdmin: false },
+      ],
+    })
+    render(<BandManagementView />)
+    expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
   })
 
   it('"+ Neue Band" prompts for a name and calls addWorkspace', async () => {
@@ -253,25 +264,50 @@ describe('BandManagementView', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('Chris', 'Bass', undefined))
   })
 
-  it('adding a member with a PIN passes it as the new account\'s password and shows the credentials directly, without opening the invite screen', async () => {
-    const created = {
+  it('adding a member with a PIN just passes it as the new account\'s password - no invite/QR screen opens here anymore (2026-09-01 redesign)', async () => {
+    const create = vi.fn().mockResolvedValue({
       profile: { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] },
       credentials: { username: 'stageboard-band-a-p2', password: '4711' },
-    }
-    const create = vi.fn().mockResolvedValue(created)
+    })
     useProfilesStore.setState({ create })
-    const alert = vi.fn().mockResolvedValue(undefined)
     useDialogStore.setState({
       promptFields: vi.fn().mockResolvedValue({ name: 'Chris', role: 'Bass', pin: '4711' }),
-      alert,
     })
+    const createInvite = vi.fn()
+    useWorkspaceStore.setState({ createInvite })
 
     render(<BandManagementView />)
     fireEvent.click(screen.getByText('+ Neues Mitglied'))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('Chris', 'Bass', { password: '4711' }))
-    await waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringContaining('4711')))
-    expect(screen.queryByText('QR-Code für Einladungscode 12345678')).not.toBeInTheDocument()
+    expect(createInvite).not.toHaveBeenCalled()
+    expect(screen.queryByText('Band einladen')).not.toBeInTheDocument()
+  })
+
+  describe('"Einladen" (2026-09-01 redesign: one band-level, workspace-wide code)', () => {
+    it('mints a workspace-level invite (no member picker, no password) and shows the QR/code screen', async () => {
+      const createInvite = vi.fn().mockResolvedValue({ code: '11112222', expiresAt: Date.now() + 60_000 })
+      useWorkspaceStore.setState({ createInvite })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Einladen'))
+
+      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+      expect(createInvite).toHaveBeenCalledWith('band-a')
+    })
+
+    it('"Schließen" closes the invite screen', async () => {
+      useWorkspaceStore.setState({
+        createInvite: vi.fn().mockResolvedValue({ code: '11112222', expiresAt: Date.now() + 60_000 }),
+      })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Einladen'))
+      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+
+      fireEvent.click(screen.getByText('Schließen'))
+      expect(screen.queryByText('11112222')).not.toBeInTheDocument()
+    })
   })
 
   describe('local-only workspace (Tier-A local-only-founding follow-up)', () => {
@@ -288,8 +324,8 @@ describe('BandManagementView', () => {
       expect(screen.getByText('Verbinden')).toBeInTheDocument()
     })
 
-    it('"Verbinden" asks for a server address, persists it, and calls connectToServer', async () => {
-      const connectToServer = vi.fn().mockResolvedValue([])
+    it('"Verbinden" asks for a server address, persists it, and calls connectToServer - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
+      const connectToServer = vi.fn().mockResolvedValue(true)
       useProfilesStore.setState({ connectToServer })
       useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stage-server:3001') })
 
@@ -297,25 +333,9 @@ describe('BandManagementView', () => {
       fireEvent.click(screen.getByText('Verbinden'))
 
       await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stage-server:3001'))
-    })
-
-    it('after connecting, shows a per-member "Einladen" list from the result and opens InviteBandView for whichever row is clicked', async () => {
-      const results = [
-        { profile: { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] }, credentials: { username: 'stageboard-band-a-p2', password: 'gen-pw' } },
-      ]
-      const connectToServer = vi.fn().mockResolvedValue(results)
-      useProfilesStore.setState({ connectToServer })
-      useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stage-server:3001') })
-      useWorkspaceStore.setState({
-        createInvite: vi.fn().mockResolvedValue({ code: '12345678', expiresAt: Date.now() + 60_000 }),
-      })
-
-      render(<BandManagementView />)
-      fireEvent.click(screen.getByText('Verbinden'))
-      await waitFor(() => expect(screen.getByText('Chris')).toBeInTheDocument())
-
-      fireEvent.click(screen.getByText('Einladen'))
-      await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+      // No "Verbunden. Jetzt die restlichen Mitglieder..." list anymore - self-service join
+      // (the band-level "Einladen" code) covers every already-typed-in member instead.
+      expect(screen.queryByText(/Jetzt die restlichen Mitglieder/)).not.toBeInTheDocument()
     })
 
     it('"+ Neues Mitglied" does not offer a PIN field while local-only', async () => {

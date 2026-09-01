@@ -4,7 +4,6 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useRosterSetupStore } from '../store/useRosterSetupStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
-import { InviteBandView } from './InviteBandView'
 
 /**
  * Shown by App.tsx right after a device founds a new band (see #21 follow-up, 2026-08-30) -
@@ -20,9 +19,13 @@ import { InviteBandView } from './InviteBandView'
  *
  * Per-person-accounts follow-up: the very first member added here is this device's own
  * already-provisioned account (see `useProfilesStore.ts`'s `create` - "founder" special case),
- * nothing more to do. Every member after that gets a brand-new personal CouchDB account, same
- * as "+ Neues Mitglied" in BandManagementView.tsx - an optional PIN becomes their password
- * directly, or a generated one is handed over via the same invite/QR screen.
+ * nothing more to do. 2026-09-01 redesign: every member after that just becomes a roster entry
+ * here - an optional PIN provisions their CouchDB account with it right away, but there's no
+ * invite/QR screen to show for it anymore (unlike the pre-redesign version). Onboarding
+ * everyone's own device happens later, all through the one workspace-level "Einladen" code in
+ * BandManagementView.tsx: each person picks their own name and (if a PIN was set) types it in
+ * themselves - they already know what they just typed here, so there's nothing left to relay
+ * back to the admin either.
  *
  * Tier-A local-only-founding follow-up: this screen works exactly the same with no Stage-Server
  * configured at all (`useProfilesStore.ts`'s `create` degrades to a plain local write for every
@@ -45,31 +48,20 @@ export function RosterSetupView() {
   const remove = useProfilesStore((state) => state.remove)
   const complete = useRosterSetupStore((state) => state.complete)
   const confirm = useDialogStore((state) => state.confirm)
-  const alert = useDialogStore((state) => state.alert)
 
   const [name, setName] = useState('')
   const [role, setRole] = useState('')
   const [pin, setPin] = useState('')
-  const [newMemberInvite, setNewMemberInvite] = useState<{ username: string; password: string } | null>(null)
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !role.trim()) return
     const trimmedPin = isConnected ? pin.trim() : ''
 
-    const created = await create(name.trim(), role.trim(), trimmedPin ? { password: trimmedPin } : undefined)
+    await create(name.trim(), role.trim(), trimmedPin ? { password: trimmedPin } : undefined)
     setName('')
     setRole('')
     setPin('')
-    // No credentials to show: this was the founder's own account (nothing new provisioned) or
-    // provisioning failed (useWorkspaceStore.createMember already alerted).
-    if (!created?.credentials) return
-
-    if (trimmedPin) {
-      void alert(`Zugangsdaten für ${created.profile.name}:\nBenutzername: ${created.credentials.username}\nPIN: ${trimmedPin}`)
-    } else {
-      setNewMemberInvite(created.credentials)
-    }
   }
 
   return (
@@ -167,10 +159,6 @@ export function RosterSetupView() {
           Bandnamen falsch eingegeben? Neu anfangen
         </button>
       </div>
-
-      {newMemberInvite && (
-        <InviteBandView workspaceId={workspaceId} member={newMemberInvite} onClose={() => setNewMemberInvite(null)} />
-      )}
     </div>
   )
 }

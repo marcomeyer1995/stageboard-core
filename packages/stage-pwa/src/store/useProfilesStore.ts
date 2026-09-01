@@ -40,13 +40,14 @@ interface ProfilesState {
   updateStageRoles: (id: string, stageRoles: StageRole[]) => Promise<boolean>
   remove: (id: string) => Promise<boolean>
   /** Provisions this workspace against a real Stage-Server for the first time (see the Tier-A
-   * local-only-founding follow-up) - the founder's own account first (useWorkspaceStore.ts's
-   * `connectWorkspace`), then every *other* already-existing local roster entry in one pass,
-   * each keeping its existing profile id (no new roster docs written - they already exist
-   * locally; this only attaches a real CouchDB account to each). `null` on failure to connect
-   * at all; otherwise the freshly-provisioned credentials for each non-founder profile, for the
-   * caller to show/invite from. */
-  connectToServer: (serverUrl: string) => Promise<Array<{ profile: Profile; credentials: NewMemberCredentials }> | null>
+   * local-only-founding follow-up) - just the founder's own account (useWorkspaceStore.ts's
+   * `connectWorkspace`). Every other already-existing local roster entry is deliberately left
+   * unprovisioned (2026-09-01 redesign): self-service join (`fetchRoster`/`joinAsMember`)
+   * auto-provisions each one lazily, the first time someone actually picks that name - eagerly
+   * creating them here with unknown random passwords would only lock self-service join out for
+   * every one of them (an already-existing account demands a password nobody was ever told).
+   * `false` on failure to connect at all. */
+  connectToServer: (serverUrl: string) => Promise<boolean>
 }
 
 let changesHandle: PouchDB.Core.Changes<Profile> | null = null
@@ -170,20 +171,8 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   },
   connectToServer: async (serverUrl) => {
     const workspace = activeWorkspace()
-    if (!workspace) return null
+    if (!workspace) return false
 
-    const connected = await useWorkspaceStore.getState().connectWorkspace(workspace.id, serverUrl)
-    if (!connected) return null
-
-    const results: Array<{ profile: Profile; credentials: NewMemberCredentials }> = []
-    for (const profile of get().profiles) {
-      if (profile.id === workspace.ownProfileId) continue
-      const credentials = await useWorkspaceStore.getState().createMember(workspace.id, {
-        profileId: profile.id,
-        isAdmin: profile.stageRoles.includes('admin'),
-      })
-      if (credentials) results.push({ profile, credentials })
-    }
-    return results
+    return useWorkspaceStore.getState().connectWorkspace(workspace.id, serverUrl)
   },
 }))

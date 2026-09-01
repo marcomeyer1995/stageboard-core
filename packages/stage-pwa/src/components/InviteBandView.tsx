@@ -3,25 +3,14 @@ import { renderQrCode } from '../lib/qrCode'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
- * "Here's how to get onto your own device" screen (see #21), shown right after
- * BandManagementView.tsx's "+ Neues Mitglied" provisions a brand-new member's personal CouchDB
- * account with a server-generated (not PIN) password - per-person-accounts follow-up: every
- * invite is for one specific, already-provisioned person now, not "the" shared member secret,
- * so this always needs to be told exactly whose credential to wrap. Mints one short-lived code
- * via createInvite (useWorkspaceStore.ts) and shows it as both a QR code (JoinBandView.tsx's
- * camera scans this) and plain digits (its manual-entry fallback).
+ * "Band beitreten" QR/code screen (see #21, redesigned 2026-09-01 at Marco's request) - one
+ * band-level, reusable code, not tied to any specific person. Mints it via createInvite
+ * (useWorkspaceStore.ts) and shows it as both a QR code (JoinBandView.tsx's camera scans this)
+ * and plain digits (its manual-entry fallback). The joining device looks up the roster with
+ * this code and self-service-picks who it is - nothing person-specific happens here anymore.
  */
-export function InviteBandView({
-  workspaceId,
-  member,
-  onClose,
-}: {
-  workspaceId: string
-  member: { username: string; password: string; isAdmin?: boolean }
-  onClose: () => void
-}) {
+export function InviteBandView({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
   const createInvite = useWorkspaceStore((state) => state.createInvite)
-  const { username, password, isAdmin } = member
 
   const [code, setCode] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<number | null>(null)
@@ -29,13 +18,9 @@ export function InviteBandView({
   const [error, setError] = useState<string | null>(null)
   const [remainingMs, setRemainingMs] = useState(0)
 
-  // Depends on `member`'s individual fields, not the object itself: `member` is a fresh object
-  // each render at the one call site that mounts this (BandManagementView.tsx), so depending on
-  // its identity would re-mint the invite on every unrelated re-render instead of once per
-  // member.
   useEffect(() => {
     let cancelled = false
-    void createInvite(workspaceId, { username, password, isAdmin }).then((invite) => {
+    void createInvite(workspaceId).then((invite) => {
       if (cancelled) return
       if (!invite) {
         setError('Einladung konnte nicht erstellt werden.')
@@ -50,7 +35,7 @@ export function InviteBandView({
     return () => {
       cancelled = true
     }
-  }, [workspaceId, username, password, isAdmin, createInvite])
+  }, [workspaceId, createInvite])
 
   useEffect(() => {
     if (!expiresAt) return

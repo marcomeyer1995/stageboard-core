@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { WorkspaceRoster } from 'shared-types'
 import { decodeQrFrame } from '../lib/qrCode'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -12,6 +13,16 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * (`useEnsureWorkspaceCredentials.ts`, removed) with a real join screen: scan the QR code
  * shown on the band admin's device (InviteBandView.tsx), or type the same 8-digit code by
  * hand.
+ *
+ * 2026-09-01 redesign, at Marco's request: the code is no longer tied to any one person, so
+ * scanning/entering it doesn't join immediately anymore - it fetches the workspace's roster
+ * (`useWorkspaceStore.ts`'s `fetchRoster`) and shows a "wer bist du?" picker. Picking a name
+ * either joins right away (a brand-new roster entry with no CouchDB account yet gets
+ * auto-provisioned server-side) or, for a name whose account already exists
+ * (`RosterMember.requiresPassword`), asks for that person's password first - `joinAsMember`
+ * verifies it server-side and only then hands back real credentials. This is the same
+ * "resolve a code, get credentials" trust boundary the old one-step flow had, just split into
+ * two requests so the joining device - not the admin - is the one who says who it is.
  *
  * A brand-new device starts knowing about zero workspaces (`useWorkspaceStore.ts` no longer
  * seeds hardcoded defaults) - this is the very first screen for someone who just downloaded
@@ -34,25 +45,36 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  */
 export function JoinBandView() {
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
-  const joinWithInviteCode = useWorkspaceStore((state) => state.joinWithInviteCode)
+  const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
+  const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
   const joinWithPassword = useWorkspaceStore((state) => state.joinWithPassword)
   const promptText = useDialogStore((state) => state.promptText)
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
   const [manualCode, setManualCode] = useState('')
-  const [joining, setJoining] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const [showPasswordFallback, setShowPasswordFallback] = useState(false)
   const [fallbackWorkspaceId, setFallbackWorkspaceId] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
 
+  // Set once fetchRoster succeeds - roster !== null is what switches this screen from
+  // "enter a code" to "pick your name". `code` travels alongside it: joinAsMember has to
+  // re-present the same code (the server re-validates its TTL), not just the workspaceId
+  // this step already learned.
+  const [code, setCode] = useState<string | null>(null)
+  const [roster, setRoster] = useState<WorkspaceRoster | null>(null)
+  // Which roster row is expanded with a password prompt - only ever a `requiresPassword: true`
+  // entry; picking anyone else joins immediately with no extra step.
+  const [passwordProfileId, setPasswordProfileId] = useState<string | null>(null)
+  const [memberPasswordInput, setMemberPasswordInput] = useState('')
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const frameRequestRef = useRef<number | null>(null)
-  const joiningRef = useRef(false)
+  const busyRef = useRef(false)
 
   function stopCamera() {
     if (frameRequestRef.current !== null) cancelAnimationFrame(frameRequestRef.current)
@@ -63,15 +85,38 @@ export function JoinBandView() {
 
   useEffect(() => stopCamera, [])
 
-  async function handleJoin(code: string) {
-    if (joiningRef.current) return
-    joiningRef.current = true
-    setJoining(true)
-    setError(null)
-    const workspace = await joinWithInviteCode(code)
-    setJoining(false)
-    joiningRef.current = false
-    if (!workspace) setError('Code ungültig oder abgelaufen.')
+  async function handleFetchRoster(enteredCode: string) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    const result = await fetchRoster(enteredCode)
+    setBusy(false)
+    busyRef.current = false
+    if (result) {
+      setCode(enteredCode)
+      setRoster(result)
+    }
+  }
+
+  async function handleJoinAs(profileId: string, memberPassword?: string) {
+    if (busyRef.current || !code || !roster) return
+    busyRef.current = true
+    setBusy(true)
+    await joinAsMember(code, roster.workspaceId, roster.workspaceName, profileId, memberPassword)
+    setBusy(false)
+    busyRef.current = false
+    // No further action needed either way: on success, App.tsx notices the newly-added
+    // workspace and stops rendering this screen on its own; on failure, joinAsMember already
+    // alerted why, and the picker/password prompt just stays put for another attempt.
+  }
+
+  function handlePickMember(member: WorkspaceRoster['members'][number]) {
+    if (member.requiresPassword) {
+      setPasswordProfileId(member.profileId)
+      setMemberPasswordInput('')
+    } else {
+      void handleJoinAs(member.profileId)
+    }
   }
 
   function scanFrame() {
@@ -89,11 +134,11 @@ export function JoinBandView() {
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       const frame = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const code = decodeQrFrame(frame)
-      if (code) {
+      const scannedCode = decodeQrFrame(frame)
+      if (scannedCode) {
         stopCamera()
         setCameraStatus('idle')
-        void handleJoin(code)
+        void handleFetchRoster(scannedCode)
         return
       }
     }
@@ -128,6 +173,84 @@ export function JoinBandView() {
     } catch {
       setCameraStatus('denied')
     }
+  }
+
+  if (roster) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+        <div className="w-full max-w-sm space-y-4 py-4">
+          <div>
+            <h1 className="text-2xl font-bold">Wer bist du?</h1>
+            <p className="mt-1 text-sm text-ink-muted">Band: {roster.workspaceName}</p>
+          </div>
+
+          <ul className="space-y-2">
+            {roster.members.map((member) => (
+              <li key={member.profileId} className="rounded-sb border border-line bg-surface">
+                {passwordProfileId === member.profileId ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      if (memberPasswordInput.trim()) void handleJoinAs(member.profileId, memberPasswordInput.trim())
+                    }}
+                    className="flex flex-col gap-2 p-3"
+                  >
+                    <span className="font-semibold">{member.name}</span>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        autoFocus
+                        value={memberPasswordInput}
+                        onChange={(e) => setMemberPasswordInput(e.target.value)}
+                        placeholder="PIN/Passwort"
+                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !memberPasswordInput.trim()}
+                        className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                      >
+                        {busy ? '…' : 'Beitreten'}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordProfileId(null)}
+                      className="self-start text-xs text-ink-faint underline"
+                    >
+                      Abbrechen
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handlePickMember(member)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-control-hover disabled:opacity-50"
+                  >
+                    <span>
+                      {member.name} <span className="text-sm text-ink-muted">({member.role})</span>
+                    </span>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => {
+              setRoster(null)
+              setCode(null)
+              setPasswordProfileId(null)
+            }}
+            className="w-full text-center text-xs text-ink-faint underline"
+          >
+            Anderen Code verwenden
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -175,7 +298,7 @@ export function JoinBandView() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            if (manualCode.trim()) void handleJoin(manualCode.trim())
+            if (manualCode.trim()) void handleFetchRoster(manualCode.trim())
           }}
           className="flex gap-2"
         >
@@ -188,14 +311,12 @@ export function JoinBandView() {
           />
           <button
             type="submit"
-            disabled={joining || manualCode.trim().length === 0}
+            disabled={busy || manualCode.trim().length === 0}
             className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
           >
-            {joining ? '…' : 'Beitreten'}
+            {busy ? '…' : 'Weiter'}
           </button>
         </form>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-line" />

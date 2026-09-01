@@ -34,21 +34,16 @@ export const AdminProofSchema = z.object({
 export type AdminProof = z.infer<typeof AdminProofSchema>
 
 /**
- * Body an admin's device POSTs to mint a short-lived join code (see #21). Carries whichever
- * specific person's already-provisioned account (see `CreateMemberRequestSchema` below) the
- * code should hand over - every invite is for one specific person now, not "the" shared member
- * secret. `workspaceName` travels here (not stored anywhere server-side otherwise) purely so
- * the resolving device can show a real name instead of an opaque id.
+ * Body an admin's device POSTs to mint a short-lived, workspace-level join code (2026-09-01
+ * redesign, at Marco's request - see #21 for the original per-person version this replaces).
+ * The code is *not* tied to any one person: anyone holding it can look up the roster
+ * (`POST /invites/:code/roster`) and self-service-join as whichever entry is theirs
+ * (`POST /invites/:code/join/:profileId`). `workspaceName` travels here (not stored anywhere
+ * server-side otherwise) purely so the resolving device can show a real name instead of an
+ * opaque id.
  */
 export const WorkspaceInviteRequestSchema = AdminProofSchema.extend({
-  memberUsername: z.string().min(1),
-  memberPassword: z.string().min(1),
   workspaceName: z.string().min(1),
-  /** Whether the account being handed over holds the admin role - purely informational
-   * passthrough to the resolving device (see `ResolvedInviteSchema` below), so it knows to set
-   * its own `Workspace.isAdmin` locally. Real enforcement is CouchDB's roster validator, not
-   * this flag - a wrong value here can't grant unearned access, just mis-show/hide UI. */
-  isAdmin: z.boolean().optional(),
 })
 export type WorkspaceInviteRequest = z.infer<typeof WorkspaceInviteRequestSchema>
 
@@ -58,17 +53,45 @@ export const WorkspaceInviteSchema = z.object({
 })
 export type WorkspaceInvite = z.infer<typeof WorkspaceInviteSchema>
 
-/** What `POST /invites/:code/resolve` hands back to a joining device - everything it needs to
- * add and activate the workspace locally, syncing as whichever specific person's account this
- * invite was minted for. */
-export const ResolvedInviteSchema = z.object({
-  workspaceId: z.string().min(1),
+/** One roster entry as shown to a device that's mid-join (`POST /invites/:code/roster`) -
+ * deliberately just enough to render a picker, no credentials. `requiresPassword` is whether
+ * this person's CouchDB account already exists (`userExists` in couch.ts): if not, picking
+ * them auto-provisions a fresh account on the spot (nothing to check yet); if it does, the
+ * device must supply the correct password before `POST /invites/:code/join/:profileId` hands
+ * over real credentials. */
+export const RosterMemberSchema = z.object({
+  profileId: z.string().min(1),
   name: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1),
+  role: z.string().min(1),
+  requiresPassword: z.boolean(),
+})
+export type RosterMember = z.infer<typeof RosterMemberSchema>
+
+/** What `POST /invites/:code/roster` hands back - the workspace's roster, for a joining device
+ * to render a "who are you" picker before ever touching real credentials. */
+export const WorkspaceRosterSchema = z.object({
+  workspaceId: z.string().min(1),
+  workspaceName: z.string().min(1),
+  members: z.array(RosterMemberSchema),
+})
+export type WorkspaceRoster = z.infer<typeof WorkspaceRosterSchema>
+
+/** Body a joining device POSTs to `POST /invites/:code/join/:profileId` once it's picked who it
+ * is - `password` is required only when that roster entry's account already exists
+ * (`RosterMember.requiresPassword`); omitted for a brand-new entry being auto-provisioned. */
+export const JoinAsMemberRequestSchema = z.object({
+  password: z.string().optional(),
+})
+export type JoinAsMemberRequest = z.infer<typeof JoinAsMemberRequestSchema>
+
+/** What a successful join hands back - real credentials for the picked person's account,
+ * freshly provisioned or verified against what the device supplied. `isAdmin` reflects that
+ * account's actual CouchDB role (never true for a freshly auto-provisioned account - self-service
+ * join can never grant admin), so the resolving device knows to set `Workspace.isAdmin` locally. */
+export const JoinAsMemberResultSchema = WorkspaceCredentialsSchema.extend({
   isAdmin: z.boolean(),
 })
-export type ResolvedInvite = z.infer<typeof ResolvedInviteSchema>
+export type JoinAsMemberResult = z.infer<typeof JoinAsMemberResultSchema>
 
 /**
  * Body the admin's device sends `DELETE /workspaces/:id` with - irreversibly destroys the
@@ -108,3 +131,10 @@ export type SetMemberAdminRequest = z.infer<typeof SetMemberAdminRequestSchema>
  * `SetMemberAdminRequestSchema` if the target is the sole remaining admin. */
 export const RemoveMemberRequestSchema = AdminProofSchema
 export type RemoveMemberRequest = z.infer<typeof RemoveMemberRequestSchema>
+
+/** Body to reset one already-provisioned member's password to a fresh random one (2026-08-31,
+ * BandManagementView.tsx's "Einladen" - see workspaceProvisioning.ts's resetMemberPassword).
+ * No last-admin rejection needed here, unlike remove/demote - resetting a password can't
+ * reduce the admin count. */
+export const ResetMemberPasswordRequestSchema = AdminProofSchema
+export type ResetMemberPasswordRequest = z.infer<typeof ResetMemberPasswordRequestSchema>

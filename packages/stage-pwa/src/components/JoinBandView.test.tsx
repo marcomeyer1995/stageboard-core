@@ -4,23 +4,36 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { JoinBandView } from './JoinBandView'
 
+const roster = {
+  workspaceId: 'band-c',
+  workspaceName: 'Band C',
+  members: [
+    { profileId: 'p1', name: 'Marco', role: 'Gitarre', requiresPassword: false },
+    { profileId: 'p2', name: 'Chris', role: 'Bass', requiresPassword: true },
+  ],
+}
+
 beforeEach(() => {
   // Matches the real defaults (see useWorkspaceStore.ts) - a brand-new device knows nothing
   // yet, which is exactly the scenario this screen exists for.
   useWorkspaceStore.setState({ workspaces: [], activeWorkspaceId: '' })
 })
 
-describe('JoinBandView', () => {
-  it('submits the typed 8-digit code via joinWithInviteCode', async () => {
-    const joinWithInviteCode = vi.fn().mockResolvedValue({ id: 'band-a', name: 'Band A' })
-    useWorkspaceStore.setState({ joinWithInviteCode })
+describe('JoinBandView - code entry step', () => {
+  it('submits the typed 8-digit code via fetchRoster and shows the roster picker on success', async () => {
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    useWorkspaceStore.setState({ fetchRoster })
 
     render(<JoinBandView />)
 
     fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value: '12345678' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Beitreten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
 
-    await waitFor(() => expect(joinWithInviteCode).toHaveBeenCalledWith('12345678'))
+    await waitFor(() => expect(fetchRoster).toHaveBeenCalledWith('12345678'))
+    expect(await screen.findByText('Wer bist du?')).toBeInTheDocument()
+    expect(screen.getByText(/Band C/)).toBeInTheDocument()
+    expect(screen.getByText('Marco', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('Chris', { exact: false })).toBeInTheDocument()
   })
 
   it('strips non-digit characters and caps the code at 8 characters', () => {
@@ -30,15 +43,16 @@ describe('JoinBandView', () => {
     expect(input.value).toBe('12345678')
   })
 
-  it('shows an error when the code is invalid or expired', async () => {
-    const joinWithInviteCode = vi.fn().mockResolvedValue(null)
-    useWorkspaceStore.setState({ joinWithInviteCode })
+  it('stays on the code-entry step when fetchRoster fails (already alerted by the store)', async () => {
+    const fetchRoster = vi.fn().mockResolvedValue(null)
+    useWorkspaceStore.setState({ fetchRoster })
 
     render(<JoinBandView />)
     fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value: '99999999' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Beitreten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
 
-    expect(await screen.findByText('Code ungültig oder abgelaufen.')).toBeInTheDocument()
+    await waitFor(() => expect(fetchRoster).toHaveBeenCalled())
+    expect(screen.queryByText('Wer bist du?')).not.toBeInTheDocument()
   })
 
   it('the "Passwort direkt eingeben" fallback calls joinWithPassword with the typed id, username and password', () => {
@@ -103,5 +117,60 @@ describe('JoinBandView', () => {
 
     Object.defineProperty(navigator, 'mediaDevices', { value: originalMediaDevices, configurable: true })
     vi.unstubAllGlobals()
+  })
+})
+
+describe('JoinBandView - "wer bist du?" roster picker', () => {
+  async function renderAtPicker() {
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    const joinAsMember = vi.fn().mockResolvedValue({ id: 'band-c', name: 'Band C' })
+    useWorkspaceStore.setState({ fetchRoster, joinAsMember })
+
+    render(<JoinBandView />)
+    fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+    await screen.findByText('Wer bist du?')
+
+    return { joinAsMember }
+  }
+
+  it('joins immediately (no password prompt) when the picked member has no account yet', async () => {
+    const { joinAsMember } = await renderAtPicker()
+
+    fireEvent.click(screen.getByText('Marco', { exact: false }))
+
+    await waitFor(() => expect(joinAsMember).toHaveBeenCalledWith('12345678', 'band-c', 'Band C', 'p1', undefined))
+  })
+
+  it('shows an inline password prompt for a member whose account already exists, and joins once submitted', async () => {
+    const { joinAsMember } = await renderAtPicker()
+
+    fireEvent.click(screen.getByText('Chris', { exact: false }))
+    expect(screen.getByPlaceholderText('PIN/Passwort')).toBeInTheDocument()
+    expect(joinAsMember).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByPlaceholderText('PIN/Passwort'), { target: { value: 'their-pin' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Beitreten' }))
+
+    await waitFor(() => expect(joinAsMember).toHaveBeenCalledWith('12345678', 'band-c', 'Band C', 'p2', 'their-pin'))
+  })
+
+  it('"Abbrechen" on the password prompt returns to the plain member list without joining', async () => {
+    const { joinAsMember } = await renderAtPicker()
+
+    fireEvent.click(screen.getByText('Chris', { exact: false }))
+    fireEvent.click(screen.getByText('Abbrechen'))
+
+    expect(screen.queryByPlaceholderText('PIN/Passwort')).not.toBeInTheDocument()
+    expect(joinAsMember).not.toHaveBeenCalled()
+  })
+
+  it('"Anderen Code verwenden" goes back to the code-entry step', async () => {
+    await renderAtPicker()
+
+    fireEvent.click(screen.getByText('Anderen Code verwenden'))
+
+    expect(screen.queryByText('Wer bist du?')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument()
   })
 })

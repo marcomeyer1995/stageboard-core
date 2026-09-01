@@ -230,8 +230,8 @@ describe('useProfilesStore', () => {
     })
   })
 
-  describe('connectToServer', () => {
-    it('provisions the founder via connectWorkspace, then every other existing profile via createMember, skipping the founder itself', async () => {
+  describe('connectToServer (2026-09-01 redesign: only provisions the founder now)', () => {
+    it('provisions just the founder via connectWorkspace - every other existing profile stays unprovisioned for lazy self-service join', async () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'founder-id', isAdmin: true }],
       })
@@ -243,42 +243,28 @@ describe('useProfilesStore', () => {
         ],
       })
       const connectWorkspace = vi.fn().mockResolvedValue(true)
-      const chrisCreds = { username: 'stageboard-band-a-p2', password: 'pw2' }
-      const alexCreds = { username: 'stageboard-band-a-p3', password: 'pw3' }
-      const createMember = vi.fn().mockImplementation((_wsId, { profileId }) =>
-        Promise.resolve(profileId === 'p2' ? chrisCreds : alexCreds),
-      )
+      const createMember = vi.fn()
       useWorkspaceStore.setState({ connectWorkspace, createMember })
 
-      const results = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
+      const result = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
 
       expect(connectWorkspace).toHaveBeenCalledWith('band-a', 'https://stage-server:3001')
-      expect(createMember).toHaveBeenCalledWith('band-a', { profileId: 'p2', isAdmin: false })
-      expect(createMember).toHaveBeenCalledWith('band-a', { profileId: 'p3', isAdmin: true })
-      expect(createMember).not.toHaveBeenCalledWith('band-a', expect.objectContaining({ profileId: 'founder-id' }))
-      expect(results).toEqual([
-        { profile: { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] }, credentials: chrisCreds },
-        { profile: { id: 'p3', name: 'Alex', role: 'Schlagzeug', stageRoles: ['admin'] }, credentials: alexCreds },
-      ])
+      expect(createMember).not.toHaveBeenCalled()
+      expect(result).toBe(true)
     })
 
-    it('returns null without provisioning anyone when connectWorkspace itself fails', async () => {
+    it('returns false when connectWorkspace itself fails', async () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'founder-id', isAdmin: true }],
       })
       useProfilesStore.setState({
-        profiles: [
-          { id: 'founder-id', name: 'Marco', role: 'Gitarre', stageRoles: ['admin'] },
-          { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] },
-        ],
+        profiles: [{ id: 'founder-id', name: 'Marco', role: 'Gitarre', stageRoles: ['admin'] }],
       })
-      const createMember = vi.fn()
-      useWorkspaceStore.setState({ connectWorkspace: vi.fn().mockResolvedValue(false), createMember })
+      useWorkspaceStore.setState({ connectWorkspace: vi.fn().mockResolvedValue(false) })
 
-      const results = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
+      const result = await useProfilesStore.getState().connectToServer('https://stage-server:3001')
 
-      expect(results).toBeNull()
-      expect(createMember).not.toHaveBeenCalled()
+      expect(result).toBe(false)
     })
   })
 })

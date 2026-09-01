@@ -2,22 +2,17 @@ import { randomInt } from 'node:crypto'
 
 interface Invite {
   workspaceId: string
-  name: string
-  username: string
-  password: string
+  workspaceName: string
   expiresAt: number
-  /** Per-person-accounts follow-up: whether the account this invite hands over has the admin
-   * role, so the resolving device knows to set its own `Workspace.isAdmin` locally - purely
-   * informational passthrough, real enforcement is CouchDB's roster validator, not this flag. */
-  isAdmin: boolean
 }
 
 /**
- * In-memory, short-lived join codes (see #21) - same "one process, no persistence" shape as
+ * In-memory, short-lived join codes (see #21, redesigned 2026-09-01 - see workspace.ts's
+ * `WorkspaceInviteRequestSchema` doc comment) - same "one process, no persistence" shape as
  * plugin-health's `healthStore.ts`: an invite that dies with a Stage-Server restart is fine,
  * nobody expects a code minted before a restart to still work. Not single-use - reusable by
- * multiple joiners until it expires, matching a whole band scanning one code shown on the
- * admin's tablet during a rehearsal, not each person needing their own.
+ * every joiner until it expires, matching one code shown on the admin's tablet that the whole
+ * band scans/types in, one after another, each self-service-picking who they are.
  */
 const invites = new Map<string, Invite>()
 
@@ -38,16 +33,10 @@ function generateCode(): string {
   return code
 }
 
-export function createInvite(
-  workspaceId: string,
-  name: string,
-  username: string,
-  password: string,
-  isAdmin = false,
-): WorkspaceInviteResult {
+export function createInvite(workspaceId: string, workspaceName: string): WorkspaceInviteResult {
   const code = generateCode()
   const expiresAt = Date.now() + INVITE_TTL_MS
-  invites.set(code, { workspaceId, name, username, password, expiresAt, isAdmin })
+  invites.set(code, { workspaceId, workspaceName, expiresAt })
   return { code, expiresAt }
 }
 
@@ -58,10 +47,7 @@ export interface WorkspaceInviteResult {
 
 export interface ResolvedInviteResult {
   workspaceId: string
-  name: string
-  username: string
-  password: string
-  isAdmin: boolean
+  workspaceName: string
 }
 
 /** Null for an unknown or expired code - lazily evicts an expired entry it happens to hit,
@@ -73,8 +59,8 @@ export function resolveInvite(code: string): ResolvedInviteResult | null {
     invites.delete(code)
     return null
   }
-  const { workspaceId, name, username, password, isAdmin } = invite
-  return { workspaceId, name, username, password, isAdmin }
+  const { workspaceId, workspaceName } = invite
+  return { workspaceId, workspaceName }
 }
 
 /** Test-only: this module's state is shared across the whole process by design - tests need a

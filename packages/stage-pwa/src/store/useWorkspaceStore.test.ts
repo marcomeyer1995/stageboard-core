@@ -387,7 +387,55 @@ describe('removeMember', () => {
   })
 })
 
-describe('createInvite', () => {
+describe('resetMemberPassword', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+    })
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('posts this workspace\'s own admin credential and returns the freshly reset credentials', async () => {
+    const fetchMock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'stageboard-band-a-p2', password: 'new-random-pw' }),
+    })
+
+    const credentials = await useWorkspaceStore.getState().resetMemberPassword('band-a', 'p2')
+
+    expect(credentials).toEqual({ username: 'stageboard-band-a-p2', password: 'new-random-pw' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-a/members/p2/reset-password')
+    expect(JSON.parse(init.body)).toEqual({ adminUsername: 'stageboard-band-a-p1', adminPassword: 'admin-pw' })
+  })
+
+  it('alerts with a distinct "no longer admin" message on a 403, and returns null', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().resetMemberPassword('band-a', 'p2')).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('kein Admin mehr'))
+  })
+
+  it('returns null without calling the Stage-Server for a non-admin workspace', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+    })
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({}) })
+
+    expect(await useWorkspaceStore.getState().resetMemberPassword('band-a', 'p2')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('createInvite (2026-09-01 redesign: workspace-level, not per-person)', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
@@ -397,7 +445,7 @@ describe('createInvite', () => {
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
   })
 
-  it('posts this workspace\'s own credential plus the given member\'s credential, and returns the minted code', async () => {
+  it('posts this workspace\'s own admin credential and name, and returns the minted code', async () => {
     useWorkspaceStore.setState({
       workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     })
@@ -407,9 +455,7 @@ describe('createInvite', () => {
       json: async () => ({ code: '12345678', expiresAt: 1234567890 }),
     })
 
-    const invite = await useWorkspaceStore
-      .getState()
-      .createInvite('band-a', { username: 'stageboard-band-a-p2', password: 'member-pw', isAdmin: false })
+    const invite = await useWorkspaceStore.getState().createInvite('band-a')
 
     expect(invite).toEqual({ code: '12345678', expiresAt: 1234567890 })
     const [url, init] = fetchMock.mock.calls[0]
@@ -417,10 +463,7 @@ describe('createInvite', () => {
     expect(JSON.parse(init.body)).toEqual({
       adminUsername: 'stageboard-band-a-p1',
       adminPassword: 'admin-pw',
-      memberUsername: 'stageboard-band-a-p2',
-      memberPassword: 'member-pw',
       workspaceName: 'Band A',
-      isAdmin: false,
     })
   })
 
@@ -430,14 +473,12 @@ describe('createInvite', () => {
     })
     const fetchMock = stubFetch({ ok: true, status: 201, json: async () => ({}) })
 
-    expect(
-      await useWorkspaceStore.getState().createInvite('band-a', { username: 'x', password: 'y' }),
-    ).toBeNull()
+    expect(await useWorkspaceStore.getState().createInvite('band-a')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 
-describe('joinWithInviteCode', () => {
+describe('fetchRoster', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
@@ -447,20 +488,83 @@ describe('joinWithInviteCode', () => {
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
   })
 
-  it('resolves the code, adds the workspace with the resolved account, and activates it', async () => {
+  it('resolves the code to the workspace roster, without touching local state', async () => {
     const fetchMock = stubFetch({
       ok: true,
       status: 200,
       json: async () => ({
         workspaceId: 'band-c',
-        name: 'Band C',
-        username: 'stageboard-band-c-p2',
-        password: 'member-pw',
-        isAdmin: false,
+        workspaceName: 'Band C',
+        members: [{ profileId: 'p1', name: 'Marco', role: 'Gitarre', requiresPassword: true }],
       }),
     })
 
-    const workspace = await useWorkspaceStore.getState().joinWithInviteCode('11112222')
+    const roster = await useWorkspaceStore.getState().fetchRoster('11112222')
+
+    expect(roster).toEqual({
+      workspaceId: 'band-c',
+      workspaceName: 'Band C',
+      members: [{ profileId: 'p1', name: 'Marco', role: 'Gitarre', requiresPassword: true }],
+    })
+    expect(useWorkspaceStore.getState().workspaces).not.toContainEqual(expect.objectContaining({ id: 'band-c' }))
+    const [url] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/invites/11112222/roster')
+  })
+
+  it('alerts and returns null for an invalid/expired code', async () => {
+    stubFetch({ ok: false, status: 404 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const roster = await useWorkspaceStore.getState().fetchRoster('00000000')
+
+    expect(roster).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
+  })
+
+  it('alerts with a distinct network-failure message when fetch itself throws, not "Code ungültig"', async () => {
+    stubFetch(null) // simulates fetch() rejecting, e.g. TypeError: Failed to fetch
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const roster = await useWorkspaceStore.getState().fetchRoster('11112222')
+
+    expect(roster).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
+  })
+
+  it('alerts with a distinct server-error message for a non-404 failure response', async () => {
+    stubFetch({ ok: false, status: 500 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const roster = await useWorkspaceStore.getState().fetchRoster('11112222')
+
+    expect(roster).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
+  })
+})
+
+describe('joinAsMember', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('posts the code, profileId, and password; adds the workspace with the resolved credentials; and activates it', async () => {
+    const fetchMock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'stageboard-band-c-p2', password: 'member-pw', isAdmin: false }),
+    })
+
+    const workspace = await useWorkspaceStore.getState().joinAsMember('11112222', 'band-c', 'Band C', 'p2', 'their-pin')
 
     expect(workspace).toEqual({
       id: 'band-c',
@@ -472,26 +576,32 @@ describe('joinWithInviteCode', () => {
     const state = useWorkspaceStore.getState()
     expect(state.workspaces).toContainEqual(workspace)
     expect(state.activeWorkspaceId).toBe('band-c')
-    const [url] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://stage-server:3001/invites/11112222/resolve')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/invites/11112222/join/p2')
+    expect(JSON.parse(init.body)).toEqual({ password: 'their-pin' })
   })
 
-  it('resolves with isAdmin: true when the invite was for an admin account', async () => {
+  it('resolves with isAdmin: true when the picked account holds the admin role', async () => {
     stubFetch({
       ok: true,
       status: 200,
-      json: async () => ({
-        workspaceId: 'band-c',
-        name: 'Band C',
-        username: 'stageboard-band-c-p1',
-        password: 'admin-pw',
-        isAdmin: true,
-      }),
+      json: async () => ({ username: 'stageboard-band-c-p1', password: 'admin-pw', isAdmin: true }),
     })
 
-    const workspace = await useWorkspaceStore.getState().joinWithInviteCode('33334444')
+    const workspace = await useWorkspaceStore.getState().joinAsMember('33334444', 'band-c', 'Band C', 'p1', 'admin-pw')
 
     expect(workspace?.isAdmin).toBe(true)
+  })
+
+  it('alerts with a distinct "wrong password" message on a 403, and returns null', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const workspace = await useWorkspaceStore.getState().joinAsMember('11112222', 'band-c', 'Band C', 'p1', 'wrong')
+
+    expect(workspace).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falsches Passwort'))
   })
 
   it('alerts and returns null for an invalid/expired code', async () => {
@@ -499,9 +609,33 @@ describe('joinWithInviteCode', () => {
     const alertMock = vi.fn().mockResolvedValue(undefined)
     useDialogStore.setState({ alert: alertMock })
 
-    const workspace = await useWorkspaceStore.getState().joinWithInviteCode('00000000')
+    const workspace = await useWorkspaceStore.getState().joinAsMember('00000000', 'band-c', 'Band C', 'p1')
 
     expect(workspace).toBeNull()
-    expect(alertMock).toHaveBeenCalled()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
+  })
+
+  it('alerts with a distinct network-failure message when fetch itself throws, not "Code ungültig"', async () => {
+    stubFetch(null) // simulates fetch() rejecting, e.g. TypeError: Failed to fetch
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const workspace = await useWorkspaceStore.getState().joinAsMember('11112222', 'band-c', 'Band C', 'p1')
+
+    expect(workspace).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
+  })
+
+  it('alerts with a distinct server-error message for a non-404 failure response', async () => {
+    stubFetch({ ok: false, status: 500 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const workspace = await useWorkspaceStore.getState().joinAsMember('11112222', 'band-c', 'Band C', 'p1')
+
+    expect(workspace).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Code ungültig'))
   })
 })

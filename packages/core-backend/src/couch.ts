@@ -147,6 +147,26 @@ export async function setUserRoles(config: CouchConfig, username: string, roles:
   }
 }
 
+/** Overwrites an existing CouchDB user's password (admin "reset password if forgotten" - see
+ * BandManagementView.tsx's "Einladen"). Same fetch-then-PUT shape as `setUserRoles` (CouchDB
+ * needs the doc's current `_rev`), keeping every other field (roles included) untouched. This
+ * is the one place an existing account's password *does* get rotated - unlike `createUser`,
+ * which deliberately never does. The caller accepts the consequence: any device already
+ * synced with the old password stops authenticating until it's re-invited with the new one. */
+export async function resetUserPassword(config: CouchConfig, username: string, newPassword: string): Promise<void> {
+  const getResponse = await request(config, userDocUrl(config, username))
+  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
+  const doc = (await getResponse.json()) as CouchDoc & { name: string; password?: string; type: string }
+
+  const putResponse = await request(config, userDocUrl(config, username), {
+    method: 'PUT',
+    body: JSON.stringify({ ...doc, password: newPassword }),
+  })
+  if (!putResponse.ok) {
+    throw new Error(`Failed to reset password for user ${username}: HTTP ${putResponse.status}`)
+  }
+}
+
 export interface CouchSecurityDoc {
   /** Database-level admins (see #56) - can administer this one database (e.g. change its own
    * `_security`), still scoped to just this database, not server admins. NOT automatically
