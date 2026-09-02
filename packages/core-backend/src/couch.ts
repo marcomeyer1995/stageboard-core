@@ -138,42 +138,48 @@ export async function createUser(config: CouchConfig, username: string, password
   }
 }
 
-/** Overwrites an existing CouchDB user's roles (grant/revoke admin - see per-person-accounts
- * follow-up). Fetch-then-PUT because CouchDB requires the doc's current `_rev` to update it.
- * Throws if the user doesn't exist - callers already know it does (they just authenticated as
- * it, or looked it up), so a 404 here means something else is wrong, not a case to swallow. */
-export async function setUserRoles(config: CouchConfig, username: string, roles: string[]): Promise<void> {
-  const getResponse = await request(config, userDocUrl(config, username))
-  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
-  const doc = (await getResponse.json()) as CouchDoc & { name: string; password?: string; type: string }
+type UserDoc = CouchDoc & { name: string; password?: string; type: string }
 
-  const putResponse = await request(config, userDocUrl(config, username), {
-    method: 'PUT',
-    body: JSON.stringify({ ...doc, roles }),
-  })
-  if (!putResponse.ok) {
-    throw new Error(`Failed to update roles for user ${username}: HTTP ${putResponse.status}`)
+/** Shared fetch-then-PUT for updating one field on an existing user doc (CouchDB requires the
+ * doc's current `_rev` to update it) - retries on HTTP 409 by re-fetching a fresh `_rev` and
+ * trying again, up to 5 times. Confirmed live (#21 tenth follow-up): two devices reactivating
+ * the *same* shared/admin account within milliseconds of each other (e.g. both racing the
+ * universal recovery code right after joining) both read the same `_rev`, so the second write
+ * is guaranteed to conflict - there's no real merge to reason about for either roles or
+ * password here, a fresh re-read always resolves it. Throws if the user doesn't exist -
+ * callers already know it does (they just authenticated as it, or looked it up), so a 404 here
+ * means something else is wrong, not a case to swallow. */
+async function updateUserDoc(config: CouchConfig, username: string, update: (doc: UserDoc) => UserDoc): Promise<void> {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const getResponse = await request(config, userDocUrl(config, username))
+    if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
+    const doc = (await getResponse.json()) as UserDoc
+
+    const putResponse = await request(config, userDocUrl(config, username), {
+      method: 'PUT',
+      body: JSON.stringify(update(doc)),
+    })
+    if (putResponse.ok) return
+    if (putResponse.status !== 409 || attempt === 5) {
+      throw new Error(`Failed to update user ${username}: HTTP ${putResponse.status}`)
+    }
   }
 }
 
-/** Overwrites an existing CouchDB user's password (admin "reset password if forgotten" - see
- * BandManagementView.tsx's "Einladen"). Same fetch-then-PUT shape as `setUserRoles` (CouchDB
- * needs the doc's current `_rev`), keeping every other field (roles included) untouched. This
- * is the one place an existing account's password *does* get rotated - unlike `createUser`,
- * which deliberately never does. The caller accepts the consequence: any device already
- * synced with the old password stops authenticating until it's re-invited with the new one. */
-export async function resetUserPassword(config: CouchConfig, username: string, newPassword: string): Promise<void> {
-  const getResponse = await request(config, userDocUrl(config, username))
-  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
-  const doc = (await getResponse.json()) as CouchDoc & { name: string; password?: string; type: string }
+/** Overwrites an existing CouchDB user's roles (grant/revoke admin - see per-person-accounts
+ * follow-up). */
+export async function setUserRoles(config: CouchConfig, username: string, roles: string[]): Promise<void> {
+  await updateUserDoc(config, username, (doc) => ({ ...doc, roles }))
+}
 
-  const putResponse = await request(config, userDocUrl(config, username), {
-    method: 'PUT',
-    body: JSON.stringify({ ...doc, password: newPassword }),
-  })
-  if (!putResponse.ok) {
-    throw new Error(`Failed to reset password for user ${username}: HTTP ${putResponse.status}`)
-  }
+/** Overwrites an existing CouchDB user's password (admin "reset password if forgotten" - see
+ * BandManagementView.tsx's "Einladen" - and every silent reissue on join/activate, see
+ * resolveOutcome in index.ts). This is the one place an existing account's password *does* get
+ * rotated - unlike `createUser`, which deliberately never does. The caller accepts the
+ * consequence: any device already synced with the old password stops authenticating until it's
+ * re-invited/re-activated with the new one. */
+export async function resetUserPassword(config: CouchConfig, username: string, newPassword: string): Promise<void> {
+  await updateUserDoc(config, username, (doc) => ({ ...doc, password: newPassword }))
 }
 
 export interface CouchSecurityDoc {
