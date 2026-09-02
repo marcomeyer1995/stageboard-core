@@ -15,12 +15,14 @@ const STATUS_DOT: Record<CapabilityStatus, string> = {
   missing: 'bg-control-strong-hover',
 }
 
-/** Above this spread between a burst's fastest and slowest round trip, the offset is still
- * the best available estimate but noticeably less trustworthy - flagged amber rather than
- * treated as an error (see useClockSyncStore's jitterMs doc comment). Picked as "clearly
- * more than normal LAN noise", not derived from a spec - docs/00 §4 targets sub-5ms
- * *execution*, not a hard bound on handshake jitter itself. */
-const JITTER_WARN_THRESHOLD_MS = 20
+/** Above this spread between the last few synced offsets (useClockSyncStore's `driftMs`),
+ * flag amber - the offset is genuinely moving, not just one noisy burst. Picked from real
+ * device data (#31 follow-up, live on home WiFi): a stable sync's offset moved 1-8ms between
+ * consecutive bursts even while that burst's own RTT spread swung into the hundreds of ms, so
+ * 15ms is clearly above normal per-sync noise without being so tight it flags on nothing. Not
+ * derived from a spec - docs/00 §4 targets sub-5ms *execution*, not a hard bound on sync
+ * drift itself (the ahead-of-time dispatch buffer is what actually protects execution). */
+const DRIFT_WARN_THRESHOLD_MS = 15
 
 /**
  * The "Cockpit-Dashboard" traffic-light overview from docs/08 Use Case 3.1 - every
@@ -33,7 +35,7 @@ const JITTER_WARN_THRESHOLD_MS = 20
 export function SystemHealthWidget() {
   const capabilities = useCapabilities()
   const entries = [...capabilities.entries()]
-  const { offsetMs, jitterMs, lastSyncedAt } = useClockSyncStore()
+  const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const now = useNow()
 
   return (
@@ -65,10 +67,10 @@ export function SystemHealthWidget() {
           <span className="flex items-center gap-2">
             <span
               className={`h-2 w-2 rounded-full ${
-                jitterMs !== null && jitterMs > JITTER_WARN_THRESHOLD_MS ? 'bg-amber-500' : 'bg-green-500'
+                driftMs !== null && driftMs > DRIFT_WARN_THRESHOLD_MS ? 'bg-amber-500' : 'bg-green-500'
               }`}
             />
-            {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Jitter ${jitterMs === null ? '?' : Math.round(jitterMs)} ms · vor ${Math.max(0, Math.round((now - lastSyncedAt) / 1000))}s`}
+            {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms · vor ${Math.max(0, Math.round((now - lastSyncedAt) / 1000))}s`}
           </span>
         )}
       </div>
