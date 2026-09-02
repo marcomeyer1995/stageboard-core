@@ -372,7 +372,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   return (
     <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
-        <BackToWorkingBandLink />
+        <BackToWorkingBandLink onNavigate={onClose} />
 
         <div>
           <h1 className="text-2xl font-bold">Band beitreten</h1>

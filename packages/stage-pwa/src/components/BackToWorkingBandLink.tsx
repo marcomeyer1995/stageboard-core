@@ -10,8 +10,18 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * switcher's own menu behind the gate). Lists every other workspace this device already has
  * a stored credential for; picking one just calls `setActiveWorkspace`, same as
  * BandManagementView.tsx's band list.
+ *
+ * `onNavigate` (#68 follow-up, found live): for the three *forced* App.tsx gates, switching
+ * `activeWorkspaceId` is enough by itself - the gate condition itself is derived from the
+ * active workspace, so picking a working one makes the gate re-evaluate false on its own,
+ * with nothing left rendering it. That assumption breaks for `JoinBandView.tsx`'s new
+ * *voluntary* overlay usage (opened from `BandManagementView.tsx`, on top of an already-normal
+ * app): its visibility is separate local state in the caller, not derived from
+ * `activeWorkspaceId` at all, so `setActiveWorkspace` alone left the overlay sitting there
+ * unchanged - clicking "Zurück zu X" visibly did nothing. `onNavigate` (optional, so the three
+ * unaffected forced-gate call sites need no change) lets a caller close its own overlay too.
  */
-export function BackToWorkingBandLink() {
+export function BackToWorkingBandLink({ onNavigate }: { onNavigate?: () => void } = {}) {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   // Select the raw (stable-reference) array, not a filtered derivation - a selector that
@@ -32,7 +42,10 @@ export function BackToWorkingBandLink() {
         <button
           key={w.id}
           type="button"
-          onClick={() => setActiveWorkspace(w.id)}
+          onClick={() => {
+            setActiveWorkspace(w.id)
+            onNavigate?.()
+          }}
           className="text-xs text-ink-faint underline"
         >
           ← Zurück zu {w.name}

@@ -403,4 +403,24 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
 
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('bug found live: "← Zurück zu X" (BackToWorkingBandLink) also calls onClose, not just setActiveWorkspace - otherwise a device with a second existing band left this overlay sitting open with nothing visibly happening', async () => {
+    const onClose = vi.fn()
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A', couchPassword: 'pw-a' },
+        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
+      ],
+      activeWorkspaceId: 'band-a',
+      listWorkspaces: vi.fn().mockResolvedValue([]),
+    })
+
+    render(<JoinBandView onClose={onClose} />)
+    await screen.findByText('Band beitreten')
+
+    fireEvent.click(screen.getByText('← Zurück zu Band B'))
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b')
+    expect(onClose).toHaveBeenCalled()
+  })
 })
