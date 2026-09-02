@@ -10,6 +10,15 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * switcher's own menu behind the gate). Lists every other workspace this device already has
  * a stored credential for; picking one just calls `setActiveWorkspace`, same as
  * BandManagementView.tsx's band list.
+ *
+ * Deliberately NOT reused for JoinBandView.tsx's #68 voluntary-open case (opened from
+ * BandManagementView.tsx on top of an already-working band) - found live: that band is the
+ * *active* one, so this component's own "everything except active" filter excludes exactly
+ * the one workspace someone opening this dialog actually wants "back" to mean, and picking
+ * one of the *other* listed bands instead switches away from it - the opposite of "back."
+ * JoinBandView.tsx's own "Abbrechen" (only rendered in that same voluntary case) is the
+ * correct escape hatch there instead: it never touches `activeWorkspaceId` at all, so simply
+ * not calling it already leaves the untouched active workspace exactly where it was.
  */
 export function BackToWorkingBandLink() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)

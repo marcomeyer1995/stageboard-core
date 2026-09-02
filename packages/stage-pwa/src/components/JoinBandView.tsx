@@ -50,8 +50,25 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * update hasn't committed to the DOM yet), silently no-opping the whole attachment. Real bug,
  * found live on Android (black preview, no error) - a fast/cached permission grant on desktop
  * apparently let React batch past it, why it looked fine there.
+ *
+ * `onClose` (#68): also reused as a voluntary "join an additional band" flow from
+ * `BandManagementView.tsx`, for a device that already has at least one working band - unlike
+ * the forced App.tsx onboarding gate (no `onClose` there, nothing to close back to), this case
+ * needs an explicit way out if the person changes their mind. Deliberately its own "Abbrechen"
+ * button, not `BackToWorkingBandLink` (suppressed here, only shown for the forced gate) - found
+ * live: that component lists every workspace *except* the active one, which for this voluntary
+ * case is exactly backwards (the active workspace is the perfectly-working one someone opening
+ * this dialog wants back, and clicking one of the *other* listed bands switches away from it
+ * instead). "Abbrechen" never touches `activeWorkspaceId` at all, so simply closing already
+ * leaves the untouched active workspace exactly where it was. Only rendered on step 1 (steps
+ * 2/3 already have their own "back" links to get there first) and auto-fired after a
+ * successful join, so the caller's overlay dismisses itself the moment there's something worth
+ * showing instead.
+ * `fixed inset-0` on the root (all three steps) rather than plain `h-dvh`: harmless when used
+ * as App.tsx's onboarding gate (nothing else renders alongside it there), but required for this
+ * new usage, where it has to sit on top of the already-rendered BandManagementView.tsx.
  */
-export function JoinBandView() {
+export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
@@ -157,6 +174,7 @@ export function JoinBandView() {
     // an admin join looks fine only because typing the password bought sync more time). Same
     // fix as BandManagementView.tsx's performActivate for switching profiles later.
     setActiveProfile(roster.workspaceId, profileId)
+    onClose?.()
   }
 
   function handlePickMember(member: WorkspaceRoster['members'][number]) {
@@ -241,7 +259,7 @@ export function JoinBandView() {
   // Step 3: pick who you are.
   if (roster) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">Wer bist du?</h1>
@@ -316,7 +334,7 @@ export function JoinBandView() {
   // Step 2: code entry, scoped to the band picked in step 1.
   if (selectedWorkspace) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
@@ -357,9 +375,9 @@ export function JoinBandView() {
 
   // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
-    <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
-        <BackToWorkingBandLink />
+        {!onClose && <BackToWorkingBandLink />}
 
         <div>
           <h1 className="text-2xl font-bold">Band beitreten</h1>
@@ -367,6 +385,19 @@ export function JoinBandView() {
             Scanne den QR-Code vom Gerät des Band-Admins, oder wähle eine Band und gib ihren Code ein.
           </p>
         </div>
+
+        {/* Only when opened voluntarily from BandManagementView.tsx (#68) - the forced
+            App.tsx onboarding gate passes no onClose, since there's nothing to close back to
+            with zero known bands. */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover"
+          >
+            Abbrechen
+          </button>
+        )}
 
         {/* Fixed height, not aspect-square: aspect-square sized to full device width made
             this taller than the whole viewport in landscape on a phone/tablet, pushing

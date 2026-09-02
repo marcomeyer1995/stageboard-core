@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type Profile, type StageRole } from 'shared-types'
 import { InviteBandView } from './InviteBandView'
+import { JoinBandView } from './JoinBandView'
 import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useNow } from '../lib/useNow'
@@ -194,6 +195,12 @@ export function BandManagementView() {
   }, [presence, now])
 
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<string | null>(null)
+  // #68: a device that already has at least one band had no way to join a second, different
+  // one - App.tsx's JoinBandView gate only ever showed for a device with zero known bands.
+  // One "+ Band" entry point (matching "+ Neue Band"'s old spot) opens a small choice first
+  // (join existing vs. found new), rather than two separate always-visible buttons.
+  const [showAddBandChoice, setShowAddBandChoice] = useState(false)
+  const [showJoinAnotherBand, setShowJoinAnotherBand] = useState(false)
   // 2026-09-02 follow-up: which member's row currently shows the inline "become this profile"
   // password form (mirrors JoinBandView.tsx's step-3 roster picker, moved here since band/
   // profile switching no longer lives in the burger menu at all).
@@ -353,13 +360,10 @@ export function BandManagementView() {
         ))}
         <button
           type="button"
-          onClick={async () => {
-            const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
-            if (name?.trim()) void addWorkspace(name.trim())
-          }}
+          onClick={() => setShowAddBandChoice(true)}
           className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover"
         >
-          + Neue Band
+          + Band
         </button>
       </section>
 
@@ -585,6 +589,42 @@ export function BandManagementView() {
 
       {inviteWorkspaceId && (
         <InviteBandView workspaceId={inviteWorkspaceId} onClose={() => setInviteWorkspaceId(null)} />
+      )}
+      {showJoinAnotherBand && <JoinBandView onClose={() => setShowJoinAnotherBand(false)} />}
+      {showAddBandChoice && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm space-y-3 rounded-sb border border-line bg-surface p-6 text-ink">
+            <h2 className="text-xl font-bold">Band hinzufügen</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddBandChoice(false)
+                setShowJoinAnotherBand(true)
+              }}
+              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
+            >
+              Bestehender Band beitreten
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setShowAddBandChoice(false)
+                const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
+                if (name?.trim()) void addWorkspace(name.trim())
+              }}
+              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
+            >
+              Neue Band gründen
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddBandChoice(false)}
+              className="w-full text-center text-xs text-ink-faint underline"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
