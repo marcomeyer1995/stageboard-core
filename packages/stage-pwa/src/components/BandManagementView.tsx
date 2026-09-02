@@ -88,14 +88,17 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * `connectToServer`) - every other already-typed-in roster member stays unprovisioned, exactly
  * like a brand-new one, ready for the same lazy self-service auto-provisioning above.
  *
- * 2026-09-02 ninth follow-up, at Marco's explicit request: a row now carries two independent
- * signals, both visible to every device, not just this one. `isActiveProfile` (accent border,
- * "(du)") is purely local - which profile *this* device is signed in as. The green dot plus
- * `×N` count is band-wide presence (`usePresenceStore.ts`/`usePresenceReporter.ts`, App.tsx) -
- * how many devices anywhere currently have that profile active, e.g. "Marco" open on two
- * tablets at once. Deliberately two different visual treatments: "who am I" and "who's online
- * right now, from how many devices" are different questions with different answers - the first
- * only ever matches at most one row per device, the second can be true for several at once.
+ * 2026-09-02 ninth follow-up, at Marco's explicit request: a member row now carries two
+ * independent signals, both visible to every device, not just this one. `isActiveProfile`
+ * (accent border, "(du)") is purely local - which profile *this* device is signed in as. The
+ * green dot plus `×N` count is band-wide presence (`usePresenceStore.ts`/`usePresenceReporter.ts`,
+ * App.tsx) - how many devices anywhere currently have that profile active, e.g. "Marco" open on
+ * two tablets at once. Deliberately two different visual treatments: "who am I" and "who's
+ * online right now, from how many devices" are different questions with different answers - the
+ * first only ever matches at most one row per device, the second can be true for several at
+ * once. The same accent-border/background treatment (not the dot - a band has no presence
+ * concept, just one is active) also marks the currently active *band* in the list above, for a
+ * consistent "this one is the one currently selected" language across both lists.
  */
 export function BandManagementView() {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
@@ -188,7 +191,9 @@ export function BandManagementView() {
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
-            className="flex items-center justify-between gap-2 rounded-sb border border-line bg-surface px-4 py-3"
+            className={`flex items-center justify-between gap-2 rounded-sb border px-4 py-3 ${
+              workspace.id === activeWorkspaceId ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+            }`}
           >
             <button
               type="button"

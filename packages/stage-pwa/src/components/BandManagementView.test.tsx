@@ -115,6 +115,15 @@ describe('BandManagementView', () => {
     expect(deleteWorkspace).not.toHaveBeenCalled()
   })
 
+  it('highlights the active band with the same accent treatment as the active profile row, and no other band', () => {
+    render(<BandManagementView />)
+
+    const activeBandRow = screen.getByText('Band A').closest('div.rounded-sb')
+    const otherBandRow = screen.getByText('Band B').closest('div.rounded-sb')
+    expect(activeBandRow?.className).toMatch(/border-accent/)
+    expect(otherBandRow?.className).not.toMatch(/border-accent/)
+  })
+
   it('shows the roster only for the active workspace, gated on its own isAdmin', () => {
     render(<BandManagementView />)
 
