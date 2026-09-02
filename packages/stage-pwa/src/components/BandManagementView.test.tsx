@@ -29,7 +29,7 @@ beforeEach(() => {
     activeWorkspaceId: 'band-a',
   })
   useProfilesStore.setState({
-    profiles: [{ id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: ['admin'] }],
+    profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['admin'] }],
     loaded: true,
     create: vi.fn(),
     update: vi.fn(),
@@ -115,7 +115,7 @@ describe('BandManagementView', () => {
 
   it('shows a member\'s assigned stage roles (including "Admin") as badges directly in the roster', () => {
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: ['performer', 'soundtech', 'admin'] }],
+      profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['performer', 'soundtech', 'admin'] }],
     })
     render(<BandManagementView />)
 
@@ -126,7 +126,7 @@ describe('BandManagementView', () => {
 
   it('shows no stage-role badges for a member with none assigned', () => {
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: [] }],
+      profiles: [{ id: 'p1', name: 'Marco', stageRoles: [] }],
     })
     render(<BandManagementView />)
     expect(screen.queryByText('Musiker:in')).not.toBeInTheDocument()
@@ -139,10 +139,9 @@ describe('BandManagementView', () => {
 
     expect(screen.getByText(/Nur der Band-Admin kann Mitglieder verwalten/)).toBeInTheDocument()
     expect(screen.queryByText('+ Neues Mitglied')).not.toBeInTheDocument()
-    expect(screen.queryByText('Instrument/Funktion ändern')).not.toBeInTheDocument()
   })
 
-  it('renaming a member calls update() with the new name, keeping the existing role', async () => {
+  it('renaming a member calls update() with the new name', async () => {
     const update = vi.fn()
     useProfilesStore.setState({ update })
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Marco M.') })
@@ -152,23 +151,17 @@ describe('BandManagementView', () => {
     // Only one "Umbenennen" button exists now (member-level - no band-level rename anymore).
     fireEvent.click(screen.getByText('Umbenennen'))
 
-    await waitFor(() => expect(update).toHaveBeenCalledWith('p1', 'Marco M.', 'Gitarre'))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('p1', 'Marco M.'))
   })
 
-  it('changing a member\'s role calls update() with the new role, keeping the existing name', async () => {
-    const update = vi.fn()
-    useProfilesStore.setState({ update })
-    useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Licht') })
-
+  it('2026-09-02 sixth follow-up: "Instrument/Funktion ändern" no longer exists - role/instrument was removed entirely ("I don\'t see the necessity for it")', () => {
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('Instrument/Funktion ändern'))
-
-    await waitFor(() => expect(update).toHaveBeenCalledWith('p1', 'Marco', 'Licht'))
+    expect(screen.queryByText('Instrument/Funktion ändern')).not.toBeInTheDocument()
   })
 
   it('"Stage-Rollen anpassen" offers "Admin" alongside the other stage roles, pre-filled from the current selection', async () => {
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: ['performer', 'admin'] }],
+      profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['performer', 'admin'] }],
     })
     const updateStageRoles = vi.fn()
     useProfilesStore.setState({ updateStageRoles })
@@ -187,8 +180,8 @@ describe('BandManagementView', () => {
   it('unchecking "Admin" for someone who is not the last admin calls updateStageRoles as normal', async () => {
     useProfilesStore.setState({
       profiles: [
-        { id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: ['admin'] },
-        { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: ['admin'] },
+        { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
       ],
     })
     const updateStageRoles = vi.fn()
@@ -216,7 +209,7 @@ describe('BandManagementView', () => {
     // Not the last admin here - deletion itself, not the last-admin guard, is what's under
     // test; that guard gets its own test below.
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: [] }],
+      profiles: [{ id: 'p1', name: 'Marco', stageRoles: [] }],
     })
     const remove = vi.fn()
     useProfilesStore.setState({ remove })
@@ -241,8 +234,8 @@ describe('BandManagementView', () => {
   it('does not disable "Löschen" when another admin also exists', () => {
     useProfilesStore.setState({
       profiles: [
-        { id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: ['admin'] },
-        { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: ['admin'] },
+        { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
       ],
     })
     render(<BandManagementView />)
@@ -251,54 +244,75 @@ describe('BandManagementView', () => {
     expect(remove.disabled).toBe(false)
   })
 
-  it('adding a member prompts for name+role+optional PIN and calls create()', async () => {
-    const create = vi.fn()
-    useProfilesStore.setState({ create })
-    useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ name: 'Chris', role: 'Bass' }) })
+  describe('"Passwort zurücksetzen" (2026-09-02 follow-up: admin-side reset, since self-service blank-password recovery is refused for admin accounts)', () => {
+    it('confirms first, then resets and shows the fresh password once', async () => {
+      const resetMemberPassword = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p1', password: 'fresh-123' })
+      useWorkspaceStore.setState({ resetMemberPassword })
+      const confirmMock = vi.fn().mockResolvedValue(true)
+      const alertMock = vi.fn().mockResolvedValue(undefined)
+      useDialogStore.setState({ confirm: confirmMock, alert: alertMock })
 
-    render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Neues Mitglied'))
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
-    // No PIN typed in this test - the 3rd arg is undefined (see the "PIN becomes the account's
-    // password directly" test below for the PIN-supplied case).
-    await waitFor(() => expect(create).toHaveBeenCalledWith('Chris', 'Bass', undefined))
+      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalledWith('band-a', 'p1'))
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Marco'), expect.objectContaining({ danger: true }))
+      expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('fresh-123'), expect.objectContaining({ title: 'PIN zurückgesetzt' }))
+    })
+
+    it('does not reset when the confirmation is declined', async () => {
+      const resetMemberPassword = vi.fn()
+      useWorkspaceStore.setState({ resetMemberPassword })
+      useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Passwort zurücksetzen'))
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(resetMemberPassword).not.toHaveBeenCalled()
+    })
+
+    it('shows no success alert when resetMemberPassword fails (the store itself already alerted why)', async () => {
+      const resetMemberPassword = vi.fn().mockResolvedValue(null)
+      useWorkspaceStore.setState({ resetMemberPassword })
+      const alertMock = vi.fn().mockResolvedValue(undefined)
+      useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true), alert: alertMock })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Passwort zurücksetzen'))
+
+      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalled())
+      expect(alertMock).not.toHaveBeenCalled()
+    })
   })
 
-  it('adding a member with a PIN just passes it as the new account\'s password - no invite/QR screen opens here anymore (2026-09-01 redesign)', async () => {
-    const create = vi.fn().mockResolvedValue({
-      profile: { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] },
-      credentials: { username: 'stageboard-band-a-p2', password: '4711' },
-    })
+  it('2026-09-02 sixth follow-up: adding a member prompts for just a name (role/PIN both gone entirely) and calls create()', async () => {
+    const create = vi.fn()
     useProfilesStore.setState({ create })
-    useDialogStore.setState({
-      promptFields: vi.fn().mockResolvedValue({ name: 'Chris', role: 'Bass', pin: '4711' }),
-    })
-    const createInvite = vi.fn()
-    useWorkspaceStore.setState({ createInvite })
+    useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
     render(<BandManagementView />)
     fireEvent.click(screen.getByText('+ Neues Mitglied'))
 
-    await waitFor(() => expect(create).toHaveBeenCalledWith('Chris', 'Bass', { password: '4711' }))
-    expect(createInvite).not.toHaveBeenCalled()
+    await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
     expect(screen.queryByText('Band einladen')).not.toBeInTheDocument()
   })
 
-  describe('"Einladen" (2026-09-01 redesign: one band-level, workspace-wide code)', () => {
-    it('mints a workspace-level invite (no member picker, no password) and shows the QR/code screen', async () => {
-      const createInvite = vi.fn().mockResolvedValue({ code: '11112222', expiresAt: Date.now() + 60_000 })
-      useWorkspaceStore.setState({ createInvite })
+  describe('"Einladen" (2026-09-01 redesign: one band-level, standing WiFi-style code)', () => {
+    it('shows the standing workspace access code (no member picker, no password, no minting)', async () => {
+      const getAccessCode = vi.fn().mockResolvedValue({ code: '11112222' })
+      useWorkspaceStore.setState({ getAccessCode })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('Einladen'))
 
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
-      expect(createInvite).toHaveBeenCalledWith('band-a')
+      expect(getAccessCode).toHaveBeenCalledWith('band-a')
     })
 
     it('"Schließen" closes the invite screen', async () => {
       useWorkspaceStore.setState({
-        createInvite: vi.fn().mockResolvedValue({ code: '11112222', expiresAt: Date.now() + 60_000 }),
+        getAccessCode: vi.fn().mockResolvedValue({ code: '11112222' }),
       })
 
       render(<BandManagementView />)
@@ -338,16 +352,201 @@ describe('BandManagementView', () => {
       expect(screen.queryByText(/Jetzt die restlichen Mitglieder/)).not.toBeInTheDocument()
     })
 
-    it('"+ Neues Mitglied" does not offer a PIN field while local-only', async () => {
-      const promptFields = vi.fn().mockResolvedValue({ name: 'Chris', role: 'Bass' })
-      useDialogStore.setState({ promptFields })
+    it('"+ Neues Mitglied" still works while local-only - just a name, same as connected', async () => {
+      const create = vi.fn()
+      useProfilesStore.setState({ create })
+      useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('+ Neues Mitglied'))
 
-      await waitFor(() => expect(promptFields).toHaveBeenCalled())
-      const [, fields] = promptFields.mock.calls[0]
-      expect(fields.map((f: { key: string }) => f.key)).toEqual(['name', 'role'])
+      await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
+    })
+  })
+
+  describe('switching bands and members (2026-09-02 follow-up: moved here from the removed AppMenu.tsx "Wer bin ich" section)', () => {
+    it('clicking a band\'s name makes it active', () => {
+      const setActiveWorkspace = vi.fn()
+      useWorkspaceStore.setState({ setActiveWorkspace })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Band B'))
+
+      expect(setActiveWorkspace).toHaveBeenCalledWith('band-b')
+    })
+
+    it('disables the already-active band\'s own name button', () => {
+      render(<BandManagementView />)
+
+      const activeBandButton = screen.getByText('Band A').closest('button') as HTMLButtonElement
+      expect(activeBandButton.disabled).toBe(true)
+    })
+
+    it('a local-only band (no Stage-Server account) switches the active profile immediately, with no code prompt at all', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
+      })
+      useProfilesStore.setState({
+        profiles: [
+          { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+          { id: 'p2', name: 'Chris', stageRoles: [] },
+        ],
+      })
+      const setActive = vi.fn()
+      useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Auswählen'))
+
+      expect(setActive).toHaveBeenCalledWith('band-a', 'p2')
+      expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
+    })
+
+    describe('once connected to a Stage-Server', () => {
+      beforeEach(() => {
+        useProfilesStore.setState({
+          profiles: [
+            { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+            { id: 'p2', name: 'Chris', stageRoles: [] },
+            { id: 'p3', name: 'Jonas', stageRoles: ['admin'] },
+          ],
+        })
+      })
+
+      it('does not show "Auswählen" for the already-active profile', () => {
+        render(<BandManagementView />)
+
+        // Marco (p1) is the active profile by default (see the file's top-level beforeEach) -
+        // only Chris and Jonas should offer "Auswählen".
+        expect(screen.getAllByText('Auswählen')).toHaveLength(2)
+      })
+
+      it('2026-09-02 second follow-up: picking a non-admin member activates it immediately, with no code prompt at all', async () => {
+        const activateProfile = vi.fn().mockResolvedValue({ id: 'band-a', name: 'Band A' })
+        const setActive = vi.fn()
+        useWorkspaceStore.setState({ activateProfile })
+        useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
+
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[0]) // Chris (p2), the non-admin one
+
+        await waitFor(() => expect(activateProfile).toHaveBeenCalledWith('band-a', 'p2', undefined))
+        await waitFor(() => expect(setActive).toHaveBeenCalledWith('band-a', 'p2'))
+        expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
+      })
+
+      it('picking an admin member opens an inline 4-digit code prompt instead of switching immediately', () => {
+        render(<BandManagementView />)
+
+        fireEvent.click(screen.getAllByText('Auswählen')[1]) // Chris, Jonas - Jonas is the admin
+
+        expect(screen.getByPlaceholderText('4-stelliger Code')).toBeInTheDocument()
+      })
+
+      it('submitting the code calls activateProfile, and activates the picked profile locally on success', async () => {
+        const activateProfile = vi.fn().mockResolvedValue({ id: 'band-a', name: 'Band A' })
+        const setActive = vi.fn()
+        useWorkspaceStore.setState({ activateProfile })
+        useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
+
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.change(screen.getByPlaceholderText('4-stelliger Code'), { target: { value: '4711' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Wechseln' }))
+
+        await waitFor(() => expect(activateProfile).toHaveBeenCalledWith('band-a', 'p3', '4711'))
+        await waitFor(() => expect(setActive).toHaveBeenCalledWith('band-a', 'p3'))
+      })
+
+      it('strips non-digit characters, caps the code at 4 digits, and disables submit until then', () => {
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[1])
+
+        const input = screen.getByPlaceholderText('4-stelliger Code') as HTMLInputElement
+        fireEvent.change(input, { target: { value: '47-11 22' } })
+        expect(input.value).toBe('4711')
+        expect(screen.getByRole('button', { name: 'Wechseln' })).not.toBeDisabled()
+
+        fireEvent.change(input, { target: { value: '47' } })
+        expect(screen.getByRole('button', { name: 'Wechseln' })).toBeDisabled()
+      })
+
+      it('"Abbrechen" closes the code prompt without calling activateProfile', () => {
+        const activateProfile = vi.fn()
+        useWorkspaceStore.setState({ activateProfile })
+
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Abbrechen'))
+
+        expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
+        expect(activateProfile).not.toHaveBeenCalled()
+      })
+
+      it('does not activate the profile locally when activateProfile fails (the store itself already alerted why)', async () => {
+        const activateProfile = vi.fn().mockResolvedValue(null)
+        const setActive = vi.fn()
+        useWorkspaceStore.setState({ activateProfile })
+        useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
+
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.change(screen.getByPlaceholderText('4-stelliger Code'), { target: { value: '4711' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Wechseln' }))
+
+        await waitFor(() => expect(activateProfile).toHaveBeenCalled())
+        expect(setActive).not.toHaveBeenCalled()
+        // The prompt stays open for another attempt.
+        expect(screen.getByPlaceholderText('4-stelliger Code')).toBeInTheDocument()
+      })
+
+      it('2026-09-02 third follow-up: the code prompt does not hint at the universal recovery code at all - that stays known only to Marco', () => {
+        render(<BandManagementView />)
+        fireEvent.click(screen.getAllByText('Auswählen')[1])
+
+        expect(screen.queryByText(/letzten 4 Ziffern/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/Band-Codes/)).not.toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('"Meinen PIN setzen" (2026-09-02 second follow-up: admin self-service PIN assignment)', () => {
+    it('is only offered for the currently-active admin profile', () => {
+      useProfilesStore.setState({
+        profiles: [
+          { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+          { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+        ],
+      })
+      render(<BandManagementView />)
+
+      // Marco (p1) is the active profile - only his row offers "Meinen PIN setzen", not Chris's
+      // (a different admin, even though also admin).
+      expect(screen.getAllByText('Meinen PIN setzen')).toHaveLength(1)
+    })
+
+    it('prompts for a new PIN, validates it, and calls setOwnPin', async () => {
+      const setOwnPin = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p1', password: '9876' })
+      useWorkspaceStore.setState({ setOwnPin })
+      useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ pin: '9876' }) })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Meinen PIN setzen'))
+
+      await waitFor(() => expect(setOwnPin).toHaveBeenCalledWith('band-a', 'p1', '9876'))
+    })
+
+    it('rejects a PIN that is not exactly 4 digits, without calling setOwnPin', async () => {
+      const setOwnPin = vi.fn()
+      useWorkspaceStore.setState({ setOwnPin })
+      const alertMock = vi.fn().mockResolvedValue(undefined)
+      useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ pin: '12345' }), alert: alertMock })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Meinen PIN setzen'))
+
+      await waitFor(() => expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('4 Ziffern')))
+      expect(setOwnPin).not.toHaveBeenCalled()
     })
   })
 })

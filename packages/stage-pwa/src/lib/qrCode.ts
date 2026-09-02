@@ -1,9 +1,9 @@
 import jsQR from 'jsqr'
 import QRCode from 'qrcode'
 
-/** Renders `text` (an invite code, see #21) as a QR code data URL - a thin wrapper so
- * `InviteBandView.tsx` stays UI-only, matching how `workspaceDb.ts` wraps PouchDB rather than
- * components touching a 3rd-party library directly. */
+/** Renders `text` (a band's `workspaceId:code` pair, see #21/2026-09-01's WiFi-style redesign)
+ * as a QR code data URL - a thin wrapper so `InviteBandView.tsx` stays UI-only, matching how
+ * `workspaceDb.ts` wraps PouchDB rather than components touching a 3rd-party library directly. */
 export function renderQrCode(text: string): Promise<string> {
   return QRCode.toDataURL(text, { margin: 1, width: 256 })
 }

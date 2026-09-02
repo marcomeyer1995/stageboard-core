@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { WorkspaceRoster } from 'shared-types'
+import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame } from '../lib/qrCode'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -10,30 +10,33 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
 /**
  * Shown by App.tsx instead of the Dashboard whenever the active workspace has no stored
  * CouchDB credentials yet (see #21) - replaces the old bare `window.prompt()`
- * (`useEnsureWorkspaceCredentials.ts`, removed) with a real join screen: scan the QR code
- * shown on the band admin's device (InviteBandView.tsx), or type the same 8-digit code by
- * hand.
+ * (`useEnsureWorkspaceCredentials.ts`, removed) with a real join screen.
  *
- * 2026-09-01 redesign, at Marco's request: the code is no longer tied to any one person, so
- * scanning/entering it doesn't join immediately anymore - it fetches the workspace's roster
- * (`useWorkspaceStore.ts`'s `fetchRoster`) and shows a "wer bist du?" picker. Picking a name
- * either joins right away (a brand-new roster entry with no CouchDB account yet gets
- * auto-provisioned server-side) or, for a name whose account already exists
- * (`RosterMember.requiresPassword`), asks for that person's password first - `joinAsMember`
- * verifies it server-side and only then hands back real credentials. This is the same
- * "resolve a code, get credentials" trust boundary the old one-step flow had, just split into
- * two requests so the joining device - not the admin - is the one who says who it is.
+ * 2026-09-01 WiFi-style redesign, at Marco's explicit request after losing every device's
+ * cached admin credential at once with no way back in: modeled directly on joining WiFi. Three
+ * steps, matching `useWorkspaceStore.ts`'s three actions:
+ * 1. `listWorkspaces()` - every band the currently-configured Stage-Server hosts, shown with no
+ *    code needed at all (the SSID-list equivalent). Scanning a QR skips straight past this and
+ *    the next step (the QR carries `workspaceId:code` together, `InviteBandView.tsx`'s pairing).
+ * 2. Pick one, type its standing code (`fetchRoster`) - the "network password" step. The code
+ *    never expires on its own; there's no TTL/countdown to fight through anymore.
+ * 3. Pick who you are from that band's roster (`joinAsMember`). A non-admin entry
+ *    (`RosterMember.isAdmin`) has no password concept at all anymore (2026-09-02 second
+ *    follow-up, at Marco's explicit request, after locking himself out testing the *first*
+ *    follow-up's design twice in one day) - tapping it just works, immediately, every time. An
+ *    admin entry needs a 4-digit code: either that person's own self-assigned PIN, or the
+ *    *universal* recovery code that always works for any admin here - the last 4 digits of the
+ *    band's own access code (the one already typed in step 2). That's the actual
+ *    account-recovery mechanism now: no separate secret to lose, and it works with nobody else's
+ *    device or session required at all.
  *
- * A brand-new device starts knowing about zero workspaces (`useWorkspaceStore.ts` no longer
- * seeds hardcoded defaults) - this is the very first screen for someone who just downloaded
- * the app, so "start a new band" has to be an equally visible option here, not buried in the
- * menu's WorkspaceSwitcher, which this screen has no obvious reason to go looking for yet.
+ * "Neue Band gründen" stays equally visible on the landing step - a brand-new device knows
+ * about zero workspaces (`useWorkspaceStore.ts` seeds none), so this is the very first screen
+ * for someone who just downloaded the app.
  *
- * The "Passwort direkt eingeben" fallback is the pre-#21 raw-credential mechanism, kept for
- * script-provisioned dev workspaces (`scripts/setup-couchdb.sh`), which have no admin device
- * to mint an invite from at all - it now also asks for the workspace id itself, since without
- * hardcoded defaults there's no already-selected-but-uncredentialed workspace to attach a
- * password to anymore.
+ * "Passwort direkt eingeben" is the pre-#21 raw-credential mechanism, kept for script-
+ * provisioned dev workspaces (`scripts/setup-couchdb.sh`), which have no admin device to show a
+ * code from at all.
  *
  * The `<video>` element is always mounted (visibility toggled via CSS), never conditionally
  * rendered on `cameraStatus` - attaching `stream` to `videoRef.current` happens right after
@@ -45,13 +48,13 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  */
 export function JoinBandView() {
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
+  const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
   const joinWithPassword = useWorkspaceStore((state) => state.joinWithPassword)
   const promptText = useDialogStore((state) => state.promptText)
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
-  const [manualCode, setManualCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [showPasswordFallback, setShowPasswordFallback] = useState(false)
   const [fallbackWorkspaceId, setFallbackWorkspaceId] = useState('')
@@ -59,14 +62,20 @@ export function JoinBandView() {
   const [password, setPassword] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Set once fetchRoster succeeds - roster !== null is what switches this screen from
-  // "enter a code" to "pick your name". `code` travels alongside it: joinAsMember has to
-  // re-present the same code (the server re-validates its TTL), not just the workspaceId
-  // this step already learned.
+  // Step 1: the SSID-list equivalent - every band the Stage-Server hosts, no code needed yet.
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[] | null>(null)
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false)
+
+  // Step 2: one band picked from the list, waiting for its code.
+  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceSummary | null>(null)
+  const [manualCode, setManualCode] = useState('')
+
+  // Step 3: the roster picker, once a code resolved successfully.
   const [code, setCode] = useState<string | null>(null)
   const [roster, setRoster] = useState<WorkspaceRoster | null>(null)
-  // Which roster row is expanded with a password prompt - only ever a `requiresPassword: true`
-  // entry; picking anyone else joins immediately with no extra step.
+  // Which roster row is expanded with a code prompt - only ever an `isAdmin: true` entry;
+  // picking anyone else joins immediately with no extra step (2026-09-02 second follow-up: a
+  // non-admin has no password concept at all anymore).
   const [passwordProfileId, setPasswordProfileId] = useState<string | null>(null)
   const [memberPasswordInput, setMemberPasswordInput] = useState('')
 
@@ -85,11 +94,23 @@ export function JoinBandView() {
 
   useEffect(() => stopCamera, [])
 
-  async function handleFetchRoster(enteredCode: string) {
+  async function loadWorkspaces() {
+    setLoadingWorkspaces(true)
+    const result = await listWorkspaces()
+    setLoadingWorkspaces(false)
+    setWorkspaces(result ?? [])
+  }
+
+  useEffect(() => {
+    void loadWorkspaces()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleFetchRoster(workspaceId: string, enteredCode: string) {
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
-    const result = await fetchRoster(enteredCode)
+    const result = await fetchRoster(workspaceId, enteredCode)
     setBusy(false)
     busyRef.current = false
     if (result) {
@@ -102,7 +123,7 @@ export function JoinBandView() {
     if (busyRef.current || !code || !roster) return
     busyRef.current = true
     setBusy(true)
-    await joinAsMember(code, roster.workspaceId, roster.workspaceName, profileId, memberPassword)
+    await joinAsMember(roster.workspaceId, roster.workspaceName, code, profileId, memberPassword)
     setBusy(false)
     busyRef.current = false
     // No further action needed either way: on success, App.tsx notices the newly-added
@@ -111,12 +132,20 @@ export function JoinBandView() {
   }
 
   function handlePickMember(member: WorkspaceRoster['members'][number]) {
-    if (member.requiresPassword) {
+    if (member.isAdmin) {
       setPasswordProfileId(member.profileId)
       setMemberPasswordInput('')
     } else {
       void handleJoinAs(member.profileId)
     }
+  }
+
+  function backToList() {
+    setRoster(null)
+    setCode(null)
+    setPasswordProfileId(null)
+    setSelectedWorkspace(null)
+    setManualCode('')
   }
 
   function scanFrame() {
@@ -134,11 +163,18 @@ export function JoinBandView() {
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       const frame = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const scannedCode = decodeQrFrame(frame)
-      if (scannedCode) {
+      const scanned = decodeQrFrame(frame)
+      // The QR carries workspaceId+code together (InviteBandView.tsx's pairing) - a scan skips
+      // straight to step 3, past both browsing the list and typing a code by hand. Anything
+      // that doesn't look like that pairing is silently ignored and scanning just continues,
+      // same as any unrelated QR code today.
+      const separatorIndex = scanned?.indexOf(':') ?? -1
+      if (scanned && separatorIndex > 0 && separatorIndex < scanned.length - 1) {
+        const workspaceId = scanned.slice(0, separatorIndex)
+        const scannedCode = scanned.slice(separatorIndex + 1)
         stopCamera()
         setCameraStatus('idle')
-        void handleFetchRoster(scannedCode)
+        void handleFetchRoster(workspaceId, scannedCode)
         return
       }
     }
@@ -175,6 +211,7 @@ export function JoinBandView() {
     }
   }
 
+  // Step 3: pick who you are.
   if (roster) {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
@@ -191,28 +228,34 @@ export function JoinBandView() {
                   <form
                     onSubmit={(e) => {
                       e.preventDefault()
-                      if (memberPasswordInput.trim()) void handleJoinAs(member.profileId, memberPasswordInput.trim())
+                      if (memberPasswordInput.length === 4) void handleJoinAs(member.profileId, memberPasswordInput)
                     }}
                     className="flex flex-col gap-2 p-3"
                   >
                     <span className="font-semibold">{member.name}</span>
                     <div className="flex gap-2">
                       <input
-                        type="password"
-                        autoFocus
                         value={memberPasswordInput}
-                        onChange={(e) => setMemberPasswordInput(e.target.value)}
-                        placeholder="PIN/Passwort"
-                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
+                        onChange={(e) => setMemberPasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="4-stelliger Code"
+                        inputMode="numeric"
+                        autoFocus
+                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
                       />
                       <button
                         type="submit"
-                        disabled={busy || !memberPasswordInput.trim()}
+                        disabled={busy || memberPasswordInput.length !== 4}
                         className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {busy ? '…' : 'Beitreten'}
                       </button>
                     </div>
+                    {/* Admin-only screen (2026-09-02 second follow-up, at Marco's explicit
+                        request) - only reached for an `isAdmin: true` entry. Deliberately no
+                        hint here about the universal recovery code (the band code's own last 4
+                        digits, also accepted alongside the person's own self-assigned PIN) -
+                        2026-09-02 third follow-up, at Marco's explicit request: that mechanism
+                        stays undocumented in the UI on purpose, known only to him. */}
                     <button
                       type="button"
                       onClick={() => setPasswordProfileId(null)}
@@ -228,31 +271,64 @@ export function JoinBandView() {
                     onClick={() => handlePickMember(member)}
                     className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-control-hover disabled:opacity-50"
                   >
-                    <span>
-                      {member.name} <span className="text-sm text-ink-muted">({member.role})</span>
-                    </span>
+                    <span>{member.name}</span>
                   </button>
                 )}
               </li>
             ))}
           </ul>
 
-          <button
-            type="button"
-            onClick={() => {
-              setRoster(null)
-              setCode(null)
-              setPasswordProfileId(null)
-            }}
-            className="w-full text-center text-xs text-ink-faint underline"
-          >
-            Anderen Code verwenden
+          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+            Andere Band oder anderer Code
           </button>
         </div>
       </div>
     )
   }
 
+  // Step 2: code entry, scoped to the band picked in step 1.
+  if (selectedWorkspace) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+        <div className="w-full max-w-sm space-y-4 py-4">
+          <div>
+            <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
+            <p className="mt-1 text-sm text-ink-muted">Code der Band eingeben - beim Admin erfragen oder QR-Code scannen.</p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (manualCode.trim()) void handleFetchRoster(selectedWorkspace.workspaceId, manualCode.trim())
+            }}
+            className="flex gap-2"
+          >
+            <input
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="12345678"
+              inputMode="numeric"
+              autoFocus
+              className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            />
+            <button
+              type="submit"
+              disabled={busy || manualCode.trim().length === 0}
+              className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+            >
+              {busy ? '…' : 'Weiter'}
+            </button>
+          </form>
+
+          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+            Andere Band wählen
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
     <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
@@ -261,7 +337,7 @@ export function JoinBandView() {
         <div>
           <h1 className="text-2xl font-bold">Band beitreten</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Scanne den QR-Code vom Gerät des Band-Admins, oder gib den 8-stelligen Code manuell ein.
+            Scanne den QR-Code vom Gerät des Band-Admins, oder wähle eine Band und gib ihren Code ein.
           </p>
         </div>
 
@@ -286,37 +362,42 @@ export function JoinBandView() {
               <span className="text-4xl">📷</span>
               {cameraStatus === 'idle' && <span>Kamera zum Scannen starten</span>}
               {cameraStatus === 'requesting' && <span>Kamerazugriff wird angefragt…</span>}
-              {cameraStatus === 'denied' && <span className="text-sm">Kein Kamerazugriff - Code manuell eingeben.</span>}
+              {cameraStatus === 'denied' && <span className="text-sm">Kein Kamerazugriff - Band unten auswählen.</span>}
               {cameraStatus === 'insecure-context' && (
-                <span className="text-sm">Kamera braucht HTTPS - Code manuell eingeben.</span>
+                <span className="text-sm">Kamera braucht HTTPS - Band unten auswählen.</span>
               )}
               {cameraStatus === 'unsupported' && <span className="text-sm">Kamera nicht verfügbar auf diesem Gerät.</span>}
             </button>
           )}
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (manualCode.trim()) void handleFetchRoster(manualCode.trim())
-          }}
-          className="flex gap-2"
-        >
-          <input
-            value={manualCode}
-            onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="12345678"
-            inputMode="numeric"
-            className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
-          />
-          <button
-            type="submit"
-            disabled={busy || manualCode.trim().length === 0}
-            className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
-          >
-            {busy ? '…' : 'Weiter'}
-          </button>
-        </form>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Verfügbare Bands</h2>
+            <button type="button" onClick={() => void loadWorkspaces()} className="text-xs text-ink-faint underline">
+              Neu laden
+            </button>
+          </div>
+          {loadingWorkspaces && <p className="text-sm text-ink-muted">Lade…</p>}
+          {!loadingWorkspaces && workspaces?.length === 0 && (
+            <p className="text-sm text-ink-muted">Keine Band auf diesem Stage-Server gefunden.</p>
+          )}
+          {!loadingWorkspaces && workspaces && workspaces.length > 0 && (
+            <ul className="space-y-2">
+              {workspaces.map((workspace) => (
+                <li key={workspace.workspaceId}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWorkspace(workspace)}
+                    className="w-full rounded-sb border border-line bg-surface px-4 py-3 text-left font-semibold hover:bg-control-hover"
+                  >
+                    {workspace.workspaceName}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-line" />

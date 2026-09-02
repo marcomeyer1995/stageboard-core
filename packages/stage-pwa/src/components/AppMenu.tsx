@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
-import { ProfileSwitcher } from './ProfileSwitcher'
-import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useFullscreen } from '../lib/useFullscreen'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 
@@ -27,9 +25,18 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * grown to nine always-expanded sections, most of them "set once, forget it" device settings
  * crowding out the handful of things someone actually reaches for mid-gig). What's left:
  * screen navigation, Master-Kontrolle (live token handoff), the Dashboard edit-lock (live mode
- * only), "Wer bin ich" (which band + which profile), and Vollbild - Fullscreen stayed here
- * (not moved to SystemView with the rest) because it's something reached for at the start of
- * a set, not a set-once device setting like the others.
+ * only), and Vollbild - Fullscreen stayed here (not moved to SystemView with the rest) because
+ * it's something reached for at the start of a set, not a set-once device setting like the
+ * others.
+ *
+ * 2026-09-02 follow-up, at Marco's explicit request: the "Wer bin ich" section (band + profile
+ * switching) was removed from here entirely - `WorkspaceSwitcher.tsx`/`ProfileSwitcher.tsx`
+ * (deleted) let any device silently switch to displaying as any roster member with zero
+ * credential check, which stopped making sense once real per-person accounts existed. Switching
+ * which band and which member this device is now happens in one place,
+ * `BandManagementView.tsx`'s "Band" tab, by picking the corresponding entry - selecting a
+ * password-protected member there asks for the password (same recovery semantics as everywhere
+ * else: blank resets a non-admin account, is refused for an admin one).
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
@@ -74,11 +81,6 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             <EditLock onUnlock={onClose} />
           </Section>
         )}
-
-        <Section title="Wer bin ich">
-          <WorkspaceSwitcher />
-          <ProfileSwitcher />
-        </Section>
 
         {fullscreen.supported && (
           <Section title="Anzeige">

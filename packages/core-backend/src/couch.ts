@@ -38,6 +38,15 @@ async function request(
   })
 }
 
+/** Lists every database name on this CouchDB instance (2026-09-01, `GET /workspaces` - the
+ * WiFi-style "which bands does this Stage-Server host" listing). Admin-only endpoint on
+ * CouchDB's side; core-backend's own trusted config is the only caller. */
+export async function listDbs(config: CouchConfig): Promise<string[]> {
+  const response = await request(config, `${config.url.replace(/\/$/, '')}/_all_dbs`)
+  if (!response.ok) throw new Error(`Failed to list databases: HTTP ${response.status}`)
+  return (await response.json()) as string[]
+}
+
 /** Creates the database if it does not exist yet; an existing one (412) is fine. */
 export async function ensureDb(config: CouchConfig, db: string): Promise<void> {
   const response = await request(config, dbUrl(config, db), { method: 'PUT' })

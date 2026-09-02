@@ -21,8 +21,8 @@ function seedStores() {
   useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
   useProfilesStore.setState({
     profiles: [
-      { id: 'p1', name: 'Marco', role: 'Gitarre', stageRoles: [] },
-      { id: 'p2', name: 'Chris', role: 'Bass', stageRoles: [] },
+      { id: 'p1', name: 'Marco', stageRoles: [] },
+      { id: 'p2', name: 'Chris', stageRoles: [] },
     ],
     loaded: true,
   })
@@ -30,14 +30,12 @@ function seedStores() {
 }
 
 describe('ProfileRolePickerView', () => {
-  it('lists every roster profile with its role', () => {
+  it('lists every roster profile by name', () => {
     seedStores()
     render(<ProfileRolePickerView />)
 
     expect(screen.getByText('Marco')).toBeInTheDocument()
-    expect(screen.getByText('Gitarre')).toBeInTheDocument()
     expect(screen.getByText('Chris')).toBeInTheDocument()
-    expect(screen.getByText('Bass')).toBeInTheDocument()
   })
 
   it('picking a profile activates it for the current workspace', () => {

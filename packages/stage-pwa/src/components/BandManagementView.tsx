@@ -12,23 +12,40 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
  * *management* action lives here now: create a band (open to everyone, matches
  * `addWorkspace`'s existing rules), delete a band, invite people to it, and
- * create/rename/reassign-role/adjust-stage-roles/delete a roster member (all admin-only,
- * enforced server-side already by #56's CouchDB validation - the `isAdmin` checks here are just
- * the UI not offering a control that would fail). WorkspaceSwitcher.tsx/ProfileSwitcher.tsx in
- * the main menu are now pure *selection* - which band, which profile - nothing that mutates
- * anything lives there anymore.
+ * create/rename/adjust-stage-roles/delete a roster member (all admin-only, enforced
+ * server-side already by #56's CouchDB validation - the `isAdmin` checks here are just the UI
+ * not offering a control that would fail).
+ *
+ * 2026-09-02 follow-up, at Marco's explicit request: this is now also where switching *which*
+ * band and *which* roster member this device is showing as happens - `AppMenu.tsx`'s old "Wer
+ * bin ich" section (`WorkspaceSwitcher.tsx`/`ProfileSwitcher.tsx`, both deleted) let any device
+ * silently switch to displaying as anyone with zero credential check, which stopped making
+ * sense once real per-person accounts existed. Clicking a band's name here (`setActiveWorkspace`)
+ * makes it active; clicking "Auswählen" on a roster row either switches immediately (a local-only
+ * band, Tier-A follow-up, has no account to check at all) or activates it via `activateProfile`.
+ *
+ * 2026-09-02 *second* follow-up, at Marco's explicit request (after getting locked out testing
+ * the first follow-up's design, twice in one day): only admin accounts have any password
+ * concept at all now. Picking a non-admin profile here always just works, immediately, no form
+ * at all - `handlePickProfile` below skips straight to `performActivate`. Picking an admin
+ * profile opens the inline 4-digit code prompt: either that admin's own self-assigned PIN, or
+ * the *universal* recovery code that always works for any admin in this workspace - the last 4
+ * digits of the band's own standing access code (shown in "Einladen" above). "Meinen PIN
+ * setzen" is the self-service counterpart, for the currently-active admin profile to choose its
+ * own memorable PIN instead of always relying on the universal code.
  *
  * No band *rename* here - it existed briefly, then was pulled back out (see the still-open
  * follow-up issue) because it was local-only: a workspace's name was never synced anywhere, so
  * a rename never reached devices that had already joined.
  *
- * Rename, instrument/function change, and stage-roles are three separate actions on a member,
- * not one combined "edit" form - matches how they were asked for, and fits #21's still-deferred
- * "different role per session" idea better than a merged dialog would. "Instrument/Funktion
- * ändern" and "Stage-Rollen anpassen" are deliberately worded apart (#57 follow-up): the former
- * edits `profile.role`, free text purely for display; the latter edits `profile.stageRoles`,
- * the closed multi-value field that gates widget/dashboard visibility. Assigned stage roles are
+ * Rename and stage-roles are two separate actions on a member, not one combined "edit" form -
+ * matches how they were asked for. "Stage-Rollen anpassen" (#57 follow-up) edits
+ * `profile.stageRoles`, the closed multi-value field that gates widget/dashboard visibility -
  * also shown directly on the roster row (badges), not only inside the dialog.
+ *
+ * 2026-09-02 sixth follow-up, at Marco's explicit request ("I don't see the necessity for
+ * it"): the free-text instrument/function field (`profile.role`, "Instrument/Funktion ändern")
+ * is gone entirely - `stageRoles` is the only classification a profile carries now.
  *
  * Per-person-accounts follow-up (2026-08-30): "Admin" lives right in `stageRoles` alongside the
  * others, same checkbox dialog - but unlike the others it's not just a label. Every roster
@@ -40,33 +57,44 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * dashboard); the actual, unbypassable enforcement is server-side (core-backend rejects
  * removing/demoting the last admin outright).
  *
- * 2026-09-01 redesign, at Marco's request: onboarding is now one *workspace-level* "Einladen"
- * button next to each band's name (not a per-roster-row or per-new-member action) - it mints one
- * short-lived, reusable code (`InviteBandView.tsx`, `useWorkspaceStore.ts`'s `createInvite`) that
- * covers *anyone* joining that band, admin or not, new or already-provisioned. The joining device
- * looks up the roster with that code and self-service-picks who it is (JoinBandView.tsx), typing
- * a password only if that specific person's account already exists - so this component itself
- * never sees or handles a member's password at all anymore. "+ Neues Mitglied" only creates the
- * roster entry now (with an optional admin-chosen PIN, provisioning the account with it right
- * away so self-service join can check it later); it doesn't show its own invite screen anymore
- * since the one workspace-level code already covers every new member too - immediately, or
- * lazily the first time someone actually picks that name (self-service join auto-provisions an
- * account on the spot when none exists yet, see core-backend's `POST /invites/:code/join/:id`).
+ * 2026-09-01 redesign, at Marco's request (after losing every device's cached admin credential
+ * at once with no way back in): onboarding is now one *workspace-level* "Einladen" button next
+ * to each band's name (not a per-roster-row or per-new-member action) - it shows this band's
+ * standing, non-expiring access code (`InviteBandView.tsx`, `useWorkspaceStore.ts`'s
+ * `getAccessCode`/`rotateAccessCode`), WiFi-QR-style, that covers *anyone* joining that band,
+ * admin or not, new or already-provisioned, indefinitely (until an admin deliberately rotates
+ * it). The joining device browses the Stage-Server's workspace list with no code at all
+ * (JoinBandView.tsx's first step), then looks up that one band's roster with the code and
+ * self-service-picks who it is - see the second follow-up above for what picking a non-admin vs.
+ * an admin entry actually needs. "+ Neues Mitglied" only creates the roster entry now (no PIN
+ * field anymore - a non-admin has no password concept at all, and an admin self-assigns their
+ * own PIN later, nobody else ever sets one for them); it doesn't show its own invite screen
+ * anymore since the one workspace-level code already covers every new member too - immediately,
+ * or lazily the first time someone actually picks that name (self-service join auto-provisions
+ * an account on the spot when none exists yet, see core-backend's `POST /workspaces/:id/join/:profileId`).
+ *
+ * "Passwort zurücksetzen" below is the *other*-admin's-help recovery path (only shown for an
+ * admin target - a non-admin has nothing to reset): another admin's already-active session sets
+ * a fresh PIN and relays it out of band (in person, a message, ...) - the one-time value is
+ * shown once, right after resetting, and never stored or shown again. For the "no other admin
+ * session exists at all" case, the universal recovery code (above) is what actually solves it.
  *
  * Tier-A local-only-founding follow-up (2026-08-30): a band with no Stage-Server configured
  * founds and builds its roster entirely locally - `activeWorkspace.username` unset is that
  * state, not an error. The "Diese Band läuft nur lokal" banner below is the one way out of it:
  * "Verbinden" provisions just the founder's own account (`useProfilesStore.ts`'s
  * `connectToServer`) - every other already-typed-in roster member stays unprovisioned, exactly
- * like a brand-new one, ready for the same lazy self-service auto-provisioning above. The PIN
- * field on "+ Neues Mitglied" only makes sense once there's an account to attach it to, so it's
- * omitted while local-only.
+ * like a brand-new one, ready for the same lazy self-service auto-provisioning above.
  */
 export function BandManagementView() {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const deleteWorkspace = useWorkspaceStore((state) => state.deleteWorkspace)
+  const resetMemberPassword = useWorkspaceStore((state) => state.resetMemberPassword)
+  const activateProfile = useWorkspaceStore((state) => state.activateProfile)
+  const setOwnPin = useWorkspaceStore((state) => state.setOwnPin)
   const profiles = useProfilesStore((state) => state.profiles)
   const createProfile = useProfilesStore((state) => state.create)
   const updateProfile = useProfilesStore((state) => state.update)
@@ -79,12 +107,51 @@ export function BandManagementView() {
   const promptText = useDialogStore((state) => state.promptText)
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
+  const alert = useDialogStore((state) => state.alert)
 
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<string | null>(null)
+  // 2026-09-02 follow-up: which member's row currently shows the inline "become this profile"
+  // password form (mirrors JoinBandView.tsx's step-3 roster picker, moved here since band/
+  // profile switching no longer lives in the burger menu at all).
+  const [activatingProfileId, setActivatingProfileId] = useState<string | null>(null)
+  const [activatePasswordInput, setActivatePasswordInput] = useState('')
+  const [activating, setActivating] = useState(false)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
   const adminCount = profiles.filter((profile) => profile.stageRoles.includes('admin')).length
   const isLastAdmin = (profile: (typeof profiles)[number]) => profile.stageRoles.includes('admin') && adminCount <= 1
+
+  async function performActivate(profileId: string, password: string | undefined) {
+    setActivating(true)
+    const workspace = await activateProfile(activeWorkspaceId, profileId, password)
+    setActivating(false)
+    if (!workspace) return
+    setActiveProfile(activeWorkspaceId, profileId)
+    setActivatingProfileId(null)
+    setActivatePasswordInput('')
+  }
+
+  // A local-only band (Tier-A follow-up) has no Stage-Server account to authenticate against at
+  // all - picking a profile there stays the old zero-credential-check behavior, same as the
+  // removed ProfileSwitcher.tsx always was. Once connected: a non-admin profile has no password
+  // concept at all anymore (2026-09-02 second follow-up), so picking one activates it right
+  // away with no form at all; only an admin profile opens the inline 4-digit code prompt below.
+  function handlePickProfile(profile: (typeof profiles)[number]) {
+    if (!activeWorkspace?.username) {
+      setActiveProfile(activeWorkspaceId, profile.id)
+      return
+    }
+    if (!profile.stageRoles.includes('admin')) {
+      void performActivate(profile.id, undefined)
+      return
+    }
+    setActivatingProfileId(profile.id)
+    setActivatePasswordInput('')
+  }
+
+  async function handleActivateSubmit(profileId: string) {
+    await performActivate(profileId, activatePasswordInput)
+  }
 
   return (
     <div className="flex h-dvh flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
@@ -97,10 +164,15 @@ export function BandManagementView() {
             key={workspace.id}
             className="flex items-center justify-between gap-2 rounded-sb border border-line bg-surface px-4 py-3"
           >
-            <span className="font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveWorkspace(workspace.id)}
+              disabled={workspace.id === activeWorkspaceId}
+              className="text-left font-semibold hover:underline disabled:hover:no-underline"
+            >
               {workspace.name}
               {workspace.id === activeWorkspaceId && <span className="ml-2 text-xs text-ink-faint">(aktiv)</span>}
-            </span>
+            </button>
             {workspace.isAdmin && (
               <div className="flex flex-shrink-0 items-center gap-3 text-xs">
                 {/* Only once this band has a real Stage-Server account to invite anyone
@@ -174,112 +246,179 @@ export function BandManagementView() {
               </button>
             </div>
           )}
-          {profiles.map((profile) => (
-            <div
-              key={profile.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-sb border border-line bg-surface px-4 py-3"
-            >
-              <div>
-                <span>
-                  {profile.name} <span className="text-sm text-ink-muted">({profile.role})</span>
-                </span>
-                {profile.stageRoles.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {profile.stageRoles.map((role) => (
-                      <span
-                        key={role}
-                        className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
-                      >
-                        {STAGE_ROLE_LABELS[role]}
-                      </span>
-                    ))}
+          {profiles.map((profile) => {
+            const isActiveProfile = profile.id === activeProfileId
+            const isAdminProfile = profile.stageRoles.includes('admin')
+            return (
+              <div key={profile.id} className="flex flex-col gap-2 rounded-sb border border-line bg-surface px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span>
+                      {profile.name}
+                      {isActiveProfile && <span className="ml-2 text-xs text-ink-faint">(du)</span>}
+                    </span>
+                    {profile.stageRoles.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {profile.stageRoles.map((role) => (
+                          <span
+                            key={role}
+                            className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
+                          >
+                            {STAGE_ROLE_LABELS[role]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-3 text-xs">
+                    {!isActiveProfile && (
+                      <button type="button" onClick={() => handlePickProfile(profile)} className="underline hover:text-ink-soft">
+                        Auswählen
+                      </button>
+                    )}
+                    {isActiveProfile && isAdminProfile && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const result = await promptFields('Eigenen PIN setzen', [
+                            { key: 'pin', label: 'Neuer 4-stelliger PIN' },
+                          ])
+                          const pin = result?.pin?.trim()
+                          if (!pin) return
+                          if (!/^\d{4}$/.test(pin)) {
+                            await alert('Der PIN muss genau 4 Ziffern haben.')
+                            return
+                          }
+                          await setOwnPin(activeWorkspaceId, profile.id, pin)
+                        }}
+                        className="underline hover:text-ink-soft"
+                      >
+                        Meinen PIN setzen
+                      </button>
+                    )}
+                    {activeWorkspace.isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const name = await promptText('Mitglied umbenennen', {
+                              label: 'Neuer Name',
+                              defaultValue: profile.name,
+                            })
+                            if (name?.trim()) void updateProfile(profile.id, name.trim())
+                          }}
+                          className="underline hover:text-ink-soft"
+                        >
+                          Umbenennen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await promptFields('Stage-Rollen anpassen', [
+                              {
+                                key: 'stageRoles',
+                                label: 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
+                                type: 'checkboxes',
+                                options: STAGE_ROLES.map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
+                                defaultValue: profile.stageRoles.join(','),
+                              },
+                            ])
+                            if (!result) return
+                            const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
+                            void updateStageRoles(profile.id, stageRoles)
+                          }}
+                          className="underline hover:text-ink-soft"
+                        >
+                          Stage-Rollen anpassen
+                        </button>
+                        {isAdminProfile && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const confirmed = await confirm(
+                                `Neuen PIN für "${profile.name}" setzen? Der alte hört sofort auf zu funktionieren.`,
+                                { confirmLabel: 'Zurücksetzen', danger: true },
+                              )
+                              if (!confirmed) return
+                              const credentials = await resetMemberPassword(activeWorkspaceId, profile.id)
+                              if (!credentials) return
+                              await alert(`Neuer PIN für "${profile.name}": ${credentials.password}`, {
+                                title: 'PIN zurückgesetzt',
+                              })
+                            }}
+                            className="underline hover:text-ink-soft"
+                          >
+                            Passwort zurücksetzen
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={isLastAdmin(profile)}
+                          title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
+                          onClick={async () => {
+                            if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
+                              const removed = await removeProfile(profile.id)
+                              // Only clear the active-profile choice if this device happened to be
+                              // showing the member just deleted - deleting someone else's roster
+                              // entry shouldn't reset who *this* device is signed in as.
+                              if (removed && profile.id === activeProfileId) setActiveProfile(activeWorkspaceId, null)
+                            }
+                          }}
+                          className="underline hover:text-ink-soft disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline disabled:hover:text-ink-faint"
+                        >
+                          Löschen
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {activatingProfileId === profile.id && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      if (activatePasswordInput.length === 4) void handleActivateSubmit(profile.id)
+                    }}
+                    className="flex flex-col gap-2"
+                  >
+                    <div className="flex gap-2">
+                      <input
+                        value={activatePasswordInput}
+                        onChange={(e) => setActivatePasswordInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        placeholder="4-stelliger Code"
+                        inputMode="numeric"
+                        autoFocus
+                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                      />
+                      <button
+                        type="submit"
+                        disabled={activating || activatePasswordInput.length !== 4}
+                        className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                      >
+                        {activating ? '…' : 'Wechseln'}
+                      </button>
+                    </div>
+                    {/* Only reached for an admin profile - non-admin picks activate immediately,
+                        see handlePickProfile above. Deliberately no hint here about the
+                        universal recovery code (2026-09-02 third follow-up, at Marco's explicit
+                        request - see JoinBandView.tsx's matching form). */}
+                    <button
+                      type="button"
+                      onClick={() => setActivatingProfileId(null)}
+                      className="self-start text-xs text-ink-faint underline"
+                    >
+                      Abbrechen
+                    </button>
+                  </form>
                 )}
               </div>
-              {activeWorkspace.isAdmin && (
-                <div className="flex flex-shrink-0 flex-wrap justify-end gap-3 text-xs">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const name = await promptText('Mitglied umbenennen', {
-                        label: 'Neuer Name',
-                        defaultValue: profile.name,
-                      })
-                      if (name?.trim()) void updateProfile(profile.id, name.trim(), profile.role)
-                    }}
-                    className="underline hover:text-ink-soft"
-                  >
-                    Umbenennen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const role = await promptText('Instrument/Funktion ändern', {
-                        label: 'Instrument/Funktion',
-                        defaultValue: profile.role,
-                      })
-                      if (role?.trim()) void updateProfile(profile.id, profile.name, role.trim())
-                    }}
-                    className="underline hover:text-ink-soft"
-                  >
-                    Instrument/Funktion ändern
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const result = await promptFields('Stage-Rollen anpassen', [
-                        {
-                          key: 'stageRoles',
-                          label: 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
-                          type: 'checkboxes',
-                          options: STAGE_ROLES.map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
-                          defaultValue: profile.stageRoles.join(','),
-                        },
-                      ])
-                      if (!result) return
-                      const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
-                      void updateStageRoles(profile.id, stageRoles)
-                    }}
-                    className="underline hover:text-ink-soft"
-                  >
-                    Stage-Rollen anpassen
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isLastAdmin(profile)}
-                    title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
-                    onClick={async () => {
-                      if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
-                        const removed = await removeProfile(profile.id)
-                        // Only clear the active-profile choice if this device happened to be
-                        // showing the member just deleted - deleting someone else's roster
-                        // entry shouldn't reset who *this* device is signed in as.
-                        if (removed && profile.id === activeProfileId) setActiveProfile(activeWorkspaceId, null)
-                      }
-                    }}
-                    className="underline hover:text-ink-soft disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline disabled:hover:text-ink-faint"
-                  >
-                    Löschen
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
           {activeWorkspace.isAdmin && (
             <button
               type="button"
               onClick={async () => {
-                const isConnected = !!activeWorkspace.username
-                const result = await promptFields('Neues Mitglied', [
-                  { key: 'name', label: 'Name' },
-                  { key: 'role', label: 'Instrument/Funktion (z.B. Vocalist, Gitarre, Licht)' },
-                  ...(isConnected
-                    ? [{ key: 'pin', label: 'Kurzer PIN statt Zugangscode (optional, z.B. 4711)' }]
-                    : []),
-                ])
-                if (!result?.name?.trim() || !result?.role?.trim()) return
-                const pin = isConnected ? result.pin?.trim() : undefined
-                await createProfile(result.name.trim(), result.role.trim(), pin ? { password: pin } : undefined)
+                const name = await promptText('Neues Mitglied', { label: 'Name' })
+                if (name?.trim()) await createProfile(name.trim())
               }}
               className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover"
             >

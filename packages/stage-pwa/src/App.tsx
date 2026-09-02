@@ -56,6 +56,11 @@ function App() {
   // "explicitly chose no profile" (see useActiveProfileStore.ts).
   const activeProfileId = useActiveProfileStore((state) => state.byWorkspace[activeWorkspaceId])
   const rosterSetupDone = useRosterSetupStore((state) => state.completedFor[activeWorkspaceId] ?? false)
+  // Set only by addWorkspace (the founding device), never by joinAsMember/activateProfile/
+  // joinWithPassword - see needsRosterSetup's doc comment below.
+  const foundedHere = useWorkspaceStore(
+    (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.ownProfileId !== undefined,
+  )
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams))
   useFullscreenOnLaunch()
@@ -100,15 +105,38 @@ function App() {
   // roster, not landing on a picker whose only guidance for an empty list is "go do this in the
   // menu instead" - a plain member joining an already-populated band skips straight from
   // needsJoin to needsProfile, unaffected. All three stay reachable again later
-  // (WorkspaceSwitcher's "Einladen"/switcher, ProfileSwitcher's dropdown and its roster
-  // controls), this only covers the very first time.
+  // (BandManagementView.tsx's "Band" tab - band/profile switching plus every roster control,
+  // 2026-09-02 follow-up), this only covers the very first time.
   //
   // needsJoin deliberately checks "no band at all" (`workspaces.length === 0`), not "no
   // credentials yet" (`!activeWorkspacePassword`) - see the Tier-A local-only-founding
   // follow-up: a solo-founded band has no credentials for a long time on purpose (never
   // connected to a server), and that's a legitimate steady state, not an interrupted join.
+  //
+  // 2026-09-02 fifth follow-up, at Marco's explicit request, after this destroyed his real
+  // S.O.A.T. workspace: `foundedHere` added here alongside `rosterSetupDone`, replacing an
+  // earlier `profileCount === 0` attempt at the same fix (reverted - it broke the sixth
+  // follow-up's multi-step founding wizard below, which deliberately keeps this screen open
+  // *while* `profiles.length` grows past 0). `rosterSetupDone` is local, per-*device* state
+  // (useRosterSetupStore's own doc comment: "not derived from profiles.length > 0" -
+  // deliberately, so an admin adding several members in one founding sitting doesn't get
+  // bumped ahead after just the first one). That's fine for the device that actually founded
+  // the band, but the universal admin-recovery code (RosterMemberSchema's doc comment in
+  // shared-types) means an admin can now land on a *device that never personally founded this
+  // workspace at all* - which read `rosterSetupDone` as false and sent an admin of an
+  // already-populated, already-real band back into "build your roster from scratch". Its "Neu
+  // anfangen" escape hatch deletes the *entire remote workspace* (RosterSetupView.tsx's own doc
+  // comment: only ever meant for "typo in the band name, nobody's been added yet") - reached
+  // here for a real, populated band, that's how S.O.A.T. was actually destroyed. `foundedHere`
+  // (`Workspace.ownProfileId` is set only by `addWorkspace`, never by
+  // joinAsMember/activateProfile/joinWithPassword - useWorkspaceStore.ts's doc comment) is a
+  // timing-independent fix, unlike the reverted `profileCount === 0` attempt: a recovering
+  // admin never sees this screen at all, regardless of how far local sync has gotten.
+  // RosterSetupView.tsx's own fix (only offering "Neu anfangen" while `profiles.length === 0`)
+  // remains the actual backstop against the delete itself, for anyone who somehow still lands
+  // here for a populated workspace (e.g. `rosterSetupDone` cleared on the founder's own device).
   const needsJoin = !hasAnyWorkspace
-  const needsRosterSetup = !needsJoin && activeWorkspaceIsAdmin && !rosterSetupDone
+  const needsRosterSetup = !needsJoin && activeWorkspaceIsAdmin && !rosterSetupDone && foundedHere
   const needsProfile = !needsJoin && !needsRosterSetup && activeProfileId === undefined
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
 

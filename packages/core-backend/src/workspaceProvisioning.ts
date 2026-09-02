@@ -1,10 +1,12 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import {
   allDocs,
   createUser,
   deleteDb,
   deleteUser,
   ensureDb,
+  getDoc,
+  listDbs,
   putDoc,
   putSecurity,
   resetUserPassword,
@@ -65,13 +67,25 @@ function randomPassword(): string {
   return randomBytes(24).toString('base64url')
 }
 
+/** A fresh 4-digit numeric PIN (2026-09-02 second follow-up) - zero-padded, so always exactly 4
+ * characters (`randomInt(0, 10_000)` alone would drop leading zeros). Used anywhere a *human*
+ * needs to read/retype an admin PIN (the "Passwort zurücksetzen" panel action, and as the
+ * initial PIN when an admin account is first provisioned with none supplied); the silent,
+ * never-typed reissue paths (a non-admin's every pick, or an admin logging in via the universal
+ * recovery code) keep using `randomPassword()` instead - there's no reason to burn a short,
+ * guessable PIN on a value nobody will ever need to type. */
+function randomPin(): string {
+  return randomInt(0, 10_000).toString().padStart(4, '0')
+}
+
 /**
- * Creates a workspace: its database, a `_security` doc, a `_design/roster` validator, and the
+ * Creates a workspace: its database, a `_security` doc, a `_design/roster` validator, the
  * founding device's own personal CouchDB account (`roles: ['member', 'admin']` - the founder is
  * this band's first admin, same "first profile is admin" rule `useProfilesStore.ts`'s `create`
- * already applies to the roster doc itself). `config` must carry admin credentials - only
- * core-backend's own trusted `couch` config is ever passed here, never anything reachable from
- * a tablet.
+ * already applies to the roster doc itself), and its standing access code (`workspace:access`
+ * doc, see `getOrCreateAccessCode` below - 2026-09-01 WiFi-style redesign). `config` must carry
+ * admin credentials - only core-backend's own trusted `couch` config is ever passed here, never
+ * anything reachable from a tablet.
  *
  * `_security` and the roster validator are role-based and deliberately never touched again
  * after this call (see `ROSTER_VALIDATOR_SOURCE` above) - every subsequent member
@@ -86,6 +100,7 @@ export async function provisionWorkspace(
   config: CouchConfig,
   workspaceId: string,
   founderId: string,
+  workspaceName: string,
 ): Promise<WorkspaceCredentialPair> {
   const username = memberUsername(workspaceId, founderId)
 
@@ -103,8 +118,91 @@ export async function provisionWorkspace(
     members: { names: [], roles: ['member', 'admin'] },
   })
   await putDoc(config, db, { _id: '_design/roster', validate_doc_update: ROSTER_VALIDATOR_SOURCE })
+  await createAccessCodeDoc(config, workspaceId, workspaceName)
 
   return { username, password }
+}
+
+const ACCESS_CODE_DOC_ID = 'workspace:access'
+
+interface AccessCodeDoc extends CouchDoc {
+  code: string
+  name: string
+}
+
+function generateAccessCode(): string {
+  // 8 digits, zero-padded - the "WiFi password" a band writes down/prints once, not a
+  // cryptographically-unguessable secret on its own (its real protection is that it's only
+  // ever handed out over the LAN the Stage-Server itself controls, same trust level the old
+  // ephemeral invite code and the raw workspace password before it both already had).
+  return randomInt(0, 100_000_000).toString().padStart(8, '0')
+}
+
+/** Always creates a fresh `workspace:access` doc, overwriting any existing one - the initial
+ * creation at `provisionWorkspace` time, and the "lazy backfill" fallback in
+ * `getOrCreateAccessCode` below share this. Not exported: every real caller goes through one of
+ * those two, which know exactly when a fresh doc is actually warranted. */
+async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, name: string): Promise<string> {
+  const code = generateAccessCode()
+  await putDoc(config, workspaceDbName(workspaceId), { _id: ACCESS_CODE_DOC_ID, code, name })
+  return code
+}
+
+/** Reads a workspace's standing access code and display name - `null` if this workspace
+ * predates the 2026-09-01 redesign and has never had one created (see `getOrCreateAccessCode`
+ * below for the lazy-backfill path that actually every real caller uses). */
+export async function getAccessCode(config: CouchConfig, workspaceId: string): Promise<{ code: string; name: string } | null> {
+  const doc = await getDoc<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID)
+  return doc ? { code: doc.code, name: doc.name } : null
+}
+
+/**
+ * The actual entry point every route uses (`GET /workspaces`, `POST /workspaces/:id/roster`,
+ * `POST /workspaces/:id/join/:profileId`) - reads the standing code, lazily creating one with
+ * `fallbackName` if this workspace was founded before the 2026-09-01 redesign and has never had
+ * a `workspace:access` doc at all. This is what makes a pre-existing workspace (like the one
+ * that triggered this redesign - Marco locked out of every device at once, with no admin
+ * session left anywhere to mint anything) transparently start working the moment this ships,
+ * with no separate migration step: the very first request against it creates its code on the
+ * spot. `fallbackName` has no better source for a workspace this old - the server never learned
+ * a real name before this redesign either (see `WorkspaceProvisionRequestSchema`'s doc comment) -
+ * so callers pass the raw `workspaceId` as a last resort, readable enough to distinguish bands
+ * by ID even if the display name isn't pretty.
+ */
+export async function getOrCreateAccessCode(
+  config: CouchConfig,
+  workspaceId: string,
+  fallbackName: string,
+): Promise<{ code: string; name: string }> {
+  const existing = await getAccessCode(config, workspaceId)
+  if (existing) return existing
+  const code = await createAccessCodeDoc(config, workspaceId, fallbackName)
+  return { code, name: fallbackName }
+}
+
+/** Rotates a workspace's standing access code to a fresh one, keeping its display name -
+ * admin-only (`POST /workspaces/:id/access-code/rotate`), e.g. "the code leaked" or just
+ * post-tour cleanup. Immediately invalidates the old code for anyone who only knew that one. */
+export async function rotateAccessCode(config: CouchConfig, workspaceId: string): Promise<string> {
+  const existing = await getAccessCode(config, workspaceId)
+  return createAccessCodeDoc(config, workspaceId, existing?.name ?? workspaceId)
+}
+
+/** Every workspace the Stage-Server hosts, with a real (or lazily-backfilled) display name -
+ * `GET /workspaces`, the WiFi "which networks are in range" listing, public/no auth by design
+ * (see `WorkspaceSummarySchema`'s doc comment - a band's name alone isn't sensitive on a LAN
+ * the Stage-Server itself controls). Filters `_all_dbs` down to `stageboard-*` databases
+ * (matching `workspaceDbName`), excluding CouchDB's own system databases. */
+export async function listWorkspaces(config: CouchConfig): Promise<Array<{ workspaceId: string; workspaceName: string }>> {
+  const dbs = await listDbs(config)
+  const workspaceIds = dbs.filter((db) => db.startsWith('stageboard-')).map((db) => db.slice('stageboard-'.length))
+
+  return Promise.all(
+    workspaceIds.map(async (workspaceId) => {
+      const { name } = await getOrCreateAccessCode(config, workspaceId, workspaceId)
+      return { workspaceId, workspaceName: name }
+    }),
+  )
 }
 
 /**
@@ -133,23 +231,51 @@ export function generateMemberPassword(): string {
 }
 
 /**
- * Resets an already-provisioned member's password to a fresh random one - the admin
- * "forgot/never knew the password" escape hatch (2026-08-31: BandManagementView.tsx's
- * "Einladen" always goes through this now, rather than asking the admin to already know and
- * re-type the account's password). Unlike `provisionMember`/`createUser`, this *does* rotate an
+ * Sets an already-provisioned member's password to an explicit, caller-chosen value - the
+ * building block for both self-service PIN assignment (`index.ts`'s `set-pin` route: an admin
+ * choosing their *own* new 4-digit PIN) and the admin-panel reset below (choosing a *fresh*
+ * value on someone else's behalf). Unlike `provisionMember`/`createUser`, this *does* rotate an
  * existing account's password on purpose - any device already synced with the old one stops
- * authenticating until it's re-invited with the new one, an accepted tradeoff of "forgot my
- * password" always meaning "the old one no longer works anywhere."
+ * authenticating until it's told the new one.
+ */
+export async function setMemberPassword(
+  config: CouchConfig,
+  workspaceId: string,
+  profileId: string,
+  password: string,
+): Promise<WorkspaceCredentialPair> {
+  const username = memberUsername(workspaceId, profileId)
+  await resetUserPassword(config, username, password)
+  return { username, password }
+}
+
+/**
+ * Silently (re)issues an already-provisioned member's password to a fresh, long, never-typed
+ * random one - used where nobody ever needs to read or retype the value, only where the app
+ * itself stores and uses it: a non-admin's every single pick (2026-09-02 second follow-up - a
+ * non-admin has no password concept a human could type at all anymore, so every activation just
+ * transparently reissues a working account), and an admin logging in via the universal recovery
+ * code (`resolveOutcome` in index.ts - the device ends up with valid credentials either way,
+ * with no need to burn a short human-memorable PIN on a value that's about to be immediately
+ * overwritten by the device's own stored session).
  */
 export async function resetMemberPassword(
   config: CouchConfig,
   workspaceId: string,
   profileId: string,
 ): Promise<WorkspaceCredentialPair> {
-  const username = memberUsername(workspaceId, profileId)
-  const password = randomPassword()
-  await resetUserPassword(config, username, password)
-  return { username, password }
+  return setMemberPassword(config, workspaceId, profileId, randomPassword())
+}
+
+/**
+ * Resets another admin's PIN to a fresh, *human-relayable* 4-digit one - the admin-panel
+ * "Passwort zurücksetzen" escape hatch (BandManagementView.tsx), for when a locked-out admin has
+ * another admin's help available. Deliberately a short PIN, not `resetMemberPassword`'s long
+ * random one: the whole point here is that a person reads this value off one screen and retypes
+ * it into another, which a 24-byte base64 string makes needlessly painful.
+ */
+export async function resetAdminPin(config: CouchConfig, workspaceId: string, profileId: string): Promise<WorkspaceCredentialPair> {
+  return setMemberPassword(config, workspaceId, profileId, randomPin())
 }
 
 /** Grants or revokes admin for one already-provisioned member (see per-person-accounts

@@ -4,9 +4,13 @@ import {
   deprovisionMember,
   deprovisionWorkspace,
   generateMemberPassword,
+  getAccessCode,
+  getOrCreateAccessCode,
+  listWorkspaces,
   memberUsername,
   provisionMember,
   provisionWorkspace,
+  rotateAccessCode,
   setMemberAdmin,
   WorkspaceAlreadyProvisionedError,
   workspaceDbName,
@@ -33,16 +37,17 @@ describe('workspaceDbName / memberUsername', () => {
 })
 
 describe('provisionWorkspace', () => {
-  it('creates the founder\'s account (member+admin roles), the database, a role-based security doc, and a static roster validator', async () => {
+  it('creates the founder\'s account (member+admin roles), the database, a role-based security doc, a static roster validator, and the standing access-code doc', async () => {
     const fetchMock = stubFetch([
       { ok: false, status: 404 }, // userExists
       { ok: true, status: 201 }, // createUser (founder)
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
       { ok: true, status: 201 }, // putDoc (_design/roster)
+      { ok: true, status: 201 }, // putDoc (workspace:access)
     ])
 
-    const result = await provisionWorkspace(config, 'band-c', 'p1')
+    const result = await provisionWorkspace(config, 'band-c', 'p1', 'Band C')
 
     expect(result.username).toBe('stageboard-band-c-p1')
     expect(result.password.length).toBeGreaterThan(10)
@@ -66,13 +71,85 @@ describe('provisionWorkspace', () => {
     // added/removed/promoted.
     expect(designDocBody.validate_doc_update).toContain('userCtx.roles')
     expect(designDocBody.validate_doc_update).toContain("indexOf('admin')")
+
+    const accessCodeCall = fetchMock.mock.calls[5]
+    expect(accessCodeCall[0]).toBe('http://localhost:5984/stageboard-band-c/workspace%3Aaccess')
+    const accessCodeBody = JSON.parse(accessCodeCall[1].body)
+    expect(accessCodeBody).toEqual({ _id: 'workspace:access', code: expect.stringMatching(/^\d{8}$/), name: 'Band C' })
   })
 
-  it('throws WorkspaceAlreadyProvisionedError without touching the db or security doc', async () => {
+  it('throws WorkspaceAlreadyProvisionedError without touching the db, security doc, or access code', async () => {
     const fetchMock = stubFetch([{ ok: true, status: 200, json: async () => ({ name: 'stageboard-band-a-p1' }) }])
 
-    await expect(provisionWorkspace(config, 'band-a', 'p1')).rejects.toThrow(WorkspaceAlreadyProvisionedError)
+    await expect(provisionWorkspace(config, 'band-a', 'p1', 'Band A')).rejects.toThrow(WorkspaceAlreadyProvisionedError)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('access code (2026-09-01 WiFi-style redesign)', () => {
+  it('getAccessCode returns null for a workspace with no access-code doc yet', async () => {
+    stubFetch([{ ok: false, status: 404 }])
+    expect(await getAccessCode(config, 'band-c')).toBeNull()
+  })
+
+  it('getAccessCode reads the existing code and name', async () => {
+    stubFetch([{ ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '12345678', name: 'Band C' }) }])
+    expect(await getAccessCode(config, 'band-c')).toEqual({ code: '12345678', name: 'Band C' })
+  })
+
+  it('getOrCreateAccessCode returns the existing doc untouched when one already exists', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '12345678', name: 'Band C' }) },
+    ])
+
+    const result = await getOrCreateAccessCode(config, 'band-c', 'fallback-name')
+
+    expect(result).toEqual({ code: '12345678', name: 'Band C' })
+    expect(fetchMock).toHaveBeenCalledTimes(1) // just the read - no write
+  })
+
+  it('getOrCreateAccessCode lazily creates one with the fallback name when none exists yet - the pre-existing-workspace backfill path', async () => {
+    const fetchMock = stubFetch([
+      { ok: false, status: 404 }, // getAccessCode -> missing
+      { ok: true, status: 201 }, // putDoc (workspace:access)
+    ])
+
+    const result = await getOrCreateAccessCode(config, 'band-c', 'band-c')
+
+    expect(result.name).toBe('band-c')
+    expect(result.code).toMatch(/^\d{8}$/)
+    const putCall = fetchMock.mock.calls[1]
+    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', code: result.code, name: 'band-c' })
+  })
+
+  it('rotateAccessCode keeps the existing name but generates a fresh code', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '11111111', name: 'Band C' }) }, // getAccessCode
+      { ok: true, status: 201 }, // putDoc with new code
+    ])
+
+    const newCode = await rotateAccessCode(config, 'band-c')
+
+    expect(newCode).toMatch(/^\d{8}$/)
+    expect(newCode).not.toBe('11111111')
+    const putCall = fetchMock.mock.calls[1]
+    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', code: newCode, name: 'Band C' })
+  })
+
+  it('listWorkspaces filters _all_dbs to stageboard-* databases and resolves each one\'s display name', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ['_users', '_replicator', 'stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '11111111', name: 'Band A' }) }, // band-a access code
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '22222222', name: 'Band C' }) }, // band-c access code
+    ])
+
+    const workspaces = await listWorkspaces(config)
+
+    expect(workspaces).toEqual([
+      { workspaceId: 'band-a', workspaceName: 'Band A' },
+      { workspaceId: 'band-c', workspaceName: 'Band C' },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 

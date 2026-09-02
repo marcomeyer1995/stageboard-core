@@ -23,8 +23,9 @@ const TAB_LABEL: Record<SystemTab, string> = {
  * Plugins, Backup, Nachbericht, the settings that used to live directly in AppMenu.tsx
  * (Darstellung, Sync status, Speicher & Sync - see the 2026-08-30 menu-decluttering pass), and
  * (as of the follow-up the same day) Band - every band/roster *management* action (create,
- * rename, invite, add/rename/reassign-role/delete a member), leaving WorkspaceSwitcher.tsx/
- * ProfileSwitcher.tsx in the main menu as pure selection. One top-level "System" entry in
+ * rename, invite, add/rename/reassign-role/delete a member, and - since the 2026-09-02
+ * follow-up - switching which band/profile this device is showing as too, replacing the
+ * removed WorkspaceSwitcher.tsx/ProfileSwitcher.tsx entirely). One top-level "System" entry in
  * App.tsx's mode switch instead of many, with its own tab bar here - none of this is touched
  * during a live show, so it doesn't need to cost rows in the main menu just to be reachable.
  *
