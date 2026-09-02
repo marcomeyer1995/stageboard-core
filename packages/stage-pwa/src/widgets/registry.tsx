@@ -16,6 +16,7 @@ import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { ShowNoteWidget } from './ShowNoteWidget'
 import { ShowPlaybackWidget } from './ShowPlaybackWidget'
+import { SyncCheckWidget } from './SyncCheckWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
@@ -209,6 +210,15 @@ const DEFINITIONS: WidgetDefinition[] = [
     relevantRoles: ['crew'],
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
     Component: SystemHealthWidget,
+  }),
+  defineWidget({
+    type: 'sync-check',
+    title: 'Sync-Check',
+    description: 'Blitzt im Takt der Server-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.',
+    category: 'system-crew',
+    relevantRoles: ['crew'],
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: SyncCheckWidget,
   }),
   defineWidget({
     type: 'tuner',
