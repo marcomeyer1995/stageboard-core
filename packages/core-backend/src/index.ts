@@ -232,6 +232,14 @@ export async function buildApp() {
   // read is all a client needs, no session/state on this end.
   app.get('/time', async () => ({ serverTime: Date.now() }))
 
+  // Lets InviteBandView.tsx embed a *reachable* address in its QR code (see #21 seventh
+  // follow-up, at Marco's explicit request) rather than baking one host in forever - detected
+  // fresh on every call (not cached at startup like main()'s own `lanIp`), so "Einladen"
+  // printing a stale IP after a DHCP lease change is a re-open of that screen away, not a
+  // server restart away. No auth: this is the same address the mDNS responder already
+  // broadcasts to anything listening on the LAN, not new information.
+  app.get('/server-info', async () => ({ lanIp: process.env.LAN_IP ?? detectLanIp() }))
+
   // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
   // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
   // anything else needs an explicit parser or gets rejected as unsupported media type.

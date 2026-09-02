@@ -70,6 +70,26 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('GET /server-info', () => {
+    afterEach(() => {
+      delete process.env.LAN_IP
+    })
+
+    it('reports the LAN_IP override when set', async () => {
+      process.env.LAN_IP = '10.1.2.3'
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ lanIp: '10.1.2.3' })
+    })
+
+    it('falls back to a detected address or null, never throwing, with no LAN_IP set', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.statusCode).toBe(200)
+      const { lanIp } = response.json() as { lanIp: string | null }
+      expect(lanIp === null || typeof lanIp === 'string').toBe(true)
+    })
+  })
+
   describe('GET /plugins', () => {
     it('lists registered show-control plugins', async () => {
       await registry.register(fakeShowControlPlugin(), testContext())

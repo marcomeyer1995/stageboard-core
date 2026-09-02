@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { renderQrCode } from '../lib/qrCode'
+import { buildJoinUrl, renderQrCode } from '../lib/qrCode'
+import { fetchLanIp } from '../lib/serverInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -21,6 +22,15 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * PDF" as a destination, no PDF library needed) uses `print:` Tailwind variants to hide
  * everything except the QR/code themselves, and to escape the `fixed`/`overflow-y-auto` modal
  * chrome that would otherwise clip or blank the printed page.
+ *
+ * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
+ * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a
+ * phone's *native* camera app can open it directly and land on the right Stage-Server, not only
+ * the in-app scanner. The IP is fetched fresh (`fetchLanIp`) every time this screen mounts - so
+ * every "Einladen" press embeds whatever address is current right now, not a stale build-time
+ * or first-load one - and shown as plain text alongside the QR, with a note that the code needs
+ * regenerating if that address ever changes, since there's no way to update an already-printed
+ * QR code after the fact.
  */
 export function InviteBandView({
   workspaceId,
@@ -37,27 +47,38 @@ export function InviteBandView({
 
   const [code, setCode] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [lanIp, setLanIp] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rotating, setRotating] = useState(false)
 
-  async function loadQr(nextCode: string) {
+  async function loadQr(nextCode: string, host: string | null) {
     // The QR carries workspaceId+code together (WiFi-QR-style - SSID and password in one
-    // scan), so a scanning device can skip straight to the roster picker without first
-    // browsing/picking this band by name from JoinBandView.tsx's list.
-    const url = await renderQrCode(`${workspaceId}:${nextCode}`)
+    // scan) either way; wrapped in a real URL when the server's current LAN IP is known, so a
+    // scanning device's native camera app can open it directly - falls back to the older bare
+    // `workspaceId:code` text (still fine for the in-app scanner) if the IP couldn't be
+    // determined, rather than blocking the invite screen on that.
+    const payload = host ? buildJoinUrl(host, workspaceId, nextCode) : `${workspaceId}:${nextCode}`
+    const url = await renderQrCode(payload)
     setQrDataUrl(url)
   }
 
   useEffect(() => {
     let cancelled = false
-    void getAccessCode(workspaceId).then((result) => {
+    // Fetched fresh on every mount, i.e. every time "Einladen" is opened (Marco's explicit
+    // request) - not cached/reused, so a QR regenerated after the server's IP changes always
+    // reflects the current address, never a stale one from an earlier visit to this screen.
+    const ipPromise = fetchLanIp().then((ip) => {
+      if (!cancelled) setLanIp(ip)
+      return ip
+    })
+    void getAccessCode(workspaceId).then(async (result) => {
       if (cancelled) return
       if (!result) {
         setError('Code konnte nicht geladen werden.')
         return
       }
       setCode(result.code)
-      void loadQr(result.code)
+      void loadQr(result.code, await ipPromise)
     })
     return () => {
       cancelled = true
@@ -88,6 +109,19 @@ export function InviteBandView({
             </p>
             {qrDataUrl && <img src={qrDataUrl} alt={`QR-Code für Bandcode ${code}`} className="mx-auto w-48" />}
             <p className="text-center text-2xl font-bold tracking-widest print:text-black">{code}</p>
+            {lanIp ? (
+              <p className="text-center text-xs text-ink-faint print:text-black">
+                Im QR-Code enthaltene Server-Adresse: {lanIp}
+                <br />
+                Ändert sich diese Adresse später, muss der QR-Code hier neu erstellt werden - der Code selbst ({code}
+                ) bleibt dabei gültig.
+              </p>
+            ) : (
+              <p className="text-center text-xs text-ink-faint print:text-black">
+                Server-Adresse konnte nicht ermittelt werden - der QR-Code funktioniert nur mit der Kamera in der App,
+                nicht mit einer normalen Kamera-App.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => window.print()}
@@ -109,7 +143,7 @@ export function InviteBandView({
                 setRotating(false)
                 if (!result) return
                 setCode(result.code)
-                void loadQr(result.code)
+                void loadQr(result.code, lanIp)
               }}
               className="w-full text-center text-xs text-ink-faint underline disabled:opacity-50 print:hidden"
             >
