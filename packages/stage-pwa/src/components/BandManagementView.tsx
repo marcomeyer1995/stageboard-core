@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type StageRole } from 'shared-types'
+import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type Profile, type StageRole } from 'shared-types'
 import { InviteBandView } from './InviteBandView'
+import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useNow } from '../lib/useNow'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
@@ -76,10 +77,14 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * an account on the spot when none exists yet, see core-backend's `POST /workspaces/:id/join/:profileId`).
  *
  * "Passwort zurücksetzen" below is the *other*-admin's-help recovery path (only shown for an
- * admin target - a non-admin has nothing to reset): another admin's already-active session sets
- * a fresh PIN and relays it out of band (in person, a message, ...) - the one-time value is
- * shown once, right after resetting, and never stored or shown again. For the "no other admin
- * session exists at all" case, the universal recovery code (above) is what actually solves it.
+ * admin target that isn't this device's own active profile, 2026-09-02 eleventh follow-up -
+ * found live: Marco locked his own phone out using it on himself): another admin's already-
+ * active session sets a fresh PIN and relays it out of band (in person, a message, ...) - the
+ * one-time value is shown once, right after resetting, and never stored or shown again, and
+ * critically never updates *this* device's own stored credentials either, unlike "Meinen PIN
+ * setzen" - using it on your own row silently breaks your own session with no way to recover
+ * the new value. For the "no other admin session exists at all" case, the universal recovery
+ * code (above) is what actually solves it.
  *
  * Tier-A local-only-founding follow-up (2026-08-30): a band with no Stage-Server configured
  * founds and builds its roster entirely locally - `activeWorkspace.username` unset is that
@@ -99,13 +104,62 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * once. The same accent-border/background treatment (not the dot - a band has no presence
  * concept, just one is active) also marks the currently active *band* in the list above, for a
  * consistent "this one is the one currently selected" language across both lists.
+ *
+ * 2026-09-02 twelfth follow-up, at Marco's explicit request ("keep that basic MENU structure
+ * idea consistent for all other pages as well we develop in the future"): the band list now
+ * uses the exact same tap-to-select/"⋮"-for-everything-else split as the member list - a tap
+ * on a band's own name selects it (already true beforehand), and "Einladen"/"Löschen" move
+ * behind a `RowMenuButton`/`RowActionsMenu` popup (`RowActionsMenu.tsx`, extracted here so it's
+ * one shared building block rather than two near-identical copies) instead of sitting as inline
+ * links. Any future list of rows should reach for the same three pieces rather than growing its
+ * own bespoke inline-links row that will eventually hit the same narrow-screen problem.
+ *
+ * 2026-09-02 thirteenth follow-up, at Marco's explicit request: the "(aktiv)"/"(du)" text
+ * labels are gone from both lists - the accent border/background already says "this one is
+ * selected" on its own, the text was redundant. Also added "Von diesem Gerät entfernen"
+ * (`removeWorkspaceLocally`, useWorkspaceStore.ts) - previously "Löschen" was the *only* way to
+ * stop a band showing up here, and it always deletes the workspace for everyone, server-side,
+ * admin-only. The new action is purely local (drops it from this device's list, wipes its
+ * local PouchDB data, never touches the server) and offered to every member of a server-
+ * connected band, not just admins - a plain member previously had no way at all to remove a
+ * band from their own device.
  */
+function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onlineDeviceCount: number }) {
+  return (
+    <>
+      <span className="inline-flex items-center gap-1.5">
+        {onlineDeviceCount > 0 && (
+          <span
+            className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
+            title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
+          />
+        )}
+        {profile.name}
+        {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
+      </span>
+      {profile.stageRoles.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {profile.stageRoles.map((role) => (
+            <span
+              key={role}
+              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
+            >
+              {STAGE_ROLE_LABELS[role]}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function BandManagementView() {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const deleteWorkspace = useWorkspaceStore((state) => state.deleteWorkspace)
+  const removeWorkspaceLocally = useWorkspaceStore((state) => state.removeWorkspaceLocally)
   const resetMemberPassword = useWorkspaceStore((state) => state.resetMemberPassword)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
   const setOwnPin = useWorkspaceStore((state) => state.setOwnPin)
@@ -145,6 +199,18 @@ export function BandManagementView() {
   const [activatingProfileId, setActivatingProfileId] = useState<string | null>(null)
   const [activatePasswordInput, setActivatePasswordInput] = useState('')
   const [activating, setActivating] = useState(false)
+  // 2026-09-02 tenth follow-up, at Marco's explicit request after finding this live on a phone:
+  // the previous row of inline text-link actions (Umbenennen, Stage-Rollen anpassen, ...) had
+  // no bound on how many could pile up per row, and on a narrow screen they'd rather run out of
+  // horizontal room than wrap onto a readable second line. Which member row's action popup is
+  // currently open - one dedicated "⋮" button per row (RowActionsMenu.tsx), not a link among
+  // the others, so it's always reachable regardless of row width.
+  const [actionsMenuProfileId, setActionsMenuProfileId] = useState<string | null>(null)
+  // 2026-09-02 twelfth follow-up, at Marco's explicit request ("keep that basic MENU structure
+  // idea consistent for all other pages"): the exact same treatment for the band list above -
+  // "Einladen"/"Löschen" move behind a "⋮" popup instead of sitting as inline links, and a tap
+  // on the band's own name (already the case beforehand) selects it.
+  const [actionsMenuWorkspaceId, setActionsMenuWorkspaceId] = useState<string | null>(null)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
   const adminCount = profiles.filter((profile) => profile.stageRoles.includes('admin')).length
@@ -202,35 +268,69 @@ export function BandManagementView() {
               className="text-left font-semibold hover:underline disabled:hover:no-underline"
             >
               {workspace.name}
-              {workspace.id === activeWorkspaceId && <span className="ml-2 text-xs text-ink-faint">(aktiv)</span>}
             </button>
-            {workspace.isAdmin && (
-              <div className="flex flex-shrink-0 items-center gap-3 text-xs">
+            {(workspace.isAdmin || !!workspace.username) && (
+              <RowMenuButton
+                label={`Weitere Optionen für ${workspace.name}`}
+                onClick={() => setActionsMenuWorkspaceId(workspace.id)}
+              />
+            )}
+            {actionsMenuWorkspaceId === workspace.id && (
+              <RowActionsMenu title={workspace.name} onClose={() => setActionsMenuWorkspaceId(null)}>
                 {/* Only once this band has a real Stage-Server account to invite anyone
-                    to - a local-only band (Tier-A follow-up) has nothing to hand out yet. */}
-                {!!workspace.username && (
-                  <button
-                    type="button"
-                    onClick={() => setInviteWorkspaceId(workspace.id)}
-                    className="underline hover:text-ink-soft"
+                    to - a local-only band (Tier-A follow-up) has nothing to hand out yet. Also
+                    admin-only, unlike "Von diesem Gerät entfernen" below: inviting is a band-
+                    management action, not something a plain member does. */}
+                {workspace.isAdmin && !!workspace.username && (
+                  <RowActionButton
+                    onClick={() => {
+                      setActionsMenuWorkspaceId(null)
+                      setInviteWorkspaceId(workspace.id)
+                    }}
                   >
                     Einladen
-                  </button>
+                  </RowActionButton>
                 )}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const confirmed = await confirm(
-                      `"${workspace.name}" endgültig löschen? Alle Daten (Songs, Setlisten, Roster, ...) gehen unwiderruflich verloren, für jedes Gerät, das dieser Band beigetreten ist.`,
-                      { confirmLabel: 'Endgültig löschen', danger: true },
-                    )
-                    if (confirmed) void deleteWorkspace(workspace.id)
-                  }}
-                  className="text-red-400 underline hover:text-red-300"
-                >
-                  Löschen
-                </button>
-              </div>
+                {/* 2026-09-02 thirteenth follow-up, at Marco's explicit request ("welche
+                    Möglichkeit gibt es, gerade einen Band-Workspace von seinem Gerät zu
+                    löschen, aber nicht den kompletten Workspace auf dem Server") - the
+                    non-destructive counterpart to "Löschen" below: drops this band from just
+                    this device (removeWorkspaceLocally also wipes its local PouchDB data) and
+                    never touches the server, so it's offered to every server-connected band's
+                    member, not only admins - a plain member previously had no way at all to
+                    remove a band from their own device's list. Only for a server-connected
+                    band: for a local-only one (no `username`), this and "Löschen" would be the
+                    exact same operation, so just "Löschen" stays the one option there. */}
+                {!!workspace.username && (
+                  <RowActionButton
+                    onClick={async () => {
+                      setActionsMenuWorkspaceId(null)
+                      const confirmed = await confirm(
+                        `"${workspace.name}" von diesem Gerät entfernen? Die Band bleibt auf dem Server bestehen - andere Geräte sind nicht betroffen, und du kannst jederzeit wieder beitreten.`,
+                        { confirmLabel: 'Entfernen' },
+                      )
+                      if (confirmed) await removeWorkspaceLocally(workspace.id)
+                    }}
+                  >
+                    Von diesem Gerät entfernen
+                  </RowActionButton>
+                )}
+                {workspace.isAdmin && (
+                  <RowActionButton
+                    danger
+                    onClick={async () => {
+                      setActionsMenuWorkspaceId(null)
+                      const confirmed = await confirm(
+                        `"${workspace.name}" endgültig löschen? Alle Daten (Songs, Setlisten, Roster, ...) gehen unwiderruflich verloren, für jedes Gerät, das dieser Band beigetreten ist.`,
+                        { confirmLabel: 'Endgültig löschen', danger: true },
+                      )
+                      if (confirmed) void deleteWorkspace(workspace.id)
+                    }}
+                  >
+                    Löschen
+                  </RowActionButton>
+                )}
+              </RowActionsMenu>
             )}
           </div>
         ))}
@@ -289,41 +389,31 @@ export function BandManagementView() {
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span className="inline-flex items-center gap-1.5">
-                      {onlineDeviceCount > 0 && (
-                        <span
-                          className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
-                          title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
-                        />
-                      )}
-                      {profile.name}
-                      {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
-                      {isActiveProfile && <span className="text-xs text-ink-faint">(du)</span>}
-                    </span>
-                    {profile.stageRoles.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {profile.stageRoles.map((role) => (
-                          <span
-                            key={role}
-                            className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
-                          >
-                            {STAGE_ROLE_LABELS[role]}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-3 text-xs">
-                    {!isActiveProfile && (
-                      <button type="button" onClick={() => handlePickProfile(profile)} className="underline hover:text-ink-soft">
-                        Auswählen
-                      </button>
-                    )}
+                  {/* A tap anywhere on name/roles selects this profile (2026-09-02 tenth
+                      follow-up) - already-active has nothing to select, so it's a plain div
+                      there instead of a disabled-looking button. */}
+                  {isActiveProfile ? (
+                    <div>
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="text-left hover:opacity-80">
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                    </button>
+                  )}
+                  {((isActiveProfile && isAdminProfile) || activeWorkspace.isAdmin) && (
+                    <RowMenuButton
+                      label={`Weitere Optionen für ${profile.name}`}
+                      onClick={() => setActionsMenuProfileId(profile.id)}
+                    />
+                  )}
+                </div>
+                {actionsMenuProfileId === profile.id && (
+                  <RowActionsMenu title={profile.name} onClose={() => setActionsMenuProfileId(null)}>
                     {isActiveProfile && isAdminProfile && (
-                      <button
-                        type="button"
+                      <RowActionButton
                         onClick={async () => {
+                          setActionsMenuProfileId(null)
                           const result = await promptFields('Eigenen PIN setzen', [
                             { key: 'pin', label: 'Neuer 4-stelliger PIN' },
                           ])
@@ -335,29 +425,27 @@ export function BandManagementView() {
                           }
                           await setOwnPin(activeWorkspaceId, profile.id, pin)
                         }}
-                        className="underline hover:text-ink-soft"
                       >
                         Meinen PIN setzen
-                      </button>
+                      </RowActionButton>
                     )}
                     {activeWorkspace.isAdmin && (
                       <>
-                        <button
-                          type="button"
+                        <RowActionButton
                           onClick={async () => {
+                            setActionsMenuProfileId(null)
                             const name = await promptText('Mitglied umbenennen', {
                               label: 'Neuer Name',
                               defaultValue: profile.name,
                             })
                             if (name?.trim()) void updateProfile(profile.id, name.trim())
                           }}
-                          className="underline hover:text-ink-soft"
                         >
                           Umbenennen
-                        </button>
-                        <button
-                          type="button"
+                        </RowActionButton>
+                        <RowActionButton
                           onClick={async () => {
+                            setActionsMenuProfileId(null)
                             const result = await promptFields('Stage-Rollen anpassen', [
                               {
                                 key: 'stageRoles',
@@ -371,14 +459,21 @@ export function BandManagementView() {
                             const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
                             void updateStageRoles(profile.id, stageRoles)
                           }}
-                          className="underline hover:text-ink-soft"
                         >
                           Stage-Rollen anpassen
-                        </button>
-                        {isAdminProfile && (
-                          <button
-                            type="button"
+                        </RowActionButton>
+                        {/* Not for isActiveProfile (2026-09-02 eleventh follow-up, found live:
+                            Marco locked his own phone out with this) - resetMemberPassword
+                            only ever shows the fresh password once, for relaying to a
+                            *different* device/person out of band; it never updates this
+                            device's own stored credentials, unlike setOwnPin. Using it on your
+                            own active row silently invalidates your own session with no way
+                            to recover the new value - "Meinen PIN setzen" above is the only
+                            safe self-service path, and stays the only one offered here now. */}
+                        {isAdminProfile && !isActiveProfile && (
+                          <RowActionButton
                             onClick={async () => {
+                              setActionsMenuProfileId(null)
                               const confirmed = await confirm(
                                 `Neuen PIN für "${profile.name}" setzen? Der alte hört sofort auf zu funktionieren.`,
                                 { confirmLabel: 'Zurücksetzen', danger: true },
@@ -390,16 +485,16 @@ export function BandManagementView() {
                                 title: 'PIN zurückgesetzt',
                               })
                             }}
-                            className="underline hover:text-ink-soft"
                           >
                             Passwort zurücksetzen
-                          </button>
+                          </RowActionButton>
                         )}
-                        <button
-                          type="button"
+                        <RowActionButton
+                          danger
                           disabled={isLastAdmin(profile)}
                           title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
                           onClick={async () => {
+                            setActionsMenuProfileId(null)
                             if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
                               const removed = await removeProfile(profile.id)
                               // Only clear the active-profile choice if this device happened to be
@@ -408,14 +503,13 @@ export function BandManagementView() {
                               if (removed && profile.id === activeProfileId) setActiveProfile(activeWorkspaceId, null)
                             }
                           }}
-                          className="underline hover:text-ink-soft disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline disabled:hover:text-ink-faint"
                         >
                           Löschen
-                        </button>
+                        </RowActionButton>
                       </>
                     )}
-                  </div>
-                </div>
+                  </RowActionsMenu>
+                )}
                 {activatingProfileId === profile.id && (
                   <form
                     onSubmit={(e) => {

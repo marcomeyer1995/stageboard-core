@@ -22,6 +22,23 @@ export function localDbName(workspaceId: string): string {
 }
 
 /**
+ * Permanently deletes this workspace's local PouchDB database (IndexedDB) - the local half of
+ * "remove this band from my device without deleting it for everyone" (BandManagementView.tsx's
+ * "Von diesem Gerät entfernen", 2026-09-02 thirteenth follow-up, at Marco's explicit request:
+ * "welche Möglichkeit gibt es, gerade einen Band-Workspace von seinem Gerät zu löschen, aber
+ * nicht den kompletten Workspace auf dem Server"). Never touches the remote CouchDB database at
+ * all - `deleteWorkspace` (useWorkspaceStore.ts) is the separate, admin-only, actually-
+ * destructive-for-everyone action for that. Re-joining later just re-pulls everything fresh
+ * from the server, so this is fully recoverable, not a real "delete." A fresh `PouchDB(name)`
+ * handle rather than reusing `getWorkspaceDb`'s module-level one on purpose: this needs to work
+ * for *any* workspace id, not just the currently-active one, and PouchDB's own `destroy()`
+ * already tears down any live replication attached to the database it's given.
+ */
+export async function destroyLocalWorkspaceDb(workspaceId: string): Promise<void> {
+  await new PouchDB(localDbName(workspaceId)).destroy()
+}
+
+/**
  * The workspace's remote CouchDB database URL, reached through core-backend's own origin
  * rather than CouchDB's own port directly (2026-09-02 fourth follow-up, at Marco's explicit
  * request). Browsers trust a self-signed cert per *origin*, not per-certificate - pointing

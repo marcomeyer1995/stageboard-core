@@ -1,9 +1,24 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useActiveProfileStore } from '../store/useActiveProfileStore'
-import { useDialogStore } from '../store/useDialogStore'
-import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { JoinBandView } from './JoinBandView'
+
+// useWorkspaceStore now imports workspaceDb.ts (removeWorkspaceLocally's
+// destroyLocalWorkspaceDb), which constructs a real PouchDB at module load time - unavailable
+// under happy-dom (see workspaceDb.test.ts's identical mock).
+vi.mock('pouchdb-browser', () => ({
+  default: class FakePouchDB {
+    sync() {
+      return { on: () => this, cancel: () => {} }
+    }
+    destroy() {
+      return Promise.resolve()
+    }
+  },
+}))
+
+const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
+const { useDialogStore } = await import('../store/useDialogStore')
+const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
+const { JoinBandView } = await import('./JoinBandView')
 
 const workspaceList = [
   { workspaceId: 'band-c', workspaceName: 'Band C' },

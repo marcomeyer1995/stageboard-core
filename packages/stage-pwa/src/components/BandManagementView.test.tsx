@@ -18,6 +18,18 @@ const { useProfilesStore } = await import('../store/useProfilesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { BandManagementView } = await import('./BandManagementView')
 
+// 2026-09-02 tenth follow-up: per-member actions (Umbenennen, Löschen, ...) moved behind a
+// single "⋮" popup per row (see the component's own doc comment) - opens it for a given
+// member's name so the rest of a test can click straight through to an action inside.
+function openMemberMenu(name: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Weitere Optionen für ${name}` }))
+}
+
+// 2026-09-02 twelfth follow-up: the band list got the exact same "⋮" popup treatment.
+function openBandMenu(name: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Weitere Optionen für ${name}` }))
+}
+
 // "Einladen" opens InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the real
 // .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
 // cares about - see InviteBandView.test.tsx's identical stub.
@@ -56,15 +68,19 @@ describe('BandManagementView', () => {
 
     expect(screen.getByText('Band A')).toBeInTheDocument()
     expect(screen.getByText('Band B')).toBeInTheDocument()
-    // No band-level "Umbenennen" at all (see the component's own doc comment) - the one
-    // "Umbenennen" that does exist is the active band's roster section (member rename). One
-    // band-level "Einladen" (2026-09-01 redesign, next to the band's own name/Löschen - not
-    // per roster row, not per new member) for the already-server-connected band-a; band-b is
-    // this device's non-admin band, so it gets neither. "Löschen" appears twice: band-a's own
-    // delete, plus the roster member's delete.
-    expect(screen.getAllByText('Umbenennen')).toHaveLength(1)
+    // Band-b is this device's non-admin band, so it gets no "⋮" at all. Band-a's own
+    // "Einladen"/"Löschen" and the roster member's own Umbenennen/Löschen all live behind
+    // their respective "⋮" popups now (2026-09-02 tenth/twelfth follow-ups).
+    expect(screen.queryByRole('button', { name: 'Weitere Optionen für Band B' })).not.toBeInTheDocument()
+
+    openBandMenu('Band A')
     expect(screen.getByText('Einladen')).toBeInTheDocument()
-    expect(screen.getAllByText('Löschen')).toHaveLength(2)
+    expect(screen.getByText('Löschen')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Schließen'))
+
+    openMemberMenu('Marco')
+    expect(screen.getByText('Umbenennen')).toBeInTheDocument()
+    expect(screen.getByText('Löschen')).toBeInTheDocument()
   })
 
   it('does not offer "Einladen" for a band that is still local-only (nothing to invite anyone to yet)', () => {
@@ -75,6 +91,7 @@ describe('BandManagementView', () => {
       ],
     })
     render(<BandManagementView />)
+    openBandMenu('Band A')
     expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
   })
 
@@ -96,8 +113,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm })
 
     render(<BandManagementView />)
-    // Band-level "Löschen" is the first - the member-level one is second.
-    fireEvent.click(screen.getAllByText('Löschen')[0])
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Löschen'))
 
     await waitFor(() => expect(deleteWorkspace).toHaveBeenCalledWith('band-a'))
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Band A'), expect.objectContaining({ danger: true }))
@@ -109,7 +126,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getAllByText('Löschen')[0])
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Löschen'))
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(deleteWorkspace).not.toHaveBeenCalled()
@@ -168,6 +186,7 @@ describe('BandManagementView', () => {
     render(<BandManagementView />)
 
     // Only one "Umbenennen" button exists now (member-level - no band-level rename anymore).
+    openMemberMenu('Marco')
     fireEvent.click(screen.getByText('Umbenennen'))
 
     await waitFor(() => expect(update).toHaveBeenCalledWith('p1', 'Marco M.'))
@@ -188,6 +207,7 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptFields })
 
     render(<BandManagementView />)
+    openMemberMenu('Marco')
     fireEvent.click(screen.getByText('Stage-Rollen anpassen'))
 
     await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', ['performer', 'soundtech', 'admin']))
@@ -208,7 +228,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getAllByText('Stage-Rollen anpassen')[0])
+    openMemberMenu('Marco')
+    fireEvent.click(screen.getByText('Stage-Rollen anpassen'))
 
     await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', []))
   })
@@ -219,6 +240,7 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
 
     render(<BandManagementView />)
+    openMemberMenu('Marco')
     fireEvent.click(screen.getByText('Stage-Rollen anpassen'))
 
     await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', []))
@@ -235,8 +257,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true) })
 
     render(<BandManagementView />)
-    // Band-level "Löschen" is the first - the member-level one is second.
-    fireEvent.click(screen.getAllByText('Löschen')[1])
+    openMemberMenu('Marco')
+    fireEvent.click(screen.getByText('Löschen'))
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith('p1'))
   })
@@ -244,8 +266,8 @@ describe('BandManagementView', () => {
   it('disables "Löschen" for the sole remaining admin, with an explanatory title', () => {
     render(<BandManagementView />)
 
-    // Member-level "Löschen" is the second one (band-level delete is first).
-    const remove = screen.getAllByText('Löschen')[1] as HTMLButtonElement
+    openMemberMenu('Marco')
+    const remove = screen.getByText('Löschen') as HTMLButtonElement
     expect(remove.disabled).toBe(true)
     expect(remove.title).toMatch(/Mindestens ein Admin/)
   })
@@ -259,8 +281,62 @@ describe('BandManagementView', () => {
     })
     render(<BandManagementView />)
 
-    const remove = screen.getAllByText('Löschen')[1] as HTMLButtonElement
+    openMemberMenu('Marco')
+    const remove = screen.getByText('Löschen') as HTMLButtonElement
     expect(remove.disabled).toBe(false)
+  })
+
+  describe('per-member "⋮" actions popup (2026-09-02 tenth follow-up: replaces a row of inline text links that ran out of room on a phone)', () => {
+    it('is not visible until "⋮" is clicked, and offers no popup at all for a viewer with nothing to do here', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', couchPassword: 'admin-pw' }],
+      })
+      useProfilesStore.setState({ profiles: [{ id: 'p1', name: 'Marco', stageRoles: [] }] })
+      useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
+
+      render(<BandManagementView />)
+
+      // A non-admin device viewing a non-active, non-self, non-admin profile has nothing to
+      // offer on that *member's* row (no "Auswählen" link anymore either - that's the
+      // tap-to-select on the row). The band itself still gets its own "⋮" (server-connected,
+      // so "Von diesem Gerät entfernen" applies even to a non-admin member) - a separate
+      // concern, not what this test is about.
+      expect(screen.queryByRole('button', { name: 'Weitere Optionen für Marco' })).not.toBeInTheDocument()
+    })
+
+    it('"Schließen" dismisses the popup', () => {
+      render(<BandManagementView />)
+
+      openMemberMenu('Marco')
+      expect(screen.getByText('Umbenennen')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('Schließen'))
+      expect(screen.queryByText('Umbenennen')).not.toBeInTheDocument()
+    })
+
+    it('clicking the backdrop dismisses the popup, but clicking the card itself does not', () => {
+      render(<BandManagementView />)
+      openMemberMenu('Marco')
+
+      const heading = screen.getByText('Marco', { selector: 'h3' })
+      const card = heading.parentElement!
+      const backdrop = card.parentElement!
+
+      fireEvent.click(card)
+      expect(screen.getByText('Umbenennen')).toBeInTheDocument()
+
+      fireEvent.click(backdrop)
+      expect(screen.queryByText('Umbenennen')).not.toBeInTheDocument()
+    })
+
+    it('closes itself once an action inside it is taken, rather than staying open under the action\'s own dialog', async () => {
+      useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Marco M.') })
+
+      render(<BandManagementView />)
+      openMemberMenu('Marco')
+      fireEvent.click(screen.getByText('Umbenennen'))
+
+      await waitFor(() => expect(screen.queryByText('Stage-Rollen anpassen')).not.toBeInTheDocument())
+    })
   })
 
   describe('presence indicators (2026-09-02 ninth follow-up: who is logged in, and from how many devices)', () => {
@@ -321,23 +397,48 @@ describe('BandManagementView', () => {
 
       render(<BandManagementView />)
 
-      expect(screen.getByText('(du)').closest('div.rounded-sb')?.className).toMatch(/border-accent/)
+      // p2 (Chris) is active - the accent border is the only "this is you" signal now
+      // (2026-09-02 thirteenth follow-up: the "(du)" text label was redundant with it).
+      const chrisRow = screen.getByText('Chris').closest('div.rounded-sb')
+      const marcoRow = screen.getByText('Marco').closest('div.rounded-sb')
+      expect(chrisRow?.className).toMatch(/border-accent/)
+      expect(marcoRow?.className).not.toMatch(/border-accent/)
     })
   })
 
   describe('"Passwort zurücksetzen" (2026-09-02 follow-up: admin-side reset, since self-service blank-password recovery is refused for admin accounts)', () => {
+    // A second admin (Chris, p2) who is NOT this device's active profile - Marco (p1, active)
+    // never offers "Passwort zurücksetzen" on his own row (2026-09-02 eleventh follow-up,
+    // found live: Marco locked his own phone out using it on himself - "Meinen PIN setzen" is
+    // the only safe self-service path, see the dedicated test below).
+    beforeEach(() => {
+      useProfilesStore.setState({
+        profiles: [
+          { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+          { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+        ],
+      })
+    })
+
+    it('is never offered on the currently-active profile\'s own row, even though it is an admin', () => {
+      render(<BandManagementView />)
+      openMemberMenu('Marco')
+      expect(screen.queryByText('Passwort zurücksetzen')).not.toBeInTheDocument()
+    })
+
     it('confirms first, then resets and shows the fresh password once', async () => {
-      const resetMemberPassword = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p1', password: 'fresh-123' })
+      const resetMemberPassword = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p2', password: 'fresh-123' })
       useWorkspaceStore.setState({ resetMemberPassword })
       const confirmMock = vi.fn().mockResolvedValue(true)
       const alertMock = vi.fn().mockResolvedValue(undefined)
       useDialogStore.setState({ confirm: confirmMock, alert: alertMock })
 
       render(<BandManagementView />)
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
-      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalledWith('band-a', 'p1'))
-      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Marco'), expect.objectContaining({ danger: true }))
+      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalledWith('band-a', 'p2'))
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Chris'), expect.objectContaining({ danger: true }))
       expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('fresh-123'), expect.objectContaining({ title: 'PIN zurückgesetzt' }))
     })
 
@@ -347,6 +448,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
 
       render(<BandManagementView />)
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -360,6 +462,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true), alert: alertMock })
 
       render(<BandManagementView />)
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
       await waitFor(() => expect(resetMemberPassword).toHaveBeenCalled())
@@ -385,6 +488,7 @@ describe('BandManagementView', () => {
       useWorkspaceStore.setState({ getAccessCode })
 
       render(<BandManagementView />)
+      openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
 
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
@@ -397,11 +501,68 @@ describe('BandManagementView', () => {
       })
 
       render(<BandManagementView />)
+      openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
 
       fireEvent.click(screen.getByText('Schließen'))
       expect(screen.queryByText('11112222')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('"Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up: the non-destructive, non-admin-gated counterpart to "Löschen")', () => {
+    it('is offered even to a non-admin member of a server-connected band', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', couchPassword: 'pw' }],
+      })
+      render(<BandManagementView />)
+
+      openBandMenu('Band A')
+      expect(screen.getByText('Von diesem Gerät entfernen')).toBeInTheDocument()
+      // Admin-only actions stay hidden for this non-admin member.
+      expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
+      expect(screen.queryByText('Löschen')).not.toBeInTheDocument()
+    })
+
+    it('is not offered for a local-only band (no Stage-Server account) - "Löschen" alone covers it there', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
+      })
+      render(<BandManagementView />)
+
+      openBandMenu('Band A')
+      expect(screen.queryByText('Von diesem Gerät entfernen')).not.toBeInTheDocument()
+      expect(screen.getByText('Löschen')).toBeInTheDocument()
+    })
+
+    it('confirms first, then calls removeWorkspaceLocally - not deleteWorkspace', async () => {
+      const removeWorkspaceLocally = vi.fn()
+      const deleteWorkspace = vi.fn()
+      useWorkspaceStore.setState({ removeWorkspaceLocally, deleteWorkspace })
+      const confirmMock = vi.fn().mockResolvedValue(true)
+      useDialogStore.setState({ confirm: confirmMock })
+
+      render(<BandManagementView />)
+      openBandMenu('Band A')
+      fireEvent.click(screen.getByText('Von diesem Gerät entfernen'))
+
+      await waitFor(() => expect(removeWorkspaceLocally).toHaveBeenCalledWith('band-a'))
+      expect(deleteWorkspace).not.toHaveBeenCalled()
+      // Non-danger-styled confirm: unlike "Löschen", this doesn't affect anyone else.
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Band A'), expect.not.objectContaining({ danger: true }))
+    })
+
+    it('does not remove it when the confirmation is declined', async () => {
+      const removeWorkspaceLocally = vi.fn()
+      useWorkspaceStore.setState({ removeWorkspaceLocally })
+      useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
+
+      render(<BandManagementView />)
+      openBandMenu('Band A')
+      fireEvent.click(screen.getByText('Von diesem Gerät entfernen'))
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(removeWorkspaceLocally).not.toHaveBeenCalled()
     })
   })
 
@@ -477,7 +638,9 @@ describe('BandManagementView', () => {
       useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
 
       render(<BandManagementView />)
-      fireEvent.click(screen.getByText('Auswählen'))
+      // 2026-09-02 tenth follow-up: "Auswählen" is no longer a separate link - a tap on the
+      // row itself (here, Chris's name) selects it.
+      fireEvent.click(screen.getByText('Chris'))
 
       expect(setActive).toHaveBeenCalledWith('band-a', 'p2')
       expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
@@ -494,12 +657,14 @@ describe('BandManagementView', () => {
         })
       })
 
-      it('does not show "Auswählen" for the already-active profile', () => {
+      it('does not make the already-active profile\'s row clickable-to-select (no "Auswählen" link anymore, 2026-09-02 tenth follow-up)', () => {
         render(<BandManagementView />)
 
         // Marco (p1) is the active profile by default (see the file's top-level beforeEach) -
-        // only Chris and Jonas should offer "Auswählen".
-        expect(screen.getAllByText('Auswählen')).toHaveLength(2)
+        // his name sits in a plain (non-clickable) element, unlike Chris's and Jonas's.
+        expect(screen.getByText('Marco').closest('button')).toBeNull()
+        expect(screen.getByText('Chris').closest('button')).not.toBeNull()
+        expect(screen.getByText('Jonas').closest('button')).not.toBeNull()
       })
 
       it('2026-09-02 second follow-up: picking a non-admin member activates it immediately, with no code prompt at all', async () => {
@@ -509,7 +674,7 @@ describe('BandManagementView', () => {
         useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
 
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[0]) // Chris (p2), the non-admin one
+        fireEvent.click(screen.getByText('Chris')) // p2, the non-admin one
 
         await waitFor(() => expect(activateProfile).toHaveBeenCalledWith('band-a', 'p2', undefined))
         await waitFor(() => expect(setActive).toHaveBeenCalledWith('band-a', 'p2'))
@@ -519,7 +684,7 @@ describe('BandManagementView', () => {
       it('picking an admin member opens an inline 4-digit code prompt instead of switching immediately', () => {
         render(<BandManagementView />)
 
-        fireEvent.click(screen.getAllByText('Auswählen')[1]) // Chris, Jonas - Jonas is the admin
+        fireEvent.click(screen.getByText('Jonas')) // the admin one
 
         expect(screen.getByPlaceholderText('4-stelliger Code')).toBeInTheDocument()
       })
@@ -531,7 +696,7 @@ describe('BandManagementView', () => {
         useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
 
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Jonas'))
         fireEvent.change(screen.getByPlaceholderText('4-stelliger Code'), { target: { value: '4711' } })
         fireEvent.click(screen.getByRole('button', { name: 'Wechseln' }))
 
@@ -541,7 +706,7 @@ describe('BandManagementView', () => {
 
       it('strips non-digit characters, caps the code at 4 digits, and disables submit until then', () => {
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Jonas'))
 
         const input = screen.getByPlaceholderText('4-stelliger Code') as HTMLInputElement
         fireEvent.change(input, { target: { value: '47-11 22' } })
@@ -557,7 +722,7 @@ describe('BandManagementView', () => {
         useWorkspaceStore.setState({ activateProfile })
 
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Jonas'))
         fireEvent.click(screen.getByText('Abbrechen'))
 
         expect(screen.queryByPlaceholderText('4-stelliger Code')).not.toBeInTheDocument()
@@ -571,7 +736,7 @@ describe('BandManagementView', () => {
         useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' }, setActive })
 
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Jonas'))
         fireEvent.change(screen.getByPlaceholderText('4-stelliger Code'), { target: { value: '4711' } })
         fireEvent.click(screen.getByRole('button', { name: 'Wechseln' }))
 
@@ -583,7 +748,7 @@ describe('BandManagementView', () => {
 
       it('2026-09-02 third follow-up: the code prompt does not hint at the universal recovery code at all - that stays known only to Marco', () => {
         render(<BandManagementView />)
-        fireEvent.click(screen.getAllByText('Auswählen')[1])
+        fireEvent.click(screen.getByText('Jonas'))
 
         expect(screen.queryByText(/letzten 4 Ziffern/)).not.toBeInTheDocument()
         expect(screen.queryByText(/Band-Codes/)).not.toBeInTheDocument()
@@ -601,9 +766,15 @@ describe('BandManagementView', () => {
       })
       render(<BandManagementView />)
 
-      // Marco (p1) is the active profile - only his row offers "Meinen PIN setzen", not Chris's
-      // (a different admin, even though also admin).
-      expect(screen.getAllByText('Meinen PIN setzen')).toHaveLength(1)
+      // Marco (p1) is the active profile - only his row offers a "⋮" menu with "Meinen PIN
+      // setzen" at all; Chris's (a different admin, even though also admin) doesn't have the
+      // self-PIN option in his own menu.
+      openMemberMenu('Marco')
+      expect(screen.getByText('Meinen PIN setzen')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('Schließen'))
+
+      openMemberMenu('Chris')
+      expect(screen.queryByText('Meinen PIN setzen')).not.toBeInTheDocument()
     })
 
     it('prompts for a new PIN, validates it, and calls setOwnPin', async () => {
@@ -612,6 +783,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ pin: '9876' }) })
 
       render(<BandManagementView />)
+      openMemberMenu('Marco')
       fireEvent.click(screen.getByText('Meinen PIN setzen'))
 
       await waitFor(() => expect(setOwnPin).toHaveBeenCalledWith('band-a', 'p1', '9876'))
@@ -624,6 +796,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ pin: '12345' }), alert: alertMock })
 
       render(<BandManagementView />)
+      openMemberMenu('Marco')
       fireEvent.click(screen.getByText('Meinen PIN setzen'))
 
       await waitFor(() => expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('4 Ziffern')))

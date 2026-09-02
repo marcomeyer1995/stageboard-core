@@ -1,6 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useDialogStore } from './useDialogStore'
-import { useWorkspaceStore } from './useWorkspaceStore'
+
+// This store now imports workspaceDb.ts (removeWorkspaceLocally's destroyLocalWorkspaceDb),
+// which constructs a real PouchDB at module load time - unavailable under happy-dom (see
+// workspaceDb.test.ts's identical mock, and useProfilesStore.test.ts's for the same reason).
+vi.mock('pouchdb-browser', () => ({
+  default: class FakePouchDB {
+    sync() {
+      return { on: () => this, cancel: () => {} }
+    }
+    destroy() {
+      return Promise.resolve()
+    }
+  },
+}))
+
+const { useDialogStore } = await import('./useDialogStore')
+const { useWorkspaceStore } = await import('./useWorkspaceStore')
 
 function stubFetch(response: Partial<Response> | null) {
   const fetchMock = response ? vi.fn().mockResolvedValue(response as Response) : vi.fn().mockRejectedValue(new Error('network down'))
@@ -237,6 +252,52 @@ describe('deleteWorkspace', () => {
     expect(result).toBe(false)
     expect(useWorkspaceStore.getState().workspaces).toHaveLength(1)
     expect(alertMock).toHaveBeenCalled()
+  })
+})
+
+describe('removeWorkspaceLocally (2026-09-02 thirteenth follow-up: the non-destructive, non-admin-gated counterpart to deleteWorkspace)', () => {
+  it('drops the workspace locally and picks a new active workspace, with no network call at all', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false },
+        { id: 'band-b', name: 'Band B' },
+      ],
+      activeWorkspaceId: 'band-a',
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await useWorkspaceStore.getState().removeWorkspaceLocally('band-a')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.workspaces.find((w) => w.id === 'band-a')).toBeUndefined()
+    expect(state.activeWorkspaceId).toBe('band-b')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves the active workspace alone when removing a different one', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A' },
+        { id: 'band-b', name: 'Band B' },
+      ],
+      activeWorkspaceId: 'band-a',
+    })
+
+    await useWorkspaceStore.getState().removeWorkspaceLocally('band-b')
+
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-a')
+  })
+
+  it('works regardless of isAdmin - unlike deleteWorkspace, this is not an admin-only action', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+      activeWorkspaceId: 'band-a',
+    })
+
+    await useWorkspaceStore.getState().removeWorkspaceLocally('band-a')
+
+    expect(useWorkspaceStore.getState().workspaces).toHaveLength(0)
   })
 })
 

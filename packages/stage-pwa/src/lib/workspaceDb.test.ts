@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // under happy-dom. This fake only needs to record constructor args (db name, remote URL +
 // auth options) and hand back a no-op `.sync()` handle - trackedSync.ts drives the rest.
 const constructed: Array<{ name: string; options?: unknown }> = []
+const destroyed: string[] = []
 
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -15,13 +16,18 @@ vi.mock('pouchdb-browser', () => ({
     sync() {
       return { on: () => this, cancel: () => {} }
     }
+    destroy() {
+      destroyed.push(this.name)
+      return Promise.resolve()
+    }
   },
 }))
 
-const { localDbName, remoteDbUrl, startWorkspaceSync } = await import('./workspaceDb')
+const { destroyLocalWorkspaceDb, localDbName, remoteDbUrl, startWorkspaceSync } = await import('./workspaceDb')
 
 beforeEach(() => {
   constructed.length = 0
+  destroyed.length = 0
 })
 
 afterEach(() => {
@@ -52,6 +58,13 @@ describe('remoteDbUrl', () => {
 
   it('returns null when no Stage-Server is configured at all', () => {
     expect(remoteDbUrl('band-a')).toBeNull()
+  })
+})
+
+describe('destroyLocalWorkspaceDb', () => {
+  it('destroys the local PouchDB by its stageboard-<id> name, without touching the remote database', async () => {
+    await destroyLocalWorkspaceDb('band-a')
+    expect(destroyed).toEqual(['stageboard-band-a'])
   })
 })
 
