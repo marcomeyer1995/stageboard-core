@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
-import { decodeQrFrame } from '../lib/qrCode'
+import { decodeQrFrame, parseJoinPayload } from '../lib/qrCode'
+import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
@@ -28,7 +29,11 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  *    *universal* recovery code that always works for any admin here - the last 4 digits of the
  *    band's own access code (the one already typed in step 2). That's the actual
  *    account-recovery mechanism now: no separate secret to lose, and it works with nobody else's
- *    device or session required at all.
+ *    device or session required at all. On success, `handleJoinAs` also calls
+ *    `useActiveProfileStore`'s `setActive` with that exact profileId (2026-09-02 eighth
+ *    follow-up, at Marco's explicit request) - the pick here already answered "wer bist du?",
+ *    so without this App.tsx's `needsProfile` gate would immediately re-ask the identical
+ *    question via ProfileRolePickerView right afterward.
  *
  * "Neue Band gründen" stays equally visible on the landing step - a brand-new device knows
  * about zero workspaces (`useWorkspaceStore.ts` seeds none), so this is the very first screen
@@ -52,6 +57,7 @@ export function JoinBandView() {
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
   const joinWithPassword = useWorkspaceStore((state) => state.joinWithPassword)
+  const setActiveProfile = useActiveProfileStore((state) => state.setActive)
   const promptText = useDialogStore((state) => state.promptText)
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
@@ -119,16 +125,38 @@ export function JoinBandView() {
     }
   }
 
+  // Picks up a `?ws=&code=` link (InviteBandView.tsx's `buildJoinUrl` - see #21 seventh
+  // follow-up) opened by a *native* camera app rather than scanned in-app: same effect as a
+  // successful in-app scan, skipping straight to step 3, so the URL doubles as both "open the
+  // right Stage-Server" and "join this band" in one action, not just the former. Clears the
+  // query string afterwards so a later reload/share of this URL doesn't repeat the same
+  // roster fetch, or leak the code into browser history more than once.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const workspaceId = params.get('ws')
+    const linkCode = params.get('code')
+    if (workspaceId && linkCode) {
+      window.history.replaceState(null, '', window.location.pathname)
+      void handleFetchRoster(workspaceId, linkCode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function handleJoinAs(profileId: string, memberPassword?: string) {
     if (busyRef.current || !code || !roster) return
     busyRef.current = true
     setBusy(true)
-    await joinAsMember(roster.workspaceId, roster.workspaceName, code, profileId, memberPassword)
+    const workspace = await joinAsMember(roster.workspaceId, roster.workspaceName, code, profileId, memberPassword)
     setBusy(false)
     busyRef.current = false
-    // No further action needed either way: on success, App.tsx notices the newly-added
-    // workspace and stops rendering this screen on its own; on failure, joinAsMember already
-    // alerted why, and the picker/password prompt just stays put for another attempt.
+    if (!workspace) return
+    // Picking a roster member here already answered "wer bist du?" - without this, App.tsx's
+    // needsProfile gate (activeProfileId still undefined) immediately re-asks the exact same
+    // question via ProfileRolePickerView, whose list can even show empty right after a
+    // password-less non-admin join (PouchDB sync hasn't pulled the `profiles:*` docs down yet -
+    // an admin join looks fine only because typing the password bought sync more time). Same
+    // fix as BandManagementView.tsx's performActivate for switching profiles later.
+    setActiveProfile(roster.workspaceId, profileId)
   }
 
   function handlePickMember(member: WorkspaceRoster['members'][number]) {
@@ -164,17 +192,16 @@ export function JoinBandView() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       const frame = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const scanned = decodeQrFrame(frame)
-      // The QR carries workspaceId+code together (InviteBandView.tsx's pairing) - a scan skips
-      // straight to step 3, past both browsing the list and typing a code by hand. Anything
-      // that doesn't look like that pairing is silently ignored and scanning just continues,
-      // same as any unrelated QR code today.
-      const separatorIndex = scanned?.indexOf(':') ?? -1
-      if (scanned && separatorIndex > 0 && separatorIndex < scanned.length - 1) {
-        const workspaceId = scanned.slice(0, separatorIndex)
-        const scannedCode = scanned.slice(separatorIndex + 1)
+      // The QR carries workspaceId+code together (InviteBandView.tsx's `buildJoinUrl`/legacy
+      // pairing, parsed via the same `parseJoinPayload` App.tsx uses for a scanned-by-a-native-
+      // camera-app link) - a scan skips straight to step 3, past both browsing the list and
+      // typing a code by hand. Anything that doesn't parse is silently ignored and scanning
+      // just continues, same as any unrelated QR code today.
+      const payload = scanned ? parseJoinPayload(scanned) : null
+      if (payload) {
         stopCamera()
         setCameraStatus('idle')
-        void handleFetchRoster(workspaceId, scannedCode)
+        void handleFetchRoster(payload.workspaceId, payload.code)
         return
       }
     }

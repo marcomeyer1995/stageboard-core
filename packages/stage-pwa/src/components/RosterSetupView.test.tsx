@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // useProfilesStore transitively imports workspaceDb.ts, which constructs a real PouchDB at
 // module load time - unavailable under happy-dom (see workspaceDb.test.ts's identical mock).
@@ -10,6 +10,17 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
+
+// The final phase reuses InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the
+// real .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
+// cares about - see InviteBandView.test.tsx's identical stub.
+beforeEach(() => {
+  vi.stubEnv('VITE_STAGE_SERVER_URL', '')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useDialogStore } = await import('../store/useDialogStore')

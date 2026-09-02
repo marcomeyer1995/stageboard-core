@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // useProfilesStore transitively imports workspaceDb.ts, which constructs a real PouchDB at
 // module load time - unavailable under happy-dom (see workspaceDb.test.ts's identical mock).
@@ -17,7 +17,15 @@ const { useProfilesStore } = await import('../store/useProfilesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { BandManagementView } = await import('./BandManagementView')
 
+// "Einladen" opens InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the real
+// .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
+// cares about - see InviteBandView.test.tsx's identical stub.
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 beforeEach(() => {
+  vi.stubEnv('VITE_STAGE_SERVER_URL', '')
   useWorkspaceStore.setState({
     // username set: these tests exercise an already-server-connected band by default (the
     // pre-Tier-A-local-only-founding, already-established behavior) - the local-only "Verbinden"

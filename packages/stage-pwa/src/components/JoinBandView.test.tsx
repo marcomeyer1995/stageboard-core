@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { JoinBandView } from './JoinBandView'
@@ -138,6 +139,34 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
   })
 })
 
+describe('JoinBandView - opened via a ?ws=&code= link (InviteBandView.tsx\'s buildJoinUrl, opened by a native camera app)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
+  it('skips straight to step 3, same as a successful in-app QR scan, and clears the query string', async () => {
+    window.history.pushState(null, '', '/?ws=band-c&code=12345678')
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    useWorkspaceStore.setState({ fetchRoster })
+
+    render(<JoinBandView />)
+
+    await waitFor(() => expect(fetchRoster).toHaveBeenCalledWith('band-c', '12345678'))
+    expect(await screen.findByText('Wer bist du?')).toBeInTheDocument()
+    expect(window.location.search).toBe('')
+  })
+
+  it('does nothing when the URL has no ws/code params', async () => {
+    const fetchRoster = vi.fn()
+    useWorkspaceStore.setState({ fetchRoster })
+
+    render(<JoinBandView />)
+
+    await screen.findByText('Band beitreten')
+    expect(fetchRoster).not.toHaveBeenCalled()
+  })
+})
+
 describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => {
   async function renderAtCodeEntry() {
     useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList) })
@@ -212,6 +241,35 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
     fireEvent.click(screen.getByText('Marco', { exact: false }))
 
     await waitFor(() => expect(joinAsMember).toHaveBeenCalledWith('band-c', 'Band C', '12345678', 'p1', undefined))
+  })
+
+  it('activates the picked profile locally on a successful join, so App.tsx does not immediately re-ask "wer bist du?" via ProfileRolePickerView', async () => {
+    const setActive = vi.fn()
+    useActiveProfileStore.setState({ setActive })
+    await renderAtPicker()
+
+    fireEvent.click(screen.getByText('Marco', { exact: false }))
+
+    await waitFor(() => expect(setActive).toHaveBeenCalledWith('band-c', 'p1'))
+  })
+
+  it('does not activate a profile locally when the join fails (the store itself already alerted why)', async () => {
+    const setActive = vi.fn()
+    useActiveProfileStore.setState({ setActive })
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    const joinAsMember = vi.fn().mockResolvedValue(null)
+    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList), fetchRoster, joinAsMember })
+
+    render(<JoinBandView />)
+    fireEvent.click(await screen.findByText('Band C'))
+    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+    await screen.findByText('Wer bist du?')
+
+    fireEvent.click(screen.getByText('Marco', { exact: false }))
+
+    await waitFor(() => expect(joinAsMember).toHaveBeenCalled())
+    expect(setActive).not.toHaveBeenCalled()
   })
 
   it('a second non-admin member also joins immediately, no code prompt (2026-09-02 second follow-up: non-admins never have a password concept)', async () => {
