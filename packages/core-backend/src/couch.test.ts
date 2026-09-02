@@ -10,6 +10,7 @@ import {
   putAttachment,
   putDoc,
   putSecurity,
+  resetUserPassword,
   setUserRoles,
   userExists,
   verifyUser,
@@ -316,6 +317,73 @@ describe('setUserRoles', () => {
   it('throws if the user does not exist', async () => {
     stubFetch({ ok: false, status: 404 })
     await expect(setUserRoles(config, 'stageboard-band-a-p1', ['member'])).rejects.toThrow('404')
+  })
+
+  // #21 tenth follow-up, found live: two devices reactivating the same shared/admin account
+  // within milliseconds of each other both read the same `_rev`, so the second write 409s -
+  // confirmed here for setUserRoles too, sharing updateUserDoc's retry with resetUserPassword.
+  it('retries on a 409 conflict by re-fetching a fresh _rev, rather than failing the whole call', async () => {
+    const fetchMock = stubFetchSequence([
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p1', _rev: '2-xyz', name: 'stageboard-band-a-p1', type: 'user', roles: ['member'] }),
+      },
+      { ok: false, status: 409 },
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p1', _rev: '3-abc', name: 'stageboard-band-a-p1', type: 'user', roles: ['member'] }),
+      },
+      { ok: true, status: 200 },
+    ])
+
+    await setUserRoles(config, 'stageboard-band-a-p1', ['member', 'admin'])
+
+    expect(fetchMock.mock.calls).toHaveLength(4)
+    const [, secondPutInit] = fetchMock.mock.calls[3]
+    expect(JSON.parse(secondPutInit.body)._rev).toBe('3-abc')
+  })
+
+  it('gives up and throws after repeated 409 conflicts', async () => {
+    stubFetch({ ok: false, status: 409 })
+    await expect(setUserRoles(config, 'stageboard-band-a-p1', ['member'])).rejects.toThrow('409')
+  })
+})
+
+describe('resetUserPassword', () => {
+  it('fetches the current doc, then PUTs it back with only the password changed', async () => {
+    const fetchMock = stubFetchSequence([
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          _id: 'org.couchdb.user:stageboard-band-a-p1',
+          _rev: '2-xyz',
+          name: 'stageboard-band-a-p1',
+          type: 'user',
+          roles: ['admin'],
+        }),
+      },
+      { ok: true, status: 200 },
+    ])
+
+    await resetUserPassword(config, 'stageboard-band-a-p1', 'new-secret')
+
+    const [, putInit] = fetchMock.mock.calls[1]
+    expect(JSON.parse(putInit.body)).toEqual({
+      _id: 'org.couchdb.user:stageboard-band-a-p1',
+      _rev: '2-xyz',
+      name: 'stageboard-band-a-p1',
+      type: 'user',
+      roles: ['admin'],
+      password: 'new-secret',
+    })
+  })
+
+  it('throws if the user does not exist', async () => {
+    stubFetch({ ok: false, status: 404 })
+    await expect(resetUserPassword(config, 'stageboard-band-a-p1', 'new-secret')).rejects.toThrow('404')
   })
 })
 
