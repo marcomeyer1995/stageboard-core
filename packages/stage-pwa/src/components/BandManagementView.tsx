@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type StageRole } from 'shared-types'
+import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type Profile, type StageRole } from 'shared-types'
 import { InviteBandView } from './InviteBandView'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useNow } from '../lib/useNow'
@@ -100,6 +100,44 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * concept, just one is active) also marks the currently active *band* in the list above, for a
  * consistent "this one is the one currently selected" language across both lists.
  */
+function MemberRowLabel({
+  profile,
+  onlineDeviceCount,
+  isActiveProfile,
+}: {
+  profile: Profile
+  onlineDeviceCount: number
+  isActiveProfile: boolean
+}) {
+  return (
+    <>
+      <span className="inline-flex items-center gap-1.5">
+        {onlineDeviceCount > 0 && (
+          <span
+            className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
+            title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
+          />
+        )}
+        {profile.name}
+        {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
+        {isActiveProfile && <span className="text-xs text-ink-faint">(du)</span>}
+      </span>
+      {profile.stageRoles.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {profile.stageRoles.map((role) => (
+            <span
+              key={role}
+              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
+            >
+              {STAGE_ROLE_LABELS[role]}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function BandManagementView() {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -145,6 +183,13 @@ export function BandManagementView() {
   const [activatingProfileId, setActivatingProfileId] = useState<string | null>(null)
   const [activatePasswordInput, setActivatePasswordInput] = useState('')
   const [activating, setActivating] = useState(false)
+  // 2026-09-02 tenth follow-up, at Marco's explicit request after finding this live on a phone:
+  // the previous row of inline text-link actions (Umbenennen, Stage-Rollen anpassen, ...) had
+  // no bound on how many could pile up per row, and on a narrow screen they'd rather run out of
+  // horizontal room than wrap onto a readable second line. Which member row's action popup is
+  // currently open - one dedicated "⋮" button per row, not a link among the others, so it's
+  // always reachable regardless of row width.
+  const [actionsMenuProfileId, setActionsMenuProfileId] = useState<string | null>(null)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
   const adminCount = profiles.filter((profile) => profile.stageRoles.includes('admin')).length
@@ -289,133 +334,150 @@ export function BandManagementView() {
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span className="inline-flex items-center gap-1.5">
-                      {onlineDeviceCount > 0 && (
-                        <span
-                          className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
-                          title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
-                        />
-                      )}
-                      {profile.name}
-                      {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
-                      {isActiveProfile && <span className="text-xs text-ink-faint">(du)</span>}
-                    </span>
-                    {profile.stageRoles.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {profile.stageRoles.map((role) => (
-                          <span
-                            key={role}
-                            className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
-                          >
-                            {STAGE_ROLE_LABELS[role]}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-shrink-0 flex-wrap justify-end gap-3 text-xs">
-                    {!isActiveProfile && (
-                      <button type="button" onClick={() => handlePickProfile(profile)} className="underline hover:text-ink-soft">
-                        Auswählen
-                      </button>
-                    )}
-                    {isActiveProfile && isAdminProfile && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const result = await promptFields('Eigenen PIN setzen', [
-                            { key: 'pin', label: 'Neuer 4-stelliger PIN' },
-                          ])
-                          const pin = result?.pin?.trim()
-                          if (!pin) return
-                          if (!/^\d{4}$/.test(pin)) {
-                            await alert('Der PIN muss genau 4 Ziffern haben.')
-                            return
-                          }
-                          await setOwnPin(activeWorkspaceId, profile.id, pin)
-                        }}
-                        className="underline hover:text-ink-soft"
-                      >
-                        Meinen PIN setzen
-                      </button>
-                    )}
-                    {activeWorkspace.isAdmin && (
-                      <>
+                  {/* A tap anywhere on name/roles selects this profile (2026-09-02 tenth
+                      follow-up) - already-active has nothing to select, so it's a plain div
+                      there instead of a disabled-looking button. */}
+                  {isActiveProfile ? (
+                    <div>
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} isActiveProfile={isActiveProfile} />
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="text-left hover:opacity-80">
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} isActiveProfile={isActiveProfile} />
+                    </button>
+                  )}
+                  {((isActiveProfile && isAdminProfile) || activeWorkspace.isAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => setActionsMenuProfileId(profile.id)}
+                      aria-label={`Weitere Optionen für ${profile.name}`}
+                      className="flex-shrink-0 rounded-sb px-2 py-1 text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink-soft"
+                    >
+                      ⋮
+                    </button>
+                  )}
+                </div>
+                {actionsMenuProfileId === profile.id && (
+                  <div
+                    className="fixed inset-0 z-20 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+                    onClick={() => setActionsMenuProfileId(null)}
+                  >
+                    {/* Stops the overlay's own onClick (which closes the popup) from firing
+                        when the tap lands on the card itself, not the backdrop around it. */}
+                    <div
+                      className="w-full max-w-sm space-y-2 rounded-sb border border-line bg-surface p-4"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <h3 className="mb-1 font-semibold">{profile.name}</h3>
+                      {isActiveProfile && isAdminProfile && (
                         <button
                           type="button"
                           onClick={async () => {
-                            const name = await promptText('Mitglied umbenennen', {
-                              label: 'Neuer Name',
-                              defaultValue: profile.name,
-                            })
-                            if (name?.trim()) void updateProfile(profile.id, name.trim())
-                          }}
-                          className="underline hover:text-ink-soft"
-                        >
-                          Umbenennen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const result = await promptFields('Stage-Rollen anpassen', [
-                              {
-                                key: 'stageRoles',
-                                label: 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
-                                type: 'checkboxes',
-                                options: STAGE_ROLES.map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
-                                defaultValue: profile.stageRoles.join(','),
-                              },
+                            setActionsMenuProfileId(null)
+                            const result = await promptFields('Eigenen PIN setzen', [
+                              { key: 'pin', label: 'Neuer 4-stelliger PIN' },
                             ])
-                            if (!result) return
-                            const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
-                            void updateStageRoles(profile.id, stageRoles)
+                            const pin = result?.pin?.trim()
+                            if (!pin) return
+                            if (!/^\d{4}$/.test(pin)) {
+                              await alert('Der PIN muss genau 4 Ziffern haben.')
+                              return
+                            }
+                            await setOwnPin(activeWorkspaceId, profile.id, pin)
                           }}
-                          className="underline hover:text-ink-soft"
+                          className="w-full rounded-sb border border-line px-4 py-2 text-left hover:bg-control-hover"
                         >
-                          Stage-Rollen anpassen
+                          Meinen PIN setzen
                         </button>
-                        {isAdminProfile && (
+                      )}
+                      {activeWorkspace.isAdmin && (
+                        <>
                           <button
                             type="button"
                             onClick={async () => {
-                              const confirmed = await confirm(
-                                `Neuen PIN für "${profile.name}" setzen? Der alte hört sofort auf zu funktionieren.`,
-                                { confirmLabel: 'Zurücksetzen', danger: true },
-                              )
-                              if (!confirmed) return
-                              const credentials = await resetMemberPassword(activeWorkspaceId, profile.id)
-                              if (!credentials) return
-                              await alert(`Neuer PIN für "${profile.name}": ${credentials.password}`, {
-                                title: 'PIN zurückgesetzt',
+                              setActionsMenuProfileId(null)
+                              const name = await promptText('Mitglied umbenennen', {
+                                label: 'Neuer Name',
+                                defaultValue: profile.name,
                               })
+                              if (name?.trim()) void updateProfile(profile.id, name.trim())
                             }}
-                            className="underline hover:text-ink-soft"
+                            className="w-full rounded-sb border border-line px-4 py-2 text-left hover:bg-control-hover"
                           >
-                            Passwort zurücksetzen
+                            Umbenennen
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={isLastAdmin(profile)}
-                          title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
-                          onClick={async () => {
-                            if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
-                              const removed = await removeProfile(profile.id)
-                              // Only clear the active-profile choice if this device happened to be
-                              // showing the member just deleted - deleting someone else's roster
-                              // entry shouldn't reset who *this* device is signed in as.
-                              if (removed && profile.id === activeProfileId) setActiveProfile(activeWorkspaceId, null)
-                            }
-                          }}
-                          className="underline hover:text-ink-soft disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline disabled:hover:text-ink-faint"
-                        >
-                          Löschen
-                        </button>
-                      </>
-                    )}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setActionsMenuProfileId(null)
+                              const result = await promptFields('Stage-Rollen anpassen', [
+                                {
+                                  key: 'stageRoles',
+                                  label: 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
+                                  type: 'checkboxes',
+                                  options: STAGE_ROLES.map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
+                                  defaultValue: profile.stageRoles.join(','),
+                                },
+                              ])
+                              if (!result) return
+                              const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
+                              void updateStageRoles(profile.id, stageRoles)
+                            }}
+                            className="w-full rounded-sb border border-line px-4 py-2 text-left hover:bg-control-hover"
+                          >
+                            Stage-Rollen anpassen
+                          </button>
+                          {isAdminProfile && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setActionsMenuProfileId(null)
+                                const confirmed = await confirm(
+                                  `Neuen PIN für "${profile.name}" setzen? Der alte hört sofort auf zu funktionieren.`,
+                                  { confirmLabel: 'Zurücksetzen', danger: true },
+                                )
+                                if (!confirmed) return
+                                const credentials = await resetMemberPassword(activeWorkspaceId, profile.id)
+                                if (!credentials) return
+                                await alert(`Neuer PIN für "${profile.name}": ${credentials.password}`, {
+                                  title: 'PIN zurückgesetzt',
+                                })
+                              }}
+                              className="w-full rounded-sb border border-line px-4 py-2 text-left hover:bg-control-hover"
+                            >
+                              Passwort zurücksetzen
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={isLastAdmin(profile)}
+                            title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
+                            onClick={async () => {
+                              setActionsMenuProfileId(null)
+                              if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
+                                const removed = await removeProfile(profile.id)
+                                // Only clear the active-profile choice if this device happened to be
+                                // showing the member just deleted - deleting someone else's roster
+                                // entry shouldn't reset who *this* device is signed in as.
+                                if (removed && profile.id === activeProfileId) setActiveProfile(activeWorkspaceId, null)
+                              }
+                            }}
+                            className="w-full rounded-sb border border-line px-4 py-2 text-left text-red-400 hover:bg-control-hover disabled:cursor-not-allowed disabled:text-ink-faint"
+                          >
+                            Löschen
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setActionsMenuProfileId(null)}
+                        className="w-full rounded-sb bg-control px-4 py-2 text-ink-soft hover:bg-control-hover"
+                      >
+                        Schließen
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
                 {activatingProfileId === profile.id && (
                   <form
                     onSubmit={(e) => {
