@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { STAGE_ROLES, type StageRole } from 'shared-types'
+import { useMemo, useState } from 'react'
+import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type StageRole } from 'shared-types'
 import { InviteBandView } from './InviteBandView'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
+import { useNow } from '../lib/useNow'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
+import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -85,6 +87,15 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * "Verbinden" provisions just the founder's own account (`useProfilesStore.ts`'s
  * `connectToServer`) - every other already-typed-in roster member stays unprovisioned, exactly
  * like a brand-new one, ready for the same lazy self-service auto-provisioning above.
+ *
+ * 2026-09-02 ninth follow-up, at Marco's explicit request: a row now carries two independent
+ * signals, both visible to every device, not just this one. `isActiveProfile` (accent border,
+ * "(du)") is purely local - which profile *this* device is signed in as. The green dot plus
+ * `×N` count is band-wide presence (`usePresenceStore.ts`/`usePresenceReporter.ts`, App.tsx) -
+ * how many devices anywhere currently have that profile active, e.g. "Marco" open on two
+ * tablets at once. Deliberately two different visual treatments: "who am I" and "who's online
+ * right now, from how many devices" are different questions with different answers - the first
+ * only ever matches at most one row per device, the second can be true for several at once.
  */
 export function BandManagementView() {
   const workspaces = useWorkspaceStore((state) => state.workspaces)
@@ -104,10 +115,25 @@ export function BandManagementView() {
   const setStageServerUrl = useStageServerStore((state) => state.setUrl)
   const activeProfileId = useActiveProfileStore((state) => state.byWorkspace[activeWorkspaceId])
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
+  const presence = usePresenceStore((state) => state.presence)
   const promptText = useDialogStore((state) => state.promptText)
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
   const alert = useDialogStore((state) => state.alert)
+
+  // Presence has no event for "went offline" (usePresenceReporter.ts's doc comment - a device
+  // going stale is the only signal), so this needs re-deriving on a ticking clock, not just on
+  // every stream push - useNow() is the same "ages instead of changing" fix PluginManager.tsx
+  // already uses for the identical problem with plugin heartbeats.
+  const now = useNow()
+  const onlineDeviceCountByProfile = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const entry of Object.values(presence.devices)) {
+      if (now - entry.lastSeenAt > PRESENCE_TIMEOUT_MS) continue
+      counts[entry.profileId] = (counts[entry.profileId] ?? 0) + 1
+    }
+    return counts
+  }, [presence, now])
 
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<string | null>(null)
   // 2026-09-02 follow-up: which member's row currently shows the inline "become this profile"
@@ -249,13 +275,26 @@ export function BandManagementView() {
           {profiles.map((profile) => {
             const isActiveProfile = profile.id === activeProfileId
             const isAdminProfile = profile.stageRoles.includes('admin')
+            const onlineDeviceCount = onlineDeviceCountByProfile[profile.id] ?? 0
             return (
-              <div key={profile.id} className="flex flex-col gap-2 rounded-sb border border-line bg-surface px-4 py-3">
+              <div
+                key={profile.id}
+                className={`flex flex-col gap-2 rounded-sb border px-4 py-3 ${
+                  isActiveProfile ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span>
+                    <span className="inline-flex items-center gap-1.5">
+                      {onlineDeviceCount > 0 && (
+                        <span
+                          className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
+                          title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
+                        />
+                      )}
                       {profile.name}
-                      {isActiveProfile && <span className="ml-2 text-xs text-ink-faint">(du)</span>}
+                      {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
+                      {isActiveProfile && <span className="text-xs text-ink-faint">(du)</span>}
                     </span>
                     {profile.stageRoles.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">

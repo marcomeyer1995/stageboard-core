@@ -14,6 +14,7 @@ import {
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
+  PresenceReportSchema,
   RemoveMemberRequestSchema,
   ResetMemberPasswordRequestSchema,
   RosterRequestSchema,
@@ -30,6 +31,7 @@ import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { createPluginSync } from './plugins/pluginSync.js'
+import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
 import {
   deprovisionMember,
@@ -320,6 +322,43 @@ export async function buildApp() {
       status: parsed.data.status,
       lastSeenAt: Date.now(),
       message: parsed.data.message,
+    })
+    return reply.status(204).send()
+  })
+
+  // "Who's currently logged in, from how many devices" (see #21 ninth follow-up, at Marco's
+  // explicit request) - same SSE push pattern as plugin-health above, just keyed by deviceId
+  // instead of plugin name (presenceStore.ts). No auth on either route: presence only reveals
+  // which already-visible roster member is active right now, nothing a workspace's own access
+  // code doesn't already gate getting this far to see.
+  app.get('/workspaces/:workspaceId/presence/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+
+    reply.hijack()
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) reply.raw.setHeader(name, value)
+    }
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.writeHead(200)
+
+    const unsubscribe = presenceStore.subscribe(workspaceId, (snapshot) => {
+      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/presence/report', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = PresenceReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    presenceStore.setEntry(workspaceId, parsed.data.deviceId, {
+      profileId: parsed.data.profileId,
+      lastSeenAt: Date.now(),
     })
     return reply.status(204).send()
   })

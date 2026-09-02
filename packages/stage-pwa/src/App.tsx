@@ -12,6 +12,7 @@ import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useClockSync } from './lib/useClockSync'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
+import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
@@ -20,6 +21,7 @@ import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
+import { usePresenceStore } from './store/usePresenceStore'
 import { useProfilesStore } from './store/useProfilesStore'
 import { useRosterSetupStore } from './store/useRosterSetupStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
@@ -95,8 +97,14 @@ function App() {
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
+  // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
+  // request) - reports only while a *real* profile is active, matching activeProfileId's own
+  // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
+  // decided yet" nor "explicitly no profile" should show this device as anyone in particular.
+  usePresenceReporter(activeWorkspaceId, activeProfileId || undefined)
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a
