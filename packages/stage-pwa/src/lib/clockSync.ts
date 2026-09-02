@@ -1,4 +1,5 @@
 import { useClockSyncStore } from '../store/useClockSyncStore'
+import { clockSyncLog } from './clockSyncDebug'
 import { getStageServerUrl } from './stageServer'
 
 interface ClockSample {
@@ -7,6 +8,18 @@ interface ClockSample {
 }
 
 const BURST_SAMPLE_COUNT = 7
+
+/** How many recent bursts' winning offsets to keep for the drift reading below - see
+ * `driftMs`'s doc comment in useClockSyncStore.ts. 5 syncs at the 60s resync interval is a
+ * 5-minute trailing window: long enough to smooth out one noisy burst, short enough to still
+ * flag a real problem (a Stage-Server clock jump, a device actually drifting) within a few
+ * minutes rather than papering over it forever. */
+const OFFSET_HISTORY_SIZE = 5
+
+/** The last few bursts' winning offsets, oldest first - module-level rather than in the
+ * zustand store since it's pure internal bookkeeping for computing `driftMs`, nothing else
+ * ever reads it (same pattern as e.g. useWorkspaceStore.ts's `nameChangesHandle`). */
+let offsetHistory: number[] = []
 
 /**
  * One GET /time round trip. The server timestamps its response at essentially the same
@@ -21,7 +34,9 @@ async function takeSample(base: string): Promise<ClockSample | null> {
     if (!response.ok) return null
     const { serverTime } = (await response.json()) as { serverTime: number }
     const t1 = Date.now()
-    return { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
+    const sample = { rtt: t1 - t0, offset: serverTime - (t0 + t1) / 2 }
+    clockSyncLog('sample', sample)
+    return sample
   } catch {
     return null
   }
@@ -30,8 +45,21 @@ async function takeSample(base: string): Promise<ClockSample | null> {
 /**
  * Runs a burst of round trips (docs/00 §4's "Burst Handshake") and keeps the lowest-RTT
  * sample's offset - the sample least distorted by network jitter, exactly the selection real
- * NTP clients use. Also derives a jitter reading (the spread between the burst's fastest and
- * slowest RTT) so a caller can tell a clean sync from a noisy one, not just get a number.
+ * NTP clients use. Confirmed live against real devices on a noisy home WiFi network (#31
+ * follow-up): even when a burst's RTTs swing wildly (a rare single sample spiking to 300-450ms
+ * is not unusual on WiFi without a dedicated stage AP), the lowest-RTT sample's offset stayed
+ * within a few ms of the previous sync's - this selection is already a robust per-burst
+ * estimate on its own.
+ *
+ * What is NOT trustworthy on its own is `jitterMs` (the spread between a single burst's
+ * fastest and slowest RTT) as a signal of whether the *offset* can be trusted - that spread is
+ * dominated by exactly those rare single-sample spikes, which the min-RTT selection above
+ * already filters out. So this also maintains `offsetHistory`, a short trailing window of
+ * recent bursts' winning offsets, and derives `driftMs` (the spread within that window) - a
+ * cross-burst stability reading that's what SystemHealthWidget.tsx's status color actually
+ * keys off now, not `jitterMs`. `jitterMs` is still recorded (useClockSyncStore.ts) as a raw
+ * per-burst diagnostic, just no longer the trust signal.
+ *
  * Writes the result to useClockSyncStore for any widget to read; getServerTime() below reads
  * the same store. Never throws: no configured Stage-Server, or one that's entirely
  * unreachable, just leaves the previous sync in the store untouched, so a caller can always
@@ -52,7 +80,12 @@ export async function syncClock(sampleCount = BURST_SAMPLE_COUNT): Promise<numbe
   const rtts = samples.map((s) => s.rtt)
   const jitterMs = Math.max(...rtts) - Math.min(...rtts)
 
-  useClockSyncStore.getState().setSync({ offsetMs: best.offset, rttMs: best.rtt, jitterMs })
+  offsetHistory.push(best.offset)
+  if (offsetHistory.length > OFFSET_HISTORY_SIZE) offsetHistory.shift()
+  const driftMs = offsetHistory.length >= 2 ? Math.max(...offsetHistory) - Math.min(...offsetHistory) : null
+
+  clockSyncLog('burst done', { samples, best, jitterMs, driftMs, offsetHistory: [...offsetHistory] })
+  useClockSyncStore.getState().setSync({ offsetMs: best.offset, rttMs: best.rtt, jitterMs, driftMs })
   return best.offset
 }
 
@@ -67,5 +100,6 @@ export function getServerTime(): number {
 
 /** Test-only reset - production code never needs to clear the sync state explicitly. */
 export function __resetClockSyncForTests(): void {
+  offsetHistory = []
   useClockSyncStore.getState().reset()
 }

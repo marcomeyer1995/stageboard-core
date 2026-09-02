@@ -31,6 +31,7 @@ describe('syncClock / getServerTime', () => {
     expect(state.offsetMs).toBe(999_975)
     expect(state.rttMs).toBe(50)
     expect(state.jitterMs).toBe(0) // single sample, no spread to measure
+    expect(state.driftMs).toBeNull() // only one sync so far, nothing to compare against yet
     expect(state.lastSyncedAt).not.toBeNull()
   })
 
@@ -62,6 +63,66 @@ describe('syncClock / getServerTime', () => {
     const state = useClockSyncStore.getState()
     expect(state.rttMs).toBe(20)
     expect(state.jitterMs).toBe(200 - 20) // spread between slowest and fastest sample
+  })
+
+  it('derives driftMs from the spread across recent bursts\' offsets, not from jitterMs (#31 follow-up)', async () => {
+    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+
+    let now = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    // Each burst is a single sample landing on a fixed offset - a noisy RTT (rtts vary a lot)
+    // but a stable underlying offset, mirroring what was observed live on real devices: the
+    // per-burst jitter can be huge while the actually-synced offset barely moves.
+    async function syncWithOffset(offset: number, rtt: number) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async () => {
+          const t0 = now
+          now += rtt
+          return { ok: true, json: async () => ({ serverTime: (t0 + now) / 2 + offset }) }
+        }),
+      )
+      await syncClock(1)
+    }
+
+    await syncWithOffset(100, 10)
+    expect(useClockSyncStore.getState().driftMs).toBeNull() // first sync, nothing to compare yet
+
+    await syncWithOffset(103, 400) // huge RTT/jitter, but the offset barely moved
+    expect(useClockSyncStore.getState().driftMs).toBeCloseTo(3, 6) // spread across [100, 103]
+
+    await syncWithOffset(90, 15)
+    expect(useClockSyncStore.getState().driftMs).toBeCloseTo(13, 6) // spread across [100, 103, 90]
+  })
+
+  it('caps the drift window at the last 5 bursts, so an old outlier eventually rolls off', async () => {
+    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+
+    let now = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    async function syncWithOffset(offset: number) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async () => {
+          const t0 = now
+          now += 10
+          return { ok: true, json: async () => ({ serverTime: (t0 + now) / 2 + offset }) }
+        }),
+      )
+      await syncClock(1)
+    }
+
+    await syncWithOffset(0) // this one outlier should roll off the 5-sync window below
+    await syncWithOffset(1000)
+    await syncWithOffset(1001)
+    await syncWithOffset(1002)
+    await syncWithOffset(1003)
+    expect(useClockSyncStore.getState().driftMs).toBeCloseTo(1003, 6) // window still includes offset 0
+
+    await syncWithOffset(1004)
+    expect(useClockSyncStore.getState().driftMs).toBeCloseTo(4, 6) // offset 0 has rolled out of the window
   })
 
   it('does nothing and keeps the previous sync state when no Stage-Server is configured', async () => {
