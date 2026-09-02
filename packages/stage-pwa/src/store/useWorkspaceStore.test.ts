@@ -14,6 +14,13 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+const getWorkspaceAccessDoc = vi.fn()
+const watchWorkspaceAccessDoc = vi.fn()
+vi.mock('../lib/workspaceAccessDoc', () => ({
+  getWorkspaceAccessDoc: (...args: unknown[]) => getWorkspaceAccessDoc(...args),
+  watchWorkspaceAccessDoc: (...args: unknown[]) => watchWorkspaceAccessDoc(...args),
+}))
+
 const { useDialogStore } = await import('./useDialogStore')
 const { useWorkspaceStore } = await import('./useWorkspaceStore')
 
@@ -32,6 +39,8 @@ beforeEach(() => {
     activeWorkspaceId: 'band-a',
   })
   useDialogStore.setState({ alert: vi.fn().mockResolvedValue(undefined) })
+  getWorkspaceAccessDoc.mockReset().mockResolvedValue(null)
+  watchWorkspaceAccessDoc.mockReset().mockReturnValue({ on: () => {}, cancel: () => {} })
 })
 
 afterEach(() => {
@@ -392,6 +401,101 @@ describe('setMemberAdmin', () => {
 
     expect(await useWorkspaceStore.getState().setMemberAdmin('band-a', 'p2', true)).toBe(false)
     expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('kein Admin mehr'))
+  })
+})
+
+describe('renameWorkspace (#58)', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('renames a local-only workspace (no username) purely locally, with no network call', async () => {
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }] })
+    const fetchMock = stubFetch({ ok: true, status: 200 })
+
+    expect(await useWorkspaceStore.getState().renameWorkspace('band-a', 'New Name')).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === 'band-a')?.name).toBe('New Name')
+  })
+
+  it('posts to the Stage-Server for a server-connected admin workspace, then updates the name locally', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+    })
+    const fetchMock = stubFetch({ ok: true, status: 200 })
+
+    expect(await useWorkspaceStore.getState().renameWorkspace('band-a', 'New Name')).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://stage-server:3001/workspaces/band-a/name',
+      expect.objectContaining({
+        body: JSON.stringify({ adminUsername: 'stageboard-band-a-p1', adminPassword: 'admin-pw', name: 'New Name' }),
+      }),
+    )
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === 'band-a')?.name).toBe('New Name')
+  })
+
+  it('returns false without calling the Stage-Server for a non-admin workspace', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'pw', username: 'stageboard-band-a-p2', isAdmin: false }],
+    })
+    const fetchMock = stubFetch({ ok: true, status: 200 })
+
+    expect(await useWorkspaceStore.getState().renameWorkspace('band-a', 'New Name')).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('alerts with a distinct "no longer admin" message on a 403, and returns false', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
+    })
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().renameWorkspace('band-a', 'New Name')).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('kein Admin mehr'))
+  })
+})
+
+describe('initNameSync (#58)', () => {
+  it('seeds the workspace name from the local workspace:access doc if it differs, and starts watching for future changes', async () => {
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Stale Name' }] })
+    getWorkspaceAccessDoc.mockResolvedValue({ code: '12345678', name: 'Fresh Name' })
+
+    await useWorkspaceStore.getState().initNameSync('band-a')
+
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === 'band-a')?.name).toBe('Fresh Name')
+    expect(watchWorkspaceAccessDoc).toHaveBeenCalledWith('band-a', expect.any(Function))
+  })
+
+  it('applies a later remote rename picked up by the live watcher', async () => {
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }] })
+    getWorkspaceAccessDoc.mockResolvedValue(null)
+    let onChange: ((doc: { code: string; name: string }) => void) | undefined
+    watchWorkspaceAccessDoc.mockImplementation((_workspaceId: string, cb: (doc: { code: string; name: string }) => void) => {
+      onChange = cb
+      return { on: () => {}, cancel: () => {} }
+    })
+
+    await useWorkspaceStore.getState().initNameSync('band-a')
+    onChange?.({ code: '12345678', name: 'Renamed By Another Device' })
+
+    expect(useWorkspaceStore.getState().workspaces.find((w) => w.id === 'band-a')?.name).toBe('Renamed By Another Device')
+  })
+
+  it('cancels the previous watcher when called again for a new workspace', async () => {
+    const cancel = vi.fn()
+    watchWorkspaceAccessDoc.mockReturnValueOnce({ on: () => {}, cancel })
+
+    await useWorkspaceStore.getState().initNameSync('band-a')
+    await useWorkspaceStore.getState().initNameSync('band-b')
+
+    expect(cancel).toHaveBeenCalled()
   })
 })
 

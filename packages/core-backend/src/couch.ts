@@ -250,6 +250,33 @@ export async function putDoc(config: CouchConfig, db: string, doc: CouchDoc): Pr
   }
 }
 
+/** Fetch-then-PUT for a doc that might already exist and might be concurrently written by
+ * another caller - same conflict-retry shape as `updateUserDoc` above (re-fetches a fresh
+ * `_rev` and retries, up to 5 times), generalized to any doc rather than just a user doc.
+ * Unlike plain `putDoc`, a 409 here is actually retried rather than silently swallowed: for a
+ * doc with no other re-writer (no "next heartbeat" to eventually win), swallowing a conflict
+ * would leave the doc looking successfully written while it silently never changed. `build`
+ * receives the doc's current state (`null` if it doesn't exist yet) and returns the full
+ * document to write. */
+export async function putDocWithRetry<T extends CouchDoc>(
+  config: CouchConfig,
+  db: string,
+  id: string,
+  build: (existing: T | null) => T,
+): Promise<void> {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const existing = await getDoc<T>(config, db, id)
+    const response = await request(config, `${dbUrl(config, db)}/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(build(existing)),
+    })
+    if (response.ok) return
+    if (response.status !== 409 || attempt === 5) {
+      throw new Error(`Failed to write ${db}/${id}: HTTP ${response.status}`)
+    }
+  }
+}
+
 /** Downloads a binary attachment; `null` if the document or attachment does not exist. */
 export async function getAttachment(
   config: CouchConfig,

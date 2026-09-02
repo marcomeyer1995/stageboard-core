@@ -144,6 +144,18 @@ export type GetAccessCodeRequest = z.infer<typeof GetAccessCodeRequestSchema>
 export const RotateAccessCodeRequestSchema = AdminProofSchema
 export type RotateAccessCodeRequest = z.infer<typeof RotateAccessCodeRequestSchema>
 
+/** Body to rename a workspace (admin-only, #58) - persists the new display name onto the same
+ * `workspace:access` doc the standing access code already lives in (`workspaceProvisioning.ts`'s
+ * `renameWorkspace`), leaving the code itself untouched. That doc already replicates to every
+ * device via the ordinary workspace-db sync (`workspaceDb.ts`'s `startWorkspaceSync`), which is
+ * what makes a rename here actually reach every already-joined device - unlike the short-lived,
+ * client-only `renameWorkspace` this replaces (see the issue's "warum entfernt" for why that one
+ * couldn't). */
+export const RenameWorkspaceRequestSchema = AdminProofSchema.extend({
+  name: z.string().min(1),
+})
+export type RenameWorkspaceRequest = z.infer<typeof RenameWorkspaceRequestSchema>
+
 /**
  * Body the admin's device sends `DELETE /workspaces/:id` with - irreversibly destroys the
  * workspace's database and every member's personal CouchDB account (see
