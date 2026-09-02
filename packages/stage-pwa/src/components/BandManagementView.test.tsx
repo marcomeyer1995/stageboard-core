@@ -13,6 +13,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useDialogStore } = await import('../store/useDialogStore')
+const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useProfilesStore } = await import('../store/useProfilesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { BandManagementView } = await import('./BandManagementView')
@@ -46,6 +47,7 @@ beforeEach(() => {
     connectToServer: vi.fn(),
   })
   useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' } })
+  usePresenceStore.setState({ presence: { devices: {} } })
 })
 
 describe('BandManagementView', () => {
@@ -250,6 +252,68 @@ describe('BandManagementView', () => {
 
     const remove = screen.getAllByText('Löschen')[1] as HTMLButtonElement
     expect(remove.disabled).toBe(false)
+  })
+
+  describe('presence indicators (2026-09-02 ninth follow-up: who is logged in, and from how many devices)', () => {
+    beforeEach(() => {
+      useProfilesStore.setState({
+        profiles: [
+          { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+          { id: 'p2', name: 'Chris', stageRoles: [] },
+        ],
+      })
+    })
+
+    it('shows a green dot for a profile with at least one device online', () => {
+      usePresenceStore.setState({ presence: { devices: { 'device-1': { profileId: 'p1', lastSeenAt: Date.now() } } } })
+
+      render(<BandManagementView />)
+
+      expect(screen.getByTitle('1 Gerät gerade angemeldet')).toBeInTheDocument()
+    })
+
+    it('shows no dot for a profile with no device reporting it', () => {
+      usePresenceStore.setState({ presence: { devices: {} } })
+
+      render(<BandManagementView />)
+
+      expect(screen.queryByTitle(/gerade angemeldet/)).not.toBeInTheDocument()
+    })
+
+    it('shows a ×N count when the same profile is online from more than one device', () => {
+      usePresenceStore.setState({
+        presence: {
+          devices: {
+            'device-1': { profileId: 'p1', lastSeenAt: Date.now() },
+            'device-2': { profileId: 'p1', lastSeenAt: Date.now() },
+          },
+        },
+      })
+
+      render(<BandManagementView />)
+
+      expect(screen.getByTitle('2 Geräte gerade angemeldet')).toBeInTheDocument()
+      expect(screen.getByText('×2')).toBeInTheDocument()
+    })
+
+    it('treats a stale entry (older than PRESENCE_TIMEOUT_MS) as offline, not online', () => {
+      usePresenceStore.setState({
+        presence: { devices: { 'device-1': { profileId: 'p1', lastSeenAt: Date.now() - 60_000 } } },
+      })
+
+      render(<BandManagementView />)
+
+      expect(screen.queryByTitle(/gerade angemeldet/)).not.toBeInTheDocument()
+    })
+
+    it('highlights the row for this device\'s own active profile, independent of presence', () => {
+      useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
+      usePresenceStore.setState({ presence: { devices: {} } })
+
+      render(<BandManagementView />)
+
+      expect(screen.getByText('(du)').closest('div.rounded-sb')?.className).toMatch(/border-accent/)
+    })
   })
 
   describe('"Passwort zurücksetzen" (2026-09-02 follow-up: admin-side reset, since self-service blank-password recovery is refused for admin accounts)', () => {

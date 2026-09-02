@@ -8,6 +8,11 @@ import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 import { buildApp } from './index.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
+import {
+  __resetPresenceStoreForTests,
+  getSnapshot as getPresenceSnapshot,
+  setEntry as setPresenceEntry,
+} from './presenceStore.js'
 
 function testContext(): PluginContext {
   return { log: { info: vi.fn(), error: vi.fn() } }
@@ -376,6 +381,90 @@ describe('Fastify routes', () => {
       const second = await chunks.next()
       expect(Buffer.from(second.value as Buffer).toString()).toBe(
         `data: ${JSON.stringify({ plugins: { 'mock-mixer': { status: 'online', lastSeenAt: 123 } } })}\n\n`,
+      )
+
+      req.destroy()
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/presence/report', () => {
+    beforeEach(() => {
+      __resetPresenceStoreForTests()
+    })
+
+    it('records the reported profile with a server-stamped lastSeenAt', async () => {
+      const before = Date.now()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/presence/report',
+        payload: { deviceId: 'device-1', profileId: 'p1' },
+      })
+
+      expect(response.statusCode).toBe(204)
+      const entry = getPresenceSnapshot('band-a').devices['device-1']
+      expect(entry.profileId).toBe('p1')
+      expect(entry.lastSeenAt).toBeGreaterThanOrEqual(before)
+    })
+
+    it('rejects a body missing required fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/presence/report',
+        payload: { deviceId: 'device-1' },
+      })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('keeps reports scoped to their own workspace', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/presence/report',
+        payload: { deviceId: 'device-1', profileId: 'p1' },
+      })
+      expect(getPresenceSnapshot('band-b').devices['device-1']).toBeUndefined()
+    })
+  })
+
+  describe('GET /workspaces/:workspaceId/presence/stream', () => {
+    beforeEach(() => {
+      __resetPresenceStoreForTests()
+    })
+
+    it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
+      await app.listen({ port: 0 })
+      const address = app.server.address()
+      if (typeof address !== 'object' || address === null) throw new Error('server has no address')
+
+      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      const req = request(
+        {
+          hostname: '127.0.0.1',
+          port: address.port,
+          path: '/workspaces/band-a/presence/stream',
+          headers: { origin: 'http://localhost:5173' },
+          rejectUnauthorized: false,
+        },
+        () => {},
+      )
+      req.end()
+
+      const res = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+        req.on('response', resolve)
+        req.on('error', reject)
+      })
+
+      expect(res.headers['content-type']).toBe('text/event-stream')
+
+      const chunks = res[Symbol.asyncIterator]()
+
+      const first = await chunks.next()
+      expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
+
+      setPresenceEntry('band-a', 'device-1', { profileId: 'p1', lastSeenAt: 123 })
+
+      const second = await chunks.next()
+      expect(Buffer.from(second.value as Buffer).toString()).toBe(
+        `data: ${JSON.stringify({ devices: { 'device-1': { profileId: 'p1', lastSeenAt: 123 } } })}\n\n`,
       )
 
       req.destroy()
