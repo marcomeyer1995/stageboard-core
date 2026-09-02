@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
+import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
 import { persist } from 'zustand/middleware'
 import { useDialogStore } from './useDialogStore'
 
@@ -46,6 +47,13 @@ interface WorkspaceState {
    * calls this first, then provisions everyone else via `createMember`. */
   connectWorkspace: (workspaceId: string, serverUrl: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
+  /** "Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up, at Marco's explicit
+   * request) - the non-destructive counterpart to `deleteWorkspace`: drops this workspace from
+   * this device's own list and wipes its local PouchDB data (`destroyLocalWorkspaceDb`), but
+   * never touches the server at all - unlike `deleteWorkspace`, not admin-only, since it's
+   * purely a local housekeeping action. Re-joining later (the band's own standing access code)
+   * pulls everything fresh again. */
+  removeWorkspaceLocally: (id: string) => Promise<void>
   joinWithPassword: (id: string, username: string, password: string, isAdmin: boolean) => void
   createMember: (
     workspaceId: string,
@@ -245,6 +253,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           activeWorkspaceId: get().activeWorkspaceId === id ? (remainingWorkspaces[0]?.id ?? '') : get().activeWorkspaceId,
         })
         return true
+      },
+      removeWorkspaceLocally: async (id) => {
+        const remainingWorkspaces = get().workspaces.filter((w) => w.id !== id)
+        set({
+          workspaces: remainingWorkspaces,
+          activeWorkspaceId: get().activeWorkspaceId === id ? (remainingWorkspaces[0]?.id ?? '') : get().activeWorkspaceId,
+        })
+        await destroyLocalWorkspaceDb(id)
       },
       // The "Passwort direkt eingeben" fallback in JoinBandView.tsx - for a workspace this
       // device doesn't know about locally yet, so unlike a plain update this has to be able to

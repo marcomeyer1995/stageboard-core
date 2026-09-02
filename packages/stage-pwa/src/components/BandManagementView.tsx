@@ -113,16 +113,18 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * one shared building block rather than two near-identical copies) instead of sitting as inline
  * links. Any future list of rows should reach for the same three pieces rather than growing its
  * own bespoke inline-links row that will eventually hit the same narrow-screen problem.
+ *
+ * 2026-09-02 thirteenth follow-up, at Marco's explicit request: the "(aktiv)"/"(du)" text
+ * labels are gone from both lists - the accent border/background already says "this one is
+ * selected" on its own, the text was redundant. Also added "Von diesem Gerät entfernen"
+ * (`removeWorkspaceLocally`, useWorkspaceStore.ts) - previously "Löschen" was the *only* way to
+ * stop a band showing up here, and it always deletes the workspace for everyone, server-side,
+ * admin-only. The new action is purely local (drops it from this device's list, wipes its
+ * local PouchDB data, never touches the server) and offered to every member of a server-
+ * connected band, not just admins - a plain member previously had no way at all to remove a
+ * band from their own device.
  */
-function MemberRowLabel({
-  profile,
-  onlineDeviceCount,
-  isActiveProfile,
-}: {
-  profile: Profile
-  onlineDeviceCount: number
-  isActiveProfile: boolean
-}) {
+function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onlineDeviceCount: number }) {
   return (
     <>
       <span className="inline-flex items-center gap-1.5">
@@ -134,7 +136,6 @@ function MemberRowLabel({
         )}
         {profile.name}
         {onlineDeviceCount > 1 && <span className="text-xs text-ink-faint">×{onlineDeviceCount}</span>}
-        {isActiveProfile && <span className="text-xs text-ink-faint">(du)</span>}
       </span>
       {profile.stageRoles.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
@@ -158,6 +159,7 @@ export function BandManagementView() {
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const deleteWorkspace = useWorkspaceStore((state) => state.deleteWorkspace)
+  const removeWorkspaceLocally = useWorkspaceStore((state) => state.removeWorkspaceLocally)
   const resetMemberPassword = useWorkspaceStore((state) => state.resetMemberPassword)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
   const setOwnPin = useWorkspaceStore((state) => state.setOwnPin)
@@ -266,9 +268,8 @@ export function BandManagementView() {
               className="text-left font-semibold hover:underline disabled:hover:no-underline"
             >
               {workspace.name}
-              {workspace.id === activeWorkspaceId && <span className="ml-2 text-xs text-ink-faint">(aktiv)</span>}
             </button>
-            {workspace.isAdmin && (
+            {(workspace.isAdmin || !!workspace.username) && (
               <RowMenuButton
                 label={`Weitere Optionen für ${workspace.name}`}
                 onClick={() => setActionsMenuWorkspaceId(workspace.id)}
@@ -277,8 +278,10 @@ export function BandManagementView() {
             {actionsMenuWorkspaceId === workspace.id && (
               <RowActionsMenu title={workspace.name} onClose={() => setActionsMenuWorkspaceId(null)}>
                 {/* Only once this band has a real Stage-Server account to invite anyone
-                    to - a local-only band (Tier-A follow-up) has nothing to hand out yet. */}
-                {!!workspace.username && (
+                    to - a local-only band (Tier-A follow-up) has nothing to hand out yet. Also
+                    admin-only, unlike "Von diesem Gerät entfernen" below: inviting is a band-
+                    management action, not something a plain member does. */}
+                {workspace.isAdmin && !!workspace.username && (
                   <RowActionButton
                     onClick={() => {
                       setActionsMenuWorkspaceId(null)
@@ -288,19 +291,45 @@ export function BandManagementView() {
                     Einladen
                   </RowActionButton>
                 )}
-                <RowActionButton
-                  danger
-                  onClick={async () => {
-                    setActionsMenuWorkspaceId(null)
-                    const confirmed = await confirm(
-                      `"${workspace.name}" endgültig löschen? Alle Daten (Songs, Setlisten, Roster, ...) gehen unwiderruflich verloren, für jedes Gerät, das dieser Band beigetreten ist.`,
-                      { confirmLabel: 'Endgültig löschen', danger: true },
-                    )
-                    if (confirmed) void deleteWorkspace(workspace.id)
-                  }}
-                >
-                  Löschen
-                </RowActionButton>
+                {/* 2026-09-02 thirteenth follow-up, at Marco's explicit request ("welche
+                    Möglichkeit gibt es, gerade einen Band-Workspace von seinem Gerät zu
+                    löschen, aber nicht den kompletten Workspace auf dem Server") - the
+                    non-destructive counterpart to "Löschen" below: drops this band from just
+                    this device (removeWorkspaceLocally also wipes its local PouchDB data) and
+                    never touches the server, so it's offered to every server-connected band's
+                    member, not only admins - a plain member previously had no way at all to
+                    remove a band from their own device's list. Only for a server-connected
+                    band: for a local-only one (no `username`), this and "Löschen" would be the
+                    exact same operation, so just "Löschen" stays the one option there. */}
+                {!!workspace.username && (
+                  <RowActionButton
+                    onClick={async () => {
+                      setActionsMenuWorkspaceId(null)
+                      const confirmed = await confirm(
+                        `"${workspace.name}" von diesem Gerät entfernen? Die Band bleibt auf dem Server bestehen - andere Geräte sind nicht betroffen, und du kannst jederzeit wieder beitreten.`,
+                        { confirmLabel: 'Entfernen' },
+                      )
+                      if (confirmed) await removeWorkspaceLocally(workspace.id)
+                    }}
+                  >
+                    Von diesem Gerät entfernen
+                  </RowActionButton>
+                )}
+                {workspace.isAdmin && (
+                  <RowActionButton
+                    danger
+                    onClick={async () => {
+                      setActionsMenuWorkspaceId(null)
+                      const confirmed = await confirm(
+                        `"${workspace.name}" endgültig löschen? Alle Daten (Songs, Setlisten, Roster, ...) gehen unwiderruflich verloren, für jedes Gerät, das dieser Band beigetreten ist.`,
+                        { confirmLabel: 'Endgültig löschen', danger: true },
+                      )
+                      if (confirmed) void deleteWorkspace(workspace.id)
+                    }}
+                  >
+                    Löschen
+                  </RowActionButton>
+                )}
               </RowActionsMenu>
             )}
           </div>
@@ -365,11 +394,11 @@ export function BandManagementView() {
                       there instead of a disabled-looking button. */}
                   {isActiveProfile ? (
                     <div>
-                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} isActiveProfile={isActiveProfile} />
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </div>
                   ) : (
                     <button type="button" onClick={() => handlePickProfile(profile)} className="text-left hover:opacity-80">
-                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} isActiveProfile={isActiveProfile} />
+                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}
                   {((isActiveProfile && isAdminProfile) || activeWorkspace.isAdmin) && (

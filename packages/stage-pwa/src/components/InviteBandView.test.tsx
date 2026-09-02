@@ -1,8 +1,23 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useDialogStore } from '../store/useDialogStore'
-import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { InviteBandView } from './InviteBandView'
+
+// useWorkspaceStore now imports workspaceDb.ts (removeWorkspaceLocally's
+// destroyLocalWorkspaceDb), which constructs a real PouchDB at module load time - unavailable
+// under happy-dom (see workspaceDb.test.ts's identical mock).
+vi.mock('pouchdb-browser', () => ({
+  default: class FakePouchDB {
+    sync() {
+      return { on: () => this, cancel: () => {} }
+    }
+    destroy() {
+      return Promise.resolve()
+    }
+  },
+}))
+
+const { useDialogStore } = await import('../store/useDialogStore')
+const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
+const { InviteBandView } = await import('./InviteBandView')
 
 // fetchLanIp() hits GET /server-info - defaults to "no Stage-Server configured" (no lanIp
 // display, plain code-only QR) for every test below except the two that explicitly stub a

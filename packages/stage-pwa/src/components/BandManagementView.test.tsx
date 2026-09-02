@@ -297,8 +297,11 @@ describe('BandManagementView', () => {
       render(<BandManagementView />)
 
       // A non-admin device viewing a non-active, non-self, non-admin profile has nothing to
-      // offer (no "Auswählen" link anymore either - that's the tap-to-select on the row).
-      expect(screen.queryByRole('button', { name: /Weitere Optionen/ })).not.toBeInTheDocument()
+      // offer on that *member's* row (no "Auswählen" link anymore either - that's the
+      // tap-to-select on the row). The band itself still gets its own "⋮" (server-connected,
+      // so "Von diesem Gerät entfernen" applies even to a non-admin member) - a separate
+      // concern, not what this test is about.
+      expect(screen.queryByRole('button', { name: 'Weitere Optionen für Marco' })).not.toBeInTheDocument()
     })
 
     it('"Schließen" dismisses the popup', () => {
@@ -394,7 +397,12 @@ describe('BandManagementView', () => {
 
       render(<BandManagementView />)
 
-      expect(screen.getByText('(du)').closest('div.rounded-sb')?.className).toMatch(/border-accent/)
+      // p2 (Chris) is active - the accent border is the only "this is you" signal now
+      // (2026-09-02 thirteenth follow-up: the "(du)" text label was redundant with it).
+      const chrisRow = screen.getByText('Chris').closest('div.rounded-sb')
+      const marcoRow = screen.getByText('Marco').closest('div.rounded-sb')
+      expect(chrisRow?.className).toMatch(/border-accent/)
+      expect(marcoRow?.className).not.toMatch(/border-accent/)
     })
   })
 
@@ -499,6 +507,62 @@ describe('BandManagementView', () => {
 
       fireEvent.click(screen.getByText('Schließen'))
       expect(screen.queryByText('11112222')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('"Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up: the non-destructive, non-admin-gated counterpart to "Löschen")', () => {
+    it('is offered even to a non-admin member of a server-connected band', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: false, username: 'stageboard-band-a-p1', couchPassword: 'pw' }],
+      })
+      render(<BandManagementView />)
+
+      openBandMenu('Band A')
+      expect(screen.getByText('Von diesem Gerät entfernen')).toBeInTheDocument()
+      // Admin-only actions stay hidden for this non-admin member.
+      expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
+      expect(screen.queryByText('Löschen')).not.toBeInTheDocument()
+    })
+
+    it('is not offered for a local-only band (no Stage-Server account) - "Löschen" alone covers it there', () => {
+      useWorkspaceStore.setState({
+        workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
+      })
+      render(<BandManagementView />)
+
+      openBandMenu('Band A')
+      expect(screen.queryByText('Von diesem Gerät entfernen')).not.toBeInTheDocument()
+      expect(screen.getByText('Löschen')).toBeInTheDocument()
+    })
+
+    it('confirms first, then calls removeWorkspaceLocally - not deleteWorkspace', async () => {
+      const removeWorkspaceLocally = vi.fn()
+      const deleteWorkspace = vi.fn()
+      useWorkspaceStore.setState({ removeWorkspaceLocally, deleteWorkspace })
+      const confirmMock = vi.fn().mockResolvedValue(true)
+      useDialogStore.setState({ confirm: confirmMock })
+
+      render(<BandManagementView />)
+      openBandMenu('Band A')
+      fireEvent.click(screen.getByText('Von diesem Gerät entfernen'))
+
+      await waitFor(() => expect(removeWorkspaceLocally).toHaveBeenCalledWith('band-a'))
+      expect(deleteWorkspace).not.toHaveBeenCalled()
+      // Non-danger-styled confirm: unlike "Löschen", this doesn't affect anyone else.
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Band A'), expect.not.objectContaining({ danger: true }))
+    })
+
+    it('does not remove it when the confirmation is declined', async () => {
+      const removeWorkspaceLocally = vi.fn()
+      useWorkspaceStore.setState({ removeWorkspaceLocally })
+      useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
+
+      render(<BandManagementView />)
+      openBandMenu('Band A')
+      fireEvent.click(screen.getByText('Von diesem Gerät entfernen'))
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(removeWorkspaceLocally).not.toHaveBeenCalled()
     })
   })
 
