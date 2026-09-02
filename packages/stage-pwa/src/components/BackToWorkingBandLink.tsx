@@ -11,17 +11,16 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * a stored credential for; picking one just calls `setActiveWorkspace`, same as
  * BandManagementView.tsx's band list.
  *
- * `onNavigate` (#68 follow-up, found live): for the three *forced* App.tsx gates, switching
- * `activeWorkspaceId` is enough by itself - the gate condition itself is derived from the
- * active workspace, so picking a working one makes the gate re-evaluate false on its own,
- * with nothing left rendering it. That assumption breaks for `JoinBandView.tsx`'s new
- * *voluntary* overlay usage (opened from `BandManagementView.tsx`, on top of an already-normal
- * app): its visibility is separate local state in the caller, not derived from
- * `activeWorkspaceId` at all, so `setActiveWorkspace` alone left the overlay sitting there
- * unchanged - clicking "Zurück zu X" visibly did nothing. `onNavigate` (optional, so the three
- * unaffected forced-gate call sites need no change) lets a caller close its own overlay too.
+ * Deliberately NOT reused for JoinBandView.tsx's #68 voluntary-open case (opened from
+ * BandManagementView.tsx on top of an already-working band) - found live: that band is the
+ * *active* one, so this component's own "everything except active" filter excludes exactly
+ * the one workspace someone opening this dialog actually wants "back" to mean, and picking
+ * one of the *other* listed bands instead switches away from it - the opposite of "back."
+ * JoinBandView.tsx's own "Abbrechen" (only rendered in that same voluntary case) is the
+ * correct escape hatch there instead: it never touches `activeWorkspaceId` at all, so simply
+ * not calling it already leaves the untouched active workspace exactly where it was.
  */
-export function BackToWorkingBandLink({ onNavigate }: { onNavigate?: () => void } = {}) {
+export function BackToWorkingBandLink() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   // Select the raw (stable-reference) array, not a filtered derivation - a selector that
@@ -42,10 +41,7 @@ export function BackToWorkingBandLink({ onNavigate }: { onNavigate?: () => void 
         <button
           key={w.id}
           type="button"
-          onClick={() => {
-            setActiveWorkspace(w.id)
-            onNavigate?.()
-          }}
+          onClick={() => setActiveWorkspace(w.id)}
           className="text-xs text-ink-faint underline"
         >
           ← Zurück zu {w.name}

@@ -62,34 +62,4 @@ describe('BackToWorkingBandLink', () => {
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b')
   })
-
-  it('also calls onNavigate when provided, alongside switching the active workspace (#68 follow-up: a caller with its own overlay state needs to close it too, not just switching activeWorkspaceId)', () => {
-    const onNavigate = vi.fn()
-    useWorkspaceStore.setState({
-      workspaces: [
-        { id: 'band-a', name: 'Band A' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
-      ],
-      activeWorkspaceId: 'band-a',
-    })
-    render(<BackToWorkingBandLink onNavigate={onNavigate} />)
-
-    fireEvent.click(screen.getByText('← Zurück zu Band B'))
-
-    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b')
-    expect(onNavigate).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not throw when no onNavigate is provided (the three forced App.tsx onboarding gates)', () => {
-    useWorkspaceStore.setState({
-      workspaces: [
-        { id: 'band-a', name: 'Band A' },
-        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
-      ],
-      activeWorkspaceId: 'band-a',
-    })
-    render(<BackToWorkingBandLink />)
-
-    expect(() => fireEvent.click(screen.getByText('← Zurück zu Band B'))).not.toThrow()
-  })
 })

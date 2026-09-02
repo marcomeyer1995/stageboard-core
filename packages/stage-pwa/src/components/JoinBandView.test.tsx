@@ -404,7 +404,7 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('bug found live: "← Zurück zu X" (BackToWorkingBandLink) also calls onClose, not just setActiveWorkspace - otherwise a device with a second existing band left this overlay sitting open with nothing visibly happening', async () => {
+  it('bug found live: does not render BackToWorkingBandLink at all when opened voluntarily, on a device with a second existing band - it lists every workspace *except* the active one, so it would offer to switch away from the perfectly-working active band instead of "back" to it; "Abbrechen" alone is correct here since it never touches activeWorkspaceId', async () => {
     const onClose = vi.fn()
     useWorkspaceStore.setState({
       workspaces: [
@@ -418,9 +418,26 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
     render(<JoinBandView onClose={onClose} />)
     await screen.findByText('Band beitreten')
 
-    fireEvent.click(screen.getByText('← Zurück zu Band B'))
+    expect(screen.queryByText('← Zurück zu Band B')).not.toBeInTheDocument()
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-a')
+  })
 
-    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b')
-    expect(onClose).toHaveBeenCalled()
+  it('does render BackToWorkingBandLink for the forced App.tsx onboarding gate (no onClose)', async () => {
+    // The forced gate only ever mounts with zero known workspaces (needsJoin = !hasAnyWorkspace),
+    // but BackToWorkingBandLink is a shared component also used by the other two onboarding
+    // gates (RosterSetupView, ProfileRolePickerView) where it does matter - this just confirms
+    // JoinBandView still renders it unconditionally when onClose is absent.
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A', couchPassword: 'pw-a' },
+        { id: 'band-b', name: 'Band B', couchPassword: 'pw-b' },
+      ],
+      activeWorkspaceId: 'band-a',
+      listWorkspaces: vi.fn().mockResolvedValue([]),
+    })
+
+    render(<JoinBandView />)
+
+    expect(await screen.findByText('← Zurück zu Band B')).toBeInTheDocument()
   })
 })

@@ -54,11 +54,16 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * `onClose` (#68): also reused as a voluntary "join an additional band" flow from
  * `BandManagementView.tsx`, for a device that already has at least one working band - unlike
  * the forced App.tsx onboarding gate (no `onClose` there, nothing to close back to), this case
- * needs an explicit way out if the person changes their mind, since `BackToWorkingBandLink`
- * only shows a workspace *other than* the currently active one - useless here, the device's
- * only other workspace usually *is* the active one. Only rendered on step 1 (steps 2/3 already
- * have their own "back" links to get there first) and auto-fired after a successful join, so
- * the caller's overlay dismisses itself the moment there's something worth showing instead.
+ * needs an explicit way out if the person changes their mind. Deliberately its own "Abbrechen"
+ * button, not `BackToWorkingBandLink` (suppressed here, only shown for the forced gate) - found
+ * live: that component lists every workspace *except* the active one, which for this voluntary
+ * case is exactly backwards (the active workspace is the perfectly-working one someone opening
+ * this dialog wants back, and clicking one of the *other* listed bands switches away from it
+ * instead). "Abbrechen" never touches `activeWorkspaceId` at all, so simply closing already
+ * leaves the untouched active workspace exactly where it was. Only rendered on step 1 (steps
+ * 2/3 already have their own "back" links to get there first) and auto-fired after a
+ * successful join, so the caller's overlay dismisses itself the moment there's something worth
+ * showing instead.
  * `fixed inset-0` on the root (all three steps) rather than plain `h-dvh`: harmless when used
  * as App.tsx's onboarding gate (nothing else renders alongside it there), but required for this
  * new usage, where it has to sit on top of the already-rendered BandManagementView.tsx.
@@ -372,7 +377,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   return (
     <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
-        <BackToWorkingBandLink onNavigate={onClose} />
+        {!onClose && <BackToWorkingBandLink />}
 
         <div>
           <h1 className="text-2xl font-bold">Band beitreten</h1>
