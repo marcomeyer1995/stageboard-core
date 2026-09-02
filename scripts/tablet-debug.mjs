@@ -5,7 +5,7 @@
 // window. See docs/03_Developer_Experience.md, section "Live-Tablet-Debugging".
 //
 // Prereqs (see docs/03 for the full walkthrough):
-//   adb devices                                            # tablet must show as "device", not "unauthorized"/"no permissions"
+//   adb devices                                            # device must show as "device", not "unauthorized"/"no permissions"
 //   adb forward tcp:9222 localabstract:chrome_devtools_remote
 //
 // Usage:
@@ -16,10 +16,16 @@
 // <urlSubstring> matches against each open tab's URL (e.g. "5173" or "192.168.178.158").
 // If it matches more than one tab, the first is used - re-run `list` and be more specific,
 // or close the extra tab on the tablet, if that picks the wrong one.
+//
+// Two devices at once (e.g. tablet + phone): with more than one device attached, `adb forward`
+// needs `-s <serial>` and each device needs its own local port (`adb -s <serial> forward
+// tcp:<port> localabstract:chrome_devtools_remote`) - one abstract socket per device, but they'd
+// collide on the same local port otherwise. Point this script at the non-default one via
+// CDP_PORT=9223 node scripts/tablet-debug.mjs ...
 
 import { writeFileSync, appendFileSync } from 'node:fs'
 
-const CDP_PORT = 9222
+const CDP_PORT = Number(process.env.CDP_PORT) || 9222
 
 async function listTargets() {
   const res = await fetch(`http://localhost:${CDP_PORT}/json`)
