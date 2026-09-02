@@ -350,4 +350,57 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
     expect(await screen.findByText('Band C')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
   })
+
+  it('calls onClose after a successful join, when opened voluntarily (#68)', async () => {
+    const onClose = vi.fn()
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    const joinAsMember = vi.fn().mockResolvedValue({ id: 'band-c', name: 'Band C' })
+    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList), fetchRoster, joinAsMember })
+
+    render(<JoinBandView onClose={onClose} />)
+    fireEvent.click(await screen.findByText('Band C'))
+    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+    await screen.findByText('Wer bist du?')
+
+    fireEvent.click(screen.getByText('Marco', { exact: false }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('does not call onClose when the join fails', async () => {
+    const onClose = vi.fn()
+    const fetchRoster = vi.fn().mockResolvedValue(roster)
+    const joinAsMember = vi.fn().mockResolvedValue(null)
+    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList), fetchRoster, joinAsMember })
+
+    render(<JoinBandView onClose={onClose} />)
+    fireEvent.click(await screen.findByText('Band C'))
+    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+    await screen.findByText('Wer bist du?')
+
+    fireEvent.click(screen.getByText('Marco', { exact: false }))
+
+    await waitFor(() => expect(joinAsMember).toHaveBeenCalled())
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('JoinBandView - opened voluntarily with onClose (#68: joining a second band from an already-onboarded device)', () => {
+  it('shows no "Abbrechen" escape hatch when opened without onClose (the forced App.tsx onboarding gate - nothing to close back to)', async () => {
+    render(<JoinBandView />)
+    await screen.findByText('Band beitreten')
+    expect(screen.queryByText('Abbrechen')).not.toBeInTheDocument()
+  })
+
+  it('shows an "Abbrechen" button that calls onClose when opened voluntarily', async () => {
+    const onClose = vi.fn()
+    render(<JoinBandView onClose={onClose} />)
+    await screen.findByText('Band beitreten')
+
+    fireEvent.click(screen.getByText('Abbrechen'))
+
+    expect(onClose).toHaveBeenCalled()
+  })
 })
