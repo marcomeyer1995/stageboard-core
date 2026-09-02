@@ -10,6 +10,7 @@ import {
   memberUsername,
   provisionMember,
   provisionWorkspace,
+  renameWorkspace,
   rotateAccessCode,
   setMemberAdmin,
   WorkspaceAlreadyProvisionedError,
@@ -44,6 +45,7 @@ describe('provisionWorkspace', () => {
       { ok: true, status: 201 }, // ensureDb
       { ok: true, status: 200 }, // putSecurity
       { ok: true, status: 201 }, // putDoc (_design/roster)
+      { ok: false, status: 404 }, // getDoc (workspace:access) - doesn't exist yet
       { ok: true, status: 201 }, // putDoc (workspace:access)
     ])
 
@@ -72,7 +74,7 @@ describe('provisionWorkspace', () => {
     expect(designDocBody.validate_doc_update).toContain('userCtx.roles')
     expect(designDocBody.validate_doc_update).toContain("indexOf('admin')")
 
-    const accessCodeCall = fetchMock.mock.calls[5]
+    const accessCodeCall = fetchMock.mock.calls[6]
     expect(accessCodeCall[0]).toBe('http://localhost:5984/stageboard-band-c/workspace%3Aaccess')
     const accessCodeBody = JSON.parse(accessCodeCall[1].body)
     expect(accessCodeBody).toEqual({ _id: 'workspace:access', code: expect.stringMatching(/^\d{8}$/), name: 'Band C' })
@@ -111,6 +113,7 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
   it('getOrCreateAccessCode lazily creates one with the fallback name when none exists yet - the pre-existing-workspace backfill path', async () => {
     const fetchMock = stubFetch([
       { ok: false, status: 404 }, // getAccessCode -> missing
+      { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> still missing
       { ok: true, status: 201 }, // putDoc (workspace:access)
     ])
 
@@ -118,13 +121,13 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
 
     expect(result.name).toBe('band-c')
     expect(result.code).toMatch(/^\d{8}$/)
-    const putCall = fetchMock.mock.calls[1]
+    const putCall = fetchMock.mock.calls[2]
     expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', code: result.code, name: 'band-c' })
   })
 
-  it('rotateAccessCode keeps the existing name but generates a fresh code', async () => {
+  it('rotateAccessCode keeps the existing name but generates a fresh code, in one fetch-then-put round trip', async () => {
     const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', code: '11111111', name: 'Band C' }) }, // getAccessCode
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'Band C' }) }, // putDocWithRetry's getDoc
       { ok: true, status: 201 }, // putDoc with new code
     ])
 
@@ -132,8 +135,52 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
 
     expect(newCode).toMatch(/^\d{8}$/)
     expect(newCode).not.toBe('11111111')
+    expect(fetchMock.mock.calls.length).toBe(2)
     const putCall = fetchMock.mock.calls[1]
-    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', code: newCode, name: 'Band C' })
+    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', _rev: '1-abc', code: newCode, name: 'Band C' })
+  })
+
+  it('renameWorkspace keeps the existing code but changes the name (#58), in one fetch-then-put round trip', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'Band C' }) }, // putDocWithRetry's getDoc
+      { ok: true, status: 201 }, // putDoc with new name
+    ])
+
+    await renameWorkspace(config, 'band-c', 'The Renamed Band')
+
+    expect(fetchMock.mock.calls.length).toBe(2)
+    const putCall = fetchMock.mock.calls[1]
+    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'The Renamed Band' })
+  })
+
+  it('renameWorkspace backfills a fresh access-code doc for a workspace that never had one', async () => {
+    const fetchMock = stubFetch([
+      { ok: false, status: 404 }, // putDocWithRetry's getDoc -> missing
+      { ok: true, status: 201 }, // putDoc (workspace:access)
+    ])
+
+    await renameWorkspace(config, 'band-c', 'Fresh Name')
+
+    expect(fetchMock.mock.calls.length).toBe(2)
+    const putCall = fetchMock.mock.calls[1]
+    const body = JSON.parse(putCall[1].body)
+    expect(body).toMatchObject({ _id: 'workspace:access', name: 'Fresh Name' })
+    expect(body.code).toMatch(/^\d{8}$/)
+  })
+
+  it('renameWorkspace retries once on a write conflict, re-reading a fresh _rev', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'Band C' }) }, // 1st getDoc
+      { ok: false, status: 409 }, // 1st put -> conflict (another writer won the race)
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '2-def', code: '11111111', name: 'Band C' }) }, // 2nd getDoc, fresh _rev
+      { ok: true, status: 201 }, // 2nd put succeeds
+    ])
+
+    await renameWorkspace(config, 'band-c', 'The Renamed Band')
+
+    expect(fetchMock.mock.calls.length).toBe(4)
+    const putCall = fetchMock.mock.calls[3]
+    expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', _rev: '2-def', code: '11111111', name: 'The Renamed Band' })
   })
 
   it('listWorkspaces filters _all_dbs to stageboard-* databases and resolves each one\'s display name', async () => {

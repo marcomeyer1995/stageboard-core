@@ -3,6 +3,7 @@ import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
 import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
+import { getWorkspaceAccessDoc, watchWorkspaceAccessDoc } from '../lib/workspaceAccessDoc'
 import { persist } from 'zustand/middleware'
 import { useDialogStore } from './useDialogStore'
 
@@ -47,6 +48,25 @@ interface WorkspaceState {
    * calls this first, then provisions everyone else via `createMember`. */
   connectWorkspace: (workspaceId: string, serverUrl: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
+  /** Renames a workspace (#58). A local-only workspace (Tier-A follow-up, no `username` -
+   * nothing has ever been provisioned server-side) has no other device that could ever see a
+   * stale name, so this just edits `name` locally, same as before this feature existed. A
+   * server-connected one goes through core-backend's admin-verified `POST
+   * /workspaces/:id/name`, which writes the workspace's `workspace:access` doc - the same one
+   * that already replicates to every joined device via the ordinary workspace-db sync, so this
+   * is the one write that makes the new name actually reach everyone (see `initNameSync`
+   * below for the receiving side on other devices, and the `warum entfernt` section of #58 for
+   * why the original client-only rename couldn't). Admin-only; `false` on failure. */
+  renameWorkspace: (id: string, name: string) => Promise<boolean>
+  /** Starts (or restarts, cancelling any previous one) a live watch on the active workspace's
+   * `workspace:access` doc, keeping this device's own cached `Workspace.name` in sync whenever
+   * *another* device renames the band (`renameWorkspace` above already updates this device's
+   * own copy directly on success, so this is only for picking up someone *else's* rename).
+   * Local-only, no network call of its own - rides the workspace-db sync that's already
+   * running. No-ops for a workspace that's never had a `workspace:access` doc (local-only, or
+   * an old workspace not yet backfilled). Called once per active-workspace change from
+   * App.tsx, mirroring every other workspace-scoped store's `init`. */
+  initNameSync: (workspaceId: string) => Promise<void>
   /** "Von diesem Gerät entfernen" (2026-09-02 thirteenth follow-up, at Marco's explicit
    * request) - the non-destructive counterpart to `deleteWorkspace`: drops this workspace from
    * this device's own list and wipes its local PouchDB data (`destroyLocalWorkspaceDb`), but
@@ -135,6 +155,8 @@ interface WorkspaceState {
  * the box, or fresh from a Stage-Server it's never talked to, genuinely knows nothing yet;
  * `JoinBandView.tsx` is what it sees first, offering both "join" and "start a new band" equally.
  */
+let nameChangesHandle: PouchDB.Core.Changes<{ code: string; name: string }> | null = null
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
@@ -253,6 +275,63 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           activeWorkspaceId: get().activeWorkspaceId === id ? (remainingWorkspaces[0]?.id ?? '') : get().activeWorkspaceId,
         })
         return true
+      },
+      renameWorkspace: async (id, name) => {
+        const workspace = get().workspaces.find((w) => w.id === id)
+        if (!workspace) return false
+
+        if (!workspace.username) {
+          set({ workspaces: get().workspaces.map((w) => (w.id === id ? { ...w, name } : w)) })
+          return true
+        }
+
+        if (!workspace.isAdmin || !workspace.couchPassword) return false
+
+        const base = getStageServerUrl()
+        if (!base) return false
+
+        try {
+          const response = await fetch(`${base}/workspaces/${encodeURIComponent(id)}/name`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, name }),
+          })
+          if (!response.ok) {
+            if (response.status === 403) {
+              void useDialogStore.getState().alert('Dieses Gerät ist kein Admin mehr - Aktion nicht möglich.')
+            } else {
+              throw new Error(`HTTP ${response.status}`)
+            }
+            return false
+          }
+        } catch (err) {
+          console.error('Failed to rename workspace', err)
+          void useDialogStore.getState().alert('Band konnte nicht umbenannt werden - Stage-Server nicht erreichbar.')
+          return false
+        }
+
+        set({ workspaces: get().workspaces.map((w) => (w.id === id ? { ...w, name } : w)) })
+        return true
+      },
+      initNameSync: async (workspaceId) => {
+        nameChangesHandle?.cancel()
+        nameChangesHandle = null
+        if (!workspaceId) return
+
+        const doc = await getWorkspaceAccessDoc(workspaceId)
+        if (doc) {
+          set({
+            workspaces: get().workspaces.map((w) => (w.id === workspaceId && w.name !== doc.name ? { ...w, name: doc.name } : w)),
+          })
+        }
+
+        nameChangesHandle = watchWorkspaceAccessDoc(workspaceId, (updated) => {
+          set({
+            workspaces: get().workspaces.map((w) =>
+              w.id === workspaceId && w.name !== updated.name ? { ...w, name: updated.name } : w,
+            ),
+          })
+        })
       },
       removeWorkspaceLocally: async (id) => {
         const remainingWorkspaces = get().workspaces.filter((w) => w.id !== id)

@@ -159,6 +159,7 @@ export function BandManagementView() {
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const deleteWorkspace = useWorkspaceStore((state) => state.deleteWorkspace)
+  const renameWorkspace = useWorkspaceStore((state) => state.renameWorkspace)
   const removeWorkspaceLocally = useWorkspaceStore((state) => state.removeWorkspaceLocally)
   const resetMemberPassword = useWorkspaceStore((state) => state.resetMemberPassword)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
@@ -277,6 +278,22 @@ export function BandManagementView() {
             )}
             {actionsMenuWorkspaceId === workspace.id && (
               <RowActionsMenu title={workspace.name} onClose={() => setActionsMenuWorkspaceId(null)}>
+                {/* #58: renames a workspace. Server-connected bands go through
+                    renameWorkspace's admin-verified backend call, which writes the workspace's
+                    `workspace:access` doc - already replicated to every joined device via the
+                    ordinary workspace-db sync, so this is what makes the new name actually
+                    reach everyone (unlike the old client-only rename this replaces). */}
+                {workspace.isAdmin && (
+                  <RowActionButton
+                    onClick={async () => {
+                      setActionsMenuWorkspaceId(null)
+                      const name = await promptText('Band umbenennen', { label: 'Neuer Name', defaultValue: workspace.name })
+                      if (name?.trim() && name.trim() !== workspace.name) void renameWorkspace(workspace.id, name.trim())
+                    }}
+                  >
+                    Umbenennen
+                  </RowActionButton>
+                )}
                 {/* Only once this band has a real Stage-Server account to invite anyone
                     to - a local-only band (Tier-A follow-up) has nothing to hand out yet. Also
                     admin-only, unlike "Von diesem Gerät entfernen" below: inviting is a band-

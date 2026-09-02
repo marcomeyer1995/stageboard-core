@@ -8,6 +8,7 @@ import {
   getDoc,
   listDbs,
   putDoc,
+  putDocWithRetry,
   putSecurity,
   resetUserPassword,
   setUserRoles,
@@ -138,13 +139,22 @@ function generateAccessCode(): string {
   return randomInt(0, 100_000_000).toString().padStart(8, '0')
 }
 
-/** Always creates a fresh `workspace:access` doc, overwriting any existing one - the initial
- * creation at `provisionWorkspace` time, and the "lazy backfill" fallback in
- * `getOrCreateAccessCode` below share this. Not exported: every real caller goes through one of
- * those two, which know exactly when a fresh doc is actually warranted. */
+/** Always writes a fresh code, overwriting any existing doc's - the initial creation at
+ * `provisionWorkspace` time, and the "lazy backfill" fallback in `getOrCreateAccessCode` below
+ * share this. Not exported: every real caller goes through one of those two, which know exactly
+ * when a fresh doc is actually warranted. Uses `putDocWithRetry` (couch.ts) rather than a plain
+ * fetch-then-put - CouchDB rejects a PUT to an existing doc with no `_rev` as a 409 (confirmed
+ * against a real instance; the mocked tests here don't catch this on their own), and unlike
+ * `rotateAccessCode`/`renameWorkspace` below there's no separate earlier read whose `_rev` this
+ * could reuse, so `putDocWithRetry`'s own fetch-then-put is exactly what's needed here too. */
 async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, name: string): Promise<string> {
   const code = generateAccessCode()
-  await putDoc(config, workspaceDbName(workspaceId), { _id: ACCESS_CODE_DOC_ID, code, name })
+  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
+    _id: ACCESS_CODE_DOC_ID,
+    _rev: existing?._rev,
+    code,
+    name,
+  }))
   return code
 }
 
@@ -182,10 +192,37 @@ export async function getOrCreateAccessCode(
 
 /** Rotates a workspace's standing access code to a fresh one, keeping its display name -
  * admin-only (`POST /workspaces/:id/access-code/rotate`), e.g. "the code leaked" or just
- * post-tour cleanup. Immediately invalidates the old code for anyone who only knew that one. */
+ * post-tour cleanup. Immediately invalidates the old code for anyone who only knew that one.
+ * Reads the existing name from the same fetch `putDocWithRetry` already needs for `_rev` -
+ * rather than a separate `getAccessCode` call first - so this costs exactly one round trip per
+ * attempt, not two. */
 export async function rotateAccessCode(config: CouchConfig, workspaceId: string): Promise<string> {
-  const existing = await getAccessCode(config, workspaceId)
-  return createAccessCodeDoc(config, workspaceId, existing?.name ?? workspaceId)
+  const code = generateAccessCode()
+  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
+    _id: ACCESS_CODE_DOC_ID,
+    _rev: existing?._rev,
+    code,
+    name: existing?.name ?? workspaceId,
+  }))
+  return code
+}
+
+/** Renames a workspace (#58) - the mirror image of `rotateAccessCode`: keeps the existing
+ * standing access code, only the `name` field changes (same single-fetch-per-attempt shape as
+ * `rotateAccessCode` above, for the same reason). Reuses the same `workspace:access` doc rather
+ * than a separate metadata doc, so it needs no new sync plumbing at all - it already replicates
+ * to every already-joined device via the ordinary workspace-db sync (`workspaceDb.ts`'s
+ * `startWorkspaceSync`), the exact gap the issue's "warum entfernt" section identified in the
+ * old, client-only `renameWorkspace`. A workspace with no `workspace:access` doc yet
+ * (pre-2026-09-01, never backfilled) gets one created on the spot, same lazy-backfill approach
+ * as `getOrCreateAccessCode`. */
+export async function renameWorkspace(config: CouchConfig, workspaceId: string, name: string): Promise<void> {
+  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
+    _id: ACCESS_CODE_DOC_ID,
+    _rev: existing?._rev,
+    code: existing?.code ?? generateAccessCode(),
+    name,
+  }))
 }
 
 /** Every workspace the Stage-Server hosts, with a real (or lazily-backfilled) display name -

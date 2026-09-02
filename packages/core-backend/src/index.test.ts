@@ -490,6 +490,7 @@ describe('Fastify routes', () => {
         { ok: true, status: 201 }, // ensureDb
         { ok: true, status: 200 }, // putSecurity
         { ok: true, status: 201 }, // putDoc (_design/roster)
+        { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> missing
         { ok: true, status: 201 }, // putDoc (workspace:access)
       ])
 
@@ -976,6 +977,7 @@ describe('Fastify routes', () => {
     it('lazily creates a workspace\'s access code on first use, rather than erroring - the pre-existing-workspace backfill (any guessed code still correctly fails, since the real one was just generated)', async () => {
       stubFetch([
         { ok: false, status: 404 }, // getAccessCode -> missing
+        { ok: false, status: 404 }, // writeAccessCodeDoc's own getDoc (for _rev) -> still missing
         { ok: true, status: 201 }, // putDoc (workspace:access) - lazily created
       ])
 
@@ -1383,13 +1385,13 @@ describe('Fastify routes', () => {
     })
 
     it('rotates the code when the caller verifies as an admin', async () => {
-      stubFetch([
+      const fetchMock = stubFetch([
         {
           ok: true,
           status: 200,
           json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
         }, // verifyAdmin
-        { ok: true, status: 200, json: async () => ({ code: '11111111', name: 'Band A' }) }, // getAccessCode
+        { ok: true, status: 200, json: async () => ({ _rev: '1-abc', code: '11111111', name: 'Band A' }) }, // putDocWithRetry's getDoc
         { ok: true, status: 201 }, // putDoc with new code
       ])
 
@@ -1401,6 +1403,7 @@ describe('Fastify routes', () => {
 
       expect(response.statusCode).toBe(200)
       expect(response.json().code).toMatch(/^\d{8}$/)
+      expect(fetchMock.mock.calls.length).toBe(3)
     })
 
     it('returns 403 when the caller does not verify as an admin', async () => {
@@ -1413,6 +1416,62 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/name', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('renames the workspace when the caller verifies as an admin, keeping the existing access code (#58)', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyAdmin
+        { ok: true, status: 200, json: async () => ({ _rev: '1-abc', code: '11111111', name: 'Band A' }) }, // putDocWithRetry's getDoc
+        { ok: true, status: 201 }, // putDoc with new name
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/name',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', name: 'The Renamed Band' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(fetchMock.mock.calls.length).toBe(3)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/name',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw', name: 'The Renamed Band' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for an empty name', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/name',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', name: '' },
+      })
+
+      expect(response.statusCode).toBe(400)
     })
   })
 

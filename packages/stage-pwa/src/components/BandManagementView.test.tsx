@@ -133,6 +133,40 @@ describe('BandManagementView', () => {
     expect(deleteWorkspace).not.toHaveBeenCalled()
   })
 
+  it('renaming a band (#58) prompts for a new name, prefilled with the current one, and calls renameWorkspace', async () => {
+    const renameWorkspace = vi.fn()
+    useWorkspaceStore.setState({ renameWorkspace })
+    const promptText = vi.fn().mockResolvedValue('The Renamed Band')
+    useDialogStore.setState({ promptText })
+
+    render(<BandManagementView />)
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Umbenennen'))
+
+    await waitFor(() => expect(renameWorkspace).toHaveBeenCalledWith('band-a', 'The Renamed Band'))
+    expect(promptText).toHaveBeenCalledWith('Band umbenennen', expect.objectContaining({ defaultValue: 'Band A' }))
+  })
+
+  it('does not rename the band if the prompt is cancelled or left unchanged', async () => {
+    const renameWorkspace = vi.fn()
+    useWorkspaceStore.setState({ renameWorkspace })
+    useDialogStore.setState({ promptText: vi.fn().mockResolvedValue(null) })
+
+    render(<BandManagementView />)
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Umbenennen'))
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(renameWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('does not offer "Umbenennen" for a band this device does not administer', () => {
+    render(<BandManagementView />)
+    // Band-b is non-admin, so it gets no "⋮" menu at all (see the first test above) - nothing
+    // to open here, this just documents that the workspace-rename action is admin-gated too.
+    expect(screen.queryByRole('button', { name: 'Weitere Optionen für Band B' })).not.toBeInTheDocument()
+  })
+
   it('highlights the active band with the same accent treatment as the active profile row, and no other band', () => {
     render(<BandManagementView />)
 

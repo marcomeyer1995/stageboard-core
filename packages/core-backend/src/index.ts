@@ -16,6 +16,7 @@ import {
   JoinAsMemberRequestSchema,
   PresenceReportSchema,
   RemoveMemberRequestSchema,
+  RenameWorkspaceRequestSchema,
   ResetMemberPasswordRequestSchema,
   RosterRequestSchema,
   RotateAccessCodeRequestSchema,
@@ -42,6 +43,7 @@ import {
   memberUsername,
   provisionMember,
   provisionWorkspace,
+  renameWorkspace,
   resetAdminPin,
   resetMemberPassword,
   rotateAccessCode,
@@ -721,6 +723,25 @@ export async function buildApp() {
 
     const code = await rotateAccessCode(couch, workspaceId)
     return reply.status(200).send({ code })
+  })
+
+  // Admin-only (#58): renames a workspace. Writes straight onto the `workspace:access` doc's
+  // `name` field, keeping its `code` - that doc already replicates to every joined device via
+  // the ordinary workspace-db sync, so this is the only write needed for the new name to reach
+  // everyone, no separate notification/polling required.
+  app.post('/workspaces/:workspaceId/name', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = RenameWorkspaceRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    await renameWorkspace(couch, workspaceId, parsed.data.name)
+    return reply.status(200).send({ status: 'ok' })
   })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
