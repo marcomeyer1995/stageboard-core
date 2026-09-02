@@ -509,8 +509,8 @@ describe('withWidgetAppended (bounds)', () => {
 })
 
 describe('isDashboardVisible', () => {
-  const vocalist: Profile = { id: 'p1', name: 'Anna', role: 'Vocalist', stageRoles: ['performer'] }
-  const guitarist: Profile = { id: 'p2', name: 'Tom', role: 'Gitarre', stageRoles: [] }
+  const vocalist: Profile = { id: 'p1', name: 'Anna', stageRoles: ['performer'] }
+  const guitarist: Profile = { id: 'p2', name: 'Tom', stageRoles: [] }
 
   it('is always visible when public, regardless of active profile', () => {
     const dashboard = { ...emptyDashboard(), visibility: 'public' as const }

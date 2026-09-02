@@ -52,13 +52,11 @@ describe('AppMenu', () => {
     expect(screen.getByText('Vollbild')).toBeInTheDocument()
   })
 
-  it('merges Band and Profil under one "Wer bin ich" section', () => {
+  it('2026-09-02: no longer shows "Wer bin ich" - band/profile switching moved to BandManagementView.tsx\'s "Band" tab', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.getByText('Wer bin ich')).toBeInTheDocument()
-    expect(screen.queryByText('Band')).not.toBeInTheDocument()
-    expect(screen.queryByText('Profil')).not.toBeInTheDocument()
+    expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
   it('only shows the Dashboard edit-lock section in live mode', () => {

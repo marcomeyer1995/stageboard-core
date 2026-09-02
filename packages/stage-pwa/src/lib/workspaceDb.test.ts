@@ -28,7 +28,7 @@ afterEach(() => {
   // Object.assign(env, originalEnv) wouldn't remove a key a test just added - it only
   // overwrites keys already present in the source - so unset explicitly instead.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  delete (import.meta.env as any).VITE_COUCHDB_URL
+  delete (import.meta.env as any).VITE_STAGE_SERVER_URL
 })
 
 describe('localDbName', () => {
@@ -38,13 +38,19 @@ describe('localDbName', () => {
 })
 
 describe('remoteDbUrl', () => {
-  it('rewrites the base URL\'s last path segment to the workspace database name', () => {
+  it('2026-09-02 fourth follow-up: builds the workspace database URL through the Stage-Server\'s own /db proxy, not CouchDB\'s own port', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(import.meta.env as any).VITE_COUCHDB_URL = 'https://localhost:6984/stageboard-band-a'
-    expect(remoteDbUrl('band-b')).toBe('https://localhost:6984/stageboard-band-b')
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+    expect(remoteDbUrl('band-b')).toBe('https://stage-server:3001/db/stageboard-band-b')
   })
 
-  it('returns null when VITE_COUCHDB_URL is not configured', () => {
+  it('strips a trailing slash from the Stage-Server URL before appending the /db path', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001/'
+    expect(remoteDbUrl('band-b')).toBe('https://stage-server:3001/db/stageboard-band-b')
+  })
+
+  it('returns null when no Stage-Server is configured at all', () => {
     expect(remoteDbUrl('band-a')).toBeNull()
   })
 })
@@ -52,15 +58,15 @@ describe('remoteDbUrl', () => {
 describe('startWorkspaceSync', () => {
   it('opens the remote PouchDB with exactly the given credentials, not any global/env ones', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(import.meta.env as any).VITE_COUCHDB_URL = 'https://localhost:6984/stageboard-band-a'
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
 
     startWorkspaceSync('band-a', { username: 'stageboard-band-a', password: 'secret-pw' })
 
-    const remote = constructed.find((c) => c.name === 'https://localhost:6984/stageboard-band-a')
+    const remote = constructed.find((c) => c.name === 'https://stage-server:3001/db/stageboard-band-a')
     expect(remote?.options).toEqual({ auth: { username: 'stageboard-band-a', password: 'secret-pw' } })
   })
 
-  it('returns null without constructing a remote db when VITE_COUCHDB_URL is unset', () => {
+  it('returns null without constructing a remote db when no Stage-Server is configured', () => {
     const result = startWorkspaceSync('band-a', { username: 'stageboard-band-a', password: 'secret-pw' })
     expect(result).toBeNull()
   })

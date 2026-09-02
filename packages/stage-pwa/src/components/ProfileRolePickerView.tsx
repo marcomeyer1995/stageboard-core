@@ -6,14 +6,13 @@ import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 /**
  * Shown by App.tsx instead of the Dashboard once the active workspace has credentials but no
  * profile is chosen for it yet (see #21's "Profile + role for today" goal) - the second half
- * of onboarding a fresh device, right after JoinBandView. Picking a card is exactly
- * ProfileSwitcher.tsx's existing `setActive`, just as a full-screen grid instead of a menu
- * dropdown; the choice persists (useActiveProfileStore), so this only ever shows again if
- * explicitly cleared from the menu.
+ * of onboarding a fresh device, right after JoinBandView. Picking a card just calls
+ * `useActiveProfileStore`'s `setActive` directly (same as BandManagementView.tsx's "Band" tab
+ * does post-onboarding, 2026-09-02 follow-up), as a full-screen grid instead of a settings
+ * page; the choice persists, so this only ever shows again if explicitly cleared there.
  *
- * Per #21's rework note: a `Profile`'s `role` is still one fixed field on the roster entry
- * (#56) - picking a different role per session (not just per profile) is a separate,
- * deliberately deferred data-model question, not built here.
+ * 2026-09-02 sixth follow-up: `Profile.role` (the free-text instrument/function field) is
+ * gone entirely, at Marco's explicit request - this picker shows just the name now.
  */
 export function ProfileRolePickerView() {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -40,7 +39,6 @@ export function ProfileRolePickerView() {
               className="flex w-full items-center justify-between rounded-sb border border-line bg-surface px-4 py-3 text-left hover:bg-control-hover"
             >
               <span className="font-semibold">{profile.name}</span>
-              <span className="text-sm text-ink-muted">{profile.role}</span>
             </button>
           ))}
         </div>

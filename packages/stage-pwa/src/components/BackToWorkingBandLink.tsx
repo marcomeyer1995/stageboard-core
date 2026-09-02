@@ -9,7 +9,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * stored password - e.g. a stale entry from before #21's join flow existed - stranded the
  * switcher's own menu behind the gate). Lists every other workspace this device already has
  * a stored credential for; picking one just calls `setActiveWorkspace`, same as
- * WorkspaceSwitcher.tsx.
+ * BandManagementView.tsx's band list.
  */
 export function BackToWorkingBandLink() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)

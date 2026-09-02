@@ -1,4 +1,5 @@
 import PouchDB from 'pouchdb-browser'
+import { getStageServerUrl } from './stageServer'
 import { trackedSync, type TrackedSync } from './trackedSync'
 
 /**
@@ -20,16 +21,22 @@ export function localDbName(workspaceId: string): string {
   return `stageboard-${workspaceId}`
 }
 
-/** Rewrites VITE_COUCHDB_URL's final path segment to a workspace-scoped database name. */
+/**
+ * The workspace's remote CouchDB database URL, reached through core-backend's own origin
+ * rather than CouchDB's own port directly (2026-09-02 fourth follow-up, at Marco's explicit
+ * request). Browsers trust a self-signed cert per *origin*, not per-certificate - pointing
+ * PouchDB at a *separate* CouchDB port meant every new device needed a second manual
+ * "trotzdem fortfahren" tap beyond the one for the Stage-Server API/PWA itself
+ * (docs/03 section 0a). core-backend's `/db` prefix (`index.ts`, `@fastify/http-proxy`) is a
+ * pure passthrough - this device's own per-person Basic Auth (`startWorkspaceSync`'s `auth`
+ * below) travels straight through to real CouchDB unmodified, so nothing about who can read or
+ * write what changes; only the network hop does. `null` when no Stage-Server is configured at
+ * all (Tier-A local-only-founding follow-up) - same as before.
+ */
 export function remoteDbUrl(workspaceId: string): string | null {
-  const base = import.meta.env.VITE_COUCHDB_URL as string | undefined
+  const base = getStageServerUrl()
   if (!base) return null
-
-  const url = new URL(base)
-  const segments = url.pathname.split('/').filter(Boolean)
-  segments[segments.length - 1] = localDbName(workspaceId)
-  url.pathname = `/${segments.join('/')}`
-  return url.toString()
+  return `${base.replace(/\/$/, '')}/db/${localDbName(workspaceId)}`
 }
 
 let currentWorkspaceId: string | null = null

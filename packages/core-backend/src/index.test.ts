@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 import { buildApp } from './index.js'
-import { __resetInviteStoreForTests } from './inviteStore.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 
 function testContext(): PluginContext {
@@ -58,6 +57,19 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('GET /time', () => {
+    it('returns the server clock, close to Date.now()', async () => {
+      const before = Date.now()
+      const response = await app.inject({ method: 'GET', url: '/time' })
+      const after = Date.now()
+
+      expect(response.statusCode).toBe(200)
+      const { serverTime } = response.json() as { serverTime: number }
+      expect(serverTime).toBeGreaterThanOrEqual(before)
+      expect(serverTime).toBeLessThanOrEqual(after)
+    })
+  })
+
   describe('GET /plugins', () => {
     it('lists registered show-control plugins', async () => {
       await registry.register(fakeShowControlPlugin(), testContext())
@@ -97,6 +109,45 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({ status: 'ok', data: { volume: 7 } })
       expect(trigger).toHaveBeenCalledWith({ type: 'set_volume', payload: { volume: 7 } })
+    })
+
+    it('fires immediately, with no scheduledAt in the body', async () => {
+      const trigger = vi.fn(async () => ({ status: 'ok' as const }))
+      await registry.register(fakeShowControlPlugin({ trigger }), testContext())
+
+      const before = Date.now()
+      await app.inject({ method: 'POST', url: '/plugins/fake-mixer/trigger', payload: { type: 'flash' } })
+      expect(Date.now() - before).toBeLessThan(50)
+    })
+
+    it('delays firing until a future scheduledAt, and strips it before calling the plugin', async () => {
+      const trigger = vi.fn(async () => ({ status: 'ok' as const }))
+      await registry.register(fakeShowControlPlugin({ trigger }), testContext())
+
+      const scheduledAt = Date.now() + 60
+      const before = Date.now()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/plugins/fake-mixer/trigger',
+        payload: { type: 'flash', scheduledAt },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(Date.now() - before).toBeGreaterThanOrEqual(55)
+      expect(trigger).toHaveBeenCalledWith({ type: 'flash' })
+    })
+
+    it('fires immediately for a scheduledAt already in the past', async () => {
+      const trigger = vi.fn(async () => ({ status: 'ok' as const }))
+      await registry.register(fakeShowControlPlugin({ trigger }), testContext())
+
+      const before = Date.now()
+      await app.inject({
+        method: 'POST',
+        url: '/plugins/fake-mixer/trigger',
+        payload: { type: 'flash', scheduledAt: Date.now() - 1000 },
+      })
+      expect(Date.now() - before).toBeLessThan(50)
     })
   })
 
@@ -323,19 +374,20 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    it('provisions a new workspace and returns the founder\'s own personal credential', async () => {
+    it('provisions a new workspace (incl. its standing access code) and returns the founder\'s own personal credential', async () => {
       stubFetch([
         { ok: false, status: 404 }, // userExists
         { ok: true, status: 201 }, // createUser (founder)
         { ok: true, status: 201 }, // ensureDb
         { ok: true, status: 200 }, // putSecurity
         { ok: true, status: 201 }, // putDoc (_design/roster)
+        { ok: true, status: 201 }, // putDoc (workspace:access)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces',
-        payload: { workspaceId: 'band-c', founderId: 'p1' },
+        payload: { workspaceId: 'band-c', founderId: 'p1', workspaceName: 'Band C' },
       })
 
       expect(response.statusCode).toBe(201)
@@ -350,7 +402,7 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces',
-        payload: { workspaceId: 'band-a', founderId: 'p1' },
+        payload: { workspaceId: 'band-a', founderId: 'p1', workspaceName: 'Band A' },
       })
 
       expect(response.statusCode).toBe(409)
@@ -574,7 +626,7 @@ describe('Fastify routes', () => {
     })
   })
 
-  describe('POST /workspaces/:workspaceId/invite and POST /invites/:code/resolve', () => {
+  describe('POST /workspaces/:workspaceId/members/:profileId/reset-password', () => {
     function stubFetch(responses: Array<Partial<Response>>) {
       const fetchMock = vi.fn()
       for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
@@ -582,49 +634,55 @@ describe('Fastify routes', () => {
       return fetchMock
     }
 
-    beforeEach(() => {
-      __resetInviteStoreForTests()
-    })
-
     afterEach(() => {
       vi.unstubAllGlobals()
     })
 
-    it('mints an invite when the caller verifies as an admin, and resolves it back', async () => {
-      stubFetch([
-        {
-          ok: true,
-          status: 200,
-          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
-        },
+    function stubAdminVerify() {
+      return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    }
+
+    it('rotates the admin target\'s PIN to a fresh 4-digit one and returns it - no last-admin check, unlike remove/demote', async () => {
+      const fetchMock = stubFetch([
+        stubAdminVerify(),
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2', stageRoles: ['admin'] }) }, // getDoc profile
+        // resetUserPassword: GET the existing user doc, then PUT it back with a new password.
+        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p2', _rev: '1-abc', name: 'stageboard-band-a-p2', roles: ['member', 'admin'], type: 'user' }) },
+        { ok: true, status: 201 },
       ])
 
-      const inviteResponse = await app.inject({
+      const response = await app.inject({
         method: 'POST',
-        url: '/workspaces/band-a/invite',
-        payload: {
-          adminUsername: 'stageboard-band-a-p1',
-          adminPassword: 'correct-admin-pw',
-          memberUsername: 'stageboard-band-a-p2',
-          memberPassword: 'member-pw',
-          workspaceName: 'Band A',
-        },
+        url: '/workspaces/band-a/members/p2/reset-password',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
       })
 
-      expect(inviteResponse.statusCode).toBe(201)
-      const { code, expiresAt } = inviteResponse.json()
-      expect(code).toMatch(/^\d{8}$/)
-      expect(expiresAt).toBeGreaterThan(Date.now())
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { username: string; password: string }
+      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.password).toMatch(/^\d{4}$/)
 
-      const resolveResponse = await app.inject({ method: 'POST', url: `/invites/${code}/resolve` })
-      expect(resolveResponse.statusCode).toBe(200)
-      expect(resolveResponse.json()).toEqual({
-        workspaceId: 'band-a',
-        name: 'Band A',
-        username: 'stageboard-band-a-p2',
-        password: 'member-pw',
-        isAdmin: false,
+      // The PUT carries the new PIN, keeping every other field (roles included) intact.
+      const [, putInit] = fetchMock.mock.calls[3]
+      const putBody = JSON.parse((putInit as RequestInit).body as string)
+      expect(putBody.password).toBe(body.password)
+      expect(putBody.roles).toEqual(['member', 'admin'])
+    })
+
+    it('returns 400 for a non-admin target - there is no PIN to reset', async () => {
+      const fetchMock = stubFetch([
+        stubAdminVerify(),
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2' }) }, // getDoc profile, no stageRoles
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/reset-password',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
       })
+
+      expect(response.statusCode).toBe(400)
+      expect(fetchMock).toHaveBeenCalledTimes(2) // no password-reset calls
     })
 
     it('returns 403 when the caller does not verify as an admin', async () => {
@@ -632,27 +690,620 @@ describe('Fastify routes', () => {
 
       const response = await app.inject({
         method: 'POST',
-        url: '/workspaces/band-a/invite',
-        payload: {
-          adminUsername: 'stageboard-band-a-p1',
-          adminPassword: 'wrong-pw',
-          memberUsername: 'stageboard-band-a-p2',
-          memberPassword: 'member-pw',
-          workspaceName: 'Band A',
-        },
+        url: '/workspaces/band-a/members/p2/reset-password',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/members/:profileId/set-pin (2026-09-02 second follow-up: admin self-service PIN assignment)', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('verifies the caller is exactly the target admin account, then sets the PIN to the chosen value', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p1', _rev: '1-abc', name: 'stageboard-band-a-p1', roles: ['member', 'admin'], type: 'user' }) },
+        { ok: true, status: 201 },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '4711' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
+      const [, putInit] = fetchMock.mock.calls[2]
+      expect(JSON.parse((putInit as RequestInit).body as string).password).toBe('4711')
+    })
+
+    it('rejects setting a *different* profile\'s PIN, even with valid admin credentials', async () => {
+      const fetchMock = stubFetch([])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw', newPin: '4711' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid caller credentials', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'wrong', newPin: '4711' },
       })
 
       expect(response.statusCode).toBe(403)
     })
 
-    it('returns 400 for a body that fails schema validation', async () => {
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/invite', payload: {} })
-      expect(response.statusCode).toBe(400)
+    it('rejects a caller that verifies but does not hold the admin role', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member'] } }),
+        },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'member-pw', newPin: '4711' },
+      })
+
+      expect(response.statusCode).toBe(403)
     })
 
-    it('resolve returns 404 for an unknown or expired code', async () => {
-      const response = await app.inject({ method: 'POST', url: '/invites/00000000/resolve' })
+    it('returns 400 for a PIN that is not exactly 4 digits', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '12345' },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('GET /workspaces (2026-09-01 WiFi-style redesign: the "which networks are in range" listing)', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('lists every stageboard-* database with its display name, no auth required', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ['_users', '_replicator', 'stageboard-band-a', 'stageboard-band-c'] }, // _all_dbs
+        { ok: true, status: 200, json: async () => ({ code: '11111111', name: 'Band A' }) }, // band-a access code
+        { ok: true, status: 200, json: async () => ({ code: '22222222', name: 'Band C' }) }, // band-c access code
+      ])
+
+      const response = await app.inject({ method: 'GET', url: '/workspaces' })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual([
+        { workspaceId: 'band-a', workspaceName: 'Band A' },
+        { workspaceId: 'band-c', workspaceName: 'Band C' },
+      ])
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/roster', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('resolves the roster with the correct code, reporting isAdmin per member (no requiresPassword anymore - only admin entries ever need a code)', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            rows: [
+              { doc: { _id: 'profiles:p1', id: 'p1', name: 'Marco', stageRoles: ['admin'] } },
+              { doc: { _id: 'profiles:p2', id: 'p2', name: 'Chris' } },
+            ],
+          }),
+        }, // allDocs (roster)
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        workspaceId: 'band-a',
+        workspaceName: 'Band A',
+        members: [
+          { profileId: 'p1', name: 'Marco', isAdmin: true },
+          { profileId: 'p2', name: 'Chris', isAdmin: false },
+        ],
+      })
+    })
+
+    it('returns 403 for the wrong code', async () => {
+      stubFetch([{ ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: 'wrong-code' } })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('lazily creates a workspace\'s access code on first use, rather than erroring - the pre-existing-workspace backfill (any guessed code still correctly fails, since the real one was just generated)', async () => {
+      stubFetch([
+        { ok: false, status: 404 }, // getAccessCode -> missing
+        { ok: true, status: 201 }, // putDoc (workspace:access) - lazily created
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: { code: 'guessed' } })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/roster', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/join/:profileId', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('a non-admin target always succeeds, silently (re)issuing a fresh account, regardless of any password supplied', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2', name: 'Chris' }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists -> already provisioned
+        // resetMemberPassword's internal resetUserPassword GET+PUT - no verifyUser call at all,
+        // the password field is never even looked at for a non-admin target.
+        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member'], type: 'user' }) },
+        { ok: true, status: 200 },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p2',
+        payload: { code: '12345678', password: 'this is never checked' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { username: string; password: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.isAdmin).toBe(false)
+    })
+
+    it('auto-provisions a brand-new non-admin member (no account yet) with fresh, never-typed credentials', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2', name: 'Chris' }) }, // getDoc profile
+        { ok: false, status: 404 }, // userExists -> not provisioned
+        { ok: true, status: 201 }, // createUser
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p2', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(201)
+      const body = response.json() as { username: string; password: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.password).toEqual(expect.any(String))
+      expect(body.isAdmin).toBe(false)
+    })
+
+    it('verifies an admin\'s own self-assigned PIN against an already-provisioned admin account', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', name: 'Marco', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists -> already provisioned
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyUser
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p1',
+        payload: { code: '12345678', password: '4711' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
+    })
+
+    it('the universal recovery code (the access code\'s own last 4 digits) always logs into an admin account, reissuing fresh credentials, without ever checking the personal PIN', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code -> suffix '5678'
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists -> already provisioned
+        // resetMemberPassword's internal resetUserPassword GET+PUT - no verifyUser call.
+        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member', 'admin'], type: 'user' }) },
+        { ok: true, status: 200 },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p1',
+        payload: { code: '12345678', password: '5678' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { username: string; password: string; isAdmin: boolean }
+      expect(body.isAdmin).toBe(true)
+    })
+
+    it('returns 403 for an admin target with no password supplied at all - unlike a non-admin, there is nothing implicit to fall back on', async () => {
+      const fetchMock = stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists -> already provisioned
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p1', payload: { code: '12345678' } })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(3) // no password-reset calls
+    })
+
+    it('returns 403 for an admin target when the supplied code matches neither the personal PIN nor the universal recovery suffix', async () => {
+      const fetchMock = stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code -> suffix '5678'
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists -> already provisioned
+        { ok: false, status: 401 }, // verifyUser fails
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p1',
+        payload: { code: '12345678', password: 'wrong' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(4) // no password-reset calls after the failed verify
+    })
+
+    it('returns 403 for the wrong access code, before ever looking at the roster', async () => {
+      const fetchMock = stubFetch([{ ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p1',
+        payload: { code: 'totally-wrong' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns 404 for a profileId with no matching roster entry', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
+        { ok: false, status: 404 }, // getDoc profile -> not found
+      ])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/ghost', payload: { code: '12345678' } })
+
       expect(response.statusCode).toBe(404)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p1', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/members/:profileId/activate (2026-09-02 follow-up: switching bands/profiles moved into BandManagementView.tsx)', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('verifies the caller already holds a real account for this workspace, then always succeeds for a non-admin target', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2' }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists(p2) -> already provisioned
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member'], type: 'user' }),
+        }, // resetMemberPassword's internal GET
+        { ok: true, status: 200 }, // resetUserPassword PUT
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { username: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.isAdmin).toBe(false)
+      expect(fetchMock).toHaveBeenCalledTimes(6)
+    })
+
+    it('rejects a caller whose username does not belong to this workspace, without even checking their password', async () => {
+      const fetchMock = stubFetch([])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/activate',
+        payload: { callerUsername: 'stageboard-band-b-p1', callerPassword: 'whatever', password: undefined },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a caller with the right username shape but wrong/stale credentials', async () => {
+      const fetchMock = stubFetch([{ ok: false, status: 401 }]) // verifyUser(caller) fails
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p2/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'wrong', password: undefined },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('verifies an admin target\'s own self-assigned PIN, once the caller verifies', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p2', roles: ['member'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode -> suffix '5678'
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyUser(target's own PIN)
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '4711' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
+    })
+
+    it('the universal recovery suffix works here too, once the caller verifies', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p2', roles: ['member'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode -> suffix '5678'
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member', 'admin'], type: 'user' }),
+        }, // resetMemberPassword's internal GET
+        { ok: true, status: 200 }, // resetUserPassword PUT
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '5678' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { isAdmin: boolean }
+      expect(body.isAdmin).toBe(true)
+    })
+
+    it('rejects leaving the target password blank for an admin target, once the caller verifies', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p2', roles: ['member'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(4) // no password-reset calls after the admin check
+    })
+
+    it('auto-provisions a brand-new non-admin target with no account yet', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p3', id: 'p3' }) }, // getDoc profile
+        { ok: false, status: 404 }, // userExists(p3) -> not provisioned yet
+        { ok: true, status: 201 }, // createUser
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p3/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw' },
+      })
+
+      expect(response.statusCode).toBe(201)
+      const body = response.json() as { username: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p3')
+      expect(body.isAdmin).toBe(false)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/members/p1/activate', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/access-code', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('returns the current code without changing it, when the caller verifies as an admin', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyAdmin
+        { ok: true, status: 200, json: async () => ({ code: '11111111', name: 'Band A' }) }, // getAccessCode - already exists
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/access-code',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ code: '11111111' })
+      expect(fetchMock).toHaveBeenCalledTimes(2) // no write - just a read
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/access-code',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/access-code/rotate', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('rotates the code when the caller verifies as an admin', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        }, // verifyAdmin
+        { ok: true, status: 200, json: async () => ({ code: '11111111', name: 'Band A' }) }, // getAccessCode
+        { ok: true, status: 201 }, // putDoc with new code
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/access-code/rotate',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json().code).toMatch(/^\d{8}$/)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/access-code/rotate',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
     })
   })
 

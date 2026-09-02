@@ -20,6 +20,12 @@ export interface IPlugin {
 export const ShowControlEventSchema = z.object({
   type: z.string().min(1),
   payload: z.record(z.string(), z.unknown()).optional(),
+  /** Ahead-of-time dispatch (docs/00 §4): a synchronized-clock timestamp (see
+   * clockSync.ts's `getServerTime()`) to fire at, rather than immediately on receipt - the
+   * Show Control Gateway delays the actual plugin trigger until this timestamp, absorbing
+   * per-device network jitter instead of every tablet firing the instant its own packet
+   * arrives. Gateway-only concern: stripped before the event reaches `IShowControlPlugin`. */
+  scheduledAt: z.number().int().nonnegative().optional(),
 })
 export type ShowControlEvent = z.infer<typeof ShowControlEventSchema>
 

@@ -15,7 +15,7 @@ import { useWorkspaceStore } from './useWorkspaceStore'
  * manually rather than going through `.parse()` - so a doc written before #57 (missing the
  * field entirely) needs the same `[]` fallback applied explicitly here. */
 function toProfile(doc: ProfileDoc): Profile {
-  return { id: doc.id, name: doc.name, role: doc.role, stageRoles: doc.stageRoles ?? [] }
+  return { id: doc.id, name: doc.name, stageRoles: doc.stageRoles ?? [] }
 }
 
 /** What `create` hands back for a 2nd+ member (see per-person-accounts follow-up) - the caller
@@ -33,20 +33,20 @@ interface ProfilesState {
   init: (workspaceId: string) => Promise<void>
   create: (
     name: string,
-    role: string,
     options?: { password?: string; isAdmin?: boolean },
   ) => Promise<{ profile: Profile; credentials: NewMemberCredentials | null } | null>
-  update: (id: string, name: string, role: string) => Promise<void>
+  update: (id: string, name: string) => Promise<void>
   updateStageRoles: (id: string, stageRoles: StageRole[]) => Promise<boolean>
   remove: (id: string) => Promise<boolean>
   /** Provisions this workspace against a real Stage-Server for the first time (see the Tier-A
-   * local-only-founding follow-up) - the founder's own account first (useWorkspaceStore.ts's
-   * `connectWorkspace`), then every *other* already-existing local roster entry in one pass,
-   * each keeping its existing profile id (no new roster docs written - they already exist
-   * locally; this only attaches a real CouchDB account to each). `null` on failure to connect
-   * at all; otherwise the freshly-provisioned credentials for each non-founder profile, for the
-   * caller to show/invite from. */
-  connectToServer: (serverUrl: string) => Promise<Array<{ profile: Profile; credentials: NewMemberCredentials }> | null>
+   * local-only-founding follow-up) - just the founder's own account (useWorkspaceStore.ts's
+   * `connectWorkspace`). Every other already-existing local roster entry is deliberately left
+   * unprovisioned (2026-09-01 redesign): self-service join (`fetchRoster`/`joinAsMember`)
+   * auto-provisions each one lazily, the first time someone actually picks that name - eagerly
+   * creating them here with unknown random passwords would only lock self-service join out for
+   * every one of them (an already-existing account demands a password nobody was ever told).
+   * `false` on failure to connect at all. */
+  connectToServer: (serverUrl: string) => Promise<boolean>
 }
 
 let changesHandle: PouchDB.Core.Changes<Profile> | null = null
@@ -92,17 +92,17 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   // that stays a plain local write too, for as long as the workspace itself has never been
   // connected to a server (`isServerConnected`) - once it has, a brand-new personal CouchDB
   // account is provisioned first (`useWorkspaceStore`'s `createMember`), same as before.
-  create: async (name, role, options = {}) => {
+  create: async (name, options = {}) => {
     const workspace = activeWorkspace()
 
     if (get().profiles.length === 0) {
-      const profile: Profile = { id: workspace?.ownProfileId ?? randomId(), name, role, stageRoles: ['admin'] }
+      const profile: Profile = { id: workspace?.ownProfileId ?? randomId(), name, stageRoles: ['admin'] }
       await putProfile(profile)
       return { profile, credentials: null }
     }
 
     if (!isServerConnected(workspace)) {
-      const profile: Profile = { id: randomId(), name, role, stageRoles: options.isAdmin ? ['admin'] : [] }
+      const profile: Profile = { id: randomId(), name, stageRoles: options.isAdmin ? ['admin'] : [] }
       await putProfile(profile)
       return { profile, credentials: null }
     }
@@ -116,14 +116,14 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     })
     if (!credentials) return null
 
-    const profile: Profile = { id: profileId, name, role, stageRoles: options.isAdmin ? ['admin'] : [] }
+    const profile: Profile = { id: profileId, name, stageRoles: options.isAdmin ? ['admin'] : [] }
     await putProfile(profile)
     return { profile, credentials }
   },
-  update: async (id, name, role) => {
+  update: async (id, name) => {
     const existing = get().profiles.find((profile) => profile.id === id)
     if (!existing) return
-    await putProfile({ ...existing, name, role })
+    await putProfile({ ...existing, name })
   },
   // If this change adds or removes 'admin', that's not just a label edit - it has to go
   // through core-backend first (see useWorkspaceStore.ts's setMemberAdmin) to actually change
@@ -170,20 +170,8 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
   },
   connectToServer: async (serverUrl) => {
     const workspace = activeWorkspace()
-    if (!workspace) return null
+    if (!workspace) return false
 
-    const connected = await useWorkspaceStore.getState().connectWorkspace(workspace.id, serverUrl)
-    if (!connected) return null
-
-    const results: Array<{ profile: Profile; credentials: NewMemberCredentials }> = []
-    for (const profile of get().profiles) {
-      if (profile.id === workspace.ownProfileId) continue
-      const credentials = await useWorkspaceStore.getState().createMember(workspace.id, {
-        profileId: profile.id,
-        isAdmin: profile.stageRoles.includes('admin'),
-      })
-      if (credentials) results.push({ profile, credentials })
-    }
-    return results
+    return useWorkspaceStore.getState().connectWorkspace(workspace.id, serverUrl)
   },
 }))

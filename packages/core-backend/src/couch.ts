@@ -38,6 +38,15 @@ async function request(
   })
 }
 
+/** Lists every database name on this CouchDB instance (2026-09-01, `GET /workspaces` - the
+ * WiFi-style "which bands does this Stage-Server host" listing). Admin-only endpoint on
+ * CouchDB's side; core-backend's own trusted config is the only caller. */
+export async function listDbs(config: CouchConfig): Promise<string[]> {
+  const response = await request(config, `${config.url.replace(/\/$/, '')}/_all_dbs`)
+  if (!response.ok) throw new Error(`Failed to list databases: HTTP ${response.status}`)
+  return (await response.json()) as string[]
+}
+
 /** Creates the database if it does not exist yet; an existing one (412) is fine. */
 export async function ensureDb(config: CouchConfig, db: string): Promise<void> {
   const response = await request(config, dbUrl(config, db), { method: 'PUT' })
@@ -144,6 +153,26 @@ export async function setUserRoles(config: CouchConfig, username: string, roles:
   })
   if (!putResponse.ok) {
     throw new Error(`Failed to update roles for user ${username}: HTTP ${putResponse.status}`)
+  }
+}
+
+/** Overwrites an existing CouchDB user's password (admin "reset password if forgotten" - see
+ * BandManagementView.tsx's "Einladen"). Same fetch-then-PUT shape as `setUserRoles` (CouchDB
+ * needs the doc's current `_rev`), keeping every other field (roles included) untouched. This
+ * is the one place an existing account's password *does* get rotated - unlike `createUser`,
+ * which deliberately never does. The caller accepts the consequence: any device already
+ * synced with the old password stops authenticating until it's re-invited with the new one. */
+export async function resetUserPassword(config: CouchConfig, username: string, newPassword: string): Promise<void> {
+  const getResponse = await request(config, userDocUrl(config, username))
+  if (!getResponse.ok) throw new Error(`Failed to look up user ${username}: HTTP ${getResponse.status}`)
+  const doc = (await getResponse.json()) as CouchDoc & { name: string; password?: string; type: string }
+
+  const putResponse = await request(config, userDocUrl(config, username), {
+    method: 'PUT',
+    body: JSON.stringify({ ...doc, password: newPassword }),
+  })
+  if (!putResponse.ok) {
+    throw new Error(`Failed to reset password for user ${username}: HTTP ${putResponse.status}`)
   }
 }
 

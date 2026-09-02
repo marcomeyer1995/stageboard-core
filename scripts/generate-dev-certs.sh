@@ -21,7 +21,14 @@ mkdir -p "$CERTS_DIR"
 
 # LAN_IP: same convention as scripts/setup-couchdb.sh's FRONTEND_ORIGIN - set it to the
 # Stage-Server's LAN address so tablets trust the same cert the dev machine does.
-SAN="subjectAltName=DNS:localhost,IP:127.0.0.1"
+#
+# stageboard.local (2026-09-02, at Marco's explicit request): the mDNS name a joining device
+# can use instead of a raw IP+port - see docs/00's "Server Discovery" (mDNS auto-discovery) and
+# docs/03 section 0a. Publishing that name itself is a separate, one-time per-machine step
+# (an `/etc/avahi/hosts` entry on Linux/Avahi - see docs/03), this only makes the shared cert
+# actually cover it too, so trusting it doesn't cost a *second* "trotzdem fortfahren" tap on
+# top of the one for the IP.
+SAN="subjectAltName=DNS:localhost,DNS:stageboard.local,IP:127.0.0.1"
 if [ -n "${LAN_IP:-}" ]; then
   SAN="${SAN},IP:${LAN_IP}"
 fi
