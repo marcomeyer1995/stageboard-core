@@ -25,6 +25,11 @@ function openMemberMenu(name: string) {
   fireEvent.click(screen.getByRole('button', { name: `Weitere Optionen für ${name}` }))
 }
 
+// 2026-09-02 twelfth follow-up: the band list got the exact same "⋮" popup treatment.
+function openBandMenu(name: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Weitere Optionen für ${name}` }))
+}
+
 // "Einladen" opens InviteBandView.tsx, whose fetchLanIp() would otherwise pick up the real
 // .env's VITE_STAGE_SERVER_URL and make a live, self-signed-cert network call no test here
 // cares about - see InviteBandView.test.tsx's identical stub.
@@ -63,17 +68,19 @@ describe('BandManagementView', () => {
 
     expect(screen.getByText('Band A')).toBeInTheDocument()
     expect(screen.getByText('Band B')).toBeInTheDocument()
-    // One band-level "Einladen" (2026-09-01 redesign, next to the band's own name/Löschen -
-    // not per roster row, not per new member) for the already-server-connected band-a; band-b
-    // is this device's non-admin band, so it gets neither. Band-level "Löschen" is visible
-    // directly; the roster member's own Umbenennen/Löschen live behind its "⋮" popup now
-    // (2026-09-02 tenth follow-up) - opening it finds exactly one of each there too.
+    // Band-b is this device's non-admin band, so it gets no "⋮" at all. Band-a's own
+    // "Einladen"/"Löschen" and the roster member's own Umbenennen/Löschen all live behind
+    // their respective "⋮" popups now (2026-09-02 tenth/twelfth follow-ups).
+    expect(screen.queryByRole('button', { name: 'Weitere Optionen für Band B' })).not.toBeInTheDocument()
+
+    openBandMenu('Band A')
     expect(screen.getByText('Einladen')).toBeInTheDocument()
     expect(screen.getByText('Löschen')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Schließen'))
 
     openMemberMenu('Marco')
     expect(screen.getByText('Umbenennen')).toBeInTheDocument()
-    expect(screen.getAllByText('Löschen')).toHaveLength(2)
+    expect(screen.getByText('Löschen')).toBeInTheDocument()
   })
 
   it('does not offer "Einladen" for a band that is still local-only (nothing to invite anyone to yet)', () => {
@@ -84,6 +91,7 @@ describe('BandManagementView', () => {
       ],
     })
     render(<BandManagementView />)
+    openBandMenu('Band A')
     expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
   })
 
@@ -105,8 +113,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm })
 
     render(<BandManagementView />)
-    // Band-level "Löschen" is the first - the member-level one is second.
-    fireEvent.click(screen.getAllByText('Löschen')[0])
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Löschen'))
 
     await waitFor(() => expect(deleteWorkspace).toHaveBeenCalledWith('band-a'))
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Band A'), expect.objectContaining({ danger: true }))
@@ -118,7 +126,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getAllByText('Löschen')[0])
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Löschen'))
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(deleteWorkspace).not.toHaveBeenCalled()
@@ -248,9 +257,8 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true) })
 
     render(<BandManagementView />)
-    // Band-level "Löschen" is the first - the member-level one (behind its "⋮" popup) is second.
     openMemberMenu('Marco')
-    fireEvent.click(screen.getAllByText('Löschen')[1])
+    fireEvent.click(screen.getByText('Löschen'))
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith('p1'))
   })
@@ -258,9 +266,8 @@ describe('BandManagementView', () => {
   it('disables "Löschen" for the sole remaining admin, with an explanatory title', () => {
     render(<BandManagementView />)
 
-    // Member-level "Löschen" is the second one (band-level delete is first).
     openMemberMenu('Marco')
-    const remove = screen.getAllByText('Löschen')[1] as HTMLButtonElement
+    const remove = screen.getByText('Löschen') as HTMLButtonElement
     expect(remove.disabled).toBe(true)
     expect(remove.title).toMatch(/Mindestens ein Admin/)
   })
@@ -275,7 +282,7 @@ describe('BandManagementView', () => {
     render(<BandManagementView />)
 
     openMemberMenu('Marco')
-    const remove = screen.getAllByText('Löschen')[1] as HTMLButtonElement
+    const remove = screen.getByText('Löschen') as HTMLButtonElement
     expect(remove.disabled).toBe(false)
   })
 
@@ -473,6 +480,7 @@ describe('BandManagementView', () => {
       useWorkspaceStore.setState({ getAccessCode })
 
       render(<BandManagementView />)
+      openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
 
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
@@ -485,6 +493,7 @@ describe('BandManagementView', () => {
       })
 
       render(<BandManagementView />)
+      openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
 
