@@ -812,13 +812,25 @@ async function main() {
 
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).
-    const sync = createPluginSync({
-      couch,
-      workspaceId: process.env.STAGEBOARD_WORKSPACE ?? 'band-a',
-      registry,
-      log: pluginLog,
-    })
-    app.addHook('onClose', async () => sync.stop())
+    //
+    // 2026-09-02 fourteenth follow-up, at Marco's explicit request, after finding a phantom
+    // empty "band-a" workspace kept reappearing in "Verfügbare Bands" no matter how often he
+    // deleted it: this used to default to workspaceId 'band-a' when STAGEBOARD_WORKSPACE
+    // wasn't set - a leftover from before the WiFi-style redesign, when a Stage-Server
+    // belonged to exactly one fixed band. `start()` (pluginSync.ts) calls `ensureDb()`
+    // unconditionally, which *creates* that database if it's missing - so every server
+    // restart silently recreated an empty "band-a" nobody ever founded through the app. Now
+    // this hardware/plugin sync simply doesn't run at all unless a real workspace is
+    // deliberately configured, rather than ever phantom-creating one of its own.
+    if (process.env.STAGEBOARD_WORKSPACE) {
+      const sync = createPluginSync({
+        couch,
+        workspaceId: process.env.STAGEBOARD_WORKSPACE,
+        registry,
+        log: pluginLog,
+      })
+      app.addHook('onClose', async () => sync.stop())
+    }
 
     // Lookup plugins aren't band-installed hardware - they're always-available read-only data
     // sources, so every catalog entry just starts up directly rather than waiting on a
