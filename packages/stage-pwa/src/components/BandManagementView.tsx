@@ -76,10 +76,14 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * an account on the spot when none exists yet, see core-backend's `POST /workspaces/:id/join/:profileId`).
  *
  * "Passwort zurücksetzen" below is the *other*-admin's-help recovery path (only shown for an
- * admin target - a non-admin has nothing to reset): another admin's already-active session sets
- * a fresh PIN and relays it out of band (in person, a message, ...) - the one-time value is
- * shown once, right after resetting, and never stored or shown again. For the "no other admin
- * session exists at all" case, the universal recovery code (above) is what actually solves it.
+ * admin target that isn't this device's own active profile, 2026-09-02 eleventh follow-up -
+ * found live: Marco locked his own phone out using it on himself): another admin's already-
+ * active session sets a fresh PIN and relays it out of band (in person, a message, ...) - the
+ * one-time value is shown once, right after resetting, and never stored or shown again, and
+ * critically never updates *this* device's own stored credentials either, unlike "Meinen PIN
+ * setzen" - using it on your own row silently breaks your own session with no way to recover
+ * the new value. For the "no other admin session exists at all" case, the universal recovery
+ * code (above) is what actually solves it.
  *
  * Tier-A local-only-founding follow-up (2026-08-30): a band with no Stage-Server configured
  * founds and builds its roster entirely locally - `activeWorkspace.username` unset is that
@@ -427,7 +431,15 @@ export function BandManagementView() {
                           >
                             Stage-Rollen anpassen
                           </button>
-                          {isAdminProfile && (
+                          {/* Not for isActiveProfile (2026-09-02 eleventh follow-up, found live:
+                              Marco locked his own phone out with this) - resetMemberPassword
+                              only ever shows the fresh password once, for relaying to a
+                              *different* device/person out of band; it never updates this
+                              device's own stored credentials, unlike setOwnPin. Using it on your
+                              own active row silently invalidates your own session with no way
+                              to recover the new value - "Meinen PIN setzen" above is the only
+                              safe self-service path, and stays the only one offered here now. */}
+                          {isAdminProfile && !isActiveProfile && (
                             <button
                               type="button"
                               onClick={async () => {

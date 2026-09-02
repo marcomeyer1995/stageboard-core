@@ -392,19 +392,38 @@ describe('BandManagementView', () => {
   })
 
   describe('"Passwort zurücksetzen" (2026-09-02 follow-up: admin-side reset, since self-service blank-password recovery is refused for admin accounts)', () => {
+    // A second admin (Chris, p2) who is NOT this device's active profile - Marco (p1, active)
+    // never offers "Passwort zurücksetzen" on his own row (2026-09-02 eleventh follow-up,
+    // found live: Marco locked his own phone out using it on himself - "Meinen PIN setzen" is
+    // the only safe self-service path, see the dedicated test below).
+    beforeEach(() => {
+      useProfilesStore.setState({
+        profiles: [
+          { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+          { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+        ],
+      })
+    })
+
+    it('is never offered on the currently-active profile\'s own row, even though it is an admin', () => {
+      render(<BandManagementView />)
+      openMemberMenu('Marco')
+      expect(screen.queryByText('Passwort zurücksetzen')).not.toBeInTheDocument()
+    })
+
     it('confirms first, then resets and shows the fresh password once', async () => {
-      const resetMemberPassword = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p1', password: 'fresh-123' })
+      const resetMemberPassword = vi.fn().mockResolvedValue({ username: 'stageboard-band-a-p2', password: 'fresh-123' })
       useWorkspaceStore.setState({ resetMemberPassword })
       const confirmMock = vi.fn().mockResolvedValue(true)
       const alertMock = vi.fn().mockResolvedValue(undefined)
       useDialogStore.setState({ confirm: confirmMock, alert: alertMock })
 
       render(<BandManagementView />)
-      openMemberMenu('Marco')
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
-      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalledWith('band-a', 'p1'))
-      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Marco'), expect.objectContaining({ danger: true }))
+      await waitFor(() => expect(resetMemberPassword).toHaveBeenCalledWith('band-a', 'p2'))
+      expect(confirmMock).toHaveBeenCalledWith(expect.stringContaining('Chris'), expect.objectContaining({ danger: true }))
       expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('fresh-123'), expect.objectContaining({ title: 'PIN zurückgesetzt' }))
     })
 
@@ -414,7 +433,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
 
       render(<BandManagementView />)
-      openMemberMenu('Marco')
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -428,7 +447,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true), alert: alertMock })
 
       render(<BandManagementView />)
-      openMemberMenu('Marco')
+      openMemberMenu('Chris')
       fireEvent.click(screen.getByText('Passwort zurücksetzen'))
 
       await waitFor(() => expect(resetMemberPassword).toHaveBeenCalled())
