@@ -1,7 +1,4 @@
-import type { PendingSong } from 'shared-types'
 import type { CapabilityStatus } from './capabilities'
-
-export type { PendingSong }
 
 /** A wrong-song tap corrected within a few seconds shouldn't count as "played". */
 export const MIN_SONG_DURATION_MS = 20_000
@@ -10,13 +7,11 @@ export const MIN_SONG_DURATION_MS = 20_000
  * soundcheck starts a fresh show rather than continuing yesterday's. */
 export const SHOW_GAP_THRESHOLD_MS = 45 * 60_000
 
-/** Whether a pending song has been active long enough to log as actually played. */
-export function shouldConfirmSong(
-  pending: PendingSong,
-  now: number,
-  minDurationMs: number = MIN_SONG_DURATION_MS,
-): boolean {
-  return now - pending.startedAt >= minDurationMs
+/** Whether an entry's active (unpaused) elapsed time is long enough to log as actually
+ * played - see ShowState.playbackAccumulatedMs (#13): paused/stopped spans never count
+ * toward this, unlike a bare wall-clock duration would. */
+export function shouldConfirmSong(activeMs: number, minDurationMs: number = MIN_SONG_DURATION_MS): boolean {
+  return activeMs >= minDurationMs
 }
 
 /** Whether enough time has passed with no activity that a new show should start. */
@@ -29,60 +24,32 @@ export function shouldStartNewShow(
   return now - lastActivityAt >= gapThresholdMs
 }
 
-/** The subset of `ShowState` that in-flight song tracking reads/writes - persisted centrally
- * so any tablet holding the Master-Token can pick it up, rather than living in one tablet's
- * own React refs (#4: the previous per-device-ref design lost the play record whenever the
- * Master-Token changed hands mid-song, since the incoming master had no way to know a song
- * was already in progress). */
-export interface SongTrackingState {
-  pendingSong: PendingSong | null
-  currentShowId: string | null
-  lastActivityAt: number | null
-}
-
-export interface SongTrackingEvents {
-  songPlayed: { showId: string; songId: string; songTitle: string; at: number; endedAt: number } | null
-  showStarted: { showId: string; at: number } | null
+export interface SongPlayed {
+  showId: string
+  songId: string
+  songTitle: string
+  at: number
+  endedAt: number
+  activeMs: number
 }
 
 /**
- * Pure decision for what happens when the queue's active entry changes - either a genuinely
- * new song, or a Master-Token handoff revealing tracking state a fresh master didn't create
- * itself. Returns `null` when `entry` is already the one recorded in `state.pendingSong`: the
- * caller should do nothing and keep waiting, rather than resetting the confirmation timer -
- * this is what makes a mid-song handoff lossless instead of restarting the 20-second window.
+ * Whether an ended play-through should be logged, and with what payload - null when the
+ * active (unpaused) duration never crossed the minimum threshold (a wrong-song tap corrected
+ * within a few seconds, or a Reset before the threshold, shouldn't count as "played"). Pure
+ * decision, called from queue.ts wherever a play-through actually ends: advancing the queue,
+ * or an explicit Stop (#13) - not inferred reactively from state diffs, since it's always a
+ * direct consequence of one of those actions.
  */
-export function advanceSongTracking(
-  state: SongTrackingState,
-  entry: { id: string; songId: string; songTitle: string },
-  now: number,
-  newShowId: string,
-): { events: SongTrackingEvents; nextState: SongTrackingState } | null {
-  if (state.pendingSong && state.pendingSong.entryId === entry.id) return null
-
-  const songPlayed =
-    state.pendingSong && state.currentShowId && shouldConfirmSong(state.pendingSong, now)
-      ? {
-          showId: state.currentShowId,
-          songId: state.pendingSong.songId,
-          songTitle: state.pendingSong.songTitle,
-          at: state.pendingSong.startedAt,
-          endedAt: now,
-        }
-      : null
-
-  const startsNewShow = shouldStartNewShow(state.lastActivityAt, now)
-  const showId = startsNewShow ? newShowId : state.currentShowId
-  const showStarted = startsNewShow ? { showId: newShowId, at: now } : null
-
-  return {
-    events: { songPlayed, showStarted },
-    nextState: {
-      pendingSong: { entryId: entry.id, songId: entry.songId, songTitle: entry.songTitle, startedAt: now },
-      currentShowId: showId,
-      lastActivityAt: now,
-    },
-  }
+export function finalizeSongPlay(
+  entry: { songId: string; songTitle: string },
+  startedAt: number,
+  activeMs: number,
+  endedAt: number,
+  showId: string,
+): SongPlayed | null {
+  if (!shouldConfirmSong(activeMs)) return null
+  return { showId, songId: entry.songId, songTitle: entry.songTitle, at: startedAt, endedAt, activeMs }
 }
 
 export interface CapabilityTransition {

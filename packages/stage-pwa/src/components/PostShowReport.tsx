@@ -73,7 +73,7 @@ export function PostShowReport() {
                       <div key={event.id} className="flex items-center justify-between gap-2">
                         <span>{event.songTitle}</span>
                         <span className="text-ink-faint">
-                          {fmtTime(event.at)} · {fmtDuration(event.endedAt - event.at)}
+                          {fmtTime(event.at)} · {fmtDuration(event.activeMs)}
                         </span>
                       </div>
                     )

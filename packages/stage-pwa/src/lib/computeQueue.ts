@@ -14,15 +14,19 @@ export interface Queue {
    * independently resolved variant. */
   orderedItems: QueueItem[]
   orderedSongs: Song[]
+  previousSong: Song | null
   currentSong: Song | null
   nextSong: Song | null
-  /** The entries behind current/next - what ShowState.activeEntryId must be set to in order
-   * to advance, since a bare songId can't disambiguate two occurrences of the same song. */
+  /** The entries around current - what ShowState.activeEntryId must be set to in order to
+   * advance/go back, since a bare songId can't disambiguate two occurrences of the same
+   * song. */
+  previousEntry: SetlistEntry | null
   currentEntry: SetlistEntry | null
   nextEntry: SetlistEntry | null
-  /** The variant actually playing for current/next: that entry's explicit pick, falling back
-   * to the song's isDefault variant, or null if neither exists yet (e.g. Phase 1's lazy
-   * per-document migration hasn't touched this song). */
+  /** The variant actually playing for previous/current/next: that entry's explicit pick,
+   * falling back to the song's isDefault variant, or null if neither exists yet (e.g. Phase
+   * 1's lazy per-document migration hasn't touched this song). */
+  previousVariant: SongVariant | null
   currentVariant: SongVariant | null
   nextVariant: SongVariant | null
 }
@@ -65,10 +69,13 @@ export function computeQueue(
       activeSetlist,
       orderedItems: [],
       orderedSongs: [],
+      previousSong: null,
       currentSong: null,
       nextSong: null,
+      previousEntry: null,
       currentEntry: null,
       nextEntry: null,
+      previousVariant: null,
       currentVariant: null,
       nextVariant: null,
     }
@@ -78,16 +85,20 @@ export function computeQueue(
     0,
     orderedItems.findIndex((item) => item.entry.id === showState.activeEntryId),
   )
+  const previous = orderedItems[index - 1] ?? null
   const current = orderedItems[index] ?? orderedItems[0]
   const next = orderedItems[index + 1] ?? null
   return {
     activeSetlist,
     orderedItems,
     orderedSongs,
+    previousSong: previous?.song ?? null,
     currentSong: current.song,
     nextSong: next?.song ?? null,
+    previousEntry: previous?.entry ?? null,
     currentEntry: current.entry,
     nextEntry: next?.entry ?? null,
+    previousVariant: previous?.variant ?? null,
     currentVariant: current.variant,
     nextVariant: next?.variant ?? null,
   }

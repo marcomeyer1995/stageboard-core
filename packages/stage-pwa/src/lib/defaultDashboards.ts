@@ -58,14 +58,14 @@ export function defaultDashboards(): Dashboard[] {
   return [
     build(DEFAULT_IDS.prompter, 'Prompter', 0, [
       { type: 'dashboard-switcher', x: 0, y: 0, w: 12, h: 3, minH: 2 },
-      { type: 'next-song', x: 0, y: 3, w: 7, h: 3, minH: 2 },
-      { type: 'clock', x: 7, y: 3, w: 2, h: 3, minH: 2 },
+      { type: 'next-song', x: 0, y: 3, w: 5, h: 3, minH: 2 },
+      { type: 'show-transport', x: 5, y: 3, w: 4, h: 3, minH: 2 },
       { type: 'midi-status', x: 9, y: 3, w: 3, h: 3, minH: 2 },
       { type: 'prompter', x: 0, y: 6, w: 12, h: 18, minH: 6 },
     ]),
     build(DEFAULT_IDS.monitoring, 'Monitoring', 1, [
       { type: 'dashboard-switcher', x: 0, y: 0, w: 12, h: 3, minH: 2 },
-      { type: 'clock', x: 0, y: 3, w: 4, h: 4, minH: 2 },
+      { type: 'show-transport', x: 0, y: 3, w: 4, h: 4, minH: 2 },
       { type: 'midi-status', x: 4, y: 3, w: 8, h: 4, minH: 2 },
       { type: 'iem-more-me', x: 0, y: 7, w: 6, h: 17, minH: 5 },
       { type: 'quick-actions', x: 6, y: 7, w: 6, h: 17, minH: 4 },

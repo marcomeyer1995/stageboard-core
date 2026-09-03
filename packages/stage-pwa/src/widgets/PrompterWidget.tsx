@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { useElapsedMs } from '../lib/useElapsedMs'
+import { usePlaybackElapsedMs } from '../lib/usePlaybackElapsedMs'
 import { useQueue } from '../lib/queue'
 
 type ViewMode = 'scroll' | 'paginated'
 
 export function PrompterWidget() {
   const { currentSong, currentVariant } = useQueue()
-  const elapsedMs = useElapsedMs()
+  // The synced, ShowState-backed clock (ShowTransportWidget) whenever a live transport is
+  // actually running - every tablet then scrolls off the same value. Falls back to the local,
+  // device-only clock otherwise, which is what keeps BackingTrackPlayerWidget's home-practice
+  // pairing with this widget working exactly as before: practicing alone never touches
+  // ShowState.playbackStatus, so it stays 'stopped' and usePlaybackElapsedMs returns null.
+  const syncedElapsedMs = usePlaybackElapsedMs()
+  const localElapsedMs = useElapsedMs()
+  const elapsedMs = syncedElapsedMs ?? localElapsedMs
   const [viewMode, setViewMode] = useState<ViewMode>('scroll')
   const containerRef = useRef<HTMLDivElement>(null)
 

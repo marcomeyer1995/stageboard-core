@@ -4,7 +4,6 @@ import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackingTrackPlayerWidget } from './BackingTrackPlayerWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
-import { ClockControlWidget } from './ClockControlWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
 import { IemWidget } from './IemWidget'
@@ -15,7 +14,7 @@ import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { ShowNoteWidget } from './ShowNoteWidget'
-import { ShowPlaybackWidget } from './ShowPlaybackWidget'
+import { ShowTransportWidget } from './ShowTransportWidget'
 import { SyncCheckWidget } from './SyncCheckWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
@@ -126,7 +125,7 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'next-song',
     title: 'Next Song',
-    description: 'Aktueller und nächster Song, Master-Token, "Nächster Song".',
+    description: 'Vorheriger, aktueller und nächster Song, Master-Token, Vor/Zurück.',
     category: 'performance',
     defaultLayout: { w: 7, h: 2, minW: 3, minH: 2 },
     Component: NextSongWidget,
@@ -140,12 +139,12 @@ const DEFINITIONS: WidgetDefinition[] = [
     Component: ActiveSetlistWidget,
   }),
   defineWidget({
-    type: 'clock',
-    title: 'Show Cockpit',
-    description: 'Master-Clock mit Start/Stop und Reset.',
+    type: 'show-transport',
+    title: 'Show-Transport',
+    description: 'Play/Pause/Stop/Reset für den aktuellen Song - mit oder ohne Backing-Track-Plugin.',
     category: 'performance',
-    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
-    Component: ClockControlWidget,
+    defaultLayout: { w: 4, h: 3, minW: 3, minH: 2 },
+    Component: ShowTransportWidget,
   }),
   defineWidget({
     type: 'midi-status',
@@ -192,15 +191,6 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     Component: LightingCuesWidget,
-  }),
-  defineWidget({
-    type: 'show-playback',
-    title: 'Show-Playback',
-    description: 'Play/Pause/Stop für den Backing-Track über den Stage-Server.',
-    requires: [CAPABILITIES.audioPlayback],
-    category: 'show-control',
-    defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
-    Component: ShowPlaybackWidget,
   }),
   defineWidget({
     type: 'system-health',

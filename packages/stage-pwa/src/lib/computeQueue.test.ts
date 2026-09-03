@@ -31,8 +31,14 @@ const songs: Song[] = [song('a', 'Song A'), song('b', 'Song B'), song('c', 'Song
 const emptyShowState: ShowState = {
   activeSetlistId: null,
   activeEntryId: null,
+  activeEntryStartedAt: null,
   masterHolderId: null,
   masterClaimedAt: null,
+  playbackStatus: 'stopped',
+  playbackStartedAt: null,
+  playbackAccumulatedMs: 0,
+  currentShowId: null,
+  lastActivityAt: null,
 }
 
 describe('computeQueue', () => {
@@ -66,6 +72,18 @@ describe('computeQueue', () => {
     const queue = computeQueue(songs, [], { ...emptyShowState, activeEntryId: 'c' })
     expect(queue.currentSong?.id).toBe('c')
     expect(queue.nextSong).toBeNull()
+  })
+
+  it('has no previous song before the first one', () => {
+    const queue = computeQueue(songs, [], { ...emptyShowState, activeEntryId: 'a' })
+    expect(queue.previousSong).toBeNull()
+  })
+
+  it('picks previous/current/next around the middle of the queue', () => {
+    const queue = computeQueue(songs, [], { ...emptyShowState, activeEntryId: 'b' })
+    expect(queue.previousSong?.id).toBe('a')
+    expect(queue.currentSong?.id).toBe('b')
+    expect(queue.nextSong?.id).toBe('c')
   })
 
   it('falls back to the first song when activeEntryId is unknown', () => {
