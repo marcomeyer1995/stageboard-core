@@ -259,7 +259,29 @@ export function Dashboard() {
           >
             {active.widgets.map((widget) => {
               const definition = WIDGET_REGISTRY[widget.type]
-              if (!definition) return <div key={widget.i} />
+              if (!definition) {
+                // A widget type that no longer exists (renamed/removed in an app update) -
+                // previously a bare, unstyled <div>: harmless in that it never crashed the
+                // dashboard, but it also had no title bar and no "Entfernen" button, so it
+                // sat there forever with nothing to click. Still wrapped in the normal
+                // WidgetFrame so it's just as removable as any other widget.
+                return (
+                  <div key={widget.i}>
+                    <WidgetFrame
+                      title="Unbekanntes Widget"
+                      status="missing"
+                      isEditing={isEditing}
+                      onRemove={() => removeWidget(widget.i)}
+                    >
+                      <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
+                        Unbekannter Widget-Typ „{widget.type}" - vermutlich in einem App-Update
+                        entfernt. Über „⋯" → „Entfernen" kann es aus dem Dashboard genommen
+                        werden.
+                      </div>
+                    </WidgetFrame>
+                  </div>
+                )
+              }
               const status = capabilityStatusFor(definition.requires, capabilities)
               const { Component, ConfigPanel } = definition
 
