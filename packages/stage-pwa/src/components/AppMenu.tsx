@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
+import { SessionModeControl } from './SessionModeControl'
 import { useFullscreen } from '../lib/useFullscreen'
+import { useAppModeStore } from '../store/useAppModeStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 
 interface AppMenuProps {
@@ -40,6 +42,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
+  const sessionMode = useAppModeStore((state) => state.mode)
 
   return (
     <div
@@ -72,9 +75,15 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           </div>
         </Section>
 
-        <Section title="Master-Kontrolle">
-          <MasterControl />
+        <Section title="Modus">
+          <SessionModeControl />
         </Section>
+
+        {sessionMode === 'gig' && (
+          <Section title="Master-Kontrolle">
+            <MasterControl />
+          </Section>
+        )}
 
         {mode === 'live' && (
           <Section title="Dashboard">

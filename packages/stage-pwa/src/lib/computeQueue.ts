@@ -1,4 +1,4 @@
-import type { Setlist, SetlistEntry, ShowState, Song, SongVariant } from 'shared-types'
+import type { Setlist, SetlistEntry, ShowState, Song, SongVariant, TrackMeta } from 'shared-types'
 
 /** One resolved position in the queue: the setlist entry, its song, and the variant it plays. */
 export interface QueueItem {
@@ -43,11 +43,30 @@ function resolveVariantForEntry(entry: SetlistEntry, variants: SongVariant[]): S
   return selected ?? variants.find((v) => v.songId === entry.songId && v.isDefault) ?? null
 }
 
+/**
+ * Which track of a variant actually plays: an explicit override first (a for-tonight-only swap
+ * - e.g. ShowState.trackOverride when only one of two guitarists could make it, so the "1
+ * guitar" mix is needed instead of tonight's usual "no guitar" one), else the setlist entry's
+ * own lasting choice (SetlistEntry.trackId), else the variant's own `band-mix` track (the
+ * band's default backing track), else whatever track happens to be first. Null only when the
+ * variant has no tracks attached at all.
+ */
+export function resolveTrackForEntry(
+  entry: SetlistEntry | null,
+  variant: SongVariant | null,
+  overrideTrackId: string | null,
+): TrackMeta | null {
+  if (!variant || variant.tracks.length === 0) return null
+  const requestedId = overrideTrackId ?? entry?.trackId ?? null
+  const requested = requestedId ? variant.tracks.find((t) => t.id === requestedId) : undefined
+  return requested ?? variant.tracks.find((t) => t.kind === 'band-mix') ?? variant.tracks[0]
+}
+
 /** Pure playback-queue logic: song order (catalog or active setlist) + current/next position. */
 export function computeQueue(
   songs: Song[],
   setlists: Setlist[],
-  showState: ShowState,
+  showState: Pick<ShowState, 'activeSetlistId' | 'activeEntryId'>,
   variants: SongVariant[] = [],
 ): Queue {
   const activeSetlist = setlists.find((setlist) => setlist.id === showState.activeSetlistId) ?? null
@@ -56,7 +75,7 @@ export function computeQueue(
   // The entry id doubles as the songId here since there's no setlist doc to own a stable id.
   const entries: SetlistEntry[] = activeSetlist
     ? activeSetlist.entries
-    : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null }))
+    : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
 
   const orderedItems: QueueItem[] = entries.flatMap((entry) => {
     const song = songs.find((s) => s.id === entry.songId)

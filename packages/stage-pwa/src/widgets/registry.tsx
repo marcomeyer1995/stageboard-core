@@ -2,7 +2,6 @@ import type { ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
-import { BackingTrackPlayerWidget } from './BackingTrackPlayerWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
@@ -17,6 +16,7 @@ import { ShowNoteWidget } from './ShowNoteWidget'
 import { ShowTransportWidget } from './ShowTransportWidget'
 import { SyncCheckWidget } from './SyncCheckWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
+import { TrackOverrideWidget } from './TrackOverrideWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
 
@@ -141,10 +141,18 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'show-transport',
     title: 'Show-Transport',
-    description: 'Play/Pause/Stop/Reset für den aktuellen Song - mit oder ohne Backing-Track-Plugin.',
+    description: 'Play/Pause/Stop/Reset für den aktuellen Song - Gig oder Solo Üben, mit oder ohne Backing-Track-Plugin.',
     category: 'performance',
     defaultLayout: { w: 4, h: 3, minW: 3, minH: 2 },
     Component: ShowTransportWidget,
+  }),
+  defineWidget({
+    type: 'track-override',
+    title: 'Track-Wahl',
+    description: 'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre").',
+    category: 'performance',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: TrackOverrideWidget,
   }),
   defineWidget({
     type: 'midi-status',
@@ -223,14 +231,6 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: TunerConfigSchema,
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,
-  }),
-  defineWidget({
-    type: 'backing-track-player',
-    title: 'Backing-Track Player',
-    description: 'Backing-Track fürs Üben zuhause, Text folgt der Wiedergabe (docs/08 Phase 2).',
-    category: 'utility',
-    defaultLayout: { w: 6, h: 5, minW: 4, minH: 4 },
-    Component: BackingTrackPlayerWidget,
   }),
   defineWidget({
     type: 'show-notes',

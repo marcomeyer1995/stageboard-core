@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { CAPABILITIES, type ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
-import { pauseSong, playSong, resetSong, stopSong, useQueue } from '../lib/queue'
+import { resolveTrackForEntry } from '../lib/computeQueue'
+import { loadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
-import { usePlaybackElapsedMs } from '../lib/usePlaybackElapsedMs'
+import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -16,23 +17,27 @@ function formatClock(ms: number): string {
 
 /**
  * The one Play/Pause/Stop/Reset control for the current song (#13, closing docs/07's
- * long-deferred "explizite Pause/Stop-Kontrolle" idea) - works identically whether or not a
- * band has an `audio-playback` plugin installed, replacing the previous split between
- * ClockControlWidget (a bare stopwatch, no ShowState/ShowLog tie-in at all) and
- * ShowPlaybackWidget (plugin-only - did nothing for a band without one).
+ * long-deferred "explizite Pause/Stop-Kontrolle" idea) - works the same in Gig mode (with or
+ * without an `audio-playback` plugin installed) and Practice mode (see useShowMode.ts).
  *
- * Drives ShowState.playbackStatus directly, so every tablet's ShowLog tracking (queue.ts) and
- * PrompterWidget (usePlaybackElapsedMs.ts) agree on it, and additionally forwards the same
- * transitions to whichever plugin provides real backing-track audio, if one is installed.
+ * Gig mode routes through whichever plugin `pluginProviding` resolves, same as the previous
+ * ShowPlaybackWidget - degrades to a disconnected state if none is reachable, and deliberately
+ * never falls back to this device's own speaker (a tablet unexpectedly outputting audio mid-
+ * show would be worse than silence). Practice mode always plays locally
+ * (localAudioEngine.ts), since it's inherently just this device's own headphones - built as a
+ * standalone module rather than private to this widget, so a future #10 ("Logical Devices &
+ * Hardware Setup Profiles") HAL binding that assigns *this specific tablet* as a Gig-mode
+ * show's live audio-output target can reuse it directly instead of duplicating it.
  */
 export function ShowTransportWidget() {
-  const { currentSong, currentVariant, isMaster } = useQueue()
-  const playbackStatus = useShowStateStore((state) => state.state.playbackStatus)
+  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
+  const { currentEntry, currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const installed = usePluginsStore((state) => state.installed)
-  const pluginId = pluginProviding(installed, CAPABILITIES.audioPlayback)
-  const elapsedMs = usePlaybackElapsedMs() ?? 0
+  const pluginId = mode === 'gig' ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
   const [error, setError] = useState<string | null>(null)
+
+  const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -41,17 +46,25 @@ export function ShowTransportWidget() {
   }
 
   useEffect(() => {
-    if (!pluginId || !currentSong || !isMaster) return
-    void forward({ type: 'load', payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null } })
-    // Re-fires on a genuine song or variant change, not on every re-render of the queue/store.
+    if (!canControl || !currentSong) return
+    if (mode === 'gig') {
+      if (!pluginId) return
+      void forward({
+        type: 'load',
+        payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
+      })
+    } else if (currentVariant && track) {
+      void loadLocalTrack(currentVariant.id, track.id)
+    }
+    // Re-fires on a genuine song/variant/track change, not on every unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pluginId, currentSong?.id, currentVariant?.id, isMaster])
+  }, [mode, pluginId, currentSong?.id, currentVariant?.id, track?.id, canControl])
 
   if (!currentSong) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Kein Song aktiv</div>
   }
 
-  if (!isMaster) {
+  if (!canControl) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
         <span className="text-center text-sm">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>
@@ -73,13 +86,13 @@ export function ShowTransportWidget() {
         {currentVariant && !currentVariant.isDefault && (
           <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
         )}
-        <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs)}</span>
+        <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
       </span>
       <div className="grid grid-cols-4 gap-2">
         <button
           type="button"
           onClick={() => {
-            void playSong()
+            void play()
             void forward({ type: 'play' })
           }}
           className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
@@ -93,7 +106,7 @@ export function ShowTransportWidget() {
         <button
           type="button"
           onClick={() => {
-            void pauseSong()
+            void pause()
             void forward({ type: 'pause' })
           }}
           className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
@@ -107,7 +120,7 @@ export function ShowTransportWidget() {
         <button
           type="button"
           onClick={() => {
-            void stopSong()
+            void stop()
             void forward({ type: 'stop' })
           }}
           className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
@@ -116,7 +129,7 @@ export function ShowTransportWidget() {
         </button>
         <button
           type="button"
-          onClick={() => void resetSong()}
+          onClick={() => void reset()}
           className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
           Reset

@@ -77,6 +77,7 @@ async function activateEntry(entryId: string): Promise<void> {
   await applyPatch({
     activeEntryId: entryId,
     activeEntryStartedAt: now,
+    trackOverride: null,
     ...transportPatch(ARMED_TRANSPORT),
     ...showBookkeepingPatch(state, now),
   })
@@ -136,4 +137,16 @@ export async function resetSong(): Promise<void> {
   const { isMaster, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   await applyPatch(REARM_PATCH)
+}
+
+/** Swaps which of the current entry's tracks the shared live feed plays - e.g. a missing
+ * guitarist means tonight needs the "1 guitar" mix instead of the setlist's usual "no guitar"
+ * one (TrackOverrideWidget). Master-gated like every other ShowState write: it changes what
+ * the whole band's shared audio-playback plugin plays, not a personal preference. Cleared
+ * automatically once the entry changes (activateEntry above), so it never silently carries
+ * over onto a different song. */
+export async function setTrackOverride(trackId: string | null): Promise<void> {
+  const { isMaster, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  await applyPatch({ trackOverride: trackId })
 }

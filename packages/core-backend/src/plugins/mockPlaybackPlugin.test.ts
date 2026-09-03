@@ -12,7 +12,7 @@ describe('mockPlaybackPlugin', () => {
     plugin.init(testContext())
     expect(plugin.trigger({ type: 'anything' })).toEqual({
       status: 'ok',
-      data: { songId: null, variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: null, variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
   })
 
@@ -23,7 +23,7 @@ describe('mockPlaybackPlugin', () => {
     const result = plugin.trigger({ type: 'load', payload: { songId: 'song-1' } })
     expect(result).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: 'song-1', variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
   })
 
@@ -36,7 +36,20 @@ describe('mockPlaybackPlugin', () => {
     })
     expect(result).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: 'variant-1', isPlaying: false, positionMs: 0 },
+      data: { songId: 'song-1', variantId: 'variant-1', trackId: null, isPlaying: false, positionMs: 0 },
+    })
+  })
+
+  it('loads a song with a trackId', () => {
+    const plugin = createMockPlaybackPlugin()
+    plugin.init(testContext())
+    const result = plugin.trigger({
+      type: 'load',
+      payload: { songId: 'song-1', variantId: 'variant-1', trackId: 'track-1' },
+    })
+    expect(result).toEqual({
+      status: 'ok',
+      data: { songId: 'song-1', variantId: 'variant-1', trackId: 'track-1', isPlaying: false, positionMs: 0 },
     })
   })
 
@@ -46,7 +59,7 @@ describe('mockPlaybackPlugin', () => {
     const result = plugin.trigger({ type: 'play' })
     expect(result).toEqual({
       status: 'ok',
-      data: { songId: null, variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: null, variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
   })
 
@@ -57,17 +70,17 @@ describe('mockPlaybackPlugin', () => {
 
     expect(plugin.trigger({ type: 'play' })).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: null, isPlaying: true, positionMs: 0 },
+      data: { songId: 'song-1', variantId: null, trackId: null, isPlaying: true, positionMs: 0 },
     })
     expect(plugin.trigger({ type: 'pause' })).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: 'song-1', variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
 
     plugin.trigger({ type: 'seek', payload: { positionMs: 12000 } })
     expect(plugin.trigger({ type: 'stop' })).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: 'song-1', variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
   })
 
@@ -78,7 +91,7 @@ describe('mockPlaybackPlugin', () => {
     plugin.trigger({ type: 'seek', payload: { positionMs: 'far' } })
     expect(plugin.trigger({ type: 'anything' })).toEqual({
       status: 'ok',
-      data: { songId: 'song-1', variantId: null, isPlaying: false, positionMs: 0 },
+      data: { songId: 'song-1', variantId: null, trackId: null, isPlaying: false, positionMs: 0 },
     })
   })
 })

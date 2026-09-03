@@ -37,6 +37,14 @@ export const ShowStateSchema = z.object({
    * pause/resume cycles - this, not wall-clock `endedAt - at`, is what excludes paused/stopped
    * time from a song's logged duration (#13). */
   playbackAccumulatedMs: z.number(),
+  /** Per-device track swap for the *shared* live audio feed - e.g. tonight's second guitarist
+   * is out, so the whole band needs the "1 guitar" mix instead of the setlist's declared
+   * default. Unlike the setlist's own SetlistEntry.trackId (a lasting choice for that song),
+   * this is a for-tonight-only override on top of it, Master-gated like everything else here
+   * because it changes what the one shared PA feed plays. Null = use the entry's own trackId.
+   * Cleared whenever `activeEntryId` changes (queue.ts's activateEntry), so it never silently
+   * carries over onto a different song. */
+  trackOverride: z.string().nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -56,6 +64,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
+  trackOverride: null,
   currentShowId: null,
   lastActivityAt: null,
 }

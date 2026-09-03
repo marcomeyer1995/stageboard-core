@@ -1,22 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
-import { useElapsedMs } from '../lib/useElapsedMs'
-import { usePlaybackElapsedMs } from '../lib/usePlaybackElapsedMs'
-import { useQueue } from '../lib/queue'
+import { useShowMode } from '../lib/showMode'
 
 type ViewMode = 'scroll' | 'paginated'
 
 export function PrompterWidget() {
-  const { currentSong, currentVariant } = useQueue()
-  // The synced, ShowState-backed clock (ShowTransportWidget) whenever a live transport is
-  // actually running - every tablet then scrolls off the same value. Falls back to the local,
-  // device-only clock otherwise, which is what keeps BackingTrackPlayerWidget's home-practice
-  // pairing with this widget working exactly as before: practicing alone never touches
-  // ShowState.playbackStatus, so it stays 'stopped' and usePlaybackElapsedMs returns null.
-  const syncedElapsedMs = usePlaybackElapsedMs()
-  const localElapsedMs = useElapsedMs()
-  const elapsedMs = syncedElapsedMs ?? localElapsedMs
+  // useShowMode already picks the right song/clock for Gig vs. Practice mode - Gig mode's
+  // clock is ShowState-synced (every tablet scrolls off the same value), Practice mode's is
+  // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
+  // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
+  const { queue, elapsedMs } = useShowMode()
+  const { currentSong, currentVariant } = queue
   const [viewMode, setViewMode] = useState<ViewMode>('scroll')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -25,7 +20,7 @@ export function PrompterWidget() {
   // back to the Song only for a song Phase 1's lazy migration hasn't touched yet.
   const chordProContent = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
   const lines = currentSong ? parseChordPro(chordProContent) : []
-  const activeIndex = currentLineIndex(lines, elapsedMs)
+  const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]

@@ -25,7 +25,7 @@ function toSetlist(doc: SetlistDoc): Setlist {
     createdAt?: number
   }
   const entries: SetlistEntry[] =
-    raw.entries ?? (raw.songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null }))
+    raw.entries ?? (raw.songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null, trackId: null }))
   return { id: doc.id, name: doc.name, entries, createdAt: raw.createdAt ?? 0 }
 }
 

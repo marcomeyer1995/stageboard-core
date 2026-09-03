@@ -44,8 +44,9 @@ describe('finalizeSongPlay', () => {
     // 90s wall-clock span, but only 25s of it was actually active (playbackAccumulatedMs) -
     // e.g. a long stage-banter pause in between.
     const result = finalizeSongPlay(entry, 1000, 25_000, 1000 + 90_000, 'show-1')
+    expect(result).not.toBeNull()
     expect(result?.activeMs).toBe(25_000)
-    expect(result?.endedAt - (result?.at ?? 0)).toBe(90_000)
+    expect((result?.endedAt ?? 0) - (result?.at ?? 0)).toBe(90_000)
   })
 })
 

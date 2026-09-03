@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Setlist, SetlistEntry, ShowState, Song, SongVariant } from 'shared-types'
-import { computeQueue, reorderToPlayNext } from './computeQueue'
+import type { TrackMeta } from 'shared-types'
+import { computeQueue, resolveTrackForEntry, reorderToPlayNext } from './computeQueue'
 
 function song(id: string, title: string): Song {
   return { id, title, bpm: 120, chordProContent: '', timecodes: [] }
@@ -18,8 +19,8 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
   }
 }
 
-function entry(id: string, songId: string, variantId: string | null = null): SetlistEntry {
-  return { id, songId, variantId }
+function entry(id: string, songId: string, variantId: string | null = null, trackId: string | null = null): SetlistEntry {
+  return { id, songId, variantId, trackId }
 }
 
 function setlist(id: string, entries: SetlistEntry[]): Setlist {
@@ -37,6 +38,7 @@ const emptyShowState: ShowState = {
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
+  trackOverride: null,
   currentShowId: null,
   lastActivityAt: null,
 }
@@ -176,6 +178,46 @@ describe('computeQueue variant resolution', () => {
     ])
     const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' }, variants)
     expect(queue.orderedItems.map((item) => item.variant?.id ?? null)).toEqual(['v-full', null, 'v-short'])
+  })
+})
+
+describe('resolveTrackForEntry', () => {
+  function track(id: string, kind: TrackMeta['kind']): TrackMeta {
+    return { id, kind, label: id, source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }
+  }
+  const bandMix = track('t-band', 'band-mix')
+  const stem = track('t-stem', 'stem')
+  const withTracks = (tracks: TrackMeta[]) => variant({ id: 'v-a', songId: 'a', tracks })
+
+  it('is null when the variant has no tracks', () => {
+    expect(resolveTrackForEntry(entry('e1', 'a'), withTracks([]), null)).toBeNull()
+  })
+
+  it('prefers the band-mix track with no explicit choice anywhere', () => {
+    const result = resolveTrackForEntry(entry('e1', 'a'), withTracks([stem, bandMix]), null)
+    expect(result?.id).toBe('t-band')
+  })
+
+  it('falls back to the first track when there is no band-mix track', () => {
+    const result = resolveTrackForEntry(entry('e1', 'a'), withTracks([stem]), null)
+    expect(result?.id).toBe('t-stem')
+  })
+
+  it("uses the setlist entry's own trackId over the band-mix default", () => {
+    const e = { ...entry('e1', 'a'), trackId: 't-stem' }
+    const result = resolveTrackForEntry(e, withTracks([stem, bandMix]), null)
+    expect(result?.id).toBe('t-stem')
+  })
+
+  it("an explicit override wins over the entry's own trackId - e.g. tonight's lineup change", () => {
+    const e = { ...entry('e1', 'a'), trackId: 't-band' }
+    const result = resolveTrackForEntry(e, withTracks([stem, bandMix]), 't-stem')
+    expect(result?.id).toBe('t-stem')
+  })
+
+  it('falls back to the band-mix default if the override references a track that no longer exists', () => {
+    const result = resolveTrackForEntry(entry('e1', 'a'), withTracks([stem, bandMix]), 'deleted-track')
+    expect(result?.id).toBe('t-band')
   })
 })
 

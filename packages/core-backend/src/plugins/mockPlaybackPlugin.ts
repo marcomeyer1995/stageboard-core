@@ -9,6 +9,7 @@ import {
 interface PlaybackState {
   songId: string | null
   variantId: string | null
+  trackId: string | null
   isPlaying: boolean
   positionMs: number
 }
@@ -21,7 +22,7 @@ interface PlaybackState {
  */
 export function createMockPlaybackPlugin(): IShowControlPlugin {
   let context: PluginContext | undefined
-  let state: PlaybackState = { songId: null, variantId: null, isPlaying: false, positionMs: 0 }
+  let state: PlaybackState = { songId: null, variantId: null, trackId: null, isPlaying: false, positionMs: 0 }
 
   return {
     name: 'mock-playback',
@@ -38,9 +39,11 @@ export function createMockPlaybackPlugin(): IShowControlPlugin {
         case 'load': {
           const songId = event.payload?.songId
           const variantId = event.payload?.variantId
+          const trackId = event.payload?.trackId
           state = {
             songId: typeof songId === 'string' ? songId : null,
             variantId: typeof variantId === 'string' ? variantId : null,
+            trackId: typeof trackId === 'string' ? trackId : null,
             isPlaying: false,
             positionMs: 0,
           }
