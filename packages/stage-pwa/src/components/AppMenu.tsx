@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { AudioOutputControl } from './AudioOutputControl'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
 import { SessionModeControl } from './SessionModeControl'
@@ -82,6 +83,12 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
         {sessionMode === 'gig' && (
           <Section title="Master-Kontrolle">
             <MasterControl />
+          </Section>
+        )}
+
+        {sessionMode === 'gig' && (
+          <Section title="Audio">
+            <AudioOutputControl />
           </Section>
         )}
 
