@@ -14,10 +14,18 @@ export function TrackOverrideWidget() {
   const { queue, trackOverride, canControl, setTrackOverride } = useShowMode()
   const { currentVariant } = queue
 
-  if (!currentVariant || currentVariant.tracks.length < 2) {
+  if (!currentVariant || currentVariant.tracks.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Kein Song mit mehreren Tracks aktiv
+        Kein Track angehängt
+      </div>
+    )
+  }
+
+  if (currentVariant.tracks.length < 2) {
+    return (
+      <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
+        Nur ein Track vorhanden - kein Wechsel nötig
       </div>
     )
   }

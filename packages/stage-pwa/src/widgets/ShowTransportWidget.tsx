@@ -45,6 +45,11 @@ export function ShowTransportWidget() {
     setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
   }
 
+  // Practice mode with no track attached at all (e.g. an a cappella song) is a normal, expected
+  // state, not an error - shown separately from `error` below, same distinction
+  // BackingTrackPlayerWidget used to draw with "Kein Track angehängt".
+  const noLocalTrack = mode === 'practice' && (!currentVariant || !track)
+
   useEffect(() => {
     if (!canControl || !currentSong) return
     if (mode === 'gig') {
@@ -53,9 +58,12 @@ export function ShowTransportWidget() {
         type: 'load',
         payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
       })
-    } else if (currentVariant && track) {
-      void loadLocalTrack(currentVariant.id, track.id)
+      return
     }
+    if (!currentVariant || !track) return
+    void loadLocalTrack(currentVariant.id, track.id).then((result) => {
+      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+    })
     // Re-fires on a genuine song/variant/track change, not on every unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, pluginId, currentSong?.id, currentVariant?.id, track?.id, canControl])
@@ -135,6 +143,7 @@ export function ShowTransportWidget() {
           Reset
         </button>
       </div>
+      {noLocalTrack && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
