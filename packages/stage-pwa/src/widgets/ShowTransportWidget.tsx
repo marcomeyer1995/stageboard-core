@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { CAPABILITIES, type ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { resolveTrackForEntry } from '../lib/computeQueue'
-import { loadLocalTrack } from '../lib/localAudioEngine'
+import { loadLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -60,7 +60,13 @@ export function ShowTransportWidget() {
       })
       return
     }
-    if (!currentVariant || !track) return
+    if (!currentVariant || !track) {
+      // No track for this song at all - make sure the shared local player isn't still
+      // holding a previous song's audio loaded (#13 follow-up: it silently kept playing the
+      // last-loaded track otherwise, even though the UI already says "Kein Track angehängt").
+      unloadLocalTrack()
+      return
+    }
     void loadLocalTrack(currentVariant.id, track.id).then((result) => {
       setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
     })

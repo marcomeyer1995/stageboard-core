@@ -58,3 +58,21 @@ export function stopLocalTrack(): void {
   audio.pause()
   audio.currentTime = 0
 }
+
+/** Clears whatever is currently loaded, if anything - unlike stopLocalTrack (pause + rewind,
+ * keeping the same track cued up for a quick replay), this drops the source entirely. Needed
+ * whenever the current song has no track at all: without it, the previous song's audio stays
+ * loaded in the shared `<audio>` element, and a later Play on the trackless song would just
+ * resume playing the old one instead of staying silent as the UI's "Kein Track angehängt"
+ * implies. */
+export function unloadLocalTrack(): void {
+  const audio = getAudioEl()
+  if (!audio.src) return
+  audio.pause()
+  audio.removeAttribute('src')
+  audio.load()
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl)
+    currentObjectUrl = null
+  }
+}
