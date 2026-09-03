@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffCapabilities, shouldConfirmSong, shouldStartNewShow } from './showLogTracking'
+import { advanceSongTracking, diffCapabilities, shouldConfirmSong, shouldStartNewShow, type SongTrackingState } from './showLogTracking'
 
 describe('shouldConfirmSong', () => {
   it('confirms a song that has been active at least the minimum duration', () => {
@@ -27,6 +27,101 @@ describe('shouldStartNewShow', () => {
   it('starts a new show once the gap threshold has passed', () => {
     const now = 1_000_000
     expect(shouldStartNewShow(now - 46 * 60_000, now, 45 * 60_000)).toBe(true)
+  })
+})
+
+describe('advanceSongTracking', () => {
+  const EMPTY_STATE: SongTrackingState = { pendingSong: null, currentShowId: null, lastActivityAt: null }
+
+  it('starts a show and begins tracking the first song', () => {
+    const result = advanceSongTracking(EMPTY_STATE, { id: 'e1', songId: 'a', songTitle: 'A' }, 1000, 'show-1')
+    expect(result?.events).toEqual({
+      songPlayed: null,
+      showStarted: { showId: 'show-1', at: 1000 },
+    })
+    expect(result?.nextState).toEqual({
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    })
+  })
+
+  it('confirms the previous song once it met the minimum duration, then tracks the next one', () => {
+    const state: SongTrackingState = {
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    }
+    const now = 1000 + 30_000
+    const result = advanceSongTracking(state, { id: 'e2', songId: 'b', songTitle: 'B' }, now, 'show-2')
+    expect(result?.events.songPlayed).toEqual({
+      showId: 'show-1',
+      songId: 'a',
+      songTitle: 'A',
+      at: 1000,
+      endedAt: now,
+    })
+    expect(result?.events.showStarted).toBeNull()
+    expect(result?.nextState).toEqual({
+      pendingSong: { entryId: 'e2', songId: 'b', songTitle: 'B', startedAt: now },
+      currentShowId: 'show-1',
+      lastActivityAt: now,
+    })
+  })
+
+  it('discards the previous song if it never met the minimum duration - a corrected wrong tap', () => {
+    const state: SongTrackingState = {
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    }
+    const now = 1000 + 5_000
+    const result = advanceSongTracking(state, { id: 'e2', songId: 'b', songTitle: 'B' }, now, 'show-2')
+    expect(result?.events.songPlayed).toBeNull()
+  })
+
+  it('does not reset an in-progress song when the Master-Token changes hands mid-song (#4)', () => {
+    const state: SongTrackingState = {
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    }
+    // Same entry still active - only the master holder changed, not the song.
+    const result = advanceSongTracking(state, { id: 'e1', songId: 'a', songTitle: 'A' }, 1000 + 10_000, 'show-2')
+    expect(result).toBeNull()
+  })
+
+  it('confirms a song with its true original start time even after a mid-song handoff delayed the check', () => {
+    // The song started at 1000 on the outgoing master; a new master only takes over, and only
+    // notices the next song change, well after the 20s threshold would already have passed.
+    const state: SongTrackingState = {
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    }
+    const now = 1000 + 60_000
+    const result = advanceSongTracking(state, { id: 'e2', songId: 'b', songTitle: 'B' }, now, 'show-2')
+    expect(result?.events.songPlayed).toEqual({
+      showId: 'show-1',
+      songId: 'a',
+      songTitle: 'A',
+      at: 1000,
+      endedAt: now,
+    })
+  })
+
+  it('starts a new show once the gap threshold has passed, using the new showId for the confirmed song', () => {
+    const state: SongTrackingState = {
+      pendingSong: { entryId: 'e1', songId: 'a', songTitle: 'A', startedAt: 1000 },
+      currentShowId: 'show-1',
+      lastActivityAt: 1000,
+    }
+    const now = 1000 + 46 * 60_000
+    const result = advanceSongTracking(state, { id: 'e2', songId: 'b', songTitle: 'B' }, now, 'show-2')
+    // The confirmed song still belongs to the show it was actually played in.
+    expect(result?.events.songPlayed?.showId).toBe('show-1')
+    expect(result?.events.showStarted).toEqual({ showId: 'show-2', at: now })
+    expect(result?.nextState.currentShowId).toBe('show-2')
   })
 })
 

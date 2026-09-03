@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
+import type { SongTrackingState } from '../lib/showLogTracking'
 import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
 
 const CLIENT_ID_KEY = 'stageboard-client-id'
@@ -23,6 +24,10 @@ interface ShowStateStore {
   claimMaster: () => Promise<void>
   setActiveEntry: (entryId: string) => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
+  /** Persists useShowLogTracker's song-play tracking so a future Master-Token holder can
+   * inherit it (see showLogTracking.ts's advanceSongTracking). Same trust guard as
+   * setActiveEntry/setActiveSetlist - only the current master ever writes this. */
+  recordSongTracking: (next: SongTrackingState) => Promise<void>
 }
 
 let changesHandle: PouchDB.Core.Changes<ShowState> | null = null
@@ -59,5 +64,9 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   setActiveSetlist: async (setlistId) => {
     if (!get().isMaster) return
     await putShowState({ activeSetlistId: setlistId })
+  },
+  recordSongTracking: async (next) => {
+    if (!get().isMaster) return
+    await putShowState(next)
   },
 }))
