@@ -150,3 +150,21 @@ export async function setTrackOverride(trackId: string | null): Promise<void> {
   if (!isMaster) return
   await applyPatch({ trackOverride: trackId })
 }
+
+/** Claims this device as tonight's live audio-output device, bypassing the Stage-Server
+ * plugin entirely - first slice of #10 (Logical Devices & Hardware Setup Profiles). A per-show
+ * choice like masterHolderId, not a permanent setting: e.g. only one of two guitarists could
+ * make it, so their tablet becomes the audio output for tonight only. */
+export async function claimAudioOutput(): Promise<void> {
+  const { isMaster, clientId, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  await applyPatch({ audioOutputDeviceId: clientId })
+}
+
+/** Releases the device-output claim, falling back to the Stage-Server plugin (or "no audio
+ * source" if none is installed) - the counterpart to claimAudioOutput. */
+export async function releaseAudioOutput(): Promise<void> {
+  const { isMaster, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  await applyPatch({ audioOutputDeviceId: null })
+}

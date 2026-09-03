@@ -45,6 +45,15 @@ export const ShowStateSchema = z.object({
    * Cleared whenever `activeEntryId` changes (queue.ts's activateEntry), so it never silently
    * carries over onto a different song. */
   trackOverride: z.string().nullable(),
+  /** Which device outputs the live backing-track audio, if not the Stage-Server - a per-show
+   * choice (like masterHolderId), not a permanent band setting: e.g. tonight only one of two
+   * guitarists could make it, so the remaining guitarist's own tablet becomes the audio
+   * output instead of routing through a dedicated interface. Null = today's behavior, audio
+   * only ever via a Stage-Server-hosted `audio-playback` plugin. First slice of #10 (Logical
+   * Devices & Hardware Setup Profiles) - a full HardwareSetup/LogicalDevice system can replace
+   * this later; for now it's a single claimable field, Master-gated like everything else here,
+   * same pattern as masterHolderId. */
+  audioOutputDeviceId: z.string().nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -65,6 +74,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
   trackOverride: null,
+  audioOutputDeviceId: null,
   currentShowId: null,
   lastActivityAt: null,
 }
