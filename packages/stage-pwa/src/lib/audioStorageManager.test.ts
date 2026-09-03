@@ -32,8 +32,8 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
   }
 }
 
-function entry(id: string, songId: string, variantId: string | null = null): SetlistEntry {
-  return { id, songId, variantId }
+function entry(id: string, songId: string, variantId: string | null = null, trackId: string | null = null): SetlistEntry {
+  return { id, songId, variantId, trackId }
 }
 
 function setlist(id: string, entries: SetlistEntry[]): Setlist {

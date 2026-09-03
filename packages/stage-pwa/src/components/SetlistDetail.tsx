@@ -201,7 +201,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     if (!setlist || !songId) return
     saveSetlist({
       ...setlist,
-      entries: [...setlist.entries, { id: randomId(), songId, variantId: null }],
+      entries: [...setlist.entries, { id: randomId(), songId, variantId: null, trackId: null }],
     })
   }
 

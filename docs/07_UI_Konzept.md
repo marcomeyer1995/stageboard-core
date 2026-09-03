@@ -26,12 +26,12 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 * **Das "Next Song" Widget (Minimalist):** Eine kleine, flache Leiste (z.B. am oberen Rand). Zeigt nur: `Aktuell: Song A | Next: Song B (120 BPM)`.
 * **Das "Live-Queue" Widget (Detail):** Eine Seitenleiste. Zeigt die nächsten 5-10 Songs. Der Master-User hat hier Wisch-Gesten oder Kontext-Menüs ("Als nächstes spielen"), um die Reihenfolge spontan zu ändern.
 * **Das "More Me" IEM Widget:** Eine kleine Kachel mit 2-3 großen Fadern (z.B. "Mein Gesang", "Meine Gitarre", "Band").
-* **Das "Show Cockpit" (Für Master/Drummer):** Große Stoppuhr, Timecode, visuelles Metronom (Blinken), System-Status-Ampel.
+* **Das "Show-Transport" Widget (Für Master/Drummer):** Play/Pause/Stop/Reset für den aktuellen Song, mit oder ohne Backing-Track-Plugin - siehe `packages/stage-pwa/src/widgets/ShowTransportWidget.tsx`. Treibt `ShowState.playbackStatus` direkt, damit jedes Tablet dieselbe Uhrzeit und denselben Pause/Stop-Zustand sieht.
 * **Das "Quick Action" Grid:** Große Buttons für Ad-Hoc Cues (z.B. "Strobo", "Kaltfunken", "Talkback-Mic").
 * **Der "Dashboard-Umschalter":** Große Buttons, die zwischen den Dashboards wechseln (siehe Abschnitt 2). Pro Instanz horizontal oder vertikal.
 * **Das "Show-Notizen" Widget:** Live-Notizen von Band und Crew während der Show (z.B. "Gitarre bei diesem Song zu laut"), später im automatisch erfassten Nachbericht ("Nachbericht"-Modus) einsehbar - siehe `packages/shared-types/src/showLog.ts` und `packages/stage-pwa/src/lib/useShowLogTracker.ts`.
 
-**Zurückgestellte Idee - explizite Pause/Stop-Kontrolle:** Der Show Cockpit hat aktuell nur Start/Stop/Reset für die Stoppuhr, keine Möglichkeit, "gerade spielt kein Song" als eigenen Zustand festzuhalten - `ShowState.activeSongId` kennt nur "welcher Song ist gerade aktiv", keinen Leerzustand. Der Nachbericht kann deshalb Pausen zwischen Songs (Bandansage, Nachstimmen) nicht von der Spielzeit des vorherigen Songs unterscheiden - beides ist bis auf Weiteres derselbe Zeitpunkt: der nächste Tap auf "Next Song". Eine echte Lösung bräuchte einen expliziten Pause/Stop-Button neben "Next Song", der `activeSongId` bewusst auf "nichts spielt gerade" setzt - das würde auch computeQueue.ts's Vorstellung von "aktueller Song" berühren, nicht nur das Logging. Bewusst zurückgestellt (2026), aber hier festgehalten, damit die Idee nicht verloren geht.
+**Umgesetzt (#13, 2026-09):** Die früher hier festgehaltene zurückgestellte Idee - ein expliziter Pause/Stop-Zustand statt "Next Song" als einzigem Signal - ist jetzt Realität: `ShowState.playbackStatus` (`playing`/`paused`/`stopped`) plus `playbackAccumulatedMs` tracken die aktive (ungepausete) Spielzeit unabhängig vom Setlist-Fortschritt. Das "Next Song"-Widget (jetzt mit Vor/Zurück) bewegt weiterhin nur die Warteschlangen-Position; das Show-Transport-Widget bewegt davon unabhängig Play/Pause/Stop/Reset für den aktuellen Eintrag. Der Nachbericht zeigt die tatsächliche aktive Spielzeit (`ShowLogEvent`'s `activeMs`), Bandansagen/Nachstimmen zwischendurch zählen nicht mehr mit. Siehe `packages/stage-pwa/src/lib/playbackTransport.ts` und `packages/stage-pwa/src/lib/queue.ts`.
 
 ## 4. Responsive Szenarien (Geräte & Orientierung)
 
@@ -49,12 +49,12 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 * **Layout:** Zweispaltig (2-Column Grid).
 * **Umsetzung:**
  * Option 1 (Text-Fokus): Links 75 % Prompter, rechts 25 % schmale Live-Queue oder IEM Fader.
- * Option 2 (Mix-Fokus): Links 50 % Prompter, rechts 50 % Show Cockpit und IEM Widget.
+ * Option 2 (Mix-Fokus): Links 50 % Prompter, rechts 50 % Show-Transport und IEM Widget.
 * **Wer nutzt das:** Keyboarder, Bassisten.
 
 ### Szenario D: Der Bühnen-Monitor (24 Zoll, Querformat)
 * **Layout:** Dreispaltiges Kommandozentrum (3-Column Dashboard).
-* **Umsetzung:** Links 20 % Live-Queue und System-Ampeln, Mitte 50 % Prompter in riesiger Schrift, rechts 30 % IEM-Mischpult und Show Cockpit (Timecode, Metronom).
+* **Umsetzung:** Links 20 % Live-Queue und System-Ampeln, Mitte 50 % Prompter in riesiger Schrift, rechts 30 % IEM-Mischpult und Show-Transport (Play/Pause/Stop).
 * **Wer nutzt das:** Der Drummer, der Bandleader oder der FOH/Monitor-Mischer am Bühnenrand.
 
 ## 5. Der Edit-Modus (Dashboard-Builder)
@@ -94,7 +94,7 @@ Entscheidend sind zwei **verschiedene** Fragen, die im UI unterschiedlich wirken
 
 | Widget | Braucht |
 | :--- | :--- |
-| Prompter, Next Song, Show Cockpit, Dashboard-Umschalter | — (Core, graut nie aus) |
+| Prompter, Next Song, Show-Transport, Dashboard-Umschalter | — (Core, graut nie aus) |
 | Fußtaster-Status | `midi-input` |
 | More Me (IEM) | `mixer` |
 | Quick Actions | `show-control` |

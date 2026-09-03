@@ -41,7 +41,7 @@ const SWIPE_THRESHOLD_PX = 90
 const SETLIST_DROPZONE_ID = 'library-setlist-dropzone'
 
 function songEntry(songId: string) {
-  return { id: randomId(), songId, variantId: null as string | null }
+  return { id: randomId(), songId, variantId: null as string | null, trackId: null as string | null }
 }
 
 interface DraggableSongRowProps {

@@ -1,4 +1,4 @@
-import type { Setlist, SetlistEntry, ShowState, Song, SongVariant } from 'shared-types'
+import type { Setlist, SetlistEntry, ShowState, Song, SongVariant, TrackMeta } from 'shared-types'
 
 /** One resolved position in the queue: the setlist entry, its song, and the variant it plays. */
 export interface QueueItem {
@@ -14,15 +14,19 @@ export interface Queue {
    * independently resolved variant. */
   orderedItems: QueueItem[]
   orderedSongs: Song[]
+  previousSong: Song | null
   currentSong: Song | null
   nextSong: Song | null
-  /** The entries behind current/next - what ShowState.activeEntryId must be set to in order
-   * to advance, since a bare songId can't disambiguate two occurrences of the same song. */
+  /** The entries around current - what ShowState.activeEntryId must be set to in order to
+   * advance/go back, since a bare songId can't disambiguate two occurrences of the same
+   * song. */
+  previousEntry: SetlistEntry | null
   currentEntry: SetlistEntry | null
   nextEntry: SetlistEntry | null
-  /** The variant actually playing for current/next: that entry's explicit pick, falling back
-   * to the song's isDefault variant, or null if neither exists yet (e.g. Phase 1's lazy
-   * per-document migration hasn't touched this song). */
+  /** The variant actually playing for previous/current/next: that entry's explicit pick,
+   * falling back to the song's isDefault variant, or null if neither exists yet (e.g. Phase
+   * 1's lazy per-document migration hasn't touched this song). */
+  previousVariant: SongVariant | null
   currentVariant: SongVariant | null
   nextVariant: SongVariant | null
 }
@@ -39,11 +43,30 @@ function resolveVariantForEntry(entry: SetlistEntry, variants: SongVariant[]): S
   return selected ?? variants.find((v) => v.songId === entry.songId && v.isDefault) ?? null
 }
 
+/**
+ * Which track of a variant actually plays: an explicit override first (a for-tonight-only swap
+ * - e.g. ShowState.trackOverride when only one of two guitarists could make it, so the "1
+ * guitar" mix is needed instead of tonight's usual "no guitar" one), else the setlist entry's
+ * own lasting choice (SetlistEntry.trackId), else the variant's own `band-mix` track (the
+ * band's default backing track), else whatever track happens to be first. Null only when the
+ * variant has no tracks attached at all.
+ */
+export function resolveTrackForEntry(
+  entry: SetlistEntry | null,
+  variant: SongVariant | null,
+  overrideTrackId: string | null,
+): TrackMeta | null {
+  if (!variant || variant.tracks.length === 0) return null
+  const requestedId = overrideTrackId ?? entry?.trackId ?? null
+  const requested = requestedId ? variant.tracks.find((t) => t.id === requestedId) : undefined
+  return requested ?? variant.tracks.find((t) => t.kind === 'band-mix') ?? variant.tracks[0]
+}
+
 /** Pure playback-queue logic: song order (catalog or active setlist) + current/next position. */
 export function computeQueue(
   songs: Song[],
   setlists: Setlist[],
-  showState: ShowState,
+  showState: Pick<ShowState, 'activeSetlistId' | 'activeEntryId'>,
   variants: SongVariant[] = [],
 ): Queue {
   const activeSetlist = setlists.find((setlist) => setlist.id === showState.activeSetlistId) ?? null
@@ -52,7 +75,7 @@ export function computeQueue(
   // The entry id doubles as the songId here since there's no setlist doc to own a stable id.
   const entries: SetlistEntry[] = activeSetlist
     ? activeSetlist.entries
-    : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null }))
+    : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
 
   const orderedItems: QueueItem[] = entries.flatMap((entry) => {
     const song = songs.find((s) => s.id === entry.songId)
@@ -65,10 +88,13 @@ export function computeQueue(
       activeSetlist,
       orderedItems: [],
       orderedSongs: [],
+      previousSong: null,
       currentSong: null,
       nextSong: null,
+      previousEntry: null,
       currentEntry: null,
       nextEntry: null,
+      previousVariant: null,
       currentVariant: null,
       nextVariant: null,
     }
@@ -78,16 +104,20 @@ export function computeQueue(
     0,
     orderedItems.findIndex((item) => item.entry.id === showState.activeEntryId),
   )
+  const previous = orderedItems[index - 1] ?? null
   const current = orderedItems[index] ?? orderedItems[0]
   const next = orderedItems[index + 1] ?? null
   return {
     activeSetlist,
     orderedItems,
     orderedSongs,
+    previousSong: previous?.song ?? null,
     currentSong: current.song,
     nextSong: next?.song ?? null,
+    previousEntry: previous?.entry ?? null,
     currentEntry: current.entry,
     nextEntry: next?.entry ?? null,
+    previousVariant: previous?.variant ?? null,
     currentVariant: current.variant,
     nextVariant: next?.variant ?? null,
   }

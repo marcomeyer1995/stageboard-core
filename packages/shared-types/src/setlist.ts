@@ -11,6 +11,11 @@ export const SetlistEntrySchema = z.object({
   songId: z.string().min(1),
   /** null = play this song's isDefault variant. */
   variantId: z.string().nullable(),
+  /** null = this variant's default track (its `band-mix` track if it has one, else its
+   * first track) - see resolveTrackForEntry in stage-pwa's computeQueue.ts. The setlist's own
+   * choice of backing track (e.g. "no guitar" vs "full band" for tonight's lineup), separate
+   * from a per-device override for one specific show (TrackOverrideWidget). */
+  trackId: z.string().nullable(),
 })
 export type SetlistEntry = z.infer<typeof SetlistEntrySchema>
 

@@ -1,8 +1,9 @@
-import { advanceToNextSong, useQueue } from '../lib/queue'
+import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 export function NextSongWidget() {
-  const { currentSong, nextSong, currentVariant, nextVariant, isMaster } = useQueue()
+  const { queue, canControl, next, previous } = useShowMode()
+  const { previousSong, currentSong, nextSong, currentVariant, nextVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
 
   return (
@@ -29,15 +30,27 @@ export function NextSongWidget() {
           </>
         )}
       </span>
-      {isMaster ? (
-        <button
-          type="button"
-          onClick={advanceToNextSong}
-          disabled={!nextSong}
-          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Next Song
-        </button>
+      {canControl ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={previous}
+            disabled={!previousSong}
+            title="Vorheriger Song"
+            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ‹ Zurück
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            disabled={!nextSong}
+            title="Nächster Song"
+            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Weiter ›
+          </button>
+        </div>
       ) : (
         <button
           type="button"

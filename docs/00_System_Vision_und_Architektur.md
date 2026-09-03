@@ -15,7 +15,7 @@ A standalone offline mode where musicians prepare setlists, edit songs, and prac
 * **Roster Management:** The bandleader can create new Workspaces and add new Profiles (band members and crew) completely offline.
 
 #### Individual Rehearsal
-* **Standalone Audio:** The BackingTrackPlayerWidget routes audio directly through the tablet or PC’s local speakers or headphone jack, allowing practice without connecting to the Stage-Server or a mixer.
+* **Standalone Audio:** "Solo Üben" mode (per-device, see `useAppModeStore.ts`) routes the same `ShowTransportWidget` used live through `localAudioEngine.ts` instead of a Stage-Server plugin, playing directly through the tablet or PC's own speakers/headphone jack - no separate practice widget or dashboard, and never touches the shared, synced `ShowState`/`ShowLog` (see #13's design notes).
 * **AI Stem Separation & Mixing:** To enhance practice sessions, the system supports AI stem separation. Musicians can isolate, mute, or adjust the volume of specific instruments (e.g., muting the original bass track to play along with the rest of the band).
 * **Loop & Speed Trainer:** A dedicated loop player enables musicians to isolate and repeat specific song sections. A "loop trainer" mode can automatically increase the playback tempo with each successive loop, providing a structured way to master difficult passages.
 * **Local Tuning:** The TunerWidget utilizes the tablet’s built-in microphone for chromatic tuning, bypassing the need for a stage audio interface.

@@ -21,8 +21,11 @@ interface ShowStateStore {
   init: (workspaceId: string) => Promise<void>
   /** Claims (or re-claims, e.g. "Take Over" after a crashed master) the token for this tablet. */
   claimMaster: () => Promise<void>
-  setActiveEntry: (entryId: string) => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
+  /** Master-gated raw ShowState patch - the one write path queue.ts's transport/queue-advance
+   * actions go through, so "only the current master ever writes ShowState" (claimMaster's
+   * trust model) stays enforced in a single place rather than duplicated per caller. */
+  applyPatch: (patch: Partial<ShowState>) => Promise<void>
 }
 
 let changesHandle: PouchDB.Core.Changes<ShowState> | null = null
@@ -52,12 +55,12 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     const fresh = await getShowState()
     set({ state: fresh, isMaster: fresh.masterHolderId === clientId })
   },
-  setActiveEntry: async (entryId) => {
-    if (!get().isMaster) return
-    await putShowState({ activeEntryId: entryId })
-  },
   setActiveSetlist: async (setlistId) => {
     if (!get().isMaster) return
     await putShowState({ activeSetlistId: setlistId })
+  },
+  applyPatch: async (patch) => {
+    if (!get().isMaster) return
+    await putShowState(patch)
   },
 }))
