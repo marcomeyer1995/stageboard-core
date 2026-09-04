@@ -5,7 +5,7 @@ import { pluginProviding } from '../lib/capabilities'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
-import { resolveAudioEngine } from '../lib/audioEngine'
+import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -21,13 +21,13 @@ function formatClock(ms: number): string {
  * The one Play/Pause/Stop/Reset control for the current song (#13, closing docs/07's
  * long-deferred "explizite Pause/Stop-Kontrolle" idea) - works the same in Gig mode (with or
  * without an `audio-playback` plugin installed, or a device claimed as tonight's audio output
- * - see AudioOutputControl.tsx / #10's first slice) and Practice mode (see useShowMode.ts).
+ * - see DeviceClaimControl.tsx / #10) and Practice mode (see useShowMode.ts).
  *
  * Gig mode's default routes through whichever plugin `pluginProviding` resolves, same as the
  * previous ShowPlaybackWidget - degrades to a disconnected state if none is reachable, and
  * deliberately never falls back to this device's own speaker on its own (a tablet
  * unexpectedly outputting audio mid-show would be worse than silence) - that only happens if
- * someone explicitly claims it via AudioOutputControl. Practice mode always plays locally
+ * someone explicitly claims it via DeviceClaimControl. Practice mode always plays locally
  * (localAudioEngine.ts), since it's inherently just this device's own headphones.
  *
  * When a device *is* claimed as the audio output, that device's engine is driven reactively
@@ -44,12 +44,14 @@ export function ShowTransportWidget() {
   const { currentEntry, currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const deviceId = useShowStateStore((state) => state.deviceId)
-  const audioOutputDeviceId = useShowStateStore((state) => state.state.audioOutputDeviceId)
+  const audioClaim = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.audioPlayback])
   const installed = usePluginsStore((state) => state.installed)
 
-  const usesDeviceOutput = mode === 'gig' && audioOutputDeviceId !== null
+  const usesDeviceOutput = mode === 'gig' && audioClaim !== undefined
   const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
-  const engine = resolveAudioEngine(mode, audioOutputDeviceId, deviceId, pluginId)
+  // Practice mode always plays locally regardless of any Gig-mode claim - it has no
+  // lighting/mixer equivalent, so that override lives here rather than in the generic resolver.
+  const engine = mode === 'practice' ? 'local-mine' : resolveDeviceClaimEngine(audioClaim, deviceId, pluginId)
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'

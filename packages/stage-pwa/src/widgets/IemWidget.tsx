@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
+import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { triggerShowControl } from '../lib/showControlClient'
+import { useLocalMixerStore } from '../store/useLocalMixerStore'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useShowStateStore } from '../store/useShowStateStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
  * "More Me" from docs/07: only the musician's own channels plus a band group fader. #3:
@@ -11,23 +16,48 @@ import { usePluginsStore } from '../store/usePluginsStore'
  * itself still moves immediately on drag (optimistic local update) rather than waiting on a
  * round trip, so it stays responsive even on a slow connection; the plugin call just needs to
  * eventually catch the mixer up to what's shown.
+ *
+ * #10 (generalized beyond audio): a device claimed for `mixer` takes over here instead of the
+ * plugin - levels are then sourced from useLocalMixerStore (shared, so every tablet - including
+ * the claimed one itself - sees the same fader position) rather than this component's own
+ * optimistic local state, since a different tablet's drag is otherwise invisible here.
  */
 const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
 export function IemWidget() {
   const installed = usePluginsStore((state) => state.installed)
-  const pluginId = pluginProviding(installed, CAPABILITIES.mixer)
-  const [levels, setLevels] = useState<Record<string, number>>(() =>
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const deviceId = useShowStateStore((state) => state.deviceId)
+  const claimedDeviceId = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.mixer])
+  const pluginId = claimedDeviceId === undefined ? pluginProviding(installed, CAPABILITIES.mixer) : null
+  const engine = resolveDeviceClaimEngine(claimedDeviceId, deviceId, pluginId)
+  const usesLocalMixerStore = engine === 'local-mine' || engine === 'local-other'
+  const localVolumes = useLocalMixerStore((state) => state.volumes)
+  const [ownLevels, setOwnLevels] = useState<Record<string, number>>(() =>
     Object.fromEntries(CHANNELS.map((channel) => [channel, 60])),
   )
   const [error, setError] = useState<string | null>(null)
 
   async function setVolume(channel: string, volume: number) {
-    setLevels((prev) => ({ ...prev, [channel]: volume }))
+    if (usesLocalMixerStore) {
+      if (engine === 'local-mine') {
+        useLocalMixerStore.getState().applyEvent({ type: 'set_volume', payload: { channel, volume } })
+        return
+      }
+      const result = await triggerDeviceControl(workspaceId, claimedDeviceId!, CAPABILITIES.mixer, {
+        type: 'set_volume',
+        payload: { channel, volume },
+      })
+      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+      return
+    }
+    setOwnLevels((prev) => ({ ...prev, [channel]: volume }))
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, { type: 'set_volume', payload: { channel, volume } })
     setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
   }
+
+  const levels = usesLocalMixerStore ? { ...ownLevels, ...localVolumes } : ownLevels
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
