@@ -72,30 +72,37 @@ export function ShowTransportWidget() {
   // responsible for playing something locally.
   const noLocalTrack = usesLocalEngine && (!currentVariant || !track)
 
-  // Loads (or unloads) whichever engine this device is responsible for - fires on a genuine
-  // song/variant/track change, never on a bare play/pause/stop click.
+  // Forwards a "load" event to whichever plugin provides audio-playback, on a genuine
+  // song/variant/track change - only the Master should ever trigger this network call, since
+  // every device would otherwise race to send the same event. Split from the local-engine
+  // effect below (found live, 2026-09-05): with both branches sharing one effect, `canControl`
+  // had to sit in its dependency array for this branch's sake, so a bare Master handoff -
+  // canControl flipping with the song itself unchanged - also re-ran the *other* branch below
+  // and reset its already-playing `<audio>` element for no reason.
   useEffect(() => {
-    if (!currentSong) return
-    if (mode === 'gig' && !usesDeviceOutput) {
-      // Only the master should ever trigger this network call - every device would otherwise
-      // race to send the same "load" event to the plugin.
-      if (!canControl || !pluginId) return
-      void forward({
-        type: 'load',
-        payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
-      })
-      return
-    }
-    if (!usesLocalEngine) return // a different device owns the claimed audio output - not my job
-    // Deliberately NOT gated on `canControl` below: the whole point of a device claim (unlike
-    // the plugin-forward branch above) is that the claimed device can be a *different* tablet
-    // than the one holding Master - it still has to load/unload its own local track as the
-    // synced song changes, or it keeps playing whatever it loaded last (found live, 2026-09-05:
-    // a non-master claimed device never unloaded a stale track switching to one with none).
+    if (!canControl || !currentSong) return
+    if (mode !== 'gig' || usesDeviceOutput || !pluginId) return
+    void forward({
+      type: 'load',
+      payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pluginId, usesDeviceOutput, currentSong?.id, currentVariant?.id, track?.id, canControl])
+
+  // Loads (or unloads) this device's own local engine, whenever it's the claimed audio output -
+  // deliberately excludes `canControl`/`mode`/`pluginId`/`usesDeviceOutput` from its own
+  // dependencies (unlike the plugin effect above): the whole point of a device claim is that
+  // the claimed device can be a *different* tablet than whoever holds Master, so a bare Master
+  // handoff must never re-run this at all, only a genuine change to the synced song/track
+  // itself. Without this split, it kept playing whatever it loaded last when switching to a
+  // trackless song (#13 follow-up, only ever exercised on the master's own device until now).
+  useEffect(() => {
+    if (!currentSong || !usesLocalEngine) return
     if (!currentVariant || !track) {
       // No track for this song at all - make sure the local player isn't still holding a
-      // previous song's audio loaded (#13 follow-up: it silently kept playing the last-loaded
-      // track otherwise, even though the UI already says "Kein Track angehängt").
+      // previous song's audio loaded: without this, a later Play on the trackless song would
+      // just resume playing the old one instead of staying silent as the UI's "Kein Track
+      // angehängt" implies.
       unloadLocalTrack()
       return
     }
@@ -103,7 +110,7 @@ export function ShowTransportWidget() {
       setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pluginId, usesDeviceOutput, usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id, canControl])
+  }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
 
   // Reactively mirrors the synced playbackStatus onto this device's local engine, whenever
   // this device is Gig mode's claimed audio output - see the widget doc comment above for why

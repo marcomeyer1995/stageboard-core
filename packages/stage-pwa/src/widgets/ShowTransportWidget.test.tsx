@@ -40,9 +40,14 @@ function entry(id: string, songId: string): SetlistEntry {
 }
 
 /** #10's whole point: the claimed audio-output device and the Master-Token holder can be two
- * different tablets - `canControl` (Master) is deliberately false in every test here, since
- * this bug (found live, 2026-09-05) only ever showed up on the *non-master* claimed device. */
-function mockShowMode(overrides: { currentEntry: SetlistEntry | null; currentSong: Song | null; currentVariant: SongVariant | null }) {
+ * different tablets - `canControl` (Master) is false by default in every test here, since the
+ * original bug (found live, 2026-09-05) only ever showed up on the *non-master* claimed device. */
+function mockShowMode(overrides: {
+  currentEntry: SetlistEntry | null
+  currentSong: Song | null
+  currentVariant: SongVariant | null
+  canControl?: boolean
+}) {
   vi.mocked(useShowMode).mockReturnValue({
     mode: 'gig',
     queue: {
@@ -62,7 +67,7 @@ function mockShowMode(overrides: { currentEntry: SetlistEntry | null; currentSon
     elapsedMs: 0,
     playbackStatus: 'stopped',
     trackOverride: null,
-    canControl: false,
+    canControl: overrides.canControl ?? false,
     play: vi.fn(),
     pause: vi.fn(),
     stop: vi.fn(),
@@ -76,6 +81,7 @@ function mockShowMode(overrides: { currentEntry: SetlistEntry | null; currentSon
 const DEVICE_ID = 'laptop-device'
 
 beforeEach(() => {
+  vi.clearAllMocks()
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({
       state: { deviceClaims: { [CAPABILITIES.audioPlayback]: DEVICE_ID } },
@@ -114,5 +120,27 @@ describe('ShowTransportWidget - claimed audio-output device, not the master', ()
     render(<ShowTransportWidget />)
 
     expect(loadLocalTrack).toHaveBeenCalledWith('v2', 't1')
+  })
+
+  it('does not reload (and so does not reset/stop) an already-loaded track when someone else merely takes over Master - the song itself hasn\'t changed', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      canControl: true,
+    })
+    const { rerender } = render(<ShowTransportWidget />)
+    expect(loadLocalTrack).toHaveBeenCalledTimes(1)
+
+    // Someone else claims Master - `canControl` flips on this device, same song/track.
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      canControl: false,
+    })
+    rerender(<ShowTransportWidget />)
+
+    expect(loadLocalTrack).toHaveBeenCalledTimes(1)
   })
 })
