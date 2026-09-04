@@ -156,9 +156,9 @@ export async function setTrackOverride(trackId: string | null): Promise<void> {
  * choice like masterHolderId, not a permanent setting: e.g. only one of two guitarists could
  * make it, so their tablet becomes the audio output for tonight only. */
 export async function claimAudioOutput(): Promise<void> {
-  const { isMaster, clientId, applyPatch } = useShowStateStore.getState()
+  const { isMaster, deviceId, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  await applyPatch({ audioOutputDeviceId: clientId })
+  await applyPatch({ audioOutputDeviceId: deviceId })
 }
 
 /** Releases the device-output claim, falling back to the Stage-Server plugin (or "no audio

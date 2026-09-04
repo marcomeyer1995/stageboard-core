@@ -21,10 +21,10 @@ export type AudioEngine = 'plugin' | 'local-mine' | 'local-other' | 'none'
 export function resolveAudioEngine(
   mode: SessionMode,
   audioOutputDeviceId: string | null,
-  clientId: string,
+  deviceId: string,
   pluginId: string | null,
 ): AudioEngine {
   if (mode === 'practice') return 'local-mine'
   if (audioOutputDeviceId === null) return pluginId ? 'plugin' : 'none'
-  return audioOutputDeviceId === clientId ? 'local-mine' : 'local-other'
+  return audioOutputDeviceId === deviceId ? 'local-mine' : 'local-other'
 }

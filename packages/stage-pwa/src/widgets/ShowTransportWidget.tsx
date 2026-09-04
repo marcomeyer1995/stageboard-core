@@ -43,13 +43,13 @@ export function ShowTransportWidget() {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
-  const clientId = useShowStateStore((state) => state.clientId)
+  const deviceId = useShowStateStore((state) => state.deviceId)
   const audioOutputDeviceId = useShowStateStore((state) => state.state.audioOutputDeviceId)
   const installed = usePluginsStore((state) => state.installed)
 
   const usesDeviceOutput = mode === 'gig' && audioOutputDeviceId !== null
   const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
-  const engine = resolveAudioEngine(mode, audioOutputDeviceId, clientId, pluginId)
+  const engine = resolveAudioEngine(mode, audioOutputDeviceId, deviceId, pluginId)
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'
