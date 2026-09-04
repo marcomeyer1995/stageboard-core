@@ -33,6 +33,21 @@ export function memberUsername(workspaceId: string, profileId: string): string {
   return `${workspaceDbName(workspaceId)}-${profileId}`
 }
 
+/**
+ * One CouchDB account per *device*, not per person (found live, 2026-09-04: sharing a single
+ * account across a musician's several tablets meant any device (re-)joining silently rotated
+ * the one password every other device had cached, locking them all out one at a time). The
+ * `memberUsername` account still exists per profile - now purely an "anchor": for an admin, its
+ * password is the human-memorable PIN, checked (never rotated by a device join) to authorize
+ * minting a device account; for a non-admin it's just a stable "has this profile been touched
+ * before" marker. Neither anchor is ever handed to a client for actual syncing - see
+ * `provisionDevice` below, which is. `~` can't collide with either half: both `profileId` and
+ * `deviceId` are `crypto.randomUUID()` values, which never contain it.
+ */
+export function deviceUsername(workspaceId: string, profileId: string, deviceId: string): string {
+  return `${memberUsername(workspaceId, profileId)}~${deviceId}`
+}
+
 const PROFILE_ID_PREFIX = 'profiles:'
 
 /**
@@ -287,52 +302,85 @@ export async function setMemberPassword(
 }
 
 /**
- * Silently (re)issues an already-provisioned member's password to a fresh, long, never-typed
- * random one - used where nobody ever needs to read or retype the value, only where the app
- * itself stores and uses it: a non-admin's every single pick (2026-09-02 second follow-up - a
- * non-admin has no password concept a human could type at all anymore, so every activation just
- * transparently reissues a working account), and an admin logging in via the universal recovery
- * code (`resolveOutcome` in index.ts - the device ends up with valid credentials either way,
- * with no need to burn a short human-memorable PIN on a value that's about to be immediately
- * overwritten by the device's own stored session).
+ * Mints (or, for a device re-authenticating that already has one, silently reissues) *this
+ * device's own* CouchDB account for a profile - what `resolveOutcome` (index.ts) actually hands
+ * back to a client on every successful join/activate, admin or not. Long, random, never typed
+ * by a human either way. Reissuing only ever touches this one device's own account (looked up by
+ * its own username, which nothing else shares), so unlike the old shared-account model, no other
+ * device's session is ever collateral damage.
  */
-export async function resetMemberPassword(
+export async function provisionDevice(
   config: CouchConfig,
   workspaceId: string,
   profileId: string,
+  deviceId: string,
+  isAdmin: boolean,
 ): Promise<WorkspaceCredentialPair> {
-  return setMemberPassword(config, workspaceId, profileId, randomPassword())
+  const username = deviceUsername(workspaceId, profileId, deviceId)
+  const password = randomPassword()
+  if (await userExists(config, username)) {
+    await resetUserPassword(config, username, password)
+  } else {
+    await createUser(config, username, password, isAdmin ? ['member', 'admin'] : ['member'])
+  }
+  return { username, password }
+}
+
+/** Every CouchDB username provisioned for a profile's individual devices (not the profile's own
+ * anchor account) - the fan-out list `deprovisionMember`/`deprovisionWorkspace`/`setMemberAdmin`
+ * below need, since a profile can now have any number of them. CouchDB has no wildcard delete, so
+ * this is a plain `_users` prefix scan on `deviceUsername`'s own `~`-separated scheme. */
+async function listDeviceUsernames(config: CouchConfig, workspaceId: string, profileId: string): Promise<string[]> {
+  const prefix = deviceUsername(workspaceId, profileId, '')
+  const docs = await allDocs<CouchDoc & { name: string }>(config, '_users', {
+    startkey: `org.couchdb.user:${prefix}`,
+    endkey: `org.couchdb.user:${prefix}￰`,
+  })
+  return docs.map((doc) => doc.name)
 }
 
 /**
  * Resets another admin's PIN to a fresh, *human-relayable* 4-digit one - the admin-panel
  * "Passwort zurücksetzen" escape hatch (BandManagementView.tsx), for when a locked-out admin has
- * another admin's help available. Deliberately a short PIN, not `resetMemberPassword`'s long
- * random one: the whole point here is that a person reads this value off one screen and retypes
- * it into another, which a 24-byte base64 string makes needlessly painful.
+ * another admin's help available. Deliberately a short PIN, not `provisionDevice`'s long random
+ * one: the whole point here is that a person reads this value off one screen and retypes it into
+ * another, which a 24-byte base64 string makes needlessly painful. Only ever touches the target's
+ * *anchor* account (the PIN's home), never any of their already-provisioned devices' own
+ * accounts - those keep working exactly as before.
  */
 export async function resetAdminPin(config: CouchConfig, workspaceId: string, profileId: string): Promise<WorkspaceCredentialPair> {
   return setMemberPassword(config, workspaceId, profileId, randomPin())
 }
 
 /** Grants or revokes admin for one already-provisioned member (see per-person-accounts
- * follow-up) - a single targeted roles update, nothing else touched. Caller is responsible for
- * the "at least one admin must remain" check (index.ts's routes, since only they know the full
- * current admin count from the roster). */
+ * follow-up) - updates the anchor's roles *and* every one of that profile's already-provisioned
+ * per-device accounts (`listDeviceUsernames`), so a promotion/demotion actually takes effect on
+ * every tablet that profile is already logged into, not just future ones. Caller is responsible
+ * for the "at least one admin must remain" check (index.ts's routes, since only they know the
+ * full current admin count from the roster). */
 export async function setMemberAdmin(
   config: CouchConfig,
   workspaceId: string,
   profileId: string,
   isAdmin: boolean,
 ): Promise<void> {
-  await setUserRoles(config, memberUsername(workspaceId, profileId), isAdmin ? ['member', 'admin'] : ['member'])
+  const roles = isAdmin ? ['member', 'admin'] : ['member']
+  await setUserRoles(config, memberUsername(workspaceId, profileId), roles)
+  for (const username of await listDeviceUsernames(config, workspaceId, profileId)) {
+    await setUserRoles(config, username, roles)
+  }
 }
 
-/** Deprovisions one member's personal CouchDB account (see per-person-accounts follow-up) -
- * just deletes their user; `_security`/`_design/roster` need no change (role-based, and a
- * deleted user obviously can't authenticate as anyone regardless). */
+/** Deprovisions one member entirely - their anchor account *and* every device account it's ever
+ * minted (`listDeviceUsernames`), so removing a roster member doesn't leave any of their tablets
+ * still able to sync. `_security`/`_design/roster` need no change (role-based, and a deleted
+ * user obviously can't authenticate as anyone regardless). */
 export async function deprovisionMember(config: CouchConfig, workspaceId: string, profileId: string): Promise<void> {
+  const deviceUsernames = await listDeviceUsernames(config, workspaceId, profileId)
   await deleteUser(config, memberUsername(workspaceId, profileId))
+  for (const username of deviceUsernames) {
+    await deleteUser(config, username)
+  }
 }
 
 /**
@@ -359,6 +407,6 @@ export async function deprovisionWorkspace(config: CouchConfig, workspaceId: str
 
   for (const profile of profiles) {
     const profileId = profile._id.slice(PROFILE_ID_PREFIX.length)
-    await deleteUser(config, memberUsername(workspaceId, profileId))
+    await deprovisionMember(config, workspaceId, profileId)
   }
 }

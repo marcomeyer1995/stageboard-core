@@ -115,18 +115,25 @@ export type WorkspaceRoster = z.infer<typeof WorkspaceRosterSchema>
  * `password` is only meaningful for an *admin* target (see `RosterMemberSchema`'s doc comment):
  * that person's own self-assigned 4-digit PIN, or the universal recovery code (the workspace
  * access code's own last 4 digits). Ignored entirely for a non-admin target - there's nothing
- * to check. */
+ * to check. `deviceId` (this device's stable id, `deviceId.ts`'s `getDeviceId()`) is what makes
+ * multiple tablets logged in as the *same* roster member actually work (#10 follow-up, found
+ * live: a shared single CouchDB account per profile meant any device (re-)joining silently
+ * rotated the one password every other device had cached, locking them all out) - see
+ * `resolveOutcome`/`provisionDevice` in index.ts/workspaceProvisioning.ts. */
 export const JoinAsMemberRequestSchema = z.object({
   code: z.string().min(1),
   password: z.string().optional(),
+  deviceId: z.string().min(1),
 })
 export type JoinAsMemberRequest = z.infer<typeof JoinAsMemberRequestSchema>
 
-/** What a successful join hands back - real credentials for the picked person's account,
- * freshly provisioned, verified against what the device supplied, or freshly reset via the
- * code-based recovery path. `isAdmin` reflects that account's actual CouchDB role (never true
- * for a freshly auto-provisioned account - self-service join can never grant admin on its own),
- * so the resolving device knows to set `Workspace.isAdmin` locally. */
+/** What a successful join hands back - real credentials for *this device's own* account
+ * (`provisionDevice`), never the shared profile-level one - verified against what the device
+ * supplied, or freshly authorized via the code-based recovery path, but always a fresh or
+ * reused per-device account so no other device's session is ever disturbed. `isAdmin` reflects
+ * that account's actual CouchDB role (never true for a freshly auto-provisioned account -
+ * self-service join can never grant admin on its own), so the resolving device knows to set
+ * `Workspace.isAdmin` locally. */
 export const JoinAsMemberResultSchema = WorkspaceCredentialsSchema.extend({
   isAdmin: z.boolean(),
 })
@@ -215,11 +222,13 @@ export type ResetMemberPasswordRequest = z.infer<typeof ResetMemberPasswordReque
  * (both really just mean "already inside this band"), checked server-side by username prefix so
  * a credential from a *different* workspace can't be reused here. `password` is only meaningful
  * for an admin target - same semantics as `JoinAsMemberRequestSchema` (see
- * `RosterMemberSchema`'s doc comment). */
+ * `RosterMemberSchema`'s doc comment). `deviceId` - same per-device-account purpose as
+ * `JoinAsMemberRequestSchema`'s (see its doc comment). */
 export const ActivateProfileRequestSchema = z.object({
   callerUsername: z.string().min(1),
   callerPassword: z.string().min(1),
   password: z.string().optional(),
+  deviceId: z.string().min(1),
 })
 export type ActivateProfileRequest = z.infer<typeof ActivateProfileRequestSchema>
 

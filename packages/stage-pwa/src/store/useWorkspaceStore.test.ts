@@ -906,7 +906,7 @@ describe('joinAsMember', () => {
     expect(state.activeWorkspaceId).toBe('band-c')
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-c/join/p2')
-    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: 'their-pin' })
+    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: 'their-pin', deviceId: expect.any(String) })
   })
 
   it('resolves with isAdmin: true when the picked account holds the admin role', async () => {
@@ -932,7 +932,7 @@ describe('joinAsMember', () => {
 
     expect(workspace?.couchPassword).toBe('fresh-recovered-pw')
     const [, init] = fetchMock.mock.calls[0]
-    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: undefined })
+    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: undefined, deviceId: expect.any(String) })
   })
 
   it('alerts with a distinct "wrong code/password" message on a 403, and returns null', async () => {

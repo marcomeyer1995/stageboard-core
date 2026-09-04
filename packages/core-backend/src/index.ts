@@ -43,11 +43,11 @@ import {
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
+  provisionDevice,
   provisionMember,
   provisionWorkspace,
   renameWorkspace,
   resetAdminPin,
-  resetMemberPassword,
   rotateAccessCode,
   setMemberAdmin,
   setMemberPassword,
@@ -118,26 +118,35 @@ type ResolveOutcome =
  * the *first* follow-up's design, twice in one day): only admin accounts have any password
  * concept at all now.
  *
- * - **Non-admin target**: no password check, ever - `password` is ignored entirely. Already
- *   provisioned or not, this always succeeds, silently (re)issuing that account's password
- *   fresh every single time (`resetMemberPassword`/`provisionMember`, both using a long,
- *   never-typed random value - nobody, including whoever created the roster entry, ever sets
- *   or knows a non-admin's password).
- * - **Admin target, account exists**: `password` must equal either that admin's own current
- *   password (their self-assigned PIN, `verifyUser`) *or* `accessCodeSuffix` - the workspace's
- *   own standing access code's last 4 digits, which always works for *any* admin account here.
- *   The suffix match triggers a silent reissue (`resetMemberPassword`) rather than treating the
- *   admin's real password as "changed to the suffix" - the device ends up with valid working
- *   credentials either way, but the account isn't left with a widely-known 4-digit password.
+ * 2026-09-04 follow-up, found live: every successful path here now hands back `deviceId`'s *own*
+ * account (`provisionDevice`) rather than the profile's shared one - the whole point being that
+ * several tablets can hold the same roster identity at once without one's (re-)join silently
+ * rotating a password every other tablet had already cached (see `deviceUsername`'s doc comment,
+ * workspaceProvisioning.ts). `memberUsername`'s account still exists per profile, but purely as
+ * an *anchor* now: for an admin it's just where the human PIN lives for `verifyUser` to check,
+ * never itself returned to a client; a non-admin's anchor is created once and never looked at
+ * again, purely so `exists` below has something durable to test.
+ *
+ * - **Non-admin target**: no password check, ever - `password` is ignored entirely. Mints (or
+ *   reissues, if this exact device already has one) that device's own account
+ *   (`provisionDevice`) - nobody, including whoever created the roster entry, ever sets or knows
+ *   a non-admin's password anyway.
+ * - **Admin target, account exists**: `password` must equal either that admin's own current PIN
+ *   (`verifyUser` against the anchor) *or* `accessCodeSuffix` - the workspace's own standing
+ *   access code's last 4 digits, which always works for *any* admin account here. Either way,
+ *   the anchor itself is never touched - only `deviceId`'s own account is minted/reissued.
  * - **Admin target, no account yet**: a valid 4-digit `password` becomes that admin's own
- *   initial self-assigned PIN (`provisionMember`). In practice every roster entry already gets
- *   an account the moment it's created (`provisionMember`/`provisionWorkspace`), admin or not,
- *   so this only exists as a defensive fallback, not a path real traffic is expected to hit.
+ *   initial self-assigned PIN, written to a freshly-created anchor (`provisionMember`) - then
+ *   `deviceId` still gets its own separate account for actual syncing, same as every other path.
+ *   In practice every roster entry already gets an anchor the moment it's created
+ *   (`provisionMember`/`provisionWorkspace`), admin or not, so this only exists as a defensive
+ *   fallback, not a path real traffic is expected to hit.
  */
 async function resolveOutcome(
   couch: CouchConfig,
   workspaceId: string,
   profileId: string,
+  deviceId: string,
   password: string | undefined,
   accessCodeSuffix: string,
 ): Promise<ResolveOutcome> {
@@ -146,13 +155,14 @@ async function resolveOutcome(
     return { ok: false, code: 404, message: 'Unknown roster member' }
   }
   const profileIsAdmin = (profile.stageRoles ?? []).includes('admin')
-  const username = memberUsername(workspaceId, profileId)
-  const exists = await userExists(couch, username)
+  const anchorUsername = memberUsername(workspaceId, profileId)
+  const exists = await userExists(couch, anchorUsername)
 
   if (!profileIsAdmin) {
-    const credentials = exists
-      ? await resetMemberPassword(couch, workspaceId, profileId)
-      : await provisionMember(couch, workspaceId, profileId, generateMemberPassword(), false)
+    if (!exists) {
+      await provisionMember(couch, workspaceId, profileId, generateMemberPassword(), false)
+    }
+    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, false)
     return { ok: true, code: exists ? 200 : 201, body: { ...credentials, isAdmin: false } }
   }
 
@@ -160,7 +170,8 @@ async function resolveOutcome(
     if (!password || !/^\d{4}$/.test(password)) {
       return { ok: false, code: 400, message: 'Admin accounts need a 4-digit PIN' }
     }
-    const credentials = await provisionMember(couch, workspaceId, profileId, password, true)
+    await provisionMember(couch, workspaceId, profileId, password, true)
+    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, true)
     return { ok: true, code: 201, body: { ...credentials, isAdmin: true } }
   }
 
@@ -168,14 +179,16 @@ async function resolveOutcome(
     return { ok: false, code: 403, message: 'Admin accounts require a code' }
   }
   if (password === accessCodeSuffix) {
-    const credentials = await resetMemberPassword(couch, workspaceId, profileId)
+    const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, true)
     return { ok: true, code: 200, body: { ...credentials, isAdmin: true } }
   }
-  const verified = await verifyUser(couch, username, password)
+  const verified = await verifyUser(couch, anchorUsername, password)
   if (!verified) {
     return { ok: false, code: 403, message: 'Wrong code' }
   }
-  return { ok: true, code: 200, body: { username, password, isAdmin: verified.roles.includes('admin') } }
+  const isAdmin = verified.roles.includes('admin')
+  const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, isAdmin)
+  return { ok: true, code: 200, body: { ...credentials, isAdmin } }
 }
 
 /**
@@ -688,7 +701,7 @@ export async function buildApp() {
       return reply.status(403).send({ status: 'error', message: 'Wrong code' })
     }
 
-    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.password, accessCode.code.slice(-4))
+    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.deviceId, parsed.data.password, accessCode.code.slice(-4))
     if (!result.ok) {
       return reply.status(result.code).send({ status: 'error', message: result.message })
     }
@@ -721,7 +734,7 @@ export async function buildApp() {
     }
 
     const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
-    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.password, accessCode.code.slice(-4))
+    const result = await resolveOutcome(couch, workspaceId, profileId, parsed.data.deviceId, parsed.data.password, accessCode.code.slice(-4))
     if (!result.ok) {
       return reply.status(result.code).send({ status: 'error', message: result.message })
     }

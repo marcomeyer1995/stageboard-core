@@ -3,11 +3,13 @@ import type { CouchConfig } from './couch.js'
 import {
   deprovisionMember,
   deprovisionWorkspace,
+  deviceUsername,
   generateMemberPassword,
   getAccessCode,
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
+  provisionDevice,
   provisionMember,
   provisionWorkspace,
   renameWorkspace,
@@ -30,10 +32,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('workspaceDbName / memberUsername', () => {
+describe('workspaceDbName / memberUsername / deviceUsername', () => {
   it('derive the same stageboard-<id> name stage-pwa\'s localDbName() uses', () => {
     expect(workspaceDbName('band-a')).toBe('stageboard-band-a')
     expect(memberUsername('band-a', 'p1')).toBe('stageboard-band-a-p1')
+  })
+
+  it('deviceUsername appends the device id onto the profile\'s own anchor username', () => {
+    expect(deviceUsername('band-a', 'p1', 'device-1')).toBe('stageboard-band-a-p1~device-1')
   })
 })
 
@@ -223,10 +229,11 @@ describe('provisionMember / setMemberAdmin / deprovisionMember', () => {
     expect(generateMemberPassword()).not.toBe(generateMemberPassword())
   })
 
-  it('setMemberAdmin fetches the user doc then PUTs it back with updated roles, preserving everything else', async () => {
+  it('setMemberAdmin fetches the anchor doc then PUTs it back with updated roles, preserving everything else, when the profile has no device accounts yet', async () => {
     const fetchMock = stubFetch([
       { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '1-abc', name: 'x', type: 'user', roles: ['member'] }) },
       { ok: true, status: 200 },
+      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
     ])
 
     await setMemberAdmin(config, 'band-c', 'p2', true)
@@ -239,22 +246,112 @@ describe('provisionMember / setMemberAdmin / deprovisionMember', () => {
       type: 'user',
       roles: ['member', 'admin'],
     })
+    expect(fetchMock.mock.calls[2][0]).toContain('/_users/_all_docs')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('deprovisionMember deletes just that member\'s user doc', async () => {
+  it('setMemberAdmin also updates every device account already minted for that profile - a promotion/demotion must take effect on every already-logged-in tablet', async () => {
     const fetchMock = stubFetch([
-      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // GET
-      { ok: true, status: 200 }, // DELETE
+      { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2', _rev: '1-abc', name: 'stageboard-band-c-p2', type: 'user', roles: ['member', 'admin'] }) }, // anchor GET
+      { ok: true, status: 200 }, // anchor PUT
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ rows: [{ doc: { _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', name: 'stageboard-band-c-p2~device-1' } }] }),
+      }, // listDeviceUsernames
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', _rev: '1-dev', name: 'stageboard-band-c-p2~device-1', type: 'user', roles: ['member', 'admin'] }),
+      }, // device GET
+      { ok: true, status: 200 }, // device PUT
+    ])
+
+    await setMemberAdmin(config, 'band-c', 'p2', false)
+
+    const devicePut = fetchMock.mock.calls[4]
+    expect(devicePut[0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
+    expect(JSON.parse(devicePut[1].body)).toMatchObject({ roles: ['member'] })
+  })
+
+  it('deprovisionMember deletes the anchor and every device account it ever minted', async () => {
+    const fetchMock = stubFetch([
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ rows: [{ doc: { _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', name: 'stageboard-band-c-p2~device-1' } }] }),
+      }, // listDeviceUsernames
+      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // anchor GET
+      { ok: true, status: 200 }, // anchor DELETE
+      { ok: true, status: 200, json: async () => ({ _rev: '1-dev' }) }, // device GET
+      { ok: true, status: 200 }, // device DELETE
     ])
 
     await deprovisionMember(config, 'band-c', 'p2')
 
-    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
+    expect(fetchMock.mock.calls[0][0]).toContain('/_users/_all_docs')
+    expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
+    expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
+  })
+
+  it('deprovisionMember tolerates a profile with no device accounts at all', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
+      { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // anchor GET
+      { ok: true, status: 200 }, // anchor DELETE
+    ])
+
+    await deprovisionMember(config, 'band-c', 'p2')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('provisionDevice', () => {
+  it('creates a fresh device account (member role) when this device has none yet', async () => {
+    const fetchMock = stubFetch([
+      { ok: false, status: 404 }, // userExists -> no
+      { ok: true, status: 201 }, // createUser
+    ])
+
+    const result = await provisionDevice(config, 'band-c', 'p2', 'device-1', false)
+
+    expect(result.username).toBe('stageboard-band-c-p2~device-1')
+    expect(result.password.length).toBeGreaterThan(10)
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member'] })
+  })
+
+  it('creates an admin-rostered device account with member+admin roles', async () => {
+    const fetchMock = stubFetch([
+      { ok: false, status: 404 }, // userExists -> no
+      { ok: true, status: 201 }, // createUser
+    ])
+
+    await provisionDevice(config, 'band-c', 'p2', 'device-1', true)
+
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ roles: ['member', 'admin'] })
+  })
+
+  it('reissues just this device\'s own account when it already exists, never creating a duplicate', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200 }, // userExists -> yes
+      {
+        ok: true,
+        status: 200,
+        json: async () => ({ _id: 'org.couchdb.user:stageboard-band-c-p2~device-1', _rev: '1-abc', name: 'stageboard-band-c-p2~device-1', type: 'user', roles: ['member'] }),
+      }, // resetUserPassword's GET
+      { ok: true, status: 200 }, // resetUserPassword's PUT
+    ])
+
+    const result = await provisionDevice(config, 'band-c', 'p2', 'device-1', false)
+
+    expect(result.username).toBe('stageboard-band-c-p2~device-1')
+    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2~device-1')
   })
 })
 
 describe('deprovisionWorkspace', () => {
-  it('reads the roster first, deletes the database, then every member\'s account', async () => {
+  it('reads the roster first, deletes the database, then every member\'s account (anchor + any device accounts)', async () => {
     const fetchMock = stubFetch([
       {
         ok: true,
@@ -267,8 +364,10 @@ describe('deprovisionWorkspace', () => {
         }),
       }, // allDocs (roster)
       { ok: true, status: 200 }, // deleteDb
+      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames(p1) -> none
       { ok: true, status: 200, json: async () => ({ _rev: '1-p1' }) }, // deleteUser(p1) GET
       { ok: true, status: 200 }, // deleteUser(p1) DELETE
+      { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames(p2) -> none
       { ok: true, status: 200, json: async () => ({ _rev: '1-p2' }) }, // deleteUser(p2) GET
       { ok: true, status: 200 }, // deleteUser(p2) DELETE
     ])
@@ -278,8 +377,8 @@ describe('deprovisionWorkspace', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/stageboard-band-c/_all_docs')
     expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:5984/stageboard-band-c')
     expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
-    expect(fetchMock.mock.calls[2][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p1')
-    expect(fetchMock.mock.calls[4][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
+    expect(fetchMock.mock.calls[3][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p1')
+    expect(fetchMock.mock.calls[6][0]).toBe('http://localhost:5984/_users/org.couchdb.user:stageboard-band-c-p2')
   })
 
   it('tolerates an already-gone database/roster and no members left to delete', async () => {
