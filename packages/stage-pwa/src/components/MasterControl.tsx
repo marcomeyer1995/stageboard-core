@@ -1,4 +1,5 @@
 import { useQueue } from '../lib/queue'
+import { useDeviceName } from '../store/useDevicesStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
@@ -12,6 +13,8 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function MasterControl() {
   const { isMaster, activeSetlist } = useQueue()
   const claimMaster = useShowStateStore((state) => state.claimMaster)
+  const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
+  const masterName = useDeviceName(masterHolderId)
 
   return (
     <div className="flex flex-col gap-2">
@@ -28,7 +31,10 @@ export function MasterControl() {
           className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
         >
           Master-Kontrolle
-          <span className="font-medium text-accent">Übernehmen</span>
+          <span className="flex items-center gap-2">
+            {masterHolderId && <span className="text-sm text-ink-faint">{masterName ?? 'Anderes Gerät'}</span>}
+            <span className="font-medium text-accent">Übernehmen</span>
+          </span>
         </button>
       )}
       <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">

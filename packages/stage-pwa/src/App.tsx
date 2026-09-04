@@ -19,6 +19,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
+import { useDevicesStore } from './store/useDevicesStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -94,6 +95,7 @@ function App() {
   useWorkspaceResource(useSetlistsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)

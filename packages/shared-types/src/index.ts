@@ -1,6 +1,7 @@
 export * from './song.js'
 export * from './plugin.js'
 export * from './capability.js'
+export * from './device.js'
 export * from './pluginInstallation.js'
 export * from './pluginHealth.js'
 export * from './dashboard.js'

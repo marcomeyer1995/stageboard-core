@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AudioSyncSettings } from './AudioSyncSettings'
+import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { ThemeSwitcher } from './ThemeSwitcher'
@@ -28,6 +29,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function SystemSettings() {
   return (
     <div className="flex flex-col gap-5 p-4">
+      <Section title="Gerätename">
+        <DeviceNameSettings />
+      </Section>
+
       <Section title="Darstellung">
         <ThemeSwitcher />
       </Section>
