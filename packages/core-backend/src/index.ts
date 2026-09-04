@@ -11,6 +11,7 @@ import mdnsFactory from 'multicast-dns'
 import {
   ActivateProfileRequestSchema,
   CreateMemberRequestSchema,
+  DeviceTriggerSchema,
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
@@ -28,6 +29,7 @@ import {
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { allDocs, getDoc, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import * as deviceRelay from './deviceRelay.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
@@ -363,6 +365,44 @@ export async function buildApp() {
       lastSeenAt: Date.now(),
     })
     return reply.status(204).send()
+  })
+
+  // #10's generalized device claims: a lighting/mixer cue fired from one tablet, relayed to
+  // whichever tablet is currently claimed for that capability (deviceClaims), since - unlike
+  // audio's continuous synced playbackStatus, which every tablet already watches on its own -
+  // a cue is a one-shot event with nothing to piggyback on. Same SSE push pattern as
+  // plugin-health/presence above, just keyed by (workspaceId, deviceId) via deviceRelay.ts
+  // instead of workspaceId alone, since this must reach exactly the one claimed device.
+  app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
+    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
+
+    reply.hijack()
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) reply.raw.setHeader(name, value)
+    }
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.writeHead(200)
+
+    const unsubscribe = deviceRelay.subscribe(workspaceId, deviceId, (trigger) => {
+      reply.raw.write(`data: ${JSON.stringify(trigger)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/devices/:deviceId/trigger', async (request, reply) => {
+    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
+    const parsed = DeviceTriggerSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    const delivered = deviceRelay.relay(workspaceId, deviceId, parsed.data)
+    if (!delivered) {
+      return reply.status(200).send({ status: 'error', message: 'Zielgerät nicht verbunden' })
+    }
+    return { status: 'ok' }
   })
 
   const registry = new PluginRegistry()

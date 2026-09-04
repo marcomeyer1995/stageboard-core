@@ -1,8 +1,13 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
 import { triggerShowControl } from '../lib/showControlClient'
+import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useShowStateStore } from '../store/useShowStateStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { CueGrid, type CueAction } from './CueGrid'
 
 const ACTIONS: CueAction[] = [
@@ -19,13 +24,31 @@ const ACTIONS: CueAction[] = [
  * is installed (registry.tsx's `requires`), so `pluginId` here is rarely null in practice -
  * still checked, since "installed" and "currently reachable" (WidgetFrame's degraded overlay)
  * are different things.
+ *
+ * These cues route through the same physical target as LightingCuesWidget - mockLightingPlugin
+ * (core-backend) declares both `lighting` and `show-control`, since on real hardware they're
+ * the same rig - so a claimed `lighting` device (#10) takes over here too, via the relay
+ * (deviceControlClient.ts) rather than a second, redundant claim capability.
  */
 export function QuickActionsWidget() {
   const installed = usePluginsStore((state) => state.installed)
-  const pluginId = pluginProviding(installed, CAPABILITIES.showControl)
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const deviceId = useShowStateStore((state) => state.deviceId)
+  const claimedDeviceId = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.lighting])
+  const pluginId = claimedDeviceId === undefined ? pluginProviding(installed, CAPABILITIES.showControl) : null
+  const engine = resolveDeviceClaimEngine(claimedDeviceId, deviceId, pluginId)
   const [error, setError] = useState<string | null>(null)
 
   async function fire(type: string) {
+    if (engine === 'local-mine') {
+      useLocalLightingStore.getState().applyEvent({ type })
+      return
+    }
+    if (engine === 'local-other') {
+      const result = await triggerDeviceControl(workspaceId, claimedDeviceId!, CAPABILITIES.lighting, { type })
+      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+      return
+    }
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, { type })
     setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)

@@ -19,6 +19,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
+import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerStore'
 import { useDevicesStore } from './store/useDevicesStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { usePluginsStore } from './store/usePluginsStore'
@@ -101,6 +102,7 @@ function App() {
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
