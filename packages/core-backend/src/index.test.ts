@@ -616,8 +616,9 @@ describe('Fastify routes', () => {
     it('grants admin', async () => {
       const fetchMock = stubFetch([
         stubAdminVerify(),
-        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member'] }) }, // setUserRoles GET
-        { ok: true, status: 200 }, // setUserRoles PUT
+        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member'] }) }, // setUserRoles(anchor) GET
+        { ok: true, status: 200 }, // setUserRoles(anchor) PUT
+        { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
       ])
 
       const response = await app.inject({
@@ -637,8 +638,9 @@ describe('Fastify routes', () => {
           { id: 'p1', stageRoles: ['admin'] },
           { id: 'p2', stageRoles: ['admin'] },
         ]), // countOtherAdmins
-        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member', 'admin'] }) },
-        { ok: true, status: 200 },
+        { ok: true, status: 200, json: async () => ({ _id: 'x', _rev: '1-a', name: 'x', type: 'user', roles: ['member', 'admin'] }) }, // setUserRoles(anchor) GET
+        { ok: true, status: 200 }, // setUserRoles(anchor) PUT
+        { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
       ])
 
       const response = await app.inject({
@@ -699,7 +701,8 @@ describe('Fastify routes', () => {
       stubFetch([
         stubAdminVerify(),
         stubRoster([{ id: 'p1', stageRoles: ['admin'] }]), // countOtherAdmins excluding p2 (not admin) - still 1
-        { ok: false, status: 404 }, // deleteUser GET - already gone is fine
+        { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames -> none
+        { ok: false, status: 404 }, // deleteUser(anchor) GET - already gone is fine
       ])
 
       const response = await app.inject({
@@ -1004,86 +1007,99 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    it('a non-admin target always succeeds, silently (re)issuing a fresh account, regardless of any password supplied', async () => {
+    it('a non-admin target always succeeds, minting this device\'s own account, regardless of any password supplied', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2', name: 'Chris' }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists -> already provisioned
-        // resetMemberPassword's internal resetUserPassword GET+PUT - no verifyUser call at all,
-        // the password field is never even looked at for a non-admin target.
-        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member'], type: 'user' }) },
-        { ok: true, status: 200 },
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
+        // provisionDevice: this device has no account yet either - the password field is never
+        // even looked at for a non-admin target.
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/join/p2',
-        payload: { code: '12345678', password: 'this is never checked' },
+        payload: { code: '12345678', password: 'this is never checked', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
       const body = response.json() as { username: string; password: string; isAdmin: boolean }
-      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.username).toBe('stageboard-band-a-p2~device-1')
       expect(body.isAdmin).toBe(false)
     })
 
-    it('auto-provisions a brand-new non-admin member (no account yet) with fresh, never-typed credentials', async () => {
+    it('auto-provisions a brand-new non-admin member (no anchor yet) plus this device\'s own account, with fresh, never-typed credentials', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2', name: 'Chris' }) }, // getDoc profile
-        { ok: false, status: 404 }, // userExists -> not provisioned
-        { ok: true, status: 201 }, // createUser
+        { ok: false, status: 404 }, // userExists(anchor) -> not provisioned
+        { ok: true, status: 201 }, // createUser(anchor)
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p2', payload: { code: '12345678' } })
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p2',
+        payload: { code: '12345678', deviceId: 'device-1' },
+      })
 
       expect(response.statusCode).toBe(201)
       const body = response.json() as { username: string; password: string; isAdmin: boolean }
-      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.username).toBe('stageboard-band-a-p2~device-1')
       expect(body.password).toEqual(expect.any(String))
       expect(body.isAdmin).toBe(false)
     })
 
-    it('verifies an admin\'s own self-assigned PIN against an already-provisioned admin account', async () => {
+    it('verifies an admin\'s own self-assigned PIN against the anchor, then mints this device\'s own account', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', name: 'Marco', stageRoles: ['admin'] }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists -> already provisioned
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
         {
           ok: true,
           status: 200,
           json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
-        }, // verifyUser
+        }, // verifyUser(anchor)
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/join/p1',
-        payload: { code: '12345678', password: '4711' },
+        payload: { code: '12345678', password: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
+      expect(response.json()).toEqual({
+        username: 'stageboard-band-a-p1~device-1',
+        password: expect.any(String),
+        isAdmin: true,
+      })
     })
 
-    it('the universal recovery code (the access code\'s own last 4 digits) always logs into an admin account, reissuing fresh credentials, without ever checking the personal PIN', async () => {
+    it('the universal recovery code (the access code\'s own last 4 digits) always logs into an admin account, minting this device\'s own fresh account, without ever checking the personal PIN', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // access code -> suffix '5678'
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists -> already provisioned
-        // resetMemberPassword's internal resetUserPassword GET+PUT - no verifyUser call.
-        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member', 'admin'], type: 'user' }) },
-        { ok: true, status: 200 },
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
+        // No verifyUser call at all - and the anchor itself is never touched, only this device's own.
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/join/p1',
-        payload: { code: '12345678', password: '5678' },
+        payload: { code: '12345678', password: '5678', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
       const body = response.json() as { username: string; password: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p1~device-1')
       expect(body.isAdmin).toBe(true)
     })
 
@@ -1094,10 +1110,14 @@ describe('Fastify routes', () => {
         { ok: true, status: 200 }, // userExists -> already provisioned
       ])
 
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p1', payload: { code: '12345678' } })
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/p1',
+        payload: { code: '12345678', deviceId: 'device-1' },
+      })
 
       expect(response.statusCode).toBe(403)
-      expect(fetchMock).toHaveBeenCalledTimes(3) // no password-reset calls
+      expect(fetchMock).toHaveBeenCalledTimes(3) // no device-provisioning calls
     })
 
     it('returns 403 for an admin target when the supplied code matches neither the personal PIN nor the universal recovery suffix', async () => {
@@ -1111,11 +1131,11 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/join/p1',
-        payload: { code: '12345678', password: 'wrong' },
+        payload: { code: '12345678', password: 'wrong', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
-      expect(fetchMock).toHaveBeenCalledTimes(4) // no password-reset calls after the failed verify
+      expect(fetchMock).toHaveBeenCalledTimes(4) // no device-provisioning calls after the failed verify
     })
 
     it('returns 403 for the wrong access code, before ever looking at the roster', async () => {
@@ -1124,7 +1144,7 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/join/p1',
-        payload: { code: 'totally-wrong' },
+        payload: { code: 'totally-wrong', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1137,9 +1157,18 @@ describe('Fastify routes', () => {
         { ok: false, status: 404 }, // getDoc profile -> not found
       ])
 
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/ghost', payload: { code: '12345678' } })
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/join/ghost',
+        payload: { code: '12345678', deviceId: 'device-1' },
+      })
 
       expect(response.statusCode).toBe(404)
+    })
+
+    it('returns 400 for a body missing deviceId', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/join/p1', payload: { code: '12345678' } })
+      expect(response.statusCode).toBe(400)
     })
 
     it('returns 400 for a body that fails schema validation', async () => {
@@ -1160,7 +1189,7 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    it('verifies the caller already holds a real account for this workspace, then always succeeds for a non-admin target', async () => {
+    it('verifies the caller already holds a real account for this workspace, then always succeeds for a non-admin target, minting this device\'s own account', async () => {
       const fetchMock = stubFetch([
         {
           ok: true,
@@ -1169,24 +1198,20 @@ describe('Fastify routes', () => {
         }, // verifyUser(caller)
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p2', id: 'p2' }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists(p2) -> already provisioned
-        {
-          ok: true,
-          status: 200,
-          json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member'], type: 'user' }),
-        }, // resetMemberPassword's internal GET
-        { ok: true, status: 200 }, // resetUserPassword PUT
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p2/activate',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw' },
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
       const body = response.json() as { username: string; isAdmin: boolean }
-      expect(body.username).toBe('stageboard-band-a-p2')
+      expect(body.username).toBe('stageboard-band-a-p2~device-1')
       expect(body.isAdmin).toBe(false)
       expect(fetchMock).toHaveBeenCalledTimes(6)
     })
@@ -1197,7 +1222,7 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p2/activate',
-        payload: { callerUsername: 'stageboard-band-b-p1', callerPassword: 'whatever', password: undefined },
+        payload: { callerUsername: 'stageboard-band-b-p1', callerPassword: 'whatever', password: undefined, deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1210,14 +1235,14 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p2/activate',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'wrong', password: undefined },
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'wrong', password: undefined, deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
-    it('verifies an admin target\'s own self-assigned PIN, once the caller verifies', async () => {
+    it('verifies an admin target\'s own self-assigned PIN against the anchor, once the caller verifies, then mints this device\'s own account', async () => {
       stubFetch([
         {
           ok: true,
@@ -1226,25 +1251,31 @@ describe('Fastify routes', () => {
         }, // verifyUser(caller)
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode -> suffix '5678'
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
         {
           ok: true,
           status: 200,
           json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
-        }, // verifyUser(target's own PIN)
+        }, // verifyUser(target's own PIN, against the anchor)
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/activate',
-        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '4711' },
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
+      expect(response.json()).toEqual({
+        username: 'stageboard-band-a-p1~device-1',
+        password: expect.any(String),
+        isAdmin: true,
+      })
     })
 
-    it('the universal recovery suffix works here too, once the caller verifies', async () => {
+    it('the universal recovery suffix works here too, once the caller verifies, minting this device\'s own fresh account', async () => {
       stubFetch([
         {
           ok: true,
@@ -1253,23 +1284,20 @@ describe('Fastify routes', () => {
         }, // verifyUser(caller)
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode -> suffix '5678'
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
-        {
-          ok: true,
-          status: 200,
-          json: async () => ({ _id: 'org.couchdb.user:x', _rev: '2-abc', name: 'x', roles: ['member', 'admin'], type: 'user' }),
-        }, // resetMemberPassword's internal GET
-        { ok: true, status: 200 }, // resetUserPassword PUT
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/activate',
-        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '5678' },
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', password: '5678', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
-      const body = response.json() as { isAdmin: boolean }
+      const body = response.json() as { username: string; isAdmin: boolean }
+      expect(body.username).toBe('stageboard-band-a-p1~device-1')
       expect(body.isAdmin).toBe(true)
     })
 
@@ -1282,20 +1310,20 @@ describe('Fastify routes', () => {
         }, // verifyUser(caller)
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1', stageRoles: ['admin'] }) }, // getDoc profile
-        { ok: true, status: 200 }, // userExists(p1) -> already provisioned
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/activate',
-        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw' },
+        payload: { callerUsername: 'stageboard-band-a-p2', callerPassword: 'member-pw', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
-      expect(fetchMock).toHaveBeenCalledTimes(4) // no password-reset calls after the admin check
+      expect(fetchMock).toHaveBeenCalledTimes(4) // no device-provisioning calls after the admin check
     })
 
-    it('auto-provisions a brand-new non-admin target with no account yet', async () => {
+    it('auto-provisions a brand-new non-admin target (no anchor yet) plus this device\'s own account', async () => {
       stubFetch([
         {
           ok: true,
@@ -1304,24 +1332,30 @@ describe('Fastify routes', () => {
         }, // verifyUser(caller)
         { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
         { ok: true, status: 200, json: async () => ({ _id: 'profiles:p3', id: 'p3' }) }, // getDoc profile
-        { ok: false, status: 404 }, // userExists(p3) -> not provisioned yet
-        { ok: true, status: 201 }, // createUser
+        { ok: false, status: 404 }, // userExists(anchor) -> not provisioned yet
+        { ok: true, status: 201 }, // createUser(anchor)
+        { ok: false, status: 404 }, // userExists(device)
+        { ok: true, status: 201 }, // createUser(device)
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p3/activate',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw' },
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(201)
       const body = response.json() as { username: string; isAdmin: boolean }
-      expect(body.username).toBe('stageboard-band-a-p3')
+      expect(body.username).toBe('stageboard-band-a-p3~device-1')
       expect(body.isAdmin).toBe(false)
     })
 
-    it('returns 400 for a body that fails schema validation', async () => {
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/members/p1/activate', payload: {} })
+    it('returns 400 for a body missing deviceId', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw' },
+      })
       expect(response.statusCode).toBe(400)
     })
   })
@@ -1492,7 +1526,8 @@ describe('Fastify routes', () => {
         { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
         { ok: true, status: 200, json: async () => ({ rows: [{ doc: { _id: 'profiles:p1', id: 'p1' } }] }) }, // allDocs (roster)
         { ok: true, status: 200 }, // deleteDb
-        { ok: false, status: 404 }, // deleteUser(p1) GET - not found is fine
+        { ok: true, status: 200, json: async () => ({ rows: [] }) }, // listDeviceUsernames(p1) -> none
+        { ok: false, status: 404 }, // deleteUser(p1) anchor GET - not found is fine
       ])
 
       const response = await app.inject({

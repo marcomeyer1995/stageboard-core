@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
+import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
 import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
@@ -673,7 +674,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/join/${encodeURIComponent(profileId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, password }),
+            body: JSON.stringify({ code, password, deviceId: getDeviceId() }),
           })
         } catch (err) {
           console.error('Failed to reach Stage-Server to join', err)
@@ -733,7 +734,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(profileId)}/activate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callerUsername: workspace.username, callerPassword: workspace.couchPassword, password }),
+            body: JSON.stringify({
+              callerUsername: workspace.username,
+              callerPassword: workspace.couchPassword,
+              password,
+              deviceId: getDeviceId(),
+            }),
           })
         } catch (err) {
           console.error('Failed to reach Stage-Server to activate profile', err)
