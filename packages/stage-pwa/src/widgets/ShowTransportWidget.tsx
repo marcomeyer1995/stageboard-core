@@ -75,9 +75,11 @@ export function ShowTransportWidget() {
   // Loads (or unloads) whichever engine this device is responsible for - fires on a genuine
   // song/variant/track change, never on a bare play/pause/stop click.
   useEffect(() => {
-    if (!canControl || !currentSong) return
+    if (!currentSong) return
     if (mode === 'gig' && !usesDeviceOutput) {
-      if (!pluginId) return
+      // Only the master should ever trigger this network call - every device would otherwise
+      // race to send the same "load" event to the plugin.
+      if (!canControl || !pluginId) return
       void forward({
         type: 'load',
         payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
@@ -85,6 +87,11 @@ export function ShowTransportWidget() {
       return
     }
     if (!usesLocalEngine) return // a different device owns the claimed audio output - not my job
+    // Deliberately NOT gated on `canControl` below: the whole point of a device claim (unlike
+    // the plugin-forward branch above) is that the claimed device can be a *different* tablet
+    // than the one holding Master - it still has to load/unload its own local track as the
+    // synced song changes, or it keeps playing whatever it loaded last (found live, 2026-09-05:
+    // a non-master claimed device never unloaded a stale track switching to one with none).
     if (!currentVariant || !track) {
       // No track for this song at all - make sure the local player isn't still holding a
       // previous song's audio loaded (#13 follow-up: it silently kept playing the last-loaded
