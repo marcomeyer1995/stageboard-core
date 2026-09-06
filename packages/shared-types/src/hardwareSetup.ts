@@ -31,10 +31,12 @@ export type HardwareBinding = z.infer<typeof HardwareBindingSchema>
  * which HardwareSetup is active does (ShowState.activeHardwareSetupId).
  *
  * Keyed by LogicalDeviceId rather than capability, unlike the `deviceClaims` map this replaces,
- * so two Logical Devices sharing one capability (two Kempers) can eventually get independent
- * bindings, once WidgetInstance/ShowCue target a LogicalDeviceId directly (#10, not yet wired -
- * today's widgets still resolve a capability's *first* matching Logical Device, same tie-break
- * `pluginProviding` already uses for plugins).
+ * so two Logical Devices sharing one capability (two Kempers) can each get independent bindings -
+ * `ShowCue` (showCue.ts, #99) already targets a LogicalDeviceId directly, resolved via
+ * `resolveHardwareBindingById` (hardwareRouting.ts, #102). `WidgetInstance`/the four
+ * capability-routed widgets (IemWidget, LightingCuesWidget, QuickActionsWidget,
+ * ShowTransportWidget) don't yet - they still resolve a capability's *first* matching Logical
+ * Device via `resolveHardwareBinding`, same tie-break `pluginProviding` already uses for plugins.
  */
 export const HardwareSetupSchema = z.object({
   id: z.string().min(1),

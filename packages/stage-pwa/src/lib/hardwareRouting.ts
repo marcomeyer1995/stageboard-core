@@ -10,26 +10,41 @@ import { SERVER_EXECUTION_TARGET, type HardwareBinding, type HardwareSetup, type
 export type HardwareRoutingEngine = 'plugin' | 'local-mine' | 'local-other' | 'none'
 
 /**
- * The active HardwareSetup's binding for a capability, resolved via whichever Logical Device
- * declares that capability - first match wins, same tie-break `pluginProviding` (capabilities.ts)
- * already uses for plugins (true per-LogicalDeviceId targeting needs WidgetInstance/ShowCue to
- * reference one directly, which isn't wired up yet). Null whenever no setup is active, no
- * Logical Device provides this capability, or the active setup simply doesn't bind it - callers
- * treat that exactly like "nothing bound", i.e. fall back to whichever plugin provides it.
+ * The active HardwareSetup's binding for a specific Logical Device, by id - the correct lookup
+ * for any caller that already knows exactly which one it means (#102's cue scheduler: a
+ * `ShowCue.targetLogicalDeviceId` is never ambiguous, unlike a bare capability). Null whenever
+ * no setup is active or the active setup simply doesn't bind this Logical Device.
  *
  * Pure on purpose, no store reads - see useHardwareBindingFor.ts for the widget-facing hook that
- * feeds it, kept in its own module so this one stays free of workspaceDb.ts's top-level
- * `new PouchDB(...)` for unit tests (hardwareRouting.test.ts).
+ * feeds resolveHardwareBinding below, kept in its own module so this one stays free of
+ * workspaceDb.ts's top-level `new PouchDB(...)` for unit tests (hardwareRouting.test.ts).
+ */
+export function resolveHardwareBindingById(
+  hardwareSetup: HardwareSetup | null,
+  logicalDeviceId: string,
+): HardwareBinding | null {
+  if (!hardwareSetup) return null
+  return hardwareSetup.bindings[logicalDeviceId] ?? null
+}
+
+/**
+ * The active HardwareSetup's binding for a capability, resolved via whichever Logical Device
+ * declares that capability - first match wins, same tie-break `pluginProviding` (capabilities.ts)
+ * already uses for plugins. Today's four capability-routed widgets (IemWidget,
+ * LightingCuesWidget, QuickActionsWidget, ShowTransportWidget) still resolve this way, since
+ * none of them target a specific Logical Device yet - only #99's ShowCue does, via
+ * `resolveHardwareBindingById` above. Null whenever no setup is active, no Logical Device
+ * provides this capability, or the active setup simply doesn't bind it - callers treat that
+ * exactly like "nothing bound", i.e. fall back to whichever plugin provides it.
  */
 export function resolveHardwareBinding(
   logicalDevices: LogicalDevice[],
   hardwareSetup: HardwareSetup | null,
   capability: string,
 ): HardwareBinding | null {
-  if (!hardwareSetup) return null
   const device = logicalDevices.find((d) => d.capability === capability)
   if (!device) return null
-  return hardwareSetup.bindings[device.id] ?? null
+  return resolveHardwareBindingById(hardwareSetup, device.id)
 }
 
 /**
