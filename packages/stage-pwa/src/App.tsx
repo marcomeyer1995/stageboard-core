@@ -19,6 +19,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
+import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
 import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerStore'
 import { useDevicesStore } from './store/useDevicesStore'
 import { useEditModeStore } from './store/useEditModeStore'
@@ -100,6 +101,7 @@ function App() {
   useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useHardwareSetupsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)

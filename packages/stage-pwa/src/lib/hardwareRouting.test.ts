@@ -14,7 +14,7 @@ describe('resolveHardwareBinding', () => {
   })
 
   it('is null when no Logical Device provides the capability', () => {
-    expect(resolveHardwareBinding([KEMPER], setup({ [KEMPER.id]: { executionTarget: 'server' } }), 'mixer')).toBeNull()
+    expect(resolveHardwareBinding([KEMPER], setup({ [KEMPER.id]: { executionTarget: 'server', pluginId: null } }), 'mixer')).toBeNull()
   })
 
   it('is null when the active setup has no binding for the matching Logical Device', () => {
@@ -22,7 +22,7 @@ describe('resolveHardwareBinding', () => {
   })
 
   it('resolves the binding for the first Logical Device providing the capability', () => {
-    const binding = { executionTarget: 'tablet-1' }
+    const binding = { executionTarget: 'tablet-1', pluginId: null }
     expect(resolveHardwareBinding([KEMPER], setup({ [KEMPER.id]: binding }), 'midi-input')).toBe(binding)
   })
 })
@@ -37,21 +37,21 @@ describe('resolveHardwareEngine', () => {
   })
 
   it("uses the plugin when the binding explicitly targets the server, same as nothing bound", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'server' }, 'me', 'mock-playback', true)).toBe('plugin')
+    expect(resolveHardwareEngine({ executionTarget: 'server', pluginId: null }, 'me', 'mock-playback', true)).toBe('plugin')
   })
 
   it('plays locally when this device is the bound target - a plugin never wins over an explicit binding', () => {
-    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', 'mock-playback', true)).toBe('local-mine')
-    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', null, true)).toBe('local-mine')
+    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', 'mock-playback', true)).toBe('local-mine')
+    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', null, true)).toBe('local-mine')
   })
 
   it("is not this device's job when a different device is the bound target", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', 'mock-playback', true)).toBe('local-other')
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', null, true)).toBe('local-other')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', 'mock-playback', true)).toBe('local-other')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', null, true)).toBe('local-other')
   })
 
   it('#98: a tablet binding with nothing able to execute it locally resolves to no engine at all, never a silent no-op plugin fallback', () => {
-    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', 'mock-playback', false)).toBe('none')
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', 'mock-playback', false)).toBe('none')
+    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', 'mock-playback', false)).toBe('none')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', 'mock-playback', false)).toBe('none')
   })
 })

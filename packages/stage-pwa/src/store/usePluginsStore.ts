@@ -18,6 +18,9 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
     source: doc.source,
     runtime: doc.runtime,
     capabilities: doc.capabilities,
+    // A plugin installed before `transports` existed (#100) simply lacks the key - same
+    // read-time fallback spirit as useSongVariantsStore's `cues` one.
+    transports: doc.transports ?? [],
     enabled: doc.enabled,
     installedAt: doc.installedAt,
   }
