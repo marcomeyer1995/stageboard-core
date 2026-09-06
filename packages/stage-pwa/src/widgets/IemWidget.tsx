@@ -3,6 +3,7 @@ import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
@@ -29,6 +30,7 @@ const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
 export function IemWidget() {
   const installed = usePluginsStore((state) => state.installed)
+  useDynamicTranslatorPreload(CAPABILITIES.mixer, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.mixer)
