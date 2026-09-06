@@ -8,6 +8,7 @@ import {
   switchSongsWorkspace,
   type SongDoc,
 } from '../lib/db'
+import { removeSongAndVariants } from '../lib/songVariantsDb'
 
 function toSong(doc: SongDoc): Song {
   return {
@@ -24,6 +25,9 @@ interface SongsState {
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   saveSong: (song: Song) => Promise<void>
+  /** Also deletes the song's own variants and their tracks (#105) - see
+   * songVariantsDb.ts's removeSongAndVariants for the full cascade. */
+  remove: (id: string) => Promise<void>
 }
 
 let changesHandle: PouchDB.Core.Changes<Song> | null = null
@@ -52,5 +56,8 @@ export const useSongsStore = create<SongsState>((set) => ({
   },
   saveSong: async (song) => {
     await putSong(song)
+  },
+  remove: async (id) => {
+    await removeSongAndVariants(id)
   },
 }))

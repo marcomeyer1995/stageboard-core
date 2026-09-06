@@ -2,7 +2,7 @@ import { type Song, type SongVariant, type TrackMeta } from 'shared-types'
 import { cacheKey } from './audioCache'
 import { deleteTrackFile, fetchTrack, uploadTrack } from './audioClient'
 import { getAudioStorageBackend } from './audioStorageBackend'
-import { getBackingTrack } from './db'
+import { getBackingTrack, removeBackingTrack, removeSong } from './db'
 import { randomId } from './id'
 import { createWorkspaceCollection, type Doc } from './workspaceCollection'
 
@@ -14,6 +14,7 @@ export const getVariantsDb = variants.getDb
 export const switchVariantsWorkspace = variants.switchWorkspace
 export const getAllVariants = variants.getAll
 export const putVariant = variants.put
+export const removeVariant = variants.remove
 export const variantsChanges = variants.changes
 
 /**
@@ -103,4 +104,26 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   const current = await db.get(variants.docId(variantId))
   const tracks = current.tracks.filter((t) => t.id !== trackId)
   await putVariant({ ...current, tracks })
+}
+
+/**
+ * Deletes a song along with everything only it owns (#105) - its variants and their tracks
+ * (server-side audio + local cache, same cleanup `removeTrack` already does per-track), plus
+ * any pre-migration legacy attachment `ensureDefaultVariant` hasn't converted yet. Setlist
+ * entries referencing this song are deliberately left alone: `computeQueue` already drops a
+ * setlist entry whose song no longer exists in the catalog (own test coverage), so they degrade
+ * gracefully rather than needing an active prune here.
+ */
+export async function removeSongAndVariants(songId: string): Promise<void> {
+  await removeBackingTrack(songId)
+
+  const songVariants = (await getAllVariants()).filter((variant) => variant.songId === songId)
+  for (const variant of songVariants) {
+    for (const track of variant.tracks) {
+      await removeTrack(variant.id, track.id)
+    }
+    await removeVariant(variant.id)
+  }
+
+  await removeSong(songId)
 }

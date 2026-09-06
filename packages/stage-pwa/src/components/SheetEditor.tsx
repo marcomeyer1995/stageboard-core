@@ -3,6 +3,7 @@ import { SongSchema, SongVariantSchema, type Song, type ShowCue, type SongVarian
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
+import { useDialogStore } from '../store/useDialogStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
@@ -81,8 +82,10 @@ interface SheetEditorProps {
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
+  const removeSong = useSongsStore((state) => state.remove)
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
+  const confirm = useDialogStore((state) => state.confirm)
   const [draft, setDraft] = useState<EditorDraft>(emptyDraft())
   const [isNewDraft, setIsNewDraft] = useState(true)
   const [initialSongLoaded, setInitialSongLoaded] = useState(false)
@@ -238,6 +241,24 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     setIsNewDraft(false)
   }
 
+  /** #105: also deletes every variant/track only this song owns (removeSongAndVariants) -
+   * setlists referencing it degrade gracefully (computeQueue already drops a dangling entry),
+   * nothing further to clean up here. Resets to a blank draft afterward, same state
+   * "+ Neuer Song" already leaves the editor in. */
+  async function handleDelete() {
+    if (isNewDraft) return
+    const confirmed = await confirm(`"${draft.title || '(ohne Titel)'}" wirklich löschen?`, {
+      confirmLabel: 'Löschen',
+      danger: true,
+    })
+    if (!confirmed) return
+    await removeSong(draft.songId)
+    setDraft(emptyDraft())
+    setIsNewDraft(true)
+    setError(null)
+    setSavedAt(null)
+  }
+
   /** Marks the block starting at the caret as a song part by inserting a `{part: ...}` directive. */
   function insertPart(label: string) {
     const textarea = textareaRef.current
@@ -316,6 +337,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         >
           + Neuer Song
         </button>
+        {!isNewDraft && (
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            className="self-start rounded-sb-sm bg-control px-3 py-1 text-sm text-ink-soft hover:bg-control-hover"
+          >
+            Song löschen
+          </button>
+        )}
         {!isNewDraft && (
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Variante
