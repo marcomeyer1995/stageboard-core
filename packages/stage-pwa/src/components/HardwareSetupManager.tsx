@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
+import { supportsLocalExecution } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 
 const CAPABILITY_OPTIONS = Object.values(CAPABILITIES)
 
@@ -91,23 +93,38 @@ function ExecutionTargetSelect({
   onChange: (target: string) => void
 }) {
   const physicalDevices = useDevicesStore((state) => state.devices)
+  const installed = usePluginsStore((state) => state.installed)
+  // #98: a tablet is only offered as a target when something can actually execute this
+  // capability there (a real client-runtime plugin, or - audio-playback - native browser
+  // playback) - otherwise the binding would silently promise routing nothing implements.
+  const localExecutionAvailable = supportsLocalExecution(installed, logicalDevice.capability)
+
   return (
     <label className="flex items-center justify-between gap-3 text-sm text-ink-soft">
       <span>
         {logicalDevice.name} <span className="text-xs text-ink-faint">({logicalDevice.capability})</span>
       </span>
-      <select
-        value={executionTarget}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded-sb-sm bg-control px-2 text-sm text-ink"
-      >
-        <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
-        {physicalDevices.map((device) => (
-          <option key={device.id} value={device.id}>
-            {device.name}
-          </option>
-        ))}
-      </select>
+      {localExecutionAvailable ? (
+        <select
+          value={executionTarget}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 rounded-sb-sm bg-control px-2 text-sm text-ink"
+        >
+          <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
+          {physicalDevices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span
+          className="text-xs text-ink-faint"
+          title="Kein installiertes Plugin kann diese Capability lokal auf einem Tablet ausführen"
+        >
+          Server (kein lokales Plugin installiert)
+        </span>
+      )}
     </label>
   )
 }

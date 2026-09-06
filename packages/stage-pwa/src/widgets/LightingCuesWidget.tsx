@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
@@ -32,13 +33,13 @@ export function LightingCuesWidget() {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.lighting)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.lighting) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
   const lastCue = useLocalLightingStore((state) => state.lastCue)
   const [error, setError] = useState<string | null>(null)
 
   async function fire(type: string) {
     if (engine === 'local-mine') {
-      useLocalLightingStore.getState().applyEvent({ type })
+      void getTranslator(CAPABILITIES.lighting)!({ type })
       return
     }
     if (engine === 'local-other') {

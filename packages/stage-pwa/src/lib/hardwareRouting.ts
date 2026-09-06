@@ -32,11 +32,20 @@ export function resolveHardwareBinding(
   return hardwareSetup.bindings[device.id] ?? null
 }
 
+/**
+ * `supportsLocalExecution` (clientTranslator.ts) gates the `local-mine`/`local-other` branch -
+ * #98: a binding pointing at a tablet is only honored if something can actually execute there
+ * (a real client-runtime plugin, or - audio-playback - the browser's own native playback).
+ * Without it, a stale/manually-seeded binding for a capability nothing implements locally would
+ * silently promise routing that never does anything.
+ */
 export function resolveHardwareEngine(
   binding: HardwareBinding | null,
   deviceId: string,
   pluginId: string | null,
+  supportsLocalExecution: boolean,
 ): HardwareRoutingEngine {
   if (!binding || binding.executionTarget === SERVER_EXECUTION_TARGET) return pluginId ? 'plugin' : 'none'
+  if (!supportsLocalExecution) return 'none'
   return binding.executionTarget === deviceId ? 'local-mine' : 'local-other'
 }
