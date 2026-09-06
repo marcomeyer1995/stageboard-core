@@ -22,8 +22,13 @@ export const PluginInstallationSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   version: z.string().min(1),
-  /** Repository the plugin came from, for the later code-loading step. */
+  /** Where the Stage-Server fetches this plugin's *server-side* code from, for #17's dynamic
+   * code loading (not built yet). */
   source: z.string().optional(),
+  /** Where a tablet fetches this plugin's *client-side* bundle from (#101) - an ES module
+   * exporting a `ClientPluginModule` default (stage-pwa's `loadClientPlugin.ts`). Absent for a
+   * plugin with nothing to run in the browser (e.g. a purely server-hosted mixer adapter). */
+  clientSource: z.string().optional(),
   runtime: PluginRuntimeSchema,
   capabilities: z.array(CapabilityIdSchema).default([]),
   /** Transports this plugin can drive a device through, and what each one's config needs

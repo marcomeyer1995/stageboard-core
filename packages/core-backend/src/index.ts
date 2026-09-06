@@ -28,6 +28,7 @@ import {
   WorkspaceProvisionRequestSchema,
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
 import { allDocs, getDoc, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as healthStore from './plugins/healthStore.js'
@@ -421,6 +422,22 @@ export async function buildApp() {
   const registry = new PluginRegistry()
 
   app.get('/plugins', async () => registry.list())
+
+  // #101's Stage-Server mirror: whatever pluginSync.ts's downloadMissingBundles already
+  // cached to disk, served back out to any tablet on the LAN - same @fastify/static-style
+  // static-file-from-disk shape the app's own build output uses (see docs/03), just for one
+  // plugin bundle at a time instead of the whole PWA.
+  app.get('/plugins/:id/client.js', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    if (!isSafePluginId(id)) {
+      return reply.status(400).send({ status: 'error', message: 'Invalid plugin id' })
+    }
+    const bundle = await readPluginBundle(id)
+    if (bundle === null) {
+      return reply.status(404).send({ status: 'error', message: 'No client bundle cached for this plugin' })
+    }
+    return reply.type('application/javascript').send(bundle)
+  })
 
   app.post('/plugins/:name/trigger', async (request, reply) => {
     const { name } = request.params as { name: string }

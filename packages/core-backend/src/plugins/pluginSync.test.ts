@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PluginInstallation } from 'shared-types'
-import { readInstallations, reconcile } from './pluginSync.js'
+import { installationsNeedingBundleDownload, readInstallations, reconcile } from './pluginSync.js'
 
 const CATALOG = ['mock-mixer', 'mock-lighting']
 
@@ -60,5 +60,26 @@ describe('readInstallations', () => {
   it('keeps valid documents and drops malformed ones', () => {
     const docs = [installation(), { _id: 'junk', name: 'no id or version' }, null]
     expect(readInstallations(docs).map((plugin) => plugin.id)).toEqual(['mock-mixer'])
+  })
+})
+
+describe('installationsNeedingBundleDownload', () => {
+  it('needs nothing when the plugin has no clientSource at all', () => {
+    expect(installationsNeedingBundleDownload([installation()], new Set())).toEqual([])
+  })
+
+  it('needs a download for an enabled plugin with a clientSource not yet cached', () => {
+    const kemper = installation({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js' })
+    expect(installationsNeedingBundleDownload([kemper], new Set())).toEqual([kemper])
+  })
+
+  it('skips one already cached on disk', () => {
+    const kemper = installation({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js' })
+    expect(installationsNeedingBundleDownload([kemper], new Set(['kemper']))).toEqual([])
+  })
+
+  it('skips a disabled installation even with a clientSource', () => {
+    const kemper = installation({ id: 'kemper', clientSource: 'https://cdn.example/kemper.js', enabled: false })
+    expect(installationsNeedingBundleDownload([kemper], new Set())).toEqual([])
   })
 })
