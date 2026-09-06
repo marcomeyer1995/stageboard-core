@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
-import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
+import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -27,16 +28,16 @@ const ACTIONS: CueAction[] = [
  *
  * These cues route through the same physical target as LightingCuesWidget - mockLightingPlugin
  * (core-backend) declares both `lighting` and `show-control`, since on real hardware they're
- * the same rig - so a claimed `lighting` device (#10) takes over here too, via the relay
- * (deviceControlClient.ts) rather than a second, redundant claim capability.
+ * the same rig - so a `lighting` binding in the active HardwareSetup (#10) takes over here too,
+ * via the relay (deviceControlClient.ts) rather than a second, redundant binding lookup.
  */
 export function QuickActionsWidget() {
   const installed = usePluginsStore((state) => state.installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const deviceId = useShowStateStore((state) => state.deviceId)
-  const claimedDeviceId = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.lighting])
-  const pluginId = claimedDeviceId === undefined ? pluginProviding(installed, CAPABILITIES.showControl) : null
-  const engine = resolveDeviceClaimEngine(claimedDeviceId, deviceId, pluginId)
+  const binding = useHardwareBindingFor(CAPABILITIES.lighting)
+  const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.showControl) : null
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
   const [error, setError] = useState<string | null>(null)
 
   async function fire(type: string) {
@@ -45,7 +46,7 @@ export function QuickActionsWidget() {
       return
     }
     if (engine === 'local-other') {
-      const result = await triggerDeviceControl(workspaceId, claimedDeviceId!, CAPABILITIES.lighting, { type })
+      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.lighting, { type })
       setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
       return
     }

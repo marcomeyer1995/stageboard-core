@@ -3,7 +3,8 @@ import { z } from 'zod'
 /**
  * A registered tablet/server in this workspace - #10's DeviceRegistry, first slice: just
  * enough to show a real name instead of "Dieses Gerät"/"Anderes Gerät" wherever a device is
- * already referenced (Master-Token's `masterHolderId`, ShowState's `deviceClaims`).
+ * already referenced (Master-Token's `masterHolderId`, a HardwareBinding's `executionTarget` -
+ * hardwareSetup.ts).
  *
  * `id` is the same stable per-device random id used everywhere else a device is referenced -
  * see stage-pwa's `deviceId.ts` (unified 2026-09-04 with what Presence already used, so
