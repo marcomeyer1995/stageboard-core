@@ -16,6 +16,7 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
     name: doc.name,
     version: doc.version,
     source: doc.source,
+    clientSource: doc.clientSource,
     runtime: doc.runtime,
     capabilities: doc.capabilities,
     // A plugin installed before `transports` existed (#100) simply lacks the key - same

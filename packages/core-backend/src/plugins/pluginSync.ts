@@ -2,6 +2,7 @@ import { HEALTH_TIMEOUT_MS, PluginInstallationSchema, type PluginInstallation } 
 import { allDocs, ensureDb, waitForChange, type CouchConfig } from '../couch.js'
 import { PLUGIN_CATALOG } from './catalog.js'
 import * as healthStore from './healthStore.js'
+import { hasPluginBundle, writePluginBundle } from './pluginBundleStore.js'
 import type { PluginRegistry } from './registry.js'
 
 /** Comfortably inside HEALTH_TIMEOUT_MS, so a healthy server never looks stale. */
@@ -74,6 +75,21 @@ export function reconcile(
 }
 
 /**
+ * Which enabled installations need their client bundle downloaded (#101's Stage-Server mirror)
+ * - anything with a `clientSource` that isn't already cached on this server's disk. Pure, same
+ * "the interesting part needs no I/O to test" reasoning `reconcile` above already follows;
+ * `alreadyCached` is a plain id set the caller builds from `hasPluginBundle` checks.
+ */
+export function installationsNeedingBundleDownload(
+  installations: PluginInstallation[],
+  alreadyCached: Set<string>,
+): PluginInstallation[] {
+  return installations.filter(
+    (installation) => installation.enabled && installation.clientSource && !alreadyCached.has(installation.id),
+  )
+}
+
+/**
  * Reconciles the plugins the band installed (replicated to us over the stage mesh) with the
  * plugins actually running in this server's registry, and writes a heartbeat into
  * healthStore.ts so every tablet can tell "installed" from "reachable right now" (docs/07) -
@@ -110,6 +126,30 @@ export function createPluginSync(options: PluginSyncOptions): PluginSyncHandle {
     for (const id of toUnregister) {
       await registry.unregister(id)
       log.info('Unregistered plugin - disabled or uninstalled', { plugin: id })
+    }
+
+    await downloadMissingBundles(installations)
+  }
+
+  /** #101's Stage-Server mirror: fetches each not-yet-cached `clientSource` once (this server's
+   * own internet access, not a tablet's) so every tablet on the LAN can fetch it from here
+   * afterward. One installation's fetch failure is logged and skipped, not fatal to the rest of
+   * the sync pass. */
+  async function downloadMissingBundles(installations: PluginInstallation[]): Promise<void> {
+    const cachedChecks = await Promise.all(
+      installations.map(async (installation) => [installation.id, await hasPluginBundle(installation.id)] as const),
+    )
+    const alreadyCached = new Set(cachedChecks.filter(([, cached]) => cached).map(([id]) => id))
+
+    for (const installation of installationsNeedingBundleDownload(installations, alreadyCached)) {
+      try {
+        const response = await fetch(installation.clientSource!)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        await writePluginBundle(installation.id, Buffer.from(await response.arrayBuffer()))
+        log.info('Cached plugin client bundle', { plugin: installation.id })
+      } catch (err) {
+        log.error('Failed to download plugin client bundle', { plugin: installation.id, error: String(err) })
+      }
     }
   }
 
