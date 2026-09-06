@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TimecodeMarkerSchema } from './song.js'
+import { ShowCueSchema } from './showCue.js'
 
 /**
  * `reference`: a learning aid (e.g. an extracted YouTube recording), never the source of
@@ -42,6 +43,10 @@ export const SongVariantSchema = z.object({
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
   tracks: z.array(TrackMetaSchema).default([]),
+  /** Show-hardware commands anchored to this variant's own timeline (#99) - variant-specific
+   * like `timecodes`/`tracks` above, not on `Song`: an "Akustik" variant plausibly needs none
+   * at all, while "Original" fires a Kemper rig change at the second chorus. */
+  cues: z.array(ShowCueSchema).default([]),
   /** Musical key, e.g. "F#m" - genuinely arrangement-specific (a capo/tuning change can
    * shift it), so it lives here rather than on Song. Optional/absent, not a forced default:
    * most sources (including Ultimate Guitar's own data) simply omit it when unknown, and a

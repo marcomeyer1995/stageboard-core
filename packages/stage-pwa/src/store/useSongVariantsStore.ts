@@ -18,6 +18,10 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     chordProContent: doc.chordProContent,
     timecodes: doc.timecodes,
     tracks: doc.tracks,
+    // A variant written before `cues` existed (#99) simply lacks the key - PouchDB returns
+    // exactly what was stored, unvalidated, so this read-time fallback matters even though the
+    // type says it's always present (same spirit as useSetlistsStore's `toSetlist` fallback).
+    cues: doc.cues ?? [],
   }
 }
 
