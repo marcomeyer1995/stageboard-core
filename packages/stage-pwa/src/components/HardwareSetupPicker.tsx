@@ -4,9 +4,10 @@ import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Lets Master pick which HardwareSetup profile is active tonight (#10, replacing the earlier
- * per-capability DeviceClaimControl) - instantiated once in AppMenu.tsx. Only a *picker*: no UI
- * exists yet to create or edit a HardwareSetup's own bindings (a follow-up slice), so this list
- * is empty until one is seeded some other way (directly in CouchDB, or a future admin UI).
+ * per-capability DeviceClaimControl) - instantiated once in AppMenu.tsx. Only a *picker*:
+ * creating/editing a HardwareSetup's own bindings happens in SystemView's "Hardware" tab
+ * (HardwareSetupManager.tsx), same split as e.g. PluginManager.tsx (System) vs. what a widget
+ * actually does with an installed plugin (here, mid-show).
  */
 export function HardwareSetupPicker() {
   const isMaster = useShowStateStore((state) => state.isMaster)

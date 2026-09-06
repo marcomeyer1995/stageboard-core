@@ -25,8 +25,9 @@ async function refresh(set: (partial: Partial<LogicalDevicesState>) => void) {
 
 /**
  * Named device roles a widget/cue can eventually target (#10's LogicalDevice, logicalDevice.ts) -
- * e.g. "Marco's Kemper". No admin UI creates these yet (that's the follow-up slice); today
- * hardwareRouting.ts is this store's only reader.
+ * e.g. "Marco's Kemper". Created/edited via SystemView's "Hardware" tab
+ * (HardwareSetupManager.tsx); read by hardwareRouting.ts to resolve a capability's active
+ * binding.
  */
 export const useLogicalDevicesStore = create<LogicalDevicesState>((set) => ({
   devices: [],

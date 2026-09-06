@@ -25,8 +25,9 @@ async function refresh(set: (partial: Partial<HardwareSetupsState>) => void) {
 
 /**
  * Named, switchable rig configurations (#10's HardwareSetup, hardwareSetup.ts) - e.g.
- * "Festival" vs. "Acoustic Solo". No admin UI creates these yet (that's the follow-up slice);
- * HardwareSetupPicker.tsx only lets Master choose which already-existing one is active.
+ * "Festival" vs. "Acoustic Solo". Created/edited via SystemView's "Hardware" tab
+ * (HardwareSetupManager.tsx); HardwareSetupPicker.tsx (AppMenu.tsx) only lets Master choose
+ * which already-existing one is active.
  */
 export const useHardwareSetupsStore = create<HardwareSetupsState>((set) => ({
   setups: [],
