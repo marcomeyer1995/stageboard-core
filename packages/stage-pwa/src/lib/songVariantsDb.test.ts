@@ -22,6 +22,10 @@ vi.mock('pouchdb-browser', () => ({
     async allDocs() {
       return { rows: [...store.values()].map((doc) => ({ id: doc._id, doc })) }
     }
+    async remove(doc: { _id: string }) {
+      store.delete(doc._id)
+      return { ok: true, id: doc._id, rev: 'deleted' }
+    }
     changes() {
       return { on: () => this, cancel: () => {} }
     }
@@ -48,7 +52,9 @@ vi.mock('./audioCache', () => ({
   listCachedKeys: async () => [...cacheStore.keys()],
 }))
 
-const { getVariantsDb, putTrack, getTrack, removeTrack, ensureDefaultVariant } = await import('./songVariantsDb')
+const { getVariantsDb, putTrack, getTrack, removeTrack, ensureDefaultVariant, removeSongAndVariants } = await import(
+  './songVariantsDb'
+)
 
 function makeTrackMeta(overrides: Partial<TrackMeta> = {}): TrackMeta {
   return {
@@ -188,5 +194,55 @@ describe('ensureDefaultVariant', () => {
     const variant = await ensureDefaultVariant(makeSong())
 
     expect(variant.cues).toEqual([cue])
+  })
+})
+
+describe('removeSongAndVariants (#105)', () => {
+  beforeEach(() => {
+    store.clear()
+    cacheStore.clear()
+    vi.clearAllMocks()
+  })
+
+  it('deletes the song, every one of its variants, and their tracks - leaving other songs untouched', async () => {
+    store.set('songs:song-1', { _id: 'songs:song-1', id: 'song-1', title: 'Delete Me' })
+    store.set('song-variants:variant-1', {
+      _id: 'song-variants:variant-1',
+      id: 'variant-1',
+      songId: 'song-1',
+      tracks: [makeTrackMeta({ id: 'track-1' })],
+    })
+    store.set('song-variants:variant-2', {
+      _id: 'song-variants:variant-2',
+      id: 'variant-2',
+      songId: 'song-1',
+      tracks: [],
+    })
+    cacheStore.set('variant-1:track-1', new Blob(['bytes']))
+    // A second song's own data must survive untouched.
+    store.set('songs:song-2', { _id: 'songs:song-2', id: 'song-2', title: 'Keep Me' })
+    store.set('song-variants:variant-3', {
+      _id: 'song-variants:variant-3',
+      id: 'variant-3',
+      songId: 'song-2',
+      tracks: [],
+    })
+
+    await removeSongAndVariants('song-1')
+
+    expect(audioClientMocks.deleteTrackFile).toHaveBeenCalledWith('variant-1', 'track-1')
+    expect(cacheStore.has('variant-1:track-1')).toBe(false)
+    expect(store.has('songs:song-1')).toBe(false)
+    expect(store.has('song-variants:variant-1')).toBe(false)
+    expect(store.has('song-variants:variant-2')).toBe(false)
+    expect(store.has('songs:song-2')).toBe(true)
+    expect(store.has('song-variants:variant-3')).toBe(true)
+  })
+
+  it('deletes a song with no variants at all without throwing', async () => {
+    store.set('songs:song-1', { _id: 'songs:song-1', id: 'song-1', title: 'No Variants Yet' })
+
+    await expect(removeSongAndVariants('song-1')).resolves.toBeUndefined()
+    expect(store.has('songs:song-1')).toBe(false)
   })
 })

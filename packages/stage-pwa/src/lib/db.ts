@@ -9,6 +9,7 @@ export const getSongsDb = songs.getDb
 export const switchSongsWorkspace = songs.switchWorkspace
 export const getAllSongs = songs.getAll
 export const putSong = songs.put
+export const removeSong = songs.remove
 export const songsChanges = songs.changes
 
 const dummySongs: Song[] = [
