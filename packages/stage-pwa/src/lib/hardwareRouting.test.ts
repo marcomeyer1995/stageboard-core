@@ -1,12 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import type { HardwareSetup, LogicalDevice } from 'shared-types'
-import { resolveHardwareBinding, resolveHardwareEngine } from './hardwareRouting'
+import { resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 
 const KEMPER: LogicalDevice = { id: 'kemper-1', name: "Marco's Kemper", capability: 'midi-input' }
+const KEMPER_2: LogicalDevice = { id: 'kemper-2', name: "Sarah's Kemper", capability: 'midi-input' }
 
 function setup(bindings: HardwareSetup['bindings']): HardwareSetup {
   return { id: 'setup-1', name: 'Festival', bindings }
 }
+
+describe('resolveHardwareBindingById', () => {
+  it('is null with no active setup', () => {
+    expect(resolveHardwareBindingById(null, KEMPER.id)).toBeNull()
+  })
+
+  it('is null when the active setup has no binding for this exact id', () => {
+    expect(resolveHardwareBindingById(setup({}), KEMPER.id)).toBeNull()
+  })
+
+  it('#102: resolves each Logical Device independently, even when two share a capability', () => {
+    const binding1 = { executionTarget: 'tablet-1', pluginId: null }
+    const binding2 = { executionTarget: 'tablet-2', pluginId: null }
+    const active = setup({ [KEMPER.id]: binding1, [KEMPER_2.id]: binding2 })
+    expect(resolveHardwareBindingById(active, KEMPER.id)).toBe(binding1)
+    expect(resolveHardwareBindingById(active, KEMPER_2.id)).toBe(binding2)
+  })
+})
 
 describe('resolveHardwareBinding', () => {
   it('is null with no active setup', () => {

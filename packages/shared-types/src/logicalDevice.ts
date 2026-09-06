@@ -9,10 +9,12 @@ import { CapabilityIdSchema } from './capability.js'
  * binds to once and never has to touch again, even as the physical routing behind it changes
  * from gig to gig.
  *
- * That routing (LogicalDeviceId -> ExecutionTarget + PluginConfig) is `HardwareSetup`
- * (hardwareSetup.ts), which now exists and resolves a capability's *first* matching Logical
- * Device (see hardwareRouting.ts, stage-pwa) - true per-LogicalDeviceId targeting still needs
- * WidgetInstance/ShowCue to reference a LogicalDeviceId directly, which isn't wired up yet.
+ * That routing (LogicalDeviceId -> ExecutionTarget + pluginId) is `HardwareSetup`
+ * (hardwareSetup.ts). `ShowCue` (showCue.ts, #99) already targets a LogicalDeviceId directly,
+ * resolved via `resolveHardwareBindingById` (hardwareRouting.ts, #102's cue scheduler) - true
+ * per-LogicalDeviceId targeting for `WidgetInstance` and today's four capability-routed widgets
+ * still resolves a capability's *first* matching Logical Device instead (`resolveHardwareBinding`,
+ * same file), not yet wired to a specific id.
  *
  * One capability per Logical Device, matching the issue's example ("Marco's Kemper" /
  * `midi-input`) - a piece of hardware that offers several capabilities (e.g. a Kemper that's

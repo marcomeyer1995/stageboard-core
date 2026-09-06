@@ -11,6 +11,7 @@ import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useClockSync } from './lib/useClockSync'
+import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
@@ -111,6 +112,7 @@ function App() {
   useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
+  useCueScheduler()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
   // request) - reports only while a *real* profile is active, matching activeProfileId's own
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
