@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TrackMeta } from 'shared-types'
+import type { Song, TrackMeta } from 'shared-types'
 
 // createWorkspaceCollection instantiates a real PouchDB against IndexedDB at import time -
 // unavailable under happy-dom (see Dashboard.test.tsx's identical mock for the same reason).
@@ -48,7 +48,7 @@ vi.mock('./audioCache', () => ({
   listCachedKeys: async () => [...cacheStore.keys()],
 }))
 
-const { getVariantsDb, putTrack, getTrack, removeTrack } = await import('./songVariantsDb')
+const { getVariantsDb, putTrack, getTrack, removeTrack, ensureDefaultVariant } = await import('./songVariantsDb')
 
 function makeTrackMeta(overrides: Partial<TrackMeta> = {}): TrackMeta {
   return {
@@ -136,5 +136,57 @@ describe('songVariantsDb track storage', () => {
     const db = getVariantsDb()
     const doc = (await db.get('song-variants:variant-1')) as { tracks: TrackMeta[] }
     expect(doc.tracks).toEqual([])
+  })
+})
+
+function makeSong(overrides: Partial<Song> = {}): Song {
+  return { id: 'song-1', title: 'Test Song', bpm: 120, chordProContent: '', timecodes: [], ...overrides }
+}
+
+describe('ensureDefaultVariant', () => {
+  beforeEach(() => {
+    store.clear()
+  })
+
+  it('#99: normalizes a pre-existing default variant written before `cues` existed, instead of returning it with cues undefined', async () => {
+    // No `cues` key at all - exactly what a raw PouchDB doc predating #99 looks like (the read
+    // path useSongVariantsStore's toVariant already defends against, but ensureDefaultVariant
+    // reads getAllVariants() directly and bypassed that - found live, crashed CueListEditor).
+    store.set('song-variants:variant-1', {
+      _id: 'song-variants:variant-1',
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+    })
+
+    const variant = await ensureDefaultVariant(makeSong())
+
+    expect(variant.id).toBe('variant-1')
+    expect(variant.cues).toEqual([])
+  })
+
+  it('leaves an existing default variant\'s real cues untouched', async () => {
+    const cue = { id: 'cue-1', timeMs: 1000, targetLogicalDeviceId: 'ld-1', type: 'rig_change' }
+    store.set('song-variants:variant-1', {
+      _id: 'song-variants:variant-1',
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [cue],
+    })
+
+    const variant = await ensureDefaultVariant(makeSong())
+
+    expect(variant.cues).toEqual([cue])
   })
 })

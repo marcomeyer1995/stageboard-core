@@ -37,7 +37,7 @@ function song(id: string, title: string): Song {
 }
 
 function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
-  return { id, songId, label: 'Original', isDefault: true, bpm: 120, chordProContent: '', timecodes: [], tracks }
+  return { id, songId, label: 'Original', isDefault: true, bpm: 120, chordProContent: '', timecodes: [], tracks, cues: [] }
 }
 
 function entry(id: string, songId: string): SetlistEntry {

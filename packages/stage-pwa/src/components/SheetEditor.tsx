@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { SongSchema, SongVariantSchema, type Song, type SongVariant, type TimecodeMarker } from 'shared-types'
+import { SongSchema, SongVariantSchema, type Song, type ShowCue, type SongVariant, type TimecodeMarker } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
+import { CueListEditor } from './CueListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapToSync } from './TapToSync'
 import { TrackManagerField } from './TrackManagerField'
@@ -27,6 +28,7 @@ interface EditorDraft {
   bpm: number
   chordProContent: string
   timecodes: TimecodeMarker[]
+  cues: ShowCue[]
   key?: string
   tuning?: string
   capo?: number
@@ -42,6 +44,7 @@ function emptyDraft(): EditorDraft {
     bpm: 120,
     chordProContent: '',
     timecodes: [],
+    cues: [],
   }
 }
 
@@ -56,6 +59,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     bpm: variant.bpm,
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
+    cues: variant.cues,
     key: variant.key,
     tuning: variant.tuning,
     capo: variant.capo,
@@ -168,6 +172,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       bpm: variant.bpm,
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
+      cues: variant.cues,
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
@@ -196,6 +201,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       bpm: draft.bpm,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
+      cues: draft.cues,
       tracks: currentTracks,
       key: draft.key,
       tuning: draft.tuning,
@@ -406,6 +412,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
           </label>
         </div>
         <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
+        <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}

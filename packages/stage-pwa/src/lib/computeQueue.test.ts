@@ -15,6 +15,7 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
     chordProContent: '',
     timecodes: [],
     tracks: [],
+    cues: [],
     ...overrides,
   }
 }
