@@ -9,12 +9,17 @@ export const SERVER_EXECUTION_TARGET = 'server'
 export const ExecutionTargetSchema = z.string().min(1)
 export type ExecutionTarget = z.infer<typeof ExecutionTargetSchema>
 
-/** Where one Logical Device is actually executed under a given HardwareSetup, and how - the
- * transport-specific bits (IP, MIDI port, ...) live in `pluginConfig` as an open bag, since this
- * schema doesn't know which transport a given capability uses. */
+/** Where one Logical Device is actually executed under a given HardwareSetup, and which
+ * installed plugin is responsible - needed once more than one plugin can provide the same
+ * capability (#100), e.g. a generic MIDI plugin vs. a Kemper-specific one. Null means "let
+ * routing pick automatically" (today's only behavior, still the default). The actual
+ * transport-specific bits (IP, MIDI port, ...) never live here - `pluginConfig` was an early,
+ * unused stand-in for that; DeviceTransportConfig (deviceTransportConfig.ts) replaced it,
+ * since that config can only meaningfully be set *on* `executionTarget` itself, never from this
+ * band-wide-replicated binding. */
 export const HardwareBindingSchema = z.object({
   executionTarget: ExecutionTargetSchema,
-  pluginConfig: z.record(z.string(), z.unknown()).optional(),
+  pluginId: z.string().min(1).nullable().default(null),
 })
 export type HardwareBinding = z.infer<typeof HardwareBindingSchema>
 

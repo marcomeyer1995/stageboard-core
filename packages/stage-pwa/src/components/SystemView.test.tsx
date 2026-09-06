@@ -49,6 +49,7 @@ describe('SystemView', () => {
           version: '0.0.1',
           runtime: 'server',
           capabilities: ['backup'],
+          transports: [],
           enabled: true,
           installedAt: Date.now(),
         },

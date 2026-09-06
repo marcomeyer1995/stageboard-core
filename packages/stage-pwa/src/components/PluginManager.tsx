@@ -17,6 +17,18 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     // actually executes a given trigger is a HardwareSetup routing decision, not a plugin one.
     runtime: 'both',
     capabilities: [CAPABILITIES.mixer],
+    // Example transport (#100) - a real mixer adapter would offer this so a tablet claimed as
+    // its executor can pick which desk it's actually talking to.
+    transports: [
+      {
+        id: 'network-osc',
+        label: 'Netzwerk (OSC)',
+        fields: [
+          { key: 'host', label: 'Host', type: 'text' },
+          { key: 'port', label: 'Port', type: 'number' },
+        ],
+      },
+    ],
   },
   {
     id: 'generic-webmidi',
@@ -24,6 +36,13 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     version: '0.0.1',
     runtime: 'client',
     capabilities: [CAPABILITIES.midiInput],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' }],
+      },
+    ],
   },
   {
     id: 'mock-lighting',
@@ -32,6 +51,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     // 'both', same reasoning as mock-mixer above - #98.
     runtime: 'both',
     capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
+    transports: [],
   },
   {
     id: 'mock-backup',
@@ -39,6 +59,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     version: '0.0.1',
     runtime: 'server',
     capabilities: [CAPABILITIES.backup],
+    transports: [],
   },
   {
     id: 'mock-playback',
@@ -46,6 +67,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     version: '0.0.1',
     runtime: 'server',
     capabilities: [CAPABILITIES.audioPlayback],
+    transports: [],
   },
 ]
 

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CapabilityIdSchema } from './capability.js'
+import { TransportDescriptorSchema } from './transport.js'
 
 /**
  * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
@@ -25,6 +26,11 @@ export const PluginInstallationSchema = z.object({
   source: z.string().optional(),
   runtime: PluginRuntimeSchema,
   capabilities: z.array(CapabilityIdSchema).default([]),
+  /** Transports this plugin can drive a device through, and what each one's config needs
+   * (#100) - e.g. `usb-midi` needs a `midiOutputId`. Empty for a plugin with nothing to
+   * configure (the mock plugins today). The actual per-tablet values live in
+   * DeviceTransportConfig, never here - this is just what the *fields* are. */
+  transports: z.array(TransportDescriptorSchema).default([]),
   enabled: z.boolean().default(true),
   installedAt: z.number().int().nonnegative(),
 })

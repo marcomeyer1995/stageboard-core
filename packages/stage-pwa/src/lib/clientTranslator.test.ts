@@ -9,6 +9,7 @@ function plugin(overrides: Partial<PluginInstallation>): PluginInstallation {
     version: '0.0.1',
     runtime: 'both',
     capabilities: [CAPABILITIES.mixer],
+    transports: [],
     enabled: true,
     installedAt: 0,
     ...overrides,

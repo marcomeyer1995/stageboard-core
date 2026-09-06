@@ -1,8 +1,17 @@
 import { useState } from 'react'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
+import {
+  CAPABILITIES,
+  SERVER_EXECUTION_TARGET,
+  type CapabilityId,
+  type HardwareBinding,
+  type LogicalDevice,
+  type PluginInstallation,
+} from 'shared-types'
 import { supportsLocalExecution } from '../lib/clientTranslator'
+import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { useDevicesStore } from '../store/useDevicesStore'
+import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -83,14 +92,14 @@ function LogicalDeviceList() {
   )
 }
 
-function ExecutionTargetSelect({
+function BindingEditor({
   logicalDevice,
-  executionTarget,
+  binding,
   onChange,
 }: {
   logicalDevice: LogicalDevice
-  executionTarget: string
-  onChange: (target: string) => void
+  binding: HardwareBinding
+  onChange: (binding: HardwareBinding) => void
 }) {
   const physicalDevices = useDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
@@ -98,34 +107,59 @@ function ExecutionTargetSelect({
   // capability there (a real client-runtime plugin, or - audio-playback - native browser
   // playback) - otherwise the binding would silently promise routing nothing implements.
   const localExecutionAvailable = supportsLocalExecution(installed, logicalDevice.capability)
+  // #100: only worth picking when there's real ambiguity - one candidate (or none) has
+  // nothing to choose between, so the picker stays hidden rather than a dropdown with a
+  // single, forced option.
+  const candidatePlugins = installed.filter(
+    (plugin) => plugin.enabled && plugin.capabilities.includes(logicalDevice.capability),
+  )
 
   return (
-    <label className="flex items-center justify-between gap-3 text-sm text-ink-soft">
-      <span>
-        {logicalDevice.name} <span className="text-xs text-ink-faint">({logicalDevice.capability})</span>
-      </span>
-      {localExecutionAvailable ? (
-        <select
-          value={executionTarget}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 rounded-sb-sm bg-control px-2 text-sm text-ink"
-        >
-          <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
-          {physicalDevices.map((device) => (
-            <option key={device.id} value={device.id}>
-              {device.name}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <span
-          className="text-xs text-ink-faint"
-          title="Kein installiertes Plugin kann diese Capability lokal auf einem Tablet ausführen"
-        >
-          Server (kein lokales Plugin installiert)
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center justify-between gap-3 text-sm text-ink-soft">
+        <span>
+          {logicalDevice.name} <span className="text-xs text-ink-faint">({logicalDevice.capability})</span>
         </span>
+        {localExecutionAvailable ? (
+          <select
+            value={binding.executionTarget}
+            onChange={(e) => onChange({ ...binding, executionTarget: e.target.value })}
+            className="h-9 rounded-sb-sm bg-control px-2 text-sm text-ink"
+          >
+            <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
+            {physicalDevices.map((device) => (
+              <option key={device.id} value={device.id}>
+                {device.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span
+            className="text-xs text-ink-faint"
+            title="Kein installiertes Plugin kann diese Capability lokal auf einem Tablet ausführen"
+          >
+            Server (kein lokales Plugin installiert)
+          </span>
+        )}
+      </label>
+      {candidatePlugins.length > 1 && (
+        <label className="flex items-center justify-between gap-3 pl-2 text-xs text-ink-faint">
+          Plugin
+          <select
+            value={binding.pluginId ?? ''}
+            onChange={(e) => onChange({ ...binding, pluginId: e.target.value || null })}
+            className="h-8 rounded-sb-sm bg-control px-2 text-xs text-ink"
+          >
+            <option value="">Automatisch</option>
+            {candidatePlugins.map((plugin) => (
+              <option key={plugin.id} value={plugin.id}>
+                {plugin.name}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
-    </label>
+    </div>
   )
 }
 
@@ -169,14 +203,14 @@ function HardwareSetupList() {
           ) : (
             <div className="flex flex-col gap-2 border-t border-line pt-2">
               {logicalDevices.map((device) => (
-                <ExecutionTargetSelect
+                <BindingEditor
                   key={device.id}
                   logicalDevice={device}
-                  executionTarget={setup.bindings[device.id]?.executionTarget ?? SERVER_EXECUTION_TARGET}
-                  onChange={(target) =>
+                  binding={setup.bindings[device.id] ?? { executionTarget: SERVER_EXECUTION_TARGET, pluginId: null }}
+                  onChange={(binding) =>
                     void saveSetup({
                       ...setup,
-                      bindings: { ...setup.bindings, [device.id]: { executionTarget: target } },
+                      bindings: { ...setup.bindings, [device.id]: binding },
                     })
                   }
                 />
@@ -207,6 +241,132 @@ function HardwareSetupList() {
   )
 }
 
+/** Which installed plugin actually handles `logicalDevice` under `binding` - the pinned choice
+ * if the admin set one (#100), otherwise the first enabled plugin providing the capability,
+ * same tie-break `pluginProviding` (capabilities.ts) already uses elsewhere. */
+function resolveBindingPlugin(
+  binding: HardwareBinding,
+  logicalDevice: LogicalDevice,
+  installed: PluginInstallation[],
+): PluginInstallation | null {
+  if (binding.pluginId) return installed.find((plugin) => plugin.id === binding.pluginId) ?? null
+  return installed.find((plugin) => plugin.enabled && plugin.capabilities.includes(logicalDevice.capability)) ?? null
+}
+
+function TransportConfigForm({
+  logicalDevice,
+  plugin,
+}: {
+  logicalDevice: LogicalDevice
+  plugin: PluginInstallation
+}) {
+  const deviceId = getDeviceId()
+  const configId = `${deviceId}:${logicalDevice.id}`
+  const existing = useDeviceTransportConfigStore((state) => state.configs.find((c) => c.id === configId))
+  const save = useDeviceTransportConfigStore((state) => state.save)
+  const [transportId, setTransportId] = useState(existing?.transportId ?? plugin.transports[0]?.id ?? '')
+  const [values, setValues] = useState<Record<string, string>>(existing?.values ?? {})
+  const transport = plugin.transports.find((t) => t.id === transportId)
+
+  function submit() {
+    if (!transport) return
+    void save({ id: configId, deviceId, logicalDeviceId: logicalDevice.id, transportId: transport.id, values })
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2">
+      <div className="flex items-center justify-between gap-3 text-sm text-ink-soft">
+        <span>
+          {logicalDevice.name} <span className="text-xs text-ink-faint">via {plugin.name}</span>
+        </span>
+        {plugin.transports.length > 1 && (
+          <select
+            value={transportId}
+            onChange={(e) => {
+              setTransportId(e.target.value)
+              setValues({})
+            }}
+            className="h-8 rounded-sb-sm bg-control-strong px-2 text-xs text-ink"
+          >
+            {plugin.transports.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {transport && (
+        <div className="flex flex-wrap items-end gap-2">
+          {transport.fields.map((field) => (
+            <label key={field.key} className="flex flex-col gap-1 text-xs text-ink-muted">
+              {field.label}
+              <input
+                type={field.type}
+                value={values[field.key] ?? ''}
+                onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                className="w-32 rounded-sb-sm bg-control-strong px-2 py-1 text-sm text-ink"
+              />
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={submit}
+            className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs font-medium text-accent hover:bg-control-strong-hover"
+          >
+            Speichern
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * This tablet's own transport wiring (#100) - only ever this device's entries, never another
+ * tablet's: a browser can only enumerate what's physically attached to *it*, so editing
+ * someone else's wiring from here would be meaningless. Only lists Logical Devices some
+ * HardwareSetup currently binds to this device, whose resolved plugin actually declares
+ * transports (`resolveBindingPlugin`) - nothing to configure otherwise.
+ */
+function DeviceTransportConfigSection() {
+  const deviceId = getDeviceId()
+  const setups = useHardwareSetupsStore((state) => state.setups)
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
+  const installed = usePluginsStore((state) => state.installed)
+
+  const entries: { logicalDevice: LogicalDevice; plugin: PluginInstallation }[] = []
+  const seen = new Set<string>()
+  for (const setup of setups) {
+    for (const [logicalDeviceId, binding] of Object.entries(setup.bindings)) {
+      if (binding.executionTarget !== deviceId || seen.has(logicalDeviceId)) continue
+      const logicalDevice = logicalDevices.find((d) => d.id === logicalDeviceId)
+      if (!logicalDevice) continue
+      const plugin = resolveBindingPlugin(binding, logicalDevice, installed)
+      if (!plugin || plugin.transports.length === 0) continue
+      seen.add(logicalDeviceId)
+      entries.push({ logicalDevice, plugin })
+    }
+  }
+
+  if (entries.length === 0) return null
+
+  return (
+    <>
+      <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Dieses Gerät</h2>
+      <div className="mb-6 flex flex-col gap-2">
+        <p className="text-xs text-ink-faint">
+          Anschluss-Konfiguration für Rollen, die aktuell diesem Gerät zugewiesen sind - nur hier
+          änderbar, da nur dieses Gerät seine eigenen Anschlüsse kennt.
+        </p>
+        {entries.map(({ logicalDevice, plugin }) => (
+          <TransportConfigForm key={logicalDevice.id} logicalDevice={logicalDevice} plugin={plugin} />
+        ))}
+      </div>
+    </>
+  )
+}
+
 /**
  * The admin UI #10's issue asked for and every earlier slice deferred: create Logical Devices
  * (a named role like "Marcos Kemper", with one capability) and Hardware-Setup profiles (a named
@@ -214,8 +374,10 @@ function HardwareSetupList() {
  * registered tablet from the DeviceRegistry). Once at least one HardwareSetup exists here,
  * AppMenu.tsx's HardwareSetupPicker can actually pick something other than "Standard".
  *
- * Deliberately no `pluginConfig` editor (HardwareBinding's open transport-config bag) - nothing
- * reads it yet, so there is nothing to configure.
+ * "Dieses Gerät" (DeviceTransportConfigSection, #100) is deliberately its own, separately
+ * scoped section below the band-wide setup list: which plugin executes a binding is a band-wide
+ * choice (BindingEditor's plugin picker, remotely configurable), but the actual transport
+ * wiring (MIDI port, USB device, IP) can only be set standing at the device itself.
  */
 export function HardwareSetupManager() {
   return (
@@ -233,7 +395,11 @@ export function HardwareSetupManager() {
       </div>
 
       <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Hardware-Setups</h2>
-      <HardwareSetupList />
+      <div className="mb-6">
+        <HardwareSetupList />
+      </div>
+
+      <DeviceTransportConfigSection />
     </div>
   )
 }
