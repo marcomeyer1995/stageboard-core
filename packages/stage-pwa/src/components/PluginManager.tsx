@@ -12,7 +12,10 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     id: 'mock-mixer',
     name: 'Mock Mixer',
     version: '0.0.1',
-    runtime: 'server',
+    // 'both': a real server-hosted mixer adapter (mockMixerPlugin.ts, core-backend) AND a
+    // client-runtime Translator (clientTranslator.ts) sharing one manifest - #98. Which one
+    // actually executes a given trigger is a HardwareSetup routing decision, not a plugin one.
+    runtime: 'both',
     capabilities: [CAPABILITIES.mixer],
   },
   {
@@ -26,7 +29,8 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',
-    runtime: 'server',
+    // 'both', same reasoning as mock-mixer above - #98.
+    runtime: 'both',
     capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
   },
   {

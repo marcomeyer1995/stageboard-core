@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
@@ -32,7 +33,7 @@ export function IemWidget() {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.mixer)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.mixer) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.mixer))
   const usesLocalMixerStore = engine === 'local-mine' || engine === 'local-other'
   const localVolumes = useLocalMixerStore((state) => state.volumes)
   const [ownLevels, setOwnLevels] = useState<Record<string, number>>(() =>
@@ -43,7 +44,7 @@ export function IemWidget() {
   async function setVolume(channel: string, volume: number) {
     if (usesLocalMixerStore) {
       if (engine === 'local-mine') {
-        useLocalMixerStore.getState().applyEvent({ type: 'set_volume', payload: { channel, volume } })
+        void getTranslator(CAPABILITIES.mixer)!({ type: 'set_volume', payload: { channel, volume } })
         return
       }
       const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.mixer, {

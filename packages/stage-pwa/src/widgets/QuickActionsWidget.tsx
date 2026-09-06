@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
-import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -37,12 +37,12 @@ export function QuickActionsWidget() {
   const deviceId = useShowStateStore((state) => state.deviceId)
   const binding = useHardwareBindingFor(CAPABILITIES.lighting)
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.showControl) : null
-  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
   const [error, setError] = useState<string | null>(null)
 
   async function fire(type: string) {
     if (engine === 'local-mine') {
-      useLocalLightingStore.getState().applyEvent({ type })
+      void getTranslator(CAPABILITIES.lighting)!({ type })
       return
     }
     if (engine === 'local-other') {

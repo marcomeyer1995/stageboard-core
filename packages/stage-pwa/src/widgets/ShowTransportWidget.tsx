@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
+import { supportsLocalExecution } from '../lib/clientTranslator'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
@@ -53,7 +54,12 @@ export function ShowTransportWidget() {
   const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
   // Practice mode always plays locally regardless of any Gig-mode binding - it has no
   // lighting/mixer equivalent, so that override lives here rather than in the generic resolver.
-  const engine = mode === 'practice' ? 'local-mine' : resolveHardwareEngine(audioBinding, deviceId, pluginId)
+  // supportsLocalExecution is unconditionally true for audio-playback (native <audio>, no
+  // plugin needed - #98), same call every other capability-routed widget makes.
+  const engine =
+    mode === 'practice'
+      ? 'local-mine'
+      : resolveHardwareEngine(audioBinding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.audioPlayback))
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'

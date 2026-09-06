@@ -29,24 +29,29 @@ describe('resolveHardwareBinding', () => {
 
 describe('resolveHardwareEngine', () => {
   it('uses the plugin when nothing is bound and a plugin is reachable', () => {
-    expect(resolveHardwareEngine(null, 'me', 'mock-playback')).toBe('plugin')
+    expect(resolveHardwareEngine(null, 'me', 'mock-playback', true)).toBe('plugin')
   })
 
   it('falls back to no engine at all with nothing bound and no plugin', () => {
-    expect(resolveHardwareEngine(null, 'me', null)).toBe('none')
+    expect(resolveHardwareEngine(null, 'me', null, true)).toBe('none')
   })
 
   it("uses the plugin when the binding explicitly targets the server, same as nothing bound", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'server' }, 'me', 'mock-playback')).toBe('plugin')
+    expect(resolveHardwareEngine({ executionTarget: 'server' }, 'me', 'mock-playback', true)).toBe('plugin')
   })
 
   it('plays locally when this device is the bound target - a plugin never wins over an explicit binding', () => {
-    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', 'mock-playback')).toBe('local-mine')
-    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', null)).toBe('local-mine')
+    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', 'mock-playback', true)).toBe('local-mine')
+    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', null, true)).toBe('local-mine')
   })
 
   it("is not this device's job when a different device is the bound target", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', 'mock-playback')).toBe('local-other')
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', null)).toBe('local-other')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', 'mock-playback', true)).toBe('local-other')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', null, true)).toBe('local-other')
+  })
+
+  it('#98: a tablet binding with nothing able to execute it locally resolves to no engine at all, never a silent no-op plugin fallback', () => {
+    expect(resolveHardwareEngine({ executionTarget: 'me' }, 'me', 'mock-playback', false)).toBe('none')
+    expect(resolveHardwareEngine({ executionTarget: 'someone-else' }, 'me', 'mock-playback', false)).toBe('none')
   })
 })
