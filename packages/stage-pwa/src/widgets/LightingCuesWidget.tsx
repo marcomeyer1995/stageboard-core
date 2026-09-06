@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
-import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -20,18 +21,18 @@ const ACTIONS: CueAction[] = [
 /**
  * DMX/lighting-desk cues (docs/07) - #3: previously local feedback only, now a real trigger to
  * whichever plugin provides `lighting`, same pattern ShowTransportWidget already established.
- * #10 (generalized beyond audio): a device claimed for `lighting` takes over here instead of
- * the plugin, via the relay (deviceControlClient.ts) when it's a different tablet, or straight
- * into useLocalLightingStore when it's this one - QuickActionsWidget's ad-hoc cues share the
- * same claim, since they're the same physical rig.
+ * #10 (Logical Devices & Hardware Setup Profiles): a `lighting` binding in the active
+ * HardwareSetup takes over here instead of the plugin, via the relay (deviceControlClient.ts)
+ * when it's a different tablet, or straight into useLocalLightingStore when it's this one -
+ * QuickActionsWidget's ad-hoc cues share the same binding, since they're the same physical rig.
  */
 export function LightingCuesWidget() {
   const installed = usePluginsStore((state) => state.installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const deviceId = useShowStateStore((state) => state.deviceId)
-  const claimedDeviceId = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.lighting])
-  const pluginId = claimedDeviceId === undefined ? pluginProviding(installed, CAPABILITIES.lighting) : null
-  const engine = resolveDeviceClaimEngine(claimedDeviceId, deviceId, pluginId)
+  const binding = useHardwareBindingFor(CAPABILITIES.lighting)
+  const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.lighting) : null
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
   const lastCue = useLocalLightingStore((state) => state.lastCue)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,7 +42,7 @@ export function LightingCuesWidget() {
       return
     }
     if (engine === 'local-other') {
-      const result = await triggerDeviceControl(workspaceId, claimedDeviceId!, CAPABILITIES.lighting, { type })
+      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.lighting, { type })
       setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
       return
     }

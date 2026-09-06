@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
-import { resolveDeviceClaimEngine } from '../lib/deviceClaimEngine'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -17,10 +18,11 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * round trip, so it stays responsive even on a slow connection; the plugin call just needs to
  * eventually catch the mixer up to what's shown.
  *
- * #10 (generalized beyond audio): a device claimed for `mixer` takes over here instead of the
- * plugin - levels are then sourced from useLocalMixerStore (shared, so every tablet - including
- * the claimed one itself - sees the same fader position) rather than this component's own
- * optimistic local state, since a different tablet's drag is otherwise invisible here.
+ * #10 (Logical Devices & Hardware Setup Profiles): a `mixer` binding in the active HardwareSetup
+ * takes over here instead of the plugin - levels are then sourced from useLocalMixerStore
+ * (shared, so every tablet - including the bound one itself - sees the same fader position)
+ * rather than this component's own optimistic local state, since a different tablet's drag is
+ * otherwise invisible here.
  */
 const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
@@ -28,9 +30,9 @@ export function IemWidget() {
   const installed = usePluginsStore((state) => state.installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const deviceId = useShowStateStore((state) => state.deviceId)
-  const claimedDeviceId = useShowStateStore((state) => state.state.deviceClaims[CAPABILITIES.mixer])
-  const pluginId = claimedDeviceId === undefined ? pluginProviding(installed, CAPABILITIES.mixer) : null
-  const engine = resolveDeviceClaimEngine(claimedDeviceId, deviceId, pluginId)
+  const binding = useHardwareBindingFor(CAPABILITIES.mixer)
+  const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.mixer) : null
+  const engine = resolveHardwareEngine(binding, deviceId, pluginId)
   const usesLocalMixerStore = engine === 'local-mine' || engine === 'local-other'
   const localVolumes = useLocalMixerStore((state) => state.volumes)
   const [ownLevels, setOwnLevels] = useState<Record<string, number>>(() =>
@@ -44,7 +46,7 @@ export function IemWidget() {
         useLocalMixerStore.getState().applyEvent({ type: 'set_volume', payload: { channel, volume } })
         return
       }
-      const result = await triggerDeviceControl(workspaceId, claimedDeviceId!, CAPABILITIES.mixer, {
+      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.mixer, {
         type: 'set_volume',
         payload: { channel, volume },
       })

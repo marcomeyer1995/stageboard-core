@@ -39,7 +39,7 @@ const emptyShowState: ShowState = {
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
   trackOverride: null,
-  deviceClaims: {},
+  activeHardwareSetupId: null,
   currentShowId: null,
   lastActivityAt: null,
 }

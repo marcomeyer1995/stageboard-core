@@ -45,16 +45,16 @@ export const ShowStateSchema = z.object({
    * Cleared whenever `activeEntryId` changes (queue.ts's activateEntry), so it never silently
    * carries over onto a different song. */
   trackOverride: z.string().nullable(),
-  /** Which device executes each capability, if not the Stage-Server - a per-show choice (like
+  /** Which HardwareSetup (hardwareSetup.ts) is active right now - a per-show choice (like
    * masterHolderId), not a permanent band setting: e.g. tonight only one of two guitarists
-   * could make it, so the remaining guitarist's own tablet becomes the audio output instead of
-   * routing through a dedicated interface. A capability absent here means today's behavior,
-   * routed to a Stage-Server-hosted plugin. #10 (Logical Devices & Hardware Setup Profiles),
-   * generalized beyond audio - a full HardwareSetup/LogicalDevice system can replace this
-   * later; for now it's a single claimable map, Master-gated like everything else here, same
-   * pattern as masterHolderId. See deviceClaimEngine.ts (stage-pwa) for how a claim changes
-   * where a capability's triggers actually go. */
-  deviceClaims: z.record(z.string(), z.string()),
+   * could make it, so the "Acoustic Solo" setup (routing audio to the remaining guitarist's own
+   * tablet) replaces "Festival" for the night. Null means today's behavior for every
+   * capability: routed to a Stage-Server-hosted plugin. #10 (Logical Devices & Hardware Setup
+   * Profiles) - replaces the earlier single-map `deviceClaims` (one ephemeral claim per
+   * capability) with a reference to a named, switchable profile instead, Master-gated like
+   * everything else here, same pattern as masterHolderId. See hardwareRouting.ts (stage-pwa)
+   * for how the active setup changes where a capability's triggers actually go. */
+  activeHardwareSetupId: z.string().nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -75,7 +75,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
   trackOverride: null,
-  deviceClaims: {},
+  activeHardwareSetupId: null,
   currentShowId: null,
   lastActivityAt: null,
 }

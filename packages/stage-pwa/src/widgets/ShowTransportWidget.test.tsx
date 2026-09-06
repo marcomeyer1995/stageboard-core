@@ -7,14 +7,19 @@ import { useShowMode } from '../lib/showMode'
 import { loadLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 
 // Explicit factories, not auto-mocks: an auto-mock still has to import the real module first to
-// derive its shape, and useShowStateStore.ts/usePluginsStore.ts/showMode.ts all transitively pull
-// in workspaceDb.ts's top-level `new PouchDB(...)`, which throws outside a real browser/IndexedDB
-// environment (same constraint deviceClaimEngine.test.ts's own doc comment already notes).
+// derive its shape, and useShowStateStore.ts/usePluginsStore.ts/showMode.ts (plus the two
+// HardwareSetup stores useHardwareBindingFor.ts reads) all transitively pull in workspaceDb.ts's
+// top-level `new PouchDB(...)`, which throws outside a real browser/IndexedDB environment
+// (hardwareRouting.ts itself stays free of this - see its own doc comment).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
+vi.mock('../store/useHardwareSetupsStore', () => ({ useHardwareSetupsStore: vi.fn() }))
+vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../lib/localAudioEngine', () => ({
   loadLocalTrack: vi.fn(),
   playLocalTrack: vi.fn(),
@@ -79,17 +84,46 @@ function mockShowMode(overrides: {
 }
 
 const DEVICE_ID = 'laptop-device'
+const AUDIO_LOGICAL_DEVICE_ID = 'audio-output'
+const HARDWARE_SETUP_ID = 'setup-1'
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({
-      state: { deviceClaims: { [CAPABILITIES.audioPlayback]: DEVICE_ID } },
+      state: { activeHardwareSetupId: HARDWARE_SETUP_ID },
       deviceId: DEVICE_ID,
       isMaster: false,
       claimMaster: vi.fn(),
       applyPatch: vi.fn(),
       init: vi.fn(),
+    } as never),
+  )
+  // The claimed audio-output device, expressed as #10's HardwareSetup: one Logical Device
+  // providing `audio-playback`, bound to DEVICE_ID under the active setup - equivalent to the
+  // old `deviceClaims[CAPABILITIES.audioPlayback] = DEVICE_ID`.
+  vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
+    selector({
+      devices: [{ id: AUDIO_LOGICAL_DEVICE_ID, name: 'Audio-Ausgabe', capability: CAPABILITIES.audioPlayback }],
+      loaded: true,
+      init: vi.fn(),
+      save: vi.fn(),
+      remove: vi.fn(),
+    } as never),
+  )
+  vi.mocked(useHardwareSetupsStore).mockImplementation((selector) =>
+    selector({
+      setups: [
+        {
+          id: HARDWARE_SETUP_ID,
+          name: 'Test-Setup',
+          bindings: { [AUDIO_LOGICAL_DEVICE_ID]: { executionTarget: DEVICE_ID } },
+        },
+      ],
+      loaded: true,
+      init: vi.fn(),
+      save: vi.fn(),
+      remove: vi.fn(),
     } as never),
   )
   vi.mocked(usePluginsStore).mockImplementation((selector) => selector({ installed: [] } as never))

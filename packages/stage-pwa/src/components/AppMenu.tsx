@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
-import { CAPABILITIES } from 'shared-types'
-import { DeviceClaimControl } from './DeviceClaimControl'
 import { EditLock } from './EditLock'
+import { HardwareSetupPicker } from './HardwareSetupPicker'
 import { MasterControl } from './MasterControl'
 import { SessionModeControl } from './SessionModeControl'
 import { useFullscreen } from '../lib/useFullscreen'
@@ -89,23 +88,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
         {sessionMode === 'gig' && (
           <Section title="Geräte-Zuweisung">
-            <div className="flex flex-col gap-2">
-              <DeviceClaimControl
-                capability={CAPABILITIES.audioPlayback}
-                label="Audio-Ausgabe"
-                hint="Backing-Track über dieses Gerät statt über ein Stage-Server-Plugin abspielen"
-              />
-              <DeviceClaimControl
-                capability={CAPABILITIES.lighting}
-                label="Licht-Steuerung"
-                hint="Lighting-Cues über dieses Gerät statt über ein Stage-Server-Plugin auslösen"
-              />
-              <DeviceClaimControl
-                capability={CAPABILITIES.mixer}
-                label="Mixer-Steuerung"
-                hint="Mixer-Kanäle über dieses Gerät statt über ein Stage-Server-Plugin steuern"
-              />
-            </div>
+            <HardwareSetupPicker />
           </Section>
         )}
 

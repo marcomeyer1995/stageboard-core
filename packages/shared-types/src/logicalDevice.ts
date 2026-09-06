@@ -9,10 +9,10 @@ import { CapabilityIdSchema } from './capability.js'
  * binds to once and never has to touch again, even as the physical routing behind it changes
  * from gig to gig.
  *
- * That routing (LogicalDeviceId -> ExecutionTarget + PluginConfig) is `HardwareSetup`, not yet
- * built - showState.ts's `deviceClaims` remains today's single-map stand-in for it. This schema
- * is deliberately not yet referenced by WidgetInstance/ShowCue or any HardwareSetup; it only
- * gives a Logical Device somewhere to be named ahead of that routing layer existing.
+ * That routing (LogicalDeviceId -> ExecutionTarget + PluginConfig) is `HardwareSetup`
+ * (hardwareSetup.ts), which now exists and resolves a capability's *first* matching Logical
+ * Device (see hardwareRouting.ts, stage-pwa) - true per-LogicalDeviceId targeting still needs
+ * WidgetInstance/ShowCue to reference a LogicalDeviceId directly, which isn't wired up yet.
  *
  * One capability per Logical Device, matching the issue's example ("Marco's Kemper" /
  * `midi-input`) - a piece of hardware that offers several capabilities (e.g. a Kemper that's

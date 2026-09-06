@@ -1,9 +1,9 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
 import { getStageServerUrl } from './stageServer'
 
-/** Fires a device-claim trigger through the Stage-Server relay (#10, generalized beyond audio -
- * see deviceRelay.ts) at whichever tablet is currently claimed for `capability`, rather than a
- * Stage-Server plugin - same error-handling shape as showControlClient.ts's triggerShowControl. */
+/** Fires a trigger through the Stage-Server relay (#10 - see deviceRelay.ts) at whichever
+ * tablet the active HardwareSetup binds `capability` to, rather than a Stage-Server plugin -
+ * same error-handling shape as showControlClient.ts's triggerShowControl. */
 export async function triggerDeviceControl(
   workspaceId: string,
   deviceId: string,

@@ -380,8 +380,8 @@ export async function buildApp() {
     return reply.status(204).send()
   })
 
-  // #10's generalized device claims: a lighting/mixer cue fired from one tablet, relayed to
-  // whichever tablet is currently claimed for that capability (deviceClaims), since - unlike
+  // #10's HardwareSetup routing: a lighting/mixer cue fired from one tablet, relayed to
+  // whichever tablet the active HardwareSetup binds that capability to, since - unlike
   // audio's continuous synced playbackStatus, which every tablet already watches on its own -
   // a cue is a one-shot event with nothing to piggyback on. Same SSE push pattern as
   // plugin-health/presence above, just keyed by (workspaceId, deviceId) via deviceRelay.ts

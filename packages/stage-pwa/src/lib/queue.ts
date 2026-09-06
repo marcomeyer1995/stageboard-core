@@ -151,22 +151,13 @@ export async function setTrackOverride(trackId: string | null): Promise<void> {
   await applyPatch({ trackOverride: trackId })
 }
 
-/** Claims this device as tonight's execution target for a capability, bypassing the
- * Stage-Server plugin entirely - #10 (Logical Devices & Hardware Setup Profiles), generalized
- * beyond audio. A per-show choice like masterHolderId, not a permanent setting: e.g. only one
- * of two guitarists could make it, so their tablet becomes the audio output for tonight only. */
-export async function claimDevice(capability: string): Promise<void> {
-  const { isMaster, deviceId, state, applyPatch } = useShowStateStore.getState()
+/** Activates a HardwareSetup profile (or clears it with `null`, falling back to the
+ * Stage-Server plugin for every capability) - #10 (Logical Devices & Hardware Setup Profiles).
+ * A per-show choice like masterHolderId, not a permanent setting: e.g. only one of two
+ * guitarists could make it, so "Acoustic Solo" (routing audio to their tablet) replaces
+ * "Festival" for tonight only. */
+export async function setActiveHardwareSetup(id: string | null): Promise<void> {
+  const { isMaster, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  await applyPatch({ deviceClaims: { ...state.deviceClaims, [capability]: deviceId } })
-}
-
-/** Releases a capability's device claim, falling back to the Stage-Server plugin (or "no
- * source" if none is installed) - the counterpart to claimDevice. */
-export async function releaseDevice(capability: string): Promise<void> {
-  const { isMaster, state, applyPatch } = useShowStateStore.getState()
-  if (!isMaster) return
-  const rest = { ...state.deviceClaims }
-  delete rest[capability]
-  await applyPatch({ deviceClaims: rest })
+  await applyPatch({ activeHardwareSetupId: id })
 }
