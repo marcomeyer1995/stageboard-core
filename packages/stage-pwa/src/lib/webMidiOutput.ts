@@ -46,3 +46,32 @@ export async function findMidiOutputIdByNamePattern(namePattern: string): Promis
 export function sendControlChange(output: MIDIOutput, channel: number, cc: number, value: number): void {
   output.send([0xb0 | (channel & 0x0f), cc & 0x7f, value & 0x7f])
 }
+
+/**
+ * Sends a full CC sequence (e.g. a plugin's `discoveryTrigger.matchCcSequence`) to the real
+ * output matching `namePattern` - the Discovery Wizard's "Jetzt senden" button, for verifying a
+ * role's trigger reaches the real device without a musician having to physically touch it.
+ * Deliberately the *only* thing this does: it does not itself resolve or wait for the resulting
+ * `discovery/triggered` report - that round trip already works (useDiscoveryTrigger.ts listens
+ * on this exact device's own input independently), this just needs to actually put the signal on
+ * the wire. Returns false (not a throw) when no matching output exists, same Graceful
+ * Degradation spirit as the rest of this module - a wizard button that does nothing on a device
+ * with no MIDI output is a normal state, not an error.
+ */
+export async function sendCcSequence(
+  namePattern: string,
+  sequence: { cc: number; value: number }[],
+  channel = 0,
+): Promise<boolean> {
+  const outputId = await findMidiOutputIdByNamePattern(namePattern)
+  const output = outputId ? await getMidiOutputById(outputId) : null
+  if (!output) return false
+  for (const step of sequence) {
+    sendControlChange(output, channel, step.cc, step.value)
+    // A brief gap between steps - an instant on/off pair risks being coalesced or misread by
+    // whatever's matching the sequence on the receiving end (real hardware and
+    // useDiscoveryTrigger.ts's own matcher both read messages one at a time).
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  }
+  return true
+}
