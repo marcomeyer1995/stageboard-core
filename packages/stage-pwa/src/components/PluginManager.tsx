@@ -1,116 +1,7 @@
-import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
+import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
-
-/**
- * The plugins a band can add without a plugin repository yet. Installing one writes a
- * document that replicates across the stage mesh - every other tablet and the
- * Stage-Server pick it up (docs/01).
- */
-const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
-  {
-    id: 'mock-mixer',
-    name: 'Mock Mixer',
-    version: '0.0.1',
-    // 'both': a real server-hosted mixer adapter (mockMixerPlugin.ts, core-backend) AND a
-    // client-runtime Translator (clientTranslator.ts) sharing one manifest - #98. Which one
-    // actually executes a given trigger is a HardwareSetup routing decision, not a plugin one.
-    runtime: 'both',
-    capabilities: [CAPABILITIES.mixer],
-    // Example transport (#100) - a real mixer adapter would offer this so a tablet claimed as
-    // its executor can pick which desk it's actually talking to.
-    transports: [
-      {
-        id: 'network-osc',
-        label: 'Netzwerk (OSC)',
-        fields: [
-          { key: 'host', label: 'Host', type: 'text' },
-          { key: 'port', label: 'Port', type: 'number' },
-        ],
-      },
-    ],
-    hardwareIds: [],
-  },
-  {
-    id: 'generic-webmidi',
-    name: 'Generic WebMIDI Input',
-    version: '0.0.1',
-    runtime: 'client',
-    capabilities: [CAPABILITIES.midiInput],
-    transports: [
-      {
-        id: 'usb-midi',
-        label: 'USB-MIDI',
-        fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' }],
-      },
-    ],
-    // No namePattern - a true catch-all, matching any WebMIDI input (#106). A device-specific
-    // plugin (Kemper, RC-500, ...) declaring its own namePattern takes priority over this one -
-    // see shared-types' hardwareMatching.ts.
-    hardwareIds: [{ kind: 'webmidi' }],
-  },
-  {
-    id: 'kemper-profiler',
-    name: 'Kemper Profiler',
-    version: '0.0.1',
-    runtime: 'client',
-    // Own dedicated capability (kemperTranslator.ts), not CAPABILITIES.midiInput/showControl -
-    // a device-specific plugin brings its own vocabulary (capability.ts's doc comment).
-    capabilities: ['kemper-control'],
-    transports: [
-      {
-        id: 'usb-midi',
-        label: 'USB-MIDI',
-        fields: [
-          { key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' },
-          { key: 'midiChannel', label: 'MIDI-Kanal (1-16)', type: 'number' },
-        ],
-      },
-    ],
-    // More specific than generic-webmidi's catch-all, so shared-types' hardwareMatching.ts's
-    // specific-beats-generic rule means plugging in a Kemper (or its emulator) resolves to this
-    // plugin once installed, not generic-webmidi.
-    hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
-    // Same CC31 on/off pair kemperTranslator.ts's 'test' action already sends - Discovery
-    // Mode's "please identify yourself" and the manual "Testen" button are the same wire signal.
-    discoveryTrigger: {
-      instruction: 'Tuner am Kemper kurz an- und wieder ausschalten.',
-      matchCcSequence: [
-        { cc: 31, value: 127 },
-        { cc: 31, value: 0 },
-      ],
-      timeoutMs: 15000,
-    },
-  },
-  {
-    id: 'mock-lighting',
-    name: 'Mock Lighting (DMX)',
-    version: '0.0.1',
-    // 'both', same reasoning as mock-mixer above - #98.
-    runtime: 'both',
-    capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
-    transports: [],
-    hardwareIds: [],
-  },
-  {
-    id: 'mock-backup',
-    name: 'Mock Backup',
-    version: '0.0.1',
-    runtime: 'server',
-    capabilities: [CAPABILITIES.backup],
-    transports: [],
-    hardwareIds: [],
-  },
-  {
-    id: 'mock-playback',
-    name: 'Mock Playback',
-    version: '0.0.1',
-    runtime: 'server',
-    capabilities: [CAPABILITIES.audioPlayback],
-    transports: [],
-    hardwareIds: [],
-  },
-]
 
 export function PluginManager() {
   const installed = usePluginsStore((state) => state.installed)
@@ -129,7 +20,7 @@ export function PluginManager() {
     return 'online'
   }
 
-  const notInstalled = CATALOG.filter(
+  const notInstalled = PLUGIN_CATALOG.filter(
     (candidate) => !installed.some((plugin) => plugin.id === candidate.id),
   )
 
