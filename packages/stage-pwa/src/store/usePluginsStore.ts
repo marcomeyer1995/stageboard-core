@@ -19,9 +19,10 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
     clientSource: doc.clientSource,
     runtime: doc.runtime,
     capabilities: doc.capabilities,
-    // A plugin installed before `transports` existed (#100) simply lacks the key - same
-    // read-time fallback spirit as useSongVariantsStore's `cues` one.
+    // A plugin installed before `transports`/`hardwareIds` existed (#100/#106) simply lacks the
+    // key - same read-time fallback spirit as useSongVariantsStore's `cues` one.
     transports: doc.transports ?? [],
+    hardwareIds: doc.hardwareIds ?? [],
     enabled: doc.enabled,
     installedAt: doc.installedAt,
   }

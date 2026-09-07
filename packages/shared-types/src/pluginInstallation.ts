@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CapabilityIdSchema } from './capability.js'
 import { TransportDescriptorSchema } from './transport.js'
+import { HardwareIdSchema } from './hardwareId.js'
 
 /**
  * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
@@ -36,6 +37,10 @@ export const PluginInstallationSchema = z.object({
    * configure (the mock plugins today). The actual per-tablet values live in
    * DeviceTransportConfig, never here - this is just what the *fields* are. */
   transports: z.array(TransportDescriptorSchema).default([]),
+  /** Cheap identity metadata (#106) so a tablet can recognize a newly-connected WebMIDI/WebUSB
+   * device that matches this plugin, without loading its code - see hardwareId.ts. Empty for a
+   * plugin with nothing to auto-detect (the server-only mock plugins today). */
+  hardwareIds: z.array(HardwareIdSchema).default([]),
   enabled: z.boolean().default(true),
   installedAt: z.number().int().nonnegative(),
 })

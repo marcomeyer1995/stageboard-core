@@ -12,6 +12,7 @@ function installation(overrides: Partial<PluginInstallation> = {}): PluginInstal
     runtime: 'server',
     capabilities: ['mixer'],
     transports: [],
+    hardwareIds: [],
     enabled: true,
     installedAt: 0,
     ...overrides,

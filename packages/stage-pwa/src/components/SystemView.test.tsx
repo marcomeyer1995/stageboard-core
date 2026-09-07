@@ -50,6 +50,7 @@ describe('SystemView', () => {
           runtime: 'server',
           capabilities: ['backup'],
           transports: [],
+          hardwareIds: [],
           enabled: true,
           installedAt: Date.now(),
         },
