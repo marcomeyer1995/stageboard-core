@@ -1,18 +1,22 @@
 import { useEffect } from 'react'
 import { type DetectedHardware, hardwareKeyFor, type HardwareId, matchDetectedHardware, type PluginInstallation } from 'shared-types'
 import { getDeviceId } from './deviceId'
+import { reportDiscoveryCandidate } from './discoveryClient'
 import { getRememberedLogicalDeviceId, rememberLogicalDeviceId } from './hardwareDeviceMemory'
 import { listenForMidiConnections } from './webMidi'
 import { findMidiOutputIdByNamePattern } from './webMidiOutput'
 import { listenForUsbConnections } from './webUsb'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
+import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 
 /**
  * Writes this tablet's own DeviceTransportConfig for `detected` bound to `logicalDeviceId` via
- * `match`, and remembers the pairing (#106's Auto-Memory).
+ * `match`, and remembers the pairing (#106's Auto-Memory). Shared by the passive per-tablet flow
+ * below and by Discovery Mode's "I just won a role" reaction (resolveDiscoveryWins) - both are
+ * just different ways of arriving at the same (detected, match, logicalDeviceId) triple.
  */
 async function bindDetectedDevice(detected: DetectedHardware, match: PluginInstallation, logicalDeviceId: string): Promise<void> {
   const deviceId = getDeviceId()
@@ -38,6 +42,52 @@ async function bindDetectedDevice(detected: DetectedHardware, match: PluginInsta
   rememberLogicalDeviceId(hardwareKeyFor(detected), logicalDeviceId)
 }
 
+/** Reconstructs the `DetectedHardware` a Discovery candidate was originally reported from -
+ * enough to feed `bindDetectedDevice` (only the fields that actually affect binding: `portId`
+ * for the webmidi-output lookup, `name`/`manufacturer` are cosmetic only there). */
+function detectedFromCandidateKey(hardwareKey: string, name: string, manufacturer: string): DetectedHardware | null {
+  if (hardwareKey.startsWith('webmidi:')) return { kind: 'webmidi', portId: hardwareKey.slice('webmidi:'.length), name, manufacturer }
+  if (hardwareKey.startsWith('webusb:')) {
+    const [, vendorId, productId] = hardwareKey.split(':')
+    return { kind: 'webusb', vendorId: Number(vendorId), productId: Number(productId) }
+  }
+  return null
+}
+
+let handledDiscoveryWins = new Set<string>()
+
+/** Test-only: this module's state is shared across the whole process by design (one set for the
+ * tab's lifetime) - tests need a way to reset it between runs, same convention core-backend's
+ * in-memory stores already use (e.g. presenceStore.ts's `__resetPresenceStoreForTests`). */
+export function __resetHardwareDetectionForTests(): void {
+  handledDiscoveryWins = new Set<string>()
+}
+
+/**
+ * The counterpart to core-backend's midiWatcher.ts `writeWonRoles()` - a tablet has no
+ * request/response "did I win" to poll, so this just re-scans the live broadcast snapshot
+ * (cheap: a handful of candidates at most) every time it changes, and binds any of *this
+ * tablet's* own candidates that just turned `assigned` and hasn't been written yet.
+ */
+async function resolveDiscoveryWins(): Promise<void> {
+  const { session } = useDiscoverySessionStore.getState()
+  const deviceId = getDeviceId()
+  const installed = usePluginsStore.getState().installed
+
+  for (const candidate of session.candidates) {
+    if (candidate.reporterId !== deviceId) continue
+    if (candidate.status !== 'assigned' || !candidate.assignedLogicalDeviceId) continue
+    if (handledDiscoveryWins.has(candidate.hardwareKey)) continue
+
+    const match = candidate.matchedPluginId ? installed.find((p) => p.id === candidate.matchedPluginId) : null
+    const detected = detectedFromCandidateKey(candidate.hardwareKey, candidate.name, candidate.manufacturer)
+    if (!match || !detected) continue
+
+    handledDiscoveryWins.add(candidate.hardwareKey)
+    await bindDetectedDevice(detected, match, candidate.assignedLogicalDeviceId)
+  }
+}
+
 /** Exported for hardwareDetection.test.ts - the actual match/prompt/bind logic, independent of
  * the WebMIDI/WebUSB event wiring below. */
 export async function handleDetected(detected: DetectedHardware) {
@@ -49,6 +99,18 @@ export async function handleDetected(detected: DetectedHardware) {
   // replays every device seen while not-yet-loaded once loading finishes, so this isn't a
   // silent drop for the common case of a device that was already connected at app startup.
   if (!plugins.loaded || !logicalDevices.loaded || !deviceTransportConfig.loaded) return
+
+  const discovery = useDiscoverySessionStore.getState()
+  if (discovery.session.active) {
+    // Discovery Mode is running: defer entirely to the bandwide session instead of this
+    // tablet's own passive #106 flow below - reporting is idempotent (the server just updates
+    // the existing candidate entry on a repeat report), so replaying an already-reported device
+    // here (the hook below does this on every session-active edge) is harmless. Actually binding
+    // a winning candidate is resolveDiscoveryWins's job, triggered off the session store itself
+    // rather than from here, since a role can resolve long after this specific report.
+    void reportDiscoveryCandidate(discovery.workspaceId, getDeviceId(), detected)
+    return
+  }
 
   const remembered = getRememberedLogicalDeviceId(hardwareKeyFor(detected))
   if (remembered) {
@@ -116,12 +178,15 @@ function allHardwareStoresLoaded(): boolean {
  * loaded-guard silently and permanently drop that device (no further "connect" event will ever
  * fire for it), every device seen is remembered here and replayed once loading catches up -
  * edge-triggered on not-loaded -> loaded so it also re-fires after a workspace switch, which
- * flips every store back through not-loaded.
+ * flips every store back through not-loaded. The same replay also fires when Discovery Mode
+ * turns on (not-active -> active), so a device already plugged in before the admin started
+ * Discovery still gets reported into the session, not just future connects.
  */
 export function useHardwareDetection(): void {
   useEffect(() => {
     let cancelled = false
     let wasLoaded = false
+    let wasDiscoveryActive = false
     const stops: (() => void)[] = []
     const seen: DetectedHardware[] = []
 
@@ -141,15 +206,21 @@ export function useHardwareDetection(): void {
 
     function onStoreChange() {
       const loaded = allHardwareStoresLoaded()
-      if (loaded && !wasLoaded) {
+      const discoveryActive = useDiscoverySessionStore.getState().session.active
+      if ((loaded && !wasLoaded) || (discoveryActive && !wasDiscoveryActive)) {
         seen.forEach((detected) => void handleDetected(detected))
       }
       wasLoaded = loaded
+      wasDiscoveryActive = discoveryActive
     }
-    const unsubscribes = [usePluginsStore, useLogicalDevicesStore, useDeviceTransportConfigStore].map(
+    const unsubscribes = [usePluginsStore, useLogicalDevicesStore, useDeviceTransportConfigStore, useDiscoverySessionStore].map(
       (store) => store.subscribe(onStoreChange),
     )
     stops.push(...unsubscribes)
+
+    // Runs on every session update (not just the active-edge above) - a role can resolve at any
+    // point while Discovery Mode stays active, long after this tablet's own report of it.
+    stops.push(useDiscoverySessionStore.subscribe(() => void resolveDiscoveryWins()))
 
     return () => {
       cancelled = true

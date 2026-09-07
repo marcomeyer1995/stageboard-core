@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CapabilityIdSchema } from './capability.js'
 import { TransportDescriptorSchema } from './transport.js'
 import { HardwareIdSchema } from './hardwareId.js'
+import { DiscoveryTriggerSchema } from './discoveryTrigger.js'
 
 /**
  * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
@@ -41,6 +42,11 @@ export const PluginInstallationSchema = z.object({
    * device that matches this plugin, without loading its code - see hardwareId.ts. Empty for a
    * plugin with nothing to auto-detect (the server-only mock plugins today). */
   hardwareIds: z.array(HardwareIdSchema).default([]),
+  /** How Discovery Mode should ask a musician to physically identify this device when catalog
+   * metadata alone can't tell two candidates apart (e.g. two guitarists' Kempers) - see
+   * discoveryTrigger.ts. Absent for a plugin with no such action (or nothing that needs
+   * disambiguating - a workspace rarely has two of the same server-only mixer, say). */
+  discoveryTrigger: DiscoveryTriggerSchema.optional(),
   enabled: z.boolean().default(true),
   installedAt: z.number().int().nonnegative(),
 })
