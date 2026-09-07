@@ -4,6 +4,17 @@ import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 const loadClientPlugin = vi.hoisted(() => vi.fn())
 vi.mock('./loadClientPlugin', () => ({ loadClientPlugin }))
 
+// clientTranslator.ts now registers kemperTranslator.ts, which transitively imports
+// workspaceDb.ts - constructs a real PouchDB at module load time, unavailable under happy-dom
+// (see SystemView.test.tsx/workspaceDb.test.ts's identical mock).
+vi.mock('pouchdb-browser', () => ({
+  default: class FakePouchDB {
+    sync() {
+      return { on: () => this, cancel: () => {} }
+    }
+  },
+}))
+
 const { getTranslator, hasClientTranslator, preloadDynamicTranslator, supportsLocalExecution } = await import(
   './clientTranslator'
 )

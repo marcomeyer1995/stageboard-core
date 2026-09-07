@@ -7,7 +7,7 @@ import {
   type LogicalDevice,
   type PluginInstallation,
 } from 'shared-types'
-import { supportsLocalExecution } from '../lib/clientTranslator'
+import { getTranslator, hasClientTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -24,8 +24,15 @@ function LogicalDeviceList() {
   const save = useLogicalDevicesStore((state) => state.save)
   const remove = useLogicalDevicesStore((state) => state.remove)
   const confirm = useDialogStore((state) => state.confirm)
+  const installed = usePluginsStore((state) => state.installed)
   const [name, setName] = useState('')
   const [capability, setCapability] = useState<CapabilityId>(CAPABILITY_OPTIONS[0])
+
+  // capability.ts's own vocabulary is deliberately open ("community plugins bring their own") -
+  // an installed plugin's capability isn't necessarily one of StageBoard's core CAPABILITY_OPTIONS
+  // (e.g. a device-specific plugin like Kemper Profiler declares 'kemper-control'), so without
+  // this a Logical Device could never be created for it at all.
+  const capabilityOptions = Array.from(new Set([...CAPABILITY_OPTIONS, ...installed.flatMap((p) => p.capabilities)]))
 
   async function add() {
     const trimmed = name.trim()
@@ -73,7 +80,7 @@ function LogicalDeviceList() {
           onChange={(e) => setCapability(e.target.value)}
           className="h-10 rounded-sb-sm bg-control px-2 text-sm text-ink"
         >
-          {CAPABILITY_OPTIONS.map((option) => (
+          {capabilityOptions.map((option) => (
             <option key={option} value={option}>
               {option}
             </option>
@@ -264,13 +271,21 @@ function TransportConfigForm({
   const configId = `${deviceId}:${logicalDevice.id}`
   const existing = useDeviceTransportConfigStore((state) => state.configs.find((c) => c.id === configId))
   const save = useDeviceTransportConfigStore((state) => state.save)
+  const installed = usePluginsStore((state) => state.installed)
   const [transportId, setTransportId] = useState(existing?.transportId ?? plugin.transports[0]?.id ?? '')
   const [values, setValues] = useState<Record<string, string>>(existing?.values ?? {})
+  const [testResult, setTestResult] = useState<string | null>(null)
   const transport = plugin.transports.find((t) => t.id === transportId)
 
   function submit() {
     if (!transport) return
     void save({ id: configId, deviceId, logicalDeviceId: logicalDevice.id, transportId: transport.id, values })
+  }
+
+  async function runTest() {
+    setTestResult('…')
+    const result = await getTranslator(logicalDevice.capability)?.({ type: 'test', payload: {} })
+    setTestResult(result ? `${result.status}${result.message ? `: ${result.message}` : ''}` : 'kein Translator')
   }
 
   return (
@@ -316,6 +331,16 @@ function TransportConfigForm({
           >
             Speichern
           </button>
+          {hasClientTranslator(installed, logicalDevice.capability) && (
+            <button
+              type="button"
+              onClick={() => void runTest()}
+              className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs font-medium text-ink-soft hover:bg-control-strong-hover"
+            >
+              Testen
+            </button>
+          )}
+          {testResult && <span className="text-xs text-ink-faint">{testResult}</span>}
         </div>
       )}
     </div>

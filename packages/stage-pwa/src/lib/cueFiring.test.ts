@@ -12,6 +12,17 @@ vi.mock('../store/useLocalLightingStore', () => ({
 const triggerShowControl = vi.hoisted(() => vi.fn())
 vi.mock('./showControlClient', () => ({ triggerShowControl }))
 
+// cueFiring.ts -> clientTranslator.ts now also registers kemperTranslator.ts, which
+// transitively imports workspaceDb.ts - constructs a real PouchDB at module load time,
+// unavailable under happy-dom (see SystemView.test.tsx/workspaceDb.test.ts's identical mock).
+vi.mock('pouchdb-browser', () => ({
+  default: class FakePouchDB {
+    sync() {
+      return { on: () => this, cancel: () => {} }
+    }
+  },
+}))
+
 const { fireCue } = await import('./cueFiring')
 
 // 'mixer', not 'midi-input': clientTranslator.ts's static Translator registry (#98) only
