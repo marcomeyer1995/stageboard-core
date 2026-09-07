@@ -122,6 +122,16 @@ function candidatesForCapability(session: DiscoverySession, ctx: WorkspaceContex
   return session.candidates.filter((c) => c.matchedPluginId && pluginIds.has(c.matchedPluginId) && c.status === 'unassigned')
 }
 
+/** How many still-open Logical Devices share `capability` - a single matching candidate is only
+ * really unambiguous if there's also only one open role it could possibly belong to. Two open
+ * "kemper-control" roles ("Marcos Kemper", "Hemme Kemper") with only one Kemper detected so far
+ * is still ambiguous at the *role* level, even though `candidatesForCapability` sees exactly one
+ * candidate - without this, whichever role happened to come first in `ctx.logicalDevices` would
+ * silently win it, regardless of whose Kemper it actually is. */
+function openRolesForCapability(session: DiscoverySession, ctx: WorkspaceContext, capability: string): LogicalDevice[] {
+  return ctx.logicalDevices.filter((d) => d.capability === capability && isRoleOpen(session, d.id))
+}
+
 /** A candidate is only auto-assignable when its match came from a *specific* namePattern, not a
  * catch-all (generic-webmidi) - a catch-all matching "the only open Kemper-capability role" tells
  * us nothing about whether this port is actually a Kemper at all. */
@@ -154,6 +164,7 @@ function recompute(workspaceId: string): void {
     if (!isRoleOpen(session, logicalDevice.id)) continue
     const candidates = candidatesForCapability(session, ctx, logicalDevice.capability)
     if (candidates.length !== 1) continue
+    if (openRolesForCapability(session, ctx, logicalDevice.capability).length !== 1) continue
     const plugin = ctx.plugins.find((p) => p.id === candidates[0].matchedPluginId)
     if (plugin && isSpecificMatch(plugin)) assignCandidate(candidates[0], logicalDevice.id)
   }
