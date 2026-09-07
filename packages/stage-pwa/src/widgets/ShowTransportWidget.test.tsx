@@ -12,14 +12,16 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 
 // Explicit factories, not auto-mocks: an auto-mock still has to import the real module first to
 // derive its shape, and useShowStateStore.ts/usePluginsStore.ts/showMode.ts (plus the two
-// HardwareSetup stores useHardwareBindingFor.ts reads) all transitively pull in workspaceDb.ts's
-// top-level `new PouchDB(...)`, which throws outside a real browser/IndexedDB environment
-// (hardwareRouting.ts itself stays free of this - see its own doc comment).
+// HardwareSetup stores useHardwareBindingFor.ts reads, and - now that clientTranslator.ts also
+// registers kemperTranslator.ts - useDeviceTransportConfigStore) all transitively pull in
+// workspaceDb.ts's top-level `new PouchDB(...)`, which throws outside a real browser/IndexedDB
+// environment (hardwareRouting.ts itself stays free of this - see its own doc comment).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useHardwareSetupsStore', () => ({ useHardwareSetupsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
+vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
 vi.mock('../lib/localAudioEngine', () => ({
   loadLocalTrack: vi.fn(),
   playLocalTrack: vi.fn(),

@@ -50,6 +50,29 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     hardwareIds: [{ kind: 'webmidi' }],
   },
   {
+    id: 'kemper-profiler',
+    name: 'Kemper Profiler',
+    version: '0.0.1',
+    runtime: 'client',
+    // Own dedicated capability (kemperTranslator.ts), not CAPABILITIES.midiInput/showControl -
+    // a device-specific plugin brings its own vocabulary (capability.ts's doc comment).
+    capabilities: ['kemper-control'],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [
+          { key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' },
+          { key: 'midiChannel', label: 'MIDI-Kanal (1-16)', type: 'number' },
+        ],
+      },
+    ],
+    // More specific than generic-webmidi's catch-all, so shared-types' hardwareMatching.ts's
+    // specific-beats-generic rule means plugging in a Kemper (or its emulator) resolves to this
+    // plugin once installed, not generic-webmidi.
+    hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
+  },
+  {
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',
