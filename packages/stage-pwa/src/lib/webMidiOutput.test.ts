@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sendControlChange } from './webMidiOutput'
 
+const KEMPER_TRIGGER = [
+  { cc: 31, value: 127 },
+  { cc: 31, value: 0 },
+]
+
 // getMidiOutputById caches the MIDIAccess promise at module scope (webMidiOutput.ts), so each
 // test needs a fresh module instance - vi.resetModules() + a fresh dynamic import, same reason
 // clientPluginModule-adjacent tests avoid relying on import-time singletons across tests.
@@ -86,5 +91,33 @@ describe('sendControlChange', () => {
     const send = vi.fn()
     sendControlChange({ send } as unknown as MIDIOutput, 3, 50, 127)
     expect(send).toHaveBeenCalledWith([0xb3, 50, 127])
+  })
+})
+
+describe('sendCcSequence', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('is false when no output matches the name pattern', async () => {
+    vi.stubGlobal('navigator', { requestMIDIAccess: vi.fn().mockResolvedValue({ outputs: new Map() }) })
+    const { sendCcSequence: fresh } = await freshModule()
+    expect(await fresh('Kemper', KEMPER_TRIGGER)).toBe(false)
+  })
+
+  it('sends every step of the sequence, in order, to the matched output', async () => {
+    const send = vi.fn()
+    const outputs = new Map([['out-1', { id: 'out-1', name: 'Kemper Profiler Emulator', manufacturer: '', send }]])
+    vi.stubGlobal('navigator', { requestMIDIAccess: vi.fn().mockResolvedValue({ outputs }) })
+    const { sendCcSequence: fresh } = await freshModule()
+
+    vi.useFakeTimers()
+    const result = fresh('Kemper', KEMPER_TRIGGER)
+    await vi.advanceTimersByTimeAsync(500) // past the inter-step gap for both steps
+    expect(await result).toBe(true)
+
+    expect(send).toHaveBeenNthCalledWith(1, [0xb0, 31, 127])
+    expect(send).toHaveBeenNthCalledWith(2, [0xb0, 31, 0])
   })
 })

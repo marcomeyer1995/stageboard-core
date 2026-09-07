@@ -1,3 +1,5 @@
+import { hardwareKeyFor } from 'shared-types'
+
 export function isWebMidiSupported(): boolean {
   return typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator
 }
@@ -84,4 +86,35 @@ export async function listenForMidiConnections(onConnect: (port: MIDIInput) => v
   return {
     stop: () => access.removeEventListener('statechange', onStateChange),
   }
+}
+
+/**
+ * Raw `midimessage` feed for one specific already-connected input, identified by the same
+ * `hardwareKey` a Discovery candidate carries (`shared-types`' `hardwareKeyFor`) - the Discovery
+ * Wizard's live-data view (DiscoveryWizard.tsx) uses this to show a musician's tablet actually
+ * receiving something, independent of whether it happens to match any trigger sequence. Returns
+ * `null` (not a no-op handle) when WebMIDI is unsupported/denied or no currently-connected input
+ * matches the key, so callers can tell "nothing to listen to" apart from "listening, quiet so
+ * far" without an extra round trip.
+ */
+export async function listenToPortByHardwareKey(hardwareKey: string, onMessage: (data: Uint8Array) => void): Promise<(() => void) | null> {
+  if (!isWebMidiSupported()) return null
+
+  let access: MIDIAccess
+  try {
+    access = await navigator.requestMIDIAccess()
+  } catch {
+    return null
+  }
+
+  const target = Array.from(access.inputs.values()).find(
+    (input) => hardwareKeyFor({ kind: 'webmidi', portId: input.id, name: input.name ?? '', manufacturer: input.manufacturer ?? '' }) === hardwareKey,
+  )
+  if (!target) return null
+
+  const handler = (event: MIDIMessageEvent) => {
+    if (event.data) onMessage(event.data)
+  }
+  target.addEventListener('midimessage', handler)
+  return () => target.removeEventListener('midimessage', handler)
 }
