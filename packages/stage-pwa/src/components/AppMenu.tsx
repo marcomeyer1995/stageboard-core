@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
-import { HardwareSetupPicker } from './HardwareSetupPicker'
 import { MasterControl } from './MasterControl'
 import { SessionModeControl } from './SessionModeControl'
 import { useFullscreen } from '../lib/useFullscreen'
@@ -83,12 +82,6 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
         {sessionMode === 'gig' && (
           <Section title="Master-Kontrolle">
             <MasterControl />
-          </Section>
-        )}
-
-        {sessionMode === 'gig' && (
-          <Section title="Geräte-Zuweisung">
-            <HardwareSetupPicker />
           </Section>
         )}
 

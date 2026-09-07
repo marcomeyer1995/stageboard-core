@@ -8,7 +8,7 @@ const STORAGE_KEY = 'stageboard-device-id'
  * per-profile state alone can't represent.
  *
  * The single device identity for the whole app - `useShowStateStore.ts`'s Master-Token
- * (`masterHolderId`) and a HardwareBinding's `executionTarget` (hardwareSetup.ts) use this
+ * (`masterHolderId`) and a Logical Device's own `executionTarget` (logicalDevice.ts) use this
  * exact same id, not a separately-generated one (unified 2026-09-04, while scoping #10's
  * DeviceRegistry slice: found two independent per-device ids coexisting with nothing linking
  * them).

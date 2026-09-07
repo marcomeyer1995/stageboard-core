@@ -150,14 +150,3 @@ export async function setTrackOverride(trackId: string | null): Promise<void> {
   if (!isMaster) return
   await applyPatch({ trackOverride: trackId })
 }
-
-/** Activates a HardwareSetup profile (or clears it with `null`, falling back to the
- * Stage-Server plugin for every capability) - #10 (Logical Devices & Hardware Setup Profiles).
- * A per-show choice like masterHolderId, not a permanent setting: e.g. only one of two
- * guitarists could make it, so "Acoustic Solo" (routing audio to their tablet) replaces
- * "Festival" for tonight only. */
-export async function setActiveHardwareSetup(id: string | null): Promise<void> {
-  const { isMaster, applyPatch } = useShowStateStore.getState()
-  if (!isMaster) return
-  await applyPatch({ activeHardwareSetupId: id })
-}

@@ -48,7 +48,7 @@ export function QuickActionsWidget() {
       return
     }
     if (engine === 'local-other') {
-      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.lighting, { type })
+      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget!, CAPABILITIES.lighting, { type })
       setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
       return
     }

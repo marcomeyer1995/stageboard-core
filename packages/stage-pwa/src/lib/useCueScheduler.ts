@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fireCue } from './cueFiring'
 import { useShowMode } from './showMode'
-import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -14,8 +13,8 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * actually bound to a given cue's `targetLogicalDeviceId` does anything - no relay, no network
  * call, matching docs/00 §6.
  *
- * Gig mode only - Practice mode has no HardwareSetup/band concept to route against, same
- * reasoning `ShowTransportWidget`'s Gig-vs-Practice split already uses for audio.
+ * Gig mode only - Practice mode has no band/routing concept to route against, same reasoning
+ * `ShowTransportWidget`'s Gig-vs-Practice split already uses for audio.
  *
  * Reacts to `elapsedMs` crossing a cue's `timeMs` on every render (a plain polling comparison,
  * not literal sample-accurate ahead-of-time dispatch per docs/00 §4's sub-5ms rules - the same
@@ -26,8 +25,6 @@ export function useCueScheduler(): void {
   const { mode, queue, elapsedMs } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
-  const activeHardwareSetupId = useShowStateStore((state) => state.state.activeHardwareSetupId)
-  const hardwareSetups = useHardwareSetupsStore((state) => state.setups)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
 
@@ -51,11 +48,10 @@ export function useCueScheduler(): void {
       firedRef.current = { sessionKey: activeEntryStartedAt, ids: new Set(alreadyPassed) }
     }
 
-    const hardwareSetup = hardwareSetups.find((setup) => setup.id === activeHardwareSetupId) ?? null
     for (const cue of cues) {
       if (cue.timeMs > elapsedMs || firedRef.current.ids.has(cue.id)) continue
       firedRef.current.ids.add(cue.id)
-      void fireCue(cue, { deviceId, hardwareSetup, logicalDevices, installed })
+      void fireCue(cue, { deviceId, logicalDevices, installed })
     }
-  }, [mode, elapsedMs, queue.currentVariant, activeEntryStartedAt, activeHardwareSetupId, hardwareSetups, logicalDevices, installed, deviceId])
+  }, [mode, elapsedMs, queue.currentVariant, activeEntryStartedAt, logicalDevices, installed, deviceId])
 }

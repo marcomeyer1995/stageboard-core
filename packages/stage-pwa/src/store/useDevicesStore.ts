@@ -59,7 +59,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
   },
 }))
 
-/** Resolves a device id (e.g. ShowState.masterHolderId or a HardwareBinding.executionTarget) to
+/** Resolves a device id (e.g. ShowState.masterHolderId or a LogicalDevice's own executionTarget) to
  * its registered name - null if that id has none yet (never registered, e.g. old data from
  * before this existed) so callers can fall back to a generic label instead of showing nothing. */
 export function useDeviceName(id: string | null): string | null {

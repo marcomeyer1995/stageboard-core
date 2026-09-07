@@ -61,7 +61,8 @@ const subscribe = vi.hoisted(() => vi.fn(() => vi.fn()))
 vi.mock('./discoverySessionStore.js', () => ({ reportCandidate, reportTriggered, getSnapshot, getPlugin, subscribe }))
 
 const putDoc = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
-vi.mock('./couch.js', () => ({ putDoc }))
+const putDocWithRetry = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('./couch.js', () => ({ putDoc, putDocWithRetry }))
 
 const { createMidiWatcher } = await import('./midiWatcher.js')
 
@@ -104,6 +105,7 @@ beforeEach(() => {
   reportTriggered.mockReset()
   getPlugin.mockReset().mockReturnValue(KEMPER)
   putDoc.mockReset().mockResolvedValue(undefined)
+  putDocWithRetry.mockReset().mockResolvedValue(undefined)
   getSnapshot.mockReset().mockReturnValue(INACTIVE_SESSION)
   subscribe.mockReset().mockReturnValue(vi.fn())
 })
@@ -278,6 +280,38 @@ describe('createMidiWatcher', () => {
         // The real Output port ("RtMidiIn Client:..."), never the candidate's own hardwareKey
         // ("webmidi:Kemper Profiler Emulator", built from the *input* side).
         values: { midiOutputId: 'RtMidiIn Client:Kemper Profiler Emulator 128:0' },
+      })
+      watcher.stop()
+    })
+
+    it("also updates the won Logical Device's own pluginId/executionTarget, preserving its existing name/capability", () => {
+      getSnapshot.mockReturnValue(WON_SESSION)
+      const watcher = watch()
+      vi.advanceTimersByTime(2000)
+
+      expect(putDocWithRetry).toHaveBeenCalledTimes(1)
+      const [couchArg, db, docId, build] = putDocWithRetry.mock.calls[0]
+      expect(couchArg).toBe(COUCH)
+      expect(db).toBe('stageboard-band-a')
+      expect(docId).toBe('logical-devices:marcos-kemper')
+
+      // A role can only ever resolve against a Logical Device that already exists (Discovery's
+      // own candidates are matched against real, already-persisted devices) - build() is never
+      // meant to invent one from scratch, so a genuinely missing doc throws (caught by
+      // writeWonRoles's own .catch(), logged, retried next poll) rather than silently writing a
+      // nameless/capability-less doc.
+      expect(() => build(null)).toThrow()
+
+      // An existing doc's name/capability/_rev must survive the merge - this write only ever
+      // owns pluginId/executionTarget.
+      const existing = { id: 'marcos-kemper', name: "Marco's Kemper", capability: 'kemper-control', _rev: '3-abc' }
+      expect(build(existing)).toMatchObject({
+        id: 'marcos-kemper',
+        name: "Marco's Kemper",
+        capability: 'kemper-control',
+        pluginId: 'kemper-profiler',
+        executionTarget: SERVER_EXECUTION_TARGET,
+        _rev: '3-abc',
       })
       watcher.stop()
     })

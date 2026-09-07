@@ -5,10 +5,23 @@ import type { DeviceTransportConfig, LogicalDevice, PluginInstallation } from 's
 // This module transitively imports workspaceDb.ts, which constructs a real PouchDB at module
 // load time - unavailable under happy-dom (see SystemView.test.tsx/workspaceDb.test.ts's
 // identical mock).
+const logicalDevicePut = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
       return { on: () => this, cancel: () => {} }
+    }
+    // useLogicalDevicesStore's real save() (workspaceCollection.ts's put()) now gets called by
+    // bindDetectedDevice() too (writing the Logical Device's own executionTarget/pluginId
+    // binding) - a bare rejection (treated as "doc doesn't exist yet") is all `get` needs to do;
+    // `put` is a shared spy so tests can assert on what actually got written (the real store
+    // doesn't reflect a `put()` back into its in-memory `devices` state without a live changes
+    // feed, which this fake doesn't simulate).
+    get() {
+      return Promise.reject(new Error('not found'))
+    }
+    put(doc: unknown) {
+      return logicalDevicePut(doc)
     }
   },
 }))
@@ -54,7 +67,13 @@ const GENERIC_MIDI: PluginInstallation = {
   installedAt: 0,
 }
 
-const KEMPER_LOGICAL_DEVICE: LogicalDevice = { id: 'kemper-1', name: "Marco's Kemper", capability: 'midi-input' }
+const KEMPER_LOGICAL_DEVICE: LogicalDevice = {
+  id: 'kemper-1',
+  name: "Marco's Kemper",
+  capability: 'midi-input',
+  pluginId: null,
+  executionTarget: null,
+}
 
 const KEMPER_PORT = { kind: 'webmidi' as const, portId: 'port-1', name: 'Kemper Profiler Emulator', manufacturer: '' }
 
@@ -66,6 +85,7 @@ beforeEach(() => {
   midiConnectHandler = null
   findMidiOutputIdByNamePattern.mockReset().mockResolvedValue(null)
   reportDiscoveryCandidate.mockReset().mockResolvedValue(undefined)
+  logicalDevicePut.mockReset().mockResolvedValue(undefined)
   save = vi.fn(async () => {})
   usePluginsStore.setState({ installed: [GENERIC_MIDI], loaded: true })
   useLogicalDevicesStore.setState({ devices: [KEMPER_LOGICAL_DEVICE], loaded: true })
@@ -118,6 +138,13 @@ describe('handleDetected', () => {
       values: { midiOutputId: 'port-1' },
     })
     expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBe('kemper-1')
+
+    // Now that #10's per-Setup binding lives directly on the Logical Device, binding it also
+    // has to fill in *its* pluginId/executionTarget - not just this device's own transport
+    // config - or a freshly-bound device would show up everywhere else as still-unbound.
+    expect(logicalDevicePut).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'kemper-1', pluginId: 'generic-webmidi', executionTarget: getDeviceId() }),
+    )
   })
 
   it('resolves midiOutputId via the plugin\'s namePattern (input-port id is wrong for sending), not the detected input port id', async () => {
@@ -132,7 +159,13 @@ describe('handleDetected', () => {
       capabilities: ['kemper-control'],
       hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
     }
-    const KEMPER_ROLE: LogicalDevice = { id: 'kemper-role', name: "Marco's Kemper", capability: 'kemper-control' }
+    const KEMPER_ROLE: LogicalDevice = {
+      id: 'kemper-role',
+      name: "Marco's Kemper",
+      capability: 'kemper-control',
+      pluginId: null,
+      executionTarget: null,
+    }
     usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
     useLogicalDevicesStore.setState({ devices: [KEMPER_ROLE] })
     findMidiOutputIdByNamePattern.mockResolvedValue('real-output-id')
@@ -152,7 +185,13 @@ describe('handleDetected', () => {
       capabilities: ['kemper-control'],
       hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
     }
-    const KEMPER_ROLE: LogicalDevice = { id: 'kemper-role', name: "Marco's Kemper", capability: 'kemper-control' }
+    const KEMPER_ROLE: LogicalDevice = {
+      id: 'kemper-role',
+      name: "Marco's Kemper",
+      capability: 'kemper-control',
+      pluginId: null,
+      executionTarget: null,
+    }
     usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
     useLogicalDevicesStore.setState({ devices: [KEMPER_ROLE] })
     findMidiOutputIdByNamePattern.mockResolvedValue(null)
