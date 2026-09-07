@@ -29,6 +29,7 @@ function plugin(overrides: Partial<PluginInstallation> = {}): PluginInstallation
     runtime: 'both',
     capabilities: ['mixer'],
     transports: [],
+    hardwareIds: [],
     enabled: true,
     installedAt: 0,
     ...overrides,

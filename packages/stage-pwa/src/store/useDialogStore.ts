@@ -4,10 +4,12 @@ export interface DialogField {
   key: string
   label: string
   defaultValue?: string
-  type?: 'text' | 'password' | 'checkboxes'
-  /** Only used when type is 'checkboxes' - one checkbox per option. The field still resolves
-   * through the same Record<string, string> as every other field: selected values end up
-   * comma-joined in a single string, so promptFields()'s return type doesn't need to widen. */
+  type?: 'text' | 'password' | 'checkboxes' | 'radio'
+  /** Used when type is 'checkboxes' (one checkbox per option, selected values comma-joined into
+   * a single string) or 'radio' (one radio button per option, single-choice - #106's "which
+   * Logical Device role should this new hardware play?" prompt). Either way the field still
+   * resolves through the same Record<string, string> as every other field, so promptFields()'s
+   * return type doesn't need to widen. */
   options?: { value: string; label: string }[]
 }
 

@@ -29,6 +29,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
         ],
       },
     ],
+    hardwareIds: [],
   },
   {
     id: 'generic-webmidi',
@@ -43,6 +44,10 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
         fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' }],
       },
     ],
+    // No namePattern - a true catch-all, matching any WebMIDI input (#106). A device-specific
+    // plugin (Kemper, RC-500, ...) declaring its own namePattern takes priority over this one -
+    // see shared-types' hardwareMatching.ts.
+    hardwareIds: [{ kind: 'webmidi' }],
   },
   {
     id: 'mock-lighting',
@@ -52,6 +57,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     runtime: 'both',
     capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
     transports: [],
+    hardwareIds: [],
   },
   {
     id: 'mock-backup',
@@ -60,6 +66,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     runtime: 'server',
     capabilities: [CAPABILITIES.backup],
     transports: [],
+    hardwareIds: [],
   },
   {
     id: 'mock-playback',
@@ -68,6 +75,7 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     runtime: 'server',
     capabilities: [CAPABILITIES.audioPlayback],
     transports: [],
+    hardwareIds: [],
   },
 ]
 

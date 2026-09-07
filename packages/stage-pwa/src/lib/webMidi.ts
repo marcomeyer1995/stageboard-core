@@ -51,3 +51,37 @@ export async function listenForMidiTriggers(onTrigger: () => void): Promise<Midi
     },
   }
 }
+
+interface MidiConnectionListenHandle {
+  stop: () => void
+}
+
+/**
+ * Reports every currently-connected MIDI input at call time, then every later one that becomes
+ * `state === 'connected'` (#106's hardware detection) - a separate `requestMIDIAccess()` call
+ * from listenForMidiTriggers above on purpose: this one cares about device *identity*
+ * (port.name/manufacturer/id), not `midimessage` traffic, and firing once per newly-connected
+ * port (not once per already-attached one on every statechange) is exactly the opposite of what
+ * listenForMidiTriggers needs.
+ */
+export async function listenForMidiConnections(onConnect: (port: MIDIInput) => void): Promise<MidiConnectionListenHandle | null> {
+  if (!isWebMidiSupported()) return null
+
+  let access: MIDIAccess
+  try {
+    access = await navigator.requestMIDIAccess()
+  } catch {
+    return null
+  }
+
+  access.inputs.forEach(onConnect)
+  const onStateChange = (event: Event) => {
+    const port = (event as MIDIConnectionEvent).port
+    if (port?.type === 'input' && port.state === 'connected') onConnect(port as MIDIInput)
+  }
+  access.addEventListener('statechange', onStateChange)
+
+  return {
+    stop: () => access.removeEventListener('statechange', onStateChange),
+  }
+}

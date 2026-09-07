@@ -67,7 +67,26 @@ function PromptFields({
       className="space-y-3"
     >
       {fields.map((field, index) =>
-        field.type === 'checkboxes' ? (
+        field.type === 'radio' ? (
+          <fieldset key={field.key} className="text-sm">
+            <legend className="mb-1 text-ink-muted">{field.label}</legend>
+            <div className="flex flex-col gap-1">
+              {(field.options ?? []).map((option, optionIndex) => (
+                <label key={option.value} className="flex items-center gap-2 text-ink-soft">
+                  <input
+                    autoFocus={index === 0 && optionIndex === 0}
+                    type="radio"
+                    name={field.key}
+                    checked={values[field.key] === option.value}
+                    onChange={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
+                    className="h-5 w-5"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : field.type === 'checkboxes' ? (
           <fieldset key={field.key} className="text-sm">
             <legend className="mb-1 text-ink-muted">{field.label}</legend>
             <div className="flex flex-col gap-1">
