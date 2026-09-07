@@ -71,6 +71,16 @@ const CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'enabled'>> = [
     // specific-beats-generic rule means plugging in a Kemper (or its emulator) resolves to this
     // plugin once installed, not generic-webmidi.
     hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
+    // Same CC31 on/off pair kemperTranslator.ts's 'test' action already sends - Discovery
+    // Mode's "please identify yourself" and the manual "Testen" button are the same wire signal.
+    discoveryTrigger: {
+      instruction: 'Tuner am Kemper kurz an- und wieder ausschalten.',
+      matchCcSequence: [
+        { cc: 31, value: 127 },
+        { cc: 31, value: 0 },
+      ],
+      timeoutMs: 15000,
+    },
   },
   {
     id: 'mock-lighting',
