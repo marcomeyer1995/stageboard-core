@@ -30,11 +30,15 @@ vi.mock('./webUsb', () => ({
 const findMidiOutputIdByNamePattern = vi.hoisted(() => vi.fn().mockResolvedValue(null))
 vi.mock('./webMidiOutput', () => ({ findMidiOutputIdByNamePattern }))
 
+const reportDiscoveryCandidate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('./discoveryClient', () => ({ reportDiscoveryCandidate }))
+
 const { getDeviceId } = await import('./deviceId')
 const { getRememberedLogicalDeviceId } = await import('./hardwareDeviceMemory')
-const { handleDetected, useHardwareDetection } = await import('./useHardwareDetection')
+const { __resetHardwareDetectionForTests, handleDetected, useHardwareDetection } = await import('./useHardwareDetection')
 const { useDeviceTransportConfigStore } = await import('../store/useDeviceTransportConfigStore')
 const { useDialogStore } = await import('../store/useDialogStore')
+const { useDiscoverySessionStore } = await import('../store/useDiscoverySessionStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { usePluginsStore } = await import('../store/usePluginsStore')
 
@@ -58,13 +62,16 @@ let save: ReturnType<typeof vi.fn<(config: DeviceTransportConfig) => Promise<voi
 
 beforeEach(() => {
   localStorage.clear()
+  __resetHardwareDetectionForTests()
   midiConnectHandler = null
   findMidiOutputIdByNamePattern.mockReset().mockResolvedValue(null)
+  reportDiscoveryCandidate.mockReset().mockResolvedValue(undefined)
   save = vi.fn(async () => {})
   usePluginsStore.setState({ installed: [GENERIC_MIDI], loaded: true })
   useLogicalDevicesStore.setState({ devices: [KEMPER_LOGICAL_DEVICE], loaded: true })
   useDeviceTransportConfigStore.setState({ configs: [], loaded: true, save })
   useDialogStore.setState({ request: null })
+  useDiscoverySessionStore.setState({ workspaceId: '', session: { active: false, startedAt: null, startedBy: null, candidates: [], identifying: null } })
 })
 
 describe('handleDetected', () => {
@@ -179,6 +186,28 @@ describe('handleDetected', () => {
   })
 })
 
+describe('handleDetected - defers to an active Discovery Mode session', () => {
+  beforeEach(() => {
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: { active: true, startedAt: 1, startedBy: 'marco', candidates: [], identifying: null },
+    })
+  })
+
+  it('reports the candidate to the session instead of prompting locally', async () => {
+    await handleDetected(KEMPER_PORT)
+
+    expect(reportDiscoveryCandidate).toHaveBeenCalledWith('band-a', getDeviceId(), KEMPER_PORT)
+    expect(useDialogStore.getState().request).toBeNull()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('does not touch Auto-Memory or write any config itself', async () => {
+    await handleDetected(KEMPER_PORT)
+    expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBeNull()
+  })
+})
+
 function Detector() {
   useHardwareDetection()
   return null
@@ -214,5 +243,136 @@ describe('useHardwareDetection (hook)', () => {
     expect(request?.kind).toBe('prompt')
     if (request?.kind !== 'prompt') throw new Error('expected a prompt request')
     expect(request.title).toBe('Neues Gerät: Kemper Profiler Emulator')
+  })
+
+  it('replays an already-connected device into Discovery Mode once the admin starts a session', async () => {
+    render(<Detector />)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    midiConnectHandler!({ id: 'port-1', name: 'Kemper Profiler Emulator', manufacturer: '' })
+    await Promise.resolve()
+    expect(reportDiscoveryCandidate).not.toHaveBeenCalled() // no session yet - the usual #106 flow handled it
+
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: { active: true, startedAt: 1, startedBy: 'marco', candidates: [], identifying: null },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(reportDiscoveryCandidate).toHaveBeenCalledWith('band-a', getDeviceId(), {
+      kind: 'webmidi',
+      portId: 'port-1',
+      name: 'Kemper Profiler Emulator',
+      manufacturer: '',
+    })
+  })
+})
+
+describe('useHardwareDetection (hook) - resolveDiscoveryWins', () => {
+  const KEMPER_PLUGIN: PluginInstallation = {
+    ...GENERIC_MIDI,
+    id: 'kemper-profiler',
+    name: 'Kemper Profiler',
+    capabilities: ['kemper-control'],
+    hardwareIds: [{ kind: 'webmidi', namePattern: 'Kemper' }],
+  }
+
+  it('writes this tablet\'s own DeviceTransportConfig once one of its candidates is marked assigned', async () => {
+    usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
+    render(<Detector />)
+    await Promise.resolve()
+
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: {
+        active: true,
+        startedAt: 1,
+        startedBy: 'marco',
+        identifying: null,
+        candidates: [
+          {
+            reporterId: getDeviceId(),
+            hardwareKey: 'webmidi:port-1',
+            name: 'Kemper Profiler Emulator',
+            manufacturer: '',
+            matchedPluginId: 'kemper-profiler',
+            status: 'assigned',
+            assignedLogicalDeviceId: 'marcos-kemper',
+          },
+        ],
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(save).toHaveBeenCalledTimes(1)
+    const config = save.mock.calls[0][0] as DeviceTransportConfig
+    expect(config).toMatchObject({ deviceId: getDeviceId(), logicalDeviceId: 'marcos-kemper', transportId: 'usb-midi' })
+    expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBe('marcos-kemper')
+  })
+
+  it('ignores an assigned candidate that belongs to a different reporter (another tablet, or the server)', async () => {
+    usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
+    render(<Detector />)
+    await Promise.resolve()
+
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: {
+        active: true,
+        startedAt: 1,
+        startedBy: 'marco',
+        identifying: null,
+        candidates: [
+          {
+            reporterId: 'some-other-tablet',
+            hardwareKey: 'webmidi:port-1',
+            name: 'Kemper Profiler Emulator',
+            manufacturer: '',
+            matchedPluginId: 'kemper-profiler',
+            status: 'assigned',
+            assignedLogicalDeviceId: 'marcos-kemper',
+          },
+        ],
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('writes a won role only once, even across repeated session updates', async () => {
+    usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
+    render(<Detector />)
+    await Promise.resolve()
+
+    const won = {
+      active: true,
+      startedAt: 1,
+      startedBy: 'marco',
+      identifying: null,
+      candidates: [
+        {
+          reporterId: getDeviceId(),
+          hardwareKey: 'webmidi:port-1',
+          name: 'Kemper Profiler Emulator',
+          manufacturer: '',
+          matchedPluginId: 'kemper-profiler',
+          status: 'assigned' as const,
+          assignedLogicalDeviceId: 'marcos-kemper',
+        },
+      ],
+    }
+    useDiscoverySessionStore.setState({ workspaceId: 'band-a', session: won })
+    await Promise.resolve()
+    await Promise.resolve()
+    useDiscoverySessionStore.setState({ workspaceId: 'band-a', session: { ...won } })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(save).toHaveBeenCalledTimes(1)
   })
 })

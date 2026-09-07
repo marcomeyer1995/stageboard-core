@@ -9,10 +9,12 @@ import {
 } from 'shared-types'
 import { getTranslator, hasClientTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { getDeviceId } from '../lib/deviceId'
+import { startDiscovery, stopDiscovery } from '../lib/discoveryClient'
 import { randomId } from '../lib/id'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
+import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
 import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -392,6 +394,87 @@ function DeviceTransportConfigSection() {
   )
 }
 
+const CANDIDATE_STATUS_LABEL: Record<string, string> = {
+  unassigned: 'erkannt',
+  identifying: 'wartet auf Trigger',
+  assigned: 'zugewiesen',
+  'needs-manual': 'manuell zuweisen',
+}
+
+/**
+ * Bandwide, admin-initiated hardware detection - the alternative to #106's passive per-tablet
+ * "New Device" prompt (still the fallback when nobody's running this): everyone plugs in first,
+ * an admin starts Discovery once, unambiguous devices bind themselves, and anything ambiguous
+ * gets resolved by asking a musician to physically identify their own gear
+ * (DiscoveryBanner.tsx/useDiscoveryTrigger.ts show and listen for that on their own tablet).
+ * Purely a live view over discoverySessionStore.ts's broadcast state - Start/Stop are the only
+ * actions this component itself takes; every candidate's actual resolution happens server-side
+ * or on whichever tablet's own hardware won a role.
+ */
+function DiscoverySection() {
+  const workspaceId = useDiscoverySessionStore((state) => state.workspaceId)
+  const session = useDiscoverySessionStore((state) => state.session)
+  const installed = usePluginsStore((state) => state.installed)
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
+
+  function pluginName(pluginId: string | null): string {
+    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || pluginId || '—'
+  }
+  function logicalDeviceName(logicalDeviceId: string | null): string {
+    return (logicalDeviceId && logicalDevices.find((d) => d.id === logicalDeviceId)?.name) || logicalDeviceId || '—'
+  }
+
+  return (
+    <div className="mb-6 flex flex-col gap-2 rounded-sb border border-line bg-surface p-4 shadow-sb">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-ink-muted">Geräte-Erkennung</h2>
+          <p className="text-xs text-ink-faint">
+            Alle anschließen, dann hier starten - eindeutige Geräte werden automatisch zugewiesen, für den Rest wird
+            ein Musiker gebeten, sein Gerät kurz zu bedienen.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void (session.active ? stopDiscovery(workspaceId) : startDiscovery(workspaceId, getDeviceId()))}
+          className={`h-10 shrink-0 rounded-sb-sm px-4 text-sm font-medium ${
+            session.active ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-accent text-accent-ink hover:bg-accent-hover'
+          }`}
+        >
+          {session.active ? 'Stoppen' : 'Starten'}
+        </button>
+      </div>
+
+      {session.active && session.identifying && (
+        <p className="rounded-sb-sm bg-control px-3 py-2 text-xs text-ink-soft">
+          Wartet auf „{session.identifying.logicalDeviceName}": {session.identifying.instruction}
+        </p>
+      )}
+
+      {session.active && session.candidates.length === 0 && (
+        <p className="text-xs text-ink-faint">Noch keine Geräte erkannt…</p>
+      )}
+
+      {session.candidates.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {session.candidates.map((candidate) => (
+            <div
+              key={`${candidate.reporterId}:${candidate.hardwareKey}`}
+              className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-3 py-2 text-xs"
+            >
+              <span className="text-ink-soft">
+                {candidate.name || candidate.hardwareKey} <span className="text-ink-faint">via {pluginName(candidate.matchedPluginId)}</span>
+                {candidate.assignedLogicalDeviceId && <span className="text-ink-faint"> → {logicalDeviceName(candidate.assignedLogicalDeviceId)}</span>}
+              </span>
+              <span className="shrink-0 text-ink-faint">{CANDIDATE_STATUS_LABEL[candidate.status] ?? candidate.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * The admin UI #10's issue asked for and every earlier slice deferred: create Logical Devices
  * (a named role like "Marcos Kemper", with one capability) and Hardware-Setup profiles (a named
@@ -413,6 +496,8 @@ export function HardwareSetupManager() {
         benannte, umschaltbare Zuordnungen: welches physische Gerät jede Rolle gerade übernimmt.
         Welches Setup gerade aktiv ist, wird im Menü unter „Geräte-Zuweisung“ gewählt.
       </p>
+
+      <DiscoverySection />
 
       <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Logical Devices</h2>
       <div className="mb-6">

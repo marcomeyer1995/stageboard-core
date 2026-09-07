@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { AppMenu } from './components/AppMenu'
 import { Dashboard } from './components/Dashboard'
 import { DialogHost } from './components/DialogHost'
+import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
@@ -13,6 +14,7 @@ import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useClockSync } from './lib/useClockSync'
 import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
+import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
@@ -24,6 +26,7 @@ import { useDashboardsStore } from './store/useDashboardsStore'
 import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
 import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerStore'
 import { useDevicesStore } from './store/useDevicesStore'
+import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { useHardwareSetupsStore } from './store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
@@ -111,10 +114,12 @@ function App() {
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
   useCueScheduler()
   useHardwareDetection()
+  useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
   // request) - reports only while a *real* profile is active, matching activeProfileId's own
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
@@ -220,6 +225,7 @@ function App() {
       )}
 
       <DialogHost />
+      <DiscoveryBanner />
     </div>
   )
 }

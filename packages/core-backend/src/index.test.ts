@@ -6,6 +6,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
+import {
+  __resetDiscoverySessionStoreForTests,
+  getSnapshot as getDiscoverySnapshot,
+} from './discoverySessionStore.js'
 import { buildApp } from './index.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 import {
@@ -466,6 +470,128 @@ describe('Fastify routes', () => {
       expect(Buffer.from(second.value as Buffer).toString()).toBe(
         `data: ${JSON.stringify({ devices: { 'device-1': { profileId: 'p1', lastSeenAt: 123 } } })}\n\n`,
       )
+
+      req.destroy()
+    })
+  })
+
+  describe('Discovery Mode routes', () => {
+    beforeEach(() => {
+      __resetDiscoverySessionStoreForTests()
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    it('start reads the workspace\'s plugins/logical devices and marks the session active', async () => {
+      stubFetch([
+        { ok: true, json: async () => ({ rows: [] }) }, // plugins
+        { ok: true, json: async () => ({ rows: [] }) }, // logical devices
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/discovery/start',
+        payload: { startedBy: 'marco' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(getDiscoverySnapshot('band-a')).toMatchObject({ active: true, startedBy: 'marco' })
+    })
+
+    it('start defaults startedBy to null when the body omits it', async () => {
+      stubFetch([{ ok: true, json: async () => ({ rows: [] }) }, { ok: true, json: async () => ({ rows: [] }) }])
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/discovery/start', payload: {} })
+
+      expect(response.statusCode).toBe(200)
+      expect(getDiscoverySnapshot('band-a').startedBy).toBeNull()
+    })
+
+    it('stop deactivates an active session', async () => {
+      stubFetch([{ ok: true, json: async () => ({ rows: [] }) }, { ok: true, json: async () => ({ rows: [] }) }])
+      await app.inject({ method: 'POST', url: '/workspaces/band-a/discovery/start', payload: {} })
+
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/discovery/stop' })
+
+      expect(response.statusCode).toBe(200)
+      expect(getDiscoverySnapshot('band-a').active).toBe(false)
+    })
+
+    it('candidates rejects a malformed body', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/discovery/candidates',
+        payload: { reporterId: 'tablet-1' }, // missing `detected`
+      })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('candidates reports a device while the session is active (no session yet: silently ignored, not an error)', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/discovery/candidates',
+        payload: { reporterId: 'tablet-1', detected: { kind: 'webmidi', portId: 'port-1', name: 'Kemper', manufacturer: '' } },
+      })
+      expect(response.statusCode).toBe(200)
+      expect(getDiscoverySnapshot('band-a').candidates).toHaveLength(0)
+    })
+
+    it('triggered rejects a malformed body', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/discovery/triggered',
+        payload: { reporterId: 'tablet-1' }, // missing `hardwareKey`
+      })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
+      await app.listen({ port: 0 })
+      const address = app.server.address()
+      if (typeof address !== 'object' || address === null) throw new Error('server has no address')
+
+      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      const req = request(
+        {
+          hostname: '127.0.0.1',
+          port: address.port,
+          path: '/workspaces/band-a/discovery/stream',
+          headers: { origin: 'http://localhost:5173' },
+          rejectUnauthorized: false,
+        },
+        () => {},
+      )
+      req.end()
+
+      const res = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+        req.on('response', resolve)
+        req.on('error', reject)
+      })
+      expect(res.headers['content-type']).toBe('text/event-stream')
+
+      const chunks = res[Symbol.asyncIterator]()
+      const first = await chunks.next()
+      expect(Buffer.from(first.value as Buffer).toString()).toBe(
+        `data: ${JSON.stringify({ active: false, startedAt: null, startedBy: null, candidates: [], identifying: null })}\n\n`,
+      )
+
+      stubFetch([{ ok: true, json: async () => ({ rows: [] }) }, { ok: true, json: async () => ({ rows: [] }) }])
+      await app.inject({ method: 'POST', url: '/workspaces/band-a/discovery/start', payload: { startedBy: 'marco' } })
+
+      const second = await chunks.next()
+      expect(JSON.parse(Buffer.from(second.value as Buffer).toString().slice('data: '.length))).toMatchObject({
+        active: true,
+        startedBy: 'marco',
+      })
 
       req.destroy()
     })

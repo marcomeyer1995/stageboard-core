@@ -12,6 +12,9 @@ import {
   ActivateProfileRequestSchema,
   CreateMemberRequestSchema,
   DeviceTriggerSchema,
+  DiscoveryReportCandidateRequestSchema,
+  DiscoveryStartRequestSchema,
+  DiscoveryTriggeredRequestSchema,
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
@@ -31,6 +34,8 @@ import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from '.
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
 import { allDocs, getDoc, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceRelay from './deviceRelay.js'
+import * as discoverySessionStore from './discoverySessionStore.js'
+import { createMidiWatcher } from './midiWatcher.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
@@ -416,6 +421,64 @@ export async function buildApp() {
     if (!delivered) {
       return reply.status(200).send({ status: 'error', message: 'Zielgerät nicht verbunden' })
     }
+    return { status: 'ok' }
+  })
+
+  // Discovery Mode: bandwide, admin-initiated hardware detection (discoverySessionStore.ts) -
+  // same SSE broadcast pattern as presence/plugin-health above, keyed by workspaceId. Every
+  // connected tablet (and core-backend's own future native-MIDI watcher) reports what it sees
+  // and gets the same live session snapshot back; the store owns all resolution logic.
+  app.get('/workspaces/:workspaceId/discovery/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+
+    reply.hijack()
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) reply.raw.setHeader(name, value)
+    }
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.writeHead(200)
+
+    const unsubscribe = discoverySessionStore.subscribe(workspaceId, (snapshot) => {
+      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/discovery/start', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = DiscoveryStartRequestSchema.safeParse(request.body ?? {})
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    await discoverySessionStore.start(couch, workspaceId, parsed.data.startedBy)
+    return { status: 'ok' }
+  })
+
+  app.post('/workspaces/:workspaceId/discovery/stop', async (request) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    discoverySessionStore.stop(workspaceId)
+    return { status: 'ok' }
+  })
+
+  app.post('/workspaces/:workspaceId/discovery/candidates', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = DiscoveryReportCandidateRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    discoverySessionStore.reportCandidate(workspaceId, parsed.data.reporterId, parsed.data.detected)
+    return { status: 'ok' }
+  })
+
+  app.post('/workspaces/:workspaceId/discovery/triggered', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = DiscoveryTriggeredRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    discoverySessionStore.reportTriggered(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey)
     return { status: 'ok' }
   })
 
@@ -921,6 +984,12 @@ async function main() {
         log: pluginLog,
       })
       app.addHook('onClose', async () => sync.stop())
+
+      // Discovery Mode's Stage-Server-plugged-gear participant (discoverySessionStore.ts) -
+      // same "only for a deliberately configured workspace" gate as plugin sync above, same
+      // reasoning: nothing here should ever phantom-touch a workspace nobody founded.
+      const midiWatcher = createMidiWatcher({ couch, workspaceId: process.env.STAGEBOARD_WORKSPACE, log: pluginLog })
+      app.addHook('onClose', async () => midiWatcher.stop())
     }
 
     // Lookup plugins aren't band-installed hardware - they're always-available read-only data
