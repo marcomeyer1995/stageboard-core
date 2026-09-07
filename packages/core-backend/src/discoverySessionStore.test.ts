@@ -213,6 +213,19 @@ describe('ambiguous roles - sequential trigger-based identification', () => {
     expect(remaining.status).toBe('identifying')
   })
 
+  it('treats a single candidate as ambiguous when more than one open role shares its capability (one Kemper, two Kemper roles)', async () => {
+    await startWith([KEMPER], [MARCOS_KEMPER, SARAHS_KEMPER])
+    reportCandidate('band-a', 'tablet-1', kemperPort('port-1'))
+    vi.advanceTimersByTime(SETTLE_MS)
+
+    // Not auto-assigned to whichever role happens to come first in the list - only one Kemper
+    // has shown up so far, but there are two open Kemper-capability roles it could belong to, so
+    // this must go through the same trigger-based flow as a genuinely multi-candidate role.
+    const snapshot = getSnapshot('band-a')
+    expect(snapshot.candidates[0].status).toBe('identifying')
+    expect(snapshot.identifying).toMatchObject({ logicalDeviceId: 'marcos-kemper' })
+  })
+
   it('ignores a triggered report for a candidate that is not currently in the identifying set', async () => {
     await startWith([KEMPER], [MARCOS_KEMPER])
     reportCandidate('band-a', 'tablet-1', kemperPort('port-1'))
