@@ -1,48 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import type { HardwareSetup, LogicalDevice } from 'shared-types'
+import type { LogicalDevice } from 'shared-types'
 import { resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 
-const KEMPER: LogicalDevice = { id: 'kemper-1', name: "Marco's Kemper", capability: 'midi-input' }
-const KEMPER_2: LogicalDevice = { id: 'kemper-2', name: "Sarah's Kemper", capability: 'midi-input' }
-
-function setup(bindings: HardwareSetup['bindings']): HardwareSetup {
-  return { id: 'setup-1', name: 'Festival', bindings }
+function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
+  return { capability: 'midi-input', pluginId: null, executionTarget: null, ...overrides }
 }
 
 describe('resolveHardwareBindingById', () => {
-  it('is null with no active setup', () => {
-    expect(resolveHardwareBindingById(null, KEMPER.id)).toBeNull()
-  })
-
-  it('is null when the active setup has no binding for this exact id', () => {
-    expect(resolveHardwareBindingById(setup({}), KEMPER.id)).toBeNull()
+  it('is null when no Logical Device has this exact id', () => {
+    expect(resolveHardwareBindingById([], 'kemper-1')).toBeNull()
   })
 
   it('#102: resolves each Logical Device independently, even when two share a capability', () => {
-    const binding1 = { executionTarget: 'tablet-1', pluginId: null }
-    const binding2 = { executionTarget: 'tablet-2', pluginId: null }
-    const active = setup({ [KEMPER.id]: binding1, [KEMPER_2.id]: binding2 })
-    expect(resolveHardwareBindingById(active, KEMPER.id)).toBe(binding1)
-    expect(resolveHardwareBindingById(active, KEMPER_2.id)).toBe(binding2)
+    const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper", executionTarget: 'tablet-1' })
+    const kemper2 = kemper({ id: 'kemper-2', name: "Sarah's Kemper", executionTarget: 'tablet-2' })
+    expect(resolveHardwareBindingById([kemper1, kemper2], kemper1.id)).toBe(kemper1)
+    expect(resolveHardwareBindingById([kemper1, kemper2], kemper2.id)).toBe(kemper2)
   })
 })
 
 describe('resolveHardwareBinding', () => {
-  it('is null with no active setup', () => {
-    expect(resolveHardwareBinding([KEMPER], null, 'midi-input')).toBeNull()
-  })
-
   it('is null when no Logical Device provides the capability', () => {
-    expect(resolveHardwareBinding([KEMPER], setup({ [KEMPER.id]: { executionTarget: 'server', pluginId: null } }), 'mixer')).toBeNull()
+    const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper" })
+    expect(resolveHardwareBinding([kemper1], 'mixer')).toBeNull()
   })
 
-  it('is null when the active setup has no binding for the matching Logical Device', () => {
-    expect(resolveHardwareBinding([KEMPER], setup({}), 'midi-input')).toBeNull()
+  it('is null when the matching Logical Device has no binding of its own yet', () => {
+    const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper" })
+    expect(resolveHardwareBinding([kemper1], 'midi-input')).toBe(kemper1)
+    expect(resolveHardwareBinding([kemper1], 'midi-input')?.executionTarget).toBeNull()
   })
 
-  it('resolves the binding for the first Logical Device providing the capability', () => {
-    const binding = { executionTarget: 'tablet-1', pluginId: null }
-    expect(resolveHardwareBinding([KEMPER], setup({ [KEMPER.id]: binding }), 'midi-input')).toBe(binding)
+  it('resolves the first Logical Device providing the capability', () => {
+    const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper", executionTarget: 'tablet-1' })
+    expect(resolveHardwareBinding([kemper1], 'midi-input')).toBe(kemper1)
   })
 })
 
@@ -56,21 +47,26 @@ describe('resolveHardwareEngine', () => {
   })
 
   it("uses the plugin when the binding explicitly targets the server, same as nothing bound", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'server', pluginId: null }, 'me', 'mock-playback', true)).toBe('plugin')
+    const device = kemper({ id: 'k', name: 'K', executionTarget: 'server' })
+    expect(resolveHardwareEngine(device, 'me', 'mock-playback', true)).toBe('plugin')
   })
 
   it('plays locally when this device is the bound target - a plugin never wins over an explicit binding', () => {
-    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', 'mock-playback', true)).toBe('local-mine')
-    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', null, true)).toBe('local-mine')
+    const device = kemper({ id: 'k', name: 'K', executionTarget: 'me' })
+    expect(resolveHardwareEngine(device, 'me', 'mock-playback', true)).toBe('local-mine')
+    expect(resolveHardwareEngine(device, 'me', null, true)).toBe('local-mine')
   })
 
   it("is not this device's job when a different device is the bound target", () => {
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', 'mock-playback', true)).toBe('local-other')
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', null, true)).toBe('local-other')
+    const device = kemper({ id: 'k', name: 'K', executionTarget: 'someone-else' })
+    expect(resolveHardwareEngine(device, 'me', 'mock-playback', true)).toBe('local-other')
+    expect(resolveHardwareEngine(device, 'me', null, true)).toBe('local-other')
   })
 
   it('#98: a tablet binding with nothing able to execute it locally resolves to no engine at all, never a silent no-op plugin fallback', () => {
-    expect(resolveHardwareEngine({ executionTarget: 'me', pluginId: null }, 'me', 'mock-playback', false)).toBe('none')
-    expect(resolveHardwareEngine({ executionTarget: 'someone-else', pluginId: null }, 'me', 'mock-playback', false)).toBe('none')
+    const mine = kemper({ id: 'k', name: 'K', executionTarget: 'me' })
+    const other = kemper({ id: 'k', name: 'K', executionTarget: 'someone-else' })
+    expect(resolveHardwareEngine(mine, 'me', 'mock-playback', false)).toBe('none')
+    expect(resolveHardwareEngine(other, 'me', 'mock-playback', false)).toBe('none')
   })
 })

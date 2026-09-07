@@ -1,203 +1,78 @@
 import { useState } from 'react'
-import {
-  CAPABILITIES,
-  SERVER_EXECUTION_TARGET,
-  type CapabilityId,
-  type HardwareBinding,
-  type LogicalDevice,
-  type PluginInstallation,
-} from 'shared-types'
-import { getTranslator, hasClientTranslator, supportsLocalExecution } from '../lib/clientTranslator'
+import { SERVER_EXECUTION_TARGET, type LogicalDevice, type PluginInstallation } from 'shared-types'
+import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { getDeviceId } from '../lib/deviceId'
-import { randomId } from '../lib/id'
-import { useDevicesStore } from '../store/useDevicesStore'
+import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
-import { useHardwareSetupsStore } from '../store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { DiscoveryWizard } from './DiscoveryWizard'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { useSongsStore } from '../store/useSongsStore'
+import { DeviceSetupWizard } from './DeviceSetupWizard'
 
-const CAPABILITY_OPTIONS = Object.values(CAPABILITIES)
+const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
+  complete: 'vollständig',
+  incomplete: 'unvollständig',
+}
 
-function LogicalDeviceList() {
+/**
+ * Every configured Logical Device, guided setup for adding/editing one via `DeviceSetupWizard`.
+ * Replaces the old flat LogicalDeviceList + HardwareSetupList + BindingEditor + standalone
+ * DiscoveryWizard - #10's routing (which plugin, which execution target) now lives directly on
+ * each Logical Device (see logicalDevice.ts's doc comment for why multi-Setup swapping was
+ * dropped), so there's exactly one list here, not three separate CRUD screens.
+ */
+function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void; onAdd: () => void }) {
   const devices = useLogicalDevicesStore((state) => state.devices)
-  const save = useLogicalDevicesStore((state) => state.save)
   const remove = useLogicalDevicesStore((state) => state.remove)
-  const confirm = useDialogStore((state) => state.confirm)
   const installed = usePluginsStore((state) => state.installed)
-  const [name, setName] = useState('')
-  const [capability, setCapability] = useState<CapabilityId>(CAPABILITY_OPTIONS[0])
+  const devicesRegistry = useDeviceTransportConfigStore((state) => state.configs)
+  const variants = useSongVariantsStore((state) => state.variants)
+  const songs = useSongsStore((state) => state.songs)
+  const confirm = useDialogStore((state) => state.confirm)
 
-  // capability.ts's own vocabulary is deliberately open ("community plugins bring their own") -
-  // an installed plugin's capability isn't necessarily one of StageBoard's core CAPABILITY_OPTIONS
-  // (e.g. a device-specific plugin like Kemper Profiler declares 'kemper-control'), so without
-  // this a Logical Device could never be created for it at all.
-  const capabilityOptions = Array.from(new Set([...CAPABILITY_OPTIONS, ...installed.flatMap((p) => p.capabilities)]))
+  function pluginNameOf(pluginId: string | null): string {
+    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || '—'
+  }
 
-  async function add() {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    await save({ id: randomId(), name: trimmed, capability })
-    setName('')
+  function targetLabel(executionTarget: string | null): string {
+    if (!executionTarget) return '—'
+    if (executionTarget === SERVER_EXECUTION_TARGET) return 'Stage-Server'
+    return executionTarget === getDeviceId() ? 'Dieses Gerät' : executionTarget
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {devices.length === 0 && <p className="text-sm text-ink-faint">Noch keine Logical Devices.</p>}
-      {devices.map((device) => (
-        <div
-          key={device.id}
-          className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
-        >
-          <div className="flex-1">
-            <p className="font-semibold">{device.name}</p>
-            <p className="text-xs text-ink-muted">{device.capability}</p>
-          </div>
-          <button
-            type="button"
-            onClick={async () => {
-              if (await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
-                void remove(device.id)
-              }
-            }}
-            className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
-          >
-            Entfernen
-          </button>
-        </div>
-      ))}
-
-      <div className="flex flex-wrap items-center gap-2 rounded-sb border border-dashed border-line px-4 py-3">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name, z.B. „Marcos Kemper“"
-          className="h-10 min-w-40 flex-1 rounded-sb-sm bg-control px-3 text-sm text-ink placeholder:text-ink-faint"
-        />
-        <select
-          value={capability}
-          onChange={(e) => setCapability(e.target.value)}
-          className="h-10 rounded-sb-sm bg-control px-2 text-sm text-ink"
-        >
-          {capabilityOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => void add()}
-          disabled={!name.trim()}
-          className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm font-medium text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Hinzufügen
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function BindingEditor({
-  logicalDevice,
-  binding,
-  onChange,
-}: {
-  logicalDevice: LogicalDevice
-  binding: HardwareBinding
-  onChange: (binding: HardwareBinding) => void
-}) {
-  const physicalDevices = useDevicesStore((state) => state.devices)
-  const installed = usePluginsStore((state) => state.installed)
-  // #98: a tablet is only offered as a target when something can actually execute this
-  // capability there (a real client-runtime plugin, or - audio-playback - native browser
-  // playback) - otherwise the binding would silently promise routing nothing implements.
-  const localExecutionAvailable = supportsLocalExecution(installed, logicalDevice.capability)
-  // #100: only worth picking when there's real ambiguity - one candidate (or none) has
-  // nothing to choose between, so the picker stays hidden rather than a dropdown with a
-  // single, forced option.
-  const candidatePlugins = installed.filter(
-    (plugin) => plugin.enabled && plugin.capabilities.includes(logicalDevice.capability),
-  )
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="flex items-center justify-between gap-3 text-sm text-ink-soft">
-        <span>
-          {logicalDevice.name} <span className="text-xs text-ink-faint">({logicalDevice.capability})</span>
-        </span>
-        {localExecutionAvailable ? (
-          <select
-            value={binding.executionTarget}
-            onChange={(e) => onChange({ ...binding, executionTarget: e.target.value })}
-            className="h-9 rounded-sb-sm bg-control px-2 text-sm text-ink"
-          >
-            <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
-            {physicalDevices.map((device) => (
-              <option key={device.id} value={device.id}>
-                {device.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span
-            className="text-xs text-ink-faint"
-            title="Kein installiertes Plugin kann diese Capability lokal auf einem Tablet ausführen"
-          >
-            Server (kein lokales Plugin installiert)
-          </span>
-        )}
-      </label>
-      {candidatePlugins.length > 1 && (
-        <label className="flex items-center justify-between gap-3 pl-2 text-xs text-ink-faint">
-          Plugin
-          <select
-            value={binding.pluginId ?? ''}
-            onChange={(e) => onChange({ ...binding, pluginId: e.target.value || null })}
-            className="h-8 rounded-sb-sm bg-control px-2 text-xs text-ink"
-          >
-            <option value="">Automatisch</option>
-            {candidatePlugins.map((plugin) => (
-              <option key={plugin.id} value={plugin.id}>
-                {plugin.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  )
-}
-
-function HardwareSetupList() {
-  const setups = useHardwareSetupsStore((state) => state.setups)
-  const saveSetup = useHardwareSetupsStore((state) => state.save)
-  const removeSetup = useHardwareSetupsStore((state) => state.remove)
-  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
-  const confirm = useDialogStore((state) => state.confirm)
-  const [name, setName] = useState('')
-
-  async function add() {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    await saveSetup({ id: randomId(), name: trimmed, bindings: {} })
-    setName('')
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {setups.length === 0 && <p className="text-sm text-ink-faint">Noch keine Hardware-Setups.</p>}
-      {setups.map((setup) => (
-        <div key={setup.id} className="flex flex-col gap-2 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-semibold">{setup.name}</p>
+      {devices.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte eingerichtet.</p>}
+      {devices.map((device) => {
+        const complete = Boolean(device.pluginId && device.executionTarget)
+        const usage = findLogicalDeviceUsage(device.id, variants, songs)
+        const hasOwnTransportConfig = devicesRegistry.some((c) => c.logicalDeviceId === device.id && c.deviceId === getDeviceId())
+        return (
+          <div key={device.id} className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
+            <div className="flex-1">
+              <p className="font-semibold">
+                {device.name} <span className="text-xs font-normal text-ink-faint">({STATUS_LABEL[complete ? 'complete' : 'incomplete']})</span>
+              </p>
+              <p className="text-xs text-ink-muted">
+                {pluginNameOf(device.pluginId)} · {targetLabel(device.executionTarget)}
+                {usage.length > 0 && <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>}
+                {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint"> · Anschluss auf diesem Gerät gesetzt</span>}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onEdit(device)}
+              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-medium text-accent hover:bg-control-strong-hover"
+            >
+              Bearbeiten
+            </button>
             <button
               type="button"
               onClick={async () => {
-                if (await confirm(`"${setup.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
-                  void removeSetup(setup.id)
+                if (await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
+                  void remove(device.id)
                 }
               }}
               className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
@@ -205,69 +80,21 @@ function HardwareSetupList() {
               Entfernen
             </button>
           </div>
+        )
+      })}
 
-          {logicalDevices.length === 0 ? (
-            <p className="text-xs text-ink-faint">Erst ein Logical Device anlegen, um es hier zu binden.</p>
-          ) : (
-            <div className="flex flex-col gap-2 border-t border-line pt-2">
-              {logicalDevices.map((device) => (
-                <BindingEditor
-                  key={device.id}
-                  logicalDevice={device}
-                  binding={setup.bindings[device.id] ?? { executionTarget: SERVER_EXECUTION_TARGET, pluginId: null }}
-                  onChange={(binding) =>
-                    void saveSetup({
-                      ...setup,
-                      bindings: { ...setup.bindings, [device.id]: binding },
-                    })
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-
-      <div className="flex items-center gap-2 rounded-sb border border-dashed border-line px-4 py-3">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name, z.B. „Festival“ oder „Akustik Solo“"
-          className="h-10 flex-1 rounded-sb-sm bg-control px-3 text-sm text-ink placeholder:text-ink-faint"
-        />
-        <button
-          type="button"
-          onClick={() => void add()}
-          disabled={!name.trim()}
-          className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm font-medium text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Hinzufügen
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="h-11 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
+      >
+        + Neues Gerät
+      </button>
     </div>
   )
 }
 
-/** Which installed plugin actually handles `logicalDevice` under `binding` - the pinned choice
- * if the admin set one (#100), otherwise the first enabled plugin providing the capability,
- * same tie-break `pluginProviding` (capabilities.ts) already uses elsewhere. */
-function resolveBindingPlugin(
-  binding: HardwareBinding,
-  logicalDevice: LogicalDevice,
-  installed: PluginInstallation[],
-): PluginInstallation | null {
-  if (binding.pluginId) return installed.find((plugin) => plugin.id === binding.pluginId) ?? null
-  return installed.find((plugin) => plugin.enabled && plugin.capabilities.includes(logicalDevice.capability)) ?? null
-}
-
-function TransportConfigForm({
-  logicalDevice,
-  plugin,
-}: {
-  logicalDevice: LogicalDevice
-  plugin: PluginInstallation
-}) {
+function TransportConfigForm({ logicalDevice, plugin }: { logicalDevice: LogicalDevice; plugin: PluginInstallation }) {
   const deviceId = getDeviceId()
   const configId = `${deviceId}:${logicalDevice.id}`
   const existing = useDeviceTransportConfigStore((state) => state.configs.find((c) => c.id === configId))
@@ -350,29 +177,23 @@ function TransportConfigForm({
 
 /**
  * This tablet's own transport wiring (#100) - only ever this device's entries, never another
- * tablet's: a browser can only enumerate what's physically attached to *it*, so editing
- * someone else's wiring from here would be meaningless. Only lists Logical Devices some
- * HardwareSetup currently binds to this device, whose resolved plugin actually declares
- * transports (`resolveBindingPlugin`) - nothing to configure otherwise.
+ * tablet's: a browser can only enumerate what's physically attached to *it*, so editing someone
+ * else's wiring from here would be meaningless. Only lists Logical Devices whose own
+ * `executionTarget` is this device (one hop, now that #10's routing lives directly on the
+ * Logical Device instead of a separate per-Setup binding map) and whose plugin actually declares
+ * transports - nothing to configure otherwise.
  */
 function DeviceTransportConfigSection() {
   const deviceId = getDeviceId()
-  const setups = useHardwareSetupsStore((state) => state.setups)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
 
   const entries: { logicalDevice: LogicalDevice; plugin: PluginInstallation }[] = []
-  const seen = new Set<string>()
-  for (const setup of setups) {
-    for (const [logicalDeviceId, binding] of Object.entries(setup.bindings)) {
-      if (binding.executionTarget !== deviceId || seen.has(logicalDeviceId)) continue
-      const logicalDevice = logicalDevices.find((d) => d.id === logicalDeviceId)
-      if (!logicalDevice) continue
-      const plugin = resolveBindingPlugin(binding, logicalDevice, installed)
-      if (!plugin || plugin.transports.length === 0) continue
-      seen.add(logicalDeviceId)
-      entries.push({ logicalDevice, plugin })
-    }
+  for (const logicalDevice of logicalDevices) {
+    if (logicalDevice.executionTarget !== deviceId) continue
+    const plugin = installed.find((p) => p.id === logicalDevice.pluginId)
+    if (!plugin || plugin.transports.length === 0) continue
+    entries.push({ logicalDevice, plugin })
   }
 
   if (entries.length === 0) return null
@@ -394,40 +215,36 @@ function DeviceTransportConfigSection() {
 }
 
 /**
- * The admin UI #10's issue asked for and every earlier slice deferred: create Logical Devices
- * (a named role like "Marcos Kemper", with one capability) and Hardware-Setup profiles (a named
- * rig configuration binding each Logical Device to an ExecutionTarget - the Stage-Server or a
- * registered tablet from the DeviceRegistry). Once at least one HardwareSetup exists here,
- * AppMenu.tsx's HardwareSetupPicker can actually pick something other than "Standard".
+ * The admin UI #10's issue asked for, redesigned as a guided setup wizard (Marco, explicit
+ * request, Home-Assistant-style "add integration" flow): name a device, pick its type
+ * (installing the matching plugin inline), connect it (Discovery Mode's auto-discovery or a
+ * manual fallback), verify it works - all in `DeviceSetupWizard.tsx`, opened from either "+ Neues
+ * Gerät" or an existing device's "Bearbeiten".
  *
- * "Dieses Gerät" (DeviceTransportConfigSection, #100) is deliberately its own, separately
- * scoped section below the band-wide setup list: which plugin executes a binding is a band-wide
- * choice (BindingEditor's plugin picker, remotely configurable), but the actual transport
- * wiring (MIDI port, USB device, IP) can only be set standing at the device itself.
+ * "Dieses Gerät" (DeviceTransportConfigSection, #100) stays its own, separately scoped section
+ * below the device list: which plugin/target a role uses is a band-wide choice (set inside the
+ * wizard, replicated to everyone), but the actual transport wiring (MIDI port, USB device, IP)
+ * can only be set standing at the device itself.
  */
 export function HardwareSetupManager() {
+  const [editing, setEditing] = useState<LogicalDevice | null | undefined>(undefined) // undefined = wizard closed
+
   return (
     <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Hardware-Setup</h1>
       <p className="mb-4 text-sm text-ink-muted">
-        Logical Devices sind benannte Geräte-Rollen (z.B. „Marcos Kemper“). Hardware-Setups sind
-        benannte, umschaltbare Zuordnungen: welches physische Gerät jede Rolle gerade übernimmt.
-        Welches Setup gerade aktiv ist, wird im Menü unter „Geräte-Zuweisung“ gewählt.
+        Jedes Gerät ist eine benannte Rolle (z.B. „Marcos Kemper“) mit ihrer eigenen, aktuell
+        gültigen Verbindung - Typ, ausführendes Gerät und Anschluss. „Bearbeiten“ führt noch
+        einmal durch die Einrichtung, mit den bisherigen Angaben schon ausgefüllt.
       </p>
 
-      <DiscoveryWizard />
-
-      <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Logical Devices</h2>
       <div className="mb-6">
-        <LogicalDeviceList />
-      </div>
-
-      <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Hardware-Setups</h2>
-      <div className="mb-6">
-        <HardwareSetupList />
+        <DeviceList onEdit={setEditing} onAdd={() => setEditing(null)} />
       </div>
 
       <DeviceTransportConfigSection />
+
+      {editing !== undefined && <DeviceSetupWizard device={editing} onClose={() => setEditing(undefined)} />}
     </div>
   )
 }

@@ -1,13 +1,15 @@
 import { Input, Output } from '@julusian/midi'
 import {
   DeviceTransportConfigSchema,
+  LogicalDeviceSchema,
   SERVER_EXECUTION_TARGET,
   hardwareKeyFor,
   type CcSequence,
   type DetectedHardware,
   type HardwareId,
+  type LogicalDevice,
 } from 'shared-types'
-import { putDoc, type CouchConfig } from './couch.js'
+import { putDoc, putDocWithRetry, type CouchConfig } from './couch.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 
@@ -16,6 +18,7 @@ import { workspaceDbName } from './workspaceProvisioning.js'
 const POLL_INTERVAL_MS = 2000
 
 const DEVICE_TRANSPORT_CONFIG_PREFIX = 'device-transport-config:'
+const LOGICAL_DEVICE_PREFIX = 'logical-devices:'
 
 export interface MidiWatcherOptions {
   couch: CouchConfig
@@ -91,6 +94,31 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
         void putDoc(couch, workspaceDbName(workspaceId), { ...doc, _id: `${DEVICE_TRANSPORT_CONFIG_PREFIX}${doc.id}` }).catch((err) =>
           log.error('Failed to write DeviceTransportConfig for a Stage-Server-plugged device', { error: String(err) }),
         )
+
+        // The Logical Device's own live binding (logicalDevice.ts) - the counterpart to a
+        // tablet's bindDetectedDevice() also updating this, now that #10's per-Setup binding
+        // moved directly onto the device itself. putDocWithRetry (not plain putDoc) since this
+        // doc's other fields (name, capability) must survive the merge, unlike the
+        // DeviceTransportConfig write above which this watcher fully owns. LogicalDeviceSchema
+        // has no _id/_rev fields, so those are re-attached after parsing rather than passed
+        // through it (a bare zod object schema silently strips unknown keys).
+        const logicalDeviceDocId = `${LOGICAL_DEVICE_PREFIX}${logicalDeviceId}`
+        void putDocWithRetry<LogicalDevice & { _id: string; _rev?: string }>(
+          couch,
+          workspaceDbName(workspaceId),
+          logicalDeviceDocId,
+          (existing) => {
+            const merged = LogicalDeviceSchema.parse({
+              id: logicalDeviceId,
+              name: existing?.name,
+              capability: existing?.capability,
+              pluginId: plugin.id,
+              executionTarget: SERVER_EXECUTION_TARGET,
+            })
+            return { ...merged, _id: logicalDeviceDocId, _rev: existing?._rev }
+          },
+        ).catch((err) => log.error('Failed to write Logical Device binding for a Stage-Server-plugged device', { error: String(err) }))
+
         written.add(candidate.hardwareKey)
       } finally {
         output.destroy()

@@ -1,4 +1,4 @@
-import type { HardwareSetup, LogicalDevice, PluginInstallation, ShowCue } from 'shared-types'
+import type { LogicalDevice, PluginInstallation, ShowCue } from 'shared-types'
 import { pluginProviding } from './capabilities'
 import { getTranslator, supportsLocalExecution } from './clientTranslator'
 import { resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
@@ -6,7 +6,6 @@ import { triggerShowControl } from './showControlClient'
 
 export interface FireContext {
   deviceId: string
-  hardwareSetup: HardwareSetup | null
   logicalDevices: LogicalDevice[]
   installed: PluginInstallation[]
 }
@@ -24,13 +23,12 @@ export interface FireContext {
  * comment already gives.
  */
 export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<void> {
-  const logicalDevice = ctx.logicalDevices.find((d) => d.id === cue.targetLogicalDeviceId)
+  const logicalDevice = resolveHardwareBindingById(ctx.logicalDevices, cue.targetLogicalDeviceId)
   if (!logicalDevice) return
 
-  const binding = resolveHardwareBindingById(ctx.hardwareSetup, cue.targetLogicalDeviceId)
-  const pluginId = binding?.pluginId ?? pluginProviding(ctx.installed, logicalDevice.capability)
+  const pluginId = logicalDevice.pluginId ?? pluginProviding(ctx.installed, logicalDevice.capability)
   const engine = resolveHardwareEngine(
-    binding,
+    logicalDevice,
     ctx.deviceId,
     pluginId,
     supportsLocalExecution(ctx.installed, logicalDevice.capability),

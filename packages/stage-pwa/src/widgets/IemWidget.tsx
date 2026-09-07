@@ -49,7 +49,7 @@ export function IemWidget() {
         void getTranslator(CAPABILITIES.mixer)!({ type: 'set_volume', payload: { channel, volume } })
         return
       }
-      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget, CAPABILITIES.mixer, {
+      const result = await triggerDeviceControl(workspaceId, binding!.executionTarget!, CAPABILITIES.mixer, {
         type: 'set_volume',
         payload: { channel, volume },
       })

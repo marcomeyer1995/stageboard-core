@@ -28,7 +28,6 @@ import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerS
 import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
-import { useHardwareSetupsStore } from './store/useHardwareSetupsStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -107,7 +106,6 @@ function App() {
   useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
-  useWorkspaceResource(useHardwareSetupsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)

@@ -47,8 +47,20 @@ const KEMPER: PluginInstallation = {
   installedAt: 0,
 }
 
-const MARCOS_KEMPER: LogicalDevice = { id: 'marcos-kemper', name: "Marco's Kemper", capability: 'kemper-control' }
-const SARAHS_KEMPER: LogicalDevice = { id: 'sarahs-kemper', name: "Sarah's Kemper", capability: 'kemper-control' }
+const MARCOS_KEMPER: LogicalDevice = {
+  id: 'marcos-kemper',
+  name: "Marco's Kemper",
+  capability: 'kemper-control',
+  pluginId: null,
+  executionTarget: null,
+}
+const SARAHS_KEMPER: LogicalDevice = {
+  id: 'sarahs-kemper',
+  name: "Sarah's Kemper",
+  capability: 'kemper-control',
+  pluginId: null,
+  executionTarget: null,
+}
 
 function kemperPort(portId: string, name = 'Kemper Profiler Emulator'): DetectedHardware {
   return { kind: 'webmidi', portId, name, manufacturer: '' }
@@ -238,7 +250,13 @@ describe('ambiguous roles - sequential trigger-based identification', () => {
   })
 
   it('flags an ambiguous role needs-manual outright when the matched plugin declares no discoveryTrigger', async () => {
-    const midiInputRole: LogicalDevice = { id: 'footswitch', name: 'Footswitch', capability: 'midi-input' }
+    const midiInputRole: LogicalDevice = {
+      id: 'footswitch',
+      name: 'Footswitch',
+      capability: 'midi-input',
+      pluginId: null,
+      executionTarget: null,
+    }
     await startWith([GENERIC_MIDI], [midiInputRole])
     reportCandidate('band-a', 'tablet-1', kemperPort('port-1', 'Controller A'))
     reportCandidate('band-a', 'tablet-2', kemperPort('port-2', 'Controller B'))

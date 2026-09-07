@@ -23,7 +23,13 @@ const { getDeviceId } = await import('./deviceId')
 const { useDeviceTransportConfigStore } = await import('../store/useDeviceTransportConfigStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 
-const LOGICAL_DEVICE: LogicalDevice = { id: 'kemper-1', name: "Marco's Kemper", capability: KEMPER_CAPABILITY }
+const LOGICAL_DEVICE: LogicalDevice = {
+  id: 'kemper-1',
+  name: "Marco's Kemper",
+  capability: KEMPER_CAPABILITY,
+  pluginId: null,
+  executionTarget: null,
+}
 const OUTPUT = { id: 'midi-out-1' } as MIDIOutput
 
 function configWith(values: Record<string, string>): DeviceTransportConfig {
