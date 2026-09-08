@@ -149,6 +149,32 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // fallback (ambiguous case) both already work with zero extra code.
   },
   {
+    id: 'boss-rc500',
+    name: 'BOSS RC-500',
+    version: '0.0.1',
+    runtime: 'client',
+    // Own dedicated capability (rc500Translator.ts) - a looper's memory/track vocabulary
+    // doesn't fit any of capability.ts's core CAPABILITIES.
+    capabilities: ['rc500-control'],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [
+          { key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' },
+          { key: 'midiChannel', label: 'MIDI-Kanal (1-16)', type: 'number' },
+        ],
+      },
+    ],
+    hardwareIds: [{ kind: 'webmidi', namePattern: 'RC-500' }],
+    // No discoveryTrigger: the RC-500 has no fixed global CC table and no reliable
+    // physical-trigger mechanism reachable over MIDI at all (docs/protocol-notes.md) - every
+    // CC's meaning is per-memory and user-configured on the device itself, so there's no signal
+    // this plugin could ask a musician to produce that's guaranteed to mean the same thing on
+    // any given RC-500. namePattern-only auto-assign (unambiguous case) and manual fallback
+    // (ambiguous case) both already work with zero extra code, same as NUX MG-30 above.
+  },
+  {
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',
