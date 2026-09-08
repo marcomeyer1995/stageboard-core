@@ -14,6 +14,7 @@ import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useClockSync } from './lib/useClockSync'
 import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
+import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { usePresenceReporter } from './lib/usePresenceReporter'
@@ -23,6 +24,7 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
+import { useDeviceInfoStore } from './store/useDeviceInfoStore'
 import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
 import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerStore'
 import { useDevicesStore } from './store/useDevicesStore'
@@ -111,6 +113,9 @@ function App() {
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
+  // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) - same
+  // lifecycle as usePresenceStore's own subscription just above.
+  useWorkspaceResource(useDeviceInfoStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
@@ -123,6 +128,11 @@ function App() {
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
   // decided yet" nor "explicitly no profile" should show this device as anyone in particular.
   usePresenceReporter(activeWorkspaceId, activeProfileId || undefined)
+  // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
+  // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
+  // open but no profile is picked yet" is itself a state the Device Ledger should show, not
+  // hide (see that file's own doc comment).
+  useDeviceInfoReporter(activeWorkspaceId)
 
   // Three full-screen gates before the normal mode tabs (see #21, and the #21 follow-up that
   // added needsRosterSetup): join/found the band first (no band at all yet), then - only for a

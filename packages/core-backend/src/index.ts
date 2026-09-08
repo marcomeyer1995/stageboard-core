@@ -11,6 +11,7 @@ import mdnsFactory from 'multicast-dns'
 import {
   ActivateProfileRequestSchema,
   CreateMemberRequestSchema,
+  DeviceInfoReportSchema,
   DeviceTriggerSchema,
   DiscoveryReportCandidateRequestSchema,
   DiscoveryStartRequestSchema,
@@ -22,6 +23,7 @@ import {
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
   ResetMemberPasswordRequestSchema,
+  RevokeDeviceRequestSchema,
   RosterRequestSchema,
   RotateAccessCodeRequestSchema,
   SetMemberAdminRequestSchema,
@@ -29,13 +31,16 @@ import {
   ShowControlEventSchema,
   WorkspaceDeleteRequestSchema,
   WorkspaceProvisionRequestSchema,
+  type Device,
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, getDoc, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { createMidiWatcher } from './midiWatcher.js'
+import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
@@ -383,6 +388,77 @@ export async function buildApp() {
       profileId: parsed.data.profileId,
       lastSeenAt: Date.now(),
     })
+    return reply.status(204).send()
+  })
+
+  // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) -
+  // same SSE push pattern as plugin-health/presence above, deliberately its own instance rather
+  // than folded into presence: presence is specifically "who's signed in as whom" and is gated
+  // on a real profile being active, but a device with no profile chosen yet still needs to show
+  // up here (deviceInfo.ts's own doc comment). No auth, same reasoning as presence's route.
+  app.get('/workspaces/:workspaceId/device-info/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+
+    reply.hijack()
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) reply.raw.setHeader(name, value)
+    }
+    reply.raw.setHeader('Content-Type', 'text/event-stream')
+    reply.raw.setHeader('Cache-Control', 'no-cache')
+    reply.raw.setHeader('Connection', 'keep-alive')
+    reply.raw.writeHead(200)
+
+    const unsubscribe = deviceInfoStore.subscribe(workspaceId, (snapshot) => {
+      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/device-info/report', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = DeviceInfoReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    deviceInfoStore.setEntry(workspaceId, parsed.data.deviceId, {
+      ip: request.ip,
+      os: parsed.data.os,
+      environment: parsed.data.environment,
+      syncStatus: parsed.data.syncStatus,
+      lastSeenAt: Date.now(),
+      // Preserved across a report (which doesn't know either) rather than reset - pingLoop.ts
+      // refreshes both independently on its own cadence.
+      networkReachable: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.networkReachable ?? null,
+      hostname: deviceInfoStore.getSnapshot(workspaceId).devices[parsed.data.deviceId]?.hostname ?? null,
+    })
+    return reply.status(204).send()
+  })
+
+  // Device Ledger's admin-only "kick" (Marco, explicit request, deliberately a *soft* kick -
+  // see device.ts's `revoked` doc comment). Same verifyAdmin + zod-parse + putDocWithRetry-merge
+  // template as every other admin-gated write in this file (e.g. the member-admin route above).
+  app.post('/workspaces/:workspaceId/devices/:deviceId/revoke', async (request, reply) => {
+    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
+    const parsed = RevokeDeviceRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    const docId = `devices:${deviceId}`
+    const existing = await getDoc<Device & CouchDoc>(couch, workspaceDbName(workspaceId), docId)
+    if (!existing) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
+    }
+    await putDocWithRetry<Device & CouchDoc>(couch, workspaceDbName(workspaceId), docId, (current) => ({
+      ...(current ?? existing),
+      revoked: parsed.data.revoked,
+      _id: docId,
+      _rev: current?._rev ?? existing._rev,
+    }))
     return reply.status(204).send()
   })
 
@@ -991,6 +1067,13 @@ async function main() {
       const midiWatcher = createMidiWatcher({ couch, workspaceId: process.env.STAGEBOARD_WORKSPACE, log: pluginLog })
       app.addHook('onClose', async () => midiWatcher.stop())
     }
+
+    // Device Ledger's background reachability/hostname refresh (pingLoop.ts, Marco's explicit
+    // request) - purely in-memory (deviceInfoStore.ts), no CouchDB access, so unlike
+    // pluginSync/midiWatcher above it needs no configured STAGEBOARD_WORKSPACE and just runs
+    // unconditionally for whichever workspaces happen to have reported devices.
+    const pingLoop = startPingLoop()
+    app.addHook('onClose', async () => pingLoop.stop())
 
     // Lookup plugins aren't band-installed hardware - they're always-available read-only data
     // sources, so every catalog entry just starts up directly rather than waiting on a
