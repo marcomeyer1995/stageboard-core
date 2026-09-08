@@ -24,7 +24,6 @@ import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
 import { useActiveProfileStore } from './store/useActiveProfileStore'
 import { useDashboardsStore } from './store/useDashboardsStore'
-import { useDeviceInfoStore } from './store/useDeviceInfoStore'
 import { useDeviceTransportConfigStore } from './store/useDeviceTransportConfigStore'
 import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerStore'
 import { useDevicesStore } from './store/useDevicesStore'
@@ -113,9 +112,11 @@ function App() {
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
-  // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) - same
-  // lifecycle as usePresenceStore's own subscription just above.
-  useWorkspaceResource(useDeviceInfoStore((state) => state.init), noopStart, activeWorkspaceId)
+  // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
+  // usePresenceStore just above, it's opened only while DeviceLedgerView.tsx is actually
+  // mounted (see useDeviceInfoStore.ts's own doc comment: this app already sits near Chrome's
+  // 6-connections-per-origin cap with its existing always-on SSE streams, found live when a 6th
+  // one starved useDeviceInfoReporter.ts's own report POSTs of a connection entirely).
   useWorkspaceResource(useDeviceTriggerListenerStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)

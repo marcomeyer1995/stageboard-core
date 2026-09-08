@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { BackupManager } from './BackupManager'
 import { BandManagementView } from './BandManagementView'
+import { DeviceLedgerView } from './DeviceLedgerView'
 import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
 import { PostShowReport } from './PostShowReport'
@@ -9,12 +10,13 @@ import { SystemSettings } from './SystemSettings'
 import { capabilityStatusFor } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
 
-type SystemTab = 'band' | 'plugins' | 'hardware' | 'backup' | 'post-show' | 'settings'
+type SystemTab = 'band' | 'plugins' | 'hardware' | 'devices' | 'backup' | 'post-show' | 'settings'
 
 const TAB_LABEL: Record<SystemTab, string> = {
   band: 'Band',
   plugins: 'Plugins',
   hardware: 'Hardware',
+  devices: 'Geräte',
   backup: 'Backup',
   'post-show': 'Nachbericht',
   settings: 'Einstellungen',
@@ -40,8 +42,8 @@ export function SystemView() {
   const capabilities = useCapabilities()
   const hasBackup = capabilityStatusFor([CAPABILITIES.backup], capabilities) !== 'missing'
   const tabs: SystemTab[] = hasBackup
-    ? ['band', 'plugins', 'hardware', 'backup', 'post-show', 'settings']
-    : ['band', 'plugins', 'hardware', 'post-show', 'settings']
+    ? ['band', 'plugins', 'hardware', 'devices', 'backup', 'post-show', 'settings']
+    : ['band', 'plugins', 'hardware', 'devices', 'post-show', 'settings']
   const [tab, setTab] = useState<SystemTab>('band')
   const activeTab = tabs.includes(tab) ? tab : 'band'
 
@@ -65,6 +67,7 @@ export function SystemView() {
       {activeTab === 'band' && <BandManagementView />}
       {activeTab === 'plugins' && <PluginManager />}
       {activeTab === 'hardware' && <HardwareSetupManager />}
+      {activeTab === 'devices' && <DeviceLedgerView />}
       {activeTab === 'backup' && <BackupManager />}
       {activeTab === 'post-show' && <PostShowReport />}
       {activeTab === 'settings' && <SystemSettings />}

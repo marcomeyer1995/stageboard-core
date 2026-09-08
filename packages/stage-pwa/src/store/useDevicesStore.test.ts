@@ -67,6 +67,18 @@ describe('init', () => {
     expect(written.firstSeenAt).toBeGreaterThanOrEqual(before)
   })
 
+  it('backfills firstSeenAt (from the existing lastSeenAt) for a doc written before that field existed, even when not stale', async () => {
+    getAllDevices.mockResolvedValue([{ id: 'this-device', name: 'iPad', lastSeenAt: 12345 } as Device])
+
+    await useDevicesStore.getState().init('band-a')
+
+    expect(putDevice).toHaveBeenCalledOnce()
+    const written = putDevice.mock.calls[0][0] as Device
+    expect(written.firstSeenAt).toBe(12345)
+    expect(written.revoked).toBe(false)
+    expect(written.lastSeenAt).toBeGreaterThan(12345)
+  })
+
   it('does not write again for an already-registered, recently-seen device', async () => {
     getAllDevices.mockResolvedValue([{ id: 'this-device', name: 'iPad', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false }])
 

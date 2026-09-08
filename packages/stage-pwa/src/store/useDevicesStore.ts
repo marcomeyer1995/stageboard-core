@@ -55,6 +55,12 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     if (!mine) {
       const now = Date.now()
       await putDevice({ id: deviceId, name: guessDeviceName(), lastSeenAt: now, firstSeenAt: now, revoked: false })
+    } else if (!mine.firstSeenAt) {
+      // Backfill for a doc written before `firstSeenAt`/`revoked` existed (Device Ledger,
+      // 2026-09-08) - unconditional on staleness, unlike the plain lastSeenAt refresh below,
+      // so a still-active device heals itself on its very next launch instead of showing
+      // "Invalid Date" in the ledger until it happens to go an hour stale.
+      await putDevice({ ...mine, lastSeenAt: Date.now(), firstSeenAt: mine.lastSeenAt, revoked: mine.revoked ?? false })
     } else if (Date.now() - mine.lastSeenAt > LAST_SEEN_REFRESH_MS) {
       await putDevice({ ...mine, lastSeenAt: Date.now() })
     }

@@ -32,6 +32,9 @@ describe('SystemView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Nachbericht' }))
     expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Geräte' }))
+    expect(screen.getByText('Geräte', { selector: 'h1' })).toBeInTheDocument()
   })
 
   it('hides the Backup tab when no plugin provides the backup capability', () => {
