@@ -1,6 +1,7 @@
 import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
 import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
+import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
 import { loadClientPlugin } from './loadClientPlugin'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
@@ -20,6 +21,7 @@ const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [CAPABILITIES.lighting]: (event) => useLocalLightingStore.getState().applyEvent(event),
   [KEMPER_CAPABILITY]: kemperTranslator,
   [CQ18T_CAPABILITY]: cq18tTranslator,
+  [MG30_CAPABILITY]: mg30Translator,
 }
 
 /** Translators registered by a dynamically-loaded plugin (#109), keyed by capability - filled

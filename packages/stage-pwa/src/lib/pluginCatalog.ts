@@ -124,6 +124,31 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     },
   },
   {
+    id: 'nux-mg30',
+    name: 'NUX MG-30',
+    version: '0.0.1',
+    runtime: 'client',
+    // Own dedicated capability (mg30Translator.ts) - a multi-effects unit's patch/knob
+    // vocabulary doesn't fit any of capability.ts's core CAPABILITIES.
+    capabilities: ['mg30-control'],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [
+          { key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' },
+          { key: 'midiChannel', label: 'MIDI-Kanal (1-16)', type: 'number' },
+        ],
+      },
+    ],
+    hardwareIds: [{ kind: 'webmidi', namePattern: 'MG-30' }],
+    // No discoveryTrigger: the MG-30's own identity-verification mechanism is a SysEx
+    // handshake (mg30Translator.ts's 'test' action), not a CC sequence - Discovery Mode's
+    // matchCcSequence is CC-only, so this device can't offer a physical-trigger disambiguation
+    // the way Kemper/CQ-18T do. namePattern-only auto-assign (unambiguous case) and manual
+    // fallback (ambiguous case) both already work with zero extra code.
+  },
+  {
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',
