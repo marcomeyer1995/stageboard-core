@@ -141,6 +141,48 @@ describe('mg30Translator', () => {
       expect(result.message).toContain('v4.0.3')
     })
 
+    it('attaches the midimessage listener before sending the identity request - real hardware over USB-MIDI can reply fast enough that the reverse order silently misses it (found live, 2026-09-08)', async () => {
+      const order: string[] = []
+      const input = {
+        name: 'NUX MG-30',
+        manufacturer: 'NUX',
+        addEventListener: () => order.push('listen'),
+        removeEventListener: vi.fn(),
+      }
+      vi.stubGlobal('navigator', {
+        requestMIDIAccess: vi.fn().mockResolvedValue({ inputs: new Map([['in-1', input]]), outputs: new Map() }),
+      })
+      vi.mocked(sendSysEx).mockImplementation(() => order.push('send'))
+
+      await mg30Translator({ type: 'test' })
+
+      expect(order).toEqual(['listen', 'send'])
+    })
+
+    it('catches a reply that arrives synchronously, immediately on send (real-hardware timing)', async () => {
+      let handler: ((event: { data: Uint8Array }) => void) | null = null
+      const reply = new Uint8Array([0xf0, 0x43, 0x58, 0x10, 0x76, 0x35, 0x2e, 0x30, 0x2e, 0x32, 0xf7]) // "v5.0.2"
+      const input = {
+        name: 'NUX MG-30',
+        manufacturer: 'NUX',
+        addEventListener: (_type: string, h: (event: { data: Uint8Array }) => void) => {
+          handler = h
+        },
+        removeEventListener: vi.fn(),
+      }
+      vi.stubGlobal('navigator', {
+        requestMIDIAccess: vi.fn().mockResolvedValue({ inputs: new Map([['in-1', input]]), outputs: new Map() }),
+      })
+      // Simulates a real device replying the instant the request is sent, before `send()` even
+      // returns - only possible to catch at all if the listener was attached first.
+      vi.mocked(sendSysEx).mockImplementation(() => handler?.({ data: reply }))
+
+      const result = await mg30Translator({ type: 'test' })
+
+      expect(result.status).toBe('ok')
+      expect(result.message).toContain('v5.0.2')
+    })
+
     it('errors when no reply arrives within the timeout', async () => {
       vi.stubGlobal('navigator', { requestMIDIAccess: vi.fn().mockResolvedValue({ inputs: new Map(), outputs: new Map() }) })
       const result = await mg30Translator({ type: 'test' })

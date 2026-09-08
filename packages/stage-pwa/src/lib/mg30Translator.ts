@@ -84,13 +84,28 @@ function setKnob(mg30: Mg30Output, payload: Record<string, unknown> | undefined)
 }
 
 /**
- * Finds the real MIDIInput matching `namePattern` and waits (up to `timeoutMs`) for a SysEx
- * reply whose first bytes equal `expectedPrefix` - the receive half of the identity handshake
- * `test` below needs, which (unlike cq18tTranslator.ts's fire-only Get) has a genuinely
- * meaningful decodable reply worth actually reading. Kept local to this file rather than added
- * to webMidi.ts's shared surface - a single-use request/reply primitive, not a general one yet.
+ * Finds the real MIDIInput matching `namePattern`, attaches its `midimessage` listener, THEN
+ * calls `send()` and waits (up to `timeoutMs`) for a SysEx reply whose first bytes equal
+ * `expectedPrefix` - the receive half of the identity handshake `test` below needs, which
+ * (unlike cq18tTranslator.ts's fire-only Get) has a genuinely meaningful decodable reply worth
+ * actually reading. Kept local to this file rather than added to webMidi.ts's shared surface -
+ * a single-use request/reply primitive, not a general one yet.
+ *
+ * `send` is a callback invoked only once the listener is already attached, not a value sent
+ * before this function starts listening - found live against real hardware (2026-09-08, Marco's
+ * own NUX MG-30): the emulator's reply always arrived slower than the time it took this
+ * function's own `requestMIDIAccess()` call to resolve and attach the listener, masking a real
+ * race - real hardware over direct USB-MIDI replies fast enough that a request sent *before*
+ * the listener existed had its reply silently missed every time, surfacing as "keine Antwort"
+ * even though the device was answering correctly (confirmed via a raw probe: the exact expected
+ * `43 58 10` reply arrived, decoding to a real firmware version and model string).
  */
-async function waitForSysExReply(namePattern: string, expectedPrefix: number[], timeoutMs: number): Promise<Uint8Array | null> {
+async function waitForSysExReply(
+  namePattern: string,
+  expectedPrefix: number[],
+  timeoutMs: number,
+  send: () => void,
+): Promise<Uint8Array | null> {
   if (!isWebMidiSupported()) return null
   let access: MIDIAccess
   try {
@@ -127,6 +142,7 @@ async function waitForSysExReply(namePattern: string, expectedPrefix: number[], 
       }
     }
     midiInput.addEventListener('midimessage', handler)
+    send()
   })
 }
 
@@ -136,8 +152,9 @@ async function waitForSysExReply(namePattern: string, expectedPrefix: number[], 
  * bar cq18tTranslator.ts's read-only Get test sets for a device whose "test" a user could click
  * at any time. */
 async function test(mg30: Mg30Output): Promise<ShowControlResult> {
-  sendSysEx(mg30.output, [...DEVICE_SIGNATURE, FN_IDENTITY_REQUEST])
-  const reply = await waitForSysExReply('MG-30', [0xf0, ...DEVICE_SIGNATURE, FN_IDENTITY_RESPONSE], 1000)
+  const reply = await waitForSysExReply('MG-30', [0xf0, ...DEVICE_SIGNATURE, FN_IDENTITY_RESPONSE], 1000, () =>
+    sendSysEx(mg30.output, [...DEVICE_SIGNATURE, FN_IDENTITY_REQUEST]),
+  )
   if (!reply) return { status: 'error', message: 'MG-30: keine Antwort auf die Identitätsabfrage.' }
   const versionBytes = Array.from(reply.slice(4, 10)).filter((byte) => byte !== 0)
   const version = String.fromCharCode(...versionBytes)
