@@ -4,7 +4,13 @@ let cachedAccess: Promise<MIDIAccess | null> | null = null
 
 function getAccess(): Promise<MIDIAccess | null> {
   if (!isWebMidiSupported()) return Promise.resolve(null)
-  cachedAccess ??= navigator.requestMIDIAccess().catch(() => null)
+  // `sysex: true` - without it, an output obtained from this access object throws
+  // NotAllowedError on any System Exclusive send (`sendSysEx` below, needed by the NUX MG-30's
+  // identity handshake) even after the user has already granted plain MIDI access. Requested
+  // unconditionally here (not just for SysEx-capable devices) since sysexEnabled is a property
+  // of the MIDIAccess object itself, not something a later, separate request can add on top of
+  // this shared cached instance.
+  cachedAccess ??= navigator.requestMIDIAccess({ sysex: true }).catch(() => null)
   return cachedAccess
 }
 
