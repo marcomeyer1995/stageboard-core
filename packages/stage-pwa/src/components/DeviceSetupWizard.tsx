@@ -12,6 +12,7 @@ import { sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
+import type { NewDevicePrefill } from '../store/useHardwareSetupWizardStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
@@ -28,8 +29,9 @@ interface Draft {
   executionTarget: string | null
 }
 
-function draftFrom(device: LogicalDevice | null): Draft {
+function draftFrom(device: LogicalDevice | null, prefill?: NewDevicePrefill | null): Draft {
   if (device) return { ...device }
+  if (prefill) return { id: randomId(), name: prefill.name, capability: prefill.capability, pluginId: prefill.pluginId, executionTarget: null }
   return { id: randomId(), name: '', capability: null, pluginId: null, executionTarget: null }
 }
 
@@ -469,10 +471,24 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
  * leaves exactly what was set, which is also how "skip - the gear isn't here yet, finish later"
  * works: there's no separate skip codepath, just an incomplete-but-real Logical Device the
  * Hardware tab flags accordingly.
+ *
+ * `initialDraft` (only meaningful when `device` is null) starts the same way an existing device
+ * would: at Step 2 with a name and plugin already filled in, one click from being saved. Fed by
+ * useHardwareSetupWizardStore.ts - useHardwareDetection.ts's "no matching role yet" dialog offers
+ * to create one on the spot instead of just telling the musician where to go look, and this is
+ * what that "yes, create it" answer opens into.
  */
-export function DeviceSetupWizard({ device, onClose }: { device: LogicalDevice | null; onClose: () => void }) {
-  const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : 1))
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(device))
+export function DeviceSetupWizard({
+  device,
+  initialDraft,
+  onClose,
+}: {
+  device: LogicalDevice | null
+  initialDraft?: NewDevicePrefill | null
+  onClose: () => void
+}) {
+  const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : initialDraft ? 2 : 1))
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(device, initialDraft))
   const saveDevice = useLogicalDevicesStore((state) => state.save)
   const installPlugin = usePluginsStore((state) => state.install)
   const installed = usePluginsStore((state) => state.installed)

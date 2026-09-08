@@ -10,6 +10,7 @@ import { useActiveSystemTabStore } from '../store/useActiveSystemTabStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
+import { useHardwareSetupWizardStore } from '../store/useHardwareSetupWizardStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 
@@ -162,12 +163,19 @@ export async function handleDetected(detected: DetectedHardware) {
   if (useActiveSystemTabStore.getState().activeTab !== 'hardware') return
 
   if (candidates.length === 0) {
-    await useDialogStore
+    // Offers to open DeviceSetupWizard.tsx right here, pre-filled from what was just detected,
+    // instead of just describing where to go find that option by hand (Marco, explicit request -
+    // this dialog can only ever fire while System → Hardware is already showing, per the gate
+    // above, so there's nowhere else the confirmation needs to navigate first).
+    const shouldCreate = await useDialogStore
       .getState()
-      .alert(
-        `Für "${label}" (${match.name}) ist noch keine passende Rolle vorhanden. Lege unter System → Hardware zuerst ein Logical Device für diese Fähigkeit an.`,
-        { title: 'Neues Gerät erkannt' },
-      )
+      .confirm(`Für "${label}" (${match.name}) ist noch keine passende Rolle vorhanden.`, {
+        title: 'Neues Gerät erkannt',
+        confirmLabel: 'Gerät erstellen',
+      })
+    if (shouldCreate) {
+      useHardwareSetupWizardStore.getState().requestNewDevice({ name: label, pluginId: match.id, capability: match.capabilities[0] ?? null })
+    }
     return
   }
 

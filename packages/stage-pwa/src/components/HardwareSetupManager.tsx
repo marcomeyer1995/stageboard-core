@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
+import { useHardwareSetupWizardStore, type NewDevicePrefill } from '../store/useHardwareSetupWizardStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
@@ -109,6 +110,29 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
  */
 export function HardwareSetupManager() {
   const [editing, setEditing] = useState<LogicalDevice | null | undefined>(undefined) // undefined = wizard closed
+  const [newDevicePrefill, setNewDevicePrefill] = useState<NewDevicePrefill | null>(null)
+  const pendingPrefill = useHardwareSetupWizardStore((state) => state.prefill)
+  const consumePrefill = useHardwareSetupWizardStore((state) => state.consumePrefill)
+
+  // useHardwareDetection.ts's "no matching role yet" dialog offering to create one on the spot
+  // (see useHardwareSetupWizardStore.ts) - only reachable while this screen is already showing
+  // (that dialog is itself gated to System → Hardware), so opening straight into it here is safe.
+  useEffect(() => {
+    if (!pendingPrefill) return
+    setNewDevicePrefill(pendingPrefill)
+    setEditing(null)
+    consumePrefill()
+  }, [pendingPrefill, consumePrefill])
+
+  function openBlankWizard(): void {
+    setNewDevicePrefill(null)
+    setEditing(null)
+  }
+
+  function closeWizard(): void {
+    setEditing(undefined)
+    setNewDevicePrefill(null)
+  }
 
   return (
     <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
@@ -121,10 +145,12 @@ export function HardwareSetupManager() {
       </p>
 
       <div className="mb-6">
-        <DeviceList onEdit={setEditing} onAdd={() => setEditing(null)} />
+        <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />
       </div>
 
-      {editing !== undefined && <DeviceSetupWizard device={editing} onClose={() => setEditing(undefined)} />}
+      {editing !== undefined && (
+        <DeviceSetupWizard device={editing} initialDraft={editing === null ? newDevicePrefill : null} onClose={closeWizard} />
+      )}
     </div>
   )
 }
