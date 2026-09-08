@@ -7,6 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
 import {
+  __resetDeviceInfoStoreForTests,
+  getSnapshot as getDeviceInfoSnapshot,
+  setEntry as setDeviceInfoEntry,
+} from './deviceInfoStore.js'
+import {
   __resetDiscoverySessionStoreForTests,
   getSnapshot as getDiscoverySnapshot,
 } from './discoverySessionStore.js'
@@ -472,6 +477,188 @@ describe('Fastify routes', () => {
       )
 
       req.destroy()
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/device-info/report', () => {
+    beforeEach(() => {
+      __resetDeviceInfoStoreForTests()
+    })
+
+    it('records the reported info with a server-stamped ip and lastSeenAt', async () => {
+      const before = Date.now()
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'iPad', environment: 'browser', syncStatus: 'idle' },
+      })
+
+      expect(response.statusCode).toBe(204)
+      const entry = getDeviceInfoSnapshot('band-a').devices['device-1']
+      expect(entry.os).toBe('iPad')
+      expect(entry.environment).toBe('browser')
+      expect(entry.syncStatus).toBe('idle')
+      expect(entry.lastSeenAt).toBeGreaterThanOrEqual(before)
+      expect(entry.ip.length).toBeGreaterThan(0)
+      expect(entry.networkReachable).toBeNull()
+      expect(entry.hostname).toBeNull()
+    })
+
+    it('preserves networkReachable/hostname from a prior pingLoop patch across a new report', async () => {
+      setDeviceInfoEntry('band-a', 'device-1', {
+        ip: '127.0.0.1',
+        os: 'iPad',
+        environment: 'browser',
+        syncStatus: 'idle',
+        lastSeenAt: 1,
+        networkReachable: true,
+        hostname: 'ipad.local',
+      })
+
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'iPad', environment: 'browser', syncStatus: 'syncing' },
+      })
+
+      const entry = getDeviceInfoSnapshot('band-a').devices['device-1']
+      expect(entry.networkReachable).toBe(true)
+      expect(entry.hostname).toBe('ipad.local')
+      expect(entry.syncStatus).toBe('syncing')
+    })
+
+    it('rejects a body missing required fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1' },
+      })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('keeps reports scoped to their own workspace', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/device-info/report',
+        payload: { deviceId: 'device-1', os: 'iPad', environment: 'browser', syncStatus: 'idle' },
+      })
+      expect(getDeviceInfoSnapshot('band-b').devices['device-1']).toBeUndefined()
+    })
+  })
+
+  describe('GET /workspaces/:workspaceId/device-info/stream', () => {
+    beforeEach(() => {
+      __resetDeviceInfoStoreForTests()
+    })
+
+    it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
+      await app.listen({ port: 0 })
+      const address = app.server.address()
+      if (typeof address !== 'object' || address === null) throw new Error('server has no address')
+
+      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      const req = request(
+        {
+          hostname: '127.0.0.1',
+          port: address.port,
+          path: '/workspaces/band-a/device-info/stream',
+          headers: { origin: 'http://localhost:5173' },
+          rejectUnauthorized: false,
+        },
+        () => {},
+      )
+      req.end()
+
+      const res = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+        req.on('response', resolve)
+        req.on('error', reject)
+      })
+
+      expect(res.headers['content-type']).toBe('text/event-stream')
+
+      const chunks = res[Symbol.asyncIterator]()
+
+      const first = await chunks.next()
+      expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
+
+      const entry = {
+        ip: '127.0.0.1',
+        os: 'iPad',
+        environment: 'browser' as const,
+        syncStatus: 'idle' as const,
+        lastSeenAt: 123,
+        networkReachable: null,
+        hostname: null,
+      }
+      setDeviceInfoEntry('band-a', 'device-1', entry)
+
+      const second = await chunks.next()
+      expect(Buffer.from(second.value as Buffer).toString()).toBe(
+        `data: ${JSON.stringify({ devices: { 'device-1': entry } })}\n\n`,
+      )
+
+      req.destroy()
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/devices/:deviceId/revoke', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function stubAdminVerify() {
+      return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    }
+
+    it('marks a device revoked, preserving its other fields', async () => {
+      const existingDoc = { _id: 'devices:device-1', _rev: '1-a', id: 'device-1', name: 'Marcos iPad', lastSeenAt: 100, firstSeenAt: 50, revoked: false }
+      const fetchMock = stubFetch([
+        stubAdminVerify(),
+        { ok: true, status: 200, json: async () => existingDoc }, // getDoc pre-check
+        { ok: true, status: 200, json: async () => existingDoc }, // putDocWithRetry's own getDoc
+        { ok: true, status: 200 }, // putDocWithRetry's PUT
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/devices/device-1/revoke',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', revoked: true },
+      })
+
+      expect(response.statusCode).toBe(204)
+      const putBody = JSON.parse(fetchMock.mock.calls[3][1].body)
+      expect(putBody).toMatchObject({ id: 'device-1', name: 'Marcos iPad', revoked: true, _rev: '1-a' })
+    })
+
+    it('returns 404 for a device that does not exist', async () => {
+      stubFetch([stubAdminVerify(), { ok: false, status: 404 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/devices/unknown-device/revoke',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw', revoked: true },
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/devices/device-1/revoke',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw', revoked: true },
+      })
+
+      expect(response.statusCode).toBe(403)
     })
   })
 
