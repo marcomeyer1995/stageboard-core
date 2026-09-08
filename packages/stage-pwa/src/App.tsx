@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { AppMenu } from './components/AppMenu'
 import { Dashboard } from './components/Dashboard'
+import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
 import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
@@ -8,6 +9,7 @@ import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
 import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
+import { getDeviceId } from './lib/deviceId'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
@@ -105,6 +107,7 @@ function App() {
   useWorkspaceResource(useShowStateStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePluginsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
+  const myDeviceRevoked = useDevicesStore((state) => state.devices.find((d) => d.id === getDeviceId())?.revoked ?? false)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
@@ -176,6 +179,13 @@ function App() {
   const needsRosterSetup = !needsJoin && activeWorkspaceIsAdmin && !rosterSetupDone && foundedHere
   const needsProfile = !needsJoin && !needsRosterSetup && activeProfileId === undefined
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
+
+  // The Device Ledger's admin "kick" (DeviceLedgerView.tsx, Marco's explicit request) - takes
+  // priority over even needsJoin/needsRosterSetup/needsProfile above, since a revoked device
+  // shouldn't be able to progress through onboarding either. Purely a render gate reacting to
+  // this device's own synced `revoked` flag - see DeviceRevokedScreen.tsx's own doc comment for
+  // why nothing more (no credential wipe, no forced logout) is needed here.
+  if (myDeviceRevoked) return <DeviceRevokedScreen />
 
   return (
     <div className="relative h-dvh">
