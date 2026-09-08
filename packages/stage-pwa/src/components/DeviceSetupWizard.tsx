@@ -440,15 +440,20 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
  * HardwareSetupList/standalone DiscoveryWizard with one step-by-step flow, mirroring Home
  * Assistant's "add integration" pattern (Marco, explicit request).
  *
- * `device: null` starts a blank draft; passing an existing `LogicalDevice` resumes editing it,
- * prefilled at every step - the same flow serves "add" and "edit"/"reconnect" alike. Nothing is
- * written until Step 2 (the first point a valid `capability` exists) - abandoning the wizard
- * before then leaves nothing behind; abandoning any later step leaves exactly what was set,
- * which is also how "skip - the gear isn't here yet, finish later" works: there's no separate
- * skip codepath, just an incomplete-but-real Logical Device the Hardware tab flags accordingly.
+ * `device: null` starts a blank draft at Step 1 - the "+ Neues Gerät" path. Passing an existing
+ * `LogicalDevice` (the device list's "Einrichten") resumes editing it, prefilled at every step,
+ * but starts further in since Name/Type are usually already settled and what someone reopening
+ * an existing device almost always wants is the connection: Step 3 if a type/plugin is already
+ * chosen, Step 2 if only the name exists yet. Every step still has its own "Zurück" wired to the
+ * previous step number regardless of where the wizard started, so nothing is actually skipped -
+ * only not shown first. Nothing is written until Step 2 (the first point a valid `capability`
+ * exists) - abandoning the wizard before then leaves nothing behind; abandoning any later step
+ * leaves exactly what was set, which is also how "skip - the gear isn't here yet, finish later"
+ * works: there's no separate skip codepath, just an incomplete-but-real Logical Device the
+ * Hardware tab flags accordingly.
  */
 export function DeviceSetupWizard({ device, onClose }: { device: LogicalDevice | null; onClose: () => void }) {
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : 1))
   const [draft, setDraft] = useState<Draft>(() => draftFrom(device))
   const saveDevice = useLogicalDevicesStore((state) => state.save)
   const installPlugin = usePluginsStore((state) => state.install)
