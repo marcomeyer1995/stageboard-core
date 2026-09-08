@@ -456,4 +456,65 @@ describe('useHardwareDetection (hook) - resolveDiscoveryWins', () => {
 
     expect(save).toHaveBeenCalledTimes(1)
   })
+
+  it('re-binds the same physical port when it is later reassigned to a different role (DeviceSetupWizard.tsx\'s manual "Verwenden")', async () => {
+    usePluginsStore.setState({ installed: [KEMPER_PLUGIN] })
+    render(<Detector />)
+    await Promise.resolve()
+
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: {
+        active: true,
+        startedAt: 1,
+        startedBy: 'marco',
+        identifying: null,
+        candidates: [
+          {
+            reporterId: getDeviceId(),
+            hardwareKey: 'webmidi:port-1',
+            name: 'Kemper Profiler Emulator',
+            manufacturer: '',
+            matchedPluginId: 'kemper-profiler',
+            status: 'assigned',
+            assignedLogicalDeviceId: 'marcos-kemper',
+          },
+        ],
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(save).toHaveBeenCalledTimes(1)
+
+    // marcos-kemper's role got deleted and re-created ("TEST ..." style re-setup) - a human
+    // clicked "Verwenden" to reassign the exact same physical port to the new role's id. Without
+    // the fix, this would silently no-op forever: the port's hardwareKey alone was already
+    // marked "handled" by the first bind above.
+    useDiscoverySessionStore.setState({
+      workspaceId: 'band-a',
+      session: {
+        active: true,
+        startedAt: 2,
+        startedBy: 'marco',
+        identifying: null,
+        candidates: [
+          {
+            reporterId: getDeviceId(),
+            hardwareKey: 'webmidi:port-1',
+            name: 'Kemper Profiler Emulator',
+            manufacturer: '',
+            matchedPluginId: 'kemper-profiler',
+            status: 'assigned',
+            assignedLogicalDeviceId: 'marcos-kemper-take-2',
+          },
+        ],
+      },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(save).toHaveBeenCalledTimes(2)
+    const config = save.mock.calls[1][0] as DeviceTransportConfig
+    expect(config).toMatchObject({ deviceId: getDeviceId(), logicalDeviceId: 'marcos-kemper-take-2', transportId: 'usb-midi' })
+  })
 })
