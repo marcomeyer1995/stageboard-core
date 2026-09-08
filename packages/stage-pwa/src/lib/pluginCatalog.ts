@@ -175,6 +175,31 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // (ambiguous case) both already work with zero extra code, same as NUX MG-30 above.
   },
   {
+    id: 'soundcraft-ui24r',
+    name: 'Soundcraft Ui24R',
+    version: '0.0.1',
+    runtime: 'client',
+    // Own dedicated capability (ui24rTranslator.ts), same reasoning cq18t-mixer above
+    // already documents for why not CAPABILITIES.mixer.
+    capabilities: ['ui24r-control'],
+    transports: [
+      {
+        id: 'network-ws',
+        label: 'Netzwerk (WebSocket)',
+        fields: [
+          { key: 'host', label: 'IP-Adresse', type: 'text' },
+          { key: 'port', label: 'Port', type: 'number' },
+        ],
+      },
+    ],
+    // No hardwareIds - WebSocket, not WebMIDI/WebUSB, so nothing here can ever appear in
+    // "Automatisch erkannt". Manual host/port entry only (wizard's Step 3 fallback) -
+    // graceful degradation, not a gap: every other device-specific plugin above still
+    // auto-detects, this one just never will.
+    hardwareIds: [],
+    // No discoveryTrigger - Discovery Mode is WebMIDI-only end to end.
+  },
+  {
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',
