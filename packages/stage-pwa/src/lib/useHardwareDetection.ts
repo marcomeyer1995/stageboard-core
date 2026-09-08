@@ -77,6 +77,12 @@ export function __resetHardwareDetectionForTests(): void {
  * request/response "did I win" to poll, so this just re-scans the live broadcast snapshot
  * (cheap: a handful of candidates at most) every time it changes, and binds any of *this
  * tablet's* own candidates that just turned `assigned` and hasn't been written yet.
+ *
+ * Keyed by `hardwareKey:assignedLogicalDeviceId`, not `hardwareKey` alone - the same physical
+ * port can legitimately win a *different* role later (e.g. its first role got deleted and
+ * DeviceSetupWizard.tsx's manual "Verwenden" reassigns it to a freshly-created one still using
+ * the same hardware). Keying on just the port would leave that port permanently unbindable after
+ * its first-ever resolution, since the exact same hardwareKey would already be "handled".
  */
 async function resolveDiscoveryWins(): Promise<void> {
   const { session } = useDiscoverySessionStore.getState()
@@ -86,13 +92,14 @@ async function resolveDiscoveryWins(): Promise<void> {
   for (const candidate of session.candidates) {
     if (candidate.reporterId !== deviceId) continue
     if (candidate.status !== 'assigned' || !candidate.assignedLogicalDeviceId) continue
-    if (handledDiscoveryWins.has(candidate.hardwareKey)) continue
+    const winKey = `${candidate.hardwareKey}:${candidate.assignedLogicalDeviceId}`
+    if (handledDiscoveryWins.has(winKey)) continue
 
     const match = candidate.matchedPluginId ? installed.find((p) => p.id === candidate.matchedPluginId) : null
     const detected = detectedFromCandidateKey(candidate.hardwareKey, candidate.name, candidate.manufacturer)
     if (!match || !detected) continue
 
-    handledDiscoveryWins.add(candidate.hardwareKey)
+    handledDiscoveryWins.add(winKey)
     await bindDetectedDevice(detected, match, candidate.assignedLogicalDeviceId)
   }
 }
