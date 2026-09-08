@@ -229,6 +229,26 @@ describe('handleDetected', () => {
     expect(save).toHaveBeenCalledTimes(1)
     expect(save.mock.calls[0][0]).toMatchObject({ logicalDeviceId: 'kemper-1' })
   })
+
+  it('falls through to the normal prompt flow when the remembered role has since been deleted', async () => {
+    const firstConnect = handleDetected(KEMPER_PORT)
+    useDialogStore.getState().submit({ logicalDeviceId: 'kemper-1' })
+    await firstConnect
+    save.mockClear()
+    expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBe('kemper-1') // sanity: it IS remembered now
+
+    // The role got deleted (Marco's own "TEST MG30" cleanup is the real-world equivalent) - the
+    // tablet's local memory doesn't know that yet, and used to trust it blindly, silently
+    // "rebinding" to a dangling id and never prompting again for this port.
+    useLogicalDevicesStore.setState({ devices: [] })
+
+    const promise = handleDetected(KEMPER_PORT)
+    expect(useDialogStore.getState().request?.kind).toBe('alert') // no roles at all now - the "create one first" alert
+    useDialogStore.getState().acceptAlert()
+    await promise
+
+    expect(save).not.toHaveBeenCalled()
+  })
 })
 
 describe('handleDetected - the "ask a human" popups are gated to System → Hardware (Marco, explicit safety request, 2026-09-08)', () => {
