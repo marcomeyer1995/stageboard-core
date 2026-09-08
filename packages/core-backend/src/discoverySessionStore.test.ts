@@ -5,7 +5,7 @@ import type { CouchConfig } from './couch.js'
 const allDocs = vi.hoisted(() => vi.fn())
 vi.mock('./couch.js', () => ({ allDocs }))
 
-const { __resetDiscoverySessionStoreForTests, getPlugin, getSnapshot, reportCandidate, reportTriggered, start, stop } = await import(
+const { __resetDiscoverySessionStoreForTests, assign, getPlugin, getSnapshot, reportCandidate, reportTriggered, start, stop } = await import(
   './discoverySessionStore.js'
 )
 
@@ -277,5 +277,104 @@ describe('ambiguous roles - sequential trigger-based identification', () => {
     const snapshot = getSnapshot('band-a')
     expect(snapshot.identifying).toBeNull()
     expect(snapshot.candidates.every((c) => c.status === 'needs-manual')).toBe(true)
+  })
+})
+
+// No discoveryTrigger declared - mirrors the real NUX MG-30 plugin (pluginCatalog.ts): its own
+// identity check is a SysEx handshake, not a CC sequence, so it can never reach "identifying" on
+// its own and needs assign()'s manual-click path whenever more than one role/candidate is live.
+const MG30: PluginInstallation = {
+  id: 'nux-mg30',
+  name: 'NUX MG-30',
+  version: '0.0.1',
+  runtime: 'client',
+  capabilities: ['mg30-control'],
+  transports: [],
+  hardwareIds: [{ kind: 'webmidi', namePattern: 'MG-30' }],
+  enabled: true,
+  installedAt: 0,
+}
+
+const MARCOS_MG30: LogicalDevice = {
+  id: 'marcos-mg30',
+  name: "Marco's MG-30",
+  capability: 'mg30-control',
+  pluginId: null,
+  executionTarget: null,
+}
+
+function mg30Port(portId: string): DetectedHardware {
+  return { kind: 'webmidi', portId, name: 'MG-30', manufacturer: '' }
+}
+
+describe('assign - a human directly confirming a candidate for a role', () => {
+  it('resolves a needs-manual candidate (no discoveryTrigger, so it could never self-resolve)', async () => {
+    await startWith([MG30], [MARCOS_MG30])
+    reportCandidate('band-a', 'tablet-1', mg30Port('port-1'))
+    reportCandidate('band-a', 'tablet-2', mg30Port('port-2'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(getSnapshot('band-a').candidates.every((c) => c.status === 'needs-manual')).toBe(true) // sanity: genuinely stuck beforehand
+
+    assign('band-a', 'tablet-1', 'webmidi:port-1', 'marcos-mg30')
+
+    const snapshot = getSnapshot('band-a')
+    const chosen = snapshot.candidates.find((c) => c.reporterId === 'tablet-1')!
+    expect(chosen.status).toBe('assigned')
+    expect(chosen.assignedLogicalDeviceId).toBe('marcos-mg30')
+    // The other candidate for the same now-closed role is left untouched (still needs-manual,
+    // not silently freed) - unlike the trigger-based flow, there was no live "contender" queue
+    // waiting on this specific role, so nothing else needs to be reset here.
+    const other = snapshot.candidates.find((c) => c.reporterId === 'tablet-2')!
+    expect(other.status).toBe('needs-manual')
+  })
+
+  it('resolves the currently-identifying role and frees the losing contender, exactly like a physical trigger would', async () => {
+    await startWith([KEMPER], [MARCOS_KEMPER])
+    reportCandidate('band-a', 'tablet-1', kemperPort('port-1'))
+    reportCandidate('band-a', 'tablet-2', kemperPort('port-2'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(getSnapshot('band-a').identifying).not.toBeNull() // sanity: mid trigger-flow
+
+    assign('band-a', 'tablet-1', 'webmidi:port-1', 'marcos-kemper')
+
+    const snapshot = getSnapshot('band-a')
+    expect(snapshot.identifying).toBeNull()
+    const winner = snapshot.candidates.find((c) => c.reporterId === 'tablet-1')!
+    const loser = snapshot.candidates.find((c) => c.reporterId === 'tablet-2')!
+    expect(winner.status).toBe('assigned')
+    expect(winner.assignedLogicalDeviceId).toBe('marcos-kemper')
+    expect(loser.status).toBe('unassigned')
+  })
+
+  it('is a no-op once the target role is already taken (stale click)', async () => {
+    await startWith([MG30], [MARCOS_MG30])
+    reportCandidate('band-a', 'tablet-1', mg30Port('port-1'))
+    reportCandidate('band-a', 'tablet-2', mg30Port('port-2'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    assign('band-a', 'tablet-1', 'webmidi:port-1', 'marcos-mg30')
+
+    assign('band-a', 'tablet-2', 'webmidi:port-2', 'marcos-mg30')
+
+    const stillTablet2 = getSnapshot('band-a').candidates.find((c) => c.reporterId === 'tablet-2')!
+    expect(stillTablet2.status).toBe('needs-manual')
+    expect(stillTablet2.assignedLogicalDeviceId).toBeNull()
+  })
+
+  it('is a no-op for a candidate that was never reported', async () => {
+    await startWith([MG30], [MARCOS_MG30])
+    assign('band-a', 'tablet-1', 'webmidi:port-1', 'marcos-mg30')
+    expect(getSnapshot('band-a').candidates).toHaveLength(0)
+  })
+
+  it('is a no-op once the session has stopped', async () => {
+    await startWith([MG30], [MARCOS_MG30])
+    reportCandidate('band-a', 'tablet-1', mg30Port('port-1'))
+    reportCandidate('band-a', 'tablet-2', mg30Port('port-2')) // keeps it ambiguous - needs-manual, not auto-assigned
+    vi.advanceTimersByTime(SETTLE_MS)
+    stop('band-a')
+
+    assign('band-a', 'tablet-1', 'webmidi:port-1', 'marcos-mg30')
+
+    expect(getSnapshot('band-a').candidates.find((c) => c.reporterId === 'tablet-1')!.status).toBe('needs-manual')
   })
 })
