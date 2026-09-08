@@ -53,6 +53,7 @@ const { useActiveSystemTabStore } = await import('../store/useActiveSystemTabSto
 const { useDeviceTransportConfigStore } = await import('../store/useDeviceTransportConfigStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { useDiscoverySessionStore } = await import('../store/useDiscoverySessionStore')
+const { useHardwareSetupWizardStore } = await import('../store/useHardwareSetupWizardStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { usePluginsStore } = await import('../store/usePluginsStore')
 
@@ -92,6 +93,7 @@ beforeEach(() => {
   useLogicalDevicesStore.setState({ devices: [KEMPER_LOGICAL_DEVICE], loaded: true })
   useDeviceTransportConfigStore.setState({ configs: [], loaded: true, save })
   useDialogStore.setState({ request: null })
+  useHardwareSetupWizardStore.setState({ prefill: null })
   useDiscoverySessionStore.setState({ workspaceId: '', session: { active: false, startedAt: null, startedBy: null, candidates: [], identifying: null } })
   // Every existing test below exercises the "ask a human" paths (alert/prompt), which are now
   // gated on System → Hardware being the active tab (2026-09-08, Marco's explicit safety
@@ -115,14 +117,28 @@ describe('handleDetected', () => {
     expect(useDialogStore.getState().request).toBeNull()
   })
 
-  it('alerts instead of prompting when no Logical Device provides the matched capability', async () => {
+  it('offers to create a new device instead of prompting a role, when no Logical Device provides the matched capability', async () => {
     useLogicalDevicesStore.setState({ devices: [] })
     const promise = handleDetected(KEMPER_PORT)
-    expect(useDialogStore.getState().request?.kind).toBe('alert')
-    useDialogStore.getState().acceptAlert()
+    expect(useDialogStore.getState().request).toMatchObject({ kind: 'confirm', confirmLabel: 'Gerät erstellen' })
+    useDialogStore.getState().cancel()
     await promise
     expect(save).not.toHaveBeenCalled()
     expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBeNull()
+    expect(useHardwareSetupWizardStore.getState().prefill).toBeNull() // declined - nothing requested
+  })
+
+  it('requests a new-device wizard, pre-filled from what was detected, once that offer is confirmed', async () => {
+    useLogicalDevicesStore.setState({ devices: [] })
+    const promise = handleDetected(KEMPER_PORT)
+    useDialogStore.getState().acceptConfirm()
+    await promise
+
+    expect(useHardwareSetupWizardStore.getState().prefill).toEqual({
+      name: 'Kemper Profiler Emulator',
+      pluginId: 'generic-webmidi',
+      capability: 'midi-input',
+    })
   })
 
   it('prompts for a role, saves the DeviceTransportConfig with the port id prefilled, and remembers the choice', async () => {
@@ -243,8 +259,8 @@ describe('handleDetected', () => {
     useLogicalDevicesStore.setState({ devices: [] })
 
     const promise = handleDetected(KEMPER_PORT)
-    expect(useDialogStore.getState().request?.kind).toBe('alert') // no roles at all now - the "create one first" alert
-    useDialogStore.getState().acceptAlert()
+    expect(useDialogStore.getState().request?.kind).toBe('confirm') // no roles at all now - the "create one now?" offer
+    useDialogStore.getState().acceptConfirm()
     await promise
 
     expect(save).not.toHaveBeenCalled()
@@ -265,11 +281,12 @@ describe('handleDetected - the "ask a human" popups are gated to System → Hard
     expect(useDialogStore.getState().request).toBeNull()
   })
 
-  it('also drops the "no matching role" alert, not just the role-picker prompt', async () => {
+  it('also drops the "no matching role - create one?" offer, not just the role-picker prompt', async () => {
     useLogicalDevicesStore.setState({ devices: [] })
     useActiveSystemTabStore.setState({ activeTab: 'plugins' })
     await handleDetected(KEMPER_PORT)
     expect(useDialogStore.getState().request).toBeNull()
+    expect(useHardwareSetupWizardStore.getState().prefill).toBeNull()
   })
 
   it('does not affect the silent remembered-device rebind, which never asked anything to begin with', async () => {
