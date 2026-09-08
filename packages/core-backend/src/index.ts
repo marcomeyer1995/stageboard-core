@@ -392,26 +392,19 @@ export async function buildApp() {
   })
 
   // Device Ledger's live diagnostic data (DeviceLedgerView.tsx, Marco's explicit request) -
-  // same SSE push pattern as plugin-health/presence above, deliberately its own instance rather
-  // than folded into presence: presence is specifically "who's signed in as whom" and is gated
-  // on a real profile being active, but a device with no profile chosen yet still needs to show
-  // up here (deviceInfo.ts's own doc comment). No auth, same reasoning as presence's route.
-  app.get('/workspaces/:workspaceId/device-info/stream', (request, reply) => {
+  // deliberately a plain one-shot GET, NOT an SSE push like plugin-health/presence above, and
+  // polled client-side instead (DeviceLedgerView.tsx's own effect) - found live, 2026-09-08:
+  // this app already holds ~5 other long-lived SSE/EventSource connections open per tab for the
+  // whole session (presence, trigger-stream, discovery, plugin-health x2) against a plain
+  // HTTPS/1.1 dev server (no HTTP/2 negotiated), already sitting at/near Chrome's
+  // 6-connections-per-origin cap *before* this route existed. A 6th persistent stream here
+  // starved one-off requests (report POSTs, and - worse - the admin revoke POST, exactly while
+  // someone had this screen open to use it) of a connection entirely. A poll holds nothing
+  // open between requests, so it doesn't compete for that same tight budget. No auth, same
+  // reasoning as presence's routes.
+  app.get('/workspaces/:workspaceId/device-info', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-
-    reply.hijack()
-    for (const [name, value] of Object.entries(reply.getHeaders())) {
-      if (value !== undefined) reply.raw.setHeader(name, value)
-    }
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.writeHead(200)
-
-    const unsubscribe = deviceInfoStore.subscribe(workspaceId, (snapshot) => {
-      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
-    })
-    request.raw.on('close', unsubscribe)
+    return reply.status(200).send(deviceInfoStore.getSnapshot(workspaceId))
   })
 
   app.post('/workspaces/:workspaceId/device-info/report', async (request, reply) => {

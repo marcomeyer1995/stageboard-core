@@ -3,7 +3,7 @@ import { getStageServerUrl } from './stageServer'
 
 /**
  * POSTs this device's OS/environment/sync-status to the Stage-Server (deviceInfoStore.ts),
- * which relays it to every other tablet over deviceInfoStream.ts and stamps the server-observed
+ * which other tablets pick up via `fetchDeviceInfo.ts`'s poll, and stamps the server-observed
  * `ip`/`lastSeenAt` itself - useDeviceInfoReporter.ts calls this on an interval. Best-effort,
  * same as reportPresence.ts: if the Stage-Server is unreachable, nothing here needs recovering -
  * only the Device Ledger misses out on knowing this device is around.

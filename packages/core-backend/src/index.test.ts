@@ -546,41 +546,18 @@ describe('Fastify routes', () => {
     })
   })
 
-  describe('GET /workspaces/:workspaceId/device-info/stream', () => {
+  describe('GET /workspaces/:workspaceId/device-info', () => {
     beforeEach(() => {
       __resetDeviceInfoStoreForTests()
     })
 
-    it('streams the current snapshot immediately, then pushes updates as they happen', async () => {
-      await app.listen({ port: 0 })
-      const address = app.server.address()
-      if (typeof address !== 'object' || address === null) throw new Error('server has no address')
+    it('returns an empty snapshot when nothing has reported yet', async () => {
+      const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ devices: {} })
+    })
 
-      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
-      const req = request(
-        {
-          hostname: '127.0.0.1',
-          port: address.port,
-          path: '/workspaces/band-a/device-info/stream',
-          headers: { origin: 'http://localhost:5173' },
-          rejectUnauthorized: false,
-        },
-        () => {},
-      )
-      req.end()
-
-      const res = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
-        req.on('response', resolve)
-        req.on('error', reject)
-      })
-
-      expect(res.headers['content-type']).toBe('text/event-stream')
-
-      const chunks = res[Symbol.asyncIterator]()
-
-      const first = await chunks.next()
-      expect(Buffer.from(first.value as Buffer).toString()).toBe('data: {"devices":{}}\n\n')
-
+    it('returns the current snapshot, scoped to the requested workspace', async () => {
       const entry = {
         ip: '127.0.0.1',
         os: 'iPad',
@@ -592,12 +569,9 @@ describe('Fastify routes', () => {
       }
       setDeviceInfoEntry('band-a', 'device-1', entry)
 
-      const second = await chunks.next()
-      expect(Buffer.from(second.value as Buffer).toString()).toBe(
-        `data: ${JSON.stringify({ devices: { 'device-1': entry } })}\n\n`,
-      )
-
-      req.destroy()
+      const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
+      expect(response.json()).toEqual({ devices: { 'device-1': entry } })
+      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {} })
     })
   })
 
