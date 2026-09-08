@@ -78,3 +78,15 @@ export const DiscoveryTriggeredRequestSchema = z.object({
   hardwareKey: z.string().min(1),
 })
 export type DiscoveryTriggeredRequest = z.infer<typeof DiscoveryTriggeredRequestSchema>
+
+/** A human (looking at DeviceSetupWizard.tsx's Step 3) directly confirming "this candidate is
+ * this role" - the manual-click counterpart to reportTriggered's physical-CC one, for plugins
+ * with no discoveryTrigger (e.g. NUX MG-30's identity check is a SysEx handshake, not a CC
+ * sequence) or whenever more than one open role/candidate left the auto/trigger paths unable to
+ * pick unambiguously on their own. */
+export const DiscoveryAssignRequestSchema = z.object({
+  reporterId: z.string().min(1),
+  hardwareKey: z.string().min(1),
+  logicalDeviceId: z.string().min(1),
+})
+export type DiscoveryAssignRequest = z.infer<typeof DiscoveryAssignRequestSchema>

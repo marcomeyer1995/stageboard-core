@@ -13,6 +13,7 @@ import {
   CreateMemberRequestSchema,
   DeviceInfoReportSchema,
   DeviceTriggerSchema,
+  DiscoveryAssignRequestSchema,
   DiscoveryReportCandidateRequestSchema,
   DiscoveryStartRequestSchema,
   DiscoveryTriggeredRequestSchema,
@@ -548,6 +549,16 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
     discoverySessionStore.reportTriggered(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey)
+    return { status: 'ok' }
+  })
+
+  app.post('/workspaces/:workspaceId/discovery/assign', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = DiscoveryAssignRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    discoverySessionStore.assign(workspaceId, parsed.data.reporterId, parsed.data.hardwareKey, parsed.data.logicalDeviceId)
     return { status: 'ok' }
   })
 

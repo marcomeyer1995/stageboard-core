@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
 import { SERVER_EXECUTION_TARGET } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
-import { startDiscovery, stopDiscovery } from '../lib/discoveryClient'
+import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/discoveryClient'
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
@@ -193,6 +193,7 @@ function ConnectionStep({
   const saveTransportConfig = useDeviceTransportConfigStore((state) => state.save)
   const [feeds, setFeeds] = useState<Record<string, MidiEvent[]>>({})
   const [sendingKey, setSendingKey] = useState<string | null>(null)
+  const [assigningKey, setAssigningKey] = useState<string | null>(null)
   const [manualTarget, setManualTarget] = useState(device?.executionTarget ?? '')
   const [manualTransportId, setManualTransportId] = useState('')
   const [manualValues, setManualValues] = useState<Record<string, string>>({})
@@ -242,6 +243,12 @@ function ConnectionStep({
     setSendingKey(hardwareKey)
     await sendCcSequence(namePattern, identifyingHere.matchCcSequence)
     setSendingKey(null)
+  }
+
+  async function useCandidate(reporterId: string, hardwareKey: string) {
+    setAssigningKey(hardwareKey)
+    await assignDiscoveryCandidate(workspaceId, reporterId, hardwareKey, draft.id)
+    setAssigningKey(null)
   }
 
   async function saveManual() {
@@ -310,7 +317,18 @@ function ConnectionStep({
               </span>
               {c.reporterId === getDeviceId() && <FeedLine events={feeds[c.hardwareKey]} />}
             </div>
-            <span className="shrink-0 text-ink-faint">{c.status}</span>
+            {c.assignedLogicalDeviceId === draft.id ? (
+              <span className="shrink-0 text-ink-faint">{c.status}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void useCandidate(c.reporterId, c.hardwareKey)}
+                disabled={assigningKey === c.hardwareKey}
+                className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-[11px] font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+              >
+                {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
+              </button>
+            )}
           </div>
         ))}
       </div>

@@ -33,3 +33,15 @@ export function reportDiscoveryCandidate(workspaceId: string, reporterId: string
 export function reportDiscoveryTriggered(workspaceId: string, reporterId: string, hardwareKey: string): Promise<void> {
   return post(`/workspaces/${encodeURIComponent(workspaceId)}/discovery/triggered`, { reporterId, hardwareKey })
 }
+
+/** A human directly confirming "this candidate is this role" (DeviceSetupWizard.tsx's "Verwenden"
+ * button) - for plugins with no `discoveryTrigger`, or whenever the auto/trigger paths left
+ * things ambiguous, this is the only way a candidate ever reaches `assigned`. */
+export function assignDiscoveryCandidate(
+  workspaceId: string,
+  reporterId: string,
+  hardwareKey: string,
+  logicalDeviceId: string,
+): Promise<void> {
+  return post(`/workspaces/${encodeURIComponent(workspaceId)}/discovery/assign`, { reporterId, hardwareKey, logicalDeviceId })
+}

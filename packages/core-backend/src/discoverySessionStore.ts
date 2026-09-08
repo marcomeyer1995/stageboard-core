@@ -297,6 +297,41 @@ export function reportTriggered(workspaceId: string, reporterId: string, hardwar
   publish(workspaceId)
 }
 
+/** A human, looking at the candidate list (DeviceSetupWizard.tsx's Step 3), directly confirming
+ * "this candidate is this role" - for a plugin with no `discoveryTrigger` (identical-signature
+ * hardware whose actual identity check needs something the CC-sequence flow can't express, e.g.
+ * NUX MG-30's SysEx handshake), the automatic (`recompute`) and physical-gesture (`reportTriggered`)
+ * paths can never resolve on their own, no matter how obviously right the live MIDI feed already
+ * looks to the person watching it - this is their way to say so. Silently a no-op for a stale
+ * click (the role got taken, the candidate vanished, the session moved on) - same reasoning as
+ * `reportTriggered`'s own late-report handling; the wizard's own re-render off the session
+ * snapshot is what surfaces that, not an error thrown back here.
+ */
+export function assign(workspaceId: string, reporterId: string, hardwareKey: string, logicalDeviceId: string): void {
+  const session = stateByWorkspace.get(workspaceId)
+  const ctx = contextByWorkspace.get(workspaceId)
+  if (!session?.active || !ctx) return
+  if (!isRoleOpen(session, logicalDeviceId)) return
+
+  const candidate = session.candidates.find((c) => c.reporterId === reporterId && c.hardwareKey === hardwareKey)
+  if (!candidate) return
+
+  clearPendingTimeout(workspaceId)
+  assignCandidate(candidate, logicalDeviceId)
+  if (session.identifying?.logicalDeviceId === logicalDeviceId) {
+    // The role this candidate just claimed was the one the sequential queue was mid-asking about
+    // - any other candidate still `identifying` for that same plugin was a contender that lost.
+    for (const other of session.candidates) {
+      if (other !== candidate && other.matchedPluginId === session.identifying?.pluginId && other.status === 'identifying') {
+        other.status = 'unassigned'
+      }
+    }
+    session.identifying = null
+  }
+  advanceQueue(workspaceId, session, ctx)
+  publish(workspaceId)
+}
+
 /** Test-only: this module's state is shared across the whole process by design - tests need a
  * way to reset it between runs (presenceStore.ts's identical convention). */
 export function __resetDiscoverySessionStoreForTests(): void {
