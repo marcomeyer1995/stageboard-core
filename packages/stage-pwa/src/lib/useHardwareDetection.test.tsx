@@ -49,6 +49,7 @@ vi.mock('./discoveryClient', () => ({ reportDiscoveryCandidate }))
 const { getDeviceId } = await import('./deviceId')
 const { getRememberedLogicalDeviceId } = await import('./hardwareDeviceMemory')
 const { __resetHardwareDetectionForTests, handleDetected, useHardwareDetection } = await import('./useHardwareDetection')
+const { useActiveSystemTabStore } = await import('../store/useActiveSystemTabStore')
 const { useDeviceTransportConfigStore } = await import('../store/useDeviceTransportConfigStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { useDiscoverySessionStore } = await import('../store/useDiscoverySessionStore')
@@ -92,6 +93,11 @@ beforeEach(() => {
   useDeviceTransportConfigStore.setState({ configs: [], loaded: true, save })
   useDialogStore.setState({ request: null })
   useDiscoverySessionStore.setState({ workspaceId: '', session: { active: false, startedAt: null, startedBy: null, candidates: [], identifying: null } })
+  // Every existing test below exercises the "ask a human" paths (alert/prompt), which are now
+  // gated on System → Hardware being the active tab (2026-09-08, Marco's explicit safety
+  // request) - default to on-tab here so those tests keep covering their original behavior; the
+  // gate itself is covered by its own describe block below.
+  useActiveSystemTabStore.setState({ activeTab: 'hardware' })
 })
 
 describe('handleDetected', () => {
@@ -222,6 +228,42 @@ describe('handleDetected', () => {
     expect(useDialogStore.getState().request).toBeNull()
     expect(save).toHaveBeenCalledTimes(1)
     expect(save.mock.calls[0][0]).toMatchObject({ logicalDeviceId: 'kemper-1' })
+  })
+})
+
+describe('handleDetected - the "ask a human" popups are gated to System → Hardware (Marco, explicit safety request, 2026-09-08)', () => {
+  it('silently drops a never-before-seen device instead of prompting, off the Hardware tab', async () => {
+    useActiveSystemTabStore.setState({ activeTab: 'band' })
+    await handleDetected(KEMPER_PORT)
+    expect(useDialogStore.getState().request).toBeNull()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('silently drops it when SystemView is not mounted at all (activeTab null)', async () => {
+    useActiveSystemTabStore.setState({ activeTab: null })
+    await handleDetected(KEMPER_PORT)
+    expect(useDialogStore.getState().request).toBeNull()
+  })
+
+  it('also drops the "no matching role" alert, not just the role-picker prompt', async () => {
+    useLogicalDevicesStore.setState({ devices: [] })
+    useActiveSystemTabStore.setState({ activeTab: 'plugins' })
+    await handleDetected(KEMPER_PORT)
+    expect(useDialogStore.getState().request).toBeNull()
+  })
+
+  it('does not affect the silent remembered-device rebind, which never asked anything to begin with', async () => {
+    useActiveSystemTabStore.setState({ activeTab: 'hardware' })
+    const firstConnect = handleDetected(KEMPER_PORT)
+    useDialogStore.getState().submit({ logicalDeviceId: 'kemper-1' })
+    await firstConnect
+    save.mockClear()
+
+    useActiveSystemTabStore.setState({ activeTab: 'band' }) // now off the Hardware tab
+    await handleDetected(KEMPER_PORT)
+
+    expect(useDialogStore.getState().request).toBeNull()
+    expect(save).toHaveBeenCalledTimes(1) // still silently re-binds
   })
 })
 

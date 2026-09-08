@@ -6,6 +6,7 @@ import { getRememberedLogicalDeviceId, rememberLogicalDeviceId } from './hardwar
 import { listenForMidiConnections } from './webMidi'
 import { findMidiOutputIdByNamePattern } from './webMidiOutput'
 import { listenForUsbConnections } from './webUsb'
+import { useActiveSystemTabStore } from '../store/useActiveSystemTabStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
@@ -139,6 +140,15 @@ export async function handleDetected(detected: DetectedHardware) {
   const candidates = logicalDevices.devices.filter((device) => match.capabilities.includes(device.capability))
   const label = detected.kind === 'webmidi' ? detected.name || detected.manufacturer || match.name : match.name
 
+  // A never-before-seen device with no remembered binding needs a human decision (which role,
+  // or "no role fits yet") - the alert/prompt below, both modal popups. Outside System →
+  // Hardware, silently drop it instead of interrupting whatever's actually on screen - a live
+  // show, most importantly (Marco, explicit request after a "Midi Through Port-0" hot-plug
+  // prompt appeared unprompted during testing; confirmed via AskUserQuestion: drop it, don't
+  // queue a replay for later). The remembered-device silent-rebind path above this already
+  // never shows anything, so it's unaffected - only the "ask a human" paths are gated.
+  if (useActiveSystemTabStore.getState().activeTab !== 'hardware') return
+
   if (candidates.length === 0) {
     await useDialogStore
       .getState()
@@ -177,7 +187,12 @@ function allHardwareStoresLoaded(): boolean {
  * lifetime of the app, matches each against installed plugins' catalog metadata
  * (shared-types' hardwareMatching.ts - no plugin code loaded), and on a match either silently
  * re-binds a remembered device or prompts for a Logical Device role (hardwareDeviceMemory.ts's
- * Auto-Memory).
+ * Auto-Memory). Detection itself always runs, everywhere, for the app's whole lifetime - that's
+ * required for Discovery Mode's own band-wide auto-discovery to work from any tablet regardless
+ * of what that tablet's own screen shows (`handleDetected`'s Discovery-active branch reports
+ * into the session unconditionally). Only the ad-hoc "never seen this device before, which role?"
+ * popup is gated to System → Hardware being on screen - see `handleDetected`'s own comment at
+ * that check for why.
  *
  * A device that's already plugged in when the app launches fires its WebMIDI/WebUSB "connect"
  * event as soon as `requestMIDIAccess()`/`navigator.usb.getDevices()` resolve - typically well
