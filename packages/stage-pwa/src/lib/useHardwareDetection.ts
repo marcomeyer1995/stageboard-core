@@ -129,7 +129,12 @@ export async function handleDetected(detected: DetectedHardware) {
   }
 
   const remembered = getRememberedLogicalDeviceId(hardwareKeyFor(detected))
-  if (remembered) {
+  // A remembered id only counts if that Logical Device still exists - it's stale local
+  // localStorage (hardwareDeviceMemory.ts), unaware of a role having since been deleted (e.g.
+  // Marco's own "TEST MG30" cleanup). Trusting a dangling id here would silently write an
+  // orphaned DeviceTransportConfig nobody reads and `return` before ever reaching the prompt
+  // below - the device would then never be askable-about again on this tablet, forever.
+  if (remembered && logicalDevices.devices.some((device) => device.id === remembered)) {
     // "Silently re-binds" (#106's Auto-Memory) - re-establish the config rather than just doing
     // nothing, so a workspace reset that dropped the DeviceTransportConfig doc still recovers on
     // the next reconnect, without ever showing a dialog again for a device already assigned.
