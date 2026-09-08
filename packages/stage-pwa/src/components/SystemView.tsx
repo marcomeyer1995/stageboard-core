@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { BackupManager } from './BackupManager'
 import { BandManagementView } from './BandManagementView'
@@ -9,8 +9,7 @@ import { PostShowReport } from './PostShowReport'
 import { SystemSettings } from './SystemSettings'
 import { capabilityStatusFor } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
-
-type SystemTab = 'band' | 'plugins' | 'hardware' | 'devices' | 'backup' | 'post-show' | 'settings'
+import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 
 const TAB_LABEL: Record<SystemTab, string> = {
   band: 'Band',
@@ -46,6 +45,16 @@ export function SystemView() {
     : ['band', 'plugins', 'hardware', 'devices', 'post-show', 'settings']
   const [tab, setTab] = useState<SystemTab>('band')
   const activeTab = tabs.includes(tab) ? tab : 'band'
+  const setActiveSystemTab = useActiveSystemTabStore((state) => state.setActiveTab)
+
+  // Publishes which tab is actually on screen for useHardwareDetection.ts's Hardware-tab gate
+  // (see useActiveSystemTabStore.ts's own doc comment) - and clears it back to `null` on
+  // unmount, so leaving System (back to Live/Bibliothek) doesn't leave a stale 'hardware' value
+  // behind that would otherwise still allow the hot-plug prompt to fire.
+  useEffect(() => {
+    setActiveSystemTab(activeTab)
+  }, [activeTab, setActiveSystemTab])
+  useEffect(() => () => setActiveSystemTab(null), [setActiveSystemTab])
 
   return (
     <div className="h-dvh overflow-y-auto sb-app-bg text-ink">
