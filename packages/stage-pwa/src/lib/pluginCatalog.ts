@@ -87,6 +87,43 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     },
   },
   {
+    id: 'cq18t-mixer',
+    name: 'Allen & Heath CQ-18T',
+    version: '0.0.1',
+    runtime: 'client',
+    // Own dedicated capability (cq18tTranslator.ts) - see its own doc comment for why not
+    // CAPABILITIES.mixer (that slot is a fixed, single local translator, not plugin-swappable).
+    capabilities: ['cq18t-control'],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [
+          { key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'text' },
+          { key: 'midiChannel', label: 'MIDI-Kanal (1-16)', type: 'number' },
+        ],
+      },
+    ],
+    hardwareIds: [{ kind: 'webmidi', namePattern: 'CQ-18T' }],
+    // Main LR mute toggled on then off - the exact 8-CC (2x NRPN set) sequence a musician
+    // produces by pressing the master mute button twice on the real console, reused as-is by
+    // cq18tTranslator.ts's own setMute('main', ...) action.
+    discoveryTrigger: {
+      instruction: 'Master-Mute am Pult kurz an- und wieder ausschalten.',
+      matchCcSequence: [
+        { cc: 99, value: 0x00 },
+        { cc: 98, value: 0x44 },
+        { cc: 6, value: 0x00 },
+        { cc: 38, value: 0x01 },
+        { cc: 99, value: 0x00 },
+        { cc: 98, value: 0x44 },
+        { cc: 6, value: 0x00 },
+        { cc: 38, value: 0x00 },
+      ],
+      timeoutMs: 15000,
+    },
+  },
+  {
     id: 'mock-lighting',
     name: 'Mock Lighting (DMX)',
     version: '0.0.1',

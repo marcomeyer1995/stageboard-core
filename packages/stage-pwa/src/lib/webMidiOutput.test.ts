@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sendControlChange } from './webMidiOutput'
+import { sendControlChange, sendNrpn, sendSysEx } from './webMidiOutput'
 
 const KEMPER_TRIGGER = [
   { cc: 31, value: 127 },
@@ -119,5 +119,31 @@ describe('sendCcSequence', () => {
 
     expect(send).toHaveBeenNthCalledWith(1, [0xb0, 31, 127])
     expect(send).toHaveBeenNthCalledWith(2, [0xb0, 31, 0])
+  })
+})
+
+describe('sendNrpn', () => {
+  it('sends the 4-message NRPN sequence in order: address MSB/LSB, then data MSB/LSB', () => {
+    const send = vi.fn()
+    sendNrpn({ send } as unknown as MIDIOutput, 0, 0x40, 0x02, 0x62, 0x00)
+    expect(send).toHaveBeenNthCalledWith(1, [0xb0, 99, 0x40])
+    expect(send).toHaveBeenNthCalledWith(2, [0xb0, 98, 0x02])
+    expect(send).toHaveBeenNthCalledWith(3, [0xb0, 6, 0x62])
+    expect(send).toHaveBeenNthCalledWith(4, [0xb0, 38, 0x00])
+  })
+
+  it('packs a non-zero channel into every message of the sequence', () => {
+    const send = vi.fn()
+    sendNrpn({ send } as unknown as MIDIOutput, 3, 0x00, 0x44, 0x00, 0x01)
+    expect(send).toHaveBeenNthCalledWith(1, [0xb3, 99, 0x00])
+    expect(send).toHaveBeenNthCalledWith(4, [0xb3, 38, 0x01])
+  })
+})
+
+describe('sendSysEx', () => {
+  it('wraps the payload in F0/F7 framing', () => {
+    const send = vi.fn()
+    sendSysEx({ send } as unknown as MIDIOutput, [0x43, 0x58, 0x00])
+    expect(send).toHaveBeenCalledWith([0xf0, 0x43, 0x58, 0x00, 0xf7])
   })
 })
