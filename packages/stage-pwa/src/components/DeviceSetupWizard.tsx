@@ -245,7 +245,7 @@ function ConnectionStep({
     setSendingKey(null)
   }
 
-  async function useCandidate(reporterId: string, hardwareKey: string) {
+  async function claimCandidate(reporterId: string, hardwareKey: string) {
     setAssigningKey(hardwareKey)
     await assignDiscoveryCandidate(workspaceId, reporterId, hardwareKey, draft.id)
     setAssigningKey(null)
@@ -322,7 +322,7 @@ function ConnectionStep({
             ) : (
               <button
                 type="button"
-                onClick={() => void useCandidate(c.reporterId, c.hardwareKey)}
+                onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
                 disabled={assigningKey === c.hardwareKey}
                 className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-[11px] font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
               >
