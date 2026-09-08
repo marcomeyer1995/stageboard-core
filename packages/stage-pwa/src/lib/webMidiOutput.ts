@@ -48,6 +48,39 @@ export function sendControlChange(output: MIDIOutput, channel: number, cc: numbe
 }
 
 /**
+ * Sends a standard 4-controller NRPN "set" (CC99/98 address MSB/LSB, then CC6/38 data MSB/LSB) -
+ * the addressing scheme mixing consoles like the Allen & Heath CQ-18T use for everything
+ * (channel mute/level/pan), not a plain single CC. `channel` is 0-indexed. Plain sequential CC
+ * messages, not a single SysEx blob - matches exactly what the real console/emulator expects
+ * (`cq18t_emulator/nrpn.py`'s own doc comments), and lets `sendControlChange` do the actual byte
+ * packing so there's only one place that clamps/masks CC values.
+ */
+export function sendNrpn(
+  output: MIDIOutput,
+  channel: number,
+  addressMsb: number,
+  addressLsb: number,
+  dataMsb: number,
+  dataLsb: number,
+): void {
+  sendControlChange(output, channel, 99, addressMsb)
+  sendControlChange(output, channel, 98, addressLsb)
+  sendControlChange(output, channel, 6, dataMsb)
+  sendControlChange(output, channel, 38, dataLsb)
+}
+
+/**
+ * Sends a raw SysEx message - `bytes` is the payload between `F0`/`F7` (both added here, not
+ * included in `bytes`). Used by device-specific plugins whose protocol goes beyond plain CC (the
+ * NUX MG-30's identity handshake, `F0 43 58 00 F7`). WebMIDI's `MIDIOutput.send` already accepts
+ * an arbitrary byte array - this just documents the framing convention so callers don't each
+ * re-derive it.
+ */
+export function sendSysEx(output: MIDIOutput, bytes: number[]): void {
+  output.send([0xf0, ...bytes, 0xf7])
+}
+
+/**
  * Sends a full CC sequence (e.g. a plugin's `discoveryTrigger.matchCcSequence`) to the real
  * output matching `namePattern` - the Discovery Wizard's "Jetzt senden" button, for verifying a
  * role's trigger reaches the real device without a musician having to physically touch it.
