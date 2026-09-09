@@ -18,7 +18,7 @@ const { useDialogStore } = await import('../store/useDialogStore')
 const { SyncIndicator } = await import('./SyncIndicator')
 
 beforeEach(() => {
-  useSyncStore.setState({ streams: {}, progress: {} })
+  useSyncStore.setState({ streams: {}, progress: {}, browserOffline: false })
   useWorkspaceStore.setState({
     workspaces: [{ id: 'band-a', name: 'Band A', ownProfileId: 'p1', username: 'stageboard-band-a-p1~device-1', couchPassword: 'pw' }],
     activeWorkspaceId: 'band-a',
@@ -51,6 +51,12 @@ describe('SyncIndicator', () => {
     useSyncStore.setState({ streams: { songs: 'active', setlists: 'error' } })
     render(<SyncIndicator />)
     expect(screen.getByText('Fehler')).toBeInTheDocument()
+  })
+
+  it('found live, 2026-09-10: shows Offline immediately once the browser itself reports no network, even while a stream still claims to be actively syncing', () => {
+    useSyncStore.setState({ streams: { songs: 'active' }, browserOffline: true })
+    render(<SyncIndicator />)
+    expect(screen.getByText('Offline')).toBeInTheDocument()
   })
 
   it('appends a percentage once a stream has reported pull progress', () => {

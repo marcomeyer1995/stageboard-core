@@ -36,7 +36,7 @@ const STATUS_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
  * no second prompt needed, and it's simply ignored server-side for a non-admin profile.
  */
 export function SyncIndicator() {
-  const status = useSyncStore((state) => deriveSyncStatus(state.streams))
+  const status = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const progress = useSyncStore((state) => deriveSyncProgress(state.progress))
   const workspace = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId))
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
