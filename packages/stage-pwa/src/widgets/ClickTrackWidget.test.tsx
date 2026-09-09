@@ -180,17 +180,15 @@ describe('ClickTrackWidget', () => {
     expect(screen.getByRole('button', { name: 'Aus' })).toBeDisabled()
   })
 
-  it('replaces the override buttons with an explanatory note in Practice mode, instead of rendering controls that silently no-op (found live, 2026-09-09)', () => {
+  it('lets the override be changed in Practice mode too - a local, ungated per-device choice, not the Gig-mode Master-gated write (found live, 2026-09-09: this widget rendered the buttons in both modes, but useShowMode\'s Practice branch stubbed the setter to a no-op, so training with a fixed click silently didn\'t work)', () => {
     mockLogicalDevices([
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
     ])
     const setClickTrackOverride = vi.fn()
     mockShowMode({ mode: 'practice', currentSong: song(true), setClickTrackOverride, canControl: true })
     render(<ClickTrackWidget />)
-    expect(screen.getByText('Override nur im Gig-Modus')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'An' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Aus' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Standard' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Aus' }))
+    expect(setClickTrackOverride).toHaveBeenCalledWith('off')
   })
 
   it('still plays the click in Practice mode, off the song\'s own default', () => {

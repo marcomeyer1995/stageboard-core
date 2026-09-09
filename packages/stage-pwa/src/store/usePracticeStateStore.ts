@@ -13,6 +13,11 @@ export interface PracticeState {
    * personal choice here (only this device's speakers are ever affected), unlike
    * ShowState.trackOverride's Master-gated, shared equivalent for Gig mode. */
   trackOverride: string | null
+  /** Force-on/off for the Click Generator (#25) during this practice session, overriding the
+   * song's own `clickTrackEnabled` default - purely a personal choice here, unlike
+   * ShowState.clickTrackOverride's Master-gated, shared equivalent for Gig mode. Training with
+   * a fixed rhythm is exactly what solo practice is for, so this needs no gating at all. */
+  clickTrackOverride: 'on' | 'off' | null
   playbackStatus: PlaybackStatus
   playbackStartedAt: number | null
   playbackAccumulatedMs: number
@@ -22,6 +27,7 @@ export const DEFAULT_PRACTICE_STATE: PracticeState = {
   activeSetlistId: null,
   activeEntryId: null,
   trackOverride: null,
+  clickTrackOverride: null,
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,

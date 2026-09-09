@@ -20,12 +20,13 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * same `useHardwareBindingFor`/`resolveHardwareEngine` routing ShowTransportWidget already uses
  * for audio-playback, and the same "no plugin needed, a browser API does the job"
  * special-case (clientTranslator.ts's supportsLocalExecution) as that capability. Also carries
- * the force-on/off override control, which works from *any* tablet regardless of which one
- * actually produces the sound - it's a shared ShowState write (setClickTrackOverride), the same
- * way Play/Pause work from any tablet even though only the bound audio-output device makes noise.
+ * the force-on/off override control - a shared, Master-gated ShowState write in Gig mode (works
+ * from *any* tablet regardless of which one actually produces the sound, same as Play/Pause),
+ * a local per-device choice in Practice mode (useShowMode.ts) - either way `useShowMode()`
+ * already resolves which one applies, so this widget doesn't need its own mode branching.
  */
 export function ClickTrackWidget() {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, setClickTrackOverride, canControl } =
+  const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, setClickTrackOverride, canControl } =
     useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
@@ -72,33 +73,23 @@ export function ClickTrackWidget() {
         Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
       </span>
       <span className="text-xl font-bold">{enabled ? 'An' : 'Aus'}</span>
-      {mode === 'gig' ? (
-        <div className="flex items-center gap-1">
-          {OVERRIDE_OPTIONS.map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              disabled={!canControl}
-              onClick={() => setClickTrackOverride(option.value)}
-              className={`rounded-sb-sm px-3 py-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-                clickTrackOverride === option.value
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control-strong text-ink hover:bg-control-strong-hover'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : (
-        // The force-on/off override is a shared ShowState write (Master-gated, band-wide) -
-        // meaningless in Practice mode, which has no Master-Token to gate against. Say so
-        // explicitly rather than rendering buttons whose onClick silently no-ops (found live,
-        // 2026-09-09 - useShowMode's Practice branch stubs setClickTrackOverride to a no-op,
-        // same as setLiveTempoAdjustPercent, but this widget never checked `mode` to match).
-        // The click itself still plays here, off the song's own clickTrackEnabled default.
-        <span className="text-xs text-ink-faint">Override nur im Gig-Modus</span>
-      )}
+      <div className="flex items-center gap-1">
+        {OVERRIDE_OPTIONS.map((option) => (
+          <button
+            key={option.label}
+            type="button"
+            disabled={!canControl}
+            onClick={() => setClickTrackOverride(option.value)}
+            className={`rounded-sb-sm px-3 py-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+              clickTrackOverride === option.value
+                ? 'bg-accent text-accent-ink'
+                : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

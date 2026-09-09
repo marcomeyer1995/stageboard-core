@@ -79,17 +79,21 @@ export async function practiceResetSong(): Promise<void> {
 export async function practiceAdvanceNext(): Promise<void> {
   const { nextEntry } = snapshot()
   if (!nextEntry) return
-  patch({ activeEntryId: nextEntry.id, trackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
+  patch({ activeEntryId: nextEntry.id, trackOverride: null, clickTrackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
   stopLocalTrack()
 }
 
 export async function practiceAdvancePrevious(): Promise<void> {
   const { previousEntry } = snapshot()
   if (!previousEntry) return
-  patch({ activeEntryId: previousEntry.id, trackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
+  patch({ activeEntryId: previousEntry.id, trackOverride: null, clickTrackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
   stopLocalTrack()
 }
 
 export function practiceSetTrackOverride(trackId: string | null): void {
   patch({ trackOverride: trackId })
+}
+
+export function practiceSetClickTrackOverride(override: 'on' | 'off' | null): void {
+  patch({ clickTrackOverride: override })
 }
