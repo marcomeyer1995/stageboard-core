@@ -42,15 +42,29 @@ export interface Workspace {
  * `stageboard-<workspaceId>-<profileId>~<deviceId>`. Matching the known `workspace.id` and
  * `deviceId` as an exact prefix/suffix (rather than splitting on `-` generally) is what makes
  * this safe even though both `workspaceId` and `profileId` can themselves contain hyphens.
+ *
+ * Found live, 2026-09-09, second gap on the same tablet: a device founded before the
+ * per-device-account migration (`resolveOutcome`'s doc comment, core-backend/src/index.ts,
+ * 2026-09-04) never got a `~<deviceId>`-suffixed `deviceUsername` at all - its `username` is
+ * still the bare `memberUsername` anchor (`stageboard-<workspaceId>-<profileId>`, no `~`). For
+ * that legacy shape the *entire* remainder after the workspace prefix already *is* the
+ * profileId (nothing else was ever appended), so it's recovered the same way, just without a
+ * suffix to also strip - gated on the remainder containing no `~` so a normal (but
+ * mismatched-device) `deviceUsername` doesn't fall through and get misread as this device's own.
+ *
  * Returns null if `username` is missing entirely (never joined) or doesn't match this device's
  * own account for some other reason - callers should treat that the same as "unknown".
  */
 export function deriveOwnProfileId(workspace: Pick<Workspace, 'id' | 'username'>, deviceId: string): string | null {
   if (!workspace.username) return null
   const prefix = `stageboard-${workspace.id}-`
+  if (!workspace.username.startsWith(prefix)) return null
+  const remainder = workspace.username.slice(prefix.length)
+
   const suffix = `~${deviceId}`
-  if (!workspace.username.startsWith(prefix) || !workspace.username.endsWith(suffix)) return null
-  return workspace.username.slice(prefix.length, workspace.username.length - suffix.length)
+  if (workspace.username.endsWith(suffix)) return workspace.username.slice(prefix.length, workspace.username.length - suffix.length)
+
+  return remainder.includes('~') ? null : remainder
 }
 
 interface WorkspaceState {

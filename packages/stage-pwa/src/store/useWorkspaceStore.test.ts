@@ -1065,4 +1065,19 @@ describe('deriveOwnProfileId', () => {
     expect(deriveOwnProfileId({ id: 'band-a', username: 'stageboard-band-b-p1~device-1' }, 'device-1')).toBeNull()
     expect(deriveOwnProfileId({ id: 'band-a', username: 'stageboard-band-a-p1~device-2' }, 'device-1')).toBeNull()
   })
+
+  it('found live, 2026-09-09, second gap on the same tablet: recovers a bare memberUsername anchor from before the per-device-account migration (no ~deviceId suffix at all)', () => {
+    const workspace = { id: 'band-a', username: 'stageboard-band-a-p1' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('p1')
+  })
+
+  it('still handles hyphens inside workspaceId/profileId for the legacy no-suffix shape', () => {
+    const workspace = { id: '665e69d9-c603-4c44-8f8f-2a034d3656ea', username: 'stageboard-665e69d9-c603-4c44-8f8f-2a034d3656ea-71a98bdc-ddf9-4a68-bb70-0752a1934854' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('71a98bdc-ddf9-4a68-bb70-0752a1934854')
+  })
+
+  it('does not misread a normal deviceUsername belonging to a different device as this device\'s own legacy anchor', () => {
+    const workspace = { id: 'band-a', username: 'stageboard-band-a-p1~some-other-device' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBeNull()
+  })
 })
