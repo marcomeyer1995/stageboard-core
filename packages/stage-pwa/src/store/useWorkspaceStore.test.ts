@@ -900,7 +900,6 @@ describe('joinAsMember', () => {
       couchPassword: 'member-pw',
       username: 'stageboard-band-c-p2',
       isAdmin: false,
-      ownProfileId: 'p2',
     })
     const state = useWorkspaceStore.getState()
     expect(state.workspaces).toContainEqual(workspace)
@@ -982,7 +981,7 @@ describe('joinAsMember', () => {
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Falscher Code'))
   })
 
-  it('found live, 2026-09-09: records ownProfileId on success, so a later sync-repair (SyncIndicator.tsx) knows which roster entry is this device without re-deriving it', async () => {
+  it('found live, 2026-09-10: never sets ownProfileId on success, even though it now knows the profileId - App.tsx\'s foundedHere gate reads that field as "this device founded the workspace", and a joining device setting it landed on the founding wizard for an already-real, already-populated band (destroyed Marco\'s real S.O.A.T. workspace the first time this class of bug was hit)', async () => {
     stubFetch({
       ok: true,
       status: 200,
@@ -991,7 +990,7 @@ describe('joinAsMember', () => {
 
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p2')
 
-    expect(workspace?.ownProfileId).toBe('p2')
+    expect(workspace?.ownProfileId).toBeUndefined()
   })
 })
 
@@ -1008,7 +1007,7 @@ describe('activateProfile', () => {
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
   })
 
-  it('posts the caller\'s own credentials and the target profileId, then updates the workspace with the resolved credentials and ownProfileId', async () => {
+  it('posts the caller\'s own credentials and the target profileId, then updates the workspace with the resolved credentials, without touching ownProfileId', async () => {
     const fetchMock = stubFetch({
       ok: true,
       status: 200,
@@ -1023,7 +1022,6 @@ describe('activateProfile', () => {
       username: 'stageboard-band-a-p1~device-1',
       couchPassword: 'fresh-pw',
       isAdmin: false,
-      ownProfileId: 'p1',
     })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-a/members/p1/activate')

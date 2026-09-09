@@ -19,14 +19,18 @@ export interface Workspace {
    * derivable from a fixed formula the way `workspaceUsername()` used to be, since every
    * roster member now has their own account. Always set alongside `couchPassword`. */
   username?: string
-  /** The roster `Profile.id` this device's account corresponds to (the founder's own first
-   * profile reuses it - see `RosterSetupView.tsx`/`useProfilesStore.ts`'s `create`). Lets the
-   * app know which roster entry "is" this device without any real login/identity system.
-   * `joinAsMember`/`activateProfile` both set this on success (found live, 2026-09-09: neither
-   * used to, so every device that joined via the normal member flow - i.e. everyone except a
-   * band's founder - had this permanently undefined; `deriveOwnProfileId` below recovers it for
-   * a device stuck in that state from before this fix, by parsing it back out of `username`,
-   * which is always set alongside it and encodes the same profileId). */
+  /** The roster `Profile.id` of the founder's own first profile, set only by `addWorkspace`
+   * (the founder's own profile reuses the id `RosterSetupView.tsx`/`useProfilesStore.ts`'s
+   * `create` mints) - `App.tsx`'s `foundedHere` reads this as "did *this device* found this
+   * workspace", not "does this device know its own profileId". `joinAsMember`/`activateProfile`
+   * must never set this (found live, 2026-09-10, second time: a first attempt at making them do
+   * so - so a repairing/rejoining device could know its own profileId too - made every such
+   * device misread itself as `foundedHere`, landing on RosterSetupView.tsx's founding wizard for
+   * an already-real, already-populated band; its "Neu anfangen" escape hatch deletes the entire
+   * remote workspace, which is exactly how Marco's real S.O.A.T. workspace was destroyed the
+   * first time this same class of bug was hit, per `App.tsx`'s own `needsRosterSetup` comment).
+   * Any device other than the founder's should derive its own profileId via
+   * `deriveOwnProfileId` below instead, on demand, never persisted here. */
   ownProfileId?: string
   /** Whether this device's account holds the admin role. CouchDB enforces the real
    * consequences of this itself (`_design/roster`'s validator checks `userCtx.roles`, not this
@@ -36,12 +40,13 @@ export interface Workspace {
 }
 
 /**
- * Recovers `ownProfileId` for a device that joined before `joinAsMember`/`activateProfile`
- * started recording it (see that field's own doc comment) - parses it back out of `username`,
- * which core-backend's `deviceUsername()` (workspaceProvisioning.ts) always builds as
- * `stageboard-<workspaceId>-<profileId>~<deviceId>`. Matching the known `workspace.id` and
- * `deviceId` as an exact prefix/suffix (rather than splitting on `-` generally) is what makes
- * this safe even though both `workspaceId` and `profileId` can themselves contain hyphens.
+ * Recovers this device's own `Profile.id` on demand for any device that isn't the founder (see
+ * `ownProfileId`'s own doc comment for why that field itself must stay untouched by anything but
+ * `addWorkspace`) - parses it back out of `username`, which core-backend's `deviceUsername()`
+ * (workspaceProvisioning.ts) always builds as `stageboard-<workspaceId>-<profileId>~<deviceId>`.
+ * Matching the known `workspace.id` and `deviceId` as an exact prefix/suffix (rather than
+ * splitting on `-` generally) is what makes this safe even though both `workspaceId` and
+ * `profileId` can themselves contain hyphens.
  *
  * Found live, 2026-09-09, second gap on the same tablet: a device founded before the
  * per-device-account migration (`resolveOutcome`'s doc comment, core-backend/src/index.ts,
@@ -738,14 +743,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
           const existing = get().workspaces.find((w) => w.id === workspaceId)
           const workspace: Workspace = existing
-            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin, ownProfileId: profileId }
+            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
             : {
                 id: workspaceId,
                 name: workspaceName,
                 couchPassword: resolved.password,
                 username: resolved.username,
                 isAdmin: resolved.isAdmin,
-                ownProfileId: profileId,
               }
           set({
             workspaces: existing
@@ -806,7 +810,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             couchPassword: resolved.password,
             username: resolved.username,
             isAdmin: resolved.isAdmin,
-            ownProfileId: profileId,
           }
           set({ workspaces: get().workspaces.map((w) => (w.id === workspaceId ? updated : w)) })
           return updated
