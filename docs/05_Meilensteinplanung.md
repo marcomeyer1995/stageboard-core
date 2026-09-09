@@ -45,26 +45,36 @@ Das Ziel: Band-Management und Gig-Vorbereitung.
 * **Meilenstein-Test:** ✅ Der Sänger drückt auf "Nächster Song" und das Tablet des Drummers wechselt synchron mit. (Verifiziert mit zwei isolierten Browser-Kontexten im selben Workspace.)
 
 ## Phase 6: Touring-Features & Ausbau (Ab Woche 6 / Community-Phase)
-Das Ziel: Absicherung und Ausbau für große Gigs. Anders als Phase 1–5 ist dies kein linearer Wochenplan mehr, sondern ein nach echten Abhängigkeiten geordneter Issue-Backlog (siehe GitHub) — Stand 2026-08-31, nach Abgleich von [docs/00](00_System_Vision_und_Architektur.md) gegen den Code und den Issue-Tracker. Reihenfolge der Unterphasen ist verbindlich, Reihenfolge *innerhalb* einer Unterphase nicht.
+Das Ziel: Absicherung und Ausbau für große Gigs. Anders als Phase 1–5 ist dies kein linearer Wochenplan mehr, sondern ein nach echten Abhängigkeiten geordneter Issue-Backlog (siehe GitHub) — Stand 2026-09-09, nach Abgleich von [docs/00](00_System_Vision_und_Architektur.md) gegen den Code und den Issue-Tracker. Reihenfolge der Unterphasen ist verbindlich, Reihenfolge *innerhalb* einer Unterphase nicht.
 
-### 6a: Kern-Engine (höchste Priorität)
-Schließt die größte Lücke zwischen [docs/00](00_System_Vision_und_Architektur.md) und dem tatsächlichen Code: Das "Venue Profile" (Graceful Degradation von UI-Widgets) ist bereits ✅ umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)) — Plugins deklarieren Capabilities, Widgets fordern sie an, Heartbeats steuern den Disabled-State. Was fehlt, ist das, was docs/00 §4–5 als Fundament der Präzisions-Bühnenausführung beschreibt, bisher aber nirgends im Code existiert:
+### 6a: Kern-Engine — ✅ im Kern abgeschlossen
+Das "Venue Profile" (Graceful Degradation von UI-Widgets) ist umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)) — Plugins deklarieren Capabilities, Widgets fordern sie an, Heartbeats steuern den Disabled-State. Auch das docs/00 §4–5 beschriebene Fundament der Präzisions-Bühnenausführung, das im Stand 2026-08-31 noch komplett fehlte, existiert jetzt im Code:
 
-* **#31 — NTP-Style Clock Sync:** Der "Burst-Handshake" und die Ahead-of-Time-Dispatch-Logik aus docs/00 §4. Der heutige `useClockStore` ist eine rein lokale Uhr pro Gerät, kein netzwerksynchronisierter Master-Clock.
-* **#10 — Logical Devices & Hardware Setup Profiles:** Die HAL/Auto-Binding-Schicht aus docs/00 §5. `pluginProviding` greift heute einfach zum ersten Plugin mit passender Capability — keine benannten Logical Devices, keine Hardware-Setup-Profile, kein Routing pro Gerät.
+* **#31 — NTP-Style Clock Sync:** ✅ Kern erledigt. Burst-Handshake (`clockSync.ts`), `driftMs`-basierter Status statt reiner `jitterMs`-Momentaufnahme, Korrektur für asymmetrische WLAN-Pfade — verifiziert per USB/adb-Ground-Truth-Check und Ende-zu-Ende-MIDI-Test (0–7.5ms Abweichung zwischen Geräten, siehe [docs/09](09_Clock_Sync_Untersuchung.md)). Issue bleibt bewusst offen für den originalen Restumfang: `scheduledAt`-basiertes Ahead-of-Time-Dispatch im `ShowControlGateway`, konsumiert vom Visual-Metronome-Widget (#25).
+* **#10 — Logical Devices & Hardware Setup Profiles:** ✅ Kern erledigt. `DeviceRegistry`, `LogicalDevice`-Schema, `HardwareSetup`-Routing (ersetzt das alte `pluginProviding`/`deviceClaims`), echte Client-Runtime-Translatoren statt Mock-Stores, `ShowCue`-Schema plus Ahead-of-Time-Scheduler pro Tablet, dynamisches Plugin-Laden. Restumfang (mehrere gleichzeitige Instanzen derselben Hardware, z.B. zwei Kemper) ist in Folge-Issues gesplittet, siehe unten.
 
-Beide sind Voraussetzung für mehrere Punkte in 6c (u.a. #25, #23, #62) — deshalb zuerst.
+**Organisch aus #10 entstanden und nicht im ursprünglichen Plan, aber komplett ausgeliefert:** die komplette "Plug, Prompt, and Play"-Kette, die docs/00 §5 als Hardware Abstraction Layer & Auto-Binding beschreibt.
+
+* **#100 — Plugin-driven HardwareBinding config:** Slice 1 (bandweite Plugin-Auswahl, geräte-lokale `DeviceTransportConfig`) ausgeliefert. Restumfang (WebMIDI/WebUSB-Erkennung) nach #106 gesplittet.
+* **#106 — WebMIDI/WebUSB-Geräteerkennung + Auto-Memory:** ausgeliefert, erweitert um bandweiten, admin-initiierten Discovery Mode und einen geführten Hardware-Setup-Wizard.
+* Fünf reale Geräte-Plugins statt Mocks: Kemper Profiler, Allen & Heath CQ-18T, NUX MG-30, BOSS RC-500, Soundcraft Ui24R.
+* Device Ledger: Diagnose-Store, Revoke-Endpoint, Ping-Loop, Self-Lock-Guard, UI.
+* Fünf Bugfixes an Discovery Mode aus echtem Gebrauch (#133–#138: manuelle Kandidaten-Bestätigung, Re-Binding, verwaiste Rollen-Bindings, Geräte-Neuanlage aus dem Dialog, Schutz vor Rollen-Diebstahl).
+
+**#100 und #106 bleiben als Tracking-Issues offen**, obwohl ihr Kern-Scope erledigt ist — analog zu #31 wäre der sinnvolle nächste Schritt, dort einen Abschluss-Kommentar zu hinterlassen und nur noch den echten Restumfang (Multi-Instanz-Routing) offen zu halten, statt sie unbegrenzt als "offen" zu führen.
+
+* **#129 — Migrate core-backend to HTTP/2** *(neu, 2026-09-08 gefiled)* — behebt eine latente SSE-Connection-Budget-Ceiling. Gehört thematisch zur Kern-Engine-Infrastruktur, war im vorigen Stand dieses Plans noch nicht eingeordnet.
 
 ### 6b: Live-Ausführung
-Bringt aufgezeichnete/ausgelöste Cues tatsächlich zur Hardware — baut auf 6a auf, kann aber parallel begonnen werden, wo kein HAL-Routing nötig ist:
+Bringt aufgezeichnete/ausgelöste Cues tatsächlich zur Hardware — baut auf 6a auf, das jetzt steht:
 
-* **#3** — Transition IEM Faders and Lighting Cue Widgets to Live Triggers
+* ✅ **#3** — Transition IEM Faders and Lighting Cue Widgets to Live Triggers
+* ✅ **#4** — Prevent Song Play Log Loss During Master-Token Handoff
+* ✅ **#13** — Differentiate Pause/Stop States in ShowLog
 * **#6** — Implement Cue Schema & Manual Cue Recorder UI
 * **#7** — Automatic Cue-Detection Assist (baut auf #6 auf)
 * **#8** — Live Cue Firing & Post-Show Persistence (baut auf #6/#7 auf)
-* **#13** — Differentiate Pause/Stop States in ShowLog
 * **#32** — Implement Master-Token Heartbeat and Force-Override
-* **#4** — Prevent Song Play Log Loss During Master-Token Handoff
 
 ### 6c: UX- & Live-Feature-Ausbau
 Alles, was Musiker im Alltag/auf der Bühne direkt spüren. Einiges hängt an 6a/6b (vermerkt), der Rest ist unabhängig und kann jederzeit eingeschoben werden:
@@ -74,11 +84,11 @@ Alles, was Musiker im Alltag/auf der Bühne direkt spüren. Einiges hängt an 6a
 * **#61** — Smart Rehearsal Looper & Speed Trainer
 * **#28** — Dynamic Setlist Time Management / Festival Clock (enthält die gemergte Curfew-Warnung)
 * **#26** — Stage Messenger & Flash Alerts (enthält den gemergten timeline-getriggerten `[alert:]`-Teil)
-* **#25** — Visual Metronome & Hardware-Routed Click Generator *(hängt an #10)*
-* **#62** — Spatial Stage Layout & Interactive Hardware Matrix *(hängt an #10)*
-* **#63** — "Stage Call" IEM Text-to-Speech Announcer *(hängt an #3)*
-* **#64** — Post-Gig Telemetry & Rehearsal Analytics *(hängt an #13)*
-* **#23** — Expand Widget Library (Clock, Status, Grouping, Custom Buttons) *(Status-Widget hängt an #10)*
+* **#25** — Visual Metronome & Hardware-Routed Click Generator *(Abhängigkeit #10 erledigt — bereit, sobald #31s Ahead-of-Time-Dispatch steht)*
+* **#62** — Spatial Stage Layout & Interactive Hardware Matrix *(hängt am Multi-Instanz-Restumfang von #10)*
+* **#63** — "Stage Call" IEM Text-to-Speech Announcer *(hängt an #3, erledigt)*
+* **#64** — Post-Gig Telemetry & Rehearsal Analytics *(hängt an #13, erledigt)*
+* **#23** — Expand Widget Library (Clock, Status, Grouping, Custom Buttons) *(Status-Widget-Abhängigkeit #10 erledigt)*
 * **#24** — Musical Reference Widgets (Chord Lookup & Circle of Fifths)
 * **#18** — Touch Gestures and Drag-and-Drop for Live Queue
 * **#22** — Widget Gallery Overlay & Resize Constraints
@@ -88,11 +98,17 @@ Alles, was Musiker im Alltag/auf der Bühne direkt spüren. Einiges hängt an 6a
 * **#29** — Setlist Transition Notes & Show Flow Items
 * **#36** — Define Core vs. Plugin System Boundary & Standard Widgets
 * **#57** — Role-Based Access to Widgets & Dashboards *(braucht erst ein Scoping-Gespräch, siehe Issue)*
-* **#58** — Band-Umbenennen (Workspace-Name nicht synchronisiert)
+* ✅ **#58** — Band-Umbenennen (Workspace-Name nicht synchronisiert)
 * **#27** — Bluetooth Foot Switch Integration (Keybindings)
 * **#15** — Robustness for Ultimate Guitar & MusicBrainz Plugins
 * **#17** — Implement Dynamic Plugin Code Loading via Dynamic Imports
-* **#12** — Implement CouchDB Multi-Tenancy & User Roles
+* ✅ **#12** — Implement CouchDB Multi-Tenancy & User Roles
+
+**Band-/Server-Topologie** *(neu, noch nicht priorisiert — Issues #70/#84/#85, alle nach dem Stand 2026-08-31 gefiled)*:
+
+* **#84** — Support a Band Whose Stage-Server Differs From This Device's Other Bands
+* **#85** — Configurable Master-Token Mode (Gerätespezifisch / Accountspezifisch)
+* **#70** — Stage-Server-local CLI script for admin account recovery (break-glass)
 
 ### 6d: Touring, Cloud & optionale Plugins
 Größter Hardware-/Infra-Aufwand, entsprechend zuletzt:
@@ -108,4 +124,4 @@ Größter Hardware-/Infra-Aufwand, entsprechend zuletzt:
 ### Laufende Bugs
 Unabhängig von der Phasen-Reihenfolge, sobald wie möglich beheben:
 
-* **#44** — Fix Infinite Re-render Loop in Dashboard Grid Layout
+* Aktuell keine offenen, phasenunabhängigen Bugs bekannt. (#44, Infinite Re-render Loop in Dashboard Grid Layout, ist behoben und durch einen Regressionstest abgesichert.)
