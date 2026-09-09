@@ -146,7 +146,7 @@ describe('songVariantsDb track storage', () => {
 })
 
 function makeSong(overrides: Partial<Song> = {}): Song {
-  return { id: 'song-1', title: 'Test Song', bpm: 120, chordProContent: '', timecodes: [], ...overrides }
+  return { id: 'song-1', title: 'Test Song', bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [], ...overrides }
 }
 
 describe('ensureDefaultVariant', () => {
@@ -194,6 +194,25 @@ describe('ensureDefaultVariant', () => {
     const variant = await ensureDefaultVariant(makeSong())
 
     expect(variant.cues).toEqual([cue])
+  })
+
+  it('#25: normalizes a pre-existing default variant written before `timeSignature` existed', async () => {
+    store.set('song-variants:variant-1', {
+      _id: 'song-variants:variant-1',
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [],
+    })
+
+    const variant = await ensureDefaultVariant(makeSong())
+
+    expect(variant.timeSignature).toBe('4/4')
   })
 })
 
