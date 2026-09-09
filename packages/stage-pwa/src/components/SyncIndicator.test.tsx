@@ -90,7 +90,7 @@ describe('SyncIndicator', () => {
       expect(screen.getByRole('button', { name: 'Reparieren' })).toBeInTheDocument()
     })
 
-    it('prompts for the access code and re-joins as this device\'s own already-known profile', async () => {
+    it('prompts for the access code and re-joins as this device\'s own already-known profile, passing the code\'s last 4 digits as the universal admin-recovery password', async () => {
       const promptText = vi.fn().mockResolvedValue('12345678')
       const joinAsMember = vi.fn().mockResolvedValue({ id: 'band-a' })
       useDialogStore.setState({ promptText })
@@ -102,7 +102,7 @@ describe('SyncIndicator', () => {
       await vi.waitFor(() => expect(joinAsMember).toHaveBeenCalled())
 
       expect(promptText).toHaveBeenCalledWith('Sync reparieren', { label: 'Zugangscode für „Band A"' })
-      expect(joinAsMember).toHaveBeenCalledWith('band-a', 'Band A', '12345678', 'p1')
+      expect(joinAsMember).toHaveBeenCalledWith('band-a', 'Band A', '12345678', 'p1', '5678')
     })
 
     it('does nothing if the access code prompt is cancelled', async () => {
