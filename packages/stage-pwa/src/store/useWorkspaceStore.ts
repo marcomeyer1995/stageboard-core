@@ -19,15 +19,57 @@ export interface Workspace {
    * derivable from a fixed formula the way `workspaceUsername()` used to be, since every
    * roster member now has their own account. Always set alongside `couchPassword`. */
   username?: string
-  /** The roster `Profile.id` this device's account corresponds to (the founder's own first
-   * profile reuses it - see `RosterSetupView.tsx`/`useProfilesStore.ts`'s `create`). Lets the
-   * app know which roster entry "is" this device without any real login/identity system. */
+  /** The roster `Profile.id` of the founder's own first profile, set only by `addWorkspace`
+   * (the founder's own profile reuses the id `RosterSetupView.tsx`/`useProfilesStore.ts`'s
+   * `create` mints) - `App.tsx`'s `foundedHere` reads this as "did *this device* found this
+   * workspace", not "does this device know its own profileId". `joinAsMember`/`activateProfile`
+   * must never set this (found live, 2026-09-10, second time: a first attempt at making them do
+   * so - so a repairing/rejoining device could know its own profileId too - made every such
+   * device misread itself as `foundedHere`, landing on RosterSetupView.tsx's founding wizard for
+   * an already-real, already-populated band; its "Neu anfangen" escape hatch deletes the entire
+   * remote workspace, which is exactly how Marco's real S.O.A.T. workspace was destroyed the
+   * first time this same class of bug was hit, per `App.tsx`'s own `needsRosterSetup` comment).
+   * Any device other than the founder's should derive its own profileId via
+   * `deriveOwnProfileId` below instead, on demand, never persisted here. */
   ownProfileId?: string
   /** Whether this device's account holds the admin role. CouchDB enforces the real
    * consequences of this itself (`_design/roster`'s validator checks `userCtx.roles`, not this
    * flag) - `isAdmin` here only decides what the UI *offers*; a wrong value here can't grant
    * unearned access, only mis-show/hide controls that would fail server-side anyway. */
   isAdmin?: boolean
+}
+
+/**
+ * Recovers this device's own `Profile.id` on demand for any device that isn't the founder (see
+ * `ownProfileId`'s own doc comment for why that field itself must stay untouched by anything but
+ * `addWorkspace`) - parses it back out of `username`, which core-backend's `deviceUsername()`
+ * (workspaceProvisioning.ts) always builds as `stageboard-<workspaceId>-<profileId>~<deviceId>`.
+ * Matching the known `workspace.id` and `deviceId` as an exact prefix/suffix (rather than
+ * splitting on `-` generally) is what makes this safe even though both `workspaceId` and
+ * `profileId` can themselves contain hyphens.
+ *
+ * Found live, 2026-09-09, second gap on the same tablet: a device founded before the
+ * per-device-account migration (`resolveOutcome`'s doc comment, core-backend/src/index.ts,
+ * 2026-09-04) never got a `~<deviceId>`-suffixed `deviceUsername` at all - its `username` is
+ * still the bare `memberUsername` anchor (`stageboard-<workspaceId>-<profileId>`, no `~`). For
+ * that legacy shape the *entire* remainder after the workspace prefix already *is* the
+ * profileId (nothing else was ever appended), so it's recovered the same way, just without a
+ * suffix to also strip - gated on the remainder containing no `~` so a normal (but
+ * mismatched-device) `deviceUsername` doesn't fall through and get misread as this device's own.
+ *
+ * Returns null if `username` is missing entirely (never joined) or doesn't match this device's
+ * own account for some other reason - callers should treat that the same as "unknown".
+ */
+export function deriveOwnProfileId(workspace: Pick<Workspace, 'id' | 'username'>, deviceId: string): string | null {
+  if (!workspace.username) return null
+  const prefix = `stageboard-${workspace.id}-`
+  if (!workspace.username.startsWith(prefix)) return null
+  const remainder = workspace.username.slice(prefix.length)
+
+  const suffix = `~${deviceId}`
+  if (workspace.username.endsWith(suffix)) return workspace.username.slice(prefix.length, workspace.username.length - suffix.length)
+
+  return remainder.includes('~') ? null : remainder
 }
 
 interface WorkspaceState {

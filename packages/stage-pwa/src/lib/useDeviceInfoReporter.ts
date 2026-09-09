@@ -31,7 +31,7 @@ export function useDeviceInfoReporter(workspaceId: string): void {
         deviceId,
         os: guessDeviceName(),
         environment: detectEnvironment(),
-        syncStatus: deriveSyncStatus(useSyncStore.getState().streams),
+        syncStatus: deriveSyncStatus(useSyncStore.getState().streams, useSyncStore.getState().browserOffline),
       })
     report()
     const interval = setInterval(report, REPORT_INTERVAL_MS)

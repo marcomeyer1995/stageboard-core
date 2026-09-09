@@ -13,6 +13,7 @@ import { getDeviceId } from './lib/deviceId'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
+import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
 import { useClockSync } from './lib/useClockSync'
 import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
@@ -76,9 +77,10 @@ function App() {
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.ownProfileId !== undefined,
   )
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
-  const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams))
+  const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   useFullscreenOnLaunch()
   useWakeLock()
+  useBrowserOnlineStatus()
   useShowLogTracker()
 
   // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
