@@ -199,4 +199,21 @@ describe('ClickTrackWidget', () => {
     render(<ClickTrackWidget />)
     expect(startClick).toHaveBeenCalled()
   })
+
+  it('plays locally in Practice mode with no Hardware Setup at all - no LogicalDevice bound, and even one bound to a different tablet (Marco, 2026-09-09: practicing solo shouldn\'t require Gig-mode hardware configuration)', () => {
+    mockLogicalDevices([]) // no click-track device configured anywhere
+    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    const { unmount } = render(<ClickTrackWidget />)
+    expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
+    expect(startClick).toHaveBeenCalled()
+    unmount()
+
+    vi.mocked(startClick).mockClear()
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: 'some-other-tablet' },
+    ])
+    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<ClickTrackWidget />)
+    expect(startClick).toHaveBeenCalled()
+  })
 })

@@ -6,7 +6,7 @@ import { supportsLocalExecution } from '../lib/clientTranslator'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
-import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { resolveExecutionEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -52,14 +52,16 @@ export function ShowTransportWidget() {
   const usesDeviceOutput =
     mode === 'gig' && audioBinding !== null && audioBinding.executionTarget !== SERVER_EXECUTION_TARGET
   const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
-  // Practice mode always plays locally regardless of any Gig-mode binding - it has no
-  // lighting/mixer equivalent, so that override lives here rather than in the generic resolver.
+  // resolveExecutionEngine's Practice branch plays locally regardless of any Gig-mode binding -
   // supportsLocalExecution is unconditionally true for audio-playback (native <audio>, no
-  // plugin needed - #98), same call every other capability-routed widget makes.
-  const engine =
-    mode === 'practice'
-      ? 'local-mine'
-      : resolveHardwareEngine(audioBinding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.audioPlayback))
+  // plugin needed - #98), so Practice mode always resolves to 'local-mine' here.
+  const engine = resolveExecutionEngine(
+    mode,
+    audioBinding,
+    deviceId,
+    pluginId,
+    supportsLocalExecution(installed, CAPABILITIES.audioPlayback),
+  )
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'

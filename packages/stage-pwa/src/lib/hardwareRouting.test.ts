@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LogicalDevice } from 'shared-types'
-import { resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
+import { resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 
 function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'midi-input', pluginId: null, executionTarget: null, ...overrides }
@@ -68,5 +68,26 @@ describe('resolveHardwareEngine', () => {
     const other = kemper({ id: 'k', name: 'K', executionTarget: 'someone-else' })
     expect(resolveHardwareEngine(mine, 'me', 'mock-playback', false)).toBe('none')
     expect(resolveHardwareEngine(other, 'me', 'mock-playback', false)).toBe('none')
+  })
+})
+
+describe('resolveExecutionEngine', () => {
+  it('plays locally in Practice mode when this device can execute the capability, regardless of any Gig-mode binding', () => {
+    expect(resolveExecutionEngine('practice', null, 'me', null, true)).toBe('local-mine')
+    const boundToSomeoneElse = kemper({ id: 'k', name: 'K', executionTarget: 'someone-else' })
+    expect(resolveExecutionEngine('practice', boundToSomeoneElse, 'me', 'mock-playback', true)).toBe('local-mine')
+  })
+
+  it('has no engine in Practice mode when nothing can execute the capability locally at all', () => {
+    expect(resolveExecutionEngine('practice', null, 'me', null, false)).toBe('none')
+    const bound = kemper({ id: 'k', name: 'K', executionTarget: 'me' })
+    expect(resolveExecutionEngine('practice', bound, 'me', 'mock-playback', false)).toBe('none')
+  })
+
+  it('defers to resolveHardwareEngine unchanged in Gig mode', () => {
+    const device = kemper({ id: 'k', name: 'K', executionTarget: 'someone-else' })
+    expect(resolveExecutionEngine('gig', device, 'me', 'mock-playback', true)).toBe(
+      resolveHardwareEngine(device, 'me', 'mock-playback', true),
+    )
   })
 })

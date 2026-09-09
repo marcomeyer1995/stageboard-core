@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from '../lib/clickEngine'
 import { supportsLocalExecution } from '../lib/clientTranslator'
-import { resolveHardwareEngine } from '../lib/hardwareRouting'
+import { resolveExecutionEngine } from '../lib/hardwareRouting'
 import { adjustedBpm, effectiveClickEnabled } from '../lib/metronome'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
@@ -17,23 +17,31 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
 
 /**
  * Runs the Click Generator's audio (#25) on whichever tablet is bound as its execution target -
- * same `useHardwareBindingFor`/`resolveHardwareEngine` routing ShowTransportWidget already uses
+ * same `useHardwareBindingFor`/`resolveExecutionEngine` routing ShowTransportWidget already uses
  * for audio-playback, and the same "no plugin needed, a browser API does the job"
- * special-case (clientTranslator.ts's supportsLocalExecution) as that capability. Also carries
+ * special-case (clientTranslator.ts's supportsLocalExecution) as that capability.
+ * `resolveExecutionEngine`'s Practice branch means this needs no Hardware Setup binding at all
+ * to practice solo - it just plays on this tablet if anything can execute it here. Also carries
  * the force-on/off override control - a shared, Master-gated ShowState write in Gig mode (works
  * from *any* tablet regardless of which one actually produces the sound, same as Play/Pause),
  * a local per-device choice in Practice mode (useShowMode.ts) - either way `useShowMode()`
  * already resolves which one applies, so this widget doesn't need its own mode branching.
  */
 export function ClickTrackWidget() {
-  const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, setClickTrackOverride, canControl } =
+  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, setClickTrackOverride, canControl } =
     useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
   const binding = useHardwareBindingFor(CAPABILITIES.clickTrack)
 
   const song = queue.currentVariant ?? queue.currentSong
-  const engine = resolveHardwareEngine(binding, deviceId, null, supportsLocalExecution(installed, CAPABILITIES.clickTrack))
+  const engine = resolveExecutionEngine(
+    mode,
+    binding,
+    deviceId,
+    null,
+    supportsLocalExecution(installed, CAPABILITIES.clickTrack),
+  )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
   const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedMs !== null
@@ -59,7 +67,7 @@ export function ClickTrackWidget() {
     return () => stopClick()
   }, [shouldPlay])
 
-  if (binding === null) {
+  if (engine === 'none') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
         Kein Klick-Ausgabegerät eingerichtet
