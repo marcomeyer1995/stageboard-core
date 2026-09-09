@@ -52,6 +52,7 @@ import {
   deprovisionMember,
   deprovisionWorkspace,
   generateMemberPassword,
+  deviceUsername,
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
@@ -891,6 +892,22 @@ export async function buildApp() {
     const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
     if (!caller) {
       return reply.status(403).send({ status: 'error', message: 'Invalid caller credentials' })
+    }
+
+    // Re-picking this exact device's own already-active profile (BandManagementView.tsx's
+    // profile list has no guard against tapping the current one) - found live, 2026-09-09: this
+    // used to fall through to resolveOutcome/provisionDevice below, which unconditionally mints
+    // a *new* random password even though the one just verified two lines up already works.
+    // CouchDB never returns a plaintext password once hashed, so "leave it unchanged" has to be
+    // handled here, before any rotation happens, not by reading anything back afterward. Any
+    // other caller (a different device, or a different target profile/deviceId) still goes
+    // through the normal path below and gets a real, freshly-provisioned account as before.
+    if (parsed.data.callerUsername === deviceUsername(workspaceId, profileId, parsed.data.deviceId)) {
+      return reply.status(200).send({
+        username: parsed.data.callerUsername,
+        password: parsed.data.callerPassword,
+        isAdmin: caller.roles.includes('admin'),
+      })
     }
 
     const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)

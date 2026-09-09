@@ -1503,6 +1503,57 @@ describe('Fastify routes', () => {
       expect(fetchMock).toHaveBeenCalledTimes(6)
     })
 
+    it('found live, 2026-09-09: re-picking this exact device\'s own already-active profile is a no-op - returns the same credentials unchanged, never rotates', async () => {
+      const fetchMock = stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1~device-1', roles: ['member'] } }),
+        }, // verifyUser(caller) - the only call this should ever make
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'already-valid-pw', deviceId: 'device-1' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        username: 'stageboard-band-a-p1~device-1',
+        password: 'already-valid-pw',
+        isAdmin: false,
+      })
+      // No getOrCreateAccessCode/getDoc/userExists/resetUserPassword - this exact account was
+      // never touched, only the caller's already-supplied credentials were verified once.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('still mints a real, freshly-provisioned account when the *target* deviceId differs from the caller\'s own, even for the same profile', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1~device-1', roles: ['member'] } }),
+        }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ code: '12345678', name: 'Band A' }) }, // getOrCreateAccessCode
+        { ok: true, status: 200, json: async () => ({ _id: 'profiles:p1', id: 'p1' }) }, // getDoc profile
+        { ok: true, status: 200 }, // userExists(anchor) -> already provisioned
+        { ok: false, status: 404 }, // userExists(device-2)
+        { ok: true, status: 201 }, // createUser(device-2)
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/activate',
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'device-1s-pw', deviceId: 'device-2' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json() as { username: string }
+      expect(body.username).toBe('stageboard-band-a-p1~device-2')
+    })
+
     it('rejects a caller whose username does not belong to this workspace, without even checking their password', async () => {
       const fetchMock = stubFetch([])
 

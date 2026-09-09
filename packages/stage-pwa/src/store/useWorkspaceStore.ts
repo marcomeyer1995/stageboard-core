@@ -21,13 +21,36 @@ export interface Workspace {
   username?: string
   /** The roster `Profile.id` this device's account corresponds to (the founder's own first
    * profile reuses it - see `RosterSetupView.tsx`/`useProfilesStore.ts`'s `create`). Lets the
-   * app know which roster entry "is" this device without any real login/identity system. */
+   * app know which roster entry "is" this device without any real login/identity system.
+   * `joinAsMember`/`activateProfile` both set this on success (found live, 2026-09-09: neither
+   * used to, so every device that joined via the normal member flow - i.e. everyone except a
+   * band's founder - had this permanently undefined; `deriveOwnProfileId` below recovers it for
+   * a device stuck in that state from before this fix, by parsing it back out of `username`,
+   * which is always set alongside it and encodes the same profileId). */
   ownProfileId?: string
   /** Whether this device's account holds the admin role. CouchDB enforces the real
    * consequences of this itself (`_design/roster`'s validator checks `userCtx.roles`, not this
    * flag) - `isAdmin` here only decides what the UI *offers*; a wrong value here can't grant
    * unearned access, only mis-show/hide controls that would fail server-side anyway. */
   isAdmin?: boolean
+}
+
+/**
+ * Recovers `ownProfileId` for a device that joined before `joinAsMember`/`activateProfile`
+ * started recording it (see that field's own doc comment) - parses it back out of `username`,
+ * which core-backend's `deviceUsername()` (workspaceProvisioning.ts) always builds as
+ * `stageboard-<workspaceId>-<profileId>~<deviceId>`. Matching the known `workspace.id` and
+ * `deviceId` as an exact prefix/suffix (rather than splitting on `-` generally) is what makes
+ * this safe even though both `workspaceId` and `profileId` can themselves contain hyphens.
+ * Returns null if `username` is missing entirely (never joined) or doesn't match this device's
+ * own account for some other reason - callers should treat that the same as "unknown".
+ */
+export function deriveOwnProfileId(workspace: Pick<Workspace, 'id' | 'username'>, deviceId: string): string | null {
+  if (!workspace.username) return null
+  const prefix = `stageboard-${workspace.id}-`
+  const suffix = `~${deviceId}`
+  if (!workspace.username.startsWith(prefix) || !workspace.username.endsWith(suffix)) return null
+  return workspace.username.slice(prefix.length, workspace.username.length - suffix.length)
 }
 
 interface WorkspaceState {
@@ -701,13 +724,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
           const existing = get().workspaces.find((w) => w.id === workspaceId)
           const workspace: Workspace = existing
-            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
+            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin, ownProfileId: profileId }
             : {
                 id: workspaceId,
                 name: workspaceName,
                 couchPassword: resolved.password,
                 username: resolved.username,
                 isAdmin: resolved.isAdmin,
+                ownProfileId: profileId,
               }
           set({
             workspaces: existing
@@ -768,6 +792,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             couchPassword: resolved.password,
             username: resolved.username,
             isAdmin: resolved.isAdmin,
+            ownProfileId: profileId,
           }
           set({ workspaces: get().workspaces.map((w) => (w.id === workspaceId ? updated : w)) })
           return updated
