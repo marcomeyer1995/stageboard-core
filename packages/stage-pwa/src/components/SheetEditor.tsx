@@ -27,6 +27,7 @@ interface EditorDraft {
   variantLabel: string
   isDefaultVariant: boolean
   bpm: number
+  timeSignature: string
   chordProContent: string
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
@@ -43,6 +44,7 @@ function emptyDraft(): EditorDraft {
     variantLabel: 'Original',
     isDefaultVariant: true,
     bpm: 120,
+    timeSignature: '4/4',
     chordProContent: '',
     timecodes: [],
     cues: [],
@@ -58,6 +60,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     variantLabel: variant.label,
     isDefaultVariant: variant.isDefault,
     bpm: variant.bpm,
+    timeSignature: variant.timeSignature,
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
     cues: variant.cues,
@@ -173,6 +176,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       variantLabel: variant.label,
       isDefaultVariant: variant.isDefault,
       bpm: variant.bpm,
+      timeSignature: variant.timeSignature,
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
       cues: variant.cues,
@@ -202,6 +206,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       label: draft.variantLabel.trim() || 'Original',
       isDefault: draft.isDefaultVariant,
       bpm: draft.bpm,
+      timeSignature: draft.timeSignature,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       cues: draft.cues,
@@ -225,6 +230,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       title: draft.title,
       artist: draft.artist,
       bpm: defaultVariant?.bpm ?? draft.bpm,
+      timeSignature: defaultVariant?.timeSignature ?? draft.timeSignature,
       chordProContent: defaultVariant?.chordProContent ?? draft.chordProContent,
       timecodes: defaultVariant?.timecodes ?? draft.timecodes,
     }
@@ -402,7 +408,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             BPM
             <input
@@ -410,6 +416,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
               value={draft.bpm}
               onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+            Takt
+            <input
+              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              placeholder="4/4"
+              value={draft.timeSignature}
+              onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-ink-muted">

@@ -15,6 +15,10 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     label: doc.label,
     isDefault: doc.isDefault,
     bpm: doc.bpm,
+    // A variant written before `timeSignature` existed (#25) simply lacks the key - PouchDB
+    // returns exactly what was stored, unvalidated, so this read-time fallback matters even
+    // though the type says it's always present (same spirit as `cues` below).
+    timeSignature: doc.timeSignature ?? '4/4',
     chordProContent: doc.chordProContent,
     timecodes: doc.timecodes,
     tracks: doc.tracks,

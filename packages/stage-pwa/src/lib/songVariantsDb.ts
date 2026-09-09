@@ -25,11 +25,12 @@ export const variantsChanges = variants.changes
  */
 export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
   const existing = (await getAllVariants()).find((v) => v.songId === song.id && v.isDefault)
-  // A variant written before `cues` existed (#99) simply lacks the key - this is a raw,
-  // unvalidated PouchDB read (unlike useSongVariantsStore's own toVariant, which already
-  // normalizes this for its own reactive `variants` array), so the same fallback is needed
-  // here too. Found live: crashed CueListEditor on any song predating this field.
-  if (existing) return { ...existing, cues: existing.cues ?? [] }
+  // A variant written before `cues` (#99) or `timeSignature` (#25) existed simply lacks the
+  // key - this is a raw, unvalidated PouchDB read (unlike useSongVariantsStore's own
+  // toVariant, which already normalizes this for its own reactive `variants` array), so the
+  // same fallback is needed here too. Found live: crashed CueListEditor on any song predating
+  // the `cues` field.
+  if (existing) return { ...existing, timeSignature: existing.timeSignature ?? '4/4', cues: existing.cues ?? [] }
 
   const variant: SongVariant = {
     id: randomId(),
@@ -37,6 +38,7 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
     label: 'Original',
     isDefault: true,
     bpm: song.bpm,
+    timeSignature: song.timeSignature ?? '4/4',
     chordProContent: song.chordProContent,
     timecodes: song.timecodes,
     tracks: [],

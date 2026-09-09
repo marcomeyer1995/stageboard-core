@@ -4,7 +4,7 @@ import type { TrackMeta } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, reorderToPlayNext } from './computeQueue'
 
 function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, chordProContent: '', timecodes: [] }
+  return { id, title, bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [] }
 }
 
 function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'songId'>): SongVariant {
@@ -12,6 +12,7 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
     label: 'Original',
     isDefault: true,
     bpm: 120,
+    timeSignature: '4/4',
     chordProContent: '',
     timecodes: [],
     tracks: [],

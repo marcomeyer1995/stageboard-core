@@ -33,11 +33,22 @@ function track(id: string): TrackMeta {
 }
 
 function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, chordProContent: '', timecodes: [] }
+  return { id, title, bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [] }
 }
 
 function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
-  return { id, songId, label: 'Original', isDefault: true, bpm: 120, chordProContent: '', timecodes: [], tracks, cues: [] }
+  return {
+    id,
+    songId,
+    label: 'Original',
+    isDefault: true,
+    bpm: 120,
+    timeSignature: '4/4',
+    chordProContent: '',
+    timecodes: [],
+    tracks,
+    cues: [],
+  }
 }
 
 function entry(id: string, songId: string): SetlistEntry {

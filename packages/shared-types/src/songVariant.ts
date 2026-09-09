@@ -40,6 +40,10 @@ export const SongVariantSchema = z.object({
   label: z.string().min(1),
   isDefault: z.boolean(),
   bpm: z.number().positive(),
+  /** e.g. "4/4", "6/8" - see song.ts's field doc. Genuinely arrangement-specific (an "Akustik"
+   * variant can switch feel), same reasoning as key/tuning/capo below rather than bpm's
+   * would-be-fine-either-way duplication. */
+  timeSignature: z.string().default('4/4'),
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
   tracks: z.array(TrackMetaSchema).default([]),
