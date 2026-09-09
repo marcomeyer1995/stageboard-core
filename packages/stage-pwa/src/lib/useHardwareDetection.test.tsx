@@ -265,6 +265,49 @@ describe('handleDetected', () => {
 
     expect(save).not.toHaveBeenCalled()
   })
+
+  it("falls through to the normal prompt flow when the remembered role's gateway now points at a different device", async () => {
+    const firstConnect = handleDetected(KEMPER_PORT)
+    useDialogStore.getState().submit({ logicalDeviceId: 'kemper-1' })
+    await firstConnect
+    save.mockClear()
+    expect(getRememberedLogicalDeviceId('webmidi:port-1')).toBe('kemper-1') // sanity: it IS remembered now
+
+    // An admin reassigned the role's gateway to a different device since (DeviceSetupWizard.tsx's
+    // manual target picker, or a fresh Discovery win elsewhere) - this tablet's own local memory
+    // has no way to know that was deliberate, and must not silently steal the role back just
+    // because its own port happened to reconnect (Marco, live-hit: reassigned a role's gateway to
+    // another machine, replugged the original laptop, and it silently reclaimed the role).
+    useLogicalDevicesStore.setState({ devices: [{ ...KEMPER_LOGICAL_DEVICE, executionTarget: 'some-other-tablet' }] })
+
+    const promise = handleDetected(KEMPER_PORT)
+    const request = useDialogStore.getState().request
+    expect(request?.kind).toBe('prompt') // asks again, same as a never-before-seen device would
+    if (request?.kind !== 'prompt') throw new Error('expected a prompt request')
+    expect(request.fields[0].options).toEqual([{ value: 'kemper-1', label: "Marco's Kemper" }])
+
+    useDialogStore.getState().cancel()
+    await promise
+
+    expect(save).not.toHaveBeenCalled() // did NOT silently overwrite it back
+  })
+
+  it('still silently re-binds when the remembered role\'s gateway already points at this device (the genuine #106 self-heal case)', async () => {
+    const firstConnect = handleDetected(KEMPER_PORT)
+    useDialogStore.getState().submit({ logicalDeviceId: 'kemper-1' })
+    await firstConnect
+    save.mockClear()
+
+    // Simulates the config having actually been persisted back to this device (unlike the fake
+    // PouchDB above, which doesn't reflect a save() into the live `devices` state on its own).
+    useLogicalDevicesStore.setState({ devices: [{ ...KEMPER_LOGICAL_DEVICE, executionTarget: getDeviceId() }] })
+
+    await handleDetected(KEMPER_PORT)
+
+    expect(useDialogStore.getState().request).toBeNull()
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][0]).toMatchObject({ logicalDeviceId: 'kemper-1' })
+  })
 })
 
 describe('handleDetected - the "ask a human" popups are gated to System → Hardware (Marco, explicit safety request, 2026-09-08)', () => {
