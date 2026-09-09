@@ -24,6 +24,7 @@ function song(clickTrackEnabled: boolean): Song {
 }
 
 function mockShowMode(overrides: {
+  mode?: 'gig' | 'practice'
   currentSong: Song | null
   currentVariant?: SongVariant | null
   elapsedMs?: number | null
@@ -33,7 +34,7 @@ function mockShowMode(overrides: {
   canControl?: boolean
 }) {
   vi.mocked(useShowMode).mockReturnValue({
-    mode: 'gig',
+    mode: overrides.mode ?? 'gig',
     queue: {
       activeSetlist: null,
       orderedItems: [],
@@ -177,5 +178,27 @@ describe('ClickTrackWidget', () => {
     mockShowMode({ currentSong: song(true), setClickTrackOverride, canControl: false })
     rerender(<ClickTrackWidget />)
     expect(screen.getByRole('button', { name: 'Aus' })).toBeDisabled()
+  })
+
+  it('replaces the override buttons with an explanatory note in Practice mode, instead of rendering controls that silently no-op (found live, 2026-09-09)', () => {
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
+    ])
+    const setClickTrackOverride = vi.fn()
+    mockShowMode({ mode: 'practice', currentSong: song(true), setClickTrackOverride, canControl: true })
+    render(<ClickTrackWidget />)
+    expect(screen.getByText('Override nur im Gig-Modus')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'An' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Aus' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Standard' })).not.toBeInTheDocument()
+  })
+
+  it('still plays the click in Practice mode, off the song\'s own default', () => {
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
+    ])
+    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<ClickTrackWidget />)
+    expect(startClick).toHaveBeenCalled()
   })
 })
