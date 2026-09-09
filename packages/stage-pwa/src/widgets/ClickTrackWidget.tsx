@@ -56,7 +56,6 @@ export function ClickTrackWidget() {
     }
     startClick(() => stateRef.current)
     return () => stopClick()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldPlay])
 
   if (binding === null) {

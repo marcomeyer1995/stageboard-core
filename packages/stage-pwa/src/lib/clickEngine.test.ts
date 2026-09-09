@@ -76,7 +76,7 @@ describe('startClick/stopClick', () => {
   })
 
   it('accents the downbeat with a higher frequency than other beats', () => {
-    let elapsedMs = 1860 // 4/4 at 120bpm: beat index 4 (2000ms) is the next downbeat
+    const elapsedMs = 1860 // 4/4 at 120bpm: beat index 4 (2000ms) is the next downbeat
     const oscillators: FakeOscillator[] = []
     fakeCtx.createOscillator = vi.fn(() => {
       const osc = new FakeOscillator()
@@ -106,7 +106,7 @@ describe('startClick/stopClick', () => {
   })
 
   it('is a no-op to call twice - does not double the scheduling rate', () => {
-    let elapsedMs = 360
+    const elapsedMs = 360
     const getState = () => ({ elapsedMs, bpm: 120, timeSignature: '4/4' })
     startClick(getState)
     startClick(getState)
