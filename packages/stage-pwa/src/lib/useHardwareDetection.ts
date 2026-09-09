@@ -130,17 +130,27 @@ export async function handleDetected(detected: DetectedHardware) {
   }
 
   const remembered = getRememberedLogicalDeviceId(hardwareKeyFor(detected))
-  // A remembered id only counts if that Logical Device still exists - it's stale local
-  // localStorage (hardwareDeviceMemory.ts), unaware of a role having since been deleted (e.g.
-  // Marco's own "TEST MG30" cleanup). Trusting a dangling id here would silently write an
-  // orphaned DeviceTransportConfig nobody reads and `return` before ever reaching the prompt
-  // below - the device would then never be askable-about again on this tablet, forever.
-  if (remembered && logicalDevices.devices.some((device) => device.id === remembered)) {
+  const rememberedRole = remembered ? logicalDevices.devices.find((device) => device.id === remembered) : undefined
+  // A remembered id only counts as a genuine self-heal - the local mapping (hardwareDeviceMemory
+  // .ts) knows nothing about decisions made since it was written, so it must not blindly overrule
+  // either of them:
+  //  - the role got deleted (e.g. Marco's own "TEST MG30" cleanup) - rememberedRole is undefined.
+  //  - the role's gateway got deliberately pointed at a *different* device since (the manual
+  //    target picker in DeviceSetupWizard.tsx's Step 3, or a fresh Discovery win) - trusting the
+  //    mapping here would silently steal it back the moment this device's own port reconnects,
+  //    overwriting a decision this tablet has no way of knowing was intentional (Marco, live-hit:
+  //    reassigned a role's gateway to another machine, replugged the original laptop, and it
+  //    silently reclaimed the role with no prompt).
+  // `executionTarget` null (never bound yet) or already this device (the actual #106 self-heal
+  // case: re-establish a DeviceTransportConfig a workspace reset dropped) are the only two
+  // states where silently re-binding is still correct.
+  const deviceId = getDeviceId()
+  if (rememberedRole && (rememberedRole.executionTarget === null || rememberedRole.executionTarget === deviceId)) {
     // "Silently re-binds" (#106's Auto-Memory) - re-establish the config rather than just doing
     // nothing, so a workspace reset that dropped the DeviceTransportConfig doc still recovers on
     // the next reconnect, without ever showing a dialog again for a device already assigned.
     const match = matchDetectedHardware(plugins.installed.filter((plugin) => plugin.enabled), detected)
-    if (match) await bindDetectedDevice(detected, match, remembered)
+    if (match) await bindDetectedDevice(detected, match, rememberedRole.id)
     return
   }
 
