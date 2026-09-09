@@ -16,6 +16,7 @@ import { ShowNoteWidget } from './ShowNoteWidget'
 import { ShowTransportWidget } from './ShowTransportWidget'
 import { SyncCheckWidget } from './SyncCheckWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
+import { TempoNudgeWidget } from './TempoNudgeWidget'
 import { TrackOverrideWidget } from './TrackOverrideWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
@@ -157,6 +158,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: MetronomeConfigSchema,
     Component: VisualMetronomeWidget,
     ConfigPanel: MetronomeConfigPanel,
+  }),
+  defineWidget({
+    type: 'tempo-nudge',
+    title: 'Tempo-Korrektur',
+    description: 'Live +/- Anpassung des Klick-/Metronom-Tempos, ohne den Song-BPM zu ändern.',
+    category: 'performance',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: TempoNudgeWidget,
   }),
   defineWidget({
     type: 'track-override',

@@ -6,6 +6,7 @@ import {
   pauseSong,
   playSong,
   resetSong,
+  setLiveTempoAdjustPercent,
   setTrackOverride,
   stopSong,
   useQueue,
@@ -33,6 +34,11 @@ export interface ShowModeApi {
   elapsedMs: number | null
   playbackStatus: PlaybackStatus
   trackOverride: string | null
+  /** Live +/- tempo correction on top of the current song's bpm (#140) - Gig mode only, always
+   * 0/no-op in Practice mode (that's #61's Speed Trainer's territory, a deliberate practice
+   * choice rather than a live-drift correction). */
+  liveTempoAdjustPercent: number
+  setLiveTempoAdjustPercent: (percent: number) => void
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
@@ -62,6 +68,7 @@ export function useShowMode(): ShowModeApi {
   const practiceElapsedMs = usePracticeElapsedMs()
   const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
+  const gigLiveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
 
   if (mode === 'practice') {
@@ -71,6 +78,8 @@ export function useShowMode(): ShowModeApi {
       elapsedMs: practiceElapsedMs,
       playbackStatus: practiceState.playbackStatus,
       trackOverride: practiceState.trackOverride,
+      liveTempoAdjustPercent: 0,
+      setLiveTempoAdjustPercent: () => {},
       canControl: true,
       play: practicePlaySong,
       pause: practicePauseSong,
@@ -88,6 +97,8 @@ export function useShowMode(): ShowModeApi {
     elapsedMs: gigElapsedMs,
     playbackStatus: gigPlaybackStatus,
     trackOverride: gigTrackOverride,
+    liveTempoAdjustPercent: gigLiveTempoAdjustPercent,
+    setLiveTempoAdjustPercent: (percent) => void setLiveTempoAdjustPercent(percent),
     canControl: gigQueue.isMaster,
     play: playSong,
     pause: pauseSong,

@@ -17,6 +17,7 @@ function mockShowMode(overrides: {
   currentVariant?: SongVariant | null
   elapsedMs: number | null
   playbackStatus?: 'playing' | 'paused' | 'stopped'
+  liveTempoAdjustPercent?: number
 }) {
   vi.mocked(useShowMode).mockReturnValue({
     mode: 'gig',
@@ -37,6 +38,8 @@ function mockShowMode(overrides: {
     elapsedMs: overrides.elapsedMs,
     playbackStatus: overrides.playbackStatus ?? 'playing',
     trackOverride: null,
+    liveTempoAdjustPercent: overrides.liveTempoAdjustPercent ?? 0,
+    setLiveTempoAdjustPercent: vi.fn(),
     canControl: true,
     play: vi.fn(),
     pause: vi.fn(),
@@ -106,6 +109,25 @@ describe('VisualMetronomeWidget', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'beat-dots' }} />)
     expect(screen.queryByText('1')).not.toBeInTheDocument()
+  })
+
+  it('shows the plain song bpm when there is no live tempo adjustment', () => {
+    mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing', liveTempoAdjustPercent: 0 })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.getByText('120 BPM · 4/4')).toBeInTheDocument()
+  })
+
+  it('shows the adjusted bpm and the correction percent when live-nudged', () => {
+    mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing', liveTempoAdjustPercent: 5 })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.getByText('126 BPM (+5%) · 4/4')).toBeInTheDocument()
+  })
+
+  it('advances the beat using the adjusted tempo, not the stored bpm', () => {
+    // 120 BPM + 100% = 240 BPM = 250ms/beat; 260ms is into beat index 1 -> displayed as "2".
+    mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 260, playbackStatus: 'playing', liveTempoAdjustPercent: 100 })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 })
 
