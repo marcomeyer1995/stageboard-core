@@ -1110,36 +1110,64 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    it('verifies the caller is exactly the target admin account, then sets the PIN to the chosen value', async () => {
+    it('found live, 2026-09-10: accepts this device\'s own deviceUsername (not just the bare anchor) as proof, sets the PIN on the anchor, and reissues this device\'s own account rather than handing back the anchor\'s', async () => {
       const fetchMock = stubFetch([
         {
           ok: true,
           status: 200,
-          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1~device-1', roles: ['member', 'admin'] } }),
         }, // verifyUser(caller)
+        { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p1', _rev: '1-abc', name: 'stageboard-band-a-p1', roles: ['member', 'admin'], type: 'user' }) }, // getDoc(anchor)
+        { ok: true, status: 201 }, // PUT anchor's new PIN
+        { ok: false, status: 404 }, // userExists(this device's own account) - none yet
+        { ok: true, status: 201 }, // createUser(this device's own account)
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'old-pin', newPin: '4711', deviceId: 'device-1' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = response.json()
+      expect(body).toEqual({ username: 'stageboard-band-a-p1~device-1', password: expect.any(String), isAdmin: true })
+      // The PIN itself lands on the anchor account (call index 2's PUT) - this device's own
+      // account (call index 4) gets its own fresh, unrelated random password, never the PIN.
+      expect(body.password).not.toBe('4711')
+      const [, anchorPutInit] = fetchMock.mock.calls[2]
+      expect(JSON.parse((anchorPutInit as RequestInit).body as string).password).toBe('4711')
+    })
+
+    it('still accepts the bare anchor username directly, for a device that predates the per-device-account migration', async () => {
+      stubFetch([
+        {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }),
+        },
         { ok: true, status: 200, json: async () => ({ _id: 'org.couchdb.user:stageboard-band-a-p1', _rev: '1-abc', name: 'stageboard-band-a-p1', roles: ['member', 'admin'], type: 'user' }) },
+        { ok: true, status: 201 },
+        { ok: false, status: 404 },
         { ok: true, status: 201 },
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/set-pin',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '4711' },
+        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ username: 'stageboard-band-a-p1', password: '4711', isAdmin: true })
-      const [, putInit] = fetchMock.mock.calls[2]
-      expect(JSON.parse((putInit as RequestInit).body as string).password).toBe('4711')
     })
 
-    it('rejects setting a *different* profile\'s PIN, even with valid admin credentials', async () => {
+    it('rejects a *different* profile\'s deviceUsername, even with valid admin credentials', async () => {
       const fetchMock = stubFetch([])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p2/set-pin',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'admin-pw', newPin: '4711' },
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'admin-pw', newPin: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1152,7 +1180,7 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/set-pin',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'wrong', newPin: '4711' },
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'wrong', newPin: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1163,14 +1191,14 @@ describe('Fastify routes', () => {
         {
           ok: true,
           status: 200,
-          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member'] } }),
+          json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1~device-1', roles: ['member'] } }),
         },
       ])
 
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/set-pin',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'member-pw', newPin: '4711' },
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'member-pw', newPin: '4711', deviceId: 'device-1' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1180,7 +1208,17 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/members/p1/set-pin',
-        payload: { callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '12345' },
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'old-pin', newPin: '12345', deviceId: 'device-1' },
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('returns 400 when deviceId is missing', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members/p1/set-pin',
+        payload: { callerUsername: 'stageboard-band-a-p1~device-1', callerPassword: 'old-pin', newPin: '4711' },
       })
 
       expect(response.statusCode).toBe(400)

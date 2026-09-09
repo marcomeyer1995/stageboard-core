@@ -64,6 +64,17 @@ describe('DialogHost', () => {
     expect(await promise).toEqual({ stageRoles: 'soundtech' })
   })
 
+  it('found live, 2026-09-10: a \'pin\' field steers touch keyboards to digits-only instead of a full keyboard', async () => {
+    render(<DialogHost />)
+    act(() => {
+      void useDialogStore.getState().promptFields('Eigenen PIN setzen', [{ key: 'pin', label: 'Neuer 4-stelliger PIN', type: 'pin' }])
+    })
+
+    const pinInput = screen.getByLabelText('Neuer 4-stelliger PIN') as HTMLInputElement
+    expect(pinInput.inputMode).toBe('numeric')
+    expect(pinInput.pattern).toBe('[0-9]*')
+  })
+
   it('cancelling a prompt resolves null', async () => {
     render(<DialogHost />)
     let promise!: Promise<string | null>

@@ -436,7 +436,7 @@ export function BandManagementView() {
                         onClick={async () => {
                           setActionsMenuProfileId(null)
                           const result = await promptFields('Eigenen PIN setzen', [
-                            { key: 'pin', label: 'Neuer 4-stelliger PIN' },
+                            { key: 'pin', label: 'Neuer 4-stelliger PIN', type: 'pin' },
                           ])
                           const pin = result?.pin?.trim()
                           if (!pin) return

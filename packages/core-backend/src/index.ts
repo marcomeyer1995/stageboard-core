@@ -774,6 +774,13 @@ export async function buildApp() {
   // vergeben werden kann") - strictly self-service, checked by requiring `callerUsername` to be
   // the *exact* account being changed, not just any admin of this workspace (that's what
   // "Passwort zurücksetzen" above is for instead, when it's someone *else's* PIN).
+  //
+  // Found live, 2026-09-10: this predates the per-device-account migration (`resolveOutcome`'s
+  // doc comment) and was never updated for it - `callerUsername` is always this device's own
+  // `deviceUsername` now (`stageboard-<workspaceId>-<profileId>~<deviceId>`), never the bare
+  // anchor `memberUsername` this route compared it against, so the exact-match check 403'd
+  // every admin unconditionally. Now accepts either shape, as long as it's *this* profile's own
+  // account (some other device, or a different profile's device, still correctly 403s).
   app.post('/workspaces/:workspaceId/members/:profileId/set-pin', async (request, reply) => {
     const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
     const parsed = SetOwnPinRequestSchema.safeParse(request.body)
@@ -782,7 +789,8 @@ export async function buildApp() {
     }
 
     const targetUsername = memberUsername(workspaceId, profileId)
-    if (parsed.data.callerUsername !== targetUsername) {
+    const isOwnAccount = parsed.data.callerUsername === targetUsername || parsed.data.callerUsername.startsWith(`${targetUsername}~`)
+    if (!isOwnAccount) {
       return reply.status(403).send({ status: 'error', message: 'Can only set your own PIN' })
     }
     const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
@@ -790,7 +798,12 @@ export async function buildApp() {
       return reply.status(403).send({ status: 'error', message: 'Invalid credentials or not an admin account' })
     }
 
-    const credentials = await setMemberPassword(couch, workspaceId, profileId, parsed.data.newPin)
+    await setMemberPassword(couch, workspaceId, profileId, parsed.data.newPin)
+    // The PIN itself lives on the anchor account just updated above, never on the calling
+    // device's own account - reissuing this device's own credentials here (rather than handing
+    // back the anchor's) keeps every device's real sync login private to itself, same as every
+    // other join/activate path (see this schema's own doc comment, shared-types/workspace.ts).
+    const credentials = await provisionDevice(couch, workspaceId, profileId, parsed.data.deviceId, true)
     return reply.status(200).send({ ...credentials, isAdmin: true })
   })
 

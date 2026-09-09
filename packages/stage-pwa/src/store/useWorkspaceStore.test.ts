@@ -623,21 +623,26 @@ describe('setOwnPin (2026-09-02 second follow-up: admin self-service PIN assignm
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
   })
 
-  it('posts this device\'s own current credentials as proof, and updates the stored credentials on success', async () => {
+  it('posts this device\'s own current credentials plus its deviceId, and updates the stored credentials on success', async () => {
     const fetchMock = stubFetch({
       ok: true,
       status: 200,
-      json: async () => ({ username: 'stageboard-band-a-p1', password: '9876', isAdmin: true }),
+      json: async () => ({ username: 'stageboard-band-a-p1~device-1', password: 'fresh-device-pw', isAdmin: true }),
     })
 
     const result = await useWorkspaceStore.getState().setOwnPin('band-a', 'p1', '9876')
 
-    expect(result).toEqual({ username: 'stageboard-band-a-p1', password: '9876' })
+    expect(result).toEqual({ username: 'stageboard-band-a-p1~device-1', password: 'fresh-device-pw' })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-a/members/p1/set-pin')
-    expect(JSON.parse(init.body)).toEqual({ callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '9876' })
+    expect(JSON.parse(init.body)).toEqual({
+      callerUsername: 'stageboard-band-a-p1',
+      callerPassword: 'old-pin',
+      newPin: '9876',
+      deviceId: expect.any(String),
+    })
     expect(useWorkspaceStore.getState().workspaces).toContainEqual(
-      expect.objectContaining({ id: 'band-a', couchPassword: '9876', username: 'stageboard-band-a-p1' }),
+      expect.objectContaining({ id: 'band-a', couchPassword: 'fresh-device-pw', username: 'stageboard-band-a-p1~device-1' }),
     )
   })
 
