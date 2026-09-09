@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Song, SongVariant } from 'shared-types'
-import { VisualMetronomeWidget } from './VisualMetronomeWidget'
+import { MetronomeConfigPanel, VisualMetronomeWidget } from './VisualMetronomeWidget'
 import { useShowMode } from '../lib/showMode'
 
 // Same reasoning as ShowTransportWidget.test.tsx: mock useShowMode directly rather than the
@@ -51,20 +51,20 @@ function mockShowMode(overrides: {
 describe('VisualMetronomeWidget', () => {
   it('shows a placeholder when no song is active', () => {
     mockShowMode({ currentSong: null, elapsedMs: null, playbackStatus: 'stopped' })
-    render(<VisualMetronomeWidget />)
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('Kein Song aktiv')).toBeInTheDocument()
   })
 
   it('shows a waiting state when a song is loaded but not playing', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: null, playbackStatus: 'stopped' })
-    render(<VisualMetronomeWidget />)
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('Wartet auf Play')).toBeInTheDocument()
     expect(screen.getByText('120 BPM · 4/4')).toBeInTheDocument()
   })
 
   it('shows the downbeat count and BPM/time signature while playing', () => {
     mockShowMode({ currentSong: song(120, '3/4'), elapsedMs: 0, playbackStatus: 'playing' })
-    render(<VisualMetronomeWidget />)
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('120 BPM · 3/4')).toBeInTheDocument()
   })
@@ -72,7 +72,7 @@ describe('VisualMetronomeWidget', () => {
   it('advances the displayed beat number as elapsed time crosses beat boundaries', () => {
     // 120 BPM = 500ms/beat; 650ms is into beat index 1 -> displayed as "2" (1-indexed).
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 650, playbackStatus: 'playing' })
-    render(<VisualMetronomeWidget />)
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('2')).toBeInTheDocument()
   })
 
@@ -90,7 +90,30 @@ describe('VisualMetronomeWidget', () => {
       cues: [],
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 0, playbackStatus: 'playing' })
-    render(<VisualMetronomeWidget />)
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('90 BPM · 6/8')).toBeInTheDocument()
+  })
+
+  it('renders a dot per beat of the bar in beat-dots style, one lit', () => {
+    mockShowMode({ currentSong: song(120, '3/4'), elapsedMs: 0, playbackStatus: 'playing' })
+    const { container } = render(<VisualMetronomeWidget config={{ style: 'beat-dots' }} />)
+    expect(container.querySelectorAll('span.rounded-full')).toHaveLength(3)
+    // Beat 0 (downbeat) is lit at elapsedMs 0.
+    expect(container.querySelectorAll('span.rounded-full.bg-accent')).toHaveLength(1)
+  })
+
+  it('does not show the beat number in beat-dots style', () => {
+    mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<VisualMetronomeWidget config={{ style: 'beat-dots' }} />)
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+  })
+})
+
+describe('MetronomeConfigPanel', () => {
+  it('reports the selected style back through onChange', () => {
+    const onChange = vi.fn()
+    render(<MetronomeConfigPanel config={{ style: 'number' }} onChange={onChange} />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'beat-dots' } })
+    expect(onChange).toHaveBeenCalledWith({ style: 'beat-dots' })
   })
 })

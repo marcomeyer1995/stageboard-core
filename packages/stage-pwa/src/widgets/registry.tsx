@@ -19,7 +19,8 @@ import { SystemHealthWidget } from './SystemHealthWidget'
 import { TrackOverrideWidget } from './TrackOverrideWidget'
 import { TunerConfigPanel, TunerWidget } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
-import { VisualMetronomeWidget } from './VisualMetronomeWidget'
+import { MetronomeConfigPanel, VisualMetronomeWidget } from './VisualMetronomeWidget'
+import { MetronomeConfigSchema } from './metronomeConfig'
 
 export interface WidgetSize {
   w: number
@@ -153,7 +154,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Blitzt im Takt des aktiven Songs (BPM/Taktart), Downbeat farblich abgesetzt.',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    configSchema: MetronomeConfigSchema,
     Component: VisualMetronomeWidget,
+    ConfigPanel: MetronomeConfigPanel,
   }),
   defineWidget({
     type: 'track-override',
