@@ -227,4 +227,18 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     transports: [],
     hardwareIds: [],
   },
+  {
+    id: 'mock-click',
+    name: 'Mock Click',
+    version: '0.0.1',
+    // 'server' like mock-playback above: the tablet-local path (clickEngine.ts's Web Audio
+    // scheduler) needs no plugin at all (clientTranslator.ts's supportsLocalExecution special
+    // case, same as audio-playback) - this catalog entry exists only so `click-track` is a
+    // selectable "Typ" in the Hardware Setup Wizard when routing to the Stage-Server (#25's
+    // still-unbuilt hardware-routed half - a real server-side click/MIDI-Clock plugin).
+    runtime: 'server',
+    capabilities: [CAPABILITIES.clickTrack],
+    transports: [],
+    hardwareIds: [],
+  },
 ]

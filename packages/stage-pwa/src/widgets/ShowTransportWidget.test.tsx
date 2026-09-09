@@ -33,7 +33,7 @@ function track(id: string): TrackMeta {
 }
 
 function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [] }
+  return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
 function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
@@ -44,6 +44,7 @@ function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
     isDefault: true,
     bpm: 120,
     timeSignature: '4/4',
+    clickTrackEnabled: false,
     chordProContent: '',
     timecodes: [],
     tracks,
@@ -86,6 +87,8 @@ function mockShowMode(overrides: {
     liveTempoAdjustPercent: 0,
     setLiveTempoAdjustPercent: vi.fn(),
     nudgeLiveTempoAdjustPercent: vi.fn(),
+    clickTrackOverride: null,
+    setClickTrackOverride: vi.fn(),
     canControl: overrides.canControl ?? false,
     play: vi.fn(),
     pause: vi.fn(),

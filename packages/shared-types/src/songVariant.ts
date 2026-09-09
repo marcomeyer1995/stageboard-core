@@ -44,6 +44,10 @@ export const SongVariantSchema = z.object({
    * variant can switch feel), same reasoning as key/tuning/capo below rather than bpm's
    * would-be-fine-either-way duplication. */
   timeSignature: z.string().default('4/4'),
+  /** Whether this variant wants the Click Generator running by default - see song.ts's field
+   * doc. Arrangement-specific like timeSignature above: an "Akustik" variant might want a
+   * click where "Original" (with a full backing track) doesn't. */
+  clickTrackEnabled: z.boolean().default(false),
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
   tracks: z.array(TrackMetaSchema).default([]),

@@ -9,7 +9,7 @@ import { useShowMode } from '../lib/showMode'
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 
 function song(bpm: number, timeSignature: string): Song {
-  return { id: 'song-1', title: 'Test Song', bpm, timeSignature, chordProContent: '', timecodes: [] }
+  return { id: 'song-1', title: 'Test Song', bpm, timeSignature, clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
 function mockShowMode(overrides: {
@@ -87,6 +87,7 @@ describe('VisualMetronomeWidget', () => {
       isDefault: false,
       bpm: 90,
       timeSignature: '6/8',
+      clickTrackEnabled: false,
       chordProContent: '',
       timecodes: [],
       tracks: [],

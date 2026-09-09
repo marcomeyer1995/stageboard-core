@@ -3,7 +3,7 @@ import type { Song, SongVariant } from 'shared-types'
 import { findLogicalDeviceUsage } from './logicalDeviceUsage'
 
 function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [] }
+  return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
 function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'songId'>): SongVariant {
@@ -12,6 +12,7 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
     isDefault: true,
     bpm: 120,
     timeSignature: '4/4',
+    clickTrackEnabled: false,
     chordProContent: '',
     timecodes: [],
     tracks: [],

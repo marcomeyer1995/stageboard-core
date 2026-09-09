@@ -52,6 +52,11 @@ export const ShowStateSchema = z.object({
    * time-stretching). Master-gated and cleared on song change (activateEntry below), same
    * pattern as `trackOverride` just above - a for-tonight correction, not a lasting edit. */
   liveTempoAdjustPercent: z.number(),
+  /** Live override of the current song/variant's own `clickTrackEnabled` default (#25) - null
+   * means "use the song's own authored setting", `'on'`/`'off'` forces it regardless for
+   * tonight's performance of this song. Master-gated, cleared on song change (activateEntry
+   * below), same for-tonight-only pattern as `trackOverride`/`liveTempoAdjustPercent` above. */
+  clickTrackOverride: z.enum(['on', 'off']).nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -73,6 +78,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   playbackAccumulatedMs: 0,
   trackOverride: null,
   liveTempoAdjustPercent: 0,
+  clickTrackOverride: null,
   currentShowId: null,
   lastActivityAt: null,
 }

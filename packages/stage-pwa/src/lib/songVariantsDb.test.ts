@@ -146,7 +146,16 @@ describe('songVariantsDb track storage', () => {
 })
 
 function makeSong(overrides: Partial<Song> = {}): Song {
-  return { id: 'song-1', title: 'Test Song', bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [], ...overrides }
+  return {
+    id: 'song-1',
+    title: 'Test Song',
+    bpm: 120,
+    timeSignature: '4/4',
+    clickTrackEnabled: false,
+    chordProContent: '',
+    timecodes: [],
+    ...overrides,
+  }
 }
 
 describe('ensureDefaultVariant', () => {
