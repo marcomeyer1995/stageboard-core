@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { stopClick } from '../lib/clickEngine'
+import { unloadLocalTrack } from '../lib/localAudioEngine'
 
 export type SessionMode = 'gig' | 'practice'
 
@@ -29,9 +31,22 @@ interface AppModeState {
  */
 export const useAppModeStore = create<AppModeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       mode: 'gig',
-      setMode: (mode) => set({ mode }),
+      setMode: (mode) => {
+        // Leaving Practice mode must never leave its local-only playback running into Gig mode -
+        // Practice's Play/Pause/Stop (practiceQueue.ts) drives localAudioEngine.ts imperatively,
+        // entirely decoupled from ShowTransportWidget's own Gig-mode-only "stop when no longer
+        // the claimed output" effect (isMyDeviceAudioOutput), so nothing else would otherwise
+        // ever tell it to stop (found live, 2026-09-10: a Solo-mode backing track kept audibly
+        // playing after switching to Gig mode). stopClick() is the same story for the Click
+        // Generator's Practice-mode override (#25) - both are no-ops if nothing was playing.
+        if (get().mode === 'practice' && mode !== 'practice') {
+          unloadLocalTrack()
+          stopClick()
+        }
+        set({ mode })
+      },
     }),
     { name: 'stageboard-app-mode' },
   ),
