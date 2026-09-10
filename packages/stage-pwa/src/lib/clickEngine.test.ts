@@ -143,6 +143,28 @@ describe('startClick/stopClick', () => {
     expect(ticksUntilNextClick).toBeLessThan(15)
   })
 
+  it('resyncs cleanly instead of bursting through every missed beat after the tab was backgrounded and throttled (found live, 2026-09-10: the click went "fully out of rhythm" after losing focus)', () => {
+    let elapsedMs = 999855 // large value mid-song, just shy of a beat boundary at 120bpm (500ms/beat)
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4' }))
+
+    vi.advanceTimersByTime(50) // establishes the anchor, schedules the imminent beat
+    expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
+
+    // The tab loses focus: the browser throttles setInterval so hard that, from this
+    // scheduler's perspective, real ticks stop arriving - meanwhile elapsedMs (driven by
+    // requestAnimationFrame re-renders that are also paused while hidden) freezes too, then
+    // jumps straight to the current value once the tab regains focus and a render finally
+    // happens - ~20 beats' worth of time (10s) passed in what looks like a single step here.
+    elapsedMs += 10000
+    fakeCtx.createOscillator.mockClear()
+    vi.advanceTimersByTime(50) // the next tick that actually gets to run, post-throttling
+
+    // A resync to the current position, not a burst of every beat that would have fired during
+    // the stall - at most 1-2 clicks for this one tick, never anywhere close to the ~20 beats
+    // that elapsed during the gap.
+    expect(fakeCtx.createOscillator.mock.calls.length).toBeLessThan(3)
+  })
+
   it('stops scheduling further clicks once stopped', () => {
     let elapsedMs = 0
     startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4' }))

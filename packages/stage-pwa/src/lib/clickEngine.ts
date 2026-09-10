@@ -34,6 +34,19 @@ let intervalId: ReturnType<typeof setInterval> | null = null
  * the spacing of beats from here forward. */
 let nextBeatOnsetMs: number | null = null
 let nextBeatInBar = 0
+/** `elapsedMs` as of the last tick - used to detect a large gap between ticks (see
+ * RESYNC_GAP_MS below), not to schedule anything itself. */
+let lastTickElapsedMs: number | null = null
+
+/** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
+ * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
+ * healthy tick sees, comfortably below the length of a real beat at any reasonable tempo (so a
+ * single genuinely slow tick never gets mistaken for a stall). Backgrounding a tab throttles
+ * `setInterval` far below TICK_INTERVAL_MS (found live, 2026-09-10: the click "fully out of
+ * rhythm" after the tab lost focus) - without this, `tick()`'s while loop would fire every beat
+ * that fell due during the whole stall in one instant burst once the tab is foregrounded again,
+ * instead of just resuming cleanly from wherever elapsedMs actually is now. */
+const RESYNC_GAP_MS = 500
 
 function getAudioContext(): AudioContext {
   if (!audioContext) audioContext = new AudioContext()
@@ -73,14 +86,19 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string): 
  * length - so a live tempo nudge (#140) changes spacing only from here forward, and a beat
  * already committed to the queue is never retroactively skipped or duplicated (the two windows
  * deliberately overlap - see TICK_INTERVAL_MS/LOOKAHEAD_MS above). Silent, and resets the
- * cursor, whenever nothing is currently playing. */
+ * cursor, whenever nothing is currently playing. Also re-anchors (instead of bursting through a
+ * backlog) whenever `elapsedMs` jumped by more than RESYNC_GAP_MS since the last tick - a
+ * throttled/backgrounded tab, not a normal gap between beats. */
 function tick(getState: () => ClickEngineState): void {
   const { elapsedMs, bpm, timeSignature } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
+    lastTickElapsedMs = null
     return
   }
-  if (nextBeatOnsetMs === null) anchorSchedule(elapsedMs, bpm, timeSignature)
+  const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
+  if (nextBeatOnsetMs === null || stalled) anchorSchedule(elapsedMs, bpm, timeSignature)
+  lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
   const beatCount = beatsPerBar(timeSignature)
@@ -113,6 +131,7 @@ export function stopClick(): void {
   if (intervalId !== null) clearInterval(intervalId)
   intervalId = null
   nextBeatOnsetMs = null
+  lastTickElapsedMs = null
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module
