@@ -8,6 +8,7 @@ import {
   type SongVariant,
   type TimecodeMarker,
 } from 'shared-types'
+import { analyzeTrackBlob } from '../lib/analyzeTrack'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
@@ -119,6 +120,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const [isTapping, setIsTapping] = useState(false)
   const [isTappingAnchors, setIsTappingAnchors] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -331,6 +334,48 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     })
   }
 
+  /** Automatic BPM + beat-anchor detection (#25 follow-up) - runs the DSP pipeline
+   * (audioAnalysis.ts/analyzeTrack.ts) against `tapTrack`'s own audio, the same track the manual
+   * tap tools already work against. Replaces the whole anchor list rather than merging into it
+   * (same "auto-fill-then-editable" convention `handleImport` above already uses for Ultimate
+   * Guitar's bpm/key/tuning) - guarded by a confirmation when anchors already exist, since a
+   * stray click shouldn't silently wipe out anchors someone already hand-tapped. Detection is
+   * inherently imperfect on real mixes (no single unambiguous transient at every beat) - the
+   * list editor and tap tool right below this button are the correction mechanism, not an
+   * afterthought. */
+  async function handleAnalyzeTrack() {
+    if (!tapTrack) return
+    if (draft.beatAnchors.length > 0) {
+      const confirmed = await confirm('Vorhandene Anker durch die automatische Erkennung ersetzen?', {
+        confirmLabel: 'Ersetzen',
+      })
+      if (!confirmed) return
+    }
+    setIsAnalyzing(true)
+    setAnalyzeError(null)
+    try {
+      const blob = await getTrack(draft.variantId, tapTrack.id)
+      if (!blob) {
+        setAnalyzeError('Track nicht verfügbar.')
+        return
+      }
+      const result = await analyzeTrackBlob(blob)
+      if (result.bpm === null && result.beatAnchors.length === 0) {
+        setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
+        return
+      }
+      setDraft((d) => ({
+        ...d,
+        bpm: result.bpm ?? d.bpm,
+        beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs })),
+      }))
+    } catch {
+      setAnalyzeError('Analyse fehlgeschlagen.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
   const preview = parseChordPro(draft.chordProContent)
 
   return (
@@ -512,16 +557,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
-              <button
-                type="button"
-                onClick={() => setIsTappingAnchors(true)}
-                disabled={!tapTrack}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Anker tappen
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleAnalyzeTrack()}
+                  disabled={!tapTrack || isAnalyzing}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTappingAnchors(true)}
+                  disabled={!tapTrack}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  Anker tappen
+                </button>
+              </div>
             </div>
+            {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
             <BeatAnchorListEditor anchors={draft.beatAnchors} onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })} />
+            <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-ink-soft">
                 <input
