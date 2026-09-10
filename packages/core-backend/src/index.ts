@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import fastifyStatic from '@fastify/static'
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import mdnsFactory from 'multicast-dns'
 import {
   ActivateProfileRequestSchema,
@@ -205,6 +205,30 @@ async function resolveOutcome(
 }
 
 /**
+ * Hijacks `reply` and opens it as a push SSE stream - shared by every subscription route below
+ * (plugin-health, presence, trigger-stream, discovery). Copies whatever headers Fastify already
+ * queued (e.g. CORS from the cors plugin's onRequest hook) individually, since `writeHead()` has
+ * no overload accepting an arbitrary header record alongside a status code.
+ *
+ * `Connection: keep-alive` is only set for an HTTP/1.x client: HTTP/2 forbids "connection-
+ * specific" header fields entirely (RFC 7540 §8.1.2.2 - h2 multiplexes many logical streams over
+ * one already-persistent connection, so the header is meaningless there anyway), and Node's h2
+ * compat layer throws `ERR_HTTP2_INVALID_CONNECTION_HEADER` if it's set on a real h2 stream
+ * (#129's `http2: true` + `allowHTTP1: true`) - `request.raw.httpVersionMajor` tells us which
+ * protocol this particular request actually negotiated.
+ */
+function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
+  reply.hijack()
+  for (const [name, value] of Object.entries(reply.getHeaders())) {
+    if (value !== undefined) reply.raw.setHeader(name, value)
+  }
+  reply.raw.setHeader('Content-Type', 'text/event-stream')
+  reply.raw.setHeader('Cache-Control', 'no-cache')
+  if (request.raw.httpVersionMajor < 2) reply.raw.setHeader('Connection', 'keep-alive')
+  reply.raw.writeHead(200)
+}
+
+/**
  * Wires up the Fastify instance and every route, with fresh, empty plugin registries - no
  * CouchDB sync, no LOOKUP_CATALOG registration, no `listen()`. Split out from `main()` so
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
@@ -234,12 +258,19 @@ export async function buildApp() {
     password: process.env.COUCHDB_PASSWORD ?? 'admin',
   }
 
+  // HTTP/2 (#129): browsers only ever negotiate h2 over TLS (ALPN), so this only applies to the
+  // HTTPS branch - the plain-HTTP fallback below (no certs generated yet) stays HTTP/1.1, same
+  // as it always was. `allowHTTP1: true` keeps any client that can't/won't negotiate h2 working
+  // unchanged. One physical connection per origin with 100+ multiplexed logical streams removes
+  // the browser's ~6-connections-per-origin ceiling this app was already sitting at/near (5 SSE
+  // streams open per tab) - see the issue for the full story.
   const app: FastifyInstance =
     existsSync(certFile) && existsSync(keyFile)
       ? (Fastify({
           logger: true,
           bodyLimit,
-          https: { cert: readFileSync(certFile), key: readFileSync(keyFile) },
+          http2: true,
+          https: { allowHTTP1: true, cert: readFileSync(certFile), key: readFileSync(keyFile) },
         }) as unknown as FastifyInstance)
       : Fastify({ logger: true, bodyLimit })
 
@@ -320,20 +351,7 @@ export async function buildApp() {
   // no new dependency (see #49 follow-up - this replaces the old CouchDB `plugin-health` doc).
   app.get('/plugin-health/:workspaceId/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-
-    // hijack() hands the raw response fully to us - Fastify's normal send/serialize
-    // lifecycle never runs for this request. We copy whatever it already queued (e.g. CORS
-    // headers from the cors plugin's onRequest hook) so this stream keeps carrying them -
-    // set individually rather than passed to writeHead(), which has no overload accepting an
-    // arbitrary Record<string, ...> alongside a status code.
-    reply.hijack()
-    for (const [name, value] of Object.entries(reply.getHeaders())) {
-      if (value !== undefined) reply.raw.setHeader(name, value)
-    }
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.writeHead(200)
+    beginSseStream(request, reply)
 
     const unsubscribe = healthStore.subscribe(workspaceId, (snapshot) => {
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
@@ -363,15 +381,7 @@ export async function buildApp() {
   // code doesn't already gate getting this far to see.
   app.get('/workspaces/:workspaceId/presence/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-
-    reply.hijack()
-    for (const [name, value] of Object.entries(reply.getHeaders())) {
-      if (value !== undefined) reply.raw.setHeader(name, value)
-    }
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.writeHead(200)
+    beginSseStream(request, reply)
 
     const unsubscribe = presenceStore.subscribe(workspaceId, (snapshot) => {
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
@@ -465,15 +475,7 @@ export async function buildApp() {
   // instead of workspaceId alone, since this must reach exactly the one claimed device.
   app.get('/workspaces/:workspaceId/devices/:deviceId/trigger-stream', (request, reply) => {
     const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
-
-    reply.hijack()
-    for (const [name, value] of Object.entries(reply.getHeaders())) {
-      if (value !== undefined) reply.raw.setHeader(name, value)
-    }
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.writeHead(200)
+    beginSseStream(request, reply)
 
     const unsubscribe = deviceRelay.subscribe(workspaceId, deviceId, (trigger) => {
       reply.raw.write(`data: ${JSON.stringify(trigger)}\n\n`)
@@ -501,15 +503,7 @@ export async function buildApp() {
   // and gets the same live session snapshot back; the store owns all resolution logic.
   app.get('/workspaces/:workspaceId/discovery/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
-
-    reply.hijack()
-    for (const [name, value] of Object.entries(reply.getHeaders())) {
-      if (value !== undefined) reply.raw.setHeader(name, value)
-    }
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.writeHead(200)
+    beginSseStream(request, reply)
 
     const unsubscribe = discoverySessionStore.subscribe(workspaceId, (snapshot) => {
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`)
