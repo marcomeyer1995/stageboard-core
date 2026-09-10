@@ -11,11 +11,13 @@ function mockShowMode(overrides: {
   liveTempoAdjustPercent?: number
   canControl?: boolean
   setLiveTempoAdjustPercent?: (percent: number) => void
+  nudgeLiveTempoAdjustPercent?: (deltaPercent: number) => void
 }) {
   vi.mocked(useShowMode).mockReturnValue({
     mode: overrides.mode ?? 'gig',
     liveTempoAdjustPercent: overrides.liveTempoAdjustPercent ?? 0,
     setLiveTempoAdjustPercent: overrides.setLiveTempoAdjustPercent ?? vi.fn(),
+    nudgeLiveTempoAdjustPercent: overrides.nudgeLiveTempoAdjustPercent ?? vi.fn(),
     canControl: overrides.canControl ?? true,
   } as never)
 }
@@ -34,14 +36,14 @@ describe('TempoNudgeWidget', () => {
     expect(screen.queryByText('Zurücksetzen')).not.toBeInTheDocument()
   })
 
-  it('steps the percent up and down by 1 on +/-', () => {
-    const setLiveTempoAdjustPercent = vi.fn()
-    mockShowMode({ liveTempoAdjustPercent: 3, setLiveTempoAdjustPercent })
+  it('nudges the percent by +/-1 via the delta setter, not a value computed from a stale prop', () => {
+    const nudgeLiveTempoAdjustPercent = vi.fn()
+    mockShowMode({ liveTempoAdjustPercent: 3, nudgeLiveTempoAdjustPercent })
     render(<TempoNudgeWidget />)
     fireEvent.click(screen.getByText('+'))
-    expect(setLiveTempoAdjustPercent).toHaveBeenCalledWith(4)
+    expect(nudgeLiveTempoAdjustPercent).toHaveBeenCalledWith(1)
     fireEvent.click(screen.getByText('−'))
-    expect(setLiveTempoAdjustPercent).toHaveBeenCalledWith(2)
+    expect(nudgeLiveTempoAdjustPercent).toHaveBeenCalledWith(-1)
   })
 
   it('resets to 0 via the reset button once adjusted', () => {

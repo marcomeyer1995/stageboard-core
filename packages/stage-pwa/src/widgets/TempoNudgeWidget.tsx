@@ -13,7 +13,8 @@ const STEP_PERCENT = 1
  * widget explains itself away there rather than offering a control that would do nothing.
  */
 export function TempoNudgeWidget() {
-  const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, canControl } = useShowMode()
+  const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
+    useShowMode()
 
   if (mode !== 'gig') {
     return (
@@ -33,7 +34,7 @@ export function TempoNudgeWidget() {
         <button
           type="button"
           disabled={!canControl || atMin}
-          onClick={() => setLiveTempoAdjustPercent(liveTempoAdjustPercent - STEP_PERCENT)}
+          onClick={() => nudgeLiveTempoAdjustPercent(-STEP_PERCENT)}
           className="h-9 w-9 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           −
@@ -45,7 +46,7 @@ export function TempoNudgeWidget() {
         <button
           type="button"
           disabled={!canControl || atMax}
-          onClick={() => setLiveTempoAdjustPercent(liveTempoAdjustPercent + STEP_PERCENT)}
+          onClick={() => nudgeLiveTempoAdjustPercent(STEP_PERCENT)}
           className="h-9 w-9 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           +

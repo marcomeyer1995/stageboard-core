@@ -85,6 +85,7 @@ function mockShowMode(overrides: {
     trackOverride: null,
     liveTempoAdjustPercent: 0,
     setLiveTempoAdjustPercent: vi.fn(),
+    nudgeLiveTempoAdjustPercent: vi.fn(),
     canControl: overrides.canControl ?? false,
     play: vi.fn(),
     pause: vi.fn(),

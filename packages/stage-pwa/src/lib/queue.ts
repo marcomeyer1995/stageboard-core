@@ -163,3 +163,12 @@ export async function setLiveTempoAdjustPercent(percent: number): Promise<void> 
   const clamped = Math.max(-LIVE_TEMPO_ADJUST_LIMIT_PERCENT, Math.min(LIVE_TEMPO_ADJUST_LIMIT_PERCENT, percent))
   await applyPatch({ liveTempoAdjustPercent: clamped })
 }
+
+/** Like `setLiveTempoAdjustPercent` but relative to the current value read fresh from the store
+ * at call time (TempoNudgeWidget's +/- buttons) - rather than an absolute value the caller
+ * computed from a value it read earlier, which can go stale if a second tap fires before the
+ * store has picked up the first tap's write and silently drop the increment. */
+export async function nudgeLiveTempoAdjustPercent(deltaPercent: number): Promise<void> {
+  const { state } = useShowStateStore.getState()
+  await setLiveTempoAdjustPercent(state.liveTempoAdjustPercent + deltaPercent)
+}

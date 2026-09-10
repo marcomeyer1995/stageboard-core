@@ -3,6 +3,7 @@ import type { Queue } from './computeQueue'
 import {
   advanceToNextSong,
   advanceToPreviousSong,
+  nudgeLiveTempoAdjustPercent,
   pauseSong,
   playSong,
   resetSong,
@@ -39,6 +40,7 @@ export interface ShowModeApi {
    * choice rather than a live-drift correction). */
   liveTempoAdjustPercent: number
   setLiveTempoAdjustPercent: (percent: number) => void
+  nudgeLiveTempoAdjustPercent: (deltaPercent: number) => void
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
@@ -80,6 +82,7 @@ export function useShowMode(): ShowModeApi {
       trackOverride: practiceState.trackOverride,
       liveTempoAdjustPercent: 0,
       setLiveTempoAdjustPercent: () => {},
+      nudgeLiveTempoAdjustPercent: () => {},
       canControl: true,
       play: practicePlaySong,
       pause: practicePauseSong,
@@ -99,6 +102,7 @@ export function useShowMode(): ShowModeApi {
     trackOverride: gigTrackOverride,
     liveTempoAdjustPercent: gigLiveTempoAdjustPercent,
     setLiveTempoAdjustPercent: (percent) => void setLiveTempoAdjustPercent(percent),
+    nudgeLiveTempoAdjustPercent: (deltaPercent) => void nudgeLiveTempoAdjustPercent(deltaPercent),
     canControl: gigQueue.isMaster,
     play: playSong,
     pause: pauseSong,
