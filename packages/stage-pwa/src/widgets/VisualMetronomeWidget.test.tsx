@@ -62,14 +62,14 @@ describe('VisualMetronomeWidget', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: null, playbackStatus: 'stopped' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('Wartet auf Play')).toBeInTheDocument()
-    expect(screen.getByText('120 BPM · 4/4')).toBeInTheDocument()
+    expect(screen.getByText('120.0 BPM · 4/4')).toBeInTheDocument()
   })
 
   it('shows the downbeat count and BPM/time signature while playing', () => {
     mockShowMode({ currentSong: song(120, '3/4'), elapsedMs: 0, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('1')).toBeInTheDocument()
-    expect(screen.getByText('120 BPM · 3/4')).toBeInTheDocument()
+    expect(screen.getByText('120.0 BPM · 3/4')).toBeInTheDocument()
   })
 
   it('advances the displayed beat number as elapsed time crosses beat boundaries', () => {
@@ -98,7 +98,34 @@ describe('VisualMetronomeWidget', () => {
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 0, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
-    expect(screen.getByText('90 BPM · 6/8')).toBeInTheDocument()
+    expect(screen.getByText('90.0 BPM · 6/8')).toBeInTheDocument()
+  })
+
+  it('shows the anchor-corrected effective tempo, not the plain authored bpm (#25 follow-up)', () => {
+    // 120 BPM = 500ms/beat nominal; anchors 0/2100 correct to a 1.05x ratio (525ms/beat) - the
+    // actually-audible tempo is 120*1.05 = 126 BPM, not the authored 120.
+    const variant: SongVariant = {
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      timeSignature: '4/4',
+      clickTrackEnabled: false,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [],
+      beatAnchors: [
+        { id: 'a1', timeMs: 0 },
+        { id: 'a2', timeMs: 2100 },
+      ],
+      countInEnabled: false,
+      countInBars: 1,
+    }
+    mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 1000, playbackStatus: 'playing' })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.getByText('126.0 BPM · 4/4')).toBeInTheDocument()
   })
 
   it('renders a dot per beat of the bar in beat-dots style, one lit', () => {
@@ -118,13 +145,13 @@ describe('VisualMetronomeWidget', () => {
   it('shows the plain song bpm when there is no live tempo adjustment', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing', liveTempoAdjustPercent: 0 })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
-    expect(screen.getByText('120 BPM · 4/4')).toBeInTheDocument()
+    expect(screen.getByText('120.0 BPM · 4/4')).toBeInTheDocument()
   })
 
   it('shows the adjusted bpm and the correction percent when live-nudged', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 0, playbackStatus: 'playing', liveTempoAdjustPercent: 5 })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
-    expect(screen.getByText('126 BPM (+5%) · 4/4')).toBeInTheDocument()
+    expect(screen.getByText('126.0 BPM (+5%) · 4/4')).toBeInTheDocument()
   })
 
   it('advances the beat using the adjusted tempo, not the stored bpm', () => {

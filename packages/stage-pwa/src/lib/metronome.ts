@@ -39,6 +39,12 @@ export interface Beat {
    * is part of a configured count-in (#25 follow-up), not the song's actual first bar. Always
    * false with no anchors, or once elapsedMs reaches the first anchor. */
   isCountIn: boolean
+  /** The tempo actually governing this beat's spacing right now - the `bpm` passed in (already
+   * live-nudged, #140) times whichever segment's `correctionRatio` is active (#25 follow-up).
+   * Equal to the plain `bpm` whenever there's no anchor correction in effect (no anchors, or an
+   * anchor-to-anchor/tail gap that already divides evenly). VisualMetronomeWidget shows this
+   * instead of the song's authored bpm, so what's displayed always matches what's audible. */
+  effectiveBpm: number
 }
 
 export interface BeatAnchorLike {
@@ -227,6 +233,7 @@ export function beatAt(
     isDownbeat: beatInBar === 0,
     msIntoBeat: effectiveMs - beatIndex * msPerBeat,
     isCountIn: first !== null && elapsedMs < first,
+    effectiveBpm: bpm * grid.correctionRatio,
   }
 }
 

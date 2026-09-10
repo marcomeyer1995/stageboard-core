@@ -284,6 +284,19 @@ describe('beatAt with anchors', () => {
     expect(beatAt(0, 120, '4/4', [{ timeMs: 5000 }])).toBeNull()
   })
 
+  it('effectiveBpm equals the plain bpm with no anchors (or a clean gap) - the invariant every existing song relies on', () => {
+    expect(mustBeatAt(0, 120, '4/4').effectiveBpm).toBe(120)
+    const cleanAnchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2000 }] // clean 4*500ms gap, ratio 1
+    expect(mustBeatAt(1000, 120, '4/4', cleanAnchors).effectiveBpm).toBe(120)
+  })
+
+  it('effectiveBpm reflects the corrected ratio, not the authored bpm, inside an uneven anchor gap', () => {
+    // Same 0/2100ms 1.05x-ratio fixture used throughout this file - the real tempo is 126, not
+    // the authored 120.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
+    expect(mustBeatAt(1000, 120, '4/4', anchors).effectiveBpm).toBeCloseTo(126)
+  })
+
   it('is exactly the downbeat at the anchor itself', () => {
     const beat = mustBeatAt(5000, 120, '4/4', [{ timeMs: 5000 }])
     expect(beat.beatInBar).toBe(0)
