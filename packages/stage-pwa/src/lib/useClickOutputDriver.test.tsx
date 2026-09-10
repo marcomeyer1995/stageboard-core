@@ -224,4 +224,29 @@ describe('page visibility (found live, 2026-09-10: a backgrounded tab still gets
     setPageHidden(false)
     expect(startClick).toHaveBeenCalledTimes(1)
   })
+
+  it('also stops on a plain window blur and restarts on focus - visibilitychange alone is not reliable enough on iOS Safari standalone/PWA mode (found live, 2026-09-10: still ticking after the visibilitychange-only version of this fix)', () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
+    ])
+    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<DriverHost />)
+    expect(startClick).toHaveBeenCalledTimes(1)
+
+    hasFocus.mockReturnValue(false)
+    act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    expect(stopClick).toHaveBeenCalled()
+
+    vi.mocked(startClick).mockClear()
+    hasFocus.mockReturnValue(true)
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(startClick).toHaveBeenCalledTimes(1)
+
+    hasFocus.mockRestore()
+  })
 })
