@@ -26,6 +26,7 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
     isDefault: true,
     bpm: 120,
     timeSignature: '4/4',
+    clickTrackEnabled: false,
     chordProContent: '',
     timecodes: [],
     tracks: [],

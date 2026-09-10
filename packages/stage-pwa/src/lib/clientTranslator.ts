@@ -102,12 +102,16 @@ export function getTranslator(capability: CapabilityId): Translator | null {
 
 /**
  * Whether a tablet can meaningfully be the execution target for `capability` at all - either a
- * real client-runtime plugin backs it (`hasClientTranslator`), or - `audio-playback` only - the
- * browser's own native `<audio>` element does the job with no plugin involved at all
- * (localAudioEngine.ts, ShowTransportWidget.tsx). Used to gate both HardwareSetup routing and
- * HardwareSetupManager's admin UI, so "route to a tablet" is never offered/honored for a
- * capability nothing can actually execute there.
+ * real client-runtime plugin backs it (`hasClientTranslator`), or - `audio-playback`/
+ * `click-track` only - a browser-native API does the job with no plugin involved at all
+ * (localAudioEngine.ts's `<audio>` element; clickEngine.ts's Web Audio scheduler, #25). Used to
+ * gate both HardwareSetup routing and HardwareSetupManager's admin UI, so "route to a tablet" is
+ * never offered/honored for a capability nothing can actually execute there.
  */
 export function supportsLocalExecution(installed: PluginInstallation[], capability: CapabilityId): boolean {
-  return capability === CAPABILITIES.audioPlayback || hasClientTranslator(installed, capability)
+  return (
+    capability === CAPABILITIES.audioPlayback ||
+    capability === CAPABILITIES.clickTrack ||
+    hasClientTranslator(installed, capability)
+  )
 }

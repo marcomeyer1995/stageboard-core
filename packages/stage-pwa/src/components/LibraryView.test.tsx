@@ -26,7 +26,7 @@ const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { LibraryView } = await import('./LibraryView')
 
 function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, timeSignature: '4/4', chordProContent: '', timecodes: [] }
+  return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
 function setlist(id: string, name: string, createdAt: number): Setlist {

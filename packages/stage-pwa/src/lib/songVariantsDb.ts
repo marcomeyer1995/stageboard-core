@@ -30,7 +30,14 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
   // toVariant, which already normalizes this for its own reactive `variants` array), so the
   // same fallback is needed here too. Found live: crashed CueListEditor on any song predating
   // the `cues` field.
-  if (existing) return { ...existing, timeSignature: existing.timeSignature ?? '4/4', cues: existing.cues ?? [] }
+  if (existing) {
+    return {
+      ...existing,
+      timeSignature: existing.timeSignature ?? '4/4',
+      clickTrackEnabled: existing.clickTrackEnabled ?? false,
+      cues: existing.cues ?? [],
+    }
+  }
 
   const variant: SongVariant = {
     id: randomId(),
@@ -39,6 +46,7 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
     isDefault: true,
     bpm: song.bpm,
     timeSignature: song.timeSignature ?? '4/4',
+    clickTrackEnabled: song.clickTrackEnabled ?? false,
     chordProContent: song.chordProContent,
     timecodes: song.timecodes,
     tracks: [],

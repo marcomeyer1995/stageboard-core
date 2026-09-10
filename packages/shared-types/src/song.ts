@@ -15,6 +15,12 @@ export const SongSchema = z.object({
    * validate unchanged. Arrangement-specific like bpm/key/tuning, not artist - lives here too
    * only as the same read-compatibility mirror of the default variant (see songVariant.ts). */
   timeSignature: z.string().default('4/4'),
+  /** Whether this song wants the Click Generator (#25) running by default when played - a
+   * band's authored preference (e.g. a song with no backing track almost always wants one),
+   * not a live decision. A show can still force it on/off for one performance regardless via
+   * ShowState.clickTrackOverride, without touching this stored default. Same
+   * read-compatibility-mirror placement as timeSignature above. */
+  clickTrackEnabled: z.boolean().default(false),
   chordProContent: z.string(),
   timecodes: z.array(TimecodeMarkerSchema).default([]),
   /** The band/artist who performed it - unlike bpm/key/tuning/capo, this doesn't change

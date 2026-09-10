@@ -4,10 +4,8 @@ import { SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
  * Where a capability's triggers actually go, given a Logical Device's own live binding
  * (`pluginId`/`executionTarget`, `logicalDevice.ts`) - replaces the earlier per-capability
  * `deviceClaims` map, and later the per-Setup `HardwareBinding` indirection, with the same
- * widget-facing shape. Deliberately mode-agnostic: Practice mode's "always play locally
- * regardless of any binding" is audio-specific (Practice has no lighting/mixer equivalent at
- * all), so callers that care about Practice mode override the result themselves rather than this
- * function taking a mode param.
+ * widget-facing shape. See `resolveExecutionEngine` below for the mode-aware entry point every
+ * widget should actually call.
  */
 export type HardwareRoutingEngine = 'plugin' | 'local-mine' | 'local-other' | 'none'
 
@@ -54,4 +52,29 @@ export function resolveHardwareEngine(
   if (!executionTarget || executionTarget === SERVER_EXECUTION_TARGET) return pluginId ? 'plugin' : 'none'
   if (!supportsLocalExecution) return 'none'
   return executionTarget === deviceId ? 'local-mine' : 'local-other'
+}
+
+/**
+ * The mode-aware entry point every capability-routed widget should actually call.
+ * `resolveHardwareEngine` above answers "where does Gig mode's Hardware Setup route this" - but
+ * #10's whole LogicalDevice/HardwareSetup model is inherently a Gig-mode concept (multiple
+ * tablets sharing one band-wide routing decision). Practice mode has exactly one tablet in play
+ * and no Hardware Setup of its own at all, so if anything can execute a capability locally, it
+ * should, with no configuration required to practice solo with your own gear plugged into your
+ * own tablet - the same reasoning ShowTransportWidget already applied to audio-playback alone,
+ * generalized here to every capability after #25's Click Generator hit the identical gap
+ * (Marco, 2026-09-09). A capability with no local execution path at all
+ * (`supportsLocalExecution` false - e.g. `backup`, a pure Stage-Server concept) simply has
+ * nothing to route to in Practice mode either, same as any other unreachable capability (docs/07
+ * Graceful Degradation) - there is no third option to fall back to.
+ */
+export function resolveExecutionEngine(
+  mode: 'gig' | 'practice',
+  logicalDevice: LogicalDevice | null,
+  deviceId: string,
+  pluginId: string | null,
+  supportsLocalExecution: boolean,
+): HardwareRoutingEngine {
+  if (mode === 'practice') return supportsLocalExecution ? 'local-mine' : 'none'
+  return resolveHardwareEngine(logicalDevice, deviceId, pluginId, supportsLocalExecution)
 }

@@ -80,6 +80,7 @@ async function activateEntry(entryId: string): Promise<void> {
     activeEntryStartedAt: now,
     trackOverride: null,
     liveTempoAdjustPercent: 0,
+    clickTrackOverride: null,
     ...transportPatch(ARMED_TRANSPORT),
     ...showBookkeepingPatch(state, now),
   })
@@ -171,4 +172,14 @@ export async function setLiveTempoAdjustPercent(percent: number): Promise<void> 
 export async function nudgeLiveTempoAdjustPercent(deltaPercent: number): Promise<void> {
   const { state } = useShowStateStore.getState()
   await setLiveTempoAdjustPercent(state.liveTempoAdjustPercent + deltaPercent)
+}
+
+/** Forces the Click Generator on/off for tonight's performance of the current song, regardless
+ * of its own authored `clickTrackEnabled` default - `null` reverts to that default. Master-gated
+ * and shared like `trackOverride`/`liveTempoAdjustPercent` above; cleared automatically on song
+ * change (activateEntry), so a force-off for one difficult song never silently carries over. */
+export async function setClickTrackOverride(override: 'on' | 'off' | null): Promise<void> {
+  const { isMaster, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  await applyPatch({ clickTrackOverride: override })
 }

@@ -20,6 +20,9 @@ export const CAPABILITIES = {
   midiInput: 'midi-input',
   /** Backing track playback. */
   audioPlayback: 'audio-playback',
+  /** Synthesized click/metronome sound (#25), routable to a tablet's own speaker/IEM or, once
+   * a hardware plugin provides it, external gear. */
+  clickTrack: 'click-track',
   /** Automated backups (docs/02 backup strategies). */
   backup: 'backup',
 } as const satisfies Record<string, CapabilityId>

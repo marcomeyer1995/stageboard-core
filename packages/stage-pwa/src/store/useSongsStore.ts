@@ -18,6 +18,7 @@ function toSong(doc: SongDoc): Song {
     // A song written before `timeSignature` existed (#25) simply lacks the key - see
     // useSongVariantsStore.ts's `toVariant` for the same read-time-fallback reasoning.
     timeSignature: doc.timeSignature ?? '4/4',
+    clickTrackEnabled: doc.clickTrackEnabled ?? false,
     chordProContent: doc.chordProContent,
     timecodes: doc.timecodes,
   }

@@ -7,6 +7,7 @@ import {
   pauseSong,
   playSong,
   resetSong,
+  setClickTrackOverride,
   setLiveTempoAdjustPercent,
   setTrackOverride,
   stopSong,
@@ -18,6 +19,7 @@ import {
   practicePauseSong,
   practicePlaySong,
   practiceResetSong,
+  practiceSetClickTrackOverride,
   practiceSetTrackOverride,
   practiceStopSong,
   usePracticeQueue,
@@ -41,6 +43,13 @@ export interface ShowModeApi {
   liveTempoAdjustPercent: number
   setLiveTempoAdjustPercent: (percent: number) => void
   nudgeLiveTempoAdjustPercent: (deltaPercent: number) => void
+  /** Force-on/force-off of the Click Generator for the current song, overriding its own
+   * authored `clickTrackEnabled` default (#25) - `null` means "use that default". Gig mode's
+   * is a Master-gated, shared ShowState field (one band-wide click); Practice mode's is a
+   * local, ungated per-device choice (usePracticeStateStore) - training with a fixed rhythm is
+   * exactly what solo practice is for, so unlike liveTempoAdjustPercent this isn't Gig-only. */
+  clickTrackOverride: 'on' | 'off' | null
+  setClickTrackOverride: (override: 'on' | 'off' | null) => void
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
@@ -71,6 +80,7 @@ export function useShowMode(): ShowModeApi {
   const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
   const gigLiveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
+  const gigClickTrackOverride = useShowStateStore((state) => state.state.clickTrackOverride)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
 
   if (mode === 'practice') {
@@ -83,6 +93,8 @@ export function useShowMode(): ShowModeApi {
       liveTempoAdjustPercent: 0,
       setLiveTempoAdjustPercent: () => {},
       nudgeLiveTempoAdjustPercent: () => {},
+      clickTrackOverride: practiceState.clickTrackOverride,
+      setClickTrackOverride: practiceSetClickTrackOverride,
       canControl: true,
       play: practicePlaySong,
       pause: practicePauseSong,
@@ -103,6 +115,8 @@ export function useShowMode(): ShowModeApi {
     liveTempoAdjustPercent: gigLiveTempoAdjustPercent,
     setLiveTempoAdjustPercent: (percent) => void setLiveTempoAdjustPercent(percent),
     nudgeLiveTempoAdjustPercent: (deltaPercent) => void nudgeLiveTempoAdjustPercent(deltaPercent),
+    clickTrackOverride: gigClickTrackOverride,
+    setClickTrackOverride: (override) => void setClickTrackOverride(override),
     canControl: gigQueue.isMaster,
     play: playSong,
     pause: pauseSong,

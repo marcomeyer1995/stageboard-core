@@ -28,6 +28,7 @@ interface EditorDraft {
   isDefaultVariant: boolean
   bpm: number
   timeSignature: string
+  clickTrackEnabled: boolean
   chordProContent: string
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
@@ -45,6 +46,7 @@ function emptyDraft(): EditorDraft {
     isDefaultVariant: true,
     bpm: 120,
     timeSignature: '4/4',
+    clickTrackEnabled: false,
     chordProContent: '',
     timecodes: [],
     cues: [],
@@ -61,6 +63,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     isDefaultVariant: variant.isDefault,
     bpm: variant.bpm,
     timeSignature: variant.timeSignature,
+    clickTrackEnabled: variant.clickTrackEnabled,
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
     cues: variant.cues,
@@ -177,6 +180,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       isDefaultVariant: variant.isDefault,
       bpm: variant.bpm,
       timeSignature: variant.timeSignature,
+      clickTrackEnabled: variant.clickTrackEnabled,
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
       cues: variant.cues,
@@ -207,6 +211,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       isDefault: draft.isDefaultVariant,
       bpm: draft.bpm,
       timeSignature: draft.timeSignature,
+      clickTrackEnabled: draft.clickTrackEnabled,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       cues: draft.cues,
@@ -231,6 +236,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       artist: draft.artist,
       bpm: defaultVariant?.bpm ?? draft.bpm,
       timeSignature: defaultVariant?.timeSignature ?? draft.timeSignature,
+      clickTrackEnabled: defaultVariant?.clickTrackEnabled ?? draft.clickTrackEnabled,
       chordProContent: defaultVariant?.chordProContent ?? draft.chordProContent,
       timecodes: defaultVariant?.timecodes ?? draft.timecodes,
     }
@@ -456,6 +462,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         </div>
+        <label className="flex items-center gap-2 text-sm text-ink-soft">
+          <input
+            type="checkbox"
+            checked={draft.clickTrackEnabled}
+            onChange={(e) => setDraft({ ...draft, clickTrackEnabled: e.target.checked })}
+            className="h-5 w-5"
+          />
+          Klick standardmäßig an (per Show überstimmbar)
+        </label>
         <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
         <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
         {isTapping ? (

@@ -13,6 +13,11 @@ export interface PracticeState {
    * personal choice here (only this device's speakers are ever affected), unlike
    * ShowState.trackOverride's Master-gated, shared equivalent for Gig mode. */
   trackOverride: string | null
+  /** Force-on/off for the Click Generator (#25) during this practice session, overriding the
+   * song's own `clickTrackEnabled` default - purely a personal choice here, unlike
+   * ShowState.clickTrackOverride's Master-gated, shared equivalent for Gig mode. Training with
+   * a fixed rhythm is exactly what solo practice is for, so this needs no gating at all. */
+  clickTrackOverride: 'on' | 'off' | null
   playbackStatus: PlaybackStatus
   playbackStartedAt: number | null
   playbackAccumulatedMs: number
@@ -22,6 +27,7 @@ export const DEFAULT_PRACTICE_STATE: PracticeState = {
   activeSetlistId: null,
   activeEntryId: null,
   trackOverride: null,
+  clickTrackOverride: null,
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
@@ -46,6 +52,26 @@ export const usePracticeStateStore = create<PracticeStateStore>()(
           },
         })),
     }),
-    { name: 'stageboard-practice-state' },
+    {
+      name: 'stageboard-practice-state',
+      version: 1,
+      // v0 -> v1 (#25): clickTrackOverride is new. Every read site trusts a byWorkspace entry to
+      // be a complete PracticeState (falling back to DEFAULT_PRACTICE_STATE only when the whole
+      // entry is missing, not per-field) - without this, a device with pre-#25 persisted practice
+      // state would rehydrate `clickTrackOverride: undefined`, which effectiveClickEnabled
+      // (metronome.ts) treats as a forced-off override rather than "no override".
+      migrate: (persisted) => {
+        const state = persisted as PracticeStateStore
+        return {
+          ...state,
+          byWorkspace: Object.fromEntries(
+            Object.entries(state.byWorkspace ?? {}).map(([workspaceId, practiceState]) => [
+              workspaceId,
+              { ...DEFAULT_PRACTICE_STATE, ...practiceState },
+            ]),
+          ),
+        }
+      },
+    },
   ),
 )

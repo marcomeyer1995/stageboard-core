@@ -19,6 +19,7 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     // returns exactly what was stored, unvalidated, so this read-time fallback matters even
     // though the type says it's always present (same spirit as `cues` below).
     timeSignature: doc.timeSignature ?? '4/4',
+    clickTrackEnabled: doc.clickTrackEnabled ?? false,
     chordProContent: doc.chordProContent,
     timecodes: doc.timecodes,
     tracks: doc.tracks,

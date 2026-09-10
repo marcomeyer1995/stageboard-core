@@ -20,6 +20,14 @@ export function adjustedBpm(bpm: number, adjustPercent: number): number {
   return bpm * (1 + adjustPercent / 100)
 }
 
+/** Resolves the current song/variant's authored `clickTrackEnabled` default against a live
+ * ShowState.clickTrackOverride (#25) - `null` means "use the song's own setting", `'on'`/`'off'`
+ * forces it regardless for tonight. */
+export function effectiveClickEnabled(songDefault: boolean, override: 'on' | 'off' | null): boolean {
+  if (override === null) return songDefault
+  return override === 'on'
+}
+
 export interface Beat {
   /** 0-indexed position within the bar - 0 is always the downbeat. */
   beatInBar: number
@@ -44,4 +52,43 @@ export function beatAt(elapsedMs: number, bpm: number, timeSignature: string): B
     isDownbeat: beatInBar === 0,
     msIntoBeat: elapsedMs - beatIndex * msPerBeat,
   }
+}
+
+export interface ScheduledBeat {
+  /** Absolute index since song-elapsed 0, not beat-in-bar - the Click Generator's look-ahead
+   * loop uses this (not the value itself) to dedupe against beats an earlier tick already
+   * scheduled, since two overlapping lookahead windows will otherwise both list it. */
+  beatIndex: number
+  isDownbeat: boolean
+  /** ms from `elapsedMs` (the "now" passed in) this beat should sound - never negative, and
+   * never 0 for the beat sounding at this exact instant (that one already happened; "upcoming"
+   * means strictly after `elapsedMs`). The caller adds this to its own present-moment
+   * AudioContext.currentTime, not to elapsedMs itself - see clickEngine.ts. */
+  msFromNow: number
+}
+
+/**
+ * Every beat that falls strictly after `elapsedMs` and within the next `lookaheadMs` - the
+ * selection logic for a standard look-ahead Web Audio scheduler (clickEngine.ts), kept pure and
+ * separate from any AudioContext/timer so it's unit-testable with plain arithmetic. Deliberately
+ * takes "now" (elapsedMs) and a duration rather than an absolute song-start timestamp: `elapsedMs`
+ * already accounts for pause/resume (usePlaybackElapsedMs.ts), so beats "in the future" are only
+ * ever predicted a short, safe distance ahead - a pause landing inside that window simply means
+ * the engine stops calling this again until playback resumes, not that a stale absolute
+ * prediction plays late.
+ */
+export function upcomingBeats(elapsedMs: number, lookaheadMs: number, bpm: number, timeSignature: string): ScheduledBeat[] {
+  const msPerBeat = 60000 / bpm
+  const beats = beatsPerBar(timeSignature)
+  const firstIndex = Math.floor(elapsedMs / msPerBeat) + 1
+  const lastIndex = Math.floor((elapsedMs + lookaheadMs) / msPerBeat)
+  const result: ScheduledBeat[] = []
+  for (let beatIndex = firstIndex; beatIndex <= lastIndex; beatIndex++) {
+    result.push({
+      beatIndex,
+      isDownbeat: beatIndex % beats === 0,
+      msFromNow: beatIndex * msPerBeat - elapsedMs,
+    })
+  }
+  return result
 }

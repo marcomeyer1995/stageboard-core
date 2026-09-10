@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
+import { ClickTrackWidget } from './ClickTrackWidget'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
 import { IemWidget } from './IemWidget'
@@ -166,6 +167,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     Component: TempoNudgeWidget,
+  }),
+  defineWidget({
+    type: 'click-track',
+    title: 'Klick',
+    description: 'Synthetisierter Klick/Metronom-Ton, an/aus - läuft auf dem als Klick-Ausgabe eingerichteten Gerät.',
+    category: 'performance',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: ClickTrackWidget,
   }),
   defineWidget({
     type: 'track-override',
