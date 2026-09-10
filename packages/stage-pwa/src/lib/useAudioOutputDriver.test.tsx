@@ -4,7 +4,7 @@ import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
 import { useAudioOutputDriver } from './useAudioOutputDriver'
 import { useShowMode } from './showMode'
-import { loadLocalTrack, playLocalTrack, stopLocalTrack, unloadLocalTrack } from './localAudioEngine'
+import { loadLocalTrack, playLocalTrack, stopLocalTrack, syncLocalTrackPosition, unloadLocalTrack } from './localAudioEngine'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -24,6 +24,7 @@ vi.mock('./localAudioEngine', () => ({
   playLocalTrack: vi.fn(),
   pauseLocalTrack: vi.fn(),
   stopLocalTrack: vi.fn(),
+  syncLocalTrackPosition: vi.fn(),
   unloadLocalTrack: vi.fn(),
 }))
 
@@ -64,6 +65,7 @@ function mockShowMode(overrides: {
   currentVariant: SongVariant | null
   canControl?: boolean
   playbackStatus?: 'stopped' | 'playing' | 'paused'
+  elapsedMs?: number | null
 }) {
   vi.mocked(useShowMode).mockReturnValue({
     mode: 'gig',
@@ -81,7 +83,7 @@ function mockShowMode(overrides: {
       currentVariant: overrides.currentVariant,
       nextVariant: null,
     },
-    elapsedMs: 0,
+    elapsedMs: overrides.elapsedMs ?? 0,
     playbackStatus: overrides.playbackStatus ?? 'stopped',
     trackOverride: null,
     liveTempoAdjustPercent: 0,
@@ -108,6 +110,12 @@ function DriverHost() {
   return null
 }
 
+function mockLogicalDevices(devices: unknown[]) {
+  vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
+    selector({ devices, loaded: true, init: vi.fn(), save: vi.fn(), remove: vi.fn() } as never),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
@@ -122,23 +130,15 @@ beforeEach(() => {
   )
   // The claimed audio-output device, expressed directly on its own Logical Device: one Logical
   // Device providing `audio-playback`, bound to DEVICE_ID.
-  vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
-    selector({
-      devices: [
-        {
-          id: AUDIO_LOGICAL_DEVICE_ID,
-          name: 'Audio-Ausgabe',
-          capability: CAPABILITIES.audioPlayback,
-          pluginId: null,
-          executionTarget: DEVICE_ID,
-        },
-      ],
-      loaded: true,
-      init: vi.fn(),
-      save: vi.fn(),
-      remove: vi.fn(),
-    } as never),
-  )
+  mockLogicalDevices([
+    {
+      id: AUDIO_LOGICAL_DEVICE_ID,
+      name: 'Audio-Ausgabe',
+      capability: CAPABILITIES.audioPlayback,
+      pluginId: null,
+      executionTarget: DEVICE_ID,
+    },
+  ])
   vi.mocked(usePluginsStore).mockImplementation((selector) => selector({ installed: [] } as never))
   vi.mocked(loadLocalTrack).mockResolvedValue({ status: 'ok' })
 })
@@ -166,7 +166,7 @@ describe('useAudioOutputDriver - claimed audio-output device, not the master', (
 
     render(<DriverHost />)
 
-    expect(loadLocalTrack).toHaveBeenCalledWith('v2', 't1')
+    expect(loadLocalTrack).toHaveBeenCalledWith('v2', 't1', 0)
   })
 
   it('does not reload (and so does not reset/stop) an already-loaded track when someone else merely takes over Master - the song itself hasn\'t changed', () => {
@@ -189,6 +189,55 @@ describe('useAudioOutputDriver - claimed audio-output device, not the master', (
     rerender(<DriverHost />)
 
     expect(loadLocalTrack).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('continuous drift correction (#13 found live, 2026-09-10: the backing track had no ongoing synchronization with the synced master clock at all once started)', () => {
+  it('re-syncs to the current elapsedMs on every tick while playing and the claimed output', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 1000,
+    })
+    const { rerender } = render(<DriverHost />)
+    expect(syncLocalTrackPosition).toHaveBeenLastCalledWith(1000)
+
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 1050, // the next animation-frame tick
+    })
+    rerender(<DriverHost />)
+    expect(syncLocalTrackPosition).toHaveBeenLastCalledWith(1050)
+  })
+
+  it('never syncs while paused/stopped - only actual playback should be re-anchored', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'paused',
+      elapsedMs: 1000,
+    })
+    render(<DriverHost />)
+    expect(syncLocalTrackPosition).not.toHaveBeenCalled()
+  })
+
+  it('never syncs when this device is not the claimed output', () => {
+    mockLogicalDevices([]) // no device claims audio-playback at all
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 1000,
+    })
+    render(<DriverHost />)
+    expect(syncLocalTrackPosition).not.toHaveBeenCalled()
   })
 })
 

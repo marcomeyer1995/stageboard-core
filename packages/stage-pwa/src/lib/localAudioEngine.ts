@@ -26,10 +26,13 @@ function getAudioEl(): HTMLAudioElement {
   return audioEl
 }
 
-/** Loads a track's audio attachment and cues it up at position 0. Revokes the previous
- * object URL first - PouchDB attachments are fetched as Blobs, and object URLs otherwise leak
- * for the lifetime of the page. */
-export async function loadLocalTrack(variantId: string, trackId: string): Promise<LocalAudioResult> {
+/** Loads a track's audio attachment and cues it up at `atMs` (0 for a fresh/unplayed entry -
+ * callers pass the current synced position so a device that becomes the claimed output
+ * *mid-song*, e.g. a hardware rebind or a late join, starts from the right place instead of
+ * the beginning - found live, 2026-09-10). Revokes the previous object URL first - PouchDB
+ * attachments are fetched as Blobs, and object URLs otherwise leak for the lifetime of the
+ * page. */
+export async function loadLocalTrack(variantId: string, trackId: string, atMs: number): Promise<LocalAudioResult> {
   const blob = await getTrack(variantId, trackId)
   if (!blob) return { status: 'error', message: 'Kein Track gefunden' }
 
@@ -38,19 +41,46 @@ export async function loadLocalTrack(variantId: string, trackId: string): Promis
 
   const audio = getAudioEl()
   audio.src = currentObjectUrl
-  audio.currentTime = 0
+  audio.currentTime = atMs / 1000
   return { status: 'ok' }
 }
 
-export function playLocalTrack(): void {
+/** Seeks to `atMs` before starting - without this, resuming played from wherever the element
+ * happened to be cued (stale from a previous song, or the load-time position even if paused
+ * partway through), not the actual synced position (found live, 2026-09-10 alongside the
+ * missing sync fix below). */
+export function playLocalTrack(atMs: number): void {
+  const audio = getAudioEl()
+  audio.currentTime = atMs / 1000
   // play() returns a promise that rejects with AbortError if pause() interrupts it before it
   // resolves (e.g. a quick double-tap) - expected, not a bug (same as BackingTrackPlayerWidget
   // and TapToSync's identical pattern).
-  void getAudioEl().play().catch(() => {})
+  void audio.play().catch(() => {})
 }
 
 export function pauseLocalTrack(): void {
   getAudioEl().pause()
+}
+
+/** How far `audio.currentTime` may drift from the synced position before we forcibly correct
+ * it - large enough that normal, inaudible native-`<audio>` clock jitter never triggers a seek
+ * (a seek itself is a small audible glitch), small enough that the backing track can't
+ * noticeably drift out of alignment with the click track or another tablet's copy of the same
+ * file over a long song. */
+const DRIFT_CORRECTION_THRESHOLD_MS = 200
+
+/** Re-locks `audio.currentTime` to the synced master clock if (and only if) it has drifted past
+ * the threshold - the backing-track equivalent of clickEngine.ts's scheduler continuously
+ * re-anchoring to `elapsedMs` every tick. Meant to be called periodically (useAudioOutputDriver.ts)
+ * while this device is the claimed local output and actively playing - a native `<audio>`
+ * element isn't guaranteed sample-accurate or perfectly clock-locked, and nothing else ever
+ * re-checks it once playback starts (found live, 2026-09-10: the backing track and the click
+ * had no ongoing synchronization with each other, or with another tablet's own copy, at all). */
+export function syncLocalTrackPosition(atMs: number): void {
+  const audio = getAudioEl()
+  if (audio.paused) return
+  const driftMs = audio.currentTime * 1000 - atMs
+  if (Math.abs(driftMs) > DRIFT_CORRECTION_THRESHOLD_MS) audio.currentTime = atMs / 1000
 }
 
 export function stopLocalTrack(): void {
@@ -75,4 +105,11 @@ export function unloadLocalTrack(): void {
     URL.revokeObjectURL(currentObjectUrl)
     currentObjectUrl = null
   }
+}
+
+/** Test-only escape hatch - this module deliberately never exposes its module-level `<audio>`
+ * singleton otherwise (every real caller goes through the functions above instead), but a test
+ * asserting on `currentTime`/`paused` needs some way to read it back. */
+export function __getAudioElForTests(): HTMLAudioElement {
+  return getAudioEl()
 }
