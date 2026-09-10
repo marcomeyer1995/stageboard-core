@@ -551,7 +551,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(profileId)}/set-pin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callerUsername: workspace.username, callerPassword: workspace.couchPassword, newPin }),
+            body: JSON.stringify({
+              callerUsername: workspace.username,
+              callerPassword: workspace.couchPassword,
+              newPin,
+              deviceId: getDeviceId(),
+            }),
           })
         } catch (err) {
           console.error('Failed to reach Stage-Server to set PIN', err)
