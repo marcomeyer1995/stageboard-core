@@ -116,6 +116,15 @@ describe('resolveBeatOrigin', () => {
     expect(resolveBeatOrigin(anchors, 25000)).toBe(20000)
     expect(resolveBeatOrigin(anchors, 6000)).toBe(5000)
   })
+
+  it('collapses a near-duplicate anchor (e.g. a key-repeat double-tap) into the earlier one, instead of treating it as a real, near-instantaneous segment', () => {
+    // Found live, 2026-09-10: a key-repeat bug in TapBeatAnchors.tsx let a held Space key
+    // insert anchors as little as 28ms apart. Without collapsing, the later one would briefly
+    // become its own valid origin for a near-zero-length sliver of elapsedMs.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 5000 }, { timeMs: 5028 }]
+    expect(resolveBeatOrigin(anchors, 5028)).toBe(5000)
+    expect(resolveBeatOrigin(anchors, 6000)).toBe(5000)
+  })
 })
 
 describe('resolveBeatGrid', () => {
@@ -142,6 +151,18 @@ describe('resolveBeatGrid', () => {
     // beat is stretched to 525ms (2100/4) instead - a 1.05x ratio, not a jump/duplicate at 2100.
     const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
     expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, correctionRatio: 1.05 })
+  })
+
+  it('ignores a near-duplicate anchor rather than trying to divide the near-zero gap it would otherwise create', () => {
+    // Same 28ms key-repeat scenario as the resolveBeatOrigin test above - the duplicate at 5028
+    // must not become "the next anchor" governing a 28ms-long segment.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 5000 }, { timeMs: 5028 }]
+    const grid = resolveBeatGrid(anchors, 2000, 120)
+    expect(grid?.originMs).toBe(0)
+    // 5028 is treated as part of the 5000 anchor, so there's no anchor beyond 5000 in this
+    // list - correctionRatio falls back to 1 (open-ended), not some wild value derived from a
+    // 28ms gap.
+    expect(grid?.correctionRatio).toBe(1)
   })
 
   it('only ever looks at the segment elapsedMs currently sits in, not the whole anchor list', () => {

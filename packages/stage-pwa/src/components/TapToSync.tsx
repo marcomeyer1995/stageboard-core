@@ -48,6 +48,10 @@ export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSync
     function handleKeydown(e: KeyboardEvent) {
       if (e.code === 'Space') {
         e.preventDefault()
+        // Holding the key briefly fires repeated keydown events (e.repeat) at the OS's
+        // key-repeat rate - without this guard each repeat rapid-fires through several lines
+        // at once, tens of ms apart (see the identical fix in TapBeatAnchors.tsx).
+        if (e.repeat) return
         tap()
       }
     }
