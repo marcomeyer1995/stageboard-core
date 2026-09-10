@@ -226,21 +226,30 @@ export function RosterSetupView() {
             otherwise permanent once landed here - this is the only way back for the device
             that just founded the band (found live via user feedback, 2026-08-30). Deleting
             drops activeWorkspaceId to '', which correctly falls through to JoinBandView so
-            "Neue Band gründen" can be tried again. Only offered during this phase - nothing
-            real to lose yet (see this file's doc comment for why that matters). */}
-        <button
-          type="button"
-          onClick={async () => {
-            const confirmed = await confirm(`"${workspaceName}" verwerfen und neu anfangen (z.B. bei einem Tippfehler)?`, {
-              confirmLabel: 'Verwerfen',
-              danger: true,
-            })
-            if (confirmed) void deleteWorkspace(workspaceId)
-          }}
-          className="w-full text-center text-xs text-ink-faint underline"
-        >
-          Bandnamen falsch eingegeben? Neu anfangen
-        </button>
+            "Neue Band gründen" can be tried again. Only offered while `profiles.length === 0` -
+            nothing real to lose yet (see this file's doc comment for why that matters).
+            Found live, 2026-09-10: this guard was only ever *described* in App.tsx's comment,
+            never actually written here - `handleFounderSubmit` creates the founder's own
+            profile (`profiles.length` becomes 1, via the live PouchDB changes feed - not
+            synchronous with this component's own state) and only then awaits `setOwnPin`'s own
+            network round-trip before finally calling `setPhase('members')`; a re-render fired
+            by that changes feed during the round-trip left this phase-'founder' render (and
+            this button) reachable for a real, non-instant window with a populated roster. */}
+        {profiles.length === 0 && (
+          <button
+            type="button"
+            onClick={async () => {
+              const confirmed = await confirm(`"${workspaceName}" verwerfen und neu anfangen (z.B. bei einem Tippfehler)?`, {
+                confirmLabel: 'Verwerfen',
+                danger: true,
+              })
+              if (confirmed) void deleteWorkspace(workspaceId)
+            }}
+            className="w-full text-center text-xs text-ink-faint underline"
+          >
+            Bandnamen falsch eingegeben? Neu anfangen
+          </button>
+        )}
       </div>
     </div>
   )

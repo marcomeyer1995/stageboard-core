@@ -162,6 +162,13 @@ describe('RosterSetupView', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(deleteWorkspace).not.toHaveBeenCalled()
     })
+
+    it('found live, 2026-09-10: hides "Neu anfangen" once profiles.length > 0, even while still on the founder screen - this is the actual guard App.tsx\'s own comment already claimed existed (it didn\'t): handleFounderSubmit creates the founder\'s profile before awaiting setOwnPin\'s own network round-trip, and a re-render fired by the live profiles changes feed during that round-trip previously left this screen (and this button) reachable with a populated roster - exactly the class of bug that destroyed the real S.O.A.T. workspace once already', () => {
+      seedStores({ profiles: [{ id: 'founder-id', name: 'Marco' }] })
+      render(<RosterSetupView />)
+
+      expect(screen.queryByText('Bandnamen falsch eingegeben? Neu anfangen')).not.toBeInTheDocument()
+    })
   })
 
   describe('phase 2: members (name only)', () => {
