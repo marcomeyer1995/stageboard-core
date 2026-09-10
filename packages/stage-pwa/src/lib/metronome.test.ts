@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adjustedBpm, beatAt, beatsPerBar, type BeatAnchorLike, effectiveClickEnabled, resolveBeatOrigin, upcomingBeats } from './metronome'
+import { adjustedBpm, beatAt, beatsPerBar, type BeatAnchorLike, effectiveClickEnabled, resolveBeatGrid, resolveBeatOrigin, upcomingBeats } from './metronome'
 
 /** None of the pre-#25-follow-up tests below ever expect a count-in (null) state - they all
  * call `beatAt` with no anchors, which `resolveBeatOrigin` always resolves to origin 0, never
@@ -118,6 +118,44 @@ describe('resolveBeatOrigin', () => {
   })
 })
 
+describe('resolveBeatGrid', () => {
+  it('is origin 0 with correctionRatio 1 with no anchors - reproduces the old grid exactly', () => {
+    expect(resolveBeatGrid([], 12345, 120)).toEqual({ originMs: 0, correctionRatio: 1 })
+  })
+
+  it('is null before the first anchor', () => {
+    expect(resolveBeatGrid([{ timeMs: 5000 }], 0, 120)).toBeNull()
+  })
+
+  it('is correctionRatio 1 with no next anchor to lock onto (the open-ended final segment)', () => {
+    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, correctionRatio: 1 })
+  })
+
+  it('is correctionRatio 1 when the gap already divides evenly into whole beats', () => {
+    // 120 BPM = 500ms/beat; a 2000ms gap is exactly 4 beats, nothing to correct.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2000 }]
+    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, correctionRatio: 1 })
+  })
+
+  it('derives a correctionRatio that divides an uneven gap evenly across the nearest whole number of beats', () => {
+    // 120 BPM = 500ms/beat nominal; a 2100ms gap rounds to 4 beats (2100/500 = 4.2), so each
+    // beat is stretched to 525ms (2100/4) instead - a 1.05x ratio, not a jump/duplicate at 2100.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
+    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, correctionRatio: 1.05 })
+  })
+
+  it('only ever looks at the segment elapsedMs currently sits in, not the whole anchor list', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }, { timeMs: 5000 }]
+    // Inside the first segment (0 - 2100): corrected for that gap's own irregularity.
+    expect(resolveBeatGrid(anchors, 1000, 120)).toEqual({ originMs: 0, correctionRatio: 1.05 })
+    // Inside the second segment (2100 - 5000): a clean 2900ms/500ms = 5.8 -> rounds to 6 beats
+    // -> 2900/6 = 483.33ms/beat -> ratio 483.33/500.
+    const grid = resolveBeatGrid(anchors, 3000, 120)
+    expect(grid?.originMs).toBe(2100)
+    expect(grid?.correctionRatio).toBeCloseTo(2900 / 6 / 500)
+  })
+})
+
 describe('beatAt with anchors', () => {
   it('returns null before the first anchor', () => {
     expect(beatAt(0, 120, '4/4', [{ timeMs: 5000 }])).toBeNull()
@@ -143,6 +181,21 @@ describe('beatAt with anchors', () => {
     const after = mustBeatAt(5400, 120, '4/4', anchors)
     expect(after.beatInBar).toBe(0)
     expect(after.msIntoBeat).toBeCloseTo(250)
+  })
+
+  it('uses the smoothed correctionRatio for spacing inside the segment, not the raw nominal bpm (#25 follow-up smoothing fix)', () => {
+    // Same 2100ms/4-beat gap as the resolveBeatGrid tests above - each beat is 525ms, not the
+    // nominal 500ms, so the segment's beats land evenly and the last one coincides exactly with
+    // anchor 1 instead of overshooting/undershooting it.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
+    const beat0 = mustBeatAt(524, 120, '4/4', anchors)
+    expect(beat0.beatInBar).toBe(0) // still just shy of the corrected 525ms boundary
+    const beat1 = mustBeatAt(525, 120, '4/4', anchors)
+    expect(beat1.beatInBar).toBe(1)
+    expect(beat1.msIntoBeat).toBeCloseTo(0)
+    const beat3 = mustBeatAt(1600, 120, '4/4', anchors)
+    expect(beat3.beatInBar).toBe(3)
+    expect(beat3.msIntoBeat).toBeCloseTo(25) // 1600 - 3*525
   })
 })
 
