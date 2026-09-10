@@ -41,6 +41,28 @@ export interface BeatAnchorLike {
   timeMs: number
 }
 
+/** Anchors closer together than this collapse into just the earlier one - guards the beat grid
+ * against a near-duplicate anchor turning into an audible burst of near-instantaneous "beats"
+ * (found live, 2026-09-10: a key-repeat bug let holding Space while tapping insert anchors as
+ * little as 28ms apart; `resolveBeatGrid` below then correctly, but disastrously, tried to
+ * divide that near-zero gap into beats). Comfortably below any real sub-beat spacing at even a
+ * very fast tempo (600 BPM is 100ms/beat), comfortably above human tap jitter - and matters
+ * beyond just this one bug, since a future automatic beat-detection pass (#25 follow-up,
+ * `detectBeatAnchors`) is expected to occasionally produce noisy anchors too. */
+const MIN_ANCHOR_GAP_MS = 150
+
+/** Collapses any run of anchors closer together than `MIN_ANCHOR_GAP_MS` down to just the
+ * earliest of each run - the input order doesn't matter, the *result* is always sorted by time. */
+function dedupeAnchors(anchors: readonly BeatAnchorLike[]): BeatAnchorLike[] {
+  const sorted = [...anchors].sort((a, b) => a.timeMs - b.timeMs)
+  const result: BeatAnchorLike[] = []
+  for (const anchor of sorted) {
+    const prev = result[result.length - 1]
+    if (prev === undefined || anchor.timeMs - prev.timeMs >= MIN_ANCHOR_GAP_MS) result.push(anchor)
+  }
+  return result
+}
+
 /**
  * Which anchor governs the beat grid right now: the latest one at or before `elapsedMs` (#25
  * follow-up - BeatAnchorSchema's own doc comment explains why an anchor only ever resets
@@ -54,9 +76,10 @@ export interface BeatAnchorLike {
  * never had an anchor added behaves byte-identically to before this existed.
  */
 export function resolveBeatOrigin(anchors: readonly BeatAnchorLike[], elapsedMs: number): number | null {
-  if (anchors.length === 0) return 0
+  const deduped = dedupeAnchors(anchors)
+  if (deduped.length === 0) return 0
   let best: number | null = null
-  for (const anchor of anchors) {
+  for (const anchor of deduped) {
     if (anchor.timeMs <= elapsedMs && (best === null || anchor.timeMs > best)) best = anchor.timeMs
   }
   return best
@@ -88,9 +111,10 @@ export interface BeatGridSegment {
  * otherwise have anyway.
  */
 export function resolveBeatGrid(anchors: readonly BeatAnchorLike[], elapsedMs: number, bpm: number): BeatGridSegment | null {
-  const originMs = resolveBeatOrigin(anchors, elapsedMs)
+  const deduped = dedupeAnchors(anchors)
+  const originMs = resolveBeatOrigin(deduped, elapsedMs)
   if (originMs === null) return null
-  const nextAnchorMs = anchors
+  const nextAnchorMs = deduped
     .map((anchor) => anchor.timeMs)
     .filter((timeMs) => timeMs > originMs)
     .reduce<number | null>((min, timeMs) => (min === null || timeMs < min ? timeMs : min), null)

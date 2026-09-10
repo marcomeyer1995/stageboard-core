@@ -40,6 +40,14 @@ export function TapBeatAnchors({ trackSrc, onComplete, onCancel }: TapBeatAnchor
     function handleKeydown(e: KeyboardEvent) {
       if (e.code === 'Space') {
         e.preventDefault()
+        // Holding the key even briefly - very natural while tapping along to a beat - fires
+        // repeated keydown events (e.repeat) at the OS's key-repeat rate, tens of ms apart.
+        // Without this guard each repeat appended its own near-duplicate anchor (found live,
+        // 2026-09-10: pairs of anchors 28-300ms apart scattered through an otherwise ~2-4s
+        // tapping cadence), which resolveBeatGrid's correctionRatio then "corrects" into an
+        // extremely fast beat dividing that near-zero gap - audible as jitter/a duplicated
+        // click, not a scheduling bug in the click engine itself.
+        if (e.repeat) return
         tap()
       }
     }
