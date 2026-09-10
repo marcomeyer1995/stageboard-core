@@ -177,28 +177,61 @@ export function detectTempo(
   return { bpm: 60000 / (chosenLag * hopMs), confidence: Math.min(1, chosenValue / bestValue) }
 }
 
+/** The nearest *clearly standing-out* onset peak to `centerMs`, within `windowMs` either side -
+ * one at least `minPeakProminence` above the window's own mean strength, not just whichever
+ * frame happens to be the loudest (found live, 2026-09-10: without this, a real full mix's
+ * hi-hats/vocal consonants/strums - which fire far more often than once per beat - won each
+ * window essentially at random). `null` if nothing in the window qualifies. */
+function findQualifyingPeak(
+  onsetStrength: Float32Array,
+  hopMs: number,
+  centerMs: number,
+  windowMs: number,
+  minPeakProminence: number,
+): number | null {
+  const windowStartFrame = Math.max(0, Math.round((centerMs - windowMs) / hopMs))
+  const windowEndFrame = Math.min(onsetStrength.length - 1, Math.round((centerMs + windowMs) / hopMs))
+  let peakFrame = -1
+  let peakValue = 0
+  let sum = 0
+  for (let f = windowStartFrame; f <= windowEndFrame; f++) {
+    const value = onsetStrength[f]!
+    sum += value
+    if (value > peakValue) {
+      peakValue = value
+      peakFrame = f
+    }
+  }
+  const windowMean = sum / Math.max(1, windowEndFrame - windowStartFrame + 1)
+  if (peakFrame === -1 || peakValue < windowMean * minPeakProminence) return null
+  return peakFrame * hopMs
+}
+
 /**
  * Full-track beat-tracking scan: starting from `firstOnsetMs` (`detectFirstOnset`'s result, the
  * anchor that lets the click start at the real first downbeat at all - always the first entry
- * returned here), follows a constant-`bpm` grid forward one beat at a time, searching a window
- * around each predicted beat position for a *clearly standing-out* onset peak - one at least
- * `minPeakProminence` (default 2x) above the window's own mean strength, not just whichever
- * frame happens to be the loudest (found live, 2026-09-10: without this, a real full mix's
- * hi-hats/vocal consonants/strums - which fire far more often than once per beat - won each
- * window essentially at random, adding a correction anchor almost every single beat: 113
- * anchors on one song, some barely 300ms apart on a ~525ms beat, audible as constant jumping).
- * A qualifying peak within `driftToleranceRatio` (default 0.15) of a beat's length from the
- * prediction needs no correction; one further off (but still within the wider search net)
- * becomes a new anchor and the grid re-baselines from it - directly matching what a manual
- * tap-to-resync would produce for the same irregularity (a dropped/added beat, a tempo hiccup).
- * No qualifying peak near a predicted beat at all (a sustained note, a quiet passage,
- * syncopation) keeps the existing prediction and continues; after `maxConsecutiveMisses`
- * (default 8) predicted beats in a row with no qualifying peak, scanning stops - avoids drifting
- * into noise across a long ambient/instrumental outro.
+ * returned here), follows a constant-`bpm` grid forward one beat at a time via
+ * `findQualifyingPeak`. A qualifying peak within `driftToleranceRatio` (default 0.15) of a
+ * beat's length from the prediction needs no correction. No qualifying peak near a predicted
+ * beat at all (a sustained note, a quiet passage, syncopation) keeps the existing prediction and
+ * continues; after `maxConsecutiveMisses` (default 8) predicted beats in a row with no
+ * qualifying peak, scanning stops - avoids drifting into noise across a long ambient/
+ * instrumental outro.
+ *
+ * A peak further off than that is only committed as a correction anchor if the *following* beat
+ * also lands on-grid relative to it (found live, 2026-09-10, against a real, human - not
+ * click-tracked - band recording: without this confirmation step, ordinary performance looseness
+ * of a hundred-plus ms around the math grid - completely normal for a live take - looked
+ * identical to a genuine tempo/phase shift, since a single loosely-played note and a real,
+ * sustained shift both start with one beat landing off the strict grid. Requiring the *next*
+ * beat to also confirm the new position is what tells them apart: a one-off loose note reverts
+ * to the old grid on the very next beat, while a real shift (a dropped/added beat, a tempo
+ * hiccup, a fermata) persists - directly matching what a manual tap-to-resync would produce for
+ * the same irregularity, and only for that).
  *
  * As a last-resort safety net beyond tuning any of the above: if corrections still end up
  * needed for more than 1 in every 6 beats scanned, the input clearly isn't reliable enough for
- * this technique at all (a heavily distorted/live recording, mislabeled bpm) - rather than hand
+ * this technique at all (a heavily distorted recording, a mislabeled bpm) - rather than hand
  * back a still-jumpy result, this falls back to just the lead-in anchor alone, which is always
  * correct and still useful on its own.
  */
@@ -214,10 +247,10 @@ export function detectBeatAnchors(
   const minPeakProminence = options.minPeakProminence ?? 2
   const beatMs = 60000 / bpm
   const onGridToleranceMs = beatMs * driftToleranceRatio
-  // A generous search net, deliberately wider than onGridToleranceMs - otherwise any peak found
-  // would always be "on grid" by construction (it could never be found outside its own search
-  // window), and a genuinely shifted beat could never be flagged as needing a correction anchor.
-  const searchWindowMs = beatMs * 0.4
+  // Proportional to the on-grid tolerance (not an independent fixed ratio) - widening the
+  // tolerance alone without also widening this would make it structurally impossible to ever
+  // find a peak far enough away to actually need a correction.
+  const searchWindowMs = onGridToleranceMs * 1.5
   const totalMs = onsetStrength.length * hopMs
 
   const anchors: { timeMs: number }[] = [{ timeMs: firstOnsetMs }]
@@ -229,32 +262,28 @@ export function detectBeatAnchors(
 
   while (originMs + beatIndex * beatMs <= totalMs) {
     const predictedMs = originMs + beatIndex * beatMs
-    const windowStartFrame = Math.max(0, Math.round((predictedMs - searchWindowMs) / hopMs))
-    const windowEndFrame = Math.min(onsetStrength.length - 1, Math.round((predictedMs + searchWindowMs) / hopMs))
-
-    let peakFrame = -1
-    let peakValue = 0
-    let sum = 0
-    for (let f = windowStartFrame; f <= windowEndFrame; f++) {
-      const value = onsetStrength[f]!
-      sum += value
-      if (value > peakValue) {
-        peakValue = value
-        peakFrame = f
-      }
-    }
-    const windowMean = sum / Math.max(1, windowEndFrame - windowStartFrame + 1)
+    const peakMs = findQualifyingPeak(onsetStrength, hopMs, predictedMs, searchWindowMs, minPeakProminence)
     beatsScanned++
 
-    if (peakFrame === -1 || peakValue < windowMean * minPeakProminence) {
+    if (peakMs === null) {
       consecutiveMisses++
       if (consecutiveMisses >= maxConsecutiveMisses) break
       beatIndex++
       continue
     }
     consecutiveMisses = 0
-    const peakMs = peakFrame * hopMs
-    if (Math.abs(peakMs - predictedMs) > onGridToleranceMs) {
+
+    if (Math.abs(peakMs - predictedMs) <= onGridToleranceMs) {
+      beatIndex++
+      continue
+    }
+
+    // Off grid - only commit if the *next* beat, predicted from this candidate, also confirms
+    // it; otherwise treat this one beat as ordinary performance looseness and keep the old grid.
+    const nextPredictedMs = peakMs + beatMs
+    const nextPeakMs = findQualifyingPeak(onsetStrength, hopMs, nextPredictedMs, searchWindowMs, minPeakProminence)
+    const confirmed = nextPeakMs !== null && Math.abs(nextPeakMs - nextPredictedMs) <= onGridToleranceMs
+    if (confirmed) {
       anchors.push({ timeMs: peakMs })
       correctionsAdded++
       originMs = peakMs

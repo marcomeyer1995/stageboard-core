@@ -167,18 +167,37 @@ describe('detectBeatAnchors', () => {
 
   it('adds exactly one correction anchor at a genuine, persistent shift - not before and not a duplicate after', () => {
     // Same clean 120 BPM click train, but from beat index 10 onward every click is
-    // permanently 150ms later than the nominal grid (a fermata/inserted beat, not a
+    // permanently 100ms later than the nominal grid (a fermata/inserted beat, not a
     // one-off blip) - the exact "a bar that didn't line up with straight bpm-math" scenario
     // a beat anchor is meant to correct, same as this session's earlier manual-anchor tests.
-    const times = clickTimes(500, 500, 20, 10, 150)
+    // Persistent (not just a one-off) is what the hysteresis confirmation step below requires -
+    // beat 11, predicted from the shifted beat 10, must also land on-grid to commit the anchor.
+    const times = clickTimes(500, 500, 20, 10, 100)
     const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
     const envelope = computeRmsEnvelope(samples, SAMPLE_RATE)
     const onsetStrength = computeOnsetStrength(envelope)
     const firstOnset = detectFirstOnset(envelope)
     expect(detectBeatAnchors(onsetStrength, envelope.hopMs, 120, firstOnset!.onsetMs)).toEqual([
       { timeMs: 480 },
-      { timeMs: 5625 },
+      { timeMs: 5580 },
     ])
+  })
+
+  it('does NOT commit a correction for a single one-off loose beat that reverts on the very next one - ordinary human performance looseness, not a real shift', () => {
+    // Beat index 10 alone lands 100ms late (still within the search window, still outside the
+    // on-grid tolerance), but beat 11 reverts to the original, unshifted grid - a one-off loose
+    // note, not a persistent irregularity. The old (pre-hysteresis) design would have wrongly
+    // "corrected" this and then had to correct again on the very next beat back - found live,
+    // 2026-09-10, against a real (non-click-tracked) band recording: ordinary performance
+    // looseness of a hundred-plus ms around the math grid is completely normal and must not be
+    // treated as a real tempo/phase shift.
+    const baseTimes = clickTimes(500, 500, 20)
+    const times = baseTimes.map((t, i) => (i === 10 ? t + 100 : t))
+    const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
+    const envelope = computeRmsEnvelope(samples, SAMPLE_RATE)
+    const onsetStrength = computeOnsetStrength(envelope)
+    const firstOnset = detectFirstOnset(envelope)
+    expect(detectBeatAnchors(onsetStrength, envelope.hopMs, 120, firstOnset!.onsetMs)).toEqual([{ timeMs: 480 }])
   })
 
   it('tolerates a genuinely missing beat (no click at all) without adding a spurious anchor, since nothing else in the track actually moved', () => {
