@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import type { PlaybackStatus } from 'shared-types'
+import { useState } from 'react'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET, type ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { supportsLocalExecution } from '../lib/clientTranslator'
 import { resolveTrackForEntry } from '../lib/computeQueue'
-import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
 import { triggerShowControl } from '../lib/showControlClient'
 import { resolveExecutionEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
+import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -32,22 +31,23 @@ function formatClock(ms: number): string {
  * the active HardwareSetup explicitly binds `audio-playback` to a tablet. Practice mode always
  * plays locally (localAudioEngine.ts), since it's inherently just this device's own headphones.
  *
- * When a device *is* bound as the audio output, that device's engine is driven reactively off
- * `playbackStatus` (a separate effect below) rather than from this widget's own onClick
- * handlers - the button that started/stopped the song and the device that must actually make
- * the sound can be two different tablets (e.g. the bandleader controls transport from their
- * own tablet while a guitarist's tablet, plugged into an amp, is the bound audio output).
- * `ShowState` already syncs to every tablet for exactly this reason (that's how a non-master
- * tablet's Prompter stays in sync at all), so the bound device just reacts to the same stream
- * everyone else already reads - no new relay/networking needed for this to work.
+ * This widget owns only the Play/Pause/Stop/Reset UI and its click handlers - actually driving
+ * the audio engine (reactively mirroring `playbackStatus`, loading/unloading tracks, forwarding
+ * "load" events to a plugin) lives in useAudioOutputDriver.ts instead, mounted once in App.tsx
+ * regardless of which top-level tab is showing. It used to live here, which meant switching away
+ * from the Live tab (Bibliothek/System) unmounted this widget and silently stopped a live show's
+ * backing track mid-song (found live, 2026-09-10). The routing booleans below
+ * (`engine`/`usesDeviceOutput`/`pluginId`) are safe to re-derive here too, purely for display -
+ * they're plain derivations, not the side-effecting part.
  */
 export function ShowTransportWidget() {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
-  const { currentEntry, currentSong, currentVariant } = queue
+  const { currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const deviceId = useShowStateStore((state) => state.deviceId)
   const audioBinding = useHardwareBindingFor(CAPABILITIES.audioPlayback)
   const installed = usePluginsStore((state) => state.installed)
+  const driverError = useLocalAudioOutputStore((state) => state.error)
 
   const usesDeviceOutput =
     mode === 'gig' && audioBinding !== null && audioBinding.executionTarget !== SERVER_EXECUTION_TARGET
@@ -62,13 +62,10 @@ export function ShowTransportWidget() {
     pluginId,
     supportsLocalExecution(installed, CAPABILITIES.audioPlayback),
   )
-  const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'
 
   const [error, setError] = useState<string | null>(null)
-
-  const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -80,70 +77,8 @@ export function ShowTransportWidget() {
   // error - shown separately from `error` below, same distinction BackingTrackPlayerWidget
   // used to draw with "Kein Track angehängt". Only relevant on whichever device is actually
   // responsible for playing something locally.
+  const track = resolveTrackForEntry(queue.currentEntry, currentVariant, trackOverride)
   const noLocalTrack = usesLocalEngine && (!currentVariant || !track)
-
-  // Forwards a "load" event to whichever plugin provides audio-playback, on a genuine
-  // song/variant/track change - only the Master should ever trigger this network call, since
-  // every device would otherwise race to send the same event. Split from the local-engine
-  // effect below (found live, 2026-09-05): with both branches sharing one effect, `canControl`
-  // had to sit in its dependency array for this branch's sake, so a bare Master handoff -
-  // canControl flipping with the song itself unchanged - also re-ran the *other* branch below
-  // and reset its already-playing `<audio>` element for no reason.
-  useEffect(() => {
-    if (!canControl || !currentSong) return
-    if (mode !== 'gig' || usesDeviceOutput || !pluginId) return
-    void forward({
-      type: 'load',
-      payload: { songId: currentSong.id, variantId: currentVariant?.id ?? null, trackId: track?.id ?? null },
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pluginId, usesDeviceOutput, currentSong?.id, currentVariant?.id, track?.id, canControl])
-
-  // Loads (or unloads) this device's own local engine, whenever it's the claimed audio output -
-  // deliberately excludes `canControl`/`mode`/`pluginId`/`usesDeviceOutput` from its own
-  // dependencies (unlike the plugin effect above): the whole point of a device claim is that
-  // the claimed device can be a *different* tablet than whoever holds Master, so a bare Master
-  // handoff must never re-run this at all, only a genuine change to the synced song/track
-  // itself. Without this split, it kept playing whatever it loaded last when switching to a
-  // trackless song (#13 follow-up, only ever exercised on the master's own device until now).
-  useEffect(() => {
-    if (!currentSong || !usesLocalEngine) return
-    if (!currentVariant || !track) {
-      // No track for this song at all - make sure the local player isn't still holding a
-      // previous song's audio loaded: without this, a later Play on the trackless song would
-      // just resume playing the old one instead of staying silent as the UI's "Kein Track
-      // angehängt" implies.
-      unloadLocalTrack()
-      return
-    }
-    void loadLocalTrack(currentVariant.id, track.id).then((result) => {
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
-
-  // Reactively mirrors the synced playbackStatus onto this device's local engine, whenever
-  // this device is Gig mode's claimed audio output - see the widget doc comment above for why
-  // this can't just live in the button click handlers.
-  const lastAppliedStatusRef = useRef<PlaybackStatus | null>(null)
-  useEffect(() => {
-    if (!isMyDeviceAudioOutput) return
-    if (lastAppliedStatusRef.current === playbackStatus) return
-    lastAppliedStatusRef.current = playbackStatus
-    if (playbackStatus === 'playing') playLocalTrack()
-    else if (playbackStatus === 'paused') pauseLocalTrack()
-    else stopLocalTrack()
-  }, [isMyDeviceAudioOutput, playbackStatus])
-
-  // Stops local audio the moment this device stops being the claimed output (someone released
-  // it, or claimed a different device) - a stale claim must never keep making sound.
-  useEffect(() => {
-    if (!isMyDeviceAudioOutput) return
-    return () => {
-      stopLocalTrack()
-      lastAppliedStatusRef.current = null
-    }
-  }, [isMyDeviceAudioOutput])
 
   if (!currentSong) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Kein Song aktiv</div>
@@ -222,7 +157,7 @@ export function ShowTransportWidget() {
       </div>
       {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
       {noLocalTrack && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {(error ?? driverError) && <p className="text-xs text-red-500">{error ?? driverError}</p>}
     </div>
   )
 }
