@@ -29,6 +29,8 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     cues: doc.cues ?? [],
     // Same story for `beatAnchors` (#25 follow-up).
     beatAnchors: doc.beatAnchors ?? [],
+    countInEnabled: doc.countInEnabled ?? false,
+    countInBars: doc.countInBars ?? 1,
   }
 }
 

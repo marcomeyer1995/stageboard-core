@@ -43,6 +43,8 @@ interface EditorDraft {
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
   beatAnchors: BeatAnchor[]
+  countInEnabled: boolean
+  countInBars: number
   key?: string
   tuning?: string
   capo?: number
@@ -62,6 +64,8 @@ function emptyDraft(): EditorDraft {
     timecodes: [],
     cues: [],
     beatAnchors: [],
+    countInEnabled: false,
+    countInBars: 1,
   }
 }
 
@@ -80,6 +84,8 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     timecodes: variant.timecodes,
     cues: variant.cues,
     beatAnchors: variant.beatAnchors,
+    countInEnabled: variant.countInEnabled,
+    countInBars: variant.countInBars,
     key: variant.key,
     tuning: variant.tuning,
     capo: variant.capo,
@@ -199,6 +205,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       timecodes: variant.timecodes,
       cues: variant.cues,
       beatAnchors: variant.beatAnchors,
+      countInEnabled: variant.countInEnabled,
+      countInBars: variant.countInBars,
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
@@ -231,6 +239,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       timecodes: draft.timecodes,
       cues: draft.cues,
       beatAnchors: draft.beatAnchors,
+      countInEnabled: draft.countInEnabled,
+      countInBars: draft.countInBars,
       tracks: currentTracks,
       key: draft.key,
       tuning: draft.tuning,
@@ -512,6 +522,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               </button>
             </div>
             <BeatAnchorListEditor anchors={draft.beatAnchors} onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })} />
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
+                <input
+                  type="checkbox"
+                  checked={draft.countInEnabled}
+                  onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
+                  className="h-5 w-5"
+                />
+                Count-in aktivieren
+              </label>
+              <label className="flex items-center gap-1 text-sm text-ink-muted">
+                Takte
+                <input
+                  type="number"
+                  min={1}
+                  disabled={!draft.countInEnabled}
+                  className="w-16 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+                  value={draft.countInBars}
+                  onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
+                />
+              </label>
+            </div>
           </div>
         )}
         {isTapping ? (

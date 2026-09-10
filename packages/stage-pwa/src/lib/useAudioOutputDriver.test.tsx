@@ -50,6 +50,8 @@ function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
     tracks,
     cues: [],
     beatAnchors: [],
+    countInEnabled: false,
+    countInBars: 1,
   }
 }
 

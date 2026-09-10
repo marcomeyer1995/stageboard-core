@@ -23,6 +23,10 @@ export interface ClickEngineState {
    * `resolveBeatGrid` for how these govern the beat grid. Empty reproduces the original
    * (pre-anchor) behavior exactly: beat 0 pinned to elapsedMs 0. */
   beatAnchors: readonly BeatAnchorLike[]
+  /** Bars of count-in to play before the first beat anchor (#25 follow-up, resolved from
+   * SongVariant.countInEnabled/countInBars) - 0 reproduces the original silent-count-in
+   * behavior exactly. */
+  countInBars: number
 }
 
 let audioContext: AudioContext | null = null
@@ -117,7 +121,7 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string, g
  * active beat anchor has changed - crossing into a new anchor's territory mid-song resets phase
  * there exactly the same way a stall or a fresh start already does. */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, bpm, timeSignature, beatAnchors } = getState()
+  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
     lastTickElapsedMs = null
@@ -125,7 +129,7 @@ function tick(getState: () => ClickEngineState): void {
     activeCorrectionRatio = 1
     return
   }
-  const grid = resolveBeatGrid(beatAnchors, elapsedMs, bpm)
+  const grid = resolveBeatGrid(beatAnchors, elapsedMs, bpm, timeSignature, countInBars)
   if (grid === null) {
     // Still before the first anchor - a count-in, nothing should sound yet.
     lastTickElapsedMs = elapsedMs

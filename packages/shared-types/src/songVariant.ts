@@ -75,6 +75,12 @@ export const SongVariantSchema = z.object({
    * own doc comment. Empty by default, reproducing today's beat-grid behavior exactly (beat 0
    * pinned to elapsedMs 0) until someone adds an anchor. */
   beatAnchors: z.array(BeatAnchorSchema).default([]),
+  /** Whether a count-in plays before this variant's first beat anchor (#25 follow-up) - off by
+   * default so no existing song's silence-before-the-first-anchor behavior changes. */
+  countInEnabled: z.boolean().default(false),
+  /** Bars of count-in to play when enabled, at the corrected tempo of the segment between the
+   * first and second beat anchor (falls back to the plain bpm if there's no second anchor yet). */
+  countInBars: z.number().int().positive().default(1),
   /** Musical key, e.g. "F#m" - genuinely arrangement-specific (a capo/tuning change can
    * shift it), so it lives here rather than on Song. Optional/absent, not a forced default:
    * most sources (including Ultimate Guitar's own data) simply omit it when unknown, and a
