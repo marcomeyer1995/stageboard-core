@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
 import type { LogicalDevice, Song } from 'shared-types'
 import { useClickOutputDriver } from './useClickOutputDriver'
@@ -188,5 +188,40 @@ describe('useClickOutputDriver', () => {
     rerender(<Scene onLiveTab={false} />)
 
     expect(stopClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('page visibility (found live, 2026-09-10: a backgrounded tab still gets occasional throttled ticks, each resyncing and playing one arrhythmic click - true silence needs an explicit stop, not just a cleaner resync)', () => {
+  const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+
+  function setPageHidden(hidden: boolean) {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => (hidden ? 'hidden' : 'visible'),
+    })
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+  }
+
+  afterEach(() => {
+    if (originalVisibilityState) Object.defineProperty(document, 'visibilityState', originalVisibilityState)
+  })
+
+  it('stops the click engine while the tab is hidden and restarts it once visible again', () => {
+    setPageHidden(false)
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
+    ])
+    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<DriverHost />)
+    expect(startClick).toHaveBeenCalledTimes(1)
+
+    setPageHidden(true)
+    expect(stopClick).toHaveBeenCalled()
+
+    vi.mocked(startClick).mockClear()
+    setPageHidden(false)
+    expect(startClick).toHaveBeenCalledTimes(1)
   })
 })
