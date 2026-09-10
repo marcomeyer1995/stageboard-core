@@ -8,6 +8,28 @@
  * clickEngine.ts (thin AudioContext glue).
  */
 
+/**
+ * One-pole low-pass filter, isolating the low-frequency content (kick drum/bass) that actually
+ * defines the beat in a real mix - far more reliably than the full spectrum. Found live,
+ * 2026-09-10: beat-tracking against the raw full-spectrum signal added a correction anchor on
+ * almost every single beat (113 anchors on one song, some barely 300ms apart on a ~525ms beat) -
+ * hi-hats, vocal consonants, and strums all fire far more often than once per beat and otherwise
+ * dominate "loudest nearby transient" onset picking, which is essentially noise relative to the
+ * actual beat. analyzeTrack.ts applies this to the mono mix before any of the detectors below
+ * ever see it; the detectors themselves stay generic (a filtered or unfiltered signal is just
+ * another Float32Array to them), so this can be tuned independently later without touching them.
+ */
+export function lowPassFilter(samples: Float32Array, sampleRate: number, cutoffHz = 150): Float32Array {
+  const alpha = 1 - Math.exp((-2 * Math.PI * cutoffHz) / sampleRate)
+  const output = new Float32Array(samples.length)
+  let prev = 0
+  for (let i = 0; i < samples.length; i++) {
+    prev += alpha * (samples[i]! - prev)
+    output[i] = prev
+  }
+  return output
+}
+
 export interface RmsEnvelope {
   rms: Float32Array
   hopMs: number
@@ -151,25 +173,37 @@ export function detectTempo(
  * Full-track beat-tracking scan: starting from `firstOnsetMs` (`detectFirstOnset`'s result, the
  * anchor that lets the click start at the real first downbeat at all - always the first entry
  * returned here), follows a constant-`bpm` grid forward one beat at a time, searching a window
- * around each predicted beat position for the nearest onset peak. A peak within
- * `driftToleranceRatio` (default 0.15) of a beat's length from the prediction needs no
- * correction; one further off (but still within the wider search net) becomes a new anchor and
- * the grid re-baselines from it - directly matching what a manual tap-to-resync would produce
- * for the same irregularity (a dropped/added beat, a tempo hiccup). No onset found near a
- * predicted beat at all (a sustained note, a quiet passage, syncopation) keeps the existing
- * prediction and continues; after `maxConsecutiveMisses` (default 8) predicted beats in a row
- * with no nearby onset, scanning stops - avoids drifting into noise across a long ambient/
- * instrumental outro.
+ * around each predicted beat position for a *clearly standing-out* onset peak - one at least
+ * `minPeakProminence` (default 2x) above the window's own mean strength, not just whichever
+ * frame happens to be the loudest (found live, 2026-09-10: without this, a real full mix's
+ * hi-hats/vocal consonants/strums - which fire far more often than once per beat - won each
+ * window essentially at random, adding a correction anchor almost every single beat: 113
+ * anchors on one song, some barely 300ms apart on a ~525ms beat, audible as constant jumping).
+ * A qualifying peak within `driftToleranceRatio` (default 0.15) of a beat's length from the
+ * prediction needs no correction; one further off (but still within the wider search net)
+ * becomes a new anchor and the grid re-baselines from it - directly matching what a manual
+ * tap-to-resync would produce for the same irregularity (a dropped/added beat, a tempo hiccup).
+ * No qualifying peak near a predicted beat at all (a sustained note, a quiet passage,
+ * syncopation) keeps the existing prediction and continues; after `maxConsecutiveMisses`
+ * (default 8) predicted beats in a row with no qualifying peak, scanning stops - avoids drifting
+ * into noise across a long ambient/instrumental outro.
+ *
+ * As a last-resort safety net beyond tuning any of the above: if corrections still end up
+ * needed for more than 1 in every 6 beats scanned, the input clearly isn't reliable enough for
+ * this technique at all (a heavily distorted/live recording, mislabeled bpm) - rather than hand
+ * back a still-jumpy result, this falls back to just the lead-in anchor alone, which is always
+ * correct and still useful on its own.
  */
 export function detectBeatAnchors(
   onsetStrength: Float32Array,
   hopMs: number,
   bpm: number,
   firstOnsetMs: number,
-  options: { driftToleranceRatio?: number; maxConsecutiveMisses?: number } = {},
+  options: { driftToleranceRatio?: number; maxConsecutiveMisses?: number; minPeakProminence?: number } = {},
 ): { timeMs: number }[] {
   const driftToleranceRatio = options.driftToleranceRatio ?? 0.15
   const maxConsecutiveMisses = options.maxConsecutiveMisses ?? 8
+  const minPeakProminence = options.minPeakProminence ?? 2
   const beatMs = 60000 / bpm
   const onGridToleranceMs = beatMs * driftToleranceRatio
   // A generous search net, deliberately wider than onGridToleranceMs - otherwise any peak found
@@ -182,6 +216,8 @@ export function detectBeatAnchors(
   let originMs = firstOnsetMs
   let beatIndex = 1
   let consecutiveMisses = 0
+  let beatsScanned = 0
+  let correctionsAdded = 0
 
   while (originMs + beatIndex * beatMs <= totalMs) {
     const predictedMs = originMs + beatIndex * beatMs
@@ -190,14 +226,19 @@ export function detectBeatAnchors(
 
     let peakFrame = -1
     let peakValue = 0
+    let sum = 0
     for (let f = windowStartFrame; f <= windowEndFrame; f++) {
-      if (onsetStrength[f]! > peakValue) {
-        peakValue = onsetStrength[f]!
+      const value = onsetStrength[f]!
+      sum += value
+      if (value > peakValue) {
+        peakValue = value
         peakFrame = f
       }
     }
+    const windowMean = sum / Math.max(1, windowEndFrame - windowStartFrame + 1)
+    beatsScanned++
 
-    if (peakFrame === -1) {
+    if (peakFrame === -1 || peakValue < windowMean * minPeakProminence) {
       consecutiveMisses++
       if (consecutiveMisses >= maxConsecutiveMisses) break
       beatIndex++
@@ -207,6 +248,7 @@ export function detectBeatAnchors(
     const peakMs = peakFrame * hopMs
     if (Math.abs(peakMs - predictedMs) > onGridToleranceMs) {
       anchors.push({ timeMs: peakMs })
+      correctionsAdded++
       originMs = peakMs
       beatIndex = 1
     } else {
@@ -214,5 +256,8 @@ export function detectBeatAnchors(
     }
   }
 
+  if (beatsScanned > 12 && correctionsAdded > beatsScanned / 6) {
+    return [{ timeMs: firstOnsetMs }]
+  }
   return anchors
 }

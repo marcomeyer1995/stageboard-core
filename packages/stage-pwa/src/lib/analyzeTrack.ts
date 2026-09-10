@@ -1,4 +1,4 @@
-import { computeOnsetStrength, computeRmsEnvelope, detectBeatAnchors, detectFirstOnset, detectTempo } from './audioAnalysis'
+import { computeOnsetStrength, computeRmsEnvelope, detectBeatAnchors, detectFirstOnset, detectTempo, lowPassFilter } from './audioAnalysis'
 
 export interface TrackAnalysisResult {
   bpm: number | null
@@ -38,7 +38,11 @@ export async function analyzeTrackBlob(blob: Blob): Promise<TrackAnalysisResult>
   try {
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
     const mono = mixToMono(audioBuffer)
-    const envelope = computeRmsEnvelope(mono, audioBuffer.sampleRate)
+    // Low-passed before any detection ever sees it (audioAnalysis.ts's lowPassFilter doc
+    // comment) - isolates the kick/bass pulse that actually defines the beat in a real mix,
+    // instead of the full spectrum's much noisier hi-hats/vocals/strums.
+    const filtered = lowPassFilter(mono, audioBuffer.sampleRate)
+    const envelope = computeRmsEnvelope(filtered, audioBuffer.sampleRate)
     const onsetStrength = computeOnsetStrength(envelope)
 
     const firstOnset = detectFirstOnset(envelope)

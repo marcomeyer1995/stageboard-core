@@ -5,6 +5,7 @@ import {
   detectBeatAnchors,
   detectFirstOnset,
   detectTempo,
+  lowPassFilter,
   type RmsEnvelope,
 } from './audioAnalysis'
 
@@ -187,5 +188,87 @@ describe('detectBeatAnchors', () => {
     const onsetStrength = computeOnsetStrength(envelope)
     const firstOnset = detectFirstOnset(envelope)
     expect(detectBeatAnchors(onsetStrength, envelope.hopMs, 120, firstOnset!.onsetMs)).toEqual([{ timeMs: 480 }])
+  })
+
+  it('falls back to just the lead-in anchor when the input is too unreliable to track at all (safety net)', () => {
+    // Pure white noise, no periodic structure whatsoever - would otherwise produce a correction
+    // at nearly every predicted beat (exactly what happened live, 2026-09-10: 113 anchors on
+    // one real song). A deterministic PRNG, not Math.random(), so this test is reproducible.
+    let seed = 7
+    function rng() {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed / 0x7fffffff
+    }
+    const onsetStrength = Float32Array.from({ length: 2000 }, () => rng())
+    expect(detectBeatAnchors(onsetStrength, 15, 120, 100)).toEqual([{ timeMs: 100 }])
+  })
+})
+
+describe('lowPassFilter', () => {
+  it('strongly attenuates a high-frequency tone relative to a low-frequency one of the same amplitude', () => {
+    const sampleRate = 44100
+    const durationSamples = 4410 // 100ms
+    const low = Float32Array.from({ length: durationSamples }, (_, i) => Math.sin((2 * Math.PI * 80 * i) / sampleRate))
+    const high = Float32Array.from({ length: durationSamples }, (_, i) => Math.sin((2 * Math.PI * 4000 * i) / sampleRate))
+
+    function rms(samples: Float32Array): number {
+      let sum = 0
+      for (const s of samples) sum += s * s
+      return Math.sqrt(sum / samples.length)
+    }
+
+    const lowFiltered = lowPassFilter(low, sampleRate)
+    const highFiltered = lowPassFilter(high, sampleRate)
+    // The low tone survives close to its original loudness; the high tone is knocked down
+    // dramatically - the whole point (isolating kick/bass content from hi-hats/cymbals).
+    expect(rms(lowFiltered)).toBeGreaterThan(rms(low) * 0.7)
+    expect(rms(highFiltered)).toBeLessThan(rms(high) * 0.1)
+  })
+
+  it('is a no-op-shaped passthrough for pure silence', () => {
+    expect(Array.from(lowPassFilter(new Float32Array(100), 44100))).toEqual(Array.from(new Float32Array(100)))
+  })
+})
+
+describe('detectBeatAnchors - robustness against a realistic noisy full mix', () => {
+  it('locks onto the true (low-frequency) beat and ignores frequent higher-frequency noise, once low-pass filtered', () => {
+    // A regular 120 BPM kick drum (80Hz) plus frequent hi-hat-like noise (4000Hz, roughly 4x
+    // per beat, jittered) at comparable or louder amplitude - a stand-in for a real full mix,
+    // where naive "loudest nearby transient" picking is dominated by the noise, not the beat
+    // (found live, 2026-09-10, see detectBeatAnchors' own doc comment).
+    const sampleRate = 44100
+    const totalMs = 15000
+    const leadInMs = 500
+    const intervalMs = 500 // 120 BPM
+    const totalSamples = Math.round((totalMs / 1000) * sampleRate)
+    const mix = new Float32Array(totalSamples)
+
+    function addBurst(tMs: number, freq: number, amp: number, burstMs: number) {
+      const startSample = Math.round((tMs / 1000) * sampleRate)
+      const burstSamples = Math.round((burstMs / 1000) * sampleRate)
+      for (let i = 0; i < burstSamples && startSample + i < totalSamples && startSample + i >= 0; i++) {
+        const decay = Math.exp(-i / (burstSamples * 0.3))
+        mix[startSample + i]! += amp * decay * Math.sin((2 * Math.PI * freq * i) / sampleRate)
+      }
+    }
+
+    for (let t = leadInMs; t < totalMs; t += intervalMs) addBurst(t, 80, 1.0, 120)
+
+    let seed = 42
+    function rng() {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed / 0x7fffffff
+    }
+    for (let t = leadInMs; t < totalMs; t += intervalMs / 4) addBurst(t + (rng() - 0.5) * 40, 4000, 0.8 + rng() * 0.4, 15)
+
+    const filtered = lowPassFilter(mix, sampleRate)
+    const envelope = computeRmsEnvelope(filtered, sampleRate)
+    const onsetStrength = computeOnsetStrength(envelope)
+    const firstOnset = detectFirstOnset(envelope)
+    expect(firstOnset).not.toBeNull()
+
+    const anchors = detectBeatAnchors(onsetStrength, envelope.hopMs, 120, firstOnset!.onsetMs)
+    // Just the lead-in anchor - the noise never causes a spurious correction once filtered.
+    expect(anchors).toEqual([{ timeMs: 480 }])
   })
 })
