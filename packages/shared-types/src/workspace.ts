@@ -246,11 +246,20 @@ export type ActivateProfileResult = z.infer<typeof ActivateProfileResultSchema>
  * *exact* profile being changed (checked server-side): this is strictly self-service, not a way
  * to set someone else's PIN (that's still `ResetMemberPasswordRequestSchema`'s "Passwort
  * zurücksetzen", for when a locked-out admin needs another admin's help instead). `newPin` must
- * be exactly 4 digits. */
+ * be exactly 4 digits.
+ *
+ * `deviceId` (found live, 2026-09-10) - the PIN itself lives on the profile's shared anchor
+ * account, but the caller's real CouchDB account is *this device's own* per-device one
+ * (`deviceUsername`, workspaceProvisioning.ts); the route needs it to reissue that device's own
+ * account after changing the anchor's PIN, rather than handing back the anchor's own credentials
+ * (which every device sharing a PIN as its literal sync password would defeat the whole point of
+ * per-device accounts, and was never meant to happen - see `resolveOutcome`'s doc comment,
+ * core-backend/src/index.ts: the anchor is "never itself returned to a client"). */
 export const SetOwnPinRequestSchema = z.object({
   callerUsername: z.string().min(1),
   callerPassword: z.string().min(1),
   newPin: z.string().regex(/^\d{4}$/, 'PIN must be exactly 4 digits'),
+  deviceId: z.string().min(1),
 })
 export type SetOwnPinRequest = z.infer<typeof SetOwnPinRequestSchema>
 

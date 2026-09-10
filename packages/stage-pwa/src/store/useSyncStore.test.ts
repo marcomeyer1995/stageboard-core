@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { deriveSyncProgress, deriveSyncStatus, useSyncStore } from './useSyncStore'
 
 beforeEach(() => {
-  useSyncStore.setState({ streams: {}, progress: {} })
+  useSyncStore.setState({ streams: {}, progress: {}, browserOffline: false })
 })
 
 describe('useSyncStore', () => {
@@ -32,6 +32,13 @@ describe('useSyncStore', () => {
     useSyncStore.getState().clearStream('nope')
     expect(useSyncStore.getState().streams).toEqual({ songs: 'paused' })
   })
+
+  it('setBrowserOffline sets the flag', () => {
+    useSyncStore.getState().setBrowserOffline(true)
+    expect(useSyncStore.getState().browserOffline).toBe(true)
+    useSyncStore.getState().setBrowserOffline(false)
+    expect(useSyncStore.getState().browserOffline).toBe(false)
+  })
 })
 
 describe('deriveSyncStatus', () => {
@@ -53,6 +60,15 @@ describe('deriveSyncStatus', () => {
 
   it('is error if any stream errors, even if others are fine - worst signal wins', () => {
     expect(deriveSyncStatus({ songs: 'active', setlists: 'offline', dashboards: 'error' })).toBe('error')
+  })
+
+  it('found live, 2026-09-10: browserOffline overrides every stream status, including a real error, since "no network at all" is the more actionable fact', () => {
+    expect(deriveSyncStatus({ songs: 'active', dashboards: 'error' }, true)).toBe('offline')
+  })
+
+  it('browserOffline=false (or omitted) defers to the streams as before', () => {
+    expect(deriveSyncStatus({ songs: 'active' }, false)).toBe('syncing')
+    expect(deriveSyncStatus({ songs: 'active' })).toBe('syncing')
   })
 })
 

@@ -52,6 +52,7 @@ import {
   deprovisionMember,
   deprovisionWorkspace,
   generateMemberPassword,
+  deviceUsername,
   getOrCreateAccessCode,
   listWorkspaces,
   memberUsername,
@@ -773,6 +774,13 @@ export async function buildApp() {
   // vergeben werden kann") - strictly self-service, checked by requiring `callerUsername` to be
   // the *exact* account being changed, not just any admin of this workspace (that's what
   // "Passwort zurücksetzen" above is for instead, when it's someone *else's* PIN).
+  //
+  // Found live, 2026-09-10: this predates the per-device-account migration (`resolveOutcome`'s
+  // doc comment) and was never updated for it - `callerUsername` is always this device's own
+  // `deviceUsername` now (`stageboard-<workspaceId>-<profileId>~<deviceId>`), never the bare
+  // anchor `memberUsername` this route compared it against, so the exact-match check 403'd
+  // every admin unconditionally. Now accepts either shape, as long as it's *this* profile's own
+  // account (some other device, or a different profile's device, still correctly 403s).
   app.post('/workspaces/:workspaceId/members/:profileId/set-pin', async (request, reply) => {
     const { workspaceId, profileId } = request.params as { workspaceId: string; profileId: string }
     const parsed = SetOwnPinRequestSchema.safeParse(request.body)
@@ -781,7 +789,8 @@ export async function buildApp() {
     }
 
     const targetUsername = memberUsername(workspaceId, profileId)
-    if (parsed.data.callerUsername !== targetUsername) {
+    const isOwnAccount = parsed.data.callerUsername === targetUsername || parsed.data.callerUsername.startsWith(`${targetUsername}~`)
+    if (!isOwnAccount) {
       return reply.status(403).send({ status: 'error', message: 'Can only set your own PIN' })
     }
     const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
@@ -789,7 +798,12 @@ export async function buildApp() {
       return reply.status(403).send({ status: 'error', message: 'Invalid credentials or not an admin account' })
     }
 
-    const credentials = await setMemberPassword(couch, workspaceId, profileId, parsed.data.newPin)
+    await setMemberPassword(couch, workspaceId, profileId, parsed.data.newPin)
+    // The PIN itself lives on the anchor account just updated above, never on the calling
+    // device's own account - reissuing this device's own credentials here (rather than handing
+    // back the anchor's) keeps every device's real sync login private to itself, same as every
+    // other join/activate path (see this schema's own doc comment, shared-types/workspace.ts).
+    const credentials = await provisionDevice(couch, workspaceId, profileId, parsed.data.deviceId, true)
     return reply.status(200).send({ ...credentials, isAdmin: true })
   })
 
@@ -891,6 +905,22 @@ export async function buildApp() {
     const caller = await verifyUser(couch, parsed.data.callerUsername, parsed.data.callerPassword)
     if (!caller) {
       return reply.status(403).send({ status: 'error', message: 'Invalid caller credentials' })
+    }
+
+    // Re-picking this exact device's own already-active profile (BandManagementView.tsx's
+    // profile list has no guard against tapping the current one) - found live, 2026-09-09: this
+    // used to fall through to resolveOutcome/provisionDevice below, which unconditionally mints
+    // a *new* random password even though the one just verified two lines up already works.
+    // CouchDB never returns a plaintext password once hashed, so "leave it unchanged" has to be
+    // handled here, before any rotation happens, not by reading anything back afterward. Any
+    // other caller (a different device, or a different target profile/deviceId) still goes
+    // through the normal path below and gets a real, freshly-provisioned account as before.
+    if (parsed.data.callerUsername === deviceUsername(workspaceId, profileId, parsed.data.deviceId)) {
+      return reply.status(200).send({
+        username: parsed.data.callerUsername,
+        password: parsed.data.callerPassword,
+        isAdmin: caller.roles.includes('admin'),
+      })
     }
 
     const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)

@@ -120,7 +120,12 @@ function PromptFields({
             <span className="mb-1 block text-ink-muted">{field.label}</span>
             <input
               autoFocus={index === 0}
-              type={field.type ?? 'text'}
+              // 'pin' isn't a real HTML input type - falls back to a plain text box, but with
+              // inputMode/pattern still steering touch keyboards to digits-only (found live,
+              // 2026-09-10: a bare 'text' box brought up the full keyboard for a 4-digit PIN).
+              type={field.type === 'pin' ? 'text' : (field.type ?? 'text')}
+              inputMode={field.type === 'pin' ? 'numeric' : undefined}
+              pattern={field.type === 'pin' ? '[0-9]*' : undefined}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
               className="h-12 w-full rounded-sb bg-control px-3 text-ink-soft"

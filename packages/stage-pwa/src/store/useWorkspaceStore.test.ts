@@ -22,7 +22,7 @@ vi.mock('../lib/workspaceAccessDoc', () => ({
 }))
 
 const { useDialogStore } = await import('./useDialogStore')
-const { useWorkspaceStore } = await import('./useWorkspaceStore')
+const { useWorkspaceStore, deriveOwnProfileId } = await import('./useWorkspaceStore')
 
 function stubFetch(response: Partial<Response> | null) {
   const fetchMock = response ? vi.fn().mockResolvedValue(response as Response) : vi.fn().mockRejectedValue(new Error('network down'))
@@ -623,21 +623,26 @@ describe('setOwnPin (2026-09-02 second follow-up: admin self-service PIN assignm
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
   })
 
-  it('posts this device\'s own current credentials as proof, and updates the stored credentials on success', async () => {
+  it('posts this device\'s own current credentials plus its deviceId, and updates the stored credentials on success', async () => {
     const fetchMock = stubFetch({
       ok: true,
       status: 200,
-      json: async () => ({ username: 'stageboard-band-a-p1', password: '9876', isAdmin: true }),
+      json: async () => ({ username: 'stageboard-band-a-p1~device-1', password: 'fresh-device-pw', isAdmin: true }),
     })
 
     const result = await useWorkspaceStore.getState().setOwnPin('band-a', 'p1', '9876')
 
-    expect(result).toEqual({ username: 'stageboard-band-a-p1', password: '9876' })
+    expect(result).toEqual({ username: 'stageboard-band-a-p1~device-1', password: 'fresh-device-pw' })
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-a/members/p1/set-pin')
-    expect(JSON.parse(init.body)).toEqual({ callerUsername: 'stageboard-band-a-p1', callerPassword: 'old-pin', newPin: '9876' })
+    expect(JSON.parse(init.body)).toEqual({
+      callerUsername: 'stageboard-band-a-p1',
+      callerPassword: 'old-pin',
+      newPin: '9876',
+      deviceId: expect.any(String),
+    })
     expect(useWorkspaceStore.getState().workspaces).toContainEqual(
-      expect.objectContaining({ id: 'band-a', couchPassword: '9876', username: 'stageboard-band-a-p1' }),
+      expect.objectContaining({ id: 'band-a', couchPassword: 'fresh-device-pw', username: 'stageboard-band-a-p1~device-1' }),
     )
   })
 
@@ -979,5 +984,103 @@ describe('joinAsMember', () => {
     expect(workspace).toBeNull()
     expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Serverfehler'))
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Falscher Code'))
+  })
+
+  it('found live, 2026-09-10: never sets ownProfileId on success, even though it now knows the profileId - App.tsx\'s foundedHere gate reads that field as "this device founded the workspace", and a joining device setting it landed on the founding wizard for an already-real, already-populated band (destroyed Marco\'s real S.O.A.T. workspace the first time this class of bug was hit)', async () => {
+    stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'stageboard-band-c-p2', password: 'member-pw', isAdmin: false }),
+    })
+
+    const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p2')
+
+    expect(workspace?.ownProfileId).toBeUndefined()
+  })
+})
+
+describe('activateProfile', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', username: 'stageboard-band-a-p1~device-1', couchPassword: 'old-pw', isAdmin: false }],
+    })
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('posts the caller\'s own credentials and the target profileId, then updates the workspace with the resolved credentials, without touching ownProfileId', async () => {
+    const fetchMock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'stageboard-band-a-p1~device-1', password: 'fresh-pw', isAdmin: false }),
+    })
+
+    const workspace = await useWorkspaceStore.getState().activateProfile('band-a', 'p1')
+
+    expect(workspace).toEqual({
+      id: 'band-a',
+      name: 'Band A',
+      username: 'stageboard-band-a-p1~device-1',
+      couchPassword: 'fresh-pw',
+      isAdmin: false,
+    })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-a/members/p1/activate')
+    expect(JSON.parse(init.body)).toEqual({
+      callerUsername: 'stageboard-band-a-p1~device-1',
+      callerPassword: 'old-pw',
+      password: undefined,
+      deviceId: expect.any(String),
+    })
+  })
+
+  it('returns null without calling fetch when this workspace has no cached credentials yet', async () => {
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }] })
+    const fetchMock = stubFetch(null)
+
+    const workspace = await useWorkspaceStore.getState().activateProfile('band-a', 'p1')
+
+    expect(workspace).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('deriveOwnProfileId', () => {
+  it('parses the profileId back out of username, given the known workspaceId and deviceId', () => {
+    const workspace = { id: 'band-a', username: 'stageboard-band-a-p1~device-1' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('p1')
+  })
+
+  it('is unaffected by hyphens inside the workspaceId or profileId themselves', () => {
+    const workspace = { id: '665e69d9-c603-4c44-8f8f-2a034d3656ea', username: 'stageboard-665e69d9-c603-4c44-8f8f-2a034d3656ea-my-profile-id~device-1' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('my-profile-id')
+  })
+
+  it('is null when username is missing entirely', () => {
+    expect(deriveOwnProfileId({ id: 'band-a', username: undefined }, 'device-1')).toBeNull()
+  })
+
+  it('is null when username does not correspond to this exact workspaceId + deviceId', () => {
+    expect(deriveOwnProfileId({ id: 'band-a', username: 'stageboard-band-b-p1~device-1' }, 'device-1')).toBeNull()
+    expect(deriveOwnProfileId({ id: 'band-a', username: 'stageboard-band-a-p1~device-2' }, 'device-1')).toBeNull()
+  })
+
+  it('found live, 2026-09-09, second gap on the same tablet: recovers a bare memberUsername anchor from before the per-device-account migration (no ~deviceId suffix at all)', () => {
+    const workspace = { id: 'band-a', username: 'stageboard-band-a-p1' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('p1')
+  })
+
+  it('still handles hyphens inside workspaceId/profileId for the legacy no-suffix shape', () => {
+    const workspace = { id: '665e69d9-c603-4c44-8f8f-2a034d3656ea', username: 'stageboard-665e69d9-c603-4c44-8f8f-2a034d3656ea-71a98bdc-ddf9-4a68-bb70-0752a1934854' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBe('71a98bdc-ddf9-4a68-bb70-0752a1934854')
+  })
+
+  it('does not misread a normal deviceUsername belonging to a different device as this device\'s own legacy anchor', () => {
+    const workspace = { id: 'band-a', username: 'stageboard-band-a-p1~some-other-device' }
+    expect(deriveOwnProfileId(workspace, 'device-1')).toBeNull()
   })
 })

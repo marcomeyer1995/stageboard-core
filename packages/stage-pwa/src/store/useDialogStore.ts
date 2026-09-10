@@ -4,7 +4,11 @@ export interface DialogField {
   key: string
   label: string
   defaultValue?: string
-  type?: 'text' | 'password' | 'checkboxes' | 'radio'
+  /** 'pin' renders a digits-only numeric keypad (DialogHost.tsx: `inputMode="numeric"`,
+   * `pattern="[0-9]*"`) instead of a full keyboard - for a 4-digit admin PIN or similar, where
+   * the full keyboard's letters/symbols row is never useful and just gets in the way on a
+   * touchscreen (found live, 2026-09-10: Marco's own complaint about "Eigenen PIN setzen"). */
+  type?: 'text' | 'password' | 'pin' | 'checkboxes' | 'radio'
   /** Used when type is 'checkboxes' (one checkbox per option, selected values comma-joined into
    * a single string) or 'radio' (one radio button per option, single-choice - #106's "which
    * Logical Device role should this new hardware play?" prompt). Either way the field still
