@@ -6,6 +6,20 @@ export function beatsPerBar(timeSignature: string): number {
   return Number.isFinite(beats) && beats > 0 ? beats : 4
 }
 
+/** How far a live tempo nudge (#140, TempoNudgeWidget/queue.ts's setLiveTempoAdjustPercent) can
+ * push away from the song's own bpm, in percent either direction - generous enough to correct
+ * real drift, tight enough that a fat-fingered tap can't turn a ballad into a polka. Lives here
+ * rather than in queue.ts since it's a pure domain constant the widget also needs to read for
+ * its disabled-at-the-limit buttons, and queue.ts transitively constructs a real PouchDB at
+ * import time (workspaceDb.ts) that a plain component-test render can't afford to pull in. */
+export const LIVE_TEMPO_ADJUST_LIMIT_PERCENT = 15
+
+/** Applies a live +/- tempo correction (ShowState.liveTempoAdjustPercent, #140) on top of a
+ * song's stored bpm - never mutates the stored value, just what the beat clock uses. */
+export function adjustedBpm(bpm: number, adjustPercent: number): number {
+  return bpm * (1 + adjustPercent / 100)
+}
+
 export interface Beat {
   /** 0-indexed position within the bar - 0 is always the downbeat. */
   beatInBar: number

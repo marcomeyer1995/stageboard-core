@@ -1,6 +1,7 @@
 import type { ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { randomId } from './id'
+import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -78,6 +79,7 @@ async function activateEntry(entryId: string): Promise<void> {
     activeEntryId: entryId,
     activeEntryStartedAt: now,
     trackOverride: null,
+    liveTempoAdjustPercent: 0,
     ...transportPatch(ARMED_TRANSPORT),
     ...showBookkeepingPatch(state, now),
   })
@@ -149,4 +151,24 @@ export async function setTrackOverride(trackId: string | null): Promise<void> {
   const { isMaster, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   await applyPatch({ trackOverride: trackId })
+}
+
+/** Nudges the live tempo correction Visual Metronome/future Click Generator apply on top of
+ * the current song's bpm (TempoNudgeWidget) - Master-gated and shared like `trackOverride`
+ * above, since it's one band-wide click/metronome speed, not a personal preference. Never
+ * touches the song's own stored bpm; cleared automatically on song change (activateEntry). */
+export async function setLiveTempoAdjustPercent(percent: number): Promise<void> {
+  const { isMaster, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  const clamped = Math.max(-LIVE_TEMPO_ADJUST_LIMIT_PERCENT, Math.min(LIVE_TEMPO_ADJUST_LIMIT_PERCENT, percent))
+  await applyPatch({ liveTempoAdjustPercent: clamped })
+}
+
+/** Like `setLiveTempoAdjustPercent` but relative to the current value read fresh from the store
+ * at call time (TempoNudgeWidget's +/- buttons) - rather than an absolute value the caller
+ * computed from a value it read earlier, which can go stale if a second tap fires before the
+ * store has picked up the first tap's write and silently drop the increment. */
+export async function nudgeLiveTempoAdjustPercent(deltaPercent: number): Promise<void> {
+  const { state } = useShowStateStore.getState()
+  await setLiveTempoAdjustPercent(state.liveTempoAdjustPercent + deltaPercent)
 }

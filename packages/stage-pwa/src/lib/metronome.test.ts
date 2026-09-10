@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { beatAt, beatsPerBar } from './metronome'
+import { adjustedBpm, beatAt, beatsPerBar } from './metronome'
+
+describe('adjustedBpm', () => {
+  it('is a no-op at 0%', () => {
+    expect(adjustedBpm(120, 0)).toBe(120)
+  })
+
+  it('applies a positive or negative percent correction', () => {
+    expect(adjustedBpm(120, 5)).toBeCloseTo(126)
+    expect(adjustedBpm(120, -5)).toBeCloseTo(114)
+  })
+})
 
 describe('beatsPerBar', () => {
   it('reads the numerator of a normal time signature', () => {

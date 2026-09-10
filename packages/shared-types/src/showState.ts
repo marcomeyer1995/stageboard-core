@@ -45,6 +45,13 @@ export const ShowStateSchema = z.object({
    * Cleared whenever `activeEntryId` changes (queue.ts's activateEntry), so it never silently
    * carries over onto a different song. */
   trackOverride: z.string().nullable(),
+  /** A live, ephemeral +/- tempo correction (e.g. "the band is dragging, +3%") applied on top
+   * of the current song's own `bpm` for anything reading a synced tempo (Visual Metronome now,
+   * a future Click Generator) - #140. Deliberately never touches the song's stored `bpm`, and
+   * click-only: a currently-playing backing track's actual audio speed is unaffected (no live
+   * time-stretching). Master-gated and cleared on song change (activateEntry below), same
+   * pattern as `trackOverride` just above - a for-tonight correction, not a lasting edit. */
+  liveTempoAdjustPercent: z.number(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -65,6 +72,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
   trackOverride: null,
+  liveTempoAdjustPercent: 0,
   currentShowId: null,
   lastActivityAt: null,
 }

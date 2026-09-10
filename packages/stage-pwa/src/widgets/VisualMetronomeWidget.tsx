@@ -1,4 +1,4 @@
-import { type Beat, beatAt, beatsPerBar } from '../lib/metronome'
+import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
 import { type MetronomeConfig } from './metronomeConfig'
 
@@ -36,7 +36,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
  * a follow-up issue since they need real output hardware to verify meaningfully).
  */
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
-  const { queue, elapsedMs, playbackStatus } = useShowMode()
+  const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
   const song = queue.currentVariant ?? queue.currentSong
 
   if (!song) {
@@ -47,18 +47,24 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     )
   }
 
+  const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
+  const bpmLabel =
+    liveTempoAdjustPercent === 0
+      ? `${song.bpm} BPM`
+      : `${Math.round(bpm)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
+
   if (playbackStatus !== 'playing' || elapsedMs === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
         <span className="text-sm">Wartet auf Play</span>
         <span className="text-xs opacity-70 tabular-nums">
-          {song.bpm} BPM · {song.timeSignature}
+          {bpmLabel} · {song.timeSignature}
         </span>
       </div>
     )
   }
 
-  const beat = beatAt(elapsedMs, song.bpm, song.timeSignature)
+  const beat = beatAt(elapsedMs, bpm, song.timeSignature)
   const pulseOn = beat.msIntoBeat < PULSE_WINDOW_MS
 
   return (
@@ -77,7 +83,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
         <span className="text-4xl font-bold tabular-nums">{beat.beatInBar + 1}</span>
       )}
       <span className="text-xs opacity-70 tabular-nums">
-        {song.bpm} BPM · {song.timeSignature}
+        {bpmLabel} · {song.timeSignature}
       </span>
     </div>
   )

@@ -41,6 +41,7 @@ const emptyShowState: ShowState = {
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
   trackOverride: null,
+  liveTempoAdjustPercent: 0,
   currentShowId: null,
   lastActivityAt: null,
 }
