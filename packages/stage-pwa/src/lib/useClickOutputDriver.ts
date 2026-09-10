@@ -9,13 +9,31 @@ import { useShowMode } from './showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
+/** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
+ * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
+ * at all on an app-switch (found live, 2026-09-10: switching to another app on a tablet still
+ * produced sporadic ticks even with the visibilitychange-only version of this check). `blur`/
+ * `focus` and `document.hasFocus()` are the older, more universally-supported DOM APIs and catch
+ * the OS-level "this app lost focus" transition that app-switching actually is, independent of
+ * whatever the Page Visibility API reports on a given platform. `pagehide`/`pageshow` cover the
+ * bfcache-eviction edge case neither of the others does. */
 function subscribeToVisibility(callback: () => void): () => void {
   document.addEventListener('visibilitychange', callback)
-  return () => document.removeEventListener('visibilitychange', callback)
+  window.addEventListener('blur', callback)
+  window.addEventListener('focus', callback)
+  window.addEventListener('pagehide', callback)
+  window.addEventListener('pageshow', callback)
+  return () => {
+    document.removeEventListener('visibilitychange', callback)
+    window.removeEventListener('blur', callback)
+    window.removeEventListener('focus', callback)
+    window.removeEventListener('pagehide', callback)
+    window.removeEventListener('pageshow', callback)
+  }
 }
 
 function isPageVisibleSnapshot(): boolean {
-  return document.visibilityState !== 'hidden'
+  return document.visibilityState !== 'hidden' && document.hasFocus()
 }
 
 /**
