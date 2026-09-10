@@ -53,12 +53,15 @@ function transportPatch(t: TransportState): Partial<PracticeState> {
 
 /** Starts/resumes the current entry - loading which track to play is a separate, effect-driven
  * concern (ShowTransportWidget, same pattern as the remote engine's `load` trigger) so resuming
- * from a pause never re-triggers a reload back to position 0. */
+ * from a pause never re-triggers a reload back to position 0. Reads the accumulated position
+ * *before* patching to 'playing' - `playLocalTrack` seeks there explicitly (found live,
+ * 2026-09-10: it used to just resume from wherever the element happened to be cued). */
 export async function practicePlaySong(): Promise<void> {
   const { currentEntry } = snapshot()
   if (!currentEntry) return
+  const atMs = currentPracticeState().playbackAccumulatedMs
   patch(transportPatch(playTransport(currentTransport(currentPracticeState()), Date.now())))
-  playLocalTrack()
+  playLocalTrack(atMs)
 }
 
 export async function practicePauseSong(): Promise<void> {
