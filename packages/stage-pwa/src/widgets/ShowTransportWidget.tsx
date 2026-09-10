@@ -11,11 +11,17 @@ import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
+/** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
+ * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
+ * "00:00", not hidden or clamped away. `Math.floor`/`%` both propagate a negative dividend's
+ * sign on their own (`-1500 -> -2` seconds, not `-1`), so the sign is pulled out and applied
+ * once to the absolute value instead of trusting that arithmetic directly. */
 function formatClock(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
+  const sign = ms < 0 ? '-' : ''
+  const totalSeconds = Math.floor(Math.abs(ms) / 1000)
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  return `${sign}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 /**

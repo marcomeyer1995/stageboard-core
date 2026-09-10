@@ -4,7 +4,7 @@ import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
 import { useAudioOutputDriver } from './useAudioOutputDriver'
 import { useShowMode } from './showMode'
-import { loadLocalTrack, playLocalTrack, stopLocalTrack, syncLocalTrackPosition, unloadLocalTrack } from './localAudioEngine'
+import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, syncLocalTrackPosition, unloadLocalTrack } from './localAudioEngine'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -241,6 +241,78 @@ describe('continuous drift correction (#13 found live, 2026-09-10: the backing t
     })
     render(<DriverHost />)
     expect(syncLocalTrackPosition).not.toHaveBeenCalled()
+  })
+})
+
+describe('deferred audio start during a count-in (#25 follow-up: negative-clock count-in - queue.ts seeds a negative elapsedMs, the real backing track must not start until it reaches 0)', () => {
+  it('does not call playLocalTrack while elapsedMs is still negative', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: -1500,
+    })
+    render(<DriverHost />)
+    expect(playLocalTrack).not.toHaveBeenCalled()
+  })
+
+  it('calls playLocalTrack exactly once, the instant elapsedMs first reaches 0', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: -50,
+    })
+    const { rerender } = render(<DriverHost />)
+    expect(playLocalTrack).not.toHaveBeenCalled()
+
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 0,
+    })
+    rerender(<DriverHost />)
+    expect(playLocalTrack).toHaveBeenCalledTimes(1)
+    expect(playLocalTrack).toHaveBeenCalledWith(0)
+
+    // A later tick, still playing, must not re-trigger it - syncLocalTrackPosition (already
+    // covered above) takes over from here.
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 50,
+    })
+    rerender(<DriverHost />)
+    expect(playLocalTrack).toHaveBeenCalledTimes(1)
+  })
+
+  it('never calls playLocalTrack at all if playback is paused before elapsedMs ever reaches 0', () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: -1500,
+    })
+    const { rerender } = render(<DriverHost />)
+    expect(playLocalTrack).not.toHaveBeenCalled()
+
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'paused',
+      elapsedMs: -1500,
+    })
+    rerender(<DriverHost />)
+    expect(playLocalTrack).not.toHaveBeenCalled()
+    expect(pauseLocalTrack).toHaveBeenCalled()
   })
 })
 

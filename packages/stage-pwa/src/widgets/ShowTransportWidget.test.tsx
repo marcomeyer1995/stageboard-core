@@ -53,6 +53,7 @@ function mockShowMode(overrides: {
   currentEntry?: SetlistEntry | null
   currentVariant?: SongVariant | null
   canControl?: boolean
+  elapsedMs?: number | null
 }) {
   const play = vi.fn()
   const pause = vi.fn()
@@ -73,7 +74,7 @@ function mockShowMode(overrides: {
       currentVariant: overrides.currentVariant ?? null,
       nextVariant: null,
     },
-    elapsedMs: 0,
+    elapsedMs: overrides.elapsedMs ?? 0,
     playbackStatus: 'stopped',
     trackOverride: null,
     liveTempoAdjustPercent: 0,
@@ -128,6 +129,17 @@ describe('ShowTransportWidget', () => {
     mockShowMode({ currentSong: null })
     render(<ShowTransportWidget />)
     expect(screen.getByText('Kein Song aktiv')).toBeInTheDocument()
+  })
+
+  it('shows a negative countdown while a count-in is running (#25 follow-up), not malformed output', () => {
+    mockShowMode({
+      currentSong: song('s1', 'Sweet Home Chicago'),
+      currentEntry: entry('e1', 's1'),
+      currentVariant: variant('v1', 's1'),
+      elapsedMs: -1500,
+    })
+    render(<ShowTransportWidget />)
+    expect(screen.getByText('-00:01')).toBeInTheDocument()
   })
 
   it('offers to claim Master instead of transport controls when this device has no control', () => {
