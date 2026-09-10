@@ -52,6 +52,26 @@ export const usePracticeStateStore = create<PracticeStateStore>()(
           },
         })),
     }),
-    { name: 'stageboard-practice-state' },
+    {
+      name: 'stageboard-practice-state',
+      version: 1,
+      // v0 -> v1 (#25): clickTrackOverride is new. Every read site trusts a byWorkspace entry to
+      // be a complete PracticeState (falling back to DEFAULT_PRACTICE_STATE only when the whole
+      // entry is missing, not per-field) - without this, a device with pre-#25 persisted practice
+      // state would rehydrate `clickTrackOverride: undefined`, which effectiveClickEnabled
+      // (metronome.ts) treats as a forced-off override rather than "no override".
+      migrate: (persisted) => {
+        const state = persisted as PracticeStateStore
+        return {
+          ...state,
+          byWorkspace: Object.fromEntries(
+            Object.entries(state.byWorkspace ?? {}).map(([workspaceId, practiceState]) => [
+              workspaceId,
+              { ...DEFAULT_PRACTICE_STATE, ...practiceState },
+            ]),
+          ),
+        }
+      },
+    },
   ),
 )

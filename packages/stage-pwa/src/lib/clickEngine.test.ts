@@ -116,6 +116,33 @@ describe('startClick/stopClick', () => {
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps scheduling at the new spacing after a live tempo nudge mid-song, instead of stalling for real elapsed time to catch up to a beat grid re-quantized from song-start under the new bpm', () => {
+    let elapsedMs = 119855 // ~2 minutes in, just shy of a beat boundary at 140bpm
+    let bpm = 140 // 428.57ms/beat
+    startClick(() => ({ elapsedMs, bpm, timeSignature: '4/4' }))
+
+    vi.advanceTimersByTime(50) // schedules the imminent beat (elapsedMs 120000)
+    const clicksBeforeNudge = fakeCtx.createOscillator.mock.calls.length
+    expect(clicksBeforeNudge).toBeGreaterThan(0)
+
+    // A -3% live tempo nudge (TempoNudgeWidget, #140), applied right after that beat - the
+    // exact #25 review scenario: on the old index-based dedup this alone stalled the click for
+    // ~3.5s of real elapsed time before the next beat's index under the new bpm's grid caught
+    // up past the old cursor.
+    bpm = 135.8
+
+    let ticksUntilNextClick = 0
+    while (fakeCtx.createOscillator.mock.calls.length === clicksBeforeNudge && ticksUntilNextClick < 20) {
+      elapsedMs += 50
+      vi.advanceTimersByTime(50)
+      ticksUntilNextClick++
+    }
+
+    // At ~136bpm a beat is ~442ms apart - at most ~10 ticks (500ms) of silence is expected,
+    // never the ~70-tick (3.5s) stall the unfixed code produced.
+    expect(ticksUntilNextClick).toBeLessThan(15)
+  })
+
   it('stops scheduling further clicks once stopped', () => {
     let elapsedMs = 0
     startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4' }))
