@@ -92,6 +92,7 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
+      beatAnchors: [],
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 0, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
@@ -129,6 +130,27 @@ describe('VisualMetronomeWidget', () => {
     mockShowMode({ currentSong: song(120, '4/4'), elapsedMs: 260, playbackStatus: 'playing', liveTempoAdjustPercent: 100 })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
+  it('shows a count-in state while playing but still before the first beat anchor (#25 follow-up), distinct from "not playing at all"', () => {
+    const variant: SongVariant = {
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      timeSignature: '4/4',
+      clickTrackEnabled: false,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [],
+      beatAnchors: [{ id: 'a1', timeMs: 5000 }],
+    }
+    mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 1000, playbackStatus: 'playing' })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.getByText('Einzählen…')).toBeInTheDocument()
+    expect(screen.queryByText('Wartet auf Play')).not.toBeInTheDocument()
   })
 })
 

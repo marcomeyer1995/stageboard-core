@@ -1,4 +1,4 @@
-import { beatsPerBar } from './metronome'
+import { beatsPerBar, type BeatAnchorLike, resolveBeatOrigin } from './metronome'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -19,6 +19,10 @@ export interface ClickEngineState {
   elapsedMs: number | null
   bpm: number
   timeSignature: string
+  /** Downbeat sync points (#25 follow-up, SongVariant.beatAnchors) - see metronome.ts's
+   * `resolveBeatOrigin` for how these govern the beat grid. Empty reproduces the original
+   * (pre-anchor) behavior exactly: beat 0 pinned to elapsedMs 0. */
+  beatAnchors: readonly BeatAnchorLike[]
 }
 
 let audioContext: AudioContext | null = null
@@ -37,6 +41,12 @@ let nextBeatInBar = 0
 /** `elapsedMs` as of the last tick - used to detect a large gap between ticks (see
  * RESYNC_GAP_MS below), not to schedule anything itself. */
 let lastTickElapsedMs: number | null = null
+/** Which anchor origin `nextBeatOnsetMs` is currently anchored to (metronome.ts's
+ * `resolveBeatOrigin`) - `tick()` compares this against the freshly-resolved origin every tick
+ * so crossing into a new beat anchor mid-song re-anchors the schedule exactly there, the same
+ * way a stall or a fresh start already does, instead of continuing to extrapolate the old
+ * anchor's grid indefinitely. */
+let activeOriginMs: number | null = null
 
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
@@ -71,13 +81,19 @@ function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void
   osc.stop(time + CLICK_DURATION_S)
 }
 
-/** Anchors the running schedule to the next beat boundary at or after `elapsedMs` under `bpm` -
- * called once when playback (re)starts (nextBeatOnsetMs is null), never mid-stream, so a live
- * tempo nudge never resets/re-anchors the already-running cursor. */
-function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string): void {
+/** Anchors the running schedule to the next beat boundary at or after `elapsedMs`, relative to
+ * `originMs` (metronome.ts's `resolveBeatOrigin` - 0 with no beat anchors configured, exactly
+ * reproducing the original song-start-relative grid). `elapsedMs >= originMs` always holds here
+ * - `tick()` only ever calls this once it has already confirmed `originMs` is non-null, which
+ * `resolveBeatOrigin` only returns for an anchor at or before `elapsedMs`. Called when playback
+ * (re)starts (nextBeatOnsetMs is null), on a detected stall, or when the active anchor has just
+ * changed - never otherwise, so a live tempo nudge alone never resets/re-anchors the
+ * already-running cursor. */
+function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string, originMs: number): void {
   const msPerBeat = 60000 / bpm
-  const beatIndex = Math.floor(elapsedMs / msPerBeat) + 1
-  nextBeatOnsetMs = beatIndex * msPerBeat
+  const effectiveMs = elapsedMs - originMs
+  const beatIndex = Math.floor(effectiveMs / msPerBeat) + 1
+  nextBeatOnsetMs = originMs + beatIndex * msPerBeat
   nextBeatInBar = beatIndex % beatsPerBar(timeSignature)
 }
 
@@ -86,18 +102,32 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string): 
  * length - so a live tempo nudge (#140) changes spacing only from here forward, and a beat
  * already committed to the queue is never retroactively skipped or duplicated (the two windows
  * deliberately overlap - see TICK_INTERVAL_MS/LOOKAHEAD_MS above). Silent, and resets the
- * cursor, whenever nothing is currently playing. Also re-anchors (instead of bursting through a
- * backlog) whenever `elapsedMs` jumped by more than RESYNC_GAP_MS since the last tick - a
- * throttled/backgrounded tab, not a normal gap between beats. */
+ * cursor, whenever nothing is currently playing, or while still before the first beat anchor
+ * (metronome.ts's `resolveBeatOrigin` returning null - a count-in state). Re-anchors (instead of
+ * bursting through a backlog) whenever `elapsedMs` jumped by more than RESYNC_GAP_MS since the
+ * last tick (a throttled/backgrounded tab, not a normal gap between beats), or whenever the
+ * active beat anchor has changed - crossing into a new anchor's territory mid-song resets phase
+ * there exactly the same way a stall or a fresh start already does. */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, bpm, timeSignature } = getState()
+  const { elapsedMs, bpm, timeSignature, beatAnchors } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
     lastTickElapsedMs = null
+    activeOriginMs = null
     return
   }
+  const originMs = resolveBeatOrigin(beatAnchors, elapsedMs)
+  if (originMs === null) {
+    // Still before the first anchor - a count-in, nothing should sound yet.
+    lastTickElapsedMs = elapsedMs
+    return
+  }
+
   const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
-  if (nextBeatOnsetMs === null || stalled) anchorSchedule(elapsedMs, bpm, timeSignature)
+  if (nextBeatOnsetMs === null || stalled || originMs !== activeOriginMs) {
+    anchorSchedule(elapsedMs, bpm, timeSignature, originMs)
+    activeOriginMs = originMs
+  }
   lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
@@ -132,6 +162,7 @@ export function stopClick(): void {
   intervalId = null
   nextBeatOnsetMs = null
   lastTickElapsedMs = null
+  activeOriginMs = null
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module

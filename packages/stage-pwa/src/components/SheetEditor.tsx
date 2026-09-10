@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { SongSchema, SongVariantSchema, type Song, type ShowCue, type SongVariant, type TimecodeMarker } from 'shared-types'
+import {
+  SongSchema,
+  SongVariantSchema,
+  type BeatAnchor,
+  type Song,
+  type ShowCue,
+  type SongVariant,
+  type TimecodeMarker,
+} from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
 import { useDialogStore } from '../store/useDialogStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { BeatAnchorListEditor } from './BeatAnchorListEditor'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CueListEditor } from './CueListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
+import { TapBeatAnchors } from './TapBeatAnchors'
 import { TapToSync } from './TapToSync'
 import { TrackManagerField } from './TrackManagerField'
 
@@ -32,6 +42,7 @@ interface EditorDraft {
   chordProContent: string
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
+  beatAnchors: BeatAnchor[]
   key?: string
   tuning?: string
   capo?: number
@@ -50,6 +61,7 @@ function emptyDraft(): EditorDraft {
     chordProContent: '',
     timecodes: [],
     cues: [],
+    beatAnchors: [],
   }
 }
 
@@ -67,6 +79,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
     cues: variant.cues,
+    beatAnchors: variant.beatAnchors,
     key: variant.key,
     tuning: variant.tuning,
     capo: variant.capo,
@@ -98,6 +111,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
+  const [isTappingAnchors, setIsTappingAnchors] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -111,7 +125,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if (!isTapping || !tapTrack) return
+    if ((!isTapping && !isTappingAnchors) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -126,7 +140,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, draft.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, draft.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -184,6 +198,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
       cues: variant.cues,
+      beatAnchors: variant.beatAnchors,
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
@@ -215,6 +230,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       cues: draft.cues,
+      beatAnchors: draft.beatAnchors,
       tracks: currentTracks,
       key: draft.key,
       tuning: draft.tuning,
@@ -473,6 +489,31 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         </label>
         <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
         <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+        {isTappingAnchors ? (
+          <TapBeatAnchors
+            trackSrc={tapTrackSrc}
+            onComplete={(anchors) => {
+              setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
+              setIsTappingAnchors(false)
+            }}
+            onCancel={() => setIsTappingAnchors(false)}
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
+              <button
+                type="button"
+                onClick={() => setIsTappingAnchors(true)}
+                disabled={!tapTrack}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                Anker tappen
+              </button>
+            </div>
+            <BeatAnchorListEditor anchors={draft.beatAnchors} onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })} />
+          </div>
+        )}
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}

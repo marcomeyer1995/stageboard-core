@@ -1,19 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { parsePartDirective, setLineTimeTag } from '../lib/chordpro'
-import { useElapsedMs } from '../lib/useElapsedMs'
+import { formatTrackClockTime as formatTime, useTrackClock } from '../lib/useTrackClock'
 import { useClockStore } from '../store/useClockStore'
 
 /** Blank lines and part directives (`{part: Chorus}`) carry no lyrics, so they get no timecode. */
 function isTappable(line: string): boolean {
   return line.trim().length > 0 && parsePartDirective(line) === null
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '00:00'
-  const total = Math.floor(seconds)
-  const minutes = Math.floor(total / 60)
-  const secs = total % 60
-  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
 interface TapToSyncProps {
@@ -36,21 +28,7 @@ interface TapToSyncProps {
 export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSyncProps) {
   const [lines, setLines] = useState<string[]>(() => content.split('\n'))
   const [tapIndex, setTapIndex] = useState(() => lines.findIndex(isTappable))
-  const elapsedMs = useElapsedMs()
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [duration, setDuration] = useState(0)
-  const [position, setPosition] = useState(0)
-
-  useEffect(() => {
-    useClockStore.getState().reset()
-    // Without a track there's no audio to press play on - keep the original
-    // start-immediately stopwatch behavior so tapping still works.
-    if (!trackSrc) useClockStore.getState().start()
-    return () => {
-      useClockStore.getState().stop()
-    }
-  }, [trackSrc])
+  const { elapsedMs, isPlaying, duration, position, togglePlay, audioProps } = useTrackClock(trackSrc)
 
   function tap() {
     if (tapIndex < 0) return
@@ -64,15 +42,6 @@ export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSync
     } else {
       setTapIndex(nextIndex)
     }
-  }
-
-  function togglePlay() {
-    const audio = audioRef.current
-    if (!audio) return
-    // play() returns a promise that rejects with AbortError if pause() interrupts it before
-    // it resolves (e.g. a quick double-tap) - expected, not a bug.
-    if (audio.paused) audio.play().catch(() => {})
-    else audio.pause()
   }
 
   useEffect(() => {
@@ -98,28 +67,7 @@ export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSync
       </div>
       {trackSrc && (
         <div className="flex items-center gap-2 rounded-sb-sm bg-control px-3 py-2 text-xs text-ink-soft">
-          <audio
-            ref={audioRef}
-            src={trackSrc}
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            onPlay={() => {
-              setIsPlaying(true)
-              useClockStore.getState().start()
-            }}
-            onPause={() => {
-              setIsPlaying(false)
-              useClockStore.getState().stop()
-            }}
-            onEnded={() => {
-              setIsPlaying(false)
-              useClockStore.getState().stop()
-            }}
-            onTimeUpdate={(e) => {
-              setPosition(e.currentTarget.currentTime)
-              useClockStore.getState().seek(e.currentTarget.currentTime * 1000)
-            }}
-            onSeeked={(e) => useClockStore.getState().seek(e.currentTarget.currentTime * 1000)}
-          />
+          <audio {...audioProps} />
           <button
             type="button"
             onClick={togglePlay}

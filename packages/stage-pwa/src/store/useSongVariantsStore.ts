@@ -27,6 +27,8 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     // exactly what was stored, unvalidated, so this read-time fallback matters even though the
     // type says it's always present (same spirit as useSetlistsStore's `toSetlist` fallback).
     cues: doc.cues ?? [],
+    // Same story for `beatAnchors` (#25 follow-up).
+    beatAnchors: doc.beatAnchors ?? [],
   }
 }
 
