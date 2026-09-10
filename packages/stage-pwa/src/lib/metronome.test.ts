@@ -177,6 +177,52 @@ describe('resolveBeatGrid', () => {
   })
 })
 
+describe('resolveBeatGrid - tail continuation past the last anchor', () => {
+  it('reuses the previous segment\'s corrected ratio for the open-ended tail, instead of reverting to the plain nominal bpm', () => {
+    // 120 BPM = 500ms/beat nominal. Three anchors: the tail after the last one (5150) should be
+    // corrected using the segment BEFORE it (2100 -> 5150), not the whole 0 -> 5150 span and not
+    // a flat ratio of 1.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }, { timeMs: 5150 }]
+    const grid = resolveBeatGrid(anchors, 6000, 120)
+    expect(grid?.originMs).toBe(5150)
+    // gap 2100->5150 = 3050ms, rounds to 6 beats -> 3050/6/500.
+    expect(grid?.correctionRatio).toBeCloseTo(3050 / 6 / 500)
+  })
+
+  it('still falls back to correctionRatio 1 with only one anchor total - nothing to derive a tail ratio from', () => {
+    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, correctionRatio: 1 })
+  })
+})
+
+describe('resolveBeatGrid - count-in', () => {
+  it('is null before the count-in window even when countInBars is configured, same as with no count-in at all', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    // The count-in window is 2100 - 4*525 = 0ms long here (see the test below) - anything
+    // before elapsedMs 0 can't be reached at all, so this just re-confirms countInBars <= 0
+    // and "no anchors yet" both still produce null.
+    expect(resolveBeatGrid([], 0, 120, '4/4', 2)).toEqual({ originMs: 0, correctionRatio: 1 }) // no anchors: count-in is a no-op
+    expect(resolveBeatGrid(anchors, 100, 120, '4/4', 0)).toBeNull() // countInBars 0: unchanged behavior
+  })
+
+  it('plays backward from the first anchor at the first segment\'s own corrected tempo, phase-continuous into it', () => {
+    // Same anchors/ratio as the clickEngine.test.ts count-in test: 2100/4200 correct to 525ms
+    // beats (1.05 ratio). A 1-bar (4-beat) count-in is exactly 2100ms long, so its window starts
+    // exactly at elapsedMs 0.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    const grid = resolveBeatGrid(anchors, 0, 120, '4/4', 1)
+    expect(grid).toEqual({ originMs: 0, correctionRatio: 1.05 })
+    // One tick earlier would be before the window - still a true count-in/silence state.
+    expect(resolveBeatGrid(anchors, -1, 120, '4/4', 1)).toBeNull()
+  })
+
+  it('falls back to the nominal bpm for the count-in when there is no second anchor yet to derive a tempo from', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2000 }]
+    // 1 bar (4 beats) at the nominal 500ms/beat = 2000ms before the anchor -> starts at 0.
+    const grid = resolveBeatGrid(anchors, 0, 120, '4/4', 1)
+    expect(grid).toEqual({ originMs: 0, correctionRatio: 1 })
+  })
+})
+
 describe('beatAt with anchors', () => {
   it('returns null before the first anchor', () => {
     expect(beatAt(0, 120, '4/4', [{ timeMs: 5000 }])).toBeNull()
@@ -198,10 +244,19 @@ describe('beatAt with anchors', () => {
     expect(atAnchor.beatInBar).toBe(0)
     expect(atAnchor.isDownbeat).toBe(true)
     expect(atAnchor.msIntoBeat).toBe(0)
-    // 250ms after the second anchor is still beat 0 (250ms into a 500ms beat).
+    // 250ms after the second anchor is still beat 0 (250ms into a 500ms beat) - true under
+    // both the old nominal-500ms grid and the corrected 515ms one (see below), so this alone
+    // wouldn't catch a regression back to the plain nominal bpm.
     const after = mustBeatAt(5400, 120, '4/4', anchors)
     expect(after.beatInBar).toBe(0)
     expect(after.msIntoBeat).toBeCloseTo(250)
+    // Further into the tail, the two grids diverge: 4 corrected 515ms beats land exactly on
+    // 2060ms past the anchor (msIntoBeat 0), whereas 4 plain nominal 500ms beats would only
+    // reach 2000ms, leaving 60ms into the beat - this is what actually proves the tail reuses
+    // the last real segment's corrected ratio (#25 follow-up) instead of the plain bpm.
+    const deepInTail = mustBeatAt(5150 + 2060, 120, '4/4', anchors)
+    expect(deepInTail.beatInBar).toBe(0)
+    expect(deepInTail.msIntoBeat).toBeCloseTo(0)
   })
 
   it('uses the smoothed correctionRatio for spacing inside the segment, not the raw nominal bpm (#25 follow-up smoothing fix)', () => {
@@ -217,6 +272,28 @@ describe('beatAt with anchors', () => {
     const beat3 = mustBeatAt(1600, 120, '4/4', anchors)
     expect(beat3.beatInBar).toBe(3)
     expect(beat3.msIntoBeat).toBeCloseTo(25) // 1600 - 3*525
+  })
+})
+
+describe('beatAt - isCountIn (#25 follow-up)', () => {
+  it('is always false with no anchors at all, matching the pre-anchor invariant', () => {
+    for (const elapsedMs of [0, 500, 123456]) {
+      expect(mustBeatAt(elapsedMs, 120, '4/4').isCountIn).toBe(false)
+      expect(mustBeatAt(elapsedMs, 120, '4/4', [], 4).isCountIn).toBe(false) // countInBars is a no-op without anchors
+    }
+  })
+
+  it('is always false when countInBars is 0, even with anchors - unchanged from before this feature', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    expect(beatAt(0, 120, '4/4', anchors, 0)).toBeNull() // still a plain, silent count-in state
+  })
+
+  it('is true throughout the configured count-in window, false from the first anchor onward', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    expect(mustBeatAt(0, 120, '4/4', anchors, 1).isCountIn).toBe(true)
+    expect(mustBeatAt(600, 120, '4/4', anchors, 1).isCountIn).toBe(true)
+    expect(mustBeatAt(2100, 120, '4/4', anchors, 1).isCountIn).toBe(false) // the real first anchor itself
+    expect(mustBeatAt(3000, 120, '4/4', anchors, 1).isCountIn).toBe(false)
   })
 })
 

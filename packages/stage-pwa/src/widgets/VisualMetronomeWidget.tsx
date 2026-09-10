@@ -18,7 +18,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
           <span
             key={i}
             className={`rounded-full transition-colors duration-75 ${isDownbeat ? 'h-4 w-4' : 'h-3 w-3'} ${
-              isCurrent ? (isDownbeat ? 'bg-accent' : 'bg-ink') : 'bg-control-strong'
+              isCurrent ? (beat.isCountIn ? 'bg-ink-muted' : isDownbeat ? 'bg-accent' : 'bg-ink') : 'bg-control-strong'
             }`}
           />
         )
@@ -38,6 +38,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
   const song = queue.currentVariant ?? queue.currentSong
+  const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
 
   if (!song) {
     return (
@@ -57,7 +58,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   // itself might be - same "no variant means no anchors" shape useClickOutputDriver.ts uses.
   const beat =
     playbackStatus === 'playing' && elapsedMs !== null
-      ? beatAt(elapsedMs, bpm, song.timeSignature, queue.currentVariant?.beatAnchors ?? [])
+      ? beatAt(elapsedMs, bpm, song.timeSignature, queue.currentVariant?.beatAnchors ?? [], countInBars)
       : null
 
   if (beat === null) {
@@ -79,12 +80,18 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     <div
       className={`flex h-full flex-col items-center justify-center gap-2 rounded-sb transition-colors duration-75 ${
         config.style === 'number' && pulseOn
-          ? beat.isDownbeat
-            ? 'bg-accent text-surface'
-            : 'bg-ink text-surface'
+          ? beat.isCountIn
+            ? 'bg-control-strong text-ink'
+            : beat.isDownbeat
+              ? 'bg-accent text-surface'
+              : 'bg-ink text-surface'
           : 'bg-surface text-ink'
       }`}
     >
+      {/* Count-in bars (#25 follow-up) share the same pulsing display as the real song, so the
+          band can still count along - this badge is the only thing marking it as lead-in, not
+          the song's actual first bar. */}
+      {beat.isCountIn && <span className="text-xs uppercase tracking-wide text-ink-muted">Einzählen…</span>}
       {config.style === 'beat-dots' ? (
         <BeatDots beat={beat} totalBeats={beatsPerBar(song.timeSignature)} />
       ) : (

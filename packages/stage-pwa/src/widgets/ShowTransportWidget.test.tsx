@@ -37,6 +37,8 @@ function variant(id: string, songId: string): SongVariant {
     tracks: [],
     cues: [],
     beatAnchors: [],
+    countInEnabled: false,
+    countInBars: 1,
   }
 }
 

@@ -46,7 +46,7 @@ afterEach(() => {
 
 describe('startClick/stopClick', () => {
   it('does nothing while not playing (elapsedMs null)', () => {
-    startClick(() => ({ elapsedMs: null, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs: null, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
     vi.advanceTimersByTime(500)
     expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
   })
@@ -55,7 +55,7 @@ describe('startClick/stopClick', () => {
     // 120 BPM = 500ms/beat. From elapsedMs 0, the first tick's 150ms lookahead has nothing yet;
     // once elapsedMs reaches 350+, beat index 1 (at 500ms) is within the next tick's window.
     let elapsedMs = 0
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
 
     elapsedMs = 360
     vi.advanceTimersByTime(50) // one tick
@@ -65,7 +65,7 @@ describe('startClick/stopClick', () => {
 
   it('never schedules the same beat twice across overlapping lookahead windows', () => {
     let elapsedMs = 360
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
 
     vi.advanceTimersByTime(50) // ticks at elapsedMs=360, schedules beat 1 (500ms)
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
@@ -83,7 +83,7 @@ describe('startClick/stopClick', () => {
       oscillators.push(osc)
       return osc
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
 
     vi.advanceTimersByTime(50)
 
@@ -93,7 +93,7 @@ describe('startClick/stopClick', () => {
 
   it('resets its schedule position when playback pauses (elapsedMs goes null), so resuming re-derives from scratch rather than staying stuck on the old dedup cursor', () => {
     let elapsedMs: number | null = 360
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
     vi.advanceTimersByTime(50)
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
 
@@ -107,7 +107,7 @@ describe('startClick/stopClick', () => {
 
   it('is a no-op to call twice - does not double the scheduling rate', () => {
     const elapsedMs = 360
-    const getState = () => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] })
+    const getState = () => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 })
     startClick(getState)
     startClick(getState)
 
@@ -119,7 +119,7 @@ describe('startClick/stopClick', () => {
   it('keeps scheduling at the new spacing after a live tempo nudge mid-song, instead of stalling for real elapsed time to catch up to a beat grid re-quantized from song-start under the new bpm', () => {
     let elapsedMs = 119855 // ~2 minutes in, just shy of a beat boundary at 140bpm
     let bpm = 140 // 428.57ms/beat
-    startClick(() => ({ elapsedMs, bpm, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
 
     vi.advanceTimersByTime(50) // schedules the imminent beat (elapsedMs 120000)
     const clicksBeforeNudge = fakeCtx.createOscillator.mock.calls.length
@@ -145,7 +145,7 @@ describe('startClick/stopClick', () => {
 
   it('resyncs cleanly instead of bursting through every missed beat after the tab was backgrounded and throttled (found live, 2026-09-10: the click went "fully out of rhythm" after losing focus)', () => {
     let elapsedMs = 999855 // large value mid-song, just shy of a beat boundary at 120bpm (500ms/beat)
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
 
     vi.advanceTimersByTime(50) // establishes the anchor, schedules the imminent beat
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
@@ -181,28 +181,59 @@ describe('startClick/stopClick', () => {
       osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
       return osc
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 0 }))
 
     // Advance continuously in real TICK_INTERVAL_MS-sized steps, the same way real elapsed time
     // progresses - unlike a synthetic instantaneous jump, this always passes through the
     // lookahead window around anchor 1 before the origin itself flips over to it.
-    for (let t = 50; t <= 3000; t += 50) {
+    for (let t = 50; t <= 3200; t += 50) {
       elapsedMs = t
       vi.advanceTimersByTime(50)
     }
 
-    // Exactly 6 clicks - 4 evenly-spaced (525ms) beats inside the anchor-to-anchor segment, then
-    // 2 more at the plain nominal 500ms/beat spacing of the open-ended segment after the last
-    // anchor. No duplicate at the 2100ms crossing itself.
-    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1, 1000.1, 1000.1])
+    // 6 clicks, ALL evenly spaced at the corrected 525ms (not the nominal 500ms) - 4 inside the
+    // anchor-to-anchor segment, then 2 more past anchor 1 into the open-ended tail, which reuses
+    // that same segment's corrected ratio rather than reverting to the plain nominal bpm. No
+    // duplicate at the 2100ms crossing itself.
+    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1, 1000.125, 1000.1])
     // The 4th click - the one landing exactly on anchor 1 (2100ms) - is correctly the downbeat;
     // re-anchoring to the new segment right after it doesn't re-trigger or shift it.
     expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false])
   })
 
+  it('plays a count-in before the first anchor, at the corrected tempo of the first real segment', () => {
+    // Same 0/2100ms anchors and 525ms-corrected tempo as above, but with a 1-bar (4-beat)
+    // count-in configured - the count-in should start playing 4*525=2100ms before anchor 0
+    // (i.e. at elapsedMs -2100+2100=... concretely: 4 clicks before elapsedMs 0, then the real
+    // song's own beats continue exactly as the un-count-in test above).
+    const beatAnchors = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    let elapsedMs = 0
+    const started: { time: number; isDownbeat: boolean }[] = []
+    fakeCtx.createOscillator = vi.fn(() => {
+      const osc = new FakeOscillator()
+      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
+      return osc
+    })
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 1 }))
+
+    // Nothing before elapsedMs 0 exists to simulate - the count-in window (4 beats * 525ms =
+    // 2100ms before anchor 0 at 2100ms) starts exactly at elapsedMs 0, so clicks should be
+    // audible from the very start of playback, not silence until 2100ms.
+    for (let t = 50; t <= 2200; t += 50) {
+      elapsedMs = t
+      vi.advanceTimersByTime(50)
+    }
+
+    // 4 count-in clicks (one per bar-beat, since it's a single 4/4 bar) landing at 525ms
+    // intervals from elapsedMs 0, ending exactly on anchor 0 (2100ms) as its own downbeat -
+    // count-in and real song share an unbroken 525ms grid, no gap or duplicate at the join.
+    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1])
+    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true])
+  })
+
   it('stops scheduling further clicks once stopped', () => {
     let elapsedMs = 0
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] }))
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))
     stopClick()
 
     elapsedMs = 360

@@ -35,6 +35,10 @@ export interface Beat {
   /** How far into the current beat, in ms - 0 right on the beat, approaching msPerBeat just
    * before the next one. Drives the pulse's decay rather than a hard on/off flash. */
   msIntoBeat: number
+  /** True while elapsedMs is still before the variant's real first beat anchor - i.e. this beat
+   * is part of a configured count-in (#25 follow-up), not the song's actual first bar. Always
+   * false with no anchors, or once elapsedMs reaches the first anchor. */
+  isCountIn: boolean
 }
 
 export interface BeatAnchorLike {
@@ -61,6 +65,14 @@ function dedupeAnchors(anchors: readonly BeatAnchorLike[]): BeatAnchorLike[] {
     if (prev === undefined || anchor.timeMs - prev.timeMs >= MIN_ANCHOR_GAP_MS) result.push(anchor)
   }
   return result
+}
+
+/** The earliest anchor's timestamp, after collapsing near-duplicates - null with no anchors at
+ * all. Used to tell whether a given elapsedMs falls in a count-in window before the song's real
+ * first downbeat, vs the song itself (see `beatAt`'s `isCountIn`). */
+function firstAnchorMs(anchors: readonly BeatAnchorLike[]): number | null {
+  const deduped = dedupeAnchors(anchors)
+  return deduped.length > 0 ? deduped[0]!.timeMs : null
 }
 
 /**
@@ -99,30 +111,63 @@ export interface BeatGridSegment {
   correctionRatio: number
 }
 
+/** The stretch/compression ratio that makes the nearest whole number of nominal-bpm beats
+ * divide the real `fromMs`-to-`toMs` gap exactly - the shared formula behind every
+ * `resolveBeatGrid` case below (forward, tail, and count-in). */
+function segmentRatio(fromMs: number, toMs: number, bpm: number): number {
+  const nominalMsPerBeat = 60000 / bpm
+  const gapMs = toMs - fromMs
+  const beatsBetween = Math.max(1, Math.round(gapMs / nominalMsPerBeat))
+  return gapMs / beatsBetween / nominalMsPerBeat
+}
+
 /**
  * The active anchor origin (`resolveBeatOrigin`) plus the locally-corrected spacing to use from
- * it forward, given the *next* anchor if there is one. The song's own `bpm` is a rounded nominal
- * value that will essentially never divide the real gap between two anchors into a whole number
- * of exact-length beats - `beatsBetween` infers that whole number by rounding via the nominal
- * bpm, then `correctionRatio` is whatever small stretch/compression makes that many beats fit
- * the real gap exactly. This is *not* a tempo map (#141): nothing new is authored or stored, it's
- * a pure scheduling-time refinement of the same bpm + beatAnchors data already entered, and it
- * only ever nudges spacing by a hair - the rounding error a fixed-point bpm number would
- * otherwise have anyway.
+ * it forward. The song's own `bpm` is a rounded nominal value that will essentially never divide
+ * the real gap between two anchors into a whole number of exact-length beats - `segmentRatio`
+ * infers that whole number by rounding via the nominal bpm, then returns whatever small
+ * stretch/compression makes that many beats fit the real gap exactly. This is *not* a tempo map
+ * (#141): nothing new is authored or stored, it's a pure scheduling-time refinement of the same
+ * bpm + beatAnchors data already entered, and it only ever nudges spacing by a hair - the
+ * rounding error a fixed-point bpm number would otherwise have anyway.
+ *
+ * Three cases:
+ * - **Before the first anchor**: `null` (a true count-in/silence state) unless `countInBars` is
+ *   configured, in which case a virtual origin is placed exactly `countInBars` bars before the
+ *   first anchor, at the *first segment's own* corrected tempo (anchor 1 -> anchor 2, or nominal
+ *   bpm if there's no anchor 2 yet) - phase-continuous into the real first downbeat, since that
+ *   offset is by construction a whole number of bars at the same ratio.
+ * - **Between two anchors**: unchanged from before - corrected to fit the real gap evenly.
+ * - **After the last anchor**: reuses the *previous* segment's corrected ratio (the gap between
+ *   the last anchor and the one before it) instead of reverting to the plain nominal bpm, so a
+ *   song's outro doesn't silently lose the correction the rest of the song had. Falls back to
+ *   `1` only when there's no previous segment either (a single anchor total).
  */
-export function resolveBeatGrid(anchors: readonly BeatAnchorLike[], elapsedMs: number, bpm: number): BeatGridSegment | null {
+export function resolveBeatGrid(
+  anchors: readonly BeatAnchorLike[],
+  elapsedMs: number,
+  bpm: number,
+  timeSignature: string = '4/4',
+  countInBars: number = 0,
+): BeatGridSegment | null {
   const deduped = dedupeAnchors(anchors)
   const originMs = resolveBeatOrigin(deduped, elapsedMs)
-  if (originMs === null) return null
-  const nextAnchorMs = deduped
-    .map((anchor) => anchor.timeMs)
-    .filter((timeMs) => timeMs > originMs)
-    .reduce<number | null>((min, timeMs) => (min === null || timeMs < min ? timeMs : min), null)
-  if (nextAnchorMs === null) return { originMs, correctionRatio: 1 }
-  const nominalMsPerBeat = 60000 / bpm
-  const gapMs = nextAnchorMs - originMs
-  const beatsBetween = Math.max(1, Math.round(gapMs / nominalMsPerBeat))
-  return { originMs, correctionRatio: gapMs / beatsBetween / nominalMsPerBeat }
+  if (originMs === null) {
+    if (countInBars <= 0) return null
+    const firstMs = deduped[0]!.timeMs // non-null: resolveBeatOrigin only returns null when at
+    // least one anchor exists
+    const ratio = deduped.length >= 2 ? segmentRatio(firstMs, deduped[1]!.timeMs, bpm) : 1
+    const msPerBeat = (60000 / bpm) * ratio
+    const countInOriginMs = firstMs - countInBars * beatsPerBar(timeSignature) * msPerBeat
+    if (elapsedMs < countInOriginMs) return null // still earlier than the count-in window
+    return { originMs: countInOriginMs, correctionRatio: ratio }
+  }
+  const idx = deduped.findIndex((anchor) => anchor.timeMs === originMs)
+  const nextAnchorMs = deduped[idx + 1]?.timeMs
+  if (nextAnchorMs !== undefined) return { originMs, correctionRatio: segmentRatio(originMs, nextAnchorMs, bpm) }
+  const prevAnchorMs = deduped[idx - 1]?.timeMs
+  if (prevAnchorMs === undefined) return { originMs, correctionRatio: 1 } // only one anchor total
+  return { originMs, correctionRatio: segmentRatio(prevAnchorMs, originMs, bpm) }
 }
 
 /**
@@ -132,17 +177,25 @@ export function resolveBeatGrid(anchors: readonly BeatAnchorLike[], elapsedMs: n
  * Prompter's scroll position does (docs/00 §4). `null` means still before the first beat anchor
  * (see `resolveBeatOrigin`) - a count-in state, not a beat position.
  */
-export function beatAt(elapsedMs: number, bpm: number, timeSignature: string, anchors: readonly BeatAnchorLike[] = []): Beat | null {
-  const grid = resolveBeatGrid(anchors, elapsedMs, bpm)
+export function beatAt(
+  elapsedMs: number,
+  bpm: number,
+  timeSignature: string,
+  anchors: readonly BeatAnchorLike[] = [],
+  countInBars: number = 0,
+): Beat | null {
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars)
   if (grid === null) return null
   const msPerBeat = (60000 / bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat)
   const beatInBar = beatIndex % beatsPerBar(timeSignature)
+  const first = firstAnchorMs(anchors)
   return {
     beatInBar,
     isDownbeat: beatInBar === 0,
     msIntoBeat: effectiveMs - beatIndex * msPerBeat,
+    isCountIn: first !== null && elapsedMs < first,
   }
 }
 
@@ -175,8 +228,9 @@ export function upcomingBeats(
   bpm: number,
   timeSignature: string,
   anchors: readonly BeatAnchorLike[] = [],
+  countInBars: number = 0,
 ): ScheduledBeat[] {
-  const grid = resolveBeatGrid(anchors, elapsedMs, bpm)
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars)
   if (grid === null) return [] // still before the first anchor - nothing to schedule yet
   const msPerBeat = (60000 / bpm) * grid.correctionRatio
   const beats = beatsPerBar(timeSignature)

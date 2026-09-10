@@ -19,6 +19,8 @@ function variant(overrides: Partial<SongVariant> & Pick<SongVariant, 'id' | 'son
     tracks: [],
     cues: [],
     beatAnchors: [],
+    countInEnabled: false,
+    countInBars: 1,
     ...overrides,
   }
 }

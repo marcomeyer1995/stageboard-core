@@ -76,7 +76,7 @@ export function useClickOutputDriver(): void {
 
   // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
   // closed over once - clickEngine.ts's scheduler polls this on every tick.
-  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] })
+  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 })
   useEffect(() => {
     stateRef.current = {
       elapsedMs,
@@ -87,6 +87,9 @@ export function useClickOutputDriver(): void {
       // tempo nudge above - a nudge is a virtual grid-spacing correction, unrelated to where
       // real downbeats sit in the anchors' fixed timestamps.
       beatAnchors: queue.currentVariant?.beatAnchors ?? [],
+      // countInEnabled gates countInBars - unchecked means no count-in regardless of the
+      // authored bar count, same "checkbox is the real toggle" contract SheetEditor.tsx exposes.
+      countInBars: queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0,
     }
   })
 

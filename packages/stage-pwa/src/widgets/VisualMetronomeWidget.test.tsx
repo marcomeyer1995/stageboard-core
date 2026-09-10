@@ -93,6 +93,8 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [],
+      countInEnabled: false,
+      countInBars: 1,
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 0, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
@@ -146,11 +148,64 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [{ id: 'a1', timeMs: 5000 }],
+      countInEnabled: false,
+      countInBars: 1,
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 1000, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
     expect(screen.getByText('Einzählen…')).toBeInTheDocument()
     expect(screen.queryByText('Wartet auf Play')).not.toBeInTheDocument()
+  })
+
+  it('plays and visually distinguishes a configured count-in, showing real beat numbers with a muted "Einzählen…" badge instead of the placeholder', () => {
+    // 120 BPM = 500ms/beat nominal; anchors at 2100/4200 correct to 525ms/beat (same as the
+    // clickEngine.test.ts count-in test) - a 1-bar count-in starts exactly at elapsedMs 0.
+    const variant: SongVariant = {
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      timeSignature: '4/4',
+      clickTrackEnabled: false,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [],
+      beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
+      countInEnabled: true,
+      countInBars: 1,
+    }
+    mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 600, playbackStatus: 'playing' })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    // Inside the count-in window: a real beat number, not the full-placeholder "Einzählen…"
+    // state, but still carrying the "Einzählen…" badge to mark it as a count-in.
+    expect(screen.getByText('Einzählen…')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.queryByText('Wartet auf Play')).not.toBeInTheDocument()
+  })
+
+  it('does not show the count-in badge once elapsedMs reaches the real first anchor', () => {
+    const variant: SongVariant = {
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      bpm: 120,
+      timeSignature: '4/4',
+      clickTrackEnabled: false,
+      chordProContent: '',
+      timecodes: [],
+      tracks: [],
+      cues: [],
+      beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
+      countInEnabled: true,
+      countInBars: 1,
+    }
+    mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 2100, playbackStatus: 'playing' })
+    render(<VisualMetronomeWidget config={{ style: 'number' }} />)
+    expect(screen.queryByText('Einzählen…')).not.toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
   })
 })
 

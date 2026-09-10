@@ -37,6 +37,8 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
       clickTrackEnabled: existing.clickTrackEnabled ?? false,
       cues: existing.cues ?? [],
       beatAnchors: existing.beatAnchors ?? [],
+      countInEnabled: existing.countInEnabled ?? false,
+      countInBars: existing.countInBars ?? 1,
     }
   }
 
@@ -53,6 +55,8 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
     tracks: [],
     cues: [],
     beatAnchors: [],
+    countInEnabled: false,
+    countInBars: 1,
   }
   await putVariant(variant)
 
