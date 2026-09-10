@@ -1,42 +1,29 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
-import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
+import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { ShowTransportWidget } from './ShowTransportWidget'
 import { useShowMode } from '../lib/showMode'
-import { loadLocalTrack, unloadLocalTrack } from '../lib/localAudioEngine'
-import { useShowStateStore } from '../store/useShowStateStore'
-import { usePluginsStore } from '../store/usePluginsStore'
+import { triggerShowControl } from '../lib/showControlClient'
+import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { usePluginsStore } from '../store/usePluginsStore'
+import { useShowStateStore } from '../store/useShowStateStore'
 
-// Explicit factories, not auto-mocks: an auto-mock still has to import the real module first to
-// derive its shape, and useShowStateStore.ts/usePluginsStore.ts/showMode.ts (plus the Logical
-// Devices store useHardwareBindingFor.ts reads, and - now that clientTranslator.ts also
-// registers kemperTranslator.ts - useDeviceTransportConfigStore) all transitively pull in
-// workspaceDb.ts's top-level `new PouchDB(...)`, which throws outside a real browser/IndexedDB
-// environment (hardwareRouting.ts itself stays free of this - see its own doc comment).
+// Same explicit-factory reasoning as useAudioOutputDriver.test.ts (which now owns the reactive
+// local-engine-driving behavior this widget used to run itself - see its own doc comment).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showControlClient', () => ({ triggerShowControl: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
-vi.mock('../lib/localAudioEngine', () => ({
-  loadLocalTrack: vi.fn(),
-  playLocalTrack: vi.fn(),
-  pauseLocalTrack: vi.fn(),
-  stopLocalTrack: vi.fn(),
-  unloadLocalTrack: vi.fn(),
-}))
-
-function track(id: string): TrackMeta {
-  return { id, kind: 'band-mix', label: 'Band', source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }
-}
 
 function song(id: string, title: string): Song {
   return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
-function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
+function variant(id: string, songId: string): SongVariant {
   return {
     id,
     songId,
@@ -47,7 +34,7 @@ function variant(id: string, songId: string, tracks: TrackMeta[]): SongVariant {
     clickTrackEnabled: false,
     chordProContent: '',
     timecodes: [],
-    tracks,
+    tracks: [],
     cues: [],
   }
 }
@@ -56,15 +43,17 @@ function entry(id: string, songId: string): SetlistEntry {
   return { id, songId, variantId: null, trackId: null }
 }
 
-/** #10's whole point: the claimed audio-output device and the Master-Token holder can be two
- * different tablets - `canControl` (Master) is false by default in every test here, since the
- * original bug (found live, 2026-09-05) only ever showed up on the *non-master* claimed device. */
+const DEVICE_ID = 'laptop-device'
+
 function mockShowMode(overrides: {
-  currentEntry: SetlistEntry | null
   currentSong: Song | null
-  currentVariant: SongVariant | null
+  currentEntry?: SetlistEntry | null
+  currentVariant?: SongVariant | null
   canControl?: boolean
 }) {
+  const play = vi.fn()
+  const pause = vi.fn()
+  const stop = vi.fn()
   vi.mocked(useShowMode).mockReturnValue({
     mode: 'gig',
     queue: {
@@ -75,10 +64,10 @@ function mockShowMode(overrides: {
       currentSong: overrides.currentSong,
       nextSong: null,
       previousEntry: null,
-      currentEntry: overrides.currentEntry,
+      currentEntry: overrides.currentEntry ?? null,
       nextEntry: null,
       previousVariant: null,
-      currentVariant: overrides.currentVariant,
+      currentVariant: overrides.currentVariant ?? null,
       nextVariant: null,
     },
     elapsedMs: 0,
@@ -89,22 +78,29 @@ function mockShowMode(overrides: {
     nudgeLiveTempoAdjustPercent: vi.fn(),
     clickTrackOverride: null,
     setClickTrackOverride: vi.fn(),
-    canControl: overrides.canControl ?? false,
-    play: vi.fn(),
-    pause: vi.fn(),
-    stop: vi.fn(),
+    canControl: overrides.canControl ?? true,
+    play,
+    pause,
+    stop,
     reset: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),
     setTrackOverride: vi.fn(),
-  })
+  } as never)
+  return { play, pause, stop }
 }
 
-const DEVICE_ID = 'laptop-device'
-const AUDIO_LOGICAL_DEVICE_ID = 'audio-output'
+// No Logical Device claims audio-playback by default - `engine` resolves via whichever plugin
+// `pluginProviding` finds installed, not `local-mine`, so button clicks forward to the plugin.
+function mockNoAudioClaim() {
+  vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
+    selector({ devices: [], loaded: true, init: vi.fn(), save: vi.fn(), remove: vi.fn() } as never),
+  )
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useLocalAudioOutputStore.setState({ error: null })
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({
       state: {},
@@ -115,75 +111,70 @@ beforeEach(() => {
       init: vi.fn(),
     } as never),
   )
-  // The claimed audio-output device, expressed directly on its own Logical Device: one Logical
-  // Device providing `audio-playback`, bound to DEVICE_ID - equivalent to the old
-  // `deviceClaims[CAPABILITIES.audioPlayback] = DEVICE_ID`.
-  vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
+  mockNoAudioClaim()
+  vi.mocked(usePluginsStore).mockImplementation((selector) =>
     selector({
-      devices: [
-        {
-          id: AUDIO_LOGICAL_DEVICE_ID,
-          name: 'Audio-Ausgabe',
-          capability: CAPABILITIES.audioPlayback,
-          pluginId: null,
-          executionTarget: DEVICE_ID,
-        },
-      ],
-      loaded: true,
-      init: vi.fn(),
-      save: vi.fn(),
-      remove: vi.fn(),
+      installed: [{ id: 'mock-playback', capabilities: [CAPABILITIES.audioPlayback], enabled: true }],
     } as never),
   )
-  vi.mocked(usePluginsStore).mockImplementation((selector) => selector({ installed: [] } as never))
-  vi.mocked(loadLocalTrack).mockResolvedValue({ status: 'ok' })
+  vi.mocked(triggerShowControl).mockResolvedValue({ status: 'ok' })
 })
 
-describe('ShowTransportWidget - claimed audio-output device, not the master', () => {
-  it('unloads a stale local track when the synced song changes to one with no track at all', () => {
-    mockShowMode({
-      currentEntry: entry('e1', 'song-b'),
-      currentSong: song('song-b', 'A Cappella'),
-      currentVariant: variant('v1', 'song-b', []), // no tracks - "Kein Track angehängt"
-    })
-
+describe('ShowTransportWidget', () => {
+  it('shows "Kein Song aktiv" when there is no current entry', () => {
+    mockShowMode({ currentSong: null })
     render(<ShowTransportWidget />)
-
-    expect(unloadLocalTrack).toHaveBeenCalled()
-    expect(loadLocalTrack).not.toHaveBeenCalled()
+    expect(screen.getByText('Kein Song aktiv')).toBeInTheDocument()
   })
 
-  it('loads the new local track when the synced song changes to one that has one', () => {
-    mockShowMode({
-      currentEntry: entry('e2', 'song-a'),
-      currentSong: song('song-a', 'Sweet Home Chicago'),
-      currentVariant: variant('v2', 'song-a', [track('t1')]),
-    })
-
+  it('offers to claim Master instead of transport controls when this device has no control', () => {
+    mockShowMode({ currentSong: song('s1', 'Sweet Home Chicago'), canControl: false })
     render(<ShowTransportWidget />)
-
-    expect(loadLocalTrack).toHaveBeenCalledWith('v2', 't1')
+    expect(screen.getByText('Master übernehmen')).toBeInTheDocument()
+    expect(screen.queryByText('Play')).not.toBeInTheDocument()
   })
 
-  it('does not reload (and so does not reset/stop) an already-loaded track when someone else merely takes over Master - the song itself hasn\'t changed', () => {
-    mockShowMode({
-      currentEntry: entry('e2', 'song-a'),
-      currentSong: song('song-a', 'Sweet Home Chicago'),
-      currentVariant: variant('v2', 'song-a', [track('t1')]),
-      canControl: true,
+  it('calls play() and forwards to the resolved plugin on Play, when no device claims local output', () => {
+    const { play } = mockShowMode({
+      currentSong: song('s1', 'Sweet Home Chicago'),
+      currentEntry: entry('e1', 's1'),
+      currentVariant: variant('v1', 's1'),
     })
-    const { rerender } = render(<ShowTransportWidget />)
-    expect(loadLocalTrack).toHaveBeenCalledTimes(1)
+    render(<ShowTransportWidget />)
 
-    // Someone else claims Master - `canControl` flips on this device, same song/track.
+    fireEvent.click(screen.getByText('Play'))
+
+    expect(play).toHaveBeenCalledTimes(1)
+    expect(triggerShowControl).toHaveBeenCalledWith('mock-playback', { type: 'play' })
+  })
+
+  it('shows "Kein Track angehängt" for a trackless song when this device is the claimed local output', () => {
+    vi.mocked(useLogicalDevicesStore).mockImplementation((selector) =>
+      selector({
+        devices: [
+          { id: 'audio-output', name: 'Audio-Ausgabe', capability: CAPABILITIES.audioPlayback, pluginId: null, executionTarget: DEVICE_ID },
+        ],
+        loaded: true,
+        init: vi.fn(),
+        save: vi.fn(),
+        remove: vi.fn(),
+      } as never),
+    )
     mockShowMode({
-      currentEntry: entry('e2', 'song-a'),
-      currentSong: song('song-a', 'Sweet Home Chicago'),
-      currentVariant: variant('v2', 'song-a', [track('t1')]),
-      canControl: false,
+      currentSong: song('s1', 'A Cappella'),
+      currentEntry: entry('e1', 's1'),
+      currentVariant: variant('v1', 's1'),
     })
-    rerender(<ShowTransportWidget />)
+    render(<ShowTransportWidget />)
 
-    expect(loadLocalTrack).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Kein Track angehängt')).toBeInTheDocument()
+  })
+
+  it('shows the local-output driver error (useAudioOutputDriver.ts) when set', () => {
+    useLocalAudioOutputStore.setState({ error: 'Kein Track gefunden' })
+    mockShowMode({ currentSong: song('s1', 'Sweet Home Chicago') })
+    render(<ShowTransportWidget />)
+
+    expect(screen.getByText('Kein Track gefunden')).toBeInTheDocument()
   })
 })
