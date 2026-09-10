@@ -62,6 +62,45 @@ export function resolveBeatOrigin(anchors: readonly BeatAnchorLike[], elapsedMs:
   return best
 }
 
+export interface BeatGridSegment {
+  originMs: number
+  /** Multiplier applied to whatever `60000 / bpm` is live right now, so this segment's beats
+   * divide its real (anchor-to-anchor) duration evenly instead of accumulating a small error
+   * over the segment that gets released as an audible jump right at the next anchor (found
+   * live, 2026-09-10: heard as jitter, sometimes an outright duplicated click, right at a
+   * crossing). Always 1 with no next anchor to lock onto yet (the open-ended final segment) -
+   * nothing to divide evenly against. Deliberately reads as a *ratio*, not an absolute
+   * millisecond value: a live tempo nudge (#140) still applies to `bpm` and takes effect
+   * immediately, every tick - this just rides on top of whatever that produces, rather than
+   * being a fixed value that would only update at the next anchor crossing. */
+  correctionRatio: number
+}
+
+/**
+ * The active anchor origin (`resolveBeatOrigin`) plus the locally-corrected spacing to use from
+ * it forward, given the *next* anchor if there is one. The song's own `bpm` is a rounded nominal
+ * value that will essentially never divide the real gap between two anchors into a whole number
+ * of exact-length beats - `beatsBetween` infers that whole number by rounding via the nominal
+ * bpm, then `correctionRatio` is whatever small stretch/compression makes that many beats fit
+ * the real gap exactly. This is *not* a tempo map (#141): nothing new is authored or stored, it's
+ * a pure scheduling-time refinement of the same bpm + beatAnchors data already entered, and it
+ * only ever nudges spacing by a hair - the rounding error a fixed-point bpm number would
+ * otherwise have anyway.
+ */
+export function resolveBeatGrid(anchors: readonly BeatAnchorLike[], elapsedMs: number, bpm: number): BeatGridSegment | null {
+  const originMs = resolveBeatOrigin(anchors, elapsedMs)
+  if (originMs === null) return null
+  const nextAnchorMs = anchors
+    .map((anchor) => anchor.timeMs)
+    .filter((timeMs) => timeMs > originMs)
+    .reduce<number | null>((min, timeMs) => (min === null || timeMs < min ? timeMs : min), null)
+  if (nextAnchorMs === null) return { originMs, correctionRatio: 1 }
+  const nominalMsPerBeat = 60000 / bpm
+  const gapMs = nextAnchorMs - originMs
+  const beatsBetween = Math.max(1, Math.round(gapMs / nominalMsPerBeat))
+  return { originMs, correctionRatio: gapMs / beatsBetween / nominalMsPerBeat }
+}
+
 /**
  * The beat at a given elapsed-ms position into a song, locked to the same synced elapsed time
  * every other timeline consumer uses (usePlaybackElapsedMs.ts) - not a local setInterval, so
@@ -70,10 +109,10 @@ export function resolveBeatOrigin(anchors: readonly BeatAnchorLike[], elapsedMs:
  * (see `resolveBeatOrigin`) - a count-in state, not a beat position.
  */
 export function beatAt(elapsedMs: number, bpm: number, timeSignature: string, anchors: readonly BeatAnchorLike[] = []): Beat | null {
-  const originMs = resolveBeatOrigin(anchors, elapsedMs)
-  if (originMs === null) return null
-  const msPerBeat = 60000 / bpm
-  const effectiveMs = elapsedMs - originMs
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm)
+  if (grid === null) return null
+  const msPerBeat = (60000 / bpm) * grid.correctionRatio
+  const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat)
   const beatInBar = beatIndex % beatsPerBar(timeSignature)
   return {
@@ -113,11 +152,11 @@ export function upcomingBeats(
   timeSignature: string,
   anchors: readonly BeatAnchorLike[] = [],
 ): ScheduledBeat[] {
-  const originMs = resolveBeatOrigin(anchors, elapsedMs)
-  if (originMs === null) return [] // still before the first anchor - nothing to schedule yet
-  const msPerBeat = 60000 / bpm
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm)
+  if (grid === null) return [] // still before the first anchor - nothing to schedule yet
+  const msPerBeat = (60000 / bpm) * grid.correctionRatio
   const beats = beatsPerBar(timeSignature)
-  const effectiveMs = elapsedMs - originMs
+  const effectiveMs = elapsedMs - grid.originMs
   // Beat index is relative to the active anchor, not song-start - clamped at 0 (the anchor
   // itself is always the earliest valid beat, never a negative index before it).
   const firstIndex = effectiveMs < 0 ? 0 : Math.floor(effectiveMs / msPerBeat) + 1
@@ -127,7 +166,7 @@ export function upcomingBeats(
     result.push({
       beatIndex,
       isDownbeat: beatIndex % beats === 0,
-      msFromNow: originMs + beatIndex * msPerBeat - elapsedMs,
+      msFromNow: grid.originMs + beatIndex * msPerBeat - elapsedMs,
     })
   }
   return result

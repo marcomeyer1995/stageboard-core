@@ -165,39 +165,39 @@ describe('startClick/stopClick', () => {
     expect(fakeCtx.createOscillator.mock.calls.length).toBeLessThan(3)
   })
 
-  it('re-anchors phase the instant elapsedMs crosses into a new beat anchor mid-song, instead of continuing to extrapolate the old grid (#25 follow-up)', () => {
-    // 120 BPM = 500ms/beat. Anchor 0 (song-start) governs the grid until elapsedMs reaches
-    // anchor 1 at 5150ms - not a multiple of 500ms away, exactly the kind of irregularity (a
-    // bar that didn't line up with straight bpm-math) an anchor is meant to correct.
-    const beatAnchors = [{ timeMs: 0 }, { timeMs: 5150 }]
-    let elapsedMs = 4950 // just shy of a beat boundary under anchor 0's grid (4950 -> 5000)
-    const started: number[] = [] // the `time` argument each oscillator's start() was called with
+  it('smooths beat spacing to divide each anchor-to-anchor gap evenly, and re-anchors at the crossing with no duplicated or jittered click (#25 follow-up smoothing fix)', () => {
+    // 120 BPM = 500ms/beat nominal. Anchor 1 at 2100ms is NOT a whole multiple of 500ms away
+    // from anchor 0 (song-start) - exactly the kind of quantization mismatch that used to cause
+    // an audible jitter/duplicate right at the crossing. resolveBeatGrid's correctionRatio
+    // divides the 2100ms gap into 4 equal 525ms beats instead, so the segment's *last* beat
+    // lands exactly on anchor 1 itself (no jump, no double-click) - see metronome.ts.
+    const beatAnchors = [{ timeMs: 0 }, { timeMs: 2100 }]
+    let elapsedMs = 0
+    const started: { time: number; isDownbeat: boolean }[] = []
     fakeCtx.createOscillator = vi.fn(() => {
       const osc = new FakeOscillator()
-      osc.start = vi.fn((time: number) => started.push(time))
+      // playClickAt sets osc.frequency.value before calling start(), so it's already correct
+      // by the time this reads it.
+      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
       return osc
     })
     startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors }))
 
-    vi.advanceTimersByTime(50) // schedules the beat at 5000ms, still under anchor 0's grid
-    expect(started).toHaveLength(1)
+    // Advance continuously in real TICK_INTERVAL_MS-sized steps, the same way real elapsed time
+    // progresses - unlike a synthetic instantaneous jump, this always passes through the
+    // lookahead window around anchor 1 before the origin itself flips over to it.
+    for (let t = 50; t <= 3000; t += 50) {
+      elapsedMs = t
+      vi.advanceTimersByTime(50)
+    }
 
-    // Cross into anchor 1. The re-anchored next beat is due at 5650ms (500ms after the anchor
-    // itself, same "schedule the next beat after now" rule anchorSchedule always follows) - not
-    // yet within the 150ms lookahead, so nothing new is scheduled on this exact tick.
-    elapsedMs = 5150
-    vi.advanceTimersByTime(50)
-    expect(started).toHaveLength(1)
-
-    // Advance close to that re-anchored beat.
-    elapsedMs = 5520
-    vi.advanceTimersByTime(50)
-
-    expect(started).toHaveLength(2)
-    // ctx.currentTime is fixed at 1000 in the fake - this scheduled time reflects msFromNow to
-    // the re-anchored beat at 5650ms, not the stale 5500ms the pre-crossing grid would have
-    // used (0 + 11*500, extrapolated straight from anchor 0 with no correction).
-    expect(started[1]).toBeCloseTo(1000 + (5650 - 5520) / 1000)
+    // Exactly 6 clicks - 4 evenly-spaced (525ms) beats inside the anchor-to-anchor segment, then
+    // 2 more at the plain nominal 500ms/beat spacing of the open-ended segment after the last
+    // anchor. No duplicate at the 2100ms crossing itself.
+    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1, 1000.1, 1000.1])
+    // The 4th click - the one landing exactly on anchor 1 (2100ms) - is correctly the downbeat;
+    // re-anchoring to the new segment right after it doesn't re-trigger or shift it.
+    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false])
   })
 
   it('stops scheduling further clicks once stopped', () => {
