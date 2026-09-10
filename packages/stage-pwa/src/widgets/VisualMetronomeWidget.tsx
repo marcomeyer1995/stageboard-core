@@ -49,10 +49,6 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   }
 
   const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
-  const bpmLabel =
-    liveTempoAdjustPercent === 0
-      ? `${song.bpm} BPM`
-      : `${Math.round(bpm)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
 
   // beatAnchors (#25 follow-up) only lives on SongVariant, not the bare Song fallback `song`
   // itself might be - same "no variant means no anchors" shape useClickOutputDriver.ts uses.
@@ -60,6 +56,17 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     playbackStatus === 'playing' && elapsedMs !== null
       ? beatAt(elapsedMs, bpm, song.timeSignature, queue.currentVariant?.beatAnchors ?? [], countInBars)
       : null
+
+  // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm`
+  // (metronome.ts, #25 follow-up) already bakes in whatever anchor-segment correction is active;
+  // with no active beat (not playing yet, or still before the count-in window) there's no grid
+  // to correct against, so this just falls back to the plain (live-nudged) bpm. Always shown to
+  // one decimal - a rounded integer hid the whole point of the correction (Marco, 2026-09-10).
+  const displayBpm = beat === null ? bpm : beat.effectiveBpm
+  const bpmLabel =
+    liveTempoAdjustPercent === 0
+      ? `${displayBpm.toFixed(1)} BPM`
+      : `${displayBpm.toFixed(1)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
 
   if (beat === null) {
     return (
