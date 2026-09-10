@@ -9,71 +9,109 @@
  */
 
 /**
- * One-pole low-pass filter, isolating the low-frequency content (kick drum/bass) that actually
- * defines the beat in a real mix - far more reliably than the full spectrum for pinpointing
- * *where* one specific beat falls. Found live, 2026-09-10: beat-tracking against the raw
- * full-spectrum signal added a correction anchor on almost every single beat (113 anchors on one
- * song, some barely 300ms apart on a ~525ms beat) - hi-hats, vocal consonants, and strums all
- * fire far more often than once per beat and otherwise dominate "loudest nearby transient" onset
- * picking, which is essentially noise relative to the actual beat.
- *
- * analyzeTrack.ts applies this only for `detectFirstOnset`/`detectBeatAnchors` (placement), NOT
- * for `detectTempo` (found live, 2026-09-10, immediately after fixing the above: running tempo
- * detection on this same filtered signal made the *tempo* estimate badly wrong instead - 75.5
- * vs. the correct ~114 BPM, a 2:3 ratio - isolating just the bassline exposed its own sparser
- * sub-pattern rather than the true beat. Aggregate energy across the whole mix reinforces the
- * true periodicity far more robustly than any single isolated instrument, even though any one
- * full-spectrum onset by itself is noisy). The detectors themselves stay generic either way (a
- * filtered or unfiltered signal is just another Float32Array to them), so this can be tuned
- * independently later without touching them.
+ * In-place radix-2 Cooley-Tukey FFT - `re`/`im` must be equal-length power-of-2 arrays (`im`
+ * conventionally all-zero for a real-valued input signal). The building block for
+ * `computeSpectralFlux` below; not exported, since no caller needs a raw FFT for its own sake.
  */
-export function lowPassFilter(samples: Float32Array, sampleRate: number, cutoffHz = 150): Float32Array {
-  const alpha = 1 - Math.exp((-2 * Math.PI * cutoffHz) / sampleRate)
-  const output = new Float32Array(samples.length)
-  let prev = 0
-  for (let i = 0; i < samples.length; i++) {
-    prev += alpha * (samples[i]! - prev)
-    output[i] = prev
+function fft(re: Float64Array, im: Float64Array): void {
+  const n = re.length
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1
+    for (; (j & bit) !== 0; bit >>= 1) j ^= bit
+    j ^= bit
+    if (i < j) {
+      const tr = re[i]!
+      re[i] = re[j]!
+      re[j] = tr
+      const ti = im[i]!
+      im[i] = im[j]!
+      im[j] = ti
+    }
   }
-  return output
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (-2 * Math.PI) / len
+    const wr = Math.cos(ang)
+    const wi = Math.sin(ang)
+    for (let i = 0; i < n; i += len) {
+      let curWr = 1
+      let curWi = 0
+      for (let j = 0; j < len / 2; j++) {
+        const ur = re[i + j]!
+        const ui = im[i + j]!
+        const vr = re[i + j + len / 2]! * curWr - im[i + j + len / 2]! * curWi
+        const vi = re[i + j + len / 2]! * curWi + im[i + j + len / 2]! * curWr
+        re[i + j] = ur + vr
+        im[i + j] = ui + vi
+        re[i + j + len / 2] = ur - vr
+        im[i + j + len / 2] = ui - vi
+        const nextWr = curWr * wr - curWi * wi
+        const nextWi = curWr * wi + curWi * wr
+        curWr = nextWr
+        curWi = nextWi
+      }
+    }
+  }
 }
 
-export interface RmsEnvelope {
-  rms: Float32Array
+function nextPowerOfTwo(n: number): number {
+  let p = 1
+  while (p < n) p <<= 1
+  return p
+}
+
+export interface SpectralFluxEnvelope {
+  /** Already an onset-strength-shaped signal in its own right (unlike a raw loudness envelope,
+   * which would still need a separate frame-to-frame diff step) - a sharp peak wherever the
+   * mix's *spectral content* changed abruptly, not just wherever it got louder. */
+  flux: Float32Array
   hopMs: number
 }
 
 /**
- * Windowed RMS loudness envelope - the shared basis for onset/tempo/anchor detection below.
- * Time-based frame/hop (not sample counts), so it's sample-rate independent.
+ * Spectral flux onset-strength envelope: for each frame, a windowed FFT's magnitude spectrum is
+ * compared to the previous frame's, and the positive (rising) part of that difference is summed
+ * across all frequency bins. Replaces an earlier RMS-loudness-difference approach entirely
+ * (found live, 2026-09-10, after three rounds of tuning that raw loudness-based technique still
+ * couldn't reliably tell a real full mix's beat from its own hi-hats/vocals/strums): comparing
+ * *which frequencies* changed, not just overall volume, is what actually distinguishes a new
+ * note starting from an existing note simply ringing on or the whole mix swelling - the standard
+ * technique real onset detectors use, not a home-grown approximation of it. `frameSize` is
+ * rounded up to the next power of two for the FFT; time-based `hopMs` (not sample counts), so
+ * this stays sample-rate independent like the rest of this module.
  */
-export function computeRmsEnvelope(samples: Float32Array, sampleRate: number, frameMs = 30, hopMs = 15): RmsEnvelope {
-  const frameSize = Math.max(1, Math.round((frameMs / 1000) * sampleRate))
+export function computeSpectralFlux(samples: Float32Array, sampleRate: number, frameSize = 1024, hopMs = 15): SpectralFluxEnvelope {
+  const fftSize = nextPowerOfTwo(frameSize)
   const hopSize = Math.max(1, Math.round((hopMs / 1000) * sampleRate))
-  const frameCount = samples.length === 0 ? 0 : Math.max(1, Math.floor((samples.length - frameSize) / hopSize) + 1)
-  const rms = new Float32Array(frameCount)
+  const frameCount = samples.length === 0 ? 0 : Math.max(1, Math.floor((samples.length - fftSize) / hopSize) + 1)
+  const flux = new Float32Array(frameCount)
+
+  // A Hann window - tapers each frame's edges to near-zero before the FFT, so a note that
+  // happens to straddle a frame boundary doesn't produce spurious high-frequency energy purely
+  // from the frame being chopped off mid-waveform (spectral leakage).
+  const window = new Float64Array(fftSize)
+  for (let i = 0; i < fftSize; i++) window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (fftSize - 1))
+
+  const re = new Float64Array(fftSize)
+  const im = new Float64Array(fftSize)
+  const prevMagnitude = new Float64Array(fftSize / 2)
+
   for (let i = 0; i < frameCount; i++) {
     const start = i * hopSize
-    const end = Math.min(start + frameSize, samples.length)
-    let sumSquares = 0
-    for (let j = start; j < end; j++) sumSquares += samples[j]! * samples[j]!
-    rms[i] = Math.sqrt(sumSquares / Math.max(1, end - start))
+    for (let j = 0; j < fftSize; j++) {
+      const sampleIndex = start + j
+      re[j] = (sampleIndex < samples.length ? samples[sampleIndex]! : 0) * window[j]!
+      im[j] = 0
+    }
+    fft(re, im)
+    let sumFlux = 0
+    for (let bin = 0; bin < fftSize / 2; bin++) {
+      const magnitude = Math.sqrt(re[bin]! * re[bin]! + im[bin]! * im[bin]!)
+      sumFlux += Math.max(0, magnitude - prevMagnitude[bin]!)
+      prevMagnitude[bin] = magnitude
+    }
+    flux[i] = sumFlux
   }
-  return { rms, hopMs }
-}
-
-/**
- * Onset-strength envelope: half-wave-rectified frame-to-frame RMS increase - sharp peaks at note
- * onsets (a decay, or a steady tone, produces nothing, since it's rectified to >= 0). Shared by
- * both `detectTempo` and `detectBeatAnchors` below, computed once by analyzeTrack.ts.
- */
-export function computeOnsetStrength(envelope: RmsEnvelope): Float32Array {
-  const { rms } = envelope
-  const strength = new Float32Array(rms.length)
-  for (let i = 1; i < rms.length; i++) {
-    strength[i] = Math.max(0, rms[i]! - rms[i - 1]!)
-  }
-  return strength
+  return { flux, hopMs }
 }
 
 export interface OnsetDetectionResult {
@@ -84,35 +122,35 @@ export interface OnsetDetectionResult {
 /**
  * The first real onset in the track - the song's actual first downbeat, roughly (exact phase is
  * refined by `detectBeatAnchors`' own beat-tracking, which always starts from this point).
- * Noise floor = 10th percentile RMS over the first ~2s; threshold = max(noiseFloor * 3,
- * peak * 0.1) - robust to both a hissy analog transfer and a truly digital-silent lead-in. First
- * frame exceeding it for `minSustainFrames` (default 3, ~45ms at the default hop) consecutive
- * frames counts - rejecting a single-transient false positive (a click, a room-noise spike).
- * `null` for effectively silent input.
+ * Noise floor = 10th percentile flux over the first ~2s; threshold = max(noiseFloor * 3,
+ * peak * 0.1) - robust to both a hissy analog transfer and a truly digital-silent lead-in, and
+ * (verified live, 2026-09-10, against a synthetic quiet-blip-then-real-onset signal) already
+ * enough on its own to ignore a genuinely quiet false transient well below the track's real
+ * peak level, with no extra "sustained for N frames" requirement needed. Deliberately just a
+ * single-frame threshold crossing, not a sustain check (an earlier version required
+ * `minSustainFrames` consecutive frames above threshold, carried over from an RMS-loudness-based
+ * design where a note "staying loud" was meaningful - found live, 2026-09-10: spectral flux is
+ * inherently a peaky, derivative-like signal, not a sustained one - even a real, deliberately
+ * decaying musical onset only shows one or two elevated frames, since flux only registers
+ * *ongoing* spectral change and a note's magnitude spectrum stops changing much once its attack
+ * is over. Requiring sustain against a signal that's supposed to spike and then drop rejected
+ * genuine onsets outright). `null` for effectively silent input.
  */
-export function detectFirstOnset(envelope: RmsEnvelope, options: { minSustainFrames?: number } = {}): OnsetDetectionResult | null {
-  const { rms, hopMs } = envelope
-  const minSustainFrames = options.minSustainFrames ?? 3
-  if (rms.length === 0) return null
+export function detectFirstOnset(envelope: SpectralFluxEnvelope): OnsetDetectionResult | null {
+  const { flux, hopMs } = envelope
+  if (flux.length === 0) return null
 
-  const noiseWindowFrames = Math.max(1, Math.min(rms.length, Math.round(2000 / hopMs)))
-  const noiseWindow = Array.from(rms.slice(0, noiseWindowFrames)).sort((a, b) => a - b)
+  const noiseWindowFrames = Math.max(1, Math.min(flux.length, Math.round(2000 / hopMs)))
+  const noiseWindow = Array.from(flux.slice(0, noiseWindowFrames)).sort((a, b) => a - b)
   const noiseFloor = noiseWindow[Math.floor(noiseWindow.length * 0.1)] ?? 0
-  const peak = Math.max(...rms)
+  const peak = Math.max(...flux)
   if (peak <= 0) return null // effectively silent throughout
 
   const threshold = Math.max(noiseFloor * 3, peak * 0.1)
 
-  let sustainCount = 0
-  for (let i = 0; i < rms.length; i++) {
-    if (rms[i]! > threshold) {
-      sustainCount++
-      if (sustainCount >= minSustainFrames) {
-        const onsetIndex = i - minSustainFrames + 1
-        return { onsetMs: onsetIndex * hopMs, confidenceRatio: rms[i]! / threshold }
-      }
-    } else {
-      sustainCount = 0
+  for (let i = 0; i < flux.length; i++) {
+    if (flux[i]! > threshold) {
+      return { onsetMs: i * hopMs, confidenceRatio: flux[i]! / threshold }
     }
   }
   return null
@@ -127,10 +165,15 @@ export interface TempoDetectionResult {
  * Autocorrelates the onset-strength envelope over the lag range for `minBpm`-`maxBpm` (default
  * 60-200); the best-correlating lag becomes `bpm = 60000 / (lag * hopMs)`. Octave-ambiguity
  * mitigation: if the autocorrelation at half or double the best lag is comparably strong (within
- * 70%) AND lands in the "typical" 90-140 BPM band, prefer it over the raw best lag - a
+ * 60%) AND lands in the "typical" 90-140 BPM band, prefer it over the raw best lag - a
  * heuristic, acceptable since the result is always shown to the user before it's saved
- * (SheetEditor's bpm field stays fully editable either way). `null` when there isn't enough
- * signal to correlate at all.
+ * (SheetEditor's bpm field stays fully editable either way). A perfectly regular click train
+ * (every beat spectrally identical) can genuinely correlate *more* strongly at a sub-harmonic
+ * than at the true tempo - hop-quantization alone can tip the balance a few percent either way
+ * (verified live, 2026-09-10, against a synthetic 140 BPM click train: raw best lag came back
+ * ~70 BPM at 69% relative strength) - 60% (not the tighter 70% first tried) is what actually
+ * catches that case without being so loose it overrides a genuinely-correct raw answer instead.
+ * `null` when there isn't enough signal to correlate at all.
  */
 export function detectTempo(
   onsetStrength: Float32Array,
@@ -167,7 +210,7 @@ export function detectTempo(
     if (lag < minLag || lag > maxLag) continue
     const value = autocorrelationAt(lag)
     const bpm = 60000 / (lag * hopMs)
-    if (value >= bestValue * 0.7 && bpm >= typicalMinBpm && bpm <= typicalMaxBpm) {
+    if (value >= bestValue * 0.6 && bpm >= typicalMinBpm && bpm <= typicalMaxBpm) {
       chosenLag = lag
       break
     }
@@ -179,9 +222,7 @@ export function detectTempo(
 
 /** The nearest *clearly standing-out* onset peak to `centerMs`, within `windowMs` either side -
  * one at least `minPeakProminence` above the window's own mean strength, not just whichever
- * frame happens to be the loudest (found live, 2026-09-10: without this, a real full mix's
- * hi-hats/vocal consonants/strums - which fire far more often than once per beat - won each
- * window essentially at random). `null` if nothing in the window qualifies. */
+ * frame happens to be the loudest. `null` if nothing in the window qualifies. */
 function findQualifyingPeak(
   onsetStrength: Float32Array,
   hopMs: number,
@@ -244,7 +285,11 @@ export function detectBeatAnchors(
 ): { timeMs: number }[] {
   const driftToleranceRatio = options.driftToleranceRatio ?? 0.15
   const maxConsecutiveMisses = options.maxConsecutiveMisses ?? 8
-  const minPeakProminence = options.minPeakProminence ?? 2
+  // Tuned against spectral flux's own value distribution (found live, 2026-09-10: the 2x
+  // default carried over from an earlier RMS-based envelope was too strict here and silently
+  // gave up after covering barely 15% of a real song - flux values vary more across "typical"
+  // frames than RMS-diff did, so a lower bar still reliably rejects genuine noise).
+  const minPeakProminence = options.minPeakProminence ?? 1.5
   const beatMs = 60000 / bpm
   const onGridToleranceMs = beatMs * driftToleranceRatio
   // Proportional to the on-grid tolerance (not an independent fixed ratio) - widening the
