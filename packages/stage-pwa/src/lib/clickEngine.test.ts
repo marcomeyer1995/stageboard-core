@@ -231,6 +231,35 @@ describe('startClick/stopClick', () => {
     expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true])
   })
 
+  it('plays a full count-in from a genuinely negative elapsedMs when it does not fit before the first anchor (#25 follow-up: negative-clock count-in)', () => {
+    // Marco's real "Wie ein schützender Engel" numbers: first anchor at 346ms, corrected beat
+    // length 521.75ms (ratio 1.0435), a 2-bar (8-beat) count-in configured - far more than the
+    // 346ms of real lead-in fits. The master clock itself starts at the count-in's own origin,
+    // -3828ms (metronome.ts's countInLeadMs), not at 0 - elapsedMs is genuinely negative here,
+    // simulating queue.ts/practiceQueue.ts seeding the transport that way.
+    const beatAnchors = [{ timeMs: 346 }, { timeMs: 4520 }]
+    let elapsedMs = -3828
+    const started: { time: number; isDownbeat: boolean }[] = []
+    fakeCtx.createOscillator = vi.fn(() => {
+      const osc = new FakeOscillator()
+      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
+      return osc
+    })
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 2 }))
+
+    for (let t = -3828 + 50; t <= 900; t += 50) {
+      elapsedMs = t
+      vi.advanceTimersByTime(50)
+    }
+
+    // 8 count-in beats (2 full bars) evenly spaced at 521.75ms, phase-continuous straight into
+    // the real first anchor at 346ms (also a downbeat, no gap/duplicate at the join), then the
+    // next real beat continues at the same corrected spacing.
+    expect(started).toHaveLength(9)
+    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false, false, true, false])
+    for (const { time } of started) expect(time).toBeCloseTo(1000.12, 1) // all land within ~25ms of ctx.currentTime + ~0.12s
+  })
+
   it('stops scheduling further clicks once stopped', () => {
     let elapsedMs = 0
     startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 }))

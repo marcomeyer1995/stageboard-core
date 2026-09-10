@@ -107,15 +107,38 @@ export function useAudioOutputDriver(): void {
   // device is Gig mode's claimed audio output. Seeks to the current synced position before
   // playing - without this, resuming just continued from wherever the element happened to be
   // cued rather than the actual synced position (found live, 2026-09-10).
+  //
+  // Waits for elapsedMs to actually reach 0 before calling playLocalTrack (#25 follow-up,
+  // count-in) - queue.ts's playSong seeds a negative accumulatedMs when the current variant's
+  // count-in doesn't fit inside its own lead-in silence, so elapsedMs counts up from a genuine
+  // negative time; the backing track's real audio must not start until it crosses 0, the same
+  // moment its own file position 0 should play. `elapsedMs` is deliberately a dependency here
+  // (unlike the pause/stop branches, which only ever need to fire once per status transition) so
+  // this re-checks every tick while still counting in - `audioStartedForRunRef` then ensures
+  // playLocalTrack itself still only ever fires once per run (syncLocalTrackPosition, below,
+  // takes over from there).
   const lastAppliedStatusRef = useRef<PlaybackStatus | null>(null)
+  const audioStartedForRunRef = useRef(false)
   useEffect(() => {
     if (!isMyDeviceAudioOutput) return
-    if (lastAppliedStatusRef.current === playbackStatus) return
-    lastAppliedStatusRef.current = playbackStatus
-    if (playbackStatus === 'playing') playLocalTrack(elapsedMsRef.current ?? 0)
-    else if (playbackStatus === 'paused') pauseLocalTrack()
-    else stopLocalTrack()
-  }, [isMyDeviceAudioOutput, playbackStatus])
+    if (playbackStatus !== 'playing') {
+      if (lastAppliedStatusRef.current !== playbackStatus) {
+        lastAppliedStatusRef.current = playbackStatus
+        audioStartedForRunRef.current = false
+        if (playbackStatus === 'paused') pauseLocalTrack()
+        else stopLocalTrack()
+      }
+      return
+    }
+    if (lastAppliedStatusRef.current !== 'playing') {
+      lastAppliedStatusRef.current = 'playing'
+      audioStartedForRunRef.current = false
+    }
+    if (audioStartedForRunRef.current) return // already started this run
+    if (elapsedMs === null || elapsedMs < 0) return // still counting in, or not ready yet
+    audioStartedForRunRef.current = true
+    playLocalTrack(elapsedMs)
+  }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
   // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.
@@ -136,6 +159,7 @@ export function useAudioOutputDriver(): void {
     return () => {
       stopLocalTrack()
       lastAppliedStatusRef.current = null
+      audioStartedForRunRef.current = false
     }
   }, [isMyDeviceAudioOutput])
 }

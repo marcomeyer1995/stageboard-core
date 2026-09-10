@@ -1,7 +1,7 @@
 import type { ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { randomId } from './id'
-import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
+import { countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -102,16 +102,39 @@ export async function advanceToPreviousSong(): Promise<void> {
 
 /** Starts or resumes playback of the current entry (ShowTransportWidget's Play, #13). Also
  * bootstraps activation bookkeeping for a song that was never explicitly advanced to - e.g.
- * the very first song of a session, before "Next Song" has ever been pressed. */
+ * the very first song of a session, before "Next Song" has ever been pressed.
+ *
+ * On a genuinely fresh start (not a resume from pause), seeds the transport's `accumulatedMs`
+ * from `countInLeadMs` (#25 follow-up) instead of always 0 - when the current variant has a
+ * count-in configured that doesn't fit inside its own lead-in silence, this is negative, so
+ * `elapsedMs` (playbackTransport.ts's `computeActiveMs`) counts up from a genuinely negative
+ * time through 0 exactly when the backing track's real position 0 should start
+ * (useAudioOutputDriver.ts defers `playLocalTrack` until then). A *resume* from pause is
+ * untouched - it carries forward whatever `accumulatedMs` pause froze, correctly negative too
+ * if paused mid-count-in. */
 export async function playSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const { currentEntry, currentSong } = getQueueSnapshot()
+  const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
   if (!currentEntry || !currentSong) return
   const now = Date.now()
 
-  const patch: Partial<ShowState> = transportPatch(playTransport(currentTransport(state), now))
-  if (state.activeEntryStartedAt === null) {
+  const isFreshStart = state.activeEntryStartedAt === null
+  const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
+  const seededTransport: TransportState = isFreshStart
+    ? {
+        ...currentTransport(state),
+        accumulatedMs: countInLeadMs(
+          currentVariant?.beatAnchors ?? [],
+          activeSong.bpm,
+          activeSong.timeSignature,
+          currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+        ),
+      }
+    : currentTransport(state)
+
+  const patch: Partial<ShowState> = transportPatch(playTransport(seededTransport, now))
+  if (isFreshStart) {
     Object.assign(patch, { activeEntryId: currentEntry.id, activeEntryStartedAt: now }, showBookkeepingPatch(state, now))
   }
   await applyPatch(patch)

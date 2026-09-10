@@ -122,6 +122,30 @@ function segmentRatio(fromMs: number, toMs: number, bpm: number): number {
 }
 
 /**
+ * The BeatGridSegment a count-in produces - origin exactly `countInBars` bars before the first
+ * anchor, at that first segment's own corrected tempo (anchor 1 -> anchor 2, or nominal bpm if
+ * there's no anchor 2 yet). Deliberately NOT clamped to elapsedMs >= 0: a count-in longer than
+ * the real lead-in silence before the first anchor places this at a genuinely negative time on
+ * purpose - the master playback clock itself starts there (queue.ts/practiceQueue.ts's
+ * `countInLeadMs` below), counting up through 0 exactly when the backing track's own audio
+ * should start (Marco, 2026-09-10: clamping this to fit inside [0, firstAnchorMs) instead, tried
+ * first, was the wrong shape - a 2-bar/~4.2s count-in against a mere 346ms of real lead-in has
+ * nowhere to clamp *to*). `null` with no anchors at all, or `countInBars <= 0`. */
+function resolveCountInGrid(
+  deduped: readonly BeatAnchorLike[],
+  bpm: number,
+  timeSignature: string,
+  countInBars: number,
+): BeatGridSegment | null {
+  if (deduped.length === 0 || countInBars <= 0) return null
+  const firstMs = deduped[0]!.timeMs
+  const ratio = deduped.length >= 2 ? segmentRatio(firstMs, deduped[1]!.timeMs, bpm) : 1
+  const msPerBeat = (60000 / bpm) * ratio
+  const originMs = firstMs - countInBars * beatsPerBar(timeSignature) * msPerBeat
+  return { originMs, correctionRatio: ratio }
+}
+
+/**
  * The active anchor origin (`resolveBeatOrigin`) plus the locally-corrected spacing to use from
  * it forward. The song's own `bpm` is a rounded nominal value that will essentially never divide
  * the real gap between two anchors into a whole number of exact-length beats - `segmentRatio`
@@ -133,10 +157,9 @@ function segmentRatio(fromMs: number, toMs: number, bpm: number): number {
  *
  * Three cases:
  * - **Before the first anchor**: `null` (a true count-in/silence state) unless `countInBars` is
- *   configured, in which case a virtual origin is placed exactly `countInBars` bars before the
- *   first anchor, at the *first segment's own* corrected tempo (anchor 1 -> anchor 2, or nominal
- *   bpm if there's no anchor 2 yet) - phase-continuous into the real first downbeat, since that
- *   offset is by construction a whole number of bars at the same ratio.
+ *   configured and elapsedMs has reached `resolveCountInGrid`'s (possibly negative) origin -
+ *   phase-continuous into the real first downbeat, since that offset is by construction a whole
+ *   number of beats at the same ratio.
  * - **Between two anchors**: unchanged from before - corrected to fit the real gap evenly.
  * - **After the last anchor**: reuses the *previous* segment's corrected ratio (the gap between
  *   the last anchor and the one before it) instead of reverting to the plain nominal bpm, so a
@@ -153,14 +176,9 @@ export function resolveBeatGrid(
   const deduped = dedupeAnchors(anchors)
   const originMs = resolveBeatOrigin(deduped, elapsedMs)
   if (originMs === null) {
-    if (countInBars <= 0) return null
-    const firstMs = deduped[0]!.timeMs // non-null: resolveBeatOrigin only returns null when at
-    // least one anchor exists
-    const ratio = deduped.length >= 2 ? segmentRatio(firstMs, deduped[1]!.timeMs, bpm) : 1
-    const msPerBeat = (60000 / bpm) * ratio
-    const countInOriginMs = firstMs - countInBars * beatsPerBar(timeSignature) * msPerBeat
-    if (elapsedMs < countInOriginMs) return null // still earlier than the count-in window
-    return { originMs: countInOriginMs, correctionRatio: ratio }
+    const countIn = resolveCountInGrid(deduped, bpm, timeSignature, countInBars)
+    if (countIn === null || elapsedMs < countIn.originMs) return null
+    return countIn
   }
   const idx = deduped.findIndex((anchor) => anchor.timeMs === originMs)
   const nextAnchorMs = deduped[idx + 1]?.timeMs
@@ -168,6 +186,19 @@ export function resolveBeatGrid(
   const prevAnchorMs = deduped[idx - 1]?.timeMs
   if (prevAnchorMs === undefined) return { originMs, correctionRatio: 1 } // only one anchor total
   return { originMs, correctionRatio: segmentRatio(prevAnchorMs, originMs, bpm) }
+}
+
+/**
+ * How far before elapsedMs 0 a configured count-in needs the master clock to start (always
+ * <= 0) - queue.ts/practiceQueue.ts seed the playback transport's accumulatedMs with this on a
+ * fresh Play, so elapsedMs itself counts up from a genuine negative time through 0 exactly when
+ * the backing track's real position 0 should start. `0` (today's exact pre-count-in behavior,
+ * unchanged) whenever the count-in already fits inside [0, firstAnchorMs) - this only genuinely
+ * extends the clock earlier when it doesn't.
+ */
+export function countInLeadMs(anchors: readonly BeatAnchorLike[], bpm: number, timeSignature: string, countInBars: number): number {
+  const countIn = resolveCountInGrid(dedupeAnchors(anchors), bpm, timeSignature, countInBars)
+  return countIn === null ? 0 : Math.min(0, countIn.originMs)
 }
 
 /**

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { adjustedBpm, beatAt, beatsPerBar, type BeatAnchorLike, effectiveClickEnabled, resolveBeatGrid, resolveBeatOrigin, upcomingBeats } from './metronome'
+import {
+  adjustedBpm,
+  beatAt,
+  beatsPerBar,
+  type BeatAnchorLike,
+  countInLeadMs,
+  effectiveClickEnabled,
+  resolveBeatGrid,
+  resolveBeatOrigin,
+  upcomingBeats,
+} from './metronome'
 
 /** None of the pre-#25-follow-up tests below ever expect a count-in (null) state - they all
  * call `beatAt` with no anchors, which `resolveBeatOrigin` always resolves to origin 0, never
@@ -221,6 +231,52 @@ describe('resolveBeatGrid - count-in', () => {
     const grid = resolveBeatGrid(anchors, 0, 120, '4/4', 1)
     expect(grid).toEqual({ originMs: 0, correctionRatio: 1 })
   })
+
+  it('places the origin at a genuinely negative time when the count-in does not fit before the first anchor, rather than clamping it - Marco\'s real "Wie ein schützender Engel" case', () => {
+    // First anchor at 346ms in the real song, corrected beat length 521.75ms (ratio 1.0435 for
+    // a 346/4520ms anchor pair) - a configured 2-bar (8-beat) count-in needs 4174ms, far more
+    // than the 346ms of real lead-in, so its origin is genuinely negative: 346 - 8*521.75 =
+    // -3828. The master playback clock itself is seeded to start there (queue.ts/
+    // practiceQueue.ts's countInLeadMs, below) - resolveBeatGrid does not clamp this away.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 346 }, { timeMs: 4520 }]
+    const grid = resolveBeatGrid(anchors, -3828, 120, '4/4', 2)
+    expect(grid).toEqual({ originMs: -3828, correctionRatio: 1.0435 })
+    // Genuinely still counting in one tick earlier.
+    expect(resolveBeatGrid(anchors, -3829, 120, '4/4', 2)).toBeNull()
+    // And genuinely negative elapsedMs values in between resolve against that same origin, not
+    // clamped to 0 - e.g. halfway through the first corrected beat.
+    const midFirstBeat = resolveBeatGrid(anchors, -3828 + 260, 120, '4/4', 2)
+    expect(midFirstBeat).toEqual({ originMs: -3828, correctionRatio: 1.0435 })
+  })
+
+  it('places the origin at a negative time even for a partial-beat shortfall, not just a whole-song one', () => {
+    // 120 BPM = 500ms/beat nominal; anchors 1000/3000 correct to a clean 500ms/beat (ratio 1). A
+    // 1-bar (4-beat = 2000ms) count-in only has 1000ms of real room before the first anchor -
+    // origin is 1000 - 4*500 = -1000, not clamped to 0.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 1000 }, { timeMs: 3000 }]
+    const grid = resolveBeatGrid(anchors, -1000, 120, '4/4', 1)
+    expect(grid?.originMs).toBe(-1000)
+  })
+})
+
+describe('countInLeadMs', () => {
+  it('is 0 with no anchors at all, or countInBars <= 0', () => {
+    expect(countInLeadMs([], 120, '4/4', 2)).toBe(0)
+    const anchors: BeatAnchorLike[] = [{ timeMs: 346 }, { timeMs: 4520 }]
+    expect(countInLeadMs(anchors, 120, '4/4', 0)).toBe(0)
+  })
+
+  it('is 0 when the count-in already fits inside [0, firstAnchorMs) - today\'s exact pre-existing behavior, unchanged', () => {
+    // Same 2100/4200 fixture used throughout this file - a 1-bar count-in is exactly 2100ms,
+    // fitting exactly with nothing left over.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
+    expect(countInLeadMs(anchors, 120, '4/4', 1)).toBe(0)
+  })
+
+  it('is the genuinely negative lead time needed when the count-in does not fit - matches resolveBeatGrid\'s own origin exactly', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 346 }, { timeMs: 4520 }]
+    expect(countInLeadMs(anchors, 120, '4/4', 2)).toBe(-3828)
+  })
 })
 
 describe('beatAt with anchors', () => {
@@ -294,6 +350,25 @@ describe('beatAt - isCountIn (#25 follow-up)', () => {
     expect(mustBeatAt(600, 120, '4/4', anchors, 1).isCountIn).toBe(true)
     expect(mustBeatAt(2100, 120, '4/4', anchors, 1).isCountIn).toBe(false) // the real first anchor itself
     expect(mustBeatAt(3000, 120, '4/4', anchors, 1).isCountIn).toBe(false)
+  })
+
+  it('correctly reports the beat at genuinely negative elapsedMs - Marco\'s real "Wie ein schützender Engel" case', () => {
+    // Same numbers as the clickEngine.test.ts negative-clock test: origin -3828, ratio 1.0435,
+    // beat length 521.75ms.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 346 }, { timeMs: 4520 }]
+    const atOrigin = mustBeatAt(-3828, 120, '4/4', anchors, 2)
+    expect(atOrigin.beatInBar).toBe(0)
+    expect(atOrigin.isDownbeat).toBe(true)
+    expect(atOrigin.msIntoBeat).toBeCloseTo(0)
+    expect(atOrigin.isCountIn).toBe(true)
+
+    const midCountIn = mustBeatAt(-3828 + 300, 120, '4/4', anchors, 2)
+    expect(midCountIn.beatInBar).toBe(0)
+    expect(midCountIn.msIntoBeat).toBeCloseTo(300)
+    expect(midCountIn.isCountIn).toBe(true)
+
+    // Still before the count-in window even starts (one tick earlier than the origin).
+    expect(beatAt(-3829, 120, '4/4', anchors, 2)).toBeNull()
   })
 })
 
