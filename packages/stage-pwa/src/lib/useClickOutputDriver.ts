@@ -76,12 +76,17 @@ export function useClickOutputDriver(): void {
 
   // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
   // closed over once - clickEngine.ts's scheduler polls this on every tick.
-  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4' })
+  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [] })
   useEffect(() => {
     stateRef.current = {
       elapsedMs,
       bpm: song ? adjustedBpm(song.bpm, liveTempoAdjustPercent) : 120,
       timeSignature: song?.timeSignature ?? '4/4',
+      // beatAnchors (#25 follow-up) only exists on SongVariant, not the bare Song fallback -
+      // same "no variant means no anchors" shape as `cues`. Not scaled/affected by the live
+      // tempo nudge above - a nudge is a virtual grid-spacing correction, unrelated to where
+      // real downbeats sit in the anchors' fixed timestamps.
+      beatAnchors: queue.currentVariant?.beatAnchors ?? [],
     }
   })
 

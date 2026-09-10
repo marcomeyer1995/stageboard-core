@@ -53,10 +53,19 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
       ? `${song.bpm} BPM`
       : `${Math.round(bpm)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
 
-  if (playbackStatus !== 'playing' || elapsedMs === null) {
+  // beatAnchors (#25 follow-up) only lives on SongVariant, not the bare Song fallback `song`
+  // itself might be - same "no variant means no anchors" shape useClickOutputDriver.ts uses.
+  const beat =
+    playbackStatus === 'playing' && elapsedMs !== null
+      ? beatAt(elapsedMs, bpm, song.timeSignature, queue.currentVariant?.beatAnchors ?? [])
+      : null
+
+  if (beat === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
-        <span className="text-sm">Wartet auf Play</span>
+        {/* Not playing at all, vs. playing but still before the first beat anchor (a count-in) -
+            both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
+        <span className="text-sm">{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
         <span className="text-xs opacity-70 tabular-nums">
           {bpmLabel} · {song.timeSignature}
         </span>
@@ -64,7 +73,6 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     )
   }
 
-  const beat = beatAt(elapsedMs, bpm, song.timeSignature)
   const pulseOn = beat.msIntoBeat < PULSE_WINDOW_MS
 
   return (

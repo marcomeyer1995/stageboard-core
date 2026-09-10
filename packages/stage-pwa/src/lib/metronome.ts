@@ -37,20 +37,49 @@ export interface Beat {
   msIntoBeat: number
 }
 
+export interface BeatAnchorLike {
+  timeMs: number
+}
+
+/**
+ * Which anchor governs the beat grid right now: the latest one at or before `elapsedMs` (#25
+ * follow-up - BeatAnchorSchema's own doc comment explains why an anchor only ever resets
+ * *phase*, never spacing). Shared by `beatAt`/`upcomingBeats` below and clickEngine.ts's own
+ * scheduler, so both ever agree on which anchor is active right now.
+ *
+ * `null` (with `anchors` non-empty) means `elapsedMs` is still before the very first anchor -
+ * a genuine "count-in, nothing has sounded yet" state, not shoehornable into beat index 0.
+ * `0` with an empty `anchors` array reproduces today's pre-#25-follow-up behavior exactly (beat
+ * 0 pinned to elapsedMs === 0, as if a single anchor sat at song-start) - every song that has
+ * never had an anchor added behaves byte-identically to before this existed.
+ */
+export function resolveBeatOrigin(anchors: readonly BeatAnchorLike[], elapsedMs: number): number | null {
+  if (anchors.length === 0) return 0
+  let best: number | null = null
+  for (const anchor of anchors) {
+    if (anchor.timeMs <= elapsedMs && (best === null || anchor.timeMs > best)) best = anchor.timeMs
+  }
+  return best
+}
+
 /**
  * The beat at a given elapsed-ms position into a song, locked to the same synced elapsed time
  * every other timeline consumer uses (usePlaybackElapsedMs.ts) - not a local setInterval, so
  * it stays sample-accurate to the beat across every tablet in the workspace the same way the
- * Prompter's scroll position does (docs/00 §4).
+ * Prompter's scroll position does (docs/00 §4). `null` means still before the first beat anchor
+ * (see `resolveBeatOrigin`) - a count-in state, not a beat position.
  */
-export function beatAt(elapsedMs: number, bpm: number, timeSignature: string): Beat {
+export function beatAt(elapsedMs: number, bpm: number, timeSignature: string, anchors: readonly BeatAnchorLike[] = []): Beat | null {
+  const originMs = resolveBeatOrigin(anchors, elapsedMs)
+  if (originMs === null) return null
   const msPerBeat = 60000 / bpm
-  const beatIndex = Math.floor(elapsedMs / msPerBeat)
+  const effectiveMs = elapsedMs - originMs
+  const beatIndex = Math.floor(effectiveMs / msPerBeat)
   const beatInBar = beatIndex % beatsPerBar(timeSignature)
   return {
     beatInBar,
     isDownbeat: beatInBar === 0,
-    msIntoBeat: elapsedMs - beatIndex * msPerBeat,
+    msIntoBeat: effectiveMs - beatIndex * msPerBeat,
   }
 }
 
@@ -77,17 +106,28 @@ export interface ScheduledBeat {
  * the engine stops calling this again until playback resumes, not that a stale absolute
  * prediction plays late.
  */
-export function upcomingBeats(elapsedMs: number, lookaheadMs: number, bpm: number, timeSignature: string): ScheduledBeat[] {
+export function upcomingBeats(
+  elapsedMs: number,
+  lookaheadMs: number,
+  bpm: number,
+  timeSignature: string,
+  anchors: readonly BeatAnchorLike[] = [],
+): ScheduledBeat[] {
+  const originMs = resolveBeatOrigin(anchors, elapsedMs)
+  if (originMs === null) return [] // still before the first anchor - nothing to schedule yet
   const msPerBeat = 60000 / bpm
   const beats = beatsPerBar(timeSignature)
-  const firstIndex = Math.floor(elapsedMs / msPerBeat) + 1
-  const lastIndex = Math.floor((elapsedMs + lookaheadMs) / msPerBeat)
+  const effectiveMs = elapsedMs - originMs
+  // Beat index is relative to the active anchor, not song-start - clamped at 0 (the anchor
+  // itself is always the earliest valid beat, never a negative index before it).
+  const firstIndex = effectiveMs < 0 ? 0 : Math.floor(effectiveMs / msPerBeat) + 1
+  const lastIndex = Math.floor((effectiveMs + lookaheadMs) / msPerBeat)
   const result: ScheduledBeat[] = []
   for (let beatIndex = firstIndex; beatIndex <= lastIndex; beatIndex++) {
     result.push({
       beatIndex,
       isDownbeat: beatIndex % beats === 0,
-      msFromNow: beatIndex * msPerBeat - elapsedMs,
+      msFromNow: originMs + beatIndex * msPerBeat - elapsedMs,
     })
   }
   return result
