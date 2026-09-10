@@ -10,14 +10,22 @@
 
 /**
  * One-pole low-pass filter, isolating the low-frequency content (kick drum/bass) that actually
- * defines the beat in a real mix - far more reliably than the full spectrum. Found live,
- * 2026-09-10: beat-tracking against the raw full-spectrum signal added a correction anchor on
- * almost every single beat (113 anchors on one song, some barely 300ms apart on a ~525ms beat) -
- * hi-hats, vocal consonants, and strums all fire far more often than once per beat and otherwise
- * dominate "loudest nearby transient" onset picking, which is essentially noise relative to the
- * actual beat. analyzeTrack.ts applies this to the mono mix before any of the detectors below
- * ever see it; the detectors themselves stay generic (a filtered or unfiltered signal is just
- * another Float32Array to them), so this can be tuned independently later without touching them.
+ * defines the beat in a real mix - far more reliably than the full spectrum for pinpointing
+ * *where* one specific beat falls. Found live, 2026-09-10: beat-tracking against the raw
+ * full-spectrum signal added a correction anchor on almost every single beat (113 anchors on one
+ * song, some barely 300ms apart on a ~525ms beat) - hi-hats, vocal consonants, and strums all
+ * fire far more often than once per beat and otherwise dominate "loudest nearby transient" onset
+ * picking, which is essentially noise relative to the actual beat.
+ *
+ * analyzeTrack.ts applies this only for `detectFirstOnset`/`detectBeatAnchors` (placement), NOT
+ * for `detectTempo` (found live, 2026-09-10, immediately after fixing the above: running tempo
+ * detection on this same filtered signal made the *tempo* estimate badly wrong instead - 75.5
+ * vs. the correct ~114 BPM, a 2:3 ratio - isolating just the bassline exposed its own sparser
+ * sub-pattern rather than the true beat. Aggregate energy across the whole mix reinforces the
+ * true periodicity far more robustly than any single isolated instrument, even though any one
+ * full-spectrum onset by itself is noisy). The detectors themselves stay generic either way (a
+ * filtered or unfiltered signal is just another Float32Array to them), so this can be tuned
+ * independently later without touching them.
  */
 export function lowPassFilter(samples: Float32Array, sampleRate: number, cutoffHz = 150): Float32Array {
   const alpha = 1 - Math.exp((-2 * Math.PI * cutoffHz) / sampleRate)
