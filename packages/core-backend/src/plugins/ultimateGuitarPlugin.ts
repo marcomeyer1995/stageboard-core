@@ -66,20 +66,47 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
   let context: PluginContext | undefined
   let browserPromise: Promise<Browser> | null = null
 
+  function launchBrowser(): Promise<Browser> {
+    return puppeteer.launch({
+      executablePath: resolveChromeExecutable(),
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    })
+  }
+
+  /** `browserPromise` is cached for the plugin's whole lifetime (launching Chrome per request
+   * would be far too slow) - but that means a Chrome crash or a dropped CDP connection used to
+   * wedge every future search/import behind the same dead instance forever (`Connection.send`
+   * throws `ConnectionClosedError: Connection closed.` once the underlying websocket has
+   * closed), recoverable only by restarting the whole core-backend process. Confirmed live,
+   * 2026-09-11: every UG lookup failed identically until a manual restart. */
   async function getBrowser(): Promise<Browser> {
-    if (!browserPromise) {
-      browserPromise = puppeteer.launch({
-        executablePath: resolveChromeExecutable(),
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      })
+    if (browserPromise) {
+      const existing = await browserPromise
+      if (existing.connected) return existing
+      browserPromise = null
     }
+    browserPromise = launchBrowser()
     return browserPromise
+  }
+
+  function isConnectionError(err: unknown): boolean {
+    return err instanceof Error && /connection closed|not connected|disconnected/i.test(err.message)
   }
 
   async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
     const browser = await getBrowser()
-    const page = await browser.newPage()
+    let page: Page
+    try {
+      page = await browser.newPage()
+    } catch (err) {
+      // `existing.connected` above can still race with the connection dying right after the
+      // check - one transparent relaunch-and-retry covers that without surfacing a spurious
+      // error to the user for what's really a one-off hiccup.
+      if (!isConnectionError(err)) throw err
+      browserPromise = null
+      page = await (await getBrowser()).newPage()
+    }
     await page.setUserAgent(SEARCH_USER_AGENT)
     try {
       return await fn(page)
