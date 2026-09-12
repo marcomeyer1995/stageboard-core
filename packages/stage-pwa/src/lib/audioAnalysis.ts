@@ -7,6 +7,7 @@
  * analyzeTrack.ts instead, mirroring how metronome.ts (pure, tested) stays separate from
  * clickEngine.ts (thin AudioContext glue).
  */
+import { beatsPerBar } from './metronome'
 
 /**
  * In-place radix-2 Cooley-Tukey FFT - `re`/`im` must be equal-length power-of-2 arrays (`im`
@@ -275,14 +276,24 @@ function findQualifyingPeak(
  * this technique at all (a heavily distorted recording, a mislabeled bpm) - rather than hand
  * back a still-jumpy result, this falls back to just the lead-in anchor alone, which is always
  * correct and still useful on its own.
+ *
+ * Every returned anchor also carries `beatInBar`, counting continuously from 0 at `firstOnsetMs`
+ * regardless of how many corrections land in between (a miss or an on-grid beat still advances
+ * the count by one beat-slot, same as a committed correction does) - this is what lets a dense
+ * result still cycle 1-2-3-4 through the bar instead of every anchor re-announcing "beat 1"
+ * (metronome.ts/clickEngine.ts's `originBeatInBar`). There is no way to detect which beat is
+ * *actually* the downbeat from audio alone (no tool available here does this reliably - see
+ * `beatInBar`'s own schema doc comment), so this is a starting assumption the user can correct
+ * via the anchor list editor's "Beat" selector if `firstOnsetMs` wasn't really beat 1.
  */
 export function detectBeatAnchors(
   onsetStrength: Float32Array,
   hopMs: number,
   bpm: number,
+  timeSignature: string,
   firstOnsetMs: number,
   options: { driftToleranceRatio?: number; maxConsecutiveMisses?: number; minPeakProminence?: number } = {},
-): { timeMs: number }[] {
+): { timeMs: number; beatInBar: number }[] {
   const driftToleranceRatio = options.driftToleranceRatio ?? 0.15
   const maxConsecutiveMisses = options.maxConsecutiveMisses ?? 8
   // Tuned against spectral flux's own value distribution (found live, 2026-09-10: the 2x
@@ -297,8 +308,9 @@ export function detectBeatAnchors(
   // find a peak far enough away to actually need a correction.
   const searchWindowMs = onGridToleranceMs * 1.5
   const totalMs = onsetStrength.length * hopMs
+  const beatCount = beatsPerBar(timeSignature)
 
-  const anchors: { timeMs: number }[] = [{ timeMs: firstOnsetMs }]
+  const anchors: { timeMs: number; beatInBar: number }[] = [{ timeMs: firstOnsetMs, beatInBar: 0 }]
   let originMs = firstOnsetMs
   let beatIndex = 1
   let consecutiveMisses = 0
@@ -329,7 +341,10 @@ export function detectBeatAnchors(
     const nextPeakMs = findQualifyingPeak(onsetStrength, hopMs, nextPredictedMs, searchWindowMs, minPeakProminence)
     const confirmed = nextPeakMs !== null && Math.abs(nextPeakMs - nextPredictedMs) <= onGridToleranceMs
     if (confirmed) {
-      anchors.push({ timeMs: peakMs })
+      // `beatsScanned` already counts this beat-slot (incremented above, before this check) -
+      // i.e. exactly how many beats have elapsed since firstOnsetMs, whether they were on-grid,
+      // missed, or corrected. That's the continuous count `beatInBar` needs.
+      anchors.push({ timeMs: peakMs, beatInBar: beatsScanned % beatCount })
       correctionsAdded++
       originMs = peakMs
       beatIndex = 1
@@ -339,7 +354,7 @@ export function detectBeatAnchors(
   }
 
   if (beatsScanned > 12 && correctionsAdded > beatsScanned / 6) {
-    return [{ timeMs: firstOnsetMs }]
+    return [{ timeMs: firstOnsetMs, beatInBar: 0 }]
   }
   return anchors
 }

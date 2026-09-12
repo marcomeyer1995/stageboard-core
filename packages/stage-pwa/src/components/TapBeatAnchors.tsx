@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BeatAnchor } from 'shared-types'
 import { randomId } from '../lib/id'
+import { beatsPerBar } from '../lib/metronome'
 import { formatTrackClockTime as formatTime, useTrackClock } from '../lib/useTrackClock'
 import { useClockStore } from '../store/useClockStore'
 
 interface TapBeatAnchorsProps {
   trackSrc: string | null
+  timeSignature: string
   onComplete: (anchors: BeatAnchor[]) => void
   onCancel: () => void
 }
@@ -22,7 +24,7 @@ interface TapBeatAnchorsProps {
  * without real audio, so this is never rendered without a track (SheetEditor.tsx disables the
  * button that opens it whenever `!tapTrack`).
  */
-export function TapBeatAnchors({ trackSrc, onComplete, onCancel }: TapBeatAnchorsProps) {
+export function TapBeatAnchors({ trackSrc, timeSignature, onComplete, onCancel }: TapBeatAnchorsProps) {
   const { elapsedMs, isPlaying, duration, position, togglePlay, audioProps } = useTrackClock(trackSrc)
   // A ref, not state, for the accumulated list itself - it doesn't need to trigger a re-render
   // on every tap (tapCount below does that for the visible counter), and keeping it out of
@@ -32,7 +34,12 @@ export function TapBeatAnchors({ trackSrc, onComplete, onCancel }: TapBeatAnchor
 
   function tap() {
     const ms = useClockStore.getState().getElapsedMs()
-    anchorsRef.current.push({ id: randomId(), timeMs: Math.round(ms) })
+    // Sequential 0,1,2,3,0,1,... assuming this tapping session's first tap is beat 1 - the same
+    // starting assumption automatic detection makes (see audioAnalysis.ts's detectBeatAnchors
+    // doc comment), correctable afterward via BeatAnchorListEditor's "Beat" selector if a tap was
+    // skipped or the session didn't actually start on the downbeat.
+    const beatInBar = anchorsRef.current.length % beatsPerBar(timeSignature)
+    anchorsRef.current.push({ id: randomId(), timeMs: Math.round(ms), beatInBar })
     setTapCount(anchorsRef.current.length)
   }
 

@@ -359,7 +359,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         setAnalyzeError('Track nicht verfügbar.')
         return
       }
-      const result = await analyzeTrackBlob(blob)
+      const result = await analyzeTrackBlob(blob, draft.timeSignature)
       if (result.bpm === null && result.beatAnchors.length === 0) {
         setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
         return
@@ -367,7 +367,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       setDraft((d) => ({
         ...d,
         bpm: result.bpm ?? d.bpm,
-        beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs })),
+        beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })),
       }))
     } catch {
       setAnalyzeError('Analyse fehlgeschlagen.')
@@ -547,6 +547,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         {isTappingAnchors ? (
           <TapBeatAnchors
             trackSrc={tapTrackSrc}
+            timeSignature={draft.timeSignature}
             onComplete={(anchors) => {
               setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
               setIsTappingAnchors(false)
@@ -577,7 +578,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               </div>
             </div>
             {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
-            <BeatAnchorListEditor anchors={draft.beatAnchors} onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })} />
+            <BeatAnchorListEditor
+              anchors={draft.beatAnchors}
+              timeSignature={draft.timeSignature}
+              onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
+            />
             <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-ink-soft">

@@ -49,6 +49,10 @@ export interface Beat {
 
 export interface BeatAnchorLike {
   timeMs: number
+  /** 0-indexed position within the bar (0 = downbeat) - see `BeatAnchorSchema`'s doc comment.
+   * Absent on anchors created before this field existed; every read site below defaults it to
+   * 0, reproducing the original "every anchor is beat 1" behavior exactly. */
+  beatInBar?: number
 }
 
 /** Anchors closer together than this collapse into just the earlier one - guards the beat grid
@@ -105,6 +109,10 @@ export function resolveBeatOrigin(anchors: readonly BeatAnchorLike[], elapsedMs:
 
 export interface BeatGridSegment {
   originMs: number
+  /** The active anchor's own `beatInBar` (0 when absent/no anchors) - beat-in-bar counting
+   * continues from here rather than resetting to 0 at `originMs`, so a dense anchor list (one
+   * per beat) still cycles 1-2-3-4 through the bar instead of announcing "beat 1" every tick. */
+  originBeatInBar: number
   /** Multiplier applied to whatever `60000 / bpm` is live right now, so this segment's beats
    * divide its real (anchor-to-anchor) duration evenly instead of accumulating a small error
    * over the segment that gets released as an audible jump right at the next anchor (found
@@ -148,7 +156,9 @@ function resolveCountInGrid(
   const ratio = deduped.length >= 2 ? segmentRatio(firstMs, deduped[1]!.timeMs, bpm) : 1
   const msPerBeat = (60000 / bpm) * ratio
   const originMs = firstMs - countInBars * beatsPerBar(timeSignature) * msPerBeat
-  return { originMs, correctionRatio: ratio }
+  // Whole bars of count-in don't change phase - the count-in starts on the same beat-in-bar the
+  // first real anchor itself is.
+  return { originMs, originBeatInBar: deduped[0]!.beatInBar ?? 0, correctionRatio: ratio }
 }
 
 /**
@@ -187,11 +197,18 @@ export function resolveBeatGrid(
     return countIn
   }
   const idx = deduped.findIndex((anchor) => anchor.timeMs === originMs)
+  // idx is -1 with no anchors at all (originMs is the synthetic 0 from resolveBeatOrigin, not a
+  // real anchor to look up) - optional chaining, not a non-null assertion, since deduped[-1]
+  // (JS's plain out-of-bounds indexing, not deduped.at(-1)) is undefined, not deduped's last
+  // element.
+  const originBeatInBar = deduped[idx]?.beatInBar ?? 0
   const nextAnchorMs = deduped[idx + 1]?.timeMs
-  if (nextAnchorMs !== undefined) return { originMs, correctionRatio: segmentRatio(originMs, nextAnchorMs, bpm) }
+  if (nextAnchorMs !== undefined) {
+    return { originMs, originBeatInBar, correctionRatio: segmentRatio(originMs, nextAnchorMs, bpm) }
+  }
   const prevAnchorMs = deduped[idx - 1]?.timeMs
-  if (prevAnchorMs === undefined) return { originMs, correctionRatio: 1 } // only one anchor total
-  return { originMs, correctionRatio: segmentRatio(prevAnchorMs, originMs, bpm) }
+  if (prevAnchorMs === undefined) return { originMs, originBeatInBar, correctionRatio: 1 } // only one anchor total
+  return { originMs, originBeatInBar, correctionRatio: segmentRatio(prevAnchorMs, originMs, bpm) }
 }
 
 /**
@@ -226,7 +243,7 @@ export function beatAt(
   const msPerBeat = (60000 / bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat)
-  const beatInBar = beatIndex % beatsPerBar(timeSignature)
+  const beatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(timeSignature)
   const first = firstAnchorMs(anchors)
   return {
     beatInBar,
@@ -281,7 +298,7 @@ export function upcomingBeats(
   for (let beatIndex = firstIndex; beatIndex <= lastIndex; beatIndex++) {
     result.push({
       beatIndex,
-      isDownbeat: beatIndex % beats === 0,
+      isDownbeat: (grid.originBeatInBar + beatIndex) % beats === 0,
       msFromNow: grid.originMs + beatIndex * msPerBeat - elapsedMs,
     })
   }

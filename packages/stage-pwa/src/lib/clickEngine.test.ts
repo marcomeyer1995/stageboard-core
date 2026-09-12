@@ -201,6 +201,38 @@ describe('startClick/stopClick', () => {
     expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false])
   })
 
+  it('cycles the downbeat accent 1-2-3-4 through a dense, one-per-beat anchor list instead of re-announcing "beat 1" at every anchor (the exact regression this fix addresses)', () => {
+    // Before this fix, every anchor - regardless of its actual position in the bar - reset the
+    // beat-in-bar counter to 0, so a dense automatic-detection result (one anchor per beat) made
+    // every single click sound like the downbeat (1500Hz) instead of cycling through the accent
+    // pattern. Each anchor here carries its own correct, continuously-counted beatInBar.
+    const beatAnchors = [
+      { timeMs: 0, beatInBar: 0 },
+      { timeMs: 500, beatInBar: 1 },
+      { timeMs: 1000, beatInBar: 2 },
+      { timeMs: 1500, beatInBar: 3 },
+    ]
+    let elapsedMs = 0
+    const isDownbeats: boolean[] = []
+    fakeCtx.createOscillator = vi.fn(() => {
+      const osc = new FakeOscillator()
+      osc.start = vi.fn(() => isDownbeats.push(osc.frequency.value === 1500))
+      return osc
+    })
+    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 0 }))
+
+    for (let t = 50; t <= 2100; t += 50) {
+      elapsedMs = t
+      vi.advanceTimersByTime(50)
+    }
+
+    // 4 beats sound (500, 1000, 1500, 2000ms - elapsedMs starts at 0, so the anchor already
+    // sitting there is "now," never "upcoming"). Each of the first three lands on a different
+    // anchor's own beatInBar (1, 2, 3) - none of them is ever misreported as a downbeat just for
+    // being an anchor - and only the 4th, wrapping back to beatInBar 0, is a real downbeat.
+    expect(isDownbeats).toEqual([false, false, false, true])
+  })
+
   it('plays a count-in before the first anchor, at the corrected tempo of the first real segment', () => {
     // Same 0/2100ms anchors and 525ms-corrected tempo as above, but with a 1-bar (4-beat)
     // count-in configured - the count-in should start playing 4*525=2100ms before anchor 0

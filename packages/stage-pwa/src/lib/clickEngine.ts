@@ -19,9 +19,10 @@ export interface ClickEngineState {
   elapsedMs: number | null
   bpm: number
   timeSignature: string
-  /** Downbeat sync points (#25 follow-up, SongVariant.beatAnchors) - see metronome.ts's
-   * `resolveBeatGrid` for how these govern the beat grid. Empty reproduces the original
-   * (pre-anchor) behavior exactly: beat 0 pinned to elapsedMs 0. */
+  /** Beat sync points (#25 follow-up, SongVariant.beatAnchors) - each carries its own
+   * `beatInBar`, so counting continues from there rather than resetting to "beat 1" at every
+   * anchor. See metronome.ts's `resolveBeatGrid` for how these govern the beat grid. Empty
+   * reproduces the original (pre-anchor) behavior exactly: beat 0 pinned to elapsedMs 0. */
   beatAnchors: readonly BeatAnchorLike[]
   /** Bars of count-in to play before the first beat anchor (#25 follow-up, resolved from
    * SongVariant.countInEnabled/countInBars) - 0 reproduces the original silent-count-in
@@ -105,7 +106,7 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string, g
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat) + 1
   nextBeatOnsetMs = grid.originMs + beatIndex * msPerBeat
-  nextBeatInBar = beatIndex % beatsPerBar(timeSignature)
+  nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(timeSignature)
   activeCorrectionRatio = grid.correctionRatio
 }
 
