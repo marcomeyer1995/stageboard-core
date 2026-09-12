@@ -1,4 +1,5 @@
 import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectTempo } from './audioAnalysis'
+import type { MusicTempoWorkerRequest, MusicTempoWorkerResponse } from './musicTempoWorker'
 
 export interface TrackAnalysisResult {
   bpm: number | null
@@ -22,6 +23,31 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
     for (let i = 0; i < buffer.length; i++) mono[i]! += data[i]! / buffer.numberOfChannels
   }
   return mono
+}
+
+/**
+ * Runs analyzeWithMusicTempo in a dedicated Web Worker (see musicTempoWorker.ts's own doc
+ * comment) instead of directly on the main thread - a real, full-length song's worth of
+ * synchronous Beatroot computation froze the entire app for 80+ seconds, confirmed live against
+ * the real Stage-Server, 2026-09-12. `mono`'s underlying buffer is transferred, not copied
+ * (a multi-minute track's samples can be tens of MB) - `mono` itself is unusable in this scope
+ * afterward, which is fine, since the hand-rolled path never runs in the same call.
+ */
+function runMusicTempoInWorker(mono: Float32Array, sampleRate: number, timeSignature: string): Promise<TrackAnalysisResult> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./musicTempoWorker.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = (event: MessageEvent<MusicTempoWorkerResponse>) => {
+      worker.terminate()
+      if (event.data.ok) resolve(event.data.result)
+      else reject(new Error(event.data.error))
+    }
+    worker.onerror = (event) => {
+      worker.terminate()
+      reject(new Error(event.message))
+    }
+    const request: MusicTempoWorkerRequest = { mono, sampleRate, timeSignature }
+    worker.postMessage(request, [mono.buffer])
+  })
 }
 
 /**
@@ -61,8 +87,7 @@ export async function analyzeTrackBlob(
     const mono = mixToMono(audioBuffer)
 
     if (provider === 'music-tempo') {
-      const { analyzeWithMusicTempo } = await import('./musicTempoAnalysis')
-      return await analyzeWithMusicTempo(mono, audioBuffer.sampleRate, timeSignature)
+      return await runMusicTempoInWorker(mono, audioBuffer.sampleRate, timeSignature)
     }
 
     const envelope = computeSpectralFlux(mono, audioBuffer.sampleRate)
