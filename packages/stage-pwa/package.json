@@ -17,6 +17,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "events": "^3.3.0",
     "jsqr": "^1.4.0",
+    "music-tempo": "^1.0.3",
     "pouchdb-browser": "^9.0.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

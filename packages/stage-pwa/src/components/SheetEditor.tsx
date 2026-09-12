@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   SongSchema,
   SongVariantSchema,
+  CAPABILITIES,
   type BeatAnchor,
   type Song,
   type ShowCue,
@@ -9,10 +10,12 @@ import {
   type TimecodeMarker,
 } from 'shared-types'
 import { analyzeTrackBlob } from '../lib/analyzeTrack'
+import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
 import { useDialogStore } from '../store/useDialogStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { BeatAnchorListEditor } from './BeatAnchorListEditor'
@@ -112,6 +115,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const confirm = useDialogStore((state) => state.confirm)
+  const installedPlugins = usePluginsStore((state) => state.installed)
   const [draft, setDraft] = useState<EditorDraft>(emptyDraft())
   const [isNewDraft, setIsNewDraft] = useState(true)
   const [initialSongLoaded, setInitialSongLoaded] = useState(false)
@@ -339,10 +343,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
    * tap tools already work against. Replaces the whole anchor list rather than merging into it
    * (same "auto-fill-then-editable" convention `handleImport` above already uses for Ultimate
    * Guitar's bpm/key/tuning) - guarded by a confirmation when anchors already exist, since a
-   * stray click shouldn't silently wipe out anchors someone already hand-tapped. Detection is
-   * inherently imperfect on real mixes (no single unambiguous transient at every beat) - the
-   * list editor and tap tool right below this button are the correction mechanism, not an
-   * afterthought. */
+   * stray click shouldn't silently wipe out anchors someone already hand-tapped (manual
+   * correction always wins - installing/uninstalling a detection plugin never overrides that).
+   * Detection is inherently imperfect on real mixes (no single unambiguous transient at every
+   * beat) - the list editor and tap tool right below this button are the correction mechanism,
+   * not an afterthought.
+   *
+   * Uses the `music-tempo-beat-detection` plugin (far more accurate, see musicTempoAnalysis.ts's
+   * own doc comment) if a band has installed+enabled it (CAPABILITIES.audioAnalysis); otherwise
+   * falls back to the always-available hand-rolled detector - no plugin required at all, same as
+   * manual tap-to-sync. */
   async function handleAnalyzeTrack() {
     if (!tapTrack) return
     if (draft.beatAnchors.length > 0) {
@@ -359,7 +369,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         setAnalyzeError('Track nicht verfügbar.')
         return
       }
-      const result = await analyzeTrackBlob(blob, draft.timeSignature)
+      const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
+      const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)
       if (result.bpm === null && result.beatAnchors.length === 0) {
         setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
         return

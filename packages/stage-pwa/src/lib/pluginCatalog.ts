@@ -228,6 +228,21 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     hardwareIds: [],
   },
   {
+    id: 'music-tempo-beat-detection',
+    name: 'Music-Tempo Beat-Erkennung',
+    version: '1.0.0',
+    // Unlike every other 'client' entry above, this isn't externally-hosted third-party code
+    // fetched via loadClientPlugin.ts - `music-tempo` is a small (~14.5KB), MIT-licensed npm
+    // package already bundled into stage-pwa itself (see analyzeTrack.ts), loaded via a dynamic
+    // import() only once this plugin is installed and "Track analysieren" is actually run - no
+    // `source`/`clientSource` needed. Manual tap-to-sync (TapBeatAnchors.tsx) always works
+    // without this plugin; installing it only adds the automatic-detection option.
+    runtime: 'client',
+    capabilities: [CAPABILITIES.audioAnalysis],
+    transports: [],
+    hardwareIds: [],
+  },
+  {
     id: 'mock-click',
     name: 'Mock Click',
     version: '0.0.1',
