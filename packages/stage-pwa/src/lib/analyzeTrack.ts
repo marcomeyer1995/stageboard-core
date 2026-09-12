@@ -2,7 +2,7 @@ import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectTempo }
 
 export interface TrackAnalysisResult {
   bpm: number | null
-  beatAnchors: { timeMs: number }[]
+  beatAnchors: { timeMs: number; beatInBar: number }[]
   tempoConfidence: number
 }
 
@@ -40,7 +40,7 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
  * alone (the lead-in point is still useful even without a bpm suggestion) - `bpm: null` in that
  * case too, so the caller knows not to overwrite the authored bpm.
  */
-export async function analyzeTrackBlob(blob: Blob): Promise<TrackAnalysisResult> {
+export async function analyzeTrackBlob(blob: Blob, timeSignature: string): Promise<TrackAnalysisResult> {
   const arrayBuffer = await blob.arrayBuffer()
   // A scratch instance, not clickEngine.ts's shared one - this runs once per analysis, wholly
   // unrelated to click playback, and must not interfere with it if a click happens to be running.
@@ -55,14 +55,18 @@ export async function analyzeTrackBlob(blob: Blob): Promise<TrackAnalysisResult>
 
     const tempo = detectTempo(envelope.flux, envelope.hopMs)
     if (tempo === null) {
-      return { bpm: null, beatAnchors: [{ timeMs: Math.round(firstOnset.onsetMs) }], tempoConfidence: 0 }
+      return {
+        bpm: null,
+        beatAnchors: [{ timeMs: Math.round(firstOnset.onsetMs), beatInBar: 0 }],
+        tempoConfidence: 0,
+      }
     }
 
     const bpm = Math.round(tempo.bpm * 10) / 10 // 1 decimal - matches VisualMetronomeWidget's display precision
-    const beatAnchors = detectBeatAnchors(envelope.flux, envelope.hopMs, bpm, firstOnset.onsetMs)
+    const beatAnchors = detectBeatAnchors(envelope.flux, envelope.hopMs, bpm, timeSignature, firstOnset.onsetMs)
     return {
       bpm,
-      beatAnchors: beatAnchors.map((a) => ({ timeMs: Math.round(a.timeMs) })),
+      beatAnchors: beatAnchors.map((a) => ({ timeMs: Math.round(a.timeMs), beatInBar: a.beatInBar })),
       tempoConfidence: tempo.confidence,
     }
   } finally {

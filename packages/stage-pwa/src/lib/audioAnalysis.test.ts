@@ -151,9 +151,10 @@ describe('detectBeatAnchors', () => {
     const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
     const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
     const firstOnset = detectFirstOnset(envelope)
-    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, firstOnset!.onsetMs)
+    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, '4/4', firstOnset!.onsetMs)
     expect(anchors).toHaveLength(1)
     expect(anchors[0]!.timeMs).toBe(firstOnset!.onsetMs)
+    expect(anchors[0]!.beatInBar).toBe(0)
   })
 
   it('adds exactly one correction anchor at a genuine, persistent shift - not before and not a duplicate after', () => {
@@ -164,11 +165,15 @@ describe('detectBeatAnchors', () => {
     const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
     const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
     const firstOnset = detectFirstOnset(envelope)
-    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, firstOnset!.onsetMs)
+    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, '4/4', firstOnset!.onsetMs)
     expect(anchors).toHaveLength(2)
     expect(anchors[0]!.timeMs).toBe(firstOnset!.onsetMs)
+    expect(anchors[0]!.beatInBar).toBe(0)
     expect(anchors[1]!.timeMs).toBeGreaterThan(5000)
     expect(anchors[1]!.timeMs).toBeLessThan(6000)
+    // 10 beat-slots elapsed since the first anchor (confirmed live against this exact synthetic
+    // signal) - beatInBar keeps counting from there instead of resetting to 0 at this anchor.
+    expect(anchors[1]!.beatInBar).toBe(10 % 4)
   })
 
   it('does NOT commit a correction for a single one-off loose beat that reverts on the very next one - ordinary human performance looseness, not a real shift', () => {
@@ -177,8 +182,8 @@ describe('detectBeatAnchors', () => {
     const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
     const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
     const firstOnset = detectFirstOnset(envelope)
-    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, firstOnset!.onsetMs)
-    expect(anchors).toEqual([{ timeMs: firstOnset!.onsetMs }])
+    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, '4/4', firstOnset!.onsetMs)
+    expect(anchors).toEqual([{ timeMs: firstOnset!.onsetMs, beatInBar: 0 }])
   })
 
   it('tolerates a genuinely missing beat (no click at all) without adding a spurious anchor, since nothing else in the track actually moved', () => {
@@ -186,8 +191,23 @@ describe('detectBeatAnchors', () => {
     const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
     const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
     const firstOnset = detectFirstOnset(envelope)
-    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, firstOnset!.onsetMs)
-    expect(anchors).toEqual([{ timeMs: firstOnset!.onsetMs }])
+    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, '4/4', firstOnset!.onsetMs)
+    expect(anchors).toEqual([{ timeMs: firstOnset!.onsetMs, beatInBar: 0 }])
+  })
+
+  it('keeps counting beatInBar continuously across two corrections instead of resetting to 0 at each - proven with a 3/4 meter so the wrap is unambiguous', () => {
+    // Two persistent shifts: one at click index 5, another at index 13 (both 500ms/120bpm
+    // beat-slots after the previous anchor) - 5 % 3 = 2, then 13-5=8 more beat-slots later,
+    // (5 + 8) % 3 = 1, neither resetting to 0 the way the old per-anchor-relative counting did.
+    const times = clickTimes(500, 500, 20, 5, 100).map((t, i) => (i >= 13 ? t + 100 : t))
+    const samples = syntheticSignal(SAMPLE_RATE, 11000, times)
+    const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
+    const firstOnset = detectFirstOnset(envelope)
+    const anchors = detectBeatAnchors(envelope.flux, envelope.hopMs, 120, '3/4', firstOnset!.onsetMs)
+    expect(anchors).toHaveLength(3)
+    expect(anchors[0]!.beatInBar).toBe(0)
+    expect(anchors[1]!.beatInBar).toBe(5 % 3)
+    expect(anchors[2]!.beatInBar).toBe(13 % 3)
   })
 
   it('falls back to just the lead-in anchor when the input is too unreliable to track at all (safety net)', () => {
@@ -203,6 +223,6 @@ describe('detectBeatAnchors', () => {
       return seed / 0x7fffffff
     }
     const onsetStrength = Float32Array.from({ length: 2000 }, () => rng() * 1000)
-    expect(detectBeatAnchors(onsetStrength, 15, 120, 100)).toEqual([{ timeMs: 100 }])
+    expect(detectBeatAnchors(onsetStrength, 15, 120, '4/4', 100)).toEqual([{ timeMs: 100, beatInBar: 0 }])
   })
 })

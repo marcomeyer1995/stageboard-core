@@ -27,18 +27,26 @@ export const TrackMetaSchema = z.object({
 export type TrackMeta = z.infer<typeof TrackMetaSchema>
 
 /**
- * A downbeat's exact timestamp on this variant's own timeline (#25 follow-up) - the Click
+ * A beat's exact timestamp on this variant's own timeline (#25 follow-up) - the Click
  * Generator/Visual Metronome's beat grid resets phase to `timeMs` for whatever comes after it,
  * rather than extrapolating bpm from song-start for the whole song. This is deliberately *not*
  * a tempo-map entry (no bpm here) - the song's one stored `bpm` still governs spacing
- * everywhere; an anchor only ever corrects *where* beat 0 falls, so a lead-in, a one-off
- * dropped/added bar, or small accumulated drift can all be fixed at the next anchor without
- * modeling per-segment tempo (that's #141's territory, deliberately out of scope here). Reuses
- * the same song-relative-timestamp shape as `ShowCue.timeMs`/`TimecodeMarker.timeMs`.
+ * everywhere; an anchor only ever corrects *where* a beat falls and *which* beat of the bar it
+ * is, so a lead-in, a one-off dropped/added bar, or small accumulated drift can all be fixed at
+ * the next anchor without modeling per-segment tempo (that's #141's territory, deliberately out
+ * of scope here). Reuses the same song-relative-timestamp shape as
+ * `ShowCue.timeMs`/`TimecodeMarker.timeMs`.
  */
 export const BeatAnchorSchema = z.object({
   id: z.string().min(1),
   timeMs: z.number().int().nonnegative(),
+  /** 0-indexed position within the bar this anchor represents (0 = downbeat/"beat 1"). Absent
+   * on every anchor created before this field existed - defaults to 0 everywhere it's read,
+   * which reproduces the original behavior (every anchor treated as beat 1) exactly, so no
+   * migration is needed. Without this, a dense, one-per-beat anchor list (e.g. from automatic
+   * detection) made the click re-announce "beat 1" on almost every tick instead of cycling
+   * 1-2-3-4 through the bar - every anchor used to force the beat-in-bar counter back to 0. */
+  beatInBar: z.number().int().nonnegative().optional(),
 })
 export type BeatAnchor = z.infer<typeof BeatAnchorSchema>
 
