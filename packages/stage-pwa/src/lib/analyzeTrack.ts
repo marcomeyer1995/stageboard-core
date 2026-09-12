@@ -6,6 +6,13 @@ export interface TrackAnalysisResult {
   tempoConfidence: number
 }
 
+/** `'hand-rolled'` (default): audioAnalysis.ts's always-available spectral-flux detector, no
+ * extra dependency. `'music-tempo'`: the optional `music-tempo-beat-detection` plugin
+ * (musicTempoAnalysis.ts) - only ever passed in once SheetEditor.tsx has confirmed that plugin
+ * is installed+enabled for the current workspace (CAPABILITIES.audioAnalysis); manual tap-to-sync
+ * needs neither and always works regardless of which provider (or none) is installed. */
+export type AnalysisProvider = 'hand-rolled' | 'music-tempo'
+
 /** Mixes every channel down to mono by simple averaging - beat/onset detection only needs
  * overall loudness, not stereo image. */
 function mixToMono(buffer: AudioBuffer): Float32Array {
@@ -40,7 +47,11 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
  * alone (the lead-in point is still useful even without a bpm suggestion) - `bpm: null` in that
  * case too, so the caller knows not to overwrite the authored bpm.
  */
-export async function analyzeTrackBlob(blob: Blob, timeSignature: string): Promise<TrackAnalysisResult> {
+export async function analyzeTrackBlob(
+  blob: Blob,
+  timeSignature: string,
+  provider: AnalysisProvider = 'hand-rolled',
+): Promise<TrackAnalysisResult> {
   const arrayBuffer = await blob.arrayBuffer()
   // A scratch instance, not clickEngine.ts's shared one - this runs once per analysis, wholly
   // unrelated to click playback, and must not interfere with it if a click happens to be running.
@@ -48,6 +59,12 @@ export async function analyzeTrackBlob(blob: Blob, timeSignature: string): Promi
   try {
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
     const mono = mixToMono(audioBuffer)
+
+    if (provider === 'music-tempo') {
+      const { analyzeWithMusicTempo } = await import('./musicTempoAnalysis')
+      return await analyzeWithMusicTempo(mono, audioBuffer.sampleRate, timeSignature)
+    }
+
     const envelope = computeSpectralFlux(mono, audioBuffer.sampleRate)
 
     const firstOnset = detectFirstOnset(envelope)
