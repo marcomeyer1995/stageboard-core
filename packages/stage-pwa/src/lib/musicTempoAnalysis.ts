@@ -30,8 +30,13 @@ function resampleTo44100(mono: Float32Array, sampleRate: number): Float32Array {
 /**
  * Automatic BPM + beat-anchor detection via the `music-tempo` npm package (MIT-licensed,
  * implements the published "Beatroot" algorithm) - the optional `music-tempo-beat-detection`
- * plugin's actual analysis, dynamically imported (see analyzeTrack.ts) so its ~14.5KB is only
- * ever fetched once a workspace has the plugin installed and actually runs "Track analysieren".
+ * plugin's actual analysis. Always called from musicTempoWorker.ts, never directly from
+ * analyzeTrack.ts on the main thread - this is a synchronous, CPU-heavy computation (an
+ * agent-based search over the whole track), and running it on the main thread froze the entire
+ * app for 80+ seconds on a real, full-length song (confirmed live, 2026-09-12 - not just the
+ * button, background sync/presence too). Bundled into the worker's own chunk (not the main one)
+ * either way, so its ~14.5KB is only ever fetched once a workspace has the plugin installed and
+ * actually runs "Track analysieren".
  *
  * Validated directly against real songs with manually-tapped ground truth (see this session's
  * scratch comparison campaign): consistently far more accurate than the hand-rolled
