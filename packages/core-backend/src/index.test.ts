@@ -356,14 +356,18 @@ describe('Fastify routes', () => {
 
       // buildApp() only serves HTTPS when dev certs exist on disk (see index.ts) - present
       // locally (scripts/generate-dev-certs.sh), absent in CI, so this can't assume either
-      // protocol and has to ask the actual running server which one it got.
-      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      // protocol and has to ask the actual running server which one it got. The default
+      // FRONTEND_ORIGIN's own scheme tracks the same check, so the origin header below must
+      // match too.
+      const isHttps = app.server instanceof HttpsServer
+      const request = isHttps ? httpsRequest : httpRequest
+      const origin = `${isHttps ? 'https' : 'http'}://localhost:5173`
       const req = request(
         {
           hostname: '127.0.0.1',
           port: address.port,
           path: '/plugin-health/band-a/stream',
-          headers: { origin: 'http://localhost:5173' },
+          headers: { origin },
           rejectUnauthorized: false,
         },
         () => {},
@@ -378,7 +382,7 @@ describe('Fastify routes', () => {
       // CORS headers still apply even though the route bypasses Fastify's normal send path
       // (see index.ts's reply.hijack() comment) - this is the whole reason for copying them.
       expect(res.headers['content-type']).toBe('text/event-stream')
-      expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173')
+      expect(res.headers['access-control-allow-origin']).toBe(origin)
 
       const chunks = res[Symbol.asyncIterator]()
 
@@ -1935,12 +1939,16 @@ describe('Fastify routes', () => {
 
   describe('CORS', () => {
     it('reflects an allowed origin (default FRONTEND_ORIGIN)', async () => {
+      // The default's scheme tracks whether this server itself ended up HTTPS (dev certs
+      // present locally, absent in CI, same as the plugin-health/stream test below) - a
+      // hardcoded 'http://' here would fail locally the moment certs exist on disk.
+      const scheme = app.server instanceof HttpsServer ? 'https' : 'http'
       const response = await app.inject({
         method: 'GET',
         url: '/health',
-        headers: { origin: 'http://localhost:5173' },
+        headers: { origin: `${scheme}://localhost:5173` },
       })
-      expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173')
+      expect(response.headers['access-control-allow-origin']).toBe(`${scheme}://localhost:5173`)
     })
 
     it('does not reflect a disallowed origin', async () => {
