@@ -18,7 +18,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
           <span
             key={i}
             className={`rounded-full transition-colors duration-75 ${isDownbeat ? 'h-4 w-4' : 'h-3 w-3'} ${
-              isCurrent ? (isDownbeat ? 'bg-accent' : 'bg-ink') : 'bg-control-strong'
+              isCurrent ? (beat.isCountIn ? 'bg-ink-muted' : isDownbeat ? 'bg-accent' : 'bg-ink') : 'bg-control-strong'
             }`}
           />
         )
@@ -38,6 +38,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
   const song = queue.currentVariant ?? queue.currentSong
+  const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
 
   if (!song) {
     return (
@@ -48,15 +49,39 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   }
 
   const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
+
+  // beatAnchors (#25 follow-up) and tempoMarkers (#141) only live on SongVariant, not the bare
+  // Song fallback `song` itself might be - same "no variant means none" shape
+  // useClickOutputDriver.ts uses.
+  const beat =
+    playbackStatus === 'playing' && elapsedMs !== null
+      ? beatAt(
+          elapsedMs,
+          bpm,
+          song.timeSignature,
+          queue.currentVariant?.beatAnchors ?? [],
+          countInBars,
+          queue.currentVariant?.tempoMarkers ?? [],
+        )
+      : null
+
+  // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm`
+  // (metronome.ts, #25 follow-up) already bakes in whatever anchor-segment correction is active;
+  // with no active beat (not playing yet, or still before the count-in window) there's no grid
+  // to correct against, so this just falls back to the plain (live-nudged) bpm. Always shown to
+  // one decimal - a rounded integer hid the whole point of the correction (Marco, 2026-09-10).
+  const displayBpm = beat === null ? bpm : beat.effectiveBpm
   const bpmLabel =
     liveTempoAdjustPercent === 0
-      ? `${song.bpm} BPM`
-      : `${Math.round(bpm)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
+      ? `${displayBpm.toFixed(1)} BPM`
+      : `${displayBpm.toFixed(1)} BPM (${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%)`
 
-  if (playbackStatus !== 'playing' || elapsedMs === null) {
+  if (beat === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
-        <span className="text-sm">Wartet auf Play</span>
+        {/* Not playing at all, vs. playing but still before the first beat anchor (a count-in) -
+            both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
+        <span className="text-sm">{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
         <span className="text-xs opacity-70 tabular-nums">
           {bpmLabel} · {song.timeSignature}
         </span>
@@ -64,19 +89,24 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     )
   }
 
-  const beat = beatAt(elapsedMs, bpm, song.timeSignature)
   const pulseOn = beat.msIntoBeat < PULSE_WINDOW_MS
 
   return (
     <div
       className={`flex h-full flex-col items-center justify-center gap-2 rounded-sb transition-colors duration-75 ${
         config.style === 'number' && pulseOn
-          ? beat.isDownbeat
-            ? 'bg-accent text-surface'
-            : 'bg-ink text-surface'
+          ? beat.isCountIn
+            ? 'bg-control-strong text-ink'
+            : beat.isDownbeat
+              ? 'bg-accent text-surface'
+              : 'bg-ink text-surface'
           : 'bg-surface text-ink'
       }`}
     >
+      {/* Count-in bars (#25 follow-up) share the same pulsing display as the real song, so the
+          band can still count along - this badge is the only thing marking it as lead-in, not
+          the song's actual first bar. */}
+      {beat.isCountIn && <span className="text-xs uppercase tracking-wide text-ink-muted">Einzählen…</span>}
       {config.style === 'beat-dots' ? (
         <BeatDots beat={beat} totalBeats={beatsPerBar(song.timeSignature)} />
       ) : (

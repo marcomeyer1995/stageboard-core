@@ -1,15 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
-import { SongSchema, SongVariantSchema, type Song, type ShowCue, type SongVariant, type TimecodeMarker } from 'shared-types'
+import {
+  SongSchema,
+  SongVariantSchema,
+  CAPABILITIES,
+  type BeatAnchor,
+  type Song,
+  type ShowCue,
+  type SongVariant,
+  type TempoMarker,
+  type TimecodeMarker,
+} from 'shared-types'
+import { analyzeTempoMapBlob, analyzeTrackBlob } from '../lib/analyzeTrack'
+import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
 import { useDialogStore } from '../store/useDialogStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { BeatAnchorListEditor } from './BeatAnchorListEditor'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CueListEditor } from './CueListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
+import { TapBeatAnchors } from './TapBeatAnchors'
+import { TapTempoMarker } from './TapTempoMarker'
 import { TapToSync } from './TapToSync'
+import { TempoMarkerListEditor } from './TempoMarkerListEditor'
 import { TrackManagerField } from './TrackManagerField'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -32,6 +49,10 @@ interface EditorDraft {
   chordProContent: string
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
+  beatAnchors: BeatAnchor[]
+  tempoMarkers: TempoMarker[]
+  countInEnabled: boolean
+  countInBars: number
   key?: string
   tuning?: string
   capo?: number
@@ -50,6 +71,10 @@ function emptyDraft(): EditorDraft {
     chordProContent: '',
     timecodes: [],
     cues: [],
+    beatAnchors: [],
+    tempoMarkers: [],
+    countInEnabled: false,
+    countInBars: 1,
   }
 }
 
@@ -67,6 +92,10 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
     cues: variant.cues,
+    beatAnchors: variant.beatAnchors,
+    tempoMarkers: variant.tempoMarkers,
+    countInEnabled: variant.countInEnabled,
+    countInBars: variant.countInBars,
     key: variant.key,
     tuning: variant.tuning,
     capo: variant.capo,
@@ -92,13 +121,20 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const confirm = useDialogStore((state) => state.confirm)
+  const installedPlugins = usePluginsStore((state) => state.installed)
   const [draft, setDraft] = useState<EditorDraft>(emptyDraft())
   const [isNewDraft, setIsNewDraft] = useState(true)
   const [initialSongLoaded, setInitialSongLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
+  const [isTappingAnchors, setIsTappingAnchors] = useState(false)
+  const [isTappingTempoMarker, setIsTappingTempoMarker] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [isAnalyzingTempoMap, setIsAnalyzingTempoMap] = useState(false)
+  const [tempoMapError, setTempoMapError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -111,7 +147,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if (!isTapping || !tapTrack) return
+    if ((!isTapping && !isTappingAnchors && !isTappingTempoMarker) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -126,7 +162,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, draft.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, draft.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -184,6 +220,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
       cues: variant.cues,
+      beatAnchors: variant.beatAnchors,
+      tempoMarkers: variant.tempoMarkers,
+      countInEnabled: variant.countInEnabled,
+      countInBars: variant.countInBars,
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
@@ -215,6 +255,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       cues: draft.cues,
+      beatAnchors: draft.beatAnchors,
+      tempoMarkers: draft.tempoMarkers,
+      countInEnabled: draft.countInEnabled,
+      countInBars: draft.countInBars,
       tracks: currentTracks,
       key: draft.key,
       tuning: draft.tuning,
@@ -303,6 +347,96 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       capo: imported.capo ?? draft.capo,
       bpm: imported.bpm ?? draft.bpm,
     })
+  }
+
+  /** Automatic BPM + beat-anchor detection (#25 follow-up) - runs the DSP pipeline
+   * (audioAnalysis.ts/analyzeTrack.ts) against `tapTrack`'s own audio, the same track the manual
+   * tap tools already work against. Replaces the whole anchor list rather than merging into it
+   * (same "auto-fill-then-editable" convention `handleImport` above already uses for Ultimate
+   * Guitar's bpm/key/tuning) - guarded by a confirmation when anchors already exist, since a
+   * stray click shouldn't silently wipe out anchors someone already hand-tapped (manual
+   * correction always wins - installing/uninstalling a detection plugin never overrides that).
+   * Detection is inherently imperfect on real mixes (no single unambiguous transient at every
+   * beat) - the list editor and tap tool right below this button are the correction mechanism,
+   * not an afterthought.
+   *
+   * Uses the `music-tempo-beat-detection` plugin (far more accurate, see musicTempoAnalysis.ts's
+   * own doc comment) if a band has installed+enabled it (CAPABILITIES.audioAnalysis); otherwise
+   * falls back to the always-available hand-rolled detector - no plugin required at all, same as
+   * manual tap-to-sync. */
+  async function handleAnalyzeTrack() {
+    if (!tapTrack) return
+    if (draft.beatAnchors.length > 0) {
+      const confirmed = await confirm('Vorhandene Anker durch die automatische Erkennung ersetzen?', {
+        confirmLabel: 'Ersetzen',
+      })
+      if (!confirmed) return
+    }
+    setIsAnalyzing(true)
+    setAnalyzeError(null)
+    try {
+      const blob = await getTrack(draft.variantId, tapTrack.id)
+      if (!blob) {
+        setAnalyzeError('Track nicht verfügbar.')
+        return
+      }
+      const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
+      const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)
+      if (result.bpm === null && result.beatAnchors.length === 0) {
+        setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
+        return
+      }
+      setDraft((d) => ({
+        ...d,
+        bpm: result.bpm ?? d.bpm,
+        beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })),
+      }))
+    } catch {
+      setAnalyzeError('Analyse fehlgeschlagen.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  /** "Tempo-Wechsel erkennen" - unlike handleAnalyzeTrack above (one global bpm), suggests a
+   * whole tempo-map: a base bpm plus every later place the tempo genuinely seems to change.
+   * Always a suggestion to review, never applied silently - see analyzeTempoMapBlob's own doc
+   * comment for why (it can still return an exact octave-doubled/halved tempo on
+   * metrically-ambiguous material like a slow ballad with a strong 2-beat feel). */
+  async function handleAnalyzeTempoMap() {
+    if (!tapTrack) return
+    if (draft.tempoMarkers.length > 0) {
+      const confirmed = await confirm('Vorhandene Tempo-Wechsel durch die automatische Erkennung ersetzen?', {
+        confirmLabel: 'Ersetzen',
+      })
+      if (!confirmed) return
+    }
+    setIsAnalyzingTempoMap(true)
+    setTempoMapError(null)
+    try {
+      const blob = await getTrack(draft.variantId, tapTrack.id)
+      if (!blob) {
+        setTempoMapError('Track nicht verfügbar.')
+        return
+      }
+      const result = await analyzeTempoMapBlob(blob)
+      if (result === null) {
+        setTempoMapError('Keine Analyse möglich - bitte manuell setzen.')
+        return
+      }
+      if (result.tempoMarkers.length === 0) {
+        setTempoMapError('Kein Tempo-Wechsel erkannt - BPM übernommen.')
+      }
+      setDraft((d) => ({
+        ...d,
+        bpm: result.baseBpm,
+        tempoMarkers: result.tempoMarkers.map((m) => ({ id: randomId(), timeMs: m.timeMs, bpm: m.bpm })),
+      }))
+    } catch {
+      setTempoMapError('Analyse fehlgeschlagen.')
+    } finally {
+      setIsAnalyzingTempoMap(false)
+    }
   }
 
   const preview = parseChordPro(draft.chordProContent)
@@ -473,6 +607,106 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         </label>
         <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
         <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+        {isTappingAnchors ? (
+          <TapBeatAnchors
+            trackSrc={tapTrackSrc}
+            timeSignature={draft.timeSignature}
+            onComplete={(anchors) => {
+              setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
+              setIsTappingAnchors(false)
+            }}
+            onCancel={() => setIsTappingAnchors(false)}
+          />
+        ) : isTappingTempoMarker ? (
+          <TapTempoMarker
+            trackSrc={tapTrackSrc}
+            onComplete={(timeMs) => {
+              const marker: TempoMarker = { id: randomId(), timeMs, bpm: draft.bpm }
+              setDraft({ ...draft, tempoMarkers: [...draft.tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
+              setIsTappingTempoMarker(false)
+            }}
+            onCancel={() => setIsTappingTempoMarker(false)}
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleAnalyzeTrack()}
+                  disabled={!tapTrack || isAnalyzing}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTappingAnchors(true)}
+                  disabled={!tapTrack}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  Anker tappen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTappingTempoMarker(true)}
+                  disabled={!tapTrack}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  Tempo-Wechsel markieren
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAnalyzeTempoMap()}
+                  disabled={!tapTrack || isAnalyzingTempoMap}
+                  title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
+                </button>
+              </div>
+            </div>
+            {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
+            {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
+            <BeatAnchorListEditor
+              anchors={draft.beatAnchors}
+              timeSignature={draft.timeSignature}
+              onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
+            />
+            <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
+            <TempoMarkerListEditor
+              tempoMarkers={draft.tempoMarkers}
+              onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
+            />
+            <p className="text-xs text-ink-faint">
+              Automatisch erkannte Tempo-Wechsel bitte prüfen - bei mehrdeutigem Metrum (z.B. einer Ballade) kann die
+              BPM-Oktave falsch sein.
+            </p>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
+                <input
+                  type="checkbox"
+                  checked={draft.countInEnabled}
+                  onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
+                  className="h-5 w-5"
+                />
+                Count-in aktivieren
+              </label>
+              <label className="flex items-center gap-1 text-sm text-ink-muted">
+                Takte
+                <input
+                  type="number"
+                  min={1}
+                  disabled={!draft.countInEnabled}
+                  className="w-16 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+                  value={draft.countInBars}
+                  onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
+                />
+              </label>
+            </div>
+          </div>
+        )}
         {isTapping ? (
           <TapToSync
             content={draft.chordProContent}

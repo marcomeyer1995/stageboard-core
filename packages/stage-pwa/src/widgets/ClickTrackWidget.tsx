@@ -1,9 +1,7 @@
-import { useEffect, useRef } from 'react'
 import { CAPABILITIES } from 'shared-types'
-import { startClick, stopClick, type ClickEngineState } from '../lib/clickEngine'
 import { supportsLocalExecution } from '../lib/clientTranslator'
 import { resolveExecutionEngine } from '../lib/hardwareRouting'
-import { adjustedBpm, effectiveClickEnabled } from '../lib/metronome'
+import { effectiveClickEnabled } from '../lib/metronome'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -16,20 +14,20 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
 ]
 
 /**
- * Runs the Click Generator's audio (#25) on whichever tablet is bound as its execution target -
- * same `useHardwareBindingFor`/`resolveExecutionEngine` routing ShowTransportWidget already uses
- * for audio-playback, and the same "no plugin needed, a browser API does the job"
- * special-case (clientTranslator.ts's supportsLocalExecution) as that capability.
- * `resolveExecutionEngine`'s Practice branch means this needs no Hardware Setup binding at all
- * to practice solo - it just plays on this tablet if anything can execute it here. Also carries
- * the force-on/off override control - a shared, Master-gated ShowState write in Gig mode (works
- * from *any* tablet regardless of which one actually produces the sound, same as Play/Pause),
- * a local per-device choice in Practice mode (useShowMode.ts) - either way `useShowMode()`
- * already resolves which one applies, so this widget doesn't need its own mode branching.
+ * Shows the Click Generator's (#25) status and force-on/off override control - the actual Web
+ * Audio scheduler runs in useClickOutputDriver.ts instead, mounted once in App.tsx regardless
+ * of which top-level tab is showing. It used to run here, which meant switching away from the
+ * Live tab (Bibliothek/System) unmounted this widget and silently stopped the click mid-show
+ * (found live, 2026-09-10, same bug as ShowTransportWidget's audio path). The routing booleans
+ * below are safe to re-derive here too, purely for display - they're plain derivations, not the
+ * side-effecting part. The override control is a shared, Master-gated ShowState write in Gig
+ * mode (works from *any* tablet regardless of which one actually produces the sound, same as
+ * Play/Pause), a local per-device choice in Practice mode (useShowMode.ts) - either way
+ * `useShowMode()` already resolves which one applies, so this widget doesn't need its own mode
+ * branching.
  */
 export function ClickTrackWidget() {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, setClickTrackOverride, canControl } =
-    useShowMode()
+  const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
   const binding = useHardwareBindingFor(CAPABILITIES.clickTrack)
@@ -44,28 +42,6 @@ export function ClickTrackWidget() {
   )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
-  const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedMs !== null
-
-  // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
-  // closed over once - clickEngine.ts's scheduler polls this on every tick, same reasoning as
-  // TunerWidget.tsx's configRef for its own always-fresh-settings problem.
-  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4' })
-  useEffect(() => {
-    stateRef.current = {
-      elapsedMs,
-      bpm: song ? adjustedBpm(song.bpm, liveTempoAdjustPercent) : 120,
-      timeSignature: song?.timeSignature ?? '4/4',
-    }
-  })
-
-  useEffect(() => {
-    if (!shouldPlay) {
-      stopClick()
-      return
-    }
-    startClick(() => stateRef.current)
-    return () => stopClick()
-  }, [shouldPlay])
 
   if (engine === 'none') {
     return (

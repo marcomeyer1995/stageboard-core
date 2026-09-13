@@ -1,4 +1,4 @@
-import { beatsPerBar } from './metronome'
+import { beatsPerBar, type BeatAnchorLike, type BeatGridSegment, type TempoMarkerLike, resolveBeatGrid } from './metronome'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -19,6 +19,20 @@ export interface ClickEngineState {
   elapsedMs: number | null
   bpm: number
   timeSignature: string
+  /** Beat sync points (#25 follow-up, SongVariant.beatAnchors) - each carries its own
+   * `beatInBar`, so counting continues from there rather than resetting to "beat 1" at every
+   * anchor. See metronome.ts's `resolveBeatGrid` for how these govern the beat grid. Empty
+   * reproduces the original (pre-anchor) behavior exactly: beat 0 pinned to elapsedMs 0. */
+  beatAnchors: readonly BeatAnchorLike[]
+  /** Bars of count-in to play before the first beat anchor (#25 follow-up, resolved from
+   * SongVariant.countInEnabled/countInBars) - 0 reproduces the original silent-count-in
+   * behavior exactly. */
+  countInBars: number
+  /** Genuine mid-song tempo changes (#141, SongVariant.tempoMarkers) - see metronome.ts's
+   * `resolveBeatGrid` for how these govern which segment's bpm/timeSignature is actually
+   * active. Empty reproduces today's single-tempo behavior exactly. A live tempo nudge (#140)
+   * only ever affects `bpm` above (segment 0) - a marker's own bpm is used as-is, not nudged. */
+  tempoMarkers: readonly TempoMarkerLike[]
 }
 
 let audioContext: AudioContext | null = null
@@ -34,6 +48,31 @@ let intervalId: ReturnType<typeof setInterval> | null = null
  * the spacing of beats from here forward. */
 let nextBeatOnsetMs: number | null = null
 let nextBeatInBar = 0
+/** `elapsedMs` as of the last tick - used to detect a large gap between ticks (see
+ * RESYNC_GAP_MS below), not to schedule anything itself. */
+let lastTickElapsedMs: number | null = null
+/** Which anchor origin `nextBeatOnsetMs` is currently anchored to (metronome.ts's
+ * `resolveBeatGrid`) - `tick()` compares this against the freshly-resolved origin every tick
+ * so crossing into a new beat anchor mid-song re-anchors the schedule exactly there, the same
+ * way a stall or a fresh start already does, instead of continuing to extrapolate the old
+ * anchor's grid indefinitely. */
+let activeOriginMs: number | null = null
+/** The `correctionRatio` (metronome.ts's `resolveBeatGrid`) the running schedule is currently
+ * using to space beats - set whenever `activeOriginMs` is (re)established, and applied fresh to
+ * whatever `bpm` is live on every tick's while-loop iteration below, so a live tempo nudge (#140)
+ * still takes effect instantly within a segment; only the *ratio* is fixed per-segment, not an
+ * absolute ms value. */
+let activeCorrectionRatio = 1
+
+/** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
+ * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
+ * healthy tick sees, comfortably below the length of a real beat at any reasonable tempo (so a
+ * single genuinely slow tick never gets mistaken for a stall). Backgrounding a tab throttles
+ * `setInterval` far below TICK_INTERVAL_MS (found live, 2026-09-10: the click "fully out of
+ * rhythm" after the tab lost focus) - without this, `tick()`'s while loop would fire every beat
+ * that fell due during the whole stall in one instant burst once the tab is foregrounded again,
+ * instead of just resuming cleanly from wherever elapsedMs actually is now. */
+const RESYNC_GAP_MS = 500
 
 function getAudioContext(): AudioContext {
   if (!audioContext) audioContext = new AudioContext()
@@ -58,14 +97,25 @@ function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void
   osc.stop(time + CLICK_DURATION_S)
 }
 
-/** Anchors the running schedule to the next beat boundary at or after `elapsedMs` under `bpm` -
- * called once when playback (re)starts (nextBeatOnsetMs is null), never mid-stream, so a live
- * tempo nudge never resets/re-anchors the already-running cursor. */
-function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string): void {
-  const msPerBeat = 60000 / bpm
-  const beatIndex = Math.floor(elapsedMs / msPerBeat) + 1
-  nextBeatOnsetMs = beatIndex * msPerBeat
-  nextBeatInBar = beatIndex % beatsPerBar(timeSignature)
+/** Anchors the running schedule to the next beat boundary at or after `elapsedMs`, using `grid`
+ * (metronome.ts's `resolveBeatGrid` - `originMs` 0 and `correctionRatio` 1 with no beat anchors
+ * configured, exactly reproducing the original song-start-relative grid). `elapsedMs >=
+ * grid.originMs` always holds here - `tick()` only ever calls this once it has already confirmed
+ * `resolveBeatGrid` returned non-null, which only happens for an anchor at or before `elapsedMs`.
+ * Called when playback (re)starts (nextBeatOnsetMs is null), on a detected stall, or when the
+ * active anchor has just changed - never otherwise, so a live tempo nudge alone never
+ * resets/re-anchors the already-running cursor (`correctionRatio` stays fixed for the segment;
+ * `grid.bpm` itself is re-read live every tick instead, in `tick()`'s while-loop below - for
+ * segment 0 that's the live-nudged (#140) value, since `resolveBeatGrid` uses whatever `bpm` it
+ * was called with for segment 0 verbatim; a tempo-marker (#141) segment's own bpm is fixed and
+ * not nudge-able). */
+function anchorSchedule(elapsedMs: number, grid: BeatGridSegment): void {
+  const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
+  const effectiveMs = elapsedMs - grid.originMs
+  const beatIndex = Math.floor(effectiveMs / msPerBeat) + 1
+  nextBeatOnsetMs = grid.originMs + beatIndex * msPerBeat
+  nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
+  activeCorrectionRatio = grid.correctionRatio
 }
 
 /** One scheduler tick: tops up the oscillator queue with every beat that has newly entered the
@@ -73,20 +123,44 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string): 
  * length - so a live tempo nudge (#140) changes spacing only from here forward, and a beat
  * already committed to the queue is never retroactively skipped or duplicated (the two windows
  * deliberately overlap - see TICK_INTERVAL_MS/LOOKAHEAD_MS above). Silent, and resets the
- * cursor, whenever nothing is currently playing. */
+ * cursor, whenever nothing is currently playing, or while still before the first beat anchor
+ * (metronome.ts's `resolveBeatOrigin` returning null - a count-in state). Re-anchors (instead of
+ * bursting through a backlog) whenever `elapsedMs` jumped by more than RESYNC_GAP_MS since the
+ * last tick (a throttled/backgrounded tab, not a normal gap between beats), or whenever the
+ * active beat anchor has changed - crossing into a new anchor's territory mid-song resets phase
+ * there exactly the same way a stall or a fresh start already does. This is also what makes a
+ * tempo-marker (#141) boundary work with no separate handling here at all: `resolveBeatGrid`
+ * always ensures a (real or synthetic) anchor sits exactly at every marker's `timeMs`, so
+ * crossing into a new tempo segment IS crossing into a new anchor, as far as this function
+ * can tell. */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, bpm, timeSignature } = getState()
+  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars, tempoMarkers } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
+    lastTickElapsedMs = null
+    activeOriginMs = null
+    activeCorrectionRatio = 1
     return
   }
-  if (nextBeatOnsetMs === null) anchorSchedule(elapsedMs, bpm, timeSignature)
+  const grid = resolveBeatGrid(beatAnchors, elapsedMs, bpm, timeSignature, countInBars, tempoMarkers)
+  if (grid === null) {
+    // Still before the first anchor - a count-in, nothing should sound yet.
+    lastTickElapsedMs = elapsedMs
+    return
+  }
+
+  const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
+  if (nextBeatOnsetMs === null || stalled || grid.originMs !== activeOriginMs) {
+    anchorSchedule(elapsedMs, grid)
+    activeOriginMs = grid.originMs
+  }
+  lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
-  const beatCount = beatsPerBar(timeSignature)
+  const beatCount = beatsPerBar(grid.timeSignature)
   while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + LOOKAHEAD_MS) {
     playClickAt(ctx, ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000, nextBeatInBar === 0)
-    nextBeatOnsetMs += 60000 / bpm
+    nextBeatOnsetMs += (60000 / grid.bpm) * activeCorrectionRatio
     nextBeatInBar = (nextBeatInBar + 1) % beatCount
   }
 }
@@ -113,6 +187,9 @@ export function stopClick(): void {
   if (intervalId !== null) clearInterval(intervalId)
   intervalId = null
   nextBeatOnsetMs = null
+  lastTickElapsedMs = null
+  activeOriginMs = null
+  activeCorrectionRatio = 1
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module

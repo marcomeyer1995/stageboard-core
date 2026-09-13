@@ -1,23 +1,23 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
-import type { LogicalDevice, Song, SongVariant } from 'shared-types'
+import type { LogicalDevice, Song } from 'shared-types'
 import { ClickTrackWidget } from './ClickTrackWidget'
-import { startClick, stopClick } from '../lib/clickEngine'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 
 // Same reasoning as ShowTransportWidget.test.tsx: mock the stores directly, since several
-// transitively construct a real PouchDB at import time - and mock clickEngine.ts since
-// happy-dom (vitest.config.ts) has no real AudioContext.
+// transitively construct a real PouchDB at import time. Actually driving the click engine
+// (startClick/stopClick) no longer happens in this widget - see useClickOutputDriver.test.ts,
+// which owns that behavior now (found live, 2026-09-10: switching away from the Live tab used to
+// unmount this widget and silently stop the click mid-show).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
-vi.mock('../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
 
 function song(clickTrackEnabled: boolean): Song {
   return { id: 'song-1', title: 'Test Song', bpm: 120, timeSignature: '4/4', clickTrackEnabled, chordProContent: '', timecodes: [] }
@@ -26,9 +26,6 @@ function song(clickTrackEnabled: boolean): Song {
 function mockShowMode(overrides: {
   mode?: 'gig' | 'practice'
   currentSong: Song | null
-  currentVariant?: SongVariant | null
-  elapsedMs?: number | null
-  playbackStatus?: 'playing' | 'paused' | 'stopped'
   clickTrackOverride?: 'on' | 'off' | null
   setClickTrackOverride?: (override: 'on' | 'off' | null) => void
   canControl?: boolean
@@ -46,11 +43,11 @@ function mockShowMode(overrides: {
       currentEntry: null,
       nextEntry: null,
       previousVariant: null,
-      currentVariant: overrides.currentVariant ?? null,
+      currentVariant: null,
       nextVariant: null,
     },
-    elapsedMs: overrides.elapsedMs ?? 0,
-    playbackStatus: overrides.playbackStatus ?? 'playing',
+    elapsedMs: 0,
+    playbackStatus: 'playing',
     trackOverride: null,
     liveTempoAdjustPercent: 0,
     setLiveTempoAdjustPercent: vi.fn(),
@@ -111,57 +108,13 @@ describe('ClickTrackWidget', () => {
     expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
   })
 
-  it('starts the click engine when this device is the bound output, click is enabled, and the song is playing', () => {
-    mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
-    ])
-    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
-    render(<ClickTrackWidget />)
-    expect(startClick).toHaveBeenCalled()
-    expect(stopClick).not.toHaveBeenCalled()
-  })
-
-  it('does not start the click engine when playback is stopped', () => {
-    mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
-    ])
-    mockShowMode({ currentSong: song(true), elapsedMs: null, playbackStatus: 'stopped' })
-    render(<ClickTrackWidget />)
-    expect(startClick).not.toHaveBeenCalled()
-  })
-
-  it('does not start the click engine when the click is off (song default, no override)', () => {
-    mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
-    ])
-    mockShowMode({ currentSong: song(false), playbackStatus: 'playing' })
-    render(<ClickTrackWidget />)
-    expect(startClick).not.toHaveBeenCalled()
-  })
-
-  it('does not start the click engine when the bound output is a different tablet', () => {
-    mockLogicalDevices([
-      {
-        id: CLICK_LOGICAL_DEVICE_ID,
-        name: 'Klick',
-        capability: CAPABILITIES.clickTrack,
-        pluginId: null,
-        executionTarget: 'some-other-tablet',
-      },
-    ])
-    mockShowMode({ currentSong: song(true), playbackStatus: 'playing' })
-    render(<ClickTrackWidget />)
-    expect(startClick).not.toHaveBeenCalled()
-  })
-
   it('force-off overrides an on-by-default song', () => {
     mockLogicalDevices([
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
     ])
-    mockShowMode({ currentSong: song(true), clickTrackOverride: 'off', playbackStatus: 'playing' })
+    mockShowMode({ currentSong: song(true), clickTrackOverride: 'off' })
     const { container } = render(<ClickTrackWidget />)
     expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
-    expect(startClick).not.toHaveBeenCalled()
   })
 
   it('lets the Master change the override, disables the buttons for a non-Master device', () => {
@@ -191,29 +144,10 @@ describe('ClickTrackWidget', () => {
     expect(setClickTrackOverride).toHaveBeenCalledWith('off')
   })
 
-  it('still plays the click in Practice mode, off the song\'s own default', () => {
-    mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
-    ])
-    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
-    render(<ClickTrackWidget />)
-    expect(startClick).toHaveBeenCalled()
-  })
-
-  it('plays locally in Practice mode with no Hardware Setup at all - no LogicalDevice bound, and even one bound to a different tablet (Marco, 2026-09-09: practicing solo shouldn\'t require Gig-mode hardware configuration)', () => {
+  it('shows no placeholder in Practice mode with no Hardware Setup at all - no LogicalDevice bound (Marco, 2026-09-09: practicing solo shouldn\'t require Gig-mode hardware configuration)', () => {
     mockLogicalDevices([]) // no click-track device configured anywhere
-    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
-    const { unmount } = render(<ClickTrackWidget />)
-    expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
-    expect(startClick).toHaveBeenCalled()
-    unmount()
-
-    vi.mocked(startClick).mockClear()
-    mockLogicalDevices([
-      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: 'some-other-tablet' },
-    ])
-    mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    mockShowMode({ mode: 'practice', currentSong: song(true) })
     render(<ClickTrackWidget />)
-    expect(startClick).toHaveBeenCalled()
+    expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
   })
 })

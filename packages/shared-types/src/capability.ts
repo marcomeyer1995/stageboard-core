@@ -25,4 +25,8 @@ export const CAPABILITIES = {
   clickTrack: 'click-track',
   /** Automated backups (docs/02 backup strategies). */
   backup: 'backup',
+  /** Automatic BPM + beat-anchor detection for a song's backing track ("Track analysieren",
+   * #25 follow-up) - optional; manual tap-to-sync (TapBeatAnchors.tsx) is always available
+   * without any plugin installed. */
+  audioAnalysis: 'audio-analysis',
 } as const satisfies Record<string, CapabilityId>

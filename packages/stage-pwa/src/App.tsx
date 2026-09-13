@@ -12,8 +12,10 @@ import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
+import { useAudioOutputDriver } from './lib/useAudioOutputDriver'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
+import { useClickOutputDriver } from './lib/useClickOutputDriver'
 import { useClockSync } from './lib/useClockSync'
 import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
@@ -127,6 +129,11 @@ function App() {
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
   useCueScheduler()
+  // Audio-playback/Click Generator engines must keep running regardless of which top-level tab
+  // (Live/Bibliothek/System) is currently showing - see each hook's own doc comment for the
+  // live-found bug this fixes (a show's backing track/click silently stopping on tab switch).
+  useAudioOutputDriver()
+  useClickOutputDriver()
   useHardwareDetection()
   useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
