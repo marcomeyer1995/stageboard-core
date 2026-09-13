@@ -8,6 +8,7 @@ import {
   effectiveClickEnabled,
   resolveBeatGrid,
   resolveBeatOrigin,
+  type TempoMarkerLike,
   upcomingBeats,
 } from './metronome'
 
@@ -139,7 +140,7 @@ describe('resolveBeatOrigin', () => {
 
 describe('resolveBeatGrid', () => {
   it('is origin 0 with correctionRatio 1 with no anchors - reproduces the old grid exactly', () => {
-    expect(resolveBeatGrid([], 12345, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 })
+    expect(resolveBeatGrid([], 12345, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 })
   })
 
   it('is null before the first anchor', () => {
@@ -147,20 +148,20 @@ describe('resolveBeatGrid', () => {
   })
 
   it('is correctionRatio 1 with no next anchor to lock onto (the open-ended final segment)', () => {
-    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 })
+    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 })
   })
 
   it('is correctionRatio 1 when the gap already divides evenly into whole beats', () => {
     // 120 BPM = 500ms/beat; a 2000ms gap is exactly 4 beats, nothing to correct.
     const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2000 }]
-    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 })
+    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 })
   })
 
   it('derives a correctionRatio that divides an uneven gap evenly across the nearest whole number of beats', () => {
     // 120 BPM = 500ms/beat nominal; a 2100ms gap rounds to 4 beats (2100/500 = 4.2), so each
     // beat is stretched to 525ms (2100/4) instead - a 1.05x ratio, not a jump/duplicate at 2100.
     const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
-    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1.05 })
+    expect(resolveBeatGrid(anchors, 0, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1.05 })
   })
 
   it('ignores a near-duplicate anchor rather than trying to divide the near-zero gap it would otherwise create', () => {
@@ -178,7 +179,7 @@ describe('resolveBeatGrid', () => {
   it('only ever looks at the segment elapsedMs currently sits in, not the whole anchor list', () => {
     const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }, { timeMs: 5000 }]
     // Inside the first segment (0 - 2100): corrected for that gap's own irregularity.
-    expect(resolveBeatGrid(anchors, 1000, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1.05 })
+    expect(resolveBeatGrid(anchors, 1000, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1.05 })
     // Inside the second segment (2100 - 5000): a clean 2900ms/500ms = 5.8 -> rounds to 6 beats
     // -> 2900/6 = 483.33ms/beat -> ratio 483.33/500.
     const grid = resolveBeatGrid(anchors, 3000, 120)
@@ -200,7 +201,7 @@ describe('resolveBeatGrid - tail continuation past the last anchor', () => {
   })
 
   it('still falls back to correctionRatio 1 with only one anchor total - nothing to derive a tail ratio from', () => {
-    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 })
+    expect(resolveBeatGrid([{ timeMs: 0 }], 999999, 120)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 })
   })
 })
 
@@ -210,7 +211,7 @@ describe('resolveBeatGrid - count-in', () => {
     // The count-in window is 2100 - 4*525 = 0ms long here (see the test below) - anything
     // before elapsedMs 0 can't be reached at all, so this just re-confirms countInBars <= 0
     // and "no anchors yet" both still produce null.
-    expect(resolveBeatGrid([], 0, 120, '4/4', 2)).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 }) // no anchors: count-in is a no-op
+    expect(resolveBeatGrid([], 0, 120, '4/4', 2)).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 }) // no anchors: count-in is a no-op
     expect(resolveBeatGrid(anchors, 100, 120, '4/4', 0)).toBeNull() // countInBars 0: unchanged behavior
   })
 
@@ -220,7 +221,7 @@ describe('resolveBeatGrid - count-in', () => {
     // exactly at elapsedMs 0.
     const anchors: BeatAnchorLike[] = [{ timeMs: 2100 }, { timeMs: 4200 }]
     const grid = resolveBeatGrid(anchors, 0, 120, '4/4', 1)
-    expect(grid).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1.05 })
+    expect(grid).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1.05 })
     // One tick earlier would be before the window - still a true count-in/silence state.
     expect(resolveBeatGrid(anchors, -1, 120, '4/4', 1)).toBeNull()
   })
@@ -229,7 +230,7 @@ describe('resolveBeatGrid - count-in', () => {
     const anchors: BeatAnchorLike[] = [{ timeMs: 2000 }]
     // 1 bar (4 beats) at the nominal 500ms/beat = 2000ms before the anchor -> starts at 0.
     const grid = resolveBeatGrid(anchors, 0, 120, '4/4', 1)
-    expect(grid).toEqual({ originMs: 0, originBeatInBar: 0, correctionRatio: 1 })
+    expect(grid).toEqual({ originMs: 0, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1 })
   })
 
   it('places the origin at a genuinely negative time when the count-in does not fit before the first anchor, rather than clamping it - Marco\'s real "Wie ein schützender Engel" case', () => {
@@ -240,13 +241,13 @@ describe('resolveBeatGrid - count-in', () => {
     // practiceQueue.ts's countInLeadMs, below) - resolveBeatGrid does not clamp this away.
     const anchors: BeatAnchorLike[] = [{ timeMs: 346 }, { timeMs: 4520 }]
     const grid = resolveBeatGrid(anchors, -3828, 120, '4/4', 2)
-    expect(grid).toEqual({ originMs: -3828, originBeatInBar: 0, correctionRatio: 1.0435 })
+    expect(grid).toEqual({ originMs: -3828, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1.0435 })
     // Genuinely still counting in one tick earlier.
     expect(resolveBeatGrid(anchors, -3829, 120, '4/4', 2)).toBeNull()
     // And genuinely negative elapsedMs values in between resolve against that same origin, not
     // clamped to 0 - e.g. halfway through the first corrected beat.
     const midFirstBeat = resolveBeatGrid(anchors, -3828 + 260, 120, '4/4', 2)
-    expect(midFirstBeat).toEqual({ originMs: -3828, originBeatInBar: 0, correctionRatio: 1.0435 })
+    expect(midFirstBeat).toEqual({ originMs: -3828, originBeatInBar: 0, bpm: 120, timeSignature: '4/4', correctionRatio: 1.0435 })
   })
 
   it('places the origin at a negative time even for a partial-beat shortfall, not just a whole-song one', () => {
@@ -256,6 +257,49 @@ describe('resolveBeatGrid - count-in', () => {
     const anchors: BeatAnchorLike[] = [{ timeMs: 1000 }, { timeMs: 3000 }]
     const grid = resolveBeatGrid(anchors, -1000, 120, '4/4', 1)
     expect(grid?.originMs).toBe(-1000)
+  })
+})
+
+describe('resolveBeatGrid - tempo markers (#141)', () => {
+  it('is byte-identical to no tempo markers at all when the array is empty (the default)', () => {
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }]
+    expect(resolveBeatGrid(anchors, 5000, 120, '4/4', 0, [])).toEqual(resolveBeatGrid(anchors, 5000, 120, '4/4', 0))
+  })
+
+  it("switches to a tempo marker's own bpm/timeSignature once elapsedMs reaches it", () => {
+    const tempoMarkers: TempoMarkerLike[] = [{ timeMs: 30000, bpm: 100 }]
+    const grid = resolveBeatGrid([{ timeMs: 0 }], 30600, 150, '4/4', 0, tempoMarkers)
+    expect(grid).toEqual({ originMs: 30000, originBeatInBar: 0, bpm: 100, timeSignature: '4/4', correctionRatio: 1 })
+  })
+
+  it('does not insert a phantom extra beat at a large tempo drop - the exact bug that motivated this feature', () => {
+    // Marco's real synthetic test file: 150 BPM (400ms/beat) for 30s, then exactly 2/3 speed,
+    // 100 BPM (600ms/beat), for the next 30s. Without segment-aware resolution, segmentRatio
+    // would infer "2 beats" for a real 600ms gap against the stale 400ms (150 BPM) nominal,
+    // doubling the click right after the boundary - confirmed live and mathematically
+    // (150/100 = 1.5, and Math.round(600/400) = 2). With the tempo marker in place, the beats
+    // right after 30s must be spaced a real 600ms apart, not 300ms.
+    const tempoMarkers: TempoMarkerLike[] = [{ timeMs: 30000, bpm: 100 }]
+    const beats = upcomingBeats(30000, 1300, 150, '4/4', [{ timeMs: 0 }], 0, tempoMarkers)
+    expect(beats.map((b) => b.msFromNow)).toEqual([600, 1200])
+  })
+
+  it('uses a real anchor placed exactly at a tempo-marker boundary as-is, not a synthetic one', () => {
+    const tempoMarkers: TempoMarkerLike[] = [{ timeMs: 30000, bpm: 100 }]
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 30000, beatInBar: 2 }]
+    const grid = resolveBeatGrid(anchors, 30600, 150, '4/4', 0, tempoMarkers)
+    // The real anchor's own beatInBar (2) survives - a synthetic boundary anchor would have
+    // defaulted to 0 instead.
+    expect(grid?.originBeatInBar).toBe(2)
+  })
+
+  it('a later marker with no explicit timeSignature inherits from whichever segment precedes it, not the base variant', () => {
+    const tempoMarkers: TempoMarkerLike[] = [
+      { timeMs: 10000, bpm: 100, timeSignature: '3/4' },
+      { timeMs: 20000, bpm: 140 }, // no timeSignature of its own
+    ]
+    const grid = resolveBeatGrid([{ timeMs: 0 }], 20500, 120, '4/4', 0, tempoMarkers)
+    expect(grid?.timeSignature).toBe('3/4')
   })
 })
 

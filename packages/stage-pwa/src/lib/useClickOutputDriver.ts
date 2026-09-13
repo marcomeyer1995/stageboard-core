@@ -76,7 +76,14 @@ export function useClickOutputDriver(): void {
 
   // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
   // closed over once - clickEngine.ts's scheduler polls this on every tick.
-  const stateRef = useRef<ClickEngineState>({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0 })
+  const stateRef = useRef<ClickEngineState>({
+    elapsedMs,
+    bpm: 120,
+    timeSignature: '4/4',
+    beatAnchors: [],
+    countInBars: 0,
+    tempoMarkers: [],
+  })
   useEffect(() => {
     stateRef.current = {
       elapsedMs,
@@ -90,6 +97,9 @@ export function useClickOutputDriver(): void {
       // countInEnabled gates countInBars - unchecked means no count-in regardless of the
       // authored bar count, same "checkbox is the real toggle" contract SheetEditor.tsx exposes.
       countInBars: queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0,
+      // tempoMarkers (#141) - same "no variant means none" shape as beatAnchors above; also not
+      // affected by the live tempo nudge (a marker's own bpm is used as authored).
+      tempoMarkers: queue.currentVariant?.tempoMarkers ?? [],
     }
   })
 

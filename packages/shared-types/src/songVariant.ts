@@ -27,15 +27,35 @@ export const TrackMetaSchema = z.object({
 export type TrackMeta = z.infer<typeof TrackMetaSchema>
 
 /**
+ * A genuine mid-song tempo change (#141) - unlike `BeatAnchor`, which only ever corrects phase/
+ * drift around whatever tempo already governs a stretch of the song, a `TempoMarker` introduces
+ * a *new* nominal tempo from `timeMs` onward (a double-time bridge, a ritardando into the outro).
+ * The variant's own top-level `bpm`/`timeSignature` remain "segment 0", implicitly active from
+ * `timeMs: 0` - an empty `tempoMarkers` array (the default) reproduces today's flat-tempo
+ * behavior exactly, so no existing song needs any change. `timeSignature` absent means "same as
+ * whatever governed the previous segment" (most tempo changes don't also change the meter).
+ * Never auto-detected - see this array's own authoring UI (`TempoMarkerListEditor.tsx`) for why:
+ * no available tool can reliably find *where* a real tempo change happens in a track, only
+ * *what* the tempo is once a human has marked the boundary by ear.
+ */
+export const TempoMarkerSchema = z.object({
+  id: z.string().min(1),
+  timeMs: z.number().int().nonnegative(),
+  bpm: z.number().positive(),
+  timeSignature: z.string().optional(),
+})
+export type TempoMarker = z.infer<typeof TempoMarkerSchema>
+
+/**
  * A beat's exact timestamp on this variant's own timeline (#25 follow-up) - the Click
  * Generator/Visual Metronome's beat grid resets phase to `timeMs` for whatever comes after it,
  * rather than extrapolating bpm from song-start for the whole song. This is deliberately *not*
- * a tempo-map entry (no bpm here) - the song's one stored `bpm` still governs spacing
- * everywhere; an anchor only ever corrects *where* a beat falls and *which* beat of the bar it
- * is, so a lead-in, a one-off dropped/added bar, or small accumulated drift can all be fixed at
- * the next anchor without modeling per-segment tempo (that's #141's territory, deliberately out
- * of scope here). Reuses the same song-relative-timestamp shape as
- * `ShowCue.timeMs`/`TimecodeMarker.timeMs`.
+ * a tempo-map entry (no bpm here) - within whichever tempo segment `timeMs` falls in (the
+ * variant's own bpm, or a `TempoMarker`'s if one is active), an anchor only ever corrects
+ * *where* a beat falls and *which* beat of the bar it is, so a lead-in, a one-off dropped/added
+ * bar, or small accumulated drift can all be fixed at the next anchor without modeling tempo
+ * itself - see `TempoMarkerSchema` above for genuine tempo changes. Reuses the same
+ * song-relative-timestamp shape as `ShowCue.timeMs`/`TimecodeMarker.timeMs`.
  */
 export const BeatAnchorSchema = z.object({
   id: z.string().min(1),
@@ -83,6 +103,10 @@ export const SongVariantSchema = z.object({
    * own doc comment. Empty by default, reproducing today's beat-grid behavior exactly (beat 0
    * pinned to elapsedMs 0) until someone adds an anchor. */
   beatAnchors: z.array(BeatAnchorSchema).default([]),
+  /** Genuine mid-song tempo changes (#141) - see TempoMarkerSchema's own doc comment. Empty by
+   * default, reproducing today's single-tempo behavior exactly (the variant's own `bpm`/
+   * `timeSignature` above govern the whole song) until someone adds a marker. */
+  tempoMarkers: z.array(TempoMarkerSchema).default([]),
   /** Whether a count-in plays before this variant's first beat anchor (#25 follow-up) - off by
    * default so no existing song's silence-before-the-first-anchor behavior changes. */
   countInEnabled: z.boolean().default(false),
