@@ -135,7 +135,15 @@ export function Dashboard() {
       allowOverlap: false,
       compact(layout) {
         const baseline = interactionBaseline.current
-        if (!baseline) return [...layout]
+        // A true identity return, not [...layout]: react-grid-layout's internal effects key
+        // off this output by reference to decide whether the layout "changed". A fresh array
+        // here - even with byte-identical contents - looked like a change every time, which
+        // fed back into the same effect and called compact() again forever. Found live,
+        // 2026-09-13: adding a widget triggered one genuine layout recompute, and this
+        // reference instability turned that single, real change into a self-sustaining loop
+        // (confirmed via direct instrumentation: compact() firing >8000 times/sec with zero
+        // user interaction), visible as constantly flickering/jumping widgets.
+        if (!baseline) return layout
         const resolvedItems = resolveInteraction(
           baseline.layout,
           baseline.activeId,
