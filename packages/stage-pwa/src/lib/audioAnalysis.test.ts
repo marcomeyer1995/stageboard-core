@@ -4,6 +4,7 @@ import {
   detectBeatAnchors,
   detectFirstOnset,
   detectTempo,
+  detectTempoMap,
 } from './audioAnalysis'
 
 /** Builds a synthetic mono signal: silence everywhere except short sine bursts at each given
@@ -39,6 +40,26 @@ function clickTimes(leadInMs: number, intervalMs: number, count: number, shiftAt
     if (i === shiftAtIndex) t += shiftAmountMs
     times.push(t)
     t += intervalMs
+  }
+  return times
+}
+
+/** Two back-to-back constant-tempo segments, continuing the same running beat count across the
+ * boundary (no gap) - the ground-truth shape a genuine mid-song tempo change actually has,
+ * unlike `clickTimes`' single one-time shift. */
+function twoTempoSegmentTimes(segmentMs: number, totalMs: number, fromBpm: number, toBpm: number): number[] {
+  const times: number[] = []
+  let t = 0
+  const firstIntervalMs = 60000 / fromBpm
+  while (t < segmentMs) {
+    times.push(t)
+    t += firstIntervalMs
+  }
+  const secondIntervalMs = 60000 / toBpm
+  t = segmentMs
+  while (t < totalMs) {
+    times.push(t)
+    t += secondIntervalMs
   }
   return times
 }
@@ -224,5 +245,35 @@ describe('detectBeatAnchors', () => {
     }
     const onsetStrength = Float32Array.from({ length: 2000 }, () => rng() * 1000)
     expect(detectBeatAnchors(onsetStrength, 15, 120, '4/4', 100)).toEqual([{ timeMs: 100, beatInBar: 0 }])
+  })
+})
+
+describe('detectTempoMap', () => {
+  it('detects a genuine mid-track tempo change close to the true boundary and both BPMs', () => {
+    // Same shape as the ground-truth file this feature was validated against by hand: 150 BPM
+    // for the first 30s, then exactly 2/3 speed (100 BPM) for the second 30s.
+    const times = twoTempoSegmentTimes(30000, 60000, 150, 100)
+    const samples = syntheticSignal(SAMPLE_RATE, 60000, times, 30)
+    const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
+    const result = detectTempoMap(envelope.flux, envelope.hopMs)
+    expect(result).not.toBeNull()
+    expect(Math.abs(result!.baseBpm - 150)).toBeLessThanOrEqual(2)
+    expect(result!.tempoMarkers).toHaveLength(1)
+    expect(Math.abs(result!.tempoMarkers[0]!.bpm - 100)).toBeLessThanOrEqual(2)
+    expect(result!.tempoMarkers[0]!.timeMs).toBeGreaterThan(28000)
+    expect(result!.tempoMarkers[0]!.timeMs).toBeLessThan(32000)
+  })
+
+  it('finds no tempo markers for a constant-tempo track - single stable section, no false positive', () => {
+    const samples = syntheticSignal(SAMPLE_RATE, 60000, clickTimes(0, 500, 120))
+    const envelope = computeSpectralFlux(samples, SAMPLE_RATE)
+    const result = detectTempoMap(envelope.flux, envelope.hopMs)
+    expect(result).not.toBeNull()
+    expect(result!.tempoMarkers).toHaveLength(0)
+    expect(Math.abs(result!.baseBpm - 120)).toBeLessThanOrEqual(2)
+  })
+
+  it('is null for pure silence - nothing to suggest at all', () => {
+    expect(detectTempoMap(new Float32Array(4000), 15)).toBeNull()
   })
 })

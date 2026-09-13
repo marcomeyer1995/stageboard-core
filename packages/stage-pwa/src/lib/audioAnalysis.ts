@@ -358,3 +358,295 @@ export function detectBeatAnchors(
   }
   return anchors
 }
+
+/**
+ * Tempo-map suggestion (#141 follow-up): detectTempo() above finds one global tempo for a whole
+ * track, by design - a genuine mid-song tempo change needs the equivalent of tracking tempo
+ * *as a function of time*, not a single number. This is deliberately a *suggestion* a musician
+ * reviews before trusting, exactly like detectBeatAnchors' anchors already are - automatically
+ * detecting a real tempo change is a much harder, less certain problem than detecting one fixed
+ * tempo (see this feature's own history: an early attempt naively re-ran detectTempo per time
+ * window, which is fooled by octave ambiguity - a window can score a candidate's *double* just
+ * as well as the true tempo whenever the music has real subdivisions - and once locked onto the
+ * wrong octave near the start of a track, plain continuity-based smoothing perpetuates it
+ * through the whole track. This still has that failure mode on metrically-ambiguous material
+ * (a slow ballad with a strong 2-beat feel can come back at exactly double its real tempo) -
+ * verified live against real commercial recordings, not just synthetic click tracks - which is
+ * exactly why the caller must never silently apply this without the musician checking it by ear
+ * first, the same way an auto-detected bpm/beatAnchors already work.
+ */
+export interface TempoMapResult {
+  /** Suggested tempo for the very start of the track (segment 0) - SheetEditor treats this like
+   * detectTempo's own bpm result: a suggestion to review, not an authoritative overwrite. */
+  baseBpm: number
+  /** Suggested tempoMarkers for every place the tempo path settles onto a materially different,
+   * sustained value - ordered by time, ready to feed straight into a SongVariant's own
+   * `tempoMarkers` field once reviewed (still needs its own `id` assigned by the caller). */
+  tempoMarkers: { timeMs: number; bpm: number }[]
+}
+
+/** Local-maxima-above-threshold onset picker - unlike `detectFirstOnset` (the track's very
+ * first onset only) or `findQualifyingPeak` (nearest peak to one predicted position), this
+ * lists every qualifying onset across a whole range, which `detectTempoMap`'s per-window
+ * profiling and changepoint refinement both need. Not exported: on its own it's a much cruder
+ * primitive than `detectBeatAnchors`' actual beat-tracking (no tempo-grid awareness at all,
+ * just "loud enough and locally the biggest for a bit"), useful here only as raw material for
+ * the coverage/refinement math below, not as a general-purpose onset detector callers should
+ * reach for directly. */
+function pickOnsetPeaks(flux: Float32Array, hopMs: number, minSpacingMs = 100): number[] {
+  const noiseWindowFrames = Math.max(1, Math.min(flux.length, Math.round(2000 / hopMs)))
+  const noiseWindow = Array.from(flux.slice(0, noiseWindowFrames)).sort((a, b) => a - b)
+  const noiseFloor = noiseWindow[Math.floor(noiseWindow.length * 0.1)] ?? 0
+  const peak = Math.max(...flux)
+  if (peak <= 0) return []
+  const threshold = Math.max(noiseFloor * 3, peak * 0.1)
+  const minSpacingFrames = Math.max(1, Math.round(minSpacingMs / hopMs))
+
+  const onsets: number[] = []
+  let lastOnsetFrame = -Infinity
+  for (let i = 1; i < flux.length - 1; i++) {
+    if (flux[i]! <= threshold) continue
+    if (flux[i]! < flux[i - 1]! || flux[i]! < flux[i + 1]!) continue
+    if (i - lastOnsetFrame < minSpacingFrames) continue
+    onsets.push(i * hopMs)
+    lastOnsetFrame = i
+  }
+  return onsets
+}
+
+/** How well a beat grid at `beatMs` (anchored at the earliest onset) explains a set of real
+ * onsets, in both directions - the minimum of "does every predicted beat have a nearby onset"
+ * (catches a candidate that's too slow: real onsets exist between its widely-spaced
+ * predictions) and "does every onset have a nearby predicted beat" (catches a candidate that's
+ * too fast: its denser grid predicts beats nothing corresponds to) is what actually
+ * distinguishes those from the true tempo; either direction alone doesn't - a too-fast
+ * candidate can still score ~100% on the first check alone (every real onset happens to be
+ * *a* predicted beat, just with extra unmatched predictions in between). */
+function onsetGridCoverage(onsetsMs: number[], beatMs: number, toleranceMs: number): number {
+  const start = onsetsMs[0]!
+  const end = onsetsMs[onsetsMs.length - 1]!
+
+  let gridTotal = 0
+  let gridCovered = 0
+  for (let t = start; t <= end + beatMs / 2; t += beatMs) {
+    gridTotal++
+    if (onsetsMs.some((o) => Math.abs(o - t) <= toleranceMs)) gridCovered++
+  }
+  const gridCoverage = gridTotal > 0 ? gridCovered / gridTotal : 0
+
+  let onsetCovered = 0
+  for (const o of onsetsMs) {
+    const nearestGridIndex = Math.round((o - start) / beatMs)
+    const nearestGridMs = start + nearestGridIndex * beatMs
+    if (Math.abs(o - nearestGridMs) <= toleranceMs) onsetCovered++
+  }
+  const onsetCoverage = onsetCovered / onsetsMs.length
+
+  return Math.min(gridCoverage, onsetCoverage)
+}
+
+function buildBpmGrid(minBpm: number, maxBpm: number, stepBpm: number): number[] {
+  const grid: number[] = []
+  for (let b = minBpm; b <= maxBpm; b += stepBpm) grid.push(b)
+  return grid
+}
+
+interface TempoWindowProfile {
+  atMs: number
+  /** Coverage score per `bpmGrid` entry, or `null` if this window had too few onsets to score
+   * at all (silence, an extremely sparse passage) - the DP below treats a `null` profile as "no
+   * opinion this window" (a zero emission term), letting continuity alone carry the tempo path
+   * across the gap instead of forcing a decision from noise. */
+  scores: number[] | null
+}
+
+/** A coverage-vs-bpm profile *per time window*, all on one shared bpm grid so every window's
+ * evidence is directly comparable - this (not a single best-guess bpm per window) is what makes
+ * the joint optimization in `decodeTempoPath` possible at all, since Viterbi/DP needs a shared
+ * state space across time steps. */
+function computeTempoWindowProfiles(
+  flux: Float32Array,
+  hopMs: number,
+  windowMs: number,
+  stepMs: number,
+  bpmGrid: number[],
+  minOnsets = 6,
+): TempoWindowProfile[] {
+  const windowFrames = Math.round(windowMs / hopMs)
+  const stepFrames = Math.max(1, Math.round(stepMs / hopMs))
+  const profiles: TempoWindowProfile[] = []
+  for (let start = 0; start + windowFrames <= flux.length; start += stepFrames) {
+    const slice = flux.slice(start, start + windowFrames)
+    const onsets = pickOnsetPeaks(slice, hopMs)
+    const atMs = (start + windowFrames / 2) * hopMs
+    if (onsets.length < minOnsets) {
+      profiles.push({ atMs, scores: null })
+      continue
+    }
+    const scores = bpmGrid.map((bpm) => onsetGridCoverage(onsets, 60000 / bpm, (60000 / bpm) * 0.15))
+    profiles.push({ atMs, scores })
+  }
+  return profiles
+}
+
+/**
+ * Viterbi/DP over (window x bpmGrid) - a genuine joint optimization across the whole track, not
+ * a greedy per-window or continuity-only decision. Finds the single bpm-over-time path that
+ * best explains *all* the windows' onset evidence together, where switching tempo costs
+ * something proportional to how big the jump is (in log-bpm, so a given ratio costs the same
+ * whether jumping up from a slow or fast base) but is never forbidden outright - if enough
+ * consecutive windows' evidence favors a jump strongly enough to outweigh paying that one-time
+ * cost, the path takes it, genuine near-2x change or not (this is what a plain "lock onto
+ * whatever the last window decided" continuity heuristic can't do - it either flickers on noise
+ * or never budges from an initial wrong octave, one or the other). A `null`-profile window
+ * contributes no emission term at all, so continuity alone carries the path across a gap rather
+ * than forcing a decision from a window with too little signal to have an opinion.
+ */
+function decodeTempoPath(profiles: TempoWindowProfile[], bpmGrid: number[], transitionWeight: number): number[] {
+  const n = profiles.length
+  const V = bpmGrid.length
+  const logGrid = bpmGrid.map((b) => Math.log(b))
+
+  const dp: Float64Array[] = Array.from({ length: n }, () => new Float64Array(V))
+  const back: Int32Array[] = Array.from({ length: n }, () => new Int32Array(V))
+
+  const firstScores = profiles[0]!.scores ?? new Array<number>(V).fill(0)
+  for (let v = 0; v < V; v++) dp[0]![v] = firstScores[v]!
+
+  for (let i = 1; i < n; i++) {
+    const scores = profiles[i]!.scores ?? new Array<number>(V).fill(0)
+    const prevDp = dp[i - 1]!
+    for (let v = 0; v < V; v++) {
+      let best = -Infinity
+      let bestPrev = 0
+      for (let pv = 0; pv < V; pv++) {
+        const cost = transitionWeight * Math.abs(logGrid[v]! - logGrid[pv]!)
+        const candidate = prevDp[pv]! - cost
+        if (candidate > best) {
+          best = candidate
+          bestPrev = pv
+        }
+      }
+      dp[i]![v] = best + scores[v]!
+      back[i]![v] = bestPrev
+    }
+  }
+
+  let bestFinal = 0
+  let bestVal = -Infinity
+  const lastDp = dp[n - 1]!
+  for (let v = 0; v < V; v++) {
+    if (lastDp[v]! > bestVal) {
+      bestVal = lastDp[v]!
+      bestFinal = v
+    }
+  }
+  const path = new Array<number>(n)
+  path[n - 1] = bestFinal
+  for (let i = n - 1; i > 0; i--) path[i - 1] = back[i]![path[i]!]!
+  return path.map((idx) => bpmGrid[idx]!)
+}
+
+/** Walks the globally-optimized tempo path end to end, returning every run of `stabilityCount`
+ * or more consecutive windows that agree within `agreeRatio` - a real section-tempo stays
+ * stable far longer than ordinary human timing variation or a brief fill/section-boundary blip
+ * can sustain, so this (not the raw per-window path) is what a caller should treat as "the
+ * track's actual tempo sections." */
+function findTempoPlateaus(
+  path: number[],
+  stabilityCount: number,
+  agreeRatio: number,
+): { startIndex: number; endIndex: number; bpm: number }[] {
+  function findFrom(from: number): { startIndex: number; endIndex: number; bpm: number } | null {
+    for (let i = from; i + stabilityCount <= path.length; i++) {
+      const group = path.slice(i, i + stabilityCount)
+      const sorted = [...group].sort((a, b) => a - b)
+      const median = sorted[Math.floor(sorted.length / 2)]!
+      if (group.every((bpm) => Math.abs(bpm - median) / median <= agreeRatio)) {
+        return { startIndex: i, endIndex: i + stabilityCount - 1, bpm: median }
+      }
+    }
+    return null
+  }
+  const plateaus: { startIndex: number; endIndex: number; bpm: number }[] = []
+  let from = 0
+  while (from < path.length) {
+    const plateau = findFrom(from)
+    if (!plateau) break
+    let end = plateau.endIndex
+    while (end + 1 < path.length && Math.abs(path[end + 1]! - plateau.bpm) / plateau.bpm <= agreeRatio) end++
+    plateaus.push({ ...plateau, endIndex: end })
+    from = end + 1
+  }
+  return plateaus
+}
+
+/** Pinpoints a changepoint's actual ms within the coarse gap between two plateaus, via discrete
+ * onset peak-picking + consecutive-interval matching against each side's known bpm - much
+ * higher time resolution than one 8-second analysis window, and safe to trust here because the
+ * plateaus on either side already established roughly where and what the two tempos are. Falls
+ * back to the gap's midpoint if no clean onset-interval crossing is found (a sparse passage
+ * right at the boundary). */
+function refineChangepointMs(
+  flux: Float32Array,
+  hopMs: number,
+  bracketStartMs: number,
+  bracketEndMs: number,
+  bpmBefore: number,
+  bpmAfter: number,
+  marginMs = 3000,
+): number {
+  const startFrame = Math.max(0, Math.round((bracketStartMs - marginMs) / hopMs))
+  const endFrame = Math.min(flux.length, Math.round((bracketEndMs + marginMs) / hopMs))
+  const slice = flux.slice(startFrame, endFrame)
+  const onsets = pickOnsetPeaks(slice, hopMs).map((ms) => ms + startFrame * hopMs)
+
+  const expectedBeforeMs = 60000 / bpmBefore
+  const expectedAfterMs = 60000 / bpmAfter
+
+  for (let i = 1; i < onsets.length; i++) {
+    const gap = onsets[i]! - onsets[i - 1]!
+    const closerToAfter = Math.abs(gap - expectedAfterMs) < Math.abs(gap - expectedBeforeMs)
+    if (closerToAfter && Math.abs(gap - expectedAfterMs) / expectedAfterMs < 0.2) {
+      return onsets[i - 1]!
+    }
+  }
+  return (bracketStartMs + bracketEndMs) / 2
+}
+
+/**
+ * Suggests a tempo-map for a whole track: a base tempo plus every place it later settles onto a
+ * materially different, sustained tempo. `null` when the track is too sparse/quiet throughout
+ * to find even one stable tempo section (silence, or nothing rhythmically clear enough to
+ * analyze) - the caller should leave any existing bpm/tempoMarkers untouched in that case, same
+ * as `detectTempo` returning `null`.
+ */
+export function detectTempoMap(flux: Float32Array, hopMs: number): TempoMapResult | null {
+  const bpmGrid = buildBpmGrid(40, 220, 1)
+  const profiles = computeTempoWindowProfiles(flux, hopMs, 8000, 1000, bpmGrid)
+  if (profiles.every((p) => p.scores === null)) return null
+
+  const path = decodeTempoPath(profiles, bpmGrid, 4)
+  const atMsByIndex = profiles.map((p) => p.atMs)
+  const plateaus = findTempoPlateaus(path, 20, 0.03)
+  if (plateaus.length === 0) return null
+
+  const baseBpm = plateaus[0]!.bpm
+  const tempoMarkers: { timeMs: number; bpm: number }[] = []
+  for (let i = 1; i < plateaus.length; i++) {
+    const before = plateaus[i - 1]!
+    const after = plateaus[i]!
+    const jumpRatio = Math.abs(after.bpm - before.bpm) / before.bpm
+    // Lower than a single-window jump threshold would need: a ~20s+ stable plateau on each
+    // side is already the main defense against false positives (ordinary expressive timing
+    // can't sustain agreement that long), so two such plateaus differing even modestly likely
+    // reflects a real musical shift - and a gradual multi-step accelerando's individual steps
+    // can each be well under a higher threshold despite adding up to a large genuine change.
+    if (jumpRatio < 0.05) continue
+    const bracketStartMs = atMsByIndex[before.endIndex]!
+    const bracketEndMs = atMsByIndex[after.startIndex]!
+    const refinedMs = refineChangepointMs(flux, hopMs, bracketStartMs, bracketEndMs, before.bpm, after.bpm)
+    tempoMarkers.push({ timeMs: Math.round(refinedMs), bpm: after.bpm })
+  }
+  return { baseBpm, tempoMarkers }
+}

@@ -1,5 +1,7 @@
 import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectTempo } from './audioAnalysis'
+import type { TempoMapResult } from './audioAnalysis'
 import type { MusicTempoWorkerRequest, MusicTempoWorkerResponse } from './musicTempoWorker'
+import type { TempoMapWorkerRequest, TempoMapWorkerResponse } from './tempoMapWorker'
 
 export interface TrackAnalysisResult {
   bpm: number | null
@@ -111,6 +113,47 @@ export async function analyzeTrackBlob(
       beatAnchors: beatAnchors.map((a) => ({ timeMs: Math.round(a.timeMs), beatInBar: a.beatInBar })),
       tempoConfidence: tempo.confidence,
     }
+  } finally {
+    void ctx.close()
+  }
+}
+
+/** Runs detectTempoMap in its own Web Worker - same "never block the main thread with a
+ * real-song-length analysis" reasoning as runMusicTempoInWorker above, applied to a
+ * computation that doesn't need an external library but still isn't cheap for a full track. */
+function runTempoMapInWorker(mono: Float32Array, sampleRate: number): Promise<TempoMapResult | null> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./tempoMapWorker.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = (event: MessageEvent<TempoMapWorkerResponse>) => {
+      worker.terminate()
+      if (event.data.ok) resolve(event.data.result)
+      else reject(new Error(event.data.error))
+    }
+    worker.onerror = (event) => {
+      worker.terminate()
+      reject(new Error(event.message))
+    }
+    const request: TempoMapWorkerRequest = { mono, sampleRate }
+    worker.postMessage(request, [mono.buffer])
+  })
+}
+
+/**
+ * SheetEditor.tsx's "Tempo-Wechsel erkennen" button (#141 follow-up) - suggests a whole
+ * tempo-map (a base bpm plus every later place the tempo genuinely settles onto something
+ * different) instead of analyzeTrackBlob's single global bpm. See detectTempoMap's own doc
+ * comment for why this is only ever a *reviewable suggestion*: it can still return an exact
+ * octave-doubled/halved tempo on metrically-ambiguous material (verified live against a real
+ * commercial ballad), so SheetEditor must let the musician check and correct every suggested
+ * marker before saving, never apply this silently.
+ */
+export async function analyzeTempoMapBlob(blob: Blob): Promise<TempoMapResult | null> {
+  const arrayBuffer = await blob.arrayBuffer()
+  const ctx = new AudioContext()
+  try {
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+    const mono = mixToMono(audioBuffer)
+    return await runTempoMapInWorker(mono, audioBuffer.sampleRate)
   } finally {
     void ctx.close()
   }
