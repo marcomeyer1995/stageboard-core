@@ -70,6 +70,21 @@ import {
 
 const certFile = fileURLToPath(new URL('../../../certs/dev-cert.pem', import.meta.url))
 const keyFile = fileURLToPath(new URL('../../../certs/dev-key.pem', import.meta.url))
+/** Computed once, at module load: whether this server will actually listen over HTTPS (see
+ * `buildApp()`/`main()` below, both of which gate on this same cert-presence check). The
+ * default FRONTEND_ORIGIN below derives its scheme from this too - it used to be hardcoded to
+ * `http://`, which silently CORS-blocked every cross-origin PUT/DELETE (audio upload/delete,
+ * DELETE /workspaces/:id) whenever this ran alongside the frontend's own equally cert-gated
+ * HTTPS dev server (vite.config.ts) without FRONTEND_ORIGIN being set by hand - found live,
+ * 2026-09-13, tracked down via a track upload silently failing with "Failed to fetch". */
+const CERTS_AVAILABLE = existsSync(certFile) && existsSync(keyFile)
+/** `localhost` for whoever opens this dev server directly, `stageboard.local` for the mDNS
+ * name devices normally use (docs/03) - covers both without requiring FRONTEND_ORIGIN to be
+ * set by hand for the common cases. */
+const DEFAULT_FRONTEND_ORIGINS = [
+  `${CERTS_AVAILABLE ? 'https' : 'http'}://localhost:5173`,
+  `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
+].join(',')
 
 /** True if `username`/`password` authenticate as a genuine admin *of this specific workspace*
  * (see per-person-accounts follow-up) - every admin-gated route below uses this instead of
@@ -235,7 +250,7 @@ export async function buildApp() {
   }
 
   const app: FastifyInstance =
-    existsSync(certFile) && existsSync(keyFile)
+    CERTS_AVAILABLE
       ? (Fastify({
           logger: true,
           bodyLimit,
@@ -253,7 +268,7 @@ export async function buildApp() {
   // DELETE /workspaces/:id's own test suite never caught this because fastify.inject() doesn't
   // go through real CORS at all.
   await app.register(cors, {
-    origin: (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173').split(','),
+    origin: (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(','),
     methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
   })
 
@@ -1128,15 +1143,15 @@ async function main() {
     // `buildApp()` above), so the request would just fail to connect. A tiny plain-HTTP
     // listener on port 80 exists purely to redirect straight to the HTTPS one, same origin and
     // path - the standard fix for "someone typed the bare domain". Only started when HTTPS is
-    // actually active (`existsSync(certFile) && existsSync(keyFile)`) - with no TLS at all
-    // there's nothing to redirect *to*. Binding port 80 needs the same privileged-port grant as
-    // 443 (`setcap cap_net_bind_service` on node, docs/03) - if that's missing (e.g. a machine
-    // that's only had 443 granted so far), this logs a warning and the main app on 443 keeps
-    // working regardless; the redirect is a convenience, not a dependency. Registered (and the
-    // mDNS block below) *before* `app.listen()` - Fastify forbids `addHook` once already
-    // listening (found live: `FST_ERR_INSTANCE_ALREADY_LISTENING`), so both need to go first
-    // even though neither actually depends on the HTTPS listener being up yet.
-    if (existsSync(certFile) && existsSync(keyFile)) {
+    // actually active (`CERTS_AVAILABLE`) - with no TLS at all there's nothing to redirect
+    // *to*. Binding port 80 needs the same privileged-port grant as 443 (`setcap
+    // cap_net_bind_service` on node, docs/03) - if that's missing (e.g. a machine that's only
+    // had 443 granted so far), this logs a warning and the main app on 443 keeps working
+    // regardless; the redirect is a convenience, not a dependency. Registered (and the mDNS
+    // block below) *before* `app.listen()` - Fastify forbids `addHook` once already listening
+    // (found live: `FST_ERR_INSTANCE_ALREADY_LISTENING`), so both need to go first even though
+    // neither actually depends on the HTTPS listener being up yet.
+    if (CERTS_AVAILABLE) {
       const redirectServer = createServer((request, response) => {
         const host = (request.headers.host ?? 'stageboard.local').split(':')[0]
         response.writeHead(301, { Location: `https://${host}${request.url ?? '/'}` })
