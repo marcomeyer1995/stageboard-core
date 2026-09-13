@@ -50,11 +50,19 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
 
   const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
 
-  // beatAnchors (#25 follow-up) only lives on SongVariant, not the bare Song fallback `song`
-  // itself might be - same "no variant means no anchors" shape useClickOutputDriver.ts uses.
+  // beatAnchors (#25 follow-up) and tempoMarkers (#141) only live on SongVariant, not the bare
+  // Song fallback `song` itself might be - same "no variant means none" shape
+  // useClickOutputDriver.ts uses.
   const beat =
     playbackStatus === 'playing' && elapsedMs !== null
-      ? beatAt(elapsedMs, bpm, song.timeSignature, queue.currentVariant?.beatAnchors ?? [], countInBars)
+      ? beatAt(
+          elapsedMs,
+          bpm,
+          song.timeSignature,
+          queue.currentVariant?.beatAnchors ?? [],
+          countInBars,
+          queue.currentVariant?.tempoMarkers ?? [],
+        )
       : null
 
   // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm`

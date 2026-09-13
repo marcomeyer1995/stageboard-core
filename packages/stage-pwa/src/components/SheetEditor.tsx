@@ -7,6 +7,7 @@ import {
   type Song,
   type ShowCue,
   type SongVariant,
+  type TempoMarker,
   type TimecodeMarker,
 } from 'shared-types'
 import { analyzeTrackBlob } from '../lib/analyzeTrack'
@@ -23,7 +24,9 @@ import { ChordProLyrics } from './ChordProLyrics'
 import { CueListEditor } from './CueListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapBeatAnchors } from './TapBeatAnchors'
+import { TapTempoMarker } from './TapTempoMarker'
 import { TapToSync } from './TapToSync'
+import { TempoMarkerListEditor } from './TempoMarkerListEditor'
 import { TrackManagerField } from './TrackManagerField'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -47,6 +50,7 @@ interface EditorDraft {
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
   beatAnchors: BeatAnchor[]
+  tempoMarkers: TempoMarker[]
   countInEnabled: boolean
   countInBars: number
   key?: string
@@ -68,6 +72,7 @@ function emptyDraft(): EditorDraft {
     timecodes: [],
     cues: [],
     beatAnchors: [],
+    tempoMarkers: [],
     countInEnabled: false,
     countInBars: 1,
   }
@@ -88,6 +93,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     timecodes: variant.timecodes,
     cues: variant.cues,
     beatAnchors: variant.beatAnchors,
+    tempoMarkers: variant.tempoMarkers,
     countInEnabled: variant.countInEnabled,
     countInBars: variant.countInBars,
     key: variant.key,
@@ -123,6 +129,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
   const [isTappingAnchors, setIsTappingAnchors] = useState(false)
+  const [isTappingTempoMarker, setIsTappingTempoMarker] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -138,7 +145,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if ((!isTapping && !isTappingAnchors) || !tapTrack) return
+    if ((!isTapping && !isTappingAnchors && !isTappingTempoMarker) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -153,7 +160,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, draft.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, draft.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -212,6 +219,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       timecodes: variant.timecodes,
       cues: variant.cues,
       beatAnchors: variant.beatAnchors,
+      tempoMarkers: variant.tempoMarkers,
       countInEnabled: variant.countInEnabled,
       countInBars: variant.countInBars,
       key: variant.key,
@@ -246,6 +254,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       timecodes: draft.timecodes,
       cues: draft.cues,
       beatAnchors: draft.beatAnchors,
+      tempoMarkers: draft.tempoMarkers,
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,
       tracks: currentTracks,
@@ -565,6 +574,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             }}
             onCancel={() => setIsTappingAnchors(false)}
           />
+        ) : isTappingTempoMarker ? (
+          <TapTempoMarker
+            trackSrc={tapTrackSrc}
+            onComplete={(timeMs) => {
+              const marker: TempoMarker = { id: randomId(), timeMs, bpm: draft.bpm }
+              setDraft({ ...draft, tempoMarkers: [...draft.tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
+              setIsTappingTempoMarker(false)
+            }}
+            onCancel={() => setIsTappingTempoMarker(false)}
+          />
         ) : (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -586,6 +605,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
                 >
                   Anker tappen
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTappingTempoMarker(true)}
+                  disabled={!tapTrack}
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  Tempo-Wechsel markieren
+                </button>
               </div>
             </div>
             {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
@@ -595,6 +622,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
             />
             <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
+            <TempoMarkerListEditor
+              tempoMarkers={draft.tempoMarkers}
+              onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
+            />
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-ink-soft">
                 <input

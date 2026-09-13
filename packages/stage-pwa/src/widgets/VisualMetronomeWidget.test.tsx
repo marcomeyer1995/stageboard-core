@@ -93,6 +93,7 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [],
+      tempoMarkers: [],
       countInEnabled: false,
       countInBars: 1,
     }
@@ -120,6 +121,7 @@ describe('VisualMetronomeWidget', () => {
         { id: 'a1', timeMs: 0 },
         { id: 'a2', timeMs: 2100 },
       ],
+      tempoMarkers: [],
       countInEnabled: false,
       countInBars: 1,
     }
@@ -175,6 +177,7 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [{ id: 'a1', timeMs: 5000 }],
+      tempoMarkers: [],
       countInEnabled: false,
       countInBars: 1,
     }
@@ -200,6 +203,7 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
+      tempoMarkers: [],
       countInEnabled: true,
       countInBars: 1,
     }
@@ -226,6 +230,7 @@ describe('VisualMetronomeWidget', () => {
       tracks: [],
       cues: [],
       beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
+      tempoMarkers: [],
       countInEnabled: true,
       countInBars: 1,
     }

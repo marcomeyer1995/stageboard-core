@@ -1,4 +1,4 @@
-import { beatsPerBar, type BeatAnchorLike, type BeatGridSegment, resolveBeatGrid } from './metronome'
+import { beatsPerBar, type BeatAnchorLike, type BeatGridSegment, type TempoMarkerLike, resolveBeatGrid } from './metronome'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -28,6 +28,11 @@ export interface ClickEngineState {
    * SongVariant.countInEnabled/countInBars) - 0 reproduces the original silent-count-in
    * behavior exactly. */
   countInBars: number
+  /** Genuine mid-song tempo changes (#141, SongVariant.tempoMarkers) - see metronome.ts's
+   * `resolveBeatGrid` for how these govern which segment's bpm/timeSignature is actually
+   * active. Empty reproduces today's single-tempo behavior exactly. A live tempo nudge (#140)
+   * only ever affects `bpm` above (segment 0) - a marker's own bpm is used as-is, not nudged. */
+  tempoMarkers: readonly TempoMarkerLike[]
 }
 
 let audioContext: AudioContext | null = null
@@ -100,13 +105,16 @@ function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void
  * Called when playback (re)starts (nextBeatOnsetMs is null), on a detected stall, or when the
  * active anchor has just changed - never otherwise, so a live tempo nudge alone never
  * resets/re-anchors the already-running cursor (`correctionRatio` stays fixed for the segment;
- * only `bpm` itself is re-read live, in the while-loop below). */
-function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string, grid: BeatGridSegment): void {
-  const msPerBeat = (60000 / bpm) * grid.correctionRatio
+ * `grid.bpm` itself is re-read live every tick instead, in `tick()`'s while-loop below - for
+ * segment 0 that's the live-nudged (#140) value, since `resolveBeatGrid` uses whatever `bpm` it
+ * was called with for segment 0 verbatim; a tempo-marker (#141) segment's own bpm is fixed and
+ * not nudge-able). */
+function anchorSchedule(elapsedMs: number, grid: BeatGridSegment): void {
+  const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat) + 1
   nextBeatOnsetMs = grid.originMs + beatIndex * msPerBeat
-  nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(timeSignature)
+  nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
   activeCorrectionRatio = grid.correctionRatio
 }
 
@@ -120,9 +128,13 @@ function anchorSchedule(elapsedMs: number, bpm: number, timeSignature: string, g
  * bursting through a backlog) whenever `elapsedMs` jumped by more than RESYNC_GAP_MS since the
  * last tick (a throttled/backgrounded tab, not a normal gap between beats), or whenever the
  * active beat anchor has changed - crossing into a new anchor's territory mid-song resets phase
- * there exactly the same way a stall or a fresh start already does. */
+ * there exactly the same way a stall or a fresh start already does. This is also what makes a
+ * tempo-marker (#141) boundary work with no separate handling here at all: `resolveBeatGrid`
+ * always ensures a (real or synthetic) anchor sits exactly at every marker's `timeMs`, so
+ * crossing into a new tempo segment IS crossing into a new anchor, as far as this function
+ * can tell. */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars } = getState()
+  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars, tempoMarkers } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
     lastTickElapsedMs = null
@@ -130,7 +142,7 @@ function tick(getState: () => ClickEngineState): void {
     activeCorrectionRatio = 1
     return
   }
-  const grid = resolveBeatGrid(beatAnchors, elapsedMs, bpm, timeSignature, countInBars)
+  const grid = resolveBeatGrid(beatAnchors, elapsedMs, bpm, timeSignature, countInBars, tempoMarkers)
   if (grid === null) {
     // Still before the first anchor - a count-in, nothing should sound yet.
     lastTickElapsedMs = elapsedMs
@@ -139,16 +151,16 @@ function tick(getState: () => ClickEngineState): void {
 
   const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
   if (nextBeatOnsetMs === null || stalled || grid.originMs !== activeOriginMs) {
-    anchorSchedule(elapsedMs, bpm, timeSignature, grid)
+    anchorSchedule(elapsedMs, grid)
     activeOriginMs = grid.originMs
   }
   lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
-  const beatCount = beatsPerBar(timeSignature)
+  const beatCount = beatsPerBar(grid.timeSignature)
   while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + LOOKAHEAD_MS) {
     playClickAt(ctx, ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000, nextBeatInBar === 0)
-    nextBeatOnsetMs += (60000 / bpm) * activeCorrectionRatio
+    nextBeatOnsetMs += (60000 / grid.bpm) * activeCorrectionRatio
     nextBeatInBar = (nextBeatInBar + 1) % beatCount
   }
 }

@@ -77,6 +77,77 @@ function dedupeAnchors(anchors: readonly BeatAnchorLike[]): BeatAnchorLike[] {
   return result
 }
 
+export interface TempoMarkerLike {
+  timeMs: number
+  bpm: number
+  timeSignature?: string
+}
+
+interface TempoSegment {
+  startMs: number
+  bpm: number
+  timeSignature: string
+}
+
+/** The full, resolved list of tempo segments for a variant - segment 0 always starts at
+ * `startMs: 0` using the variant's own `bpm`/`timeSignature` (#141's "implicit at timeMs: 0"),
+ * followed by one entry per `TempoMarker`, sorted by `timeMs`. A marker's own `timeSignature`,
+ * when absent, inherits from whichever segment precedes it (most tempo changes don't also
+ * change the meter) - not just the variant's base one, so a chain of several markers still
+ * resolves correctly. Empty `tempoMarkers` (today's overwhelming majority of songs) produces
+ * exactly the one segment-0 entry - every existing call site is byte-identical to before. */
+function resolveTempoSegments(tempoMarkers: readonly TempoMarkerLike[], bpm: number, timeSignature: string): TempoSegment[] {
+  const sorted = [...tempoMarkers].sort((a, b) => a.timeMs - b.timeMs)
+  const segments: TempoSegment[] = [{ startMs: 0, bpm, timeSignature }]
+  for (const marker of sorted) {
+    const prev = segments[segments.length - 1]!
+    segments.push({ startMs: marker.timeMs, bpm: marker.bpm, timeSignature: marker.timeSignature ?? prev.timeSignature })
+  }
+  return segments
+}
+
+/** The segment governing a given point in time - the latest one starting at or before it.
+ * `segments` must already be sorted ascending by `startMs` (guaranteed by
+ * `resolveTempoSegments`'s own construction). Always returns something: `segments[0]` (segment
+ * 0) covers everything before the first real marker, by construction. */
+function resolveTempoSegment(segments: readonly TempoSegment[], atMs: number): TempoSegment {
+  let best = segments[0]!
+  for (const segment of segments) {
+    if (segment.startMs <= atMs) best = segment
+    else break
+  }
+  return best
+}
+
+/** Ensures no anchor-to-anchor correction segment (`resolveBeatGrid` below) ever straddles two
+ * different tempo segments - without this, `segmentRatio`'s "how many nominal beats fit this
+ * real gap" would be computed against the WRONG nominal tempo for part of the gap, breaking
+ * down badly once the two segments' tempos differ by much (found live, 2026-09-12: a real
+ * 150->100 BPM change, a 2/3 ratio, made a real 600ms beat gap get rounded to "2 beats" against
+ * a 400ms nominal, inserting a phantom extra click - confirmed mathematically, not just
+ * observed). Injects a synthetic anchor at every segment boundary (segment 0's own `startMs: 0`
+ * included) that doesn't already have a real one within `MIN_ANCHOR_GAP_MS` of it, defaulting
+ * `beatInBar` to 0 (a tempo change coinciding with a downbeat is by far the common case; a real
+ * anchor added nearby always takes precedence via the normal dedupe/correction rules if that
+ * assumption is wrong for a given song).
+ *
+ * Deliberately never called to decide *whether* `elapsedMs` is in a count-in state at all
+ * (`resolveBeatGrid` resolves that first, against the caller's own unmodified `anchors`) - only
+ * once elapsedMs is already known to be past the true origin. Otherwise, injecting a segment-0
+ * synthetic anchor here would corrupt `resolveBeatOrigin`'s existing "no anchors at all -> beat
+ * 0 pinned to elapsedMs 0, never a count-in" special case for a song that has no real anchors
+ * yet but does have a tempo marker (found live, 2026-09-12: without this split, such a song
+ * played nothing at all until the marker's own timeMs was reached). */
+function anchorsWithTempoBoundaries(anchors: readonly BeatAnchorLike[], segments: readonly TempoSegment[]): BeatAnchorLike[] {
+  if (segments.length <= 1) return anchors as BeatAnchorLike[]
+  const merged = [...anchors]
+  for (const segment of segments) {
+    const hasNearbyAnchor = anchors.some((a) => Math.abs(a.timeMs - segment.startMs) < MIN_ANCHOR_GAP_MS)
+    if (!hasNearbyAnchor) merged.push({ timeMs: segment.startMs, beatInBar: 0 })
+  }
+  return merged
+}
+
 /** The earliest anchor's timestamp, after collapsing near-duplicates - null with no anchors at
  * all. Used to tell whether a given elapsedMs falls in a count-in window before the song's real
  * first downbeat, vs the song itself (see `beatAt`'s `isCountIn`). */
@@ -113,6 +184,13 @@ export interface BeatGridSegment {
    * continues from here rather than resetting to 0 at `originMs`, so a dense anchor list (one
    * per beat) still cycles 1-2-3-4 through the bar instead of announcing "beat 1" every tick. */
   originBeatInBar: number
+  /** The nominal bpm/timeSignature governing this segment (#141) - the variant's own top-level
+   * values with no tempo markers, or whichever `TempoMarker` is active at `originMs`. Callers
+   * (`beatAt`/`upcomingBeats`/clickEngine.ts) use these instead of whatever flat `bpm`/
+   * `timeSignature` they were originally called with, so playback actually follows a tempo
+   * change instead of only ever using the song's very first tempo everywhere. */
+  bpm: number
+  timeSignature: string
   /** Multiplier applied to whatever `60000 / bpm` is live right now, so this segment's beats
    * divide its real (anchor-to-anchor) duration evenly instead of accumulating a small error
    * over the segment that gets released as an audible jump right at the next anchor (found
@@ -158,7 +236,7 @@ function resolveCountInGrid(
   const originMs = firstMs - countInBars * beatsPerBar(timeSignature) * msPerBeat
   // Whole bars of count-in don't change phase - the count-in starts on the same beat-in-bar the
   // first real anchor itself is.
-  return { originMs, originBeatInBar: deduped[0]!.beatInBar ?? 0, correctionRatio: ratio }
+  return { originMs, originBeatInBar: deduped[0]!.beatInBar ?? 0, bpm, timeSignature, correctionRatio: ratio }
 }
 
 /**
@@ -181,6 +259,19 @@ function resolveCountInGrid(
  *   the last anchor and the one before it) instead of reverting to the plain nominal bpm, so a
  *   song's outro doesn't silently lose the correction the rest of the song had. Falls back to
  *   `1` only when there's no previous segment either (a single anchor total).
+ *
+ * `tempoMarkers` (#141) add a fourth wrinkle on top of the three cases above, resolved in two
+ * steps: first, whether `elapsedMs` is in a count-in state at all is decided against the
+ * caller's own unmodified `anchors` - entirely independent of tempo markers, so a song with
+ * markers but no real anchors yet still behaves like "no anchors" today does (beat 0 pinned to
+ * elapsedMs 0, never a count-in), not like it's silently waiting for the first marker. Only once
+ * that's settled does a synthetic anchor get injected at every tempo-segment boundary that
+ * doesn't already have a real one nearby (`anchorsWithTempoBoundaries`), so no anchor-to-anchor
+ * correction segment ever straddles two different nominal tempos - each resolved segment then
+ * reports its OWN active `bpm`/`timeSignature` (whichever `TempoMarker` governs `originMs`, or
+ * the variant's own values with none) instead of always the flat `bpm`/`timeSignature` this
+ * function was called with. Empty `tempoMarkers` (the overwhelming majority of songs) makes all
+ * of this entirely a no-op - byte-identical to before #141 existed.
  */
 export function resolveBeatGrid(
   anchors: readonly BeatAnchorLike[],
@@ -188,14 +279,29 @@ export function resolveBeatGrid(
   bpm: number,
   timeSignature: string = '4/4',
   countInBars: number = 0,
+  tempoMarkers: readonly TempoMarkerLike[] = [],
 ): BeatGridSegment | null {
-  const deduped = dedupeAnchors(anchors)
-  const originMs = resolveBeatOrigin(deduped, elapsedMs)
-  if (originMs === null) {
-    const countIn = resolveCountInGrid(deduped, bpm, timeSignature, countInBars)
+  const segments = resolveTempoSegments(tempoMarkers, bpm, timeSignature)
+
+  // Whether elapsedMs is in a genuine count-in state is decided against the caller's own
+  // unmodified anchors, entirely independent of tempo markers - see anchorsWithTempoBoundaries's
+  // own doc comment for why merging synthetic boundary anchors in before this check would
+  // corrupt it for a song with tempo markers but no real anchors yet.
+  const originalDeduped = dedupeAnchors(anchors)
+  if (resolveBeatOrigin(originalDeduped, elapsedMs) === null) {
+    // A count-in always precedes the song's very start, so it's always governed by segment 0
+    // regardless of what later tempo markers say.
+    const countIn = resolveCountInGrid(originalDeduped, segments[0]!.bpm, segments[0]!.timeSignature, countInBars)
     if (countIn === null || elapsedMs < countIn.originMs) return null
     return countIn
   }
+
+  const deduped = dedupeAnchors(anchorsWithTempoBoundaries(anchors, segments))
+  // Never actually null here - the check above already established elapsedMs is at/after a real
+  // origin, and anchorsWithTempoBoundaries always includes a segment-0 entry - `?? 0` is a purely
+  // defensive fallback, not an expected path.
+  const originMs = resolveBeatOrigin(deduped, elapsedMs) ?? 0
+  const { bpm: activeBpm, timeSignature: activeTimeSignature } = resolveTempoSegment(segments, originMs)
   const idx = deduped.findIndex((anchor) => anchor.timeMs === originMs)
   // idx is -1 with no anchors at all (originMs is the synthetic 0 from resolveBeatOrigin, not a
   // real anchor to look up) - optional chaining, not a non-null assertion, since deduped[-1]
@@ -204,11 +310,25 @@ export function resolveBeatGrid(
   const originBeatInBar = deduped[idx]?.beatInBar ?? 0
   const nextAnchorMs = deduped[idx + 1]?.timeMs
   if (nextAnchorMs !== undefined) {
-    return { originMs, originBeatInBar, correctionRatio: segmentRatio(originMs, nextAnchorMs, bpm) }
+    return {
+      originMs,
+      originBeatInBar,
+      bpm: activeBpm,
+      timeSignature: activeTimeSignature,
+      correctionRatio: segmentRatio(originMs, nextAnchorMs, activeBpm),
+    }
   }
   const prevAnchorMs = deduped[idx - 1]?.timeMs
-  if (prevAnchorMs === undefined) return { originMs, originBeatInBar, correctionRatio: 1 } // only one anchor total
-  return { originMs, originBeatInBar, correctionRatio: segmentRatio(prevAnchorMs, originMs, bpm) }
+  if (prevAnchorMs === undefined) {
+    return { originMs, originBeatInBar, bpm: activeBpm, timeSignature: activeTimeSignature, correctionRatio: 1 } // only one anchor total
+  }
+  return {
+    originMs,
+    originBeatInBar,
+    bpm: activeBpm,
+    timeSignature: activeTimeSignature,
+    correctionRatio: segmentRatio(prevAnchorMs, originMs, activeBpm),
+  }
 }
 
 /**
@@ -237,20 +357,21 @@ export function beatAt(
   timeSignature: string,
   anchors: readonly BeatAnchorLike[] = [],
   countInBars: number = 0,
+  tempoMarkers: readonly TempoMarkerLike[] = [],
 ): Beat | null {
-  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars)
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars, tempoMarkers)
   if (grid === null) return null
-  const msPerBeat = (60000 / bpm) * grid.correctionRatio
+  const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat)
-  const beatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(timeSignature)
+  const beatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
   const first = firstAnchorMs(anchors)
   return {
     beatInBar,
     isDownbeat: beatInBar === 0,
     msIntoBeat: effectiveMs - beatIndex * msPerBeat,
     isCountIn: first !== null && elapsedMs < first,
-    effectiveBpm: bpm * grid.correctionRatio,
+    effectiveBpm: grid.bpm * grid.correctionRatio,
   }
 }
 
@@ -284,11 +405,12 @@ export function upcomingBeats(
   timeSignature: string,
   anchors: readonly BeatAnchorLike[] = [],
   countInBars: number = 0,
+  tempoMarkers: readonly TempoMarkerLike[] = [],
 ): ScheduledBeat[] {
-  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars)
+  const grid = resolveBeatGrid(anchors, elapsedMs, bpm, timeSignature, countInBars, tempoMarkers)
   if (grid === null) return [] // still before the first anchor - nothing to schedule yet
-  const msPerBeat = (60000 / bpm) * grid.correctionRatio
-  const beats = beatsPerBar(timeSignature)
+  const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
+  const beats = beatsPerBar(grid.timeSignature)
   const effectiveMs = elapsedMs - grid.originMs
   // Beat index is relative to the active anchor, not song-start - clamped at 0 (the anchor
   // itself is always the earliest valid beat, never a negative index before it).
