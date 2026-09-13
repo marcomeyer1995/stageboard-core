@@ -10,7 +10,7 @@ import {
   type TempoMarker,
   type TimecodeMarker,
 } from 'shared-types'
-import { analyzeTrackBlob } from '../lib/analyzeTrack'
+import { analyzeTempoMapBlob, analyzeTrackBlob } from '../lib/analyzeTrack'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
@@ -133,6 +133,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const [isImporting, setIsImporting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  const [isAnalyzingTempoMap, setIsAnalyzingTempoMap] = useState(false)
+  const [tempoMapError, setTempoMapError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -396,6 +398,47 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     }
   }
 
+  /** "Tempo-Wechsel erkennen" - unlike handleAnalyzeTrack above (one global bpm), suggests a
+   * whole tempo-map: a base bpm plus every later place the tempo genuinely seems to change.
+   * Always a suggestion to review, never applied silently - see analyzeTempoMapBlob's own doc
+   * comment for why (it can still return an exact octave-doubled/halved tempo on
+   * metrically-ambiguous material like a slow ballad with a strong 2-beat feel). */
+  async function handleAnalyzeTempoMap() {
+    if (!tapTrack) return
+    if (draft.tempoMarkers.length > 0) {
+      const confirmed = await confirm('Vorhandene Tempo-Wechsel durch die automatische Erkennung ersetzen?', {
+        confirmLabel: 'Ersetzen',
+      })
+      if (!confirmed) return
+    }
+    setIsAnalyzingTempoMap(true)
+    setTempoMapError(null)
+    try {
+      const blob = await getTrack(draft.variantId, tapTrack.id)
+      if (!blob) {
+        setTempoMapError('Track nicht verfügbar.')
+        return
+      }
+      const result = await analyzeTempoMapBlob(blob)
+      if (result === null) {
+        setTempoMapError('Keine Analyse möglich - bitte manuell setzen.')
+        return
+      }
+      if (result.tempoMarkers.length === 0) {
+        setTempoMapError('Kein Tempo-Wechsel erkannt - BPM übernommen.')
+      }
+      setDraft((d) => ({
+        ...d,
+        bpm: result.baseBpm,
+        tempoMarkers: result.tempoMarkers.map((m) => ({ id: randomId(), timeMs: m.timeMs, bpm: m.bpm })),
+      }))
+    } catch {
+      setTempoMapError('Analyse fehlgeschlagen.')
+    } finally {
+      setIsAnalyzingTempoMap(false)
+    }
+  }
+
   const preview = parseChordPro(draft.chordProContent)
 
   return (
@@ -613,9 +656,19 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
                 >
                   Tempo-Wechsel markieren
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAnalyzeTempoMap()}
+                  disabled={!tapTrack || isAnalyzingTempoMap}
+                  title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
+                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                >
+                  {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
+                </button>
               </div>
             </div>
             {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
+            {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
             <BeatAnchorListEditor
               anchors={draft.beatAnchors}
               timeSignature={draft.timeSignature}
@@ -626,6 +679,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
               tempoMarkers={draft.tempoMarkers}
               onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
             />
+            <p className="text-xs text-ink-faint">
+              Automatisch erkannte Tempo-Wechsel bitte prüfen - bei mehrdeutigem Metrum (z.B. einer Ballade) kann die
+              BPM-Oktave falsch sein.
+            </p>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 text-sm text-ink-soft">
                 <input
