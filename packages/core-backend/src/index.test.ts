@@ -356,10 +356,14 @@ describe('Fastify routes', () => {
 
       // buildApp() only serves HTTPS when dev certs exist on disk (see index.ts) - present
       // locally (scripts/generate-dev-certs.sh), absent in CI, so this can't assume either
-      // protocol and has to ask the actual running server which one it got. The default
-      // FRONTEND_ORIGIN's own scheme tracks the same check, so the origin header below must
-      // match too.
-      const isHttps = app.server instanceof HttpsServer
+      // protocol and has to ask the actual running server which one it got. With certs, it's an
+      // Http2SecureServer (#129's `http2: true`) - node:http2 doesn't export that class as an
+      // importable value (only as a type), hence the constructor-name check instead of
+      // `instanceof`. `httpsRequest` (Node's default https client, no ALPN 'h2' requested) still
+      // works unchanged against it, since `allowHTTP1: true` means a client that doesn't ask for
+      // h2 just gets HTTP/1.1. The default FRONTEND_ORIGIN's own scheme tracks the same check,
+      // so the origin header below must match too.
+      const isHttps = app.server instanceof HttpsServer || app.server.constructor.name === 'Http2SecureServer'
       const request = isHttps ? httpsRequest : httpRequest
       const origin = `${isHttps ? 'https' : 'http'}://localhost:5173`
       const req = request(
@@ -448,7 +452,9 @@ describe('Fastify routes', () => {
       const address = app.server.address()
       if (typeof address !== 'object' || address === null) throw new Error('server has no address')
 
-      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      // See the plugin-health stream test above for why this isn't a plain `instanceof` check.
+      const isHttps = app.server instanceof HttpsServer || app.server.constructor.name === 'Http2SecureServer'
+      const request = isHttps ? httpsRequest : httpRequest
       const req = request(
         {
           hostname: '127.0.0.1',
@@ -724,7 +730,9 @@ describe('Fastify routes', () => {
       const address = app.server.address()
       if (typeof address !== 'object' || address === null) throw new Error('server has no address')
 
-      const request = app.server instanceof HttpsServer ? httpsRequest : httpRequest
+      // See the plugin-health stream test above for why this isn't a plain `instanceof` check.
+      const isHttps = app.server instanceof HttpsServer || app.server.constructor.name === 'Http2SecureServer'
+      const request = isHttps ? httpsRequest : httpRequest
       const req = request(
         {
           hostname: '127.0.0.1',
@@ -1941,8 +1949,9 @@ describe('Fastify routes', () => {
     it('reflects an allowed origin (default FRONTEND_ORIGIN)', async () => {
       // The default's scheme tracks whether this server itself ended up HTTPS (dev certs
       // present locally, absent in CI, same as the plugin-health/stream test below) - a
-      // hardcoded 'http://' here would fail locally the moment certs exist on disk.
-      const scheme = app.server instanceof HttpsServer ? 'https' : 'http'
+      // hardcoded 'http://' here would fail locally the moment certs exist on disk. With certs,
+      // it's an Http2SecureServer (#129), not a plain HttpsServer - same constructor-name check.
+      const scheme = app.server instanceof HttpsServer || app.server.constructor.name === 'Http2SecureServer' ? 'https' : 'http'
       const response = await app.inject({
         method: 'GET',
         url: '/health',
