@@ -391,12 +391,6 @@ export function LibraryView() {
             ))}
           </div>
 
-          {swipeMessage && (
-            <p className="rounded-sb-sm bg-control-strong px-3 py-2 text-center text-sm text-ink">
-              {swipeMessage}
-            </p>
-          )}
-
           {filterMode !== 'songs' && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -532,6 +526,19 @@ export function LibraryView() {
           )}
         </div>
       </div>
+
+      {/* Fixed overlay, not part of either pane's own flow (Marco, explicit request) - it used
+          to sit inline above the Setlists/Songs sections, so it shifted that whole list down
+          every time it appeared/disappeared. Floats centered near the bottom of the screen
+          instead, like a toast, and never intercepts touches/clicks meant for whatever's
+          underneath it. */}
+      {swipeMessage && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+          <p className="rounded-sb-pill bg-control-strong px-4 py-2 text-center text-sm text-ink shadow-sb">
+            {swipeMessage}
+          </p>
+        </div>
+      )}
     </DndContext>
   )
 }
