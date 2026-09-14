@@ -29,6 +29,7 @@ vi.mock('./SheetEditor', () => ({ SheetEditor: () => <div>Song-Editor</div> }))
 const { useSongsStore } = await import('../store/useSongsStore')
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
+const { useAudioPinsStore } = await import('../store/useAudioPinsStore')
 const { LibraryView } = await import('./LibraryView')
 
 function song(id: string, title: string): Song {
@@ -116,5 +117,28 @@ describe('LibraryView', () => {
     // handleDeleteSong is async (awaits the mocked confirm() first) - the click above only
     // starts it.
     await waitFor(() => expect(remove).toHaveBeenCalledWith('a'))
+  })
+
+  it('has no standalone 📌 button - Pin lives in the ⋯ menu, labeled by current state', () => {
+    useAudioPinsStore.setState({ byWorkspace: { '': ['a'] } })
+    render(<LibraryView />)
+
+    expect(screen.queryByText('📌')).not.toBeInTheDocument()
+
+    const alphaRow = screen.getByText('Alpha').closest('li')!
+    fireEvent.click(within(alphaRow).getByTitle('Menü öffnen'))
+    expect(screen.getByRole('button', { name: 'Offline-Pin entfernen' })).toBeInTheDocument()
+  })
+
+  it('a row\'s ⋯ menu toggles the pin', () => {
+    const togglePin = vi.fn()
+    useAudioPinsStore.setState({ togglePin })
+    render(<LibraryView />)
+
+    const bravoRow = screen.getByText('Bravo').closest('li')!
+    fireEvent.click(within(bravoRow).getByTitle('Menü öffnen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Offline anheften' }))
+
+    expect(togglePin).toHaveBeenCalledWith('', 'b')
   })
 })
