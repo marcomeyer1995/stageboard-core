@@ -56,7 +56,11 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   ]
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto">
+    // flex-1/min-h-0, not h-full: sits beside LibraryView's mobile-only "← Bibliothek" button
+    // (a flex-col sibling, not a fixed-height container of its own) - h-full would claim 100%
+    // of that shared space and overflow by the button's own height whenever it's visible,
+    // same "whole page scrolls" bug SetlistDetail had (Marco, explicit report there).
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-bold text-ink">{song.title || '(ohne Titel)'}</h2>
