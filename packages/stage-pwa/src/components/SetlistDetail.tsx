@@ -39,7 +39,9 @@ interface EntryRowProps {
 
 /** A grip handle carries the drag listeners, not the row itself - the song title stays a
  * plain clickable button and the variant `<select>` stays a plain select, neither fighting
- * a drag gesture that would otherwise be listening on the same element. */
+ * a drag gesture that would otherwise be listening on the same element. Drag is the one
+ * reorder gesture now (#181) - the up/down arrows this row used to carry moved into the same
+ * ⋯ menu as Entfernen, for anyone without a mouse or steady enough touch for drag. */
 function EntryRow({
   entry,
   index,
@@ -54,6 +56,7 @@ function EntryRow({
     id: entry.id,
   })
   const selectedVariantId = entry.variantId ?? songVariants.find((v) => v.isDefault)?.id ?? ''
+  const title = song?.title ?? '(unbekannter Song)'
 
   return (
     <li
@@ -78,7 +81,7 @@ function EntryRow({
         onClick={() => onSelectSong(entry.songId, entry.variantId)}
         className="min-w-0 flex-1 truncate text-left hover:underline"
       >
-        {index + 1}. {song?.title ?? '(unbekannter Song)'}
+        {index + 1}. {title}
       </button>
       {songVariants.length > 1 && (
         <select
@@ -93,38 +96,22 @@ function EntryRow({
           ))}
         </select>
       )}
-      <span className="flex flex-shrink-0 gap-1">
-        <button
-          type="button"
-          onClick={() => onMove(index, -1)}
-          className="h-10 w-10 rounded-sb-sm bg-control-strong hover:bg-control-strong-hover"
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          onClick={() => onMove(index, 1)}
-          className="h-10 w-10 rounded-sb-sm bg-control-strong hover:bg-control-strong-hover"
-        >
-          ↓
-        </button>
-        <button
-          type="button"
-          onClick={() => onRemove(index)}
-          className="h-10 w-10 rounded-sb-sm bg-control-strong hover:bg-control-strong-hover"
-        >
-          ×
-        </button>
-      </span>
+      <OverflowMenu
+        title={title}
+        actions={[
+          { label: 'Nach oben', onClick: () => onMove(index, -1) },
+          { label: 'Nach unten', onClick: () => onMove(index, 1) },
+          { label: 'Entfernen', danger: true, onClick: () => onRemove(index) },
+        ]}
+      />
     </li>
   )
 }
 
 /**
- * The management pane for one setlist - reorder (drag handle, or the up/down arrows - #20
- * refinement added drag without removing the existing, already-accessible arrows), remove
- * entries, pick a per-entry variant, add songs, duplicate, activate. Extracted from the old
- * standalone SetlistManager (#20) so LibraryView's unified tree can reuse it as the
+ * The management pane for one setlist - reorder (drag, or a row's own ⋯ menu), remove
+ * entries, pick a per-entry variant, add songs, rename, duplicate, activate. Extracted from the
+ * old standalone SetlistManager (#20) so LibraryView's unified tree can reuse it as the
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
  */
@@ -142,6 +129,13 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const setlist = setlists.find((s) => s.id === setlistId) ?? null
+
+  async function handleRename() {
+    if (!setlist) return
+    const name = await promptText('Setlist umbenennen', { label: 'Neuer Name', defaultValue: setlist.name })
+    if (!name?.trim()) return
+    saveSetlist({ ...setlist, name: name.trim() })
+  }
 
   async function handleDuplicate() {
     if (!setlist) return
@@ -245,6 +239,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <OverflowMenu
             title={setlist.name}
             actions={[
+              { label: 'Umbenennen', onClick: () => void handleRename() },
               { label: 'Duplizieren', onClick: () => void handleDuplicate() },
               { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
             ]}
