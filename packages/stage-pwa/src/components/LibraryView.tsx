@@ -23,6 +23,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
+import { SongPreview } from './SongPreview'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -166,7 +167,9 @@ function DraggableSongRow({
  * nowhere to drop (works on any screen size, including mobile) adds it to the *active*
  * setlist instead. Clicking a setlist shows its songs (via SetlistDetail, which still owns
  * all the actual setlist-management logic - reorder, variant pick, add/remove, duplicate,
- * activate); clicking any song opens SheetEditor on exactly that song+variant.
+ * activate); clicking any song shows a read-only SongPreview in the right pane first, same as
+ * a setlist - a dedicated "Bearbeiten" button there is what actually opens SheetEditor
+ * (Marco, explicit request: "as it is for the Setlists").
  */
 export function LibraryView() {
   const songs = useSongsStore((state) => state.songs)
@@ -184,6 +187,10 @@ export function LibraryView() {
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
+  // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
+  // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
+  // SheetEditor. Irrelevant while selection isn't a song.
+  const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -205,6 +212,13 @@ export function LibraryView() {
       : songs
     return [...matches].sort((a, b) => a.title.localeCompare(b.title))
   }, [songs, term])
+
+  /** Shared by the song row's own click and SetlistDetail's onSelectSong - both land on the
+   * preview, never straight on the editor. */
+  function selectSong(songId: string, variantId: string | null) {
+    setSelection({ type: 'song', songId, variantId })
+    setSongMode('preview')
+  }
 
   async function createSetlist() {
     const name = await promptText('Neue Setlist', { label: 'Name der neuen Setlist' })
@@ -237,7 +251,10 @@ export function LibraryView() {
       timecodes: [],
     }
     await saveSong(song)
+    // Straight to edit mode, not the preview - there's nothing to preview yet on a brand-new,
+    // still-empty song.
     setSelection({ type: 'song', songId: song.id, variantId: null })
+    setSongMode('edit')
   }
 
   async function handleDeleteSong(song: Song) {
@@ -291,9 +308,11 @@ export function LibraryView() {
   }
 
   // SheetEditor owns its own full-page (`h-dvh`) two-column layout - it can't nest inside
-  // this view's right pane without a double-height conflict, so selecting a song replaces
-  // the whole tree with the editor instead (a "← Bibliothek" button gets back).
-  if (selection?.type === 'song') {
+  // this view's right pane without a double-height conflict, so entering edit mode replaces
+  // the whole tree with the editor instead (its own "← Bibliothek" button clears the
+  // selection entirely, same as leaving a setlist - "Bearbeiten" is a deliberate deep dive,
+  // not a mode the back button needs to unwind one step at a time back to the preview).
+  if (selection?.type === 'song' && songMode === 'edit') {
     return (
       <SheetEditor
         songId={selection.songId}
@@ -427,7 +446,7 @@ export function LibraryView() {
                   <DraggableSongRow
                     key={song.id}
                     song={song}
-                    onClick={() => setSelection({ type: 'song', songId: song.id, variantId: null })}
+                    onClick={() => selectSong(song.id, null)}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}
@@ -458,10 +477,23 @@ export function LibraryView() {
               </button>
               <SetlistDetail
                 setlistId={selection.id}
-                onSelectSong={(songId, variantId) =>
-                  setSelection({ type: 'song', songId, variantId })
-                }
+                onSelectSong={selectSong}
                 onDeleted={() => setSelection(null)}
+              />
+            </>
+          ) : selection?.type === 'song' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelection(null)}
+                className="mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover lg:hidden"
+              >
+                ← Bibliothek
+              </button>
+              <SongPreview
+                songId={selection.songId}
+                variantId={selection.variantId}
+                onEdit={() => setSongMode('edit')}
               />
             </>
           ) : (
