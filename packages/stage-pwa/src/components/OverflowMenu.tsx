@@ -9,6 +9,10 @@ interface OverflowMenuAction {
    * isolation, not a second confirmation step inside this component (callers still run their
    * own `confirm()` before actually deleting anything, same as everywhere else in the app). */
   danger?: boolean
+  /** Kept visible-but-disabled rather than omitted when an action doesn't currently apply
+   * (e.g. "Zur aktiven Setlist hinzufügen" with no active setlist) - same "tell the user why,
+   * don't just make it disappear" instinct the row's own "+" button already uses. */
+  disabled?: boolean
 }
 
 interface OverflowMenuProps {
@@ -21,6 +25,12 @@ interface OverflowMenuProps {
    * LibraryView's song row (Marco, explicit request: "no separate visible box around the dots",
    * pointing at the grip handle as the reference). */
   variant?: 'boxed' | 'flat'
+  /** Optionally controlled open state - omit both to let the component manage its own (the
+   * common case, driven only by clicking the "⋯" trigger). Passed by LibraryView's song row so
+   * a right-click anywhere on the row (the pointer lane's context-menu alternative to the
+   * trigger, #178) can open this exact same menu instead of a second, hand-rolled one. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -31,8 +41,16 @@ interface OverflowMenuProps {
  * itself stays on its own inline version - not worth the risk of refactoring a third, working,
  * unrelated system into this just to remove one duplicate.
  */
-export function OverflowMenu({ title, actions, variant = 'boxed' }: OverflowMenuProps) {
-  const [open, setOpen] = useState(false)
+export function OverflowMenu({
+  title,
+  actions,
+  variant = 'boxed',
+  open: controlledOpen,
+  onOpenChange,
+}: OverflowMenuProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
   const normal = actions.filter((a) => !a.danger)
   const danger = actions.filter((a) => a.danger)
 
@@ -77,11 +95,12 @@ export function OverflowMenu({ title, actions, variant = 'boxed' }: OverflowMenu
                   <button
                     key={action.label}
                     type="button"
+                    disabled={action.disabled}
                     onClick={() => {
                       setOpen(false)
                       action.onClick()
                     }}
-                    className="h-11 w-full rounded-sb bg-control text-base text-ink hover:bg-control-hover"
+                    className="h-11 w-full rounded-sb bg-control text-base text-ink hover:bg-control-hover disabled:opacity-40"
                   >
                     {action.label}
                   </button>

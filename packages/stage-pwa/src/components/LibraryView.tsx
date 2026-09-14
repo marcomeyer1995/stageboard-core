@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Setlist, Song } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
@@ -76,9 +76,16 @@ interface DraggableSongRowProps {
    * ("Offline anheften" vs. "Offline-Pin entfernen"). */
   pinned: boolean
   onTogglePin: () => void
+  /** Prompts for a new title itself - same shape as SetlistDetail's own handleDuplicate. Only
+   * reachable from the pointer-lane row menu (#178); touch's own ⋯ menu stays as it was. */
+  onDuplicate: () => void
   /** Confirmation lives in the caller (matches every other delete flow in the app) - this is
    * called only once the user has already said yes. */
   onDelete: () => void
+  /** Ring outline from LibraryView's own arrow-key list navigation (#178, pointer lane) -
+   * separate from `selected` (bg-accent, "this is open in the right pane right now"), since
+   * the keyboard-focused row and the currently-open one aren't always the same row. */
+  keyboardFocused: boolean
 }
 
 function DraggableSongRow({
@@ -90,7 +97,9 @@ function DraggableSongRow({
   showSwipeReveal,
   pinned,
   onTogglePin,
+  onDuplicate,
   onDelete,
+  keyboardFocused,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
@@ -99,6 +108,26 @@ function DraggableSongRow({
     // not even the "drop directly onto an open setlist pane" case #191 still allowed.
     disabled: !showSwipeReveal,
   })
+  // Right-click as an alternative to the "+" button/swipe gesture (#178, pointer lane only -
+  // "not a replacement, both keep working") - controlled so the row itself can open it, not
+  // just its own "⋯" trigger. showAddButton is exactly the pointer-lane signal already, no
+  // need for a second prop that could drift out of sync with it.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuActions = showAddButton
+    ? [
+        {
+          label: 'Zur aktiven Setlist hinzufügen',
+          onClick: () => onAddToActiveSetlist?.(),
+          disabled: !onAddToActiveSetlist,
+        },
+        { label: 'Duplizieren', onClick: onDuplicate },
+        { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
+        { label: 'Löschen', danger: true, onClick: onDelete },
+      ]
+    : [
+        { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
+        { label: 'Löschen', danger: true, onClick: onDelete },
+      ]
 
   return (
     <li className="relative overflow-hidden rounded-sb-sm">
@@ -129,6 +158,13 @@ function DraggableSongRow({
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        onContextMenu={(e) => {
+          // Touch lane: leave the native long-press context menu alone entirely - this row
+          // has no context menu to offer there, same actions already reachable via ⋯.
+          if (!showAddButton) return
+          e.preventDefault()
+          setMenuOpen(true)
+        }}
         style={{
           transform: CSS.Translate.toString(transform),
           transition: isDragging ? undefined : 'transform 200ms ease',
@@ -140,7 +176,7 @@ function DraggableSongRow({
         }}
         className={`relative z-10 flex items-center gap-1 rounded-sb-sm py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control hover:bg-control-hover'
-        }`}
+        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''}`}
       >
         <button
           type="button"
@@ -164,10 +200,9 @@ function DraggableSongRow({
         <OverflowMenu
           title={song.title || '(ohne Titel)'}
           variant="flat"
-          actions={[
-            { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
-            { label: 'Löschen', danger: true, onClick: onDelete },
-          ]}
+          actions={menuActions}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
         />
       </div>
     </li>
@@ -189,6 +224,7 @@ function DraggableSongRow({
 export function LibraryView() {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
+  const duplicateSong = useSongsStore((state) => state.duplicateSong)
   const removeSong = useSongsStore((state) => state.remove)
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
@@ -198,6 +234,9 @@ export function LibraryView() {
   const togglePin = useAudioPinsStore((state) => state.togglePin)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
+  // Gates the arrow-key list navigation below - Enter shouldn't also act on a focused list row
+  // while e.g. a delete confirmation is open on top of it.
+  const dialogOpen = useDialogStore((state) => state.request !== null)
   const inputCapability = useInputCapability()
   // Two-pane breakpoint (#178): moved down from a flat lg (1024px) to "desktop-wide, or
   // landscape at tablet width already" - a landscape tablet has the room for two panes well
@@ -211,6 +250,10 @@ export function LibraryView() {
   // SheetEditor. Irrelevant while selection isn't a song.
   const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
+  // Keyboard row navigation (#178, pointer lane only) - a separate "which row is arrow-keyed"
+  // cursor from `selection` itself (see keyboardFocused's own doc comment on DraggableSongRow).
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const { setNodeRef: setDropzoneRef, isOver } = useDroppable({
@@ -232,20 +275,82 @@ export function LibraryView() {
     return [...matches].sort((a, b) => a.title.localeCompare(b.title))
   }, [songs, term])
 
+  // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
+  // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
+  const focusableItems = useMemo(() => {
+    const items: Array<{ type: 'setlist' | 'song'; id: string }> = []
+    if (filterMode !== 'songs') for (const s of filteredSetlists) items.push({ type: 'setlist', id: s.id })
+    if (filterMode !== 'setlists') for (const s of filteredSongs) items.push({ type: 'song', id: s.id })
+    return items
+  }, [filterMode, filteredSetlists, filteredSongs])
+
   /** Shared by the song row's own click and SetlistDetail's onSelectSong - both land on the
    * preview, never straight on the editor. Clicking the already-selected song again closes
    * the preview instead of re-opening it (Marco, explicit request, same toggle as a setlist
    * below) - only reachable from the Bibliothek's own row today, since selecting a song from
    * inside a setlist replaces that setlist's own view entirely, so there's no "already
-   * selected" row left showing to re-click there. */
-  function selectSong(songId: string, variantId: string | null) {
-    if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
-      setSelection(null)
-      return
+   * selected" row left showing to re-click there. useCallback (not a plain function
+   * declaration, like every other handler here) so the keyboard-nav effect below can list it as
+   * a real dependency without tearing its listener down on every render - just on the ones
+   * where `selection` itself actually changes. */
+  const selectSong = useCallback(
+    (songId: string, variantId: string | null) => {
+      if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
+        setSelection(null)
+        return
+      }
+      setSelection({ type: 'song', songId, variantId })
+      setSongMode('preview')
+    },
+    [selection],
+  )
+
+  // Desktop keyboard shortcuts (#178): ↑/↓ move the focus cursor through focusableItems, Enter
+  // opens whatever's currently focused, ⌘F/Ctrl+F jumps to the search box from anywhere on the
+  // page. Pointer lane only, and never while a dialog is open on top (Enter confirming e.g. a
+  // delete prompt shouldn't also act on a focused row underneath it).
+  useEffect(() => {
+    if (inputCapability !== 'pointer' || dialogOpen) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+      // Anywhere the user is actually typing (the search box itself, a rename field, etc.) -
+      // arrow keys/Enter there mean "move the text cursor"/"submit this field", not "navigate
+      // the list".
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setFocusedIndex((i) => (i === null ? 0 : Math.min(i + 1, focusableItems.length - 1)))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setFocusedIndex((i) => (i === null ? 0 : Math.max(i - 1, 0)))
+      } else if (e.key === 'Enter' && focusedIndex !== null) {
+        const item = focusableItems[focusedIndex]
+        if (!item) return
+        if (item.type === 'setlist') {
+          setSelection(
+            selection?.type === 'setlist' && selection.id === item.id ? null : { type: 'setlist', id: item.id },
+          )
+        } else {
+          selectSong(item.id, null)
+        }
+      }
     }
-    setSelection({ type: 'song', songId, variantId })
-    setSongMode('preview')
-  }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // selection/selectSong both genuinely read inside handleKeyDown's own closure (the setlist
+    // toggle-check, and selectSong's own internal one for songs) - leaving them out risked the
+    // classic stale-closure bug: Enter acting on an old `selection` value. selectSong is a
+    // useCallback keyed on [selection] specifically so this doesn't re-run on every render, only
+    // when selection itself actually changes.
+  }, [inputCapability, dialogOpen, focusableItems, focusedIndex, selection, selectSong])
+
 
   async function createSetlist() {
     const name = await promptText('Neue Setlist', { label: 'Name der neuen Setlist' })
@@ -292,6 +397,18 @@ export function LibraryView() {
     if (!confirmed) return
     await removeSong(song.id)
     if (selection?.type === 'song' && selection.songId === song.id) setSelection(null)
+  }
+
+  /** Reachable from a song row's pointer-lane context menu (#178) - same prompt shape as
+   * SetlistDetail's own handleDuplicate. Stays put on the source song rather than jumping to
+   * the copy, same as duplicating a setlist doesn't navigate away from the original either. */
+  async function handleDuplicateSong(song: Song) {
+    const name = await promptText('Song duplizieren', {
+      label: 'Titel der Kopie',
+      defaultValue: `${song.title} (Kopie)`,
+    })
+    if (!name?.trim()) return
+    await duplicateSong(song.id, name.trim())
   }
 
   function addSongToSetlist(setlistId: string, songId: string) {
@@ -375,6 +492,7 @@ export function LibraryView() {
           }`}
         >
           <input
+            ref={searchInputRef}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -414,7 +532,7 @@ export function LibraryView() {
                 </button>
               </div>
               <ul className="flex flex-col gap-1">
-                {filteredSetlists.map((setlist) => (
+                {filteredSetlists.map((setlist, idx) => (
                   <li key={setlist.id}>
                     <button
                       type="button"
@@ -429,7 +547,7 @@ export function LibraryView() {
                         selection?.type === 'setlist' && selection.id === setlist.id
                           ? 'bg-accent text-accent-ink'
                           : 'bg-control hover:bg-control-hover'
-                      }`}
+                      } ${focusedIndex === idx ? 'ring-2 ring-inset ring-accent' : ''}`}
                     >
                       {setlist.name}{' '}
                       <span
@@ -472,7 +590,7 @@ export function LibraryView() {
                 </button>
               </div>
               <ul className="flex flex-col gap-1">
-                {filteredSongs.map((song) => (
+                {filteredSongs.map((song, idx) => (
                   <DraggableSongRow
                     key={song.id}
                     song={song}
@@ -483,10 +601,27 @@ export function LibraryView() {
                     showSwipeReveal={inputCapability === 'touch'}
                     pinned={pinnedSongIds.includes(song.id)}
                     onTogglePin={() => togglePin(workspaceId, song.id)}
+                    onDuplicate={() => void handleDuplicateSong(song)}
                     onDelete={() => void handleDeleteSong(song)}
+                    // Songs come after setlists in focusableItems whenever the current filter
+                    // shows both - same offset, same order, so the two stay in sync.
+                    keyboardFocused={focusedIndex === (filterMode !== 'songs' ? filteredSetlists.length : 0) + idx}
                   />
                 ))}
               </ul>
+              {inputCapability === 'pointer' && (
+                <p className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2 text-xs text-ink-faint">
+                  <span>
+                    <kbd className="rounded border border-line px-1 font-mono">↑↓</kbd> Liste
+                  </span>
+                  <span>
+                    <kbd className="rounded border border-line px-1 font-mono">⏎</kbd> Öffnen
+                  </span>
+                  <span>
+                    <kbd className="rounded border border-line px-1 font-mono">⌘F</kbd> Suche
+                  </span>
+                </p>
+              )}
             </div>
           )}
         </div>
