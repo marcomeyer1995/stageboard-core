@@ -101,9 +101,14 @@ function DraggableSongRow({
       {/* Revealed by the row above sliding right - a solid row background at rest fully
           covers this, so no opacity/width math is needed to fake the Spotify swipe-reveal.
           Touch lane only - a mouse user dragging onto an open setlist pane isn't "swiping to
-          the active setlist" at all, so this message would just be wrong for them. */}
+          the active setlist" at all, so this message would just be wrong for them.
+          bg-control-strong, not bg-accent-2 (Marco: swiping a *selected* row was invisible -
+          every theme's accent-2 is literally the same color as accent, so the row sliding away
+          and the reveal underneath it were indistinguishable). control-strong is a neutral
+          shade distinct from both bg-control (an unselected row) and bg-accent (a selected
+          one), so the reveal stays visible either way. */}
       {showSwipeReveal && (
-        <div className="absolute inset-0 flex items-center bg-accent-2 px-4 text-sm font-medium text-accent-ink">
+        <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-sm font-medium text-ink">
           + Zur aktiven Setlist
         </div>
       )}
