@@ -33,6 +33,12 @@ function toVariant(doc: SongVariantDoc): SongVariant {
     tempoMarkers: doc.tempoMarkers ?? [],
     countInEnabled: doc.countInEnabled ?? false,
     countInBars: doc.countInBars ?? 1,
+    // Correctly written by saveVariant (plain fields on SongVariant), but silently dropped on
+    // every read here until now - same bug, same fix as useSongsStore.ts's `toSong`/`artist`:
+    // nothing defaulted these away, this mapper just never copied them across.
+    key: doc.key,
+    tuning: doc.tuning,
+    capo: doc.capo,
   }
 }
 
