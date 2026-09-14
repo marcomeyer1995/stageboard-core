@@ -102,26 +102,33 @@ function DraggableSongRow({
           + Zur aktiven Setlist
         </div>
       )}
-      {/* One unified row surface, not three independently-boxed controls sitting next to each
-          other with a gap between them (Marco: "+"/⋯ read as a separate, mismatched-size box
-          beside the entry) - same single bg-control embedding SetlistDetail's own row already
-          uses, its grip handle and ⋯ menu as accents within it rather than boxes of their own. */}
-      <div className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1">
+      {/* The listeners/ref live on this row surface itself, not just the title button inside it
+          (Marco: after the first pass only the text was swipeable, not "the box" the way it used
+          to be - here the whole visible row is the drag/swipe target, Spotify-style, same as
+          before the "+"/⋯ split existed). A plain tap on the title, "+", or ⋯ still resolves as
+          a click rather than a drag: the sensor's own 8px activationConstraint (see `sensors`
+          below) only starts a drag once the pointer has actually moved, so it never swallows a
+          same-spot tap on a nested button. "+"/⋯ read as unboxed accents within this row rather
+          than boxes of their own (Marco, explicit request), the same way the ⠿ grip handle sits
+          unboxed on SetlistDetail's own row. */}
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        style={{
+          transform: CSS.Translate.toString(transform),
+          transition: isDragging ? undefined : 'transform 200ms ease',
+          // Without this, a touch device's browser claims the gesture as a native scroll
+          // before dnd-kit's PointerSensor ever sees it - drags never start at all on a
+          // real tablet/phone (confirmed live). pan-y (not none) keeps vertical list
+          // scrolling working natively; only the horizontal swipe/drag is JS-driven.
+          touchAction: 'pan-y',
+        }}
+        className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1"
+      >
         <button
-          ref={setNodeRef}
           type="button"
           onClick={onClick}
-          {...listeners}
-          {...attributes}
-          style={{
-            transform: CSS.Translate.toString(transform),
-            transition: isDragging ? undefined : 'transform 200ms ease',
-            // Without this, a touch device's browser claims the gesture as a native scroll
-            // before dnd-kit's PointerSensor ever sees it - drags never start at all on a
-            // real tablet/phone (confirmed live). pan-y (not none) keeps vertical list
-            // scrolling working natively; only the horizontal swipe/drag is JS-driven.
-            touchAction: 'pan-y',
-          }}
           className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base hover:underline"
         >
           {song.title || '(ohne Titel)'}
@@ -133,13 +140,14 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
           >
             +
           </button>
         )}
         <OverflowMenu
           title={song.title || '(ohne Titel)'}
+          variant="flat"
           actions={[
             { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
             { label: 'Löschen', danger: true, onClick: onDelete },
