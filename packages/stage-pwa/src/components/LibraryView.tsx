@@ -54,8 +54,10 @@ interface DraggableSongRowProps {
    * why, don't just make it disappear" instinct as the swipe's own message). */
   onAddToActiveSetlist: (() => void) | null
   /** Pinned = always kept cached offline in "Selective" audio-sync mode (#49), independent
-   * of whether the song is in the active setlist. Shown regardless of the current mode, so
-   * pins can be set up in advance of switching to Selective. */
+   * of whether the song is in the active setlist - toggled from the ⋯ menu (Marco, explicit
+   * request to declutter the row), which trades away the previous always-visible pinned
+   * indicator for a shorter row; the menu label itself still reflects current state
+   * ("Offline anheften" vs. "Offline-Pin entfernen"). */
   pinned: boolean
   onTogglePin: () => void
   /** Confirmation lives in the caller (matches every other delete flow in the app) - this is
@@ -112,19 +114,13 @@ function DraggableSongRow({
         >
           +
         </button>
-        <button
-          type="button"
-          onClick={onTogglePin}
-          title={pinned ? 'Offline-Pin entfernen' : 'Immer offline verfügbar halten'}
-          className={`h-auto w-12 flex-shrink-0 rounded-sb-sm text-xl ${
-            pinned
-              ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink-soft hover:bg-control-strong-hover'
-          }`}
-        >
-          📌
-        </button>
-        <OverflowMenu title={song.title || '(ohne Titel)'} actions={[{ label: 'Löschen', danger: true, onClick: onDelete }]} />
+        <OverflowMenu
+          title={song.title || '(ohne Titel)'}
+          actions={[
+            { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
+            { label: 'Löschen', danger: true, onClick: onDelete },
+          ]}
+        />
       </div>
     </li>
   )
