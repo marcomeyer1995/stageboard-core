@@ -131,6 +131,33 @@ describe('LibraryView', () => {
     expect(alphaRow).toHaveClass('bg-accent')
   })
 
+  it('clicking an already-selected song again deselects it and closes the preview', () => {
+    render(<LibraryView />)
+    const placeholder = 'Wähle links eine Setlist oder einen Song aus.'
+
+    fireEvent.click(screen.getByText('Alpha'))
+    expect(screen.getByText('Song-Preview-a')).toBeInTheDocument()
+    expect(screen.queryByText(placeholder)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Alpha'))
+    expect(screen.queryByText('Song-Preview-a')).not.toBeInTheDocument()
+    expect(screen.getByText(placeholder)).toBeInTheDocument()
+  })
+
+  it('clicking an already-selected setlist again deselects it, same toggle as a song', () => {
+    render(<LibraryView />)
+    const placeholder = 'Wähle links eine Setlist oder einen Song aus.'
+    const newerButton = screen.getByRole('button', { name: /Newer Gig/ })
+
+    fireEvent.click(newerButton)
+    expect(newerButton).toHaveClass('bg-accent')
+    expect(screen.queryByText(placeholder)).not.toBeInTheDocument()
+
+    fireEvent.click(newerButton)
+    expect(newerButton).not.toHaveClass('bg-accent')
+    expect(screen.getByText(placeholder)).toBeInTheDocument()
+  })
+
   it('clicking an existing song shows its preview first, not the editor directly - unlike "+ Neu"', () => {
     render(<LibraryView />)
     fireEvent.click(screen.getByText('Alpha'))
