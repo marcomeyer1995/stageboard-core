@@ -33,15 +33,15 @@ interface EntryRowProps {
   songVariants: SongVariant[]
   onSelectSong: (songId: string, variantId: string | null) => void
   onSetVariant: (entryId: string, variantId: string) => void
-  onMove: (index: number, direction: -1 | 1) => void
   onRemove: (index: number) => void
 }
 
 /** A grip handle carries the drag listeners, not the row itself - the song title stays a
  * plain clickable button and the variant `<select>` stays a plain select, neither fighting
- * a drag gesture that would otherwise be listening on the same element. Drag is the one
- * reorder gesture now (#181) - the up/down arrows this row used to carry moved into the same
- * ⋯ menu as Entfernen, for anyone without a mouse or steady enough touch for drag. */
+ * a drag gesture that would otherwise be listening on the same element. Drag is the only
+ * reorder gesture (Marco, explicit request: the row menu's own "Nach oben"/"Nach unten" from
+ * #181 went unused once drag existed, so they were removed rather than kept as a redundant
+ * second way to do the same thing) - the ⋯ menu is Entfernen only. */
 function EntryRow({
   entry,
   index,
@@ -49,7 +49,6 @@ function EntryRow({
   songVariants,
   onSelectSong,
   onSetVariant,
-  onMove,
   onRemove,
 }: EntryRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -96,21 +95,14 @@ function EntryRow({
           ))}
         </select>
       )}
-      <OverflowMenu
-        title={title}
-        actions={[
-          { label: 'Nach oben', onClick: () => onMove(index, -1) },
-          { label: 'Nach unten', onClick: () => onMove(index, 1) },
-          { label: 'Entfernen', danger: true, onClick: () => onRemove(index) },
-        ]}
-      />
+      <OverflowMenu title={title} actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]} />
     </li>
   )
 }
 
 /**
- * The management pane for one setlist - reorder (drag, or a row's own ⋯ menu), remove
- * entries, pick a per-entry variant, add songs, rename, duplicate, activate. Extracted from the
+ * The management pane for one setlist - reorder (drag), remove entries, pick a per-entry
+ * variant, add songs, rename, duplicate, activate. Extracted from the
  * old standalone SetlistManager (#20) so LibraryView's unified tree can reuse it as the
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
@@ -165,15 +157,6 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     }
     await removeSetlist(setlist.id)
     onDeleted()
-  }
-
-  function moveSong(index: number, direction: -1 | 1) {
-    if (!setlist) return
-    const target = index + direction
-    if (target < 0 || target >= setlist.entries.length) return
-    const entries = [...setlist.entries]
-    ;[entries[index], entries[target]] = [entries[target], entries[index]]
-    saveSetlist({ ...setlist, entries })
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -268,7 +251,6 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
                 songVariants={variants.filter((v) => v.songId === entry.songId)}
                 onSelectSong={onSelectSong}
                 onSetVariant={setVariant}
-                onMove={moveSong}
                 onRemove={removeSong}
               />
             ))}
