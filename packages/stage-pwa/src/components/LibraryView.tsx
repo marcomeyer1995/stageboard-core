@@ -362,7 +362,7 @@ export function LibraryView() {
           visible at once - no need to hide either. */}
       <div className="flex h-dvh flex-col gap-3 sb-app-bg p-3 text-ink lg:grid lg:grid-cols-[minmax(0,1fr)_2fr]">
         <div
-          className={`flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb lg:flex ${
+          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb lg:flex ${
             selection ? 'hidden' : 'flex'
           }`}
         >
@@ -485,7 +485,7 @@ export function LibraryView() {
 
         <div
           ref={setDropzoneRef}
-          className={`flex-col overflow-y-auto rounded-sb border p-4 shadow-sb lg:flex ${
+          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-sb border p-4 shadow-sb lg:flex ${
             selection ? 'flex' : 'hidden'
           } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
         >

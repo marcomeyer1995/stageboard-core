@@ -84,10 +84,15 @@ function EntryRow({
         {index + 1}. {title}
       </button>
       {songVariants.length > 1 && (
+        // A long variant label (e.g. an auto-detection tool's full name) otherwise sizes the
+        // closed <select> to fit itself, squeezing the title button down to almost nothing
+        // (Marco, live screenshot: "Wie ein s..." with the rest cut off). Fixed, capped width
+        // instead - w-32 comfortably fits a short label like "Original" in full and ellipsizes
+        // a longer one; the dropdown's own open options still show full text either way.
         <select
           value={selectedVariantId}
           onChange={(e) => onSetVariant(entry.id, e.target.value)}
-          className="h-10 rounded-sb-sm bg-control-strong px-2 text-sm text-ink"
+          className="h-10 w-32 min-w-0 flex-shrink-0 truncate rounded-sb-sm bg-control-strong px-2 text-sm text-ink"
         >
           {songVariants.map((variant) => (
             <option key={variant.id} value={variant.id}>
@@ -277,7 +282,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    // flex-1/min-h-0, not h-full: this sits beside LibraryView's mobile-only "← Bibliothek"
+    // button (a sibling in the same flex-col pane, not a fixed-height container of its own),
+    // so h-full would claim 100% of the pane and overflow by the button's own height whenever
+    // that button is actually visible (Marco: the whole page was scrolling in portrait mode,
+    // not just this list) - flex-1 instead claims only what's left after the button.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
           {setlist.name}
