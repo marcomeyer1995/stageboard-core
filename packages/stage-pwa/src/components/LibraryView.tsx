@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react'
 import type { Setlist, Song } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
+import { useInputCapability } from '../lib/useInputCapability'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -48,11 +49,18 @@ function songEntry(songId: string) {
 interface DraggableSongRowProps {
   song: Song
   onClick: () => void
-  /** Mouse+keyboard alternative to the swipe gesture below - dragging is a natural touch
-   * interaction but an awkward one with a mouse, per Marco. `null` means no setlist is
-   * active right now, which disables the button instead of hiding it (same "tell the user
-   * why, don't just make it disappear" instinct as the swipe's own message). */
+  /** True only in the pointer/mouse lane (Marco, explicit request) - the "+" button and the
+   * swipe gesture below are two ways to do the same thing, and each only makes sense for one
+   * input type: dragging/swiping is natural on touch but awkward with a mouse, while a mouse
+   * user has no reason to reach for an ambiguous drag gesture when a precise click is right
+   * there. `null` (not `showAddButton=false` with a disabled button) means no setlist is
+   * active right now - disables the button instead of hiding it (same "tell the user why,
+   * don't just make it disappear" instinct the swipe's own message already has). */
   onAddToActiveSetlist: (() => void) | null
+  showAddButton: boolean
+  /** True only in the touch lane - the reveal-on-drag "+ Zur aktiven Setlist" background and
+   * the swipe-to-add fallback in LibraryView's handleDragEnd. */
+  showSwipeReveal: boolean
   /** Pinned = always kept cached offline in "Selective" audio-sync mode (#49), independent
    * of whether the song is in the active setlist - toggled from the ⋯ menu (Marco, explicit
    * request to declutter the row), which trades away the previous always-visible pinned
@@ -69,6 +77,8 @@ function DraggableSongRow({
   song,
   onClick,
   onAddToActiveSetlist,
+  showAddButton,
+  showSwipeReveal,
   pinned,
   onTogglePin,
   onDelete,
@@ -80,10 +90,14 @@ function DraggableSongRow({
   return (
     <li className="relative overflow-hidden rounded-sb-sm">
       {/* Revealed by the row above sliding right - a solid row background at rest fully
-          covers this, so no opacity/width math is needed to fake the Spotify swipe-reveal. */}
-      <div className="absolute inset-0 flex items-center bg-accent-2 px-4 text-sm font-medium text-accent-ink">
-        + Zur aktiven Setlist
-      </div>
+          covers this, so no opacity/width math is needed to fake the Spotify swipe-reveal.
+          Touch lane only - a mouse user dragging onto an open setlist pane isn't "swiping to
+          the active setlist" at all, so this message would just be wrong for them. */}
+      {showSwipeReveal && (
+        <div className="absolute inset-0 flex items-center bg-accent-2 px-4 text-sm font-medium text-accent-ink">
+          + Zur aktiven Setlist
+        </div>
+      )}
       <div className="relative z-10 flex gap-1">
         <button
           ref={setNodeRef}
@@ -105,15 +119,17 @@ function DraggableSongRow({
           {song.title || '(ohne Titel)'}
           {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
         </button>
-        <button
-          type="button"
-          onClick={() => onAddToActiveSetlist?.()}
-          disabled={!onAddToActiveSetlist}
-          title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-          className="h-auto w-12 flex-shrink-0 rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
-        >
-          +
-        </button>
+        {showAddButton && (
+          <button
+            type="button"
+            onClick={() => onAddToActiveSetlist?.()}
+            disabled={!onAddToActiveSetlist}
+            title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
+            className="h-auto w-12 flex-shrink-0 rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
+          >
+            +
+          </button>
+        )}
         <OverflowMenu
           title={song.title || '(ohne Titel)'}
           actions={[
@@ -148,6 +164,7 @@ export function LibraryView() {
   const togglePin = useAudioPinsStore((state) => state.togglePin)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
+  const inputCapability = useInputCapability()
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
@@ -248,7 +265,10 @@ export function LibraryView() {
       return
     }
 
-    if (event.delta.x >= SWIPE_THRESHOLD_PX) {
+    // Touch lane only (Marco, explicit request) - dropping directly onto an open setlist pane
+    // (above) stays a real gesture for a mouse too, but "dragged right a bit with nowhere to
+    // drop" isn't a swipe a mouse user meant to make; they have the "+" button for that.
+    if (inputCapability === 'touch' && event.delta.x >= SWIPE_THRESHOLD_PX) {
       addToActiveSetlist(songId)
     }
   }
@@ -392,6 +412,8 @@ export function LibraryView() {
                     song={song}
                     onClick={() => setSelection({ type: 'song', songId: song.id, variantId: null })}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
+                    showAddButton={inputCapability === 'pointer'}
+                    showSwipeReveal={inputCapability === 'touch'}
                     pinned={pinnedSongIds.includes(song.id)}
                     onTogglePin={() => togglePin(workspaceId, song.id)}
                     onDelete={() => void handleDeleteSong(song)}
