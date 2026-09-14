@@ -58,26 +58,6 @@ interface EditorDraft {
   capo?: number
 }
 
-function emptyDraft(): EditorDraft {
-  return {
-    songId: randomId(),
-    title: '',
-    variantId: randomId(),
-    variantLabel: 'Original',
-    isDefaultVariant: true,
-    bpm: 120,
-    timeSignature: '4/4',
-    clickTrackEnabled: false,
-    chordProContent: '',
-    timecodes: [],
-    cues: [],
-    beatAnchors: [],
-    tempoMarkers: [],
-    countInEnabled: false,
-    countInBars: 1,
-  }
-}
-
 function draftFrom(song: Song, variant: SongVariant): EditorDraft {
   return {
     songId: song.id,
@@ -102,29 +82,67 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
   }
 }
 
-interface SheetEditorProps {
-  /** Controlled selection from LibraryView's tree (#20) - omitted for standalone/legacy
-   * usage, which keeps today's self-contained behavior (defaults to songs[0], owns its own
-   * Song/Variant pickers). `variantId: null` means the song's default variant, matching
-   * SetlistEntry's own convention. */
-  songId?: string
-  variantId?: string | null
-  /** Present only when embedded in LibraryView - renders a way back to the tree instead of
-   * SheetEditor's own full-page chrome assuming it's the whole screen. */
-  onBack?: () => void
+type EditorLayout = 'phoneTabs' | 'tabletPortraitSheet' | 'panel'
+
+/** Screen-class detection for the Text/Details split (#177) - phone and tablet portrait get a
+ * tab switcher (tablet portrait renders Details as a bottom sheet over Text rather than
+ * replacing it, since there's more vertical room), landscape and desktop show both panes at
+ * once. Deliberately its own small hook rather than a shared one yet - #178 introduces the
+ * input-capability axis this editor doesn't need, and extracting a shared screen-class hook
+ * can happen once a second consumer actually needs it. */
+function computeEditorLayout(): EditorLayout {
+  if (window.matchMedia('(min-width: 1024px)').matches) return 'panel'
+  if (window.matchMedia('(min-width: 768px)').matches && window.matchMedia('(orientation: landscape)').matches) {
+    return 'panel'
+  }
+  if (window.matchMedia('(min-width: 640px)').matches && window.matchMedia('(orientation: portrait)').matches) {
+    return 'tabletPortraitSheet'
+  }
+  return 'phoneTabs'
 }
 
-export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}) {
+function useEditorLayout(): EditorLayout {
+  const [layout, setLayout] = useState<EditorLayout>(computeEditorLayout)
+
+  useEffect(() => {
+    const queries = [
+      window.matchMedia('(min-width: 1024px)'),
+      window.matchMedia('(min-width: 768px)'),
+      window.matchMedia('(min-width: 640px)'),
+      window.matchMedia('(orientation: portrait)'),
+    ]
+    const update = () => setLayout(computeEditorLayout())
+    queries.forEach((q) => q.addEventListener('change', update))
+    return () => queries.forEach((q) => q.removeEventListener('change', update))
+  }, [])
+
+  return layout
+}
+
+interface SheetEditorProps {
+  /** Controlled selection from LibraryView's tree (#20) - LibraryView is the only caller, and
+   * always supplies a real, already-saved song (creation/deletion/switching now live there
+   * too, not inside this editor - see LibraryView.tsx's own "+ Neu" and per-row menu).
+   * `variantId: null` means the song's default variant, matching SetlistEntry's convention. */
+  songId: string
+  variantId: string | null
+  /** Also doubles as the escape hatch if the open song vanishes out from under this screen
+   * (deleted here or on another device mid-sync) - see the "song no longer exists" effect
+   * below. */
+  onBack: () => void
+}
+
+export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
-  const removeSong = useSongsStore((state) => state.remove)
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const confirm = useDialogStore((state) => state.confirm)
   const installedPlugins = usePluginsStore((state) => state.installed)
-  const [draft, setDraft] = useState<EditorDraft>(emptyDraft())
-  const [isNewDraft, setIsNewDraft] = useState(true)
-  const [initialSongLoaded, setInitialSongLoaded] = useState(false)
+  // null only until the first `selectSong` resolves - there's no more "new, unsaved song"
+  // state to represent here, since creation now happens in LibraryView before this editor
+  // ever opens (it always receives a real songId for a song that already exists).
+  const [draft, setDraft] = useState<EditorDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
@@ -137,9 +155,18 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   const [tempoMapError, setTempoMapError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const layout = useEditorLayout()
+  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues'>('text')
+  // Every section starts collapsed (Marco, explicit request) - opening a song for editing
+  // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
+  // deliberately expanded, not a screenful of whichever section used to default open.
+  const [textExpanded, setTextExpanded] = useState(false)
+  const [tempoExpanded, setTempoExpanded] = useState(false)
+  const [audioExpanded, setAudioExpanded] = useState(false)
+  const [cuesExpanded, setCuesExpanded] = useState(false)
 
-  const variantsForSong = variants.filter((v) => v.songId === draft.songId)
-  const currentTracks = variants.find((v) => v.id === draft.variantId)?.tracks ?? []
+  const variantsForSong = draft ? variants.filter((v) => v.songId === draft.songId) : []
+  const currentTracks = draft ? (variants.find((v) => v.id === draft.variantId)?.tracks ?? []) : []
   // Prefer the band's own mix; a reference track (e.g. extracted YouTube audio) is still
   // useful to tap along to when no band-mix has been recorded yet.
   const tapTrack =
@@ -147,7 +174,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if ((!isTapping && !isTappingAnchors && !isTappingTempoMarker) || !tapTrack) return
+    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -162,7 +189,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, isTappingTempoMarker, draft.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -172,41 +199,31 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       ? (variants.find((v) => v.id === preferredVariantId) ?? defaultVariant)
       : defaultVariant
     setDraft(draftFrom(song, variant))
-    setIsNewDraft(false)
     setError(null)
     setSavedAt(null)
   }
 
   useEffect(() => {
-    // First paint has no songs loaded from PouchDB yet - load the first one in once they
-    // arrive, exactly once, so we don't fight a user who's already picked something else.
-    // Skipped entirely when controlled from outside (LibraryView) - the effect below owns
-    // selection in that case.
-    if (songId) return
-    if (initialSongLoaded || isNewDraft === false) return
-    if (songs.length === 0) return
-    setInitialSongLoaded(true)
-    void selectSong(songs[0].id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songs, initialSongLoaded, songId])
-
-  useEffect(() => {
-    if (!songId) return
     void selectSong(songId, variantId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId, variantId])
 
   useEffect(() => {
-    // Only re-sync onto an existing song when we're *not* mid-editing a new,
-    // unsaved draft - otherwise "+ Neuer Song" would get silently reverted.
-    if (isNewDraft) return
+    // The open song was deleted - here, or on another device mid-sync. There's nothing left
+    // to silently fall back to (LibraryView, not this editor, now owns "which song is open"),
+    // so leave rather than show a stale/blank form.
+    if (!draft) return
     if (songs.length > 0 && !songs.some((song) => song.id === draft.songId)) {
-      void selectSong(songs[0].id)
+      onBack()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songs, draft.songId, isNewDraft])
+  }, [songs, draft?.songId])
 
-  function selectVariant(variantId: string) {
+  if (!draft) {
+    return <div className="flex h-dvh items-center justify-center text-ink-faint">Lade…</div>
+  }
+
+  const selectVariant = (variantId: string) => {
     const variant = variantsForSong.find((v) => v.id === variantId)
     if (!variant) return
     setDraft({
@@ -232,7 +249,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     setSavedAt(null)
   }
 
-  function addVariant() {
+  const addVariant = () => {
     setDraft({
       ...draft,
       variantId: randomId(),
@@ -243,7 +260,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     setSavedAt(null)
   }
 
-  async function handleSave() {
+  const handleSave = async () => {
     const variant: SongVariant = {
       id: draft.variantId,
       songId: draft.songId,
@@ -294,29 +311,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
     await saveSong(songResult.data)
     await saveVariant(variantResult.data)
     setSavedAt(Date.now())
-    setIsNewDraft(false)
-  }
-
-  /** #105: also deletes every variant/track only this song owns (removeSongAndVariants) -
-   * setlists referencing it degrade gracefully (computeQueue already drops a dangling entry),
-   * nothing further to clean up here. Resets to a blank draft afterward, same state
-   * "+ Neuer Song" already leaves the editor in. */
-  async function handleDelete() {
-    if (isNewDraft) return
-    const confirmed = await confirm(`"${draft.title || '(ohne Titel)'}" wirklich löschen?`, {
-      confirmLabel: 'Löschen',
-      danger: true,
-    })
-    if (!confirmed) return
-    await removeSong(draft.songId)
-    setDraft(emptyDraft())
-    setIsNewDraft(true)
-    setError(null)
-    setSavedAt(null)
   }
 
   /** Marks the block starting at the caret as a song part by inserting a `{part: ...}` directive. */
-  function insertPart(label: string) {
+  const insertPart = (label: string) => {
     const textarea = textareaRef.current
     const content = draft.chordProContent
     const caret = textarea?.selectionStart ?? content.length
@@ -337,7 +335,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
   /** Ultimate Guitar's own bpm/key/tuning/capo only ever come in on top of whatever the
    * import found - a missing field there must not silently overwrite a value already in the
    * editor (e.g. a capo the previous variant had that this particular tab just doesn't list). */
-  function handleImport(imported: ImportedSongData) {
+  const handleImport = (imported: ImportedSongData) => {
     setDraft({
       ...draft,
       chordProContent: imported.chordProContent,
@@ -364,7 +362,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
    * own doc comment) if a band has installed+enabled it (CAPABILITIES.audioAnalysis); otherwise
    * falls back to the always-available hand-rolled detector - no plugin required at all, same as
    * manual tap-to-sync. */
-  async function handleAnalyzeTrack() {
+  const handleAnalyzeTrack = async () => {
     if (!tapTrack) return
     if (draft.beatAnchors.length > 0) {
       const confirmed = await confirm('Vorhandene Anker durch die automatische Erkennung ersetzen?', {
@@ -386,11 +384,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
         return
       }
-      setDraft((d) => ({
-        ...d,
-        bpm: result.bpm ?? d.bpm,
-        beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })),
-      }))
+      setDraft((d) =>
+        d
+          ? {
+              ...d,
+              bpm: result.bpm ?? d.bpm,
+              beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })),
+            }
+          : d,
+      )
     } catch {
       setAnalyzeError('Analyse fehlgeschlagen.')
     } finally {
@@ -403,7 +405,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
    * Always a suggestion to review, never applied silently - see analyzeTempoMapBlob's own doc
    * comment for why (it can still return an exact octave-doubled/halved tempo on
    * metrically-ambiguous material like a slow ballad with a strong 2-beat feel). */
-  async function handleAnalyzeTempoMap() {
+  const handleAnalyzeTempoMap = async () => {
     if (!tapTrack) return
     if (draft.tempoMarkers.length > 0) {
       const confirmed = await confirm('Vorhandene Tempo-Wechsel durch die automatische Erkennung ersetzen?', {
@@ -427,11 +429,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
       if (result.tempoMarkers.length === 0) {
         setTempoMapError('Kein Tempo-Wechsel erkannt - BPM übernommen.')
       }
-      setDraft((d) => ({
-        ...d,
-        bpm: result.baseBpm,
-        tempoMarkers: result.tempoMarkers.map((m) => ({ id: randomId(), timeMs: m.timeMs, bpm: m.bpm })),
-      }))
+      setDraft((d) =>
+        d
+          ? {
+              ...d,
+              bpm: result.baseBpm,
+              tempoMarkers: result.tempoMarkers.map((m) => ({ id: randomId(), timeMs: m.timeMs, bpm: m.bpm })),
+            }
+          : d,
+      )
     } catch {
       setTempoMapError('Analyse fehlgeschlagen.')
     } finally {
@@ -441,85 +447,313 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
 
   const preview = parseChordPro(draft.chordProContent)
 
-  return (
-    // Below lg (tablet portrait, phones - docs/07), the form and the chord preview stack
-    // and the whole page scrolls, rather than squeezing two columns into a narrow screen;
-    // at lg and up it's the same fixed-height two-column layout as before.
-    <div className="flex h-dvh flex-col gap-3 overflow-y-auto sb-app-bg p-3 text-ink lg:grid lg:grid-cols-2">
-      <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
-          >
-            ← Bibliothek
-          </button>
-        )}
+  // Split three ways (#180, following #177's own Text/Details split): Tempo & Takt is plain
+  // fields, set once and rarely revisited; Klick-Sync is the tool-heavy piece (tap tools,
+  // analysis, the anchor/marker list editors) - by far the bulkiest part of the old, single
+  // Details tab; Audio & Cues is external resources attached to the song. Identical content on
+  // every layout; only how each is framed (tab, bottom sheet, collapsible section) differs.
+  // One topic, not two (#180 follow-up): BPM/Takt/click/count-in are the "set it and glance at
+  // it" basics, and the click-sync tooling below the divider is the same topic gone deeper -
+  // splitting them into separate tabs grouped by field complexity rather than by subject put
+  // Klick-Sync in a different tab from the tempo settings it exists to serve. Count-in moved
+  // in from what used to be the sync-only tab, for the same reason: it's a basic click setting,
+  // not an analysis tool, so it belongs with click-enabled rather than the tap/analyze tools.
+  const tempoContent = (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Song
-          <select
+          BPM
+          <input
+            type="number"
             className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-            value={isNewDraft ? '' : draft.songId}
-            onChange={(e) => void selectSong(e.target.value)}
-          >
-            {isNewDraft && <option value="">(neuer Song)</option>}
-            {songs.map((song) => (
-              <option key={song.id} value={song.id}>
-                {song.title || '(ohne Titel)'}
-              </option>
-            ))}
-          </select>
+            value={draft.bpm}
+            onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
+          />
         </label>
-        <button
-          type="button"
-          onClick={() => {
-            setDraft(emptyDraft())
-            setIsNewDraft(true)
-            setError(null)
-            setSavedAt(null)
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Takt
+          <input
+            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+            placeholder="4/4"
+            value={draft.timeSignature}
+            onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
+          />
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-ink-soft">
+        <input
+          type="checkbox"
+          checked={draft.clickTrackEnabled}
+          onChange={(e) => setDraft({ ...draft, clickTrackEnabled: e.target.checked })}
+          className="h-5 w-5"
+        />
+        Klick standardmäßig an (per Show überstimmbar)
+      </label>
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-ink-soft">
+          <input
+            type="checkbox"
+            checked={draft.countInEnabled}
+            onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
+            className="h-5 w-5"
+          />
+          Count-in aktivieren
+        </label>
+        <label className="flex items-center gap-1 text-sm text-ink-muted">
+          Takte
+          <input
+            type="number"
+            min={1}
+            disabled={!draft.countInEnabled}
+            className="w-16 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+            value={draft.countInBars}
+            onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
+          />
+        </label>
+      </div>
+
+      {isTappingAnchors ? (
+        <TapBeatAnchors
+          trackSrc={tapTrackSrc}
+          timeSignature={draft.timeSignature}
+          onComplete={(anchors) => {
+            setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
+            setIsTappingAnchors(false)
           }}
-          className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
-        >
-          + Neuer Song
-        </button>
-        {!isNewDraft && (
-          <button
-            type="button"
-            onClick={() => void handleDelete()}
-            className="self-start rounded-sb-sm bg-control px-3 py-1 text-sm text-ink-soft hover:bg-control-hover"
-          >
-            Song löschen
-          </button>
-        )}
-        {!isNewDraft && (
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
-            Variante
-            <div className="flex items-center gap-2">
-              <select
-                className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
-                value={draft.variantId}
-                onChange={(e) => selectVariant(e.target.value)}
-              >
-                {!variantsForSong.some((v) => v.id === draft.variantId) && (
-                  <option value={draft.variantId}>{draft.variantLabel} (neu)</option>
-                )}
-                {variantsForSong.map((variant) => (
-                  <option key={variant.id} value={variant.id}>
-                    {variant.label}
-                  </option>
-                ))}
-              </select>
+          onCancel={() => setIsTappingAnchors(false)}
+        />
+      ) : isTappingTempoMarker ? (
+        <TapTempoMarker
+          trackSrc={tapTrackSrc}
+          onComplete={(timeMs) => {
+            const marker: TempoMarker = { id: randomId(), timeMs, bpm: draft.bpm }
+            setDraft({ ...draft, tempoMarkers: [...draft.tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
+            setIsTappingTempoMarker(false)
+          }}
+          onCancel={() => setIsTappingTempoMarker(false)}
+        />
+      ) : (
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={addVariant}
+                onClick={() => void handleAnalyzeTrack()}
+                disabled={!tapTrack || isAnalyzing}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTappingAnchors(true)}
+                disabled={!tapTrack}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                Anker tappen
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTappingTempoMarker(true)}
+                disabled={!tapTrack}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                Tempo-Wechsel markieren
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAnalyzeTempoMap()}
+                disabled={!tapTrack || isAnalyzingTempoMap}
+                title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
+              </button>
+            </div>
+          </div>
+          {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
+          {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
+          <BeatAnchorListEditor
+            anchors={draft.beatAnchors}
+            timeSignature={draft.timeSignature}
+            onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
+          />
+          <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
+          <TempoMarkerListEditor
+            tempoMarkers={draft.tempoMarkers}
+            onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
+          />
+          <p className="text-xs text-ink-faint">
+            Automatisch erkannte Tempo-Wechsel bitte prüfen - bei mehrdeutigem Metrum (z.B. einer Ballade) kann die
+            BPM-Oktave falsch sein.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+
+  // Audio (attached recordings) and Cues (show-control triggers) are different topics that
+  // used to share one "leftover" tab - split for the same reason.
+  const audioContent = (
+    <TrackManagerField
+      variantId={draft.variantId}
+      tracks={currentTracks}
+      // True only for a variant that exists in this draft but not yet in the store - i.e. a
+      // fresh "+ Neue Variante" click that hasn't been saved yet, not "this song is new" (that
+      // state no longer exists here at all - see the props/selectSong doc comments above).
+      disabled={!variantsForSong.some((v) => v.id === draft.variantId)}
+    />
+  )
+
+  const cuesContent = <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+
+  // `label` for the (space-constrained) phone tab strip, `fullLabel` for the desktop accordion
+  // headers, which have the room to spell it out.
+  const detailSections = [
+    {
+      key: 'tempo' as const,
+      label: 'Tempo',
+      fullLabel: 'Tempo & Klick',
+      content: tempoContent,
+      expanded: tempoExpanded,
+      onToggleExpand: () => setTempoExpanded((v) => !v),
+    },
+    {
+      key: 'audio' as const,
+      label: 'Audio',
+      fullLabel: 'Audio',
+      content: audioContent,
+      expanded: audioExpanded,
+      onToggleExpand: () => setAudioExpanded((v) => !v),
+    },
+    {
+      key: 'cues' as const,
+      label: 'Cues',
+      fullLabel: 'Cues',
+      content: cuesContent,
+      expanded: cuesExpanded,
+      onToggleExpand: () => setCuesExpanded((v) => !v),
+    },
+  ]
+
+  // The ChordPro editor itself - still the most commonly needed section by default (see
+  // `textExpanded` above), but now genuinely its own collapsible section like everything else,
+  // not the one thing permanently pinned open. Title/Band moved out to the always-visible
+  // header above (see the JSX below) - unlike the chords, they're glanced at for context
+  // regardless of which section is open, not "the thing you're actively editing".
+  const textContent = (
+    <div className="flex flex-1 flex-col gap-3">
+      {isTapping ? (
+        <TapToSync
+          content={draft.chordProContent}
+          trackSrc={tapTrackSrc}
+          onComplete={(content) => {
+            setDraft({ ...draft, chordProContent: content })
+            setIsTapping(false)
+          }}
+          onCancel={() => setIsTapping(false)}
+        />
+      ) : (
+        <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <div className="flex items-center justify-between">
+            ChordPro-Text
+            <span className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setIsImporting(true)}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
+              >
+                Song importieren
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTapping(true)}
+                disabled={!draft.chordProContent.trim()}
+                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                Tap-to-Sync starten
+              </button>
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {PART_LABELS.map((label) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => insertPart(label)}
+                className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
+              >
+                + {label}
+              </button>
+            ))}
+          </div>
+          <textarea
+            ref={textareaRef}
+            className="min-h-[240px] flex-1 rounded-sb-sm bg-control p-2 font-sb-mono text-sm text-ink"
+            value={draft.chordProContent}
+            onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
+            placeholder="[00:00.00] Come on baby [G] don't you wanna go"
+          />
+        </label>
+      )}
+      {layout !== 'panel' && (
+        <div className="rounded-sb border border-line bg-surface p-4 shadow-sb">
+          <ChordProLyrics lines={preview} />
+        </div>
+      )}
+    </div>
+  )
+
+  const showText = layout !== 'phoneTabs' || mobileTab === 'text'
+
+  return (
+    // Grid vs. stacked is driven by `layout`, not a Tailwind breakpoint directly - 'panel'
+    // covers both landscape (from md, regardless of exact width) and desktop (xl+), which
+    // isn't expressible as a single Tailwind prefix. In 'phoneTabs'/'tabletPortraitSheet',
+    // Text and Details share one column and swap via tabs instead of both being visible.
+    <div
+      className={`flex h-dvh gap-3 overflow-y-auto sb-app-bg p-3 text-ink ${
+        layout === 'panel' ? 'grid grid-cols-2' : 'flex-col'
+      }`}
+    >
+      <div className="flex flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb">
+        {/* Switching to a different song, creating a new one, and deleting this one all moved
+            to LibraryView's own tree (its "+ Neu" and each row's ⋯ menu) - going back there is
+            how you pick a different song now, not a dropdown duplicating the same list. */}
+        <button
+          type="button"
+          onClick={onBack}
+          className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
+        >
+          ← Bibliothek
+        </button>
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Variante
+          <div className="flex items-center gap-2">
+            <select
+              className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
+              value={draft.variantId}
+              onChange={(e) => selectVariant(e.target.value)}
+            >
+              {!variantsForSong.some((v) => v.id === draft.variantId) && (
+                <option value={draft.variantId}>{draft.variantLabel} (neu)</option>
+              )}
+              {variantsForSong.map((variant) => (
+                <option key={variant.id} value={variant.id}>
+                  {variant.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={addVariant}
                 className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
               >
                 + Neue Variante
               </button>
             </div>
           </label>
-        )}
         {!draft.isDefaultVariant && (
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Varianten-Name
@@ -530,6 +764,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         )}
+
+        {/* Always visible regardless of which section is open below - context for "which song
+            is this, and how do I play it" rather than something tucked behind a section that
+            has to be opened first. Key/Tuning/Capo moved here from their own now-removed
+            Arrangement section (Marco, explicit request) - same always-visible treatment as
+            Titel/Band, not a collapsible cluster of its own. */}
         <div className="flex gap-2">
           <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
@@ -548,25 +788,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
-            BPM
-            <input
-              type="number"
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-              value={draft.bpm}
-              onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
-            Takt
-            <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
-              placeholder="4/4"
-              value={draft.timeSignature}
-              onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
-            />
-          </label>
+        <div className="grid grid-cols-3 gap-2">
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
@@ -596,170 +818,104 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
             />
           </label>
         </div>
-        <label className="flex items-center gap-2 text-sm text-ink-soft">
-          <input
-            type="checkbox"
-            checked={draft.clickTrackEnabled}
-            onChange={(e) => setDraft({ ...draft, clickTrackEnabled: e.target.checked })}
-            className="h-5 w-5"
-          />
-          Klick standardmäßig an (per Show überstimmbar)
-        </label>
-        <TrackManagerField variantId={draft.variantId} tracks={currentTracks} disabled={isNewDraft} />
-        <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
-        {isTappingAnchors ? (
-          <TapBeatAnchors
-            trackSrc={tapTrackSrc}
-            timeSignature={draft.timeSignature}
-            onComplete={(anchors) => {
-              setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
-              setIsTappingAnchors(false)
-            }}
-            onCancel={() => setIsTappingAnchors(false)}
-          />
-        ) : isTappingTempoMarker ? (
-          <TapTempoMarker
-            trackSrc={tapTrackSrc}
-            onComplete={(timeMs) => {
-              const marker: TempoMarker = { id: randomId(), timeMs, bpm: draft.bpm }
-              setDraft({ ...draft, tempoMarkers: [...draft.tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
-              setIsTappingTempoMarker(false)
-            }}
-            onCancel={() => setIsTappingTempoMarker(false)}
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleAnalyzeTrack()}
-                  disabled={!tapTrack || isAnalyzing}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-                >
-                  {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsTappingAnchors(true)}
-                  disabled={!tapTrack}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-                >
-                  Anker tappen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsTappingTempoMarker(true)}
-                  disabled={!tapTrack}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-                >
-                  Tempo-Wechsel markieren
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleAnalyzeTempoMap()}
-                  disabled={!tapTrack || isAnalyzingTempoMap}
-                  title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-                >
-                  {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
-                </button>
-              </div>
-            </div>
-            {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
-            {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
-            <BeatAnchorListEditor
-              anchors={draft.beatAnchors}
-              timeSignature={draft.timeSignature}
-              onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
-            />
-            <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
-            <TempoMarkerListEditor
-              tempoMarkers={draft.tempoMarkers}
-              onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
-            />
-            <p className="text-xs text-ink-faint">
-              Automatisch erkannte Tempo-Wechsel bitte prüfen - bei mehrdeutigem Metrum (z.B. einer Ballade) kann die
-              BPM-Oktave falsch sein.
-            </p>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={draft.countInEnabled}
-                  onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
-                  className="h-5 w-5"
-                />
-                Count-in aktivieren
-              </label>
-              <label className="flex items-center gap-1 text-sm text-ink-muted">
-                Takte
-                <input
-                  type="number"
-                  min={1}
-                  disabled={!draft.countInEnabled}
-                  className="w-16 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
-                  value={draft.countInBars}
-                  onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
-                />
-              </label>
-            </div>
+
+        {/* Below lg only - landscape/desktop show every section at once (as collapsible
+            accordions below) and need no switcher. Four tabs (#180's follow-up separated
+            Audio/Cues; Key/Tuning/Capo's own Arrangement tab was later folded into the
+            always-visible header above instead), so the strip scrolls horizontally rather than
+            stretching each tab thinner - same pattern SystemView.tsx already uses for its own
+            seven tabs, not a new idiom. */}
+        {layout !== 'panel' && (
+          <div className="flex gap-2 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setMobileTab('text')}
+              className={`h-10 flex-shrink-0 rounded-sb-pill px-4 text-sm font-medium ${
+                mobileTab === 'text' ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
+              }`}
+            >
+              Text
+            </button>
+            {detailSections.map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setMobileTab(section.key)}
+                className={`h-10 flex-shrink-0 rounded-sb-pill px-4 text-sm font-medium ${
+                  mobileTab === section.key
+                    ? 'bg-accent text-accent-ink'
+                    : 'bg-control text-ink-soft hover:bg-control-hover'
+                }`}
+              >
+                {section.label}
+              </button>
+            ))}
           </div>
         )}
-        {isTapping ? (
-          <TapToSync
-            content={draft.chordProContent}
-            trackSrc={tapTrackSrc}
-            onComplete={(content) => {
-              setDraft({ ...draft, chordProContent: content })
-              setIsTapping(false)
-            }}
-            onCancel={() => setIsTapping(false)}
-          />
+
+        {layout === 'panel' ? (
+          // Its own collapsible accordion here too (Marco, explicit request) - no longer the
+          // one section that could never be hidden. Expanded by default (`textExpanded`'s own
+          // initial value above), unlike the others below it.
+          <div className="flex flex-col gap-3 border-t border-line pt-3">
+            <button
+              type="button"
+              onClick={() => setTextExpanded((v) => !v)}
+              className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
+            >
+              <span>{textExpanded ? '▾' : '▸'}</span> Text
+            </button>
+            {textExpanded && textContent}
+          </div>
         ) : (
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-            <div className="flex items-center justify-between">
-              ChordPro-Text
-              <span className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setIsImporting(true)}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
-                >
-                  Song importieren
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsTapping(true)}
-                  disabled={!draft.chordProContent.trim()}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-                >
-                  Tap-to-Sync starten
-                </button>
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {PART_LABELS.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => insertPart(label)}
-                  className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
-                >
-                  + {label}
-                </button>
-              ))}
-            </div>
-            <textarea
-              ref={textareaRef}
-              className="min-h-[240px] flex-1 rounded-sb-sm bg-control p-2 font-sb-mono text-sm text-ink"
-              value={draft.chordProContent}
-              onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
-              placeholder="[00:00.00] Come on baby [G] don't you wanna go"
-            />
-          </label>
+          showText && textContent
         )}
+
+        {layout === 'panel'
+          ? // Landscape/desktop: every section at once, each an independently-collapsible
+            // accordion (#180 - three of these where #177 had one).
+            detailSections.map((section) => (
+              <div key={section.key} className="flex flex-col gap-3 border-t border-line pt-3">
+                <button
+                  type="button"
+                  onClick={section.onToggleExpand}
+                  className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
+                >
+                  <span>{section.expanded ? '▾' : '▸'}</span> {section.fullLabel}
+                </button>
+                {section.expanded && section.content}
+              </div>
+            ))
+          : mobileTab !== 'text' &&
+            (() => {
+              const active = detailSections.find((section) => section.key === mobileTab)
+              if (!active) return null
+              if (layout === 'tabletPortraitSheet') {
+                // Overlaid on top of Text rather than replacing it - tablet portrait has the
+                // vertical room to spare (#177). `fixed`, not `absolute` - the column behind
+                // it scrolls (`overflow-y-auto`), and an absolutely positioned sheet would
+                // scroll away with it instead of staying pinned to the viewport like a real
+                // bottom sheet.
+                return (
+                  <div className="fixed inset-x-0 bottom-0 z-20 flex max-h-[55dvh] flex-col gap-3 overflow-y-auto rounded-t-sb border-t border-line bg-surface p-4 shadow-sb">
+                    <div className="flex items-center justify-between">
+                      <span className="h-1 w-10 self-center rounded-sb-pill bg-control-strong" />
+                      <button
+                        type="button"
+                        onClick={() => setMobileTab('text')}
+                        className="rounded-sb-sm bg-control px-3 py-1 text-sm text-ink-soft hover:bg-control-hover"
+                      >
+                        Fertig
+                      </button>
+                    </div>
+                    {active.content}
+                  </div>
+                )
+              }
+              // phoneTabs: full pane, same as Text - only one of the four is ever mounted.
+              return active.content
+            })()}
+
         {error && <p className="text-sm text-red-500">{error}</p>}
         <button
           type="button"
@@ -770,9 +926,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps = {}
         </button>
         {savedAt && <p className="text-xs text-ink-faint">Gespeichert.</p>}
       </div>
-      <div className="overflow-y-auto rounded-sb border border-line bg-surface p-6 shadow-sb">
-        <ChordProLyrics lines={preview} />
-      </div>
+      {/* Its own grid column only in 'panel' layout - otherwise the preview already renders
+          inline at the end of `textContent`, right below the textarea. */}
+      {layout === 'panel' && (
+        <div className="overflow-y-auto rounded-sb border border-line bg-surface p-6 shadow-sb">
+          <ChordProLyrics lines={preview} />
+        </div>
+      )}
       {isImporting && <TabImportOverlay onImport={handleImport} onClose={() => setIsImporting(false)} />}
     </div>
   )

@@ -14,6 +14,7 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { OverflowMenu } from './OverflowMenu'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -231,26 +232,23 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
         <span className="flex flex-shrink-0 gap-1">
           <button
             type="button"
-            onClick={() => void handleDuplicate()}
-            className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
-          >
-            Duplizieren
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDelete()}
-            className="h-10 rounded-sb-sm bg-control-strong px-3 text-sm text-red-400 hover:bg-control-strong-hover"
-          >
-            Löschen
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveSetlist(setlist.id)}
             disabled={!isMaster}
             className="h-10 rounded-sb-sm bg-accent-2 px-3 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
           >
             Aktivieren
           </button>
+          {/* Duplizieren/Löschen behind one menu, same pattern as a song row's own ⋯ in
+              LibraryView.tsx - harmonizing how a song vs. a setlist gets deleted (Marco,
+              explicit request). Aktivieren stays its own always-visible button: it's the one
+              action reached for constantly during a show, unlike the other two. */}
+          <OverflowMenu
+            title={setlist.name}
+            actions={[
+              { label: 'Duplizieren', onClick: () => void handleDuplicate() },
+              { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
+            ]}
+          />
         </span>
       </div>
       {activeSetlist?.id === setlist.id && (

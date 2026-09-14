@@ -70,25 +70,32 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-muted">Cues</p>
-      {cues.length === 0 && <p className="text-xs text-ink-faint">Noch keine Cues für diese Variante.</p>}
-      {cues.map((cue) => (
-        <div
-          key={cue.id}
-          className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
-        >
-          <span className="font-sb-mono text-ink">{formatTime(cue.timeMs)}</span>
-          <span className="flex-1">
-            {nameFor(cue.targetLogicalDeviceId)} <span className="text-xs text-ink-faint">· {cue.type}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => remove(cue.id)}
-            className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
-          >
-            Entfernen
-          </button>
+      {cues.length === 0 ? (
+        <p className="text-xs text-ink-faint">Noch keine Cues für diese Variante.</p>
+      ) : (
+        // Capped height, not open-ended - same reasoning as BeatAnchorListEditor.tsx: a
+        // cue-heavy show shouldn't push "Cue hinzufügen" further down with every addition.
+        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+          {cues.map((cue) => (
+            <div
+              key={cue.id}
+              className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+            >
+              <span className="font-sb-mono text-ink">{formatTime(cue.timeMs)}</span>
+              <span className="flex-1">
+                {nameFor(cue.targetLogicalDeviceId)} <span className="text-xs text-ink-faint">· {cue.type}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(cue.id)}
+                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
+              >
+                Entfernen
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       <div className="flex flex-col gap-2 rounded-sb-sm border border-dashed border-line p-3">
         <div className="flex flex-wrap items-center gap-2">
