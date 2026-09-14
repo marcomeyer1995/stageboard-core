@@ -12,6 +12,7 @@ import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useMemo, useState } from 'react'
 import type { Setlist, Song } from 'shared-types'
+import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
 import { useInputCapability } from '../lib/useInputCapability'
@@ -39,7 +40,9 @@ const FILTER_LABEL: Record<FilterMode, string> = {
 }
 
 /** How far right a song has to travel, with nowhere to drop, before it counts as a swipe
- * rather than an aborted drag - well past the sensor's own activation distance. */
+ * rather than an aborted drag - well past the sensor's own activation distance, and
+ * comfortably under `clampSwipe`'s own ceiling (half a row's width, always far more than
+ * 90px on any real row) since `event.delta` in onDragEnd is itself post-modifier. */
 const SWIPE_THRESHOLD_PX = 90
 const SETLIST_DROPZONE_ID = 'library-setlist-dropzone'
 
@@ -350,7 +353,7 @@ export function LibraryView() {
     <DndContext
       sensors={sensors}
       collisionDetection={pointerWithin}
-      modifiers={[restrictToHorizontalAxis]}
+      modifiers={[restrictToHorizontalAxis, clampSwipe]}
       onDragEnd={handleDragEnd}
     >
       {/* Below lg (tablet portrait and phones - docs/07's "phone"/"tablet portrait" classes),
