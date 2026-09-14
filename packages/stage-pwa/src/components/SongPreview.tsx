@@ -49,6 +49,11 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   }
 
   const lines = parseChordPro(variant.chordProContent)
+  const contentBadges = [
+    { label: 'Cues', count: variant.cues.length },
+    { label: 'Audio', count: variant.tracks.length },
+    { label: 'Klick-Anker', count: variant.beatAnchors.length },
+  ]
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto">
@@ -64,6 +69,23 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         >
           Bearbeiten
         </button>
+      </div>
+
+      {/* At-a-glance overview of what this song actually has attached, present or not (Marco,
+          explicit request) - shown even at zero, muted, rather than only appearing once
+          something exists, since "nothing here yet" is itself part of the overview. */}
+      <div className="flex flex-wrap gap-2 text-sm">
+        {contentBadges.map(({ label, count }) => (
+          <span
+            key={label}
+            className={`rounded-sb-sm px-2 py-1 ${
+              count > 0 ? 'bg-accent-2/20 text-accent-ink' : 'bg-control text-ink-faint'
+            }`}
+          >
+            {label}
+            {count > 0 ? ` (${count})` : ''}
+          </span>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
