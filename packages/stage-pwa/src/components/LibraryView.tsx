@@ -19,6 +19,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { OverflowMenu } from './OverflowMenu'
 import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 
@@ -57,6 +58,9 @@ interface DraggableSongRowProps {
    * pins can be set up in advance of switching to Selective. */
   pinned: boolean
   onTogglePin: () => void
+  /** Confirmation lives in the caller (matches every other delete flow in the app) - this is
+   * called only once the user has already said yes. */
+  onDelete: () => void
 }
 
 function DraggableSongRow({
@@ -65,6 +69,7 @@ function DraggableSongRow({
   onAddToActiveSetlist,
   pinned,
   onTogglePin,
+  onDelete,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
@@ -119,6 +124,7 @@ function DraggableSongRow({
         >
           📌
         </button>
+        <OverflowMenu title={song.title || '(ohne Titel)'} actions={[{ label: 'Löschen', danger: true, onClick: onDelete }]} />
       </div>
     </li>
   )
@@ -136,6 +142,8 @@ function DraggableSongRow({
  */
 export function LibraryView() {
   const songs = useSongsStore((state) => state.songs)
+  const saveSong = useSongsStore((state) => state.saveSong)
+  const removeSong = useSongsStore((state) => state.remove)
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
@@ -143,6 +151,7 @@ export function LibraryView() {
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const togglePin = useAudioPinsStore((state) => state.togglePin)
   const promptText = useDialogStore((state) => state.promptText)
+  const confirm = useDialogStore((state) => state.confirm)
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
@@ -179,6 +188,37 @@ export function LibraryView() {
     }
     saveSetlist(setlist)
     setSelection({ type: 'setlist', id: setlist.id })
+  }
+
+  /** Song creation/deletion moved here from SheetEditor (Marco, explicit request) - the editor
+   * is now purely for editing a song that already exists, same as SetlistDetail is purely for
+   * editing a setlist that already exists. A brand-new song starts with a title and nothing
+   * else; its default variant is created lazily the moment SheetEditor opens it
+   * (`ensureDefaultVariant`, same lazy-migration path a pre-variant legacy song already uses). */
+  async function createSong() {
+    const title = await promptText('Neuer Song', { label: 'Titel des neuen Songs' })
+    if (!title?.trim()) return
+    const song: Song = {
+      id: randomId(),
+      title: title.trim(),
+      bpm: 120,
+      timeSignature: '4/4',
+      clickTrackEnabled: false,
+      chordProContent: '',
+      timecodes: [],
+    }
+    await saveSong(song)
+    setSelection({ type: 'song', songId: song.id, variantId: null })
+  }
+
+  async function handleDeleteSong(song: Song) {
+    const confirmed = await confirm(`"${song.title || '(ohne Titel)'}" wirklich löschen?`, {
+      confirmLabel: 'Löschen',
+      danger: true,
+    })
+    if (!confirmed) return
+    await removeSong(song.id)
+    if (selection?.type === 'song' && selection.songId === song.id) setSelection(null)
   }
 
   function addSongToSetlist(setlistId: string, songId: string) {
@@ -339,7 +379,16 @@ export function LibraryView() {
 
           {filterMode !== 'setlists' && (
             <div className="flex flex-col gap-2">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Songs</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Songs</h2>
+                <button
+                  type="button"
+                  onClick={() => void createSong()}
+                  className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs hover:bg-control-strong-hover"
+                >
+                  + Neu
+                </button>
+              </div>
               <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song) => (
                   <DraggableSongRow
@@ -349,6 +398,7 @@ export function LibraryView() {
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     pinned={pinnedSongIds.includes(song.id)}
                     onTogglePin={() => togglePin(workspaceId, song.id)}
+                    onDelete={() => void handleDeleteSong(song)}
                   />
                 ))}
               </ul>
