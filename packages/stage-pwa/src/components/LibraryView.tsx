@@ -220,8 +220,16 @@ export function LibraryView() {
   }, [songs, term])
 
   /** Shared by the song row's own click and SetlistDetail's onSelectSong - both land on the
-   * preview, never straight on the editor. */
+   * preview, never straight on the editor. Clicking the already-selected song again closes
+   * the preview instead of re-opening it (Marco, explicit request, same toggle as a setlist
+   * below) - only reachable from the Bibliothek's own row today, since selecting a song from
+   * inside a setlist replaces that setlist's own view entirely, so there's no "already
+   * selected" row left showing to re-click there. */
   function selectSong(songId: string, variantId: string | null) {
+    if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
+      setSelection(null)
+      return
+    }
     setSelection({ type: 'song', songId, variantId })
     setSongMode('preview')
   }
@@ -400,7 +408,13 @@ export function LibraryView() {
                   <li key={setlist.id}>
                     <button
                       type="button"
-                      onClick={() => setSelection({ type: 'setlist', id: setlist.id })}
+                      onClick={() =>
+                        setSelection(
+                          selection?.type === 'setlist' && selection.id === setlist.id
+                            ? null
+                            : { type: 'setlist', id: setlist.id },
+                        )
+                      }
                       className={`h-14 w-full rounded-sb-sm px-4 text-left text-base ${
                         selection?.type === 'setlist' && selection.id === setlist.id
                           ? 'bg-accent text-accent-ink'
