@@ -51,3 +51,31 @@ export function useInputCapability(): InputCapability {
 
   return capability
 }
+
+function computeHasCoarsePointer(): boolean {
+  return window.matchMedia('(any-pointer: coarse)').matches
+}
+
+/**
+ * True when a coarse (touch) pointer is present *alongside* whatever useInputCapability()
+ * reports - a hybrid 2-in-1 laptop's touchscreen sitting next to its trackpad, for instance
+ * (see the "UI Tech Rider" concept's own edge cases). Independent of the touch/pointer lane
+ * itself: a device can be in the 'pointer' lane (trackpad drives `(pointer: fine)`/
+ * `(hover: hover)`) and still have this be true - which is exactly the case that matters, so
+ * primary interactive targets stay full touch-target size once promoted to the pointer lane,
+ * since a real finger might still tap them directly. Folding a 2-in-1 into tablet posture typically
+ * disables the trackpad in hardware, flipping `useInputCapability()` back to 'touch' on its
+ * own - this hook only covers the case where both are active at once.
+ */
+export function useHasCoarsePointer(): boolean {
+  const [hasCoarsePointer, setHasCoarsePointer] = useState(computeHasCoarsePointer)
+
+  useEffect(() => {
+    const query = window.matchMedia('(any-pointer: coarse)')
+    const update = () => setHasCoarsePointer(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return hasCoarsePointer
+}

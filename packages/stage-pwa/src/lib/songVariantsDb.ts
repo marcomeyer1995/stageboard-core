@@ -2,7 +2,7 @@ import { type Song, type SongVariant, type TrackMeta } from 'shared-types'
 import { cacheKey } from './audioCache'
 import { deleteTrackFile, fetchTrack, uploadTrack } from './audioClient'
 import { getAudioStorageBackend } from './audioStorageBackend'
-import { getBackingTrack, removeBackingTrack, removeSong } from './db'
+import { getBackingTrack, putSong, removeBackingTrack, removeSong } from './db'
 import { randomId } from './id'
 import { createWorkspaceCollection, type Doc } from './workspaceCollection'
 
@@ -122,6 +122,26 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   const current = await db.get(variants.docId(variantId))
   const tracks = current.tracks.filter((t) => t.id !== trackId)
   await putVariant({ ...current, tracks })
+}
+
+/**
+ * Copies a song's own doc and every one of its variants (#178's desktop context menu) - the
+ * chart, tempo, cues, beat anchors and tempo markers all come along, since those are what make
+ * a duplicate a genuinely useful starting point (e.g. an "Akustik" arrangement branched off the
+ * original). Tracks deliberately don't: audio lives on the Stage-Server's own disk (#30), and
+ * copying it would mean re-uploading every byte through this tablet rather than a cheap
+ * metadata copy - the duplicate starts with no audio, same as any other freshly created song.
+ */
+export async function duplicateSongAndVariants(song: Song, newTitle: string): Promise<Song> {
+  const copy: Song = { ...song, id: randomId(), title: newTitle }
+  await putSong(copy)
+
+  const sourceVariants = (await getAllVariants()).filter((variant) => variant.songId === song.id)
+  for (const variant of sourceVariants) {
+    await putVariant({ ...variant, id: randomId(), songId: copy.id, tracks: [] })
+  }
+
+  return copy
 }
 
 /**

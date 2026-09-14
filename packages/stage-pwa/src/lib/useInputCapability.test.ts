@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useInputCapability } from './useInputCapability'
+import { useHasCoarsePointer, useInputCapability } from './useInputCapability'
 
 /** Each entry is a live, mutable MediaQueryList stand-in - tests flip `.matches` and fire the
  * registered 'change' listener themselves, since real matchMedia listeners never fire under
@@ -86,5 +86,50 @@ describe('useInputCapability', () => {
 
     act(() => fireMouseMove(0, 0))
     expect(result.current).toBe('touch')
+  })
+})
+
+/** Independent of the `(pointer: fine)`/`(hover: hover)` queries above - a live, mutable
+ * `(any-pointer: coarse)` stand-in. */
+function stubCoarsePointer(initial: boolean) {
+  const state = { matches: initial }
+  const listeners: Array<() => void> = []
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      get matches() {
+        return state.matches
+      },
+      addEventListener: (_: string, cb: () => void) => listeners.push(cb),
+      removeEventListener: (_: string, cb: () => void) => {
+        const i = listeners.indexOf(cb)
+        if (i !== -1) listeners.splice(i, 1)
+      },
+    })),
+  )
+  return {
+    set(next: boolean) {
+      state.matches = next
+      listeners.forEach((cb) => cb())
+    },
+  }
+}
+
+describe('useHasCoarsePointer', () => {
+  it('reflects (any-pointer: coarse) on mount', () => {
+    stubCoarsePointer(true)
+    expect(renderHook(() => useHasCoarsePointer()).result.current).toBe(true)
+
+    stubCoarsePointer(false)
+    expect(renderHook(() => useHasCoarsePointer()).result.current).toBe(false)
+  })
+
+  it('updates live (e.g. a 2-in-1 folding into/out of tablet posture)', () => {
+    const media = stubCoarsePointer(false)
+    const { result } = renderHook(() => useHasCoarsePointer())
+    expect(result.current).toBe(false)
+
+    act(() => media.set(true))
+    expect(result.current).toBe(true)
   })
 })

@@ -8,7 +8,7 @@ import {
   switchSongsWorkspace,
   type SongDoc,
 } from '../lib/db'
-import { removeSongAndVariants } from '../lib/songVariantsDb'
+import { duplicateSongAndVariants, removeSongAndVariants } from '../lib/songVariantsDb'
 
 function toSong(doc: SongDoc): Song {
   return {
@@ -35,6 +35,9 @@ interface SongsState {
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   saveSong: (song: Song) => Promise<void>
+  /** Also copies the song's own variants (#178's desktop context menu) - see
+   * songVariantsDb.ts's duplicateSongAndVariants for exactly what comes along. */
+  duplicateSong: (id: string, newTitle: string) => Promise<Song | null>
   /** Also deletes the song's own variants and their tracks (#105) - see
    * songVariantsDb.ts's removeSongAndVariants for the full cascade. */
   remove: (id: string) => Promise<void>
@@ -48,7 +51,7 @@ async function refreshSongs(set: (partial: Partial<SongsState>) => void) {
 }
 
 /** The song catalog for the active workspace. Playback order/position lives in useShowStateStore. */
-export const useSongsStore = create<SongsState>((set) => ({
+export const useSongsStore = create<SongsState>((set, get) => ({
   songs: [],
   loaded: false,
   init: async (workspaceId) => {
@@ -66,6 +69,11 @@ export const useSongsStore = create<SongsState>((set) => ({
   },
   saveSong: async (song) => {
     await putSong(song)
+  },
+  duplicateSong: async (id, newTitle) => {
+    const source = get().songs.find((song) => song.id === id)
+    if (!source) return null
+    return duplicateSongAndVariants(source, newTitle)
   },
   remove: async (id) => {
     await removeSongAndVariants(id)
