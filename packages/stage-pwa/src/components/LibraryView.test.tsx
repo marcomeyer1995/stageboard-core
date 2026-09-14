@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Song, Setlist } from 'shared-types'
+import { DEFAULT_SHOW_STATE, type Song, type Setlist } from 'shared-types'
 
 // Every *Store.ts pulls in a real PouchDB at import time (createWorkspaceCollection et al.),
 // unavailable under happy-dom - same stand-in as Dashboard.test.tsx/songVariantsDb.test.ts.
@@ -41,6 +41,7 @@ const { useSongsStore } = await import('../store/useSongsStore')
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { useAudioPinsStore } = await import('../store/useAudioPinsStore')
+const { useShowStateStore } = await import('../store/useShowStateStore')
 const { LibraryView } = await import('./LibraryView')
 
 function song(id: string, title: string): Song {
@@ -314,5 +315,139 @@ describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not 
 
     fireEvent.click(screen.getByText('Alpha'))
     expect(screen.getByRole('button', { name: '← Bibliothek' })).not.toHaveClass('hidden')
+  })
+})
+
+describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  beforeEach(() => {
+    // A truthy activeSetlist (useQueue -> computeQueue) for "Zur aktiven Setlist hinzufügen"
+    // to have somewhere real to add to.
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'old' } })
+    // Zustand state isn't reset between tests in this file - an earlier describe block pins
+    // 'a' (Alpha) and leaves it that way, which would otherwise flip the menu's pin-toggle
+    // label out from under this block's own "Offline anheften" assertions.
+    useAudioPinsStore.setState({ byWorkspace: {} })
+    // This block's own "suppressed while a dialog is open" test sets a request and never
+    // clears it - without this, every test declared after it would inherit dialogOpen: true.
+    useDialogStore.setState({ request: null })
+  })
+
+  it('right-click on a song row (pointer lane) opens a context menu with all four actions', () => {
+    render(<LibraryView />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+
+    expect(screen.getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Duplizieren' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Offline anheften' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Löschen' })).toBeInTheDocument()
+  })
+
+  it('right-click does nothing in the touch lane - no menu, native behavior untouched', () => {
+    stubTouchLane()
+    render(<LibraryView />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+
+    expect(screen.queryByRole('button', { name: 'Zur aktiven Setlist hinzufügen' })).not.toBeInTheDocument()
+  })
+
+  it('"Zur aktiven Setlist hinzufügen" from the context menu adds the song to the active setlist', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    render(<LibraryView />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+    fireEvent.click(screen.getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' }))
+
+    await waitFor(() =>
+      expect(saveSetlist).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'old', entries: [expect.objectContaining({ songId: 'a' })] }),
+      ),
+    )
+  })
+
+  it('"Duplizieren" from the context menu prompts for a title and duplicates the song', async () => {
+    const duplicateSong = vi.fn(async () => null)
+    useDialogStore.setState({ promptText: async () => 'Alpha (Kopie)' })
+    useSongsStore.setState({ duplicateSong })
+    render(<LibraryView />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplizieren' }))
+
+    await waitFor(() => expect(duplicateSong).toHaveBeenCalledWith('a', 'Alpha (Kopie)'))
+  })
+
+  it('ArrowDown moves keyboard focus through setlists-then-songs, Enter opens the focused song', () => {
+    render(<LibraryView />)
+
+    // Order: Newer Gig, Older Gig, then songs alphabetically (Alpha, Bravo, Charlie) - three
+    // ArrowDowns lands on Alpha.
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(screen.getByText('Song-Preview-a')).toBeInTheDocument()
+  })
+
+  it('ArrowUp moves focus back up the list', () => {
+    render(<LibraryView />)
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' }) // Newer Gig
+    fireEvent.keyDown(window, { key: 'ArrowDown' }) // Older Gig
+    fireEvent.keyDown(window, { key: 'ArrowUp' }) // back to Newer Gig
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(screen.getByRole('button', { name: /Newer Gig/ })).toHaveClass('bg-accent')
+  })
+
+  it('keyboard navigation does nothing in the touch lane', () => {
+    stubTouchLane()
+    render(<LibraryView />)
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(screen.queryByText('Song-Preview-a')).not.toBeInTheDocument()
+  })
+
+  it('keyboard navigation is suppressed while a dialog is open', () => {
+    useDialogStore.setState({
+      request: { kind: 'confirm', title: 'x', confirmLabel: 'OK', danger: false, resolve: () => {} },
+    })
+    render(<LibraryView />)
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(screen.queryByText('Song-Preview-a')).not.toBeInTheDocument()
+  })
+
+  it('Ctrl+F focuses the search box', () => {
+    render(<LibraryView />)
+
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+
+    expect(screen.getByPlaceholderText('Songs & Setlists durchsuchen…')).toHaveFocus()
+  })
+
+  it('shows the keyboard-shortcut hint footer only in the pointer lane', () => {
+    const { unmount } = render(<LibraryView />)
+    expect(screen.getByText('Suche')).toBeInTheDocument()
+    unmount()
+
+    stubTouchLane()
+    render(<LibraryView />)
+    expect(screen.queryByText('Suche')).not.toBeInTheDocument()
   })
 })
