@@ -4,8 +4,13 @@ import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
 import { ClickTrackWidget } from './ClickTrackWidget'
+import { ClockWidget } from './ClockWidget'
+import { CustomTriggerConfigPanel, CustomTriggerWidget } from './CustomTriggerWidget'
+import { CustomTriggerConfigSchema } from './customTriggerConfig'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
+import { DeviceStatusConfigPanel, DeviceStatusWidget } from './DeviceStatusWidget'
+import { DeviceStatusConfigSchema } from './deviceStatusConfig'
 import { IemWidget } from './IemWidget'
 import { LightingCuesWidget } from './LightingCuesWidget'
 import { LiveQueueWidget } from './LiveQueueWidget'
@@ -13,6 +18,8 @@ import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
 import { QuickActionsWidget } from './QuickActionsWidget'
+import { SeparatorConfigPanel, SeparatorWidget } from './SeparatorWidget'
+import { SeparatorConfigSchema } from './separatorConfig'
 import { ShowNoteWidget } from './ShowNoteWidget'
 import { ShowTransportWidget } from './ShowTransportWidget'
 import { SyncCheckWidget } from './SyncCheckWidget'
@@ -278,6 +285,44 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'system-crew',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
     Component: BackupStatusWidget,
+  }),
+  defineWidget({
+    type: 'clock',
+    title: 'Uhr',
+    description: 'Große, gut lesbare Digitaluhr für die Bühne.',
+    category: 'utility',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    Component: ClockWidget,
+  }),
+  defineWidget({
+    type: 'separator',
+    title: 'Trenner',
+    description: 'Eine einfache Linie, um Dashboard-Bereiche optisch abzugrenzen.',
+    category: 'utility',
+    defaultLayout: { w: 12, h: 1, minW: 1, minH: 1 },
+    configSchema: SeparatorConfigSchema,
+    Component: SeparatorWidget,
+    ConfigPanel: SeparatorConfigPanel,
+  }),
+  defineWidget({
+    type: 'device-status',
+    title: 'Geräte-Status',
+    description: 'Live-Verbindungsstatus eines einzelnen, konkret ausgewählten Geräts.',
+    category: 'utility',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    configSchema: DeviceStatusConfigSchema,
+    Component: DeviceStatusWidget,
+    ConfigPanel: DeviceStatusConfigPanel,
+  }),
+  defineWidget({
+    type: 'custom-trigger',
+    title: 'Trigger-Button',
+    description: 'Frei konfigurierbarer Button (latching oder momentary) für ein Zielgerät.',
+    category: 'show-control',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    configSchema: CustomTriggerConfigSchema,
+    Component: CustomTriggerWidget,
+    ConfigPanel: CustomTriggerConfigPanel,
   }),
 ]
 

@@ -41,7 +41,12 @@ export function resolveCapabilities(
   return statuses
 }
 
-function pluginStatus(
+/**
+ * Same online/stale judgment `resolveCapabilities` uses per-plugin, exported for callers that
+ * already know exactly which plugin instance they mean (DeviceStatusWidget: one specific
+ * Logical Device's bound plugin, not "any plugin providing this capability").
+ */
+export function pluginStatus(
   plugin: PluginInstallation,
   capability: CapabilityId,
   health: PluginHealth,

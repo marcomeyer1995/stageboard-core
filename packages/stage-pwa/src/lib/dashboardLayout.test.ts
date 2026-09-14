@@ -469,8 +469,8 @@ describe('withWidgetAppended (bounds)', () => {
     const dashboard: Dashboard = {
       ...emptyDashboard(),
       widgets: [
-        { i: 'a', type: 'clock' },
-        { i: 'b', type: 'clock' },
+        { i: 'a', type: 'clock', frameless: false },
+        { i: 'b', type: 'clock', frameless: false },
       ],
       layouts: {
         lg: [

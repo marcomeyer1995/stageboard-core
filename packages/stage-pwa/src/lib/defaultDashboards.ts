@@ -28,6 +28,7 @@ function build(id: string, name: string, order: number, placed: Placed[]): Dashb
   const widgets: WidgetInstance[] = placed.map((item, index) => ({
     i: `${item.type}-${index}`,
     type: item.type,
+    frameless: false,
     ...(item.config ? { config: item.config } : {}),
   }))
 
