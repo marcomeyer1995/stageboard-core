@@ -21,10 +21,21 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-// LibraryView's own song-creation/deletion behavior is what these tests exercise (#181's
-// harmonized-with-setlists follow-up) - SheetEditor's own async load pipeline is covered by
-// SheetEditor.test.tsx, so it's stubbed out here rather than pulled in for real.
+// LibraryView's own song-creation/deletion/selection wiring is what these tests exercise
+// (#181's harmonized-with-setlists follow-up); SheetEditor's own async load pipeline is
+// covered by SheetEditor.test.tsx and SongPreview's own by SongPreview.test.tsx, so both are
+// stubbed out here rather than pulled in for real.
 vi.mock('./SheetEditor', () => ({ SheetEditor: () => <div>Song-Editor</div> }))
+vi.mock('./SongPreview', () => ({
+  SongPreview: ({ songId, onEdit }: { songId: string; onEdit: () => void }) => (
+    <div>
+      Song-Preview-{songId}
+      <button type="button" onClick={onEdit}>
+        Bearbeiten
+      </button>
+    </div>
+  ),
+}))
 
 const { useSongsStore } = await import('../store/useSongsStore')
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
@@ -109,6 +120,22 @@ describe('LibraryView', () => {
 
     await screen.findByText('Song-Editor')
     expect(saveSong).toHaveBeenCalledWith(expect.objectContaining({ title: 'Wonderwall' }))
+  })
+
+  it('clicking an existing song shows its preview first, not the editor directly - unlike "+ Neu"', () => {
+    render(<LibraryView />)
+    fireEvent.click(screen.getByText('Alpha'))
+
+    expect(screen.getByText('Song-Preview-a')).toBeInTheDocument()
+    expect(screen.queryByText('Song-Editor')).not.toBeInTheDocument()
+  })
+
+  it('the preview\'s "Bearbeiten" button is what actually opens the editor', () => {
+    render(<LibraryView />)
+    fireEvent.click(screen.getByText('Alpha'))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+
+    expect(screen.getByText('Song-Editor')).toBeInTheDocument()
   })
 
   it('a song row\'s ⋯ menu deletes it after confirming - same pattern as a setlist', async () => {
