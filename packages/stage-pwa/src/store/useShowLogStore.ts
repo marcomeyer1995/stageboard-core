@@ -13,8 +13,18 @@ import {
 // codebase) matters more here: ShowLogEvent is a discriminated union, so a hand-written
 // mapper would need per-variant field lists and silently drop a field the next time a
 // variant gains one. Zod strips PouchDB's _id/_rev for us in the same call.
-function toShowLogEvent(doc: ShowLogEventDoc): ShowLogEvent {
-  return ShowLogEventSchema.parse(doc)
+//
+// safeParse, not parse: a single malformed historical document (e.g. a pre-fix activeMs
+// that isn't an integer - see showLogTracking.ts's finalizeSongPlay) must not crash the
+// whole app on load. ShowLog is an append-only replicated event log shared across every
+// device in the workspace, so "just fix the one bad document" isn't a real option the way
+// it might be for local-only state - graceful degradation (CLAUDE.md) means dropping that
+// one event from the timeline, not taking the entire session down with it.
+function toShowLogEvent(doc: ShowLogEventDoc): ShowLogEvent | null {
+  const parsed = ShowLogEventSchema.safeParse(doc)
+  if (parsed.success) return parsed.data
+  console.error('Dropping malformed ShowLog event', doc, parsed.error)
+  return null
 }
 
 /**
@@ -47,7 +57,11 @@ let changesHandle: PouchDB.Core.Changes<ShowLogEvent> | null = null
 
 async function refresh(set: (partial: Partial<ShowLogState>) => void) {
   const docs = await getAllShowLogEvents()
-  set({ events: docs.map(toShowLogEvent).sort((a, b) => a.at - b.at) })
+  const events = docs
+    .map(toShowLogEvent)
+    .filter((event): event is ShowLogEvent => event !== null)
+    .sort((a, b) => a.at - b.at)
+  set({ events })
 }
 
 export const useShowLogStore = create<ShowLogState>((set, get) => ({
