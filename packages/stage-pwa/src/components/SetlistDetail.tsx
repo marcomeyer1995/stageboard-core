@@ -101,7 +101,13 @@ function EntryRow({
           ))}
         </select>
       )}
-      <OverflowMenu title={title} actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]} />
+      {/* flat, not the default boxed pill - same unboxed treatment LibraryView.tsx's own song
+          rows already use for their ⋯ (Marco, explicit request: match "the left ones"). */}
+      <OverflowMenu
+        title={title}
+        variant="flat"
+        actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]}
+      />
     </li>
   )
 }
