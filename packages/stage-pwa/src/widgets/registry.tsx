@@ -13,7 +13,7 @@ import { DeviceStatusConfigPanel, DeviceStatusWidget } from './DeviceStatusWidge
 import { DeviceStatusConfigSchema } from './deviceStatusConfig'
 import { IemWidget } from './IemWidget'
 import { LightingCuesWidget } from './LightingCuesWidget'
-import { LiveQueueWidget } from './LiveQueueWidget'
+import { LiveQueueWidget, LiveQueueWidgetPreview } from './LiveQueueWidget'
 import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
 import { PrompterWidget } from './PrompterWidget'
@@ -26,9 +26,9 @@ import { SyncCheckWidget } from './SyncCheckWidget'
 import { SystemHealthWidget } from './SystemHealthWidget'
 import { TempoNudgeWidget } from './TempoNudgeWidget'
 import { TrackOverrideWidget } from './TrackOverrideWidget'
-import { TunerConfigPanel, TunerWidget } from './TunerWidget'
+import { TunerConfigPanel, TunerWidget, TunerWidgetPreview } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
-import { MetronomeConfigPanel, VisualMetronomeWidget } from './VisualMetronomeWidget'
+import { MetronomeConfigPanel, VisualMetronomeWidget, VisualMetronomeWidgetPreview } from './VisualMetronomeWidget'
 import { MetronomeConfigSchema } from './metronomeConfig'
 
 export interface WidgetSize {
@@ -36,6 +36,11 @@ export interface WidgetSize {
   h: number
   minW?: number
   minH?: number
+  /** Unset means uncapped (today's behavior) - only set on widgets a stretched-out size
+   * would make look broken (a status light the size of half the screen), not on primary
+   * content widgets where "as big as the musician wants" is legitimate (#22). */
+  maxW?: number
+  maxH?: number
 }
 
 /**
@@ -66,6 +71,12 @@ export interface WidgetDefinition {
     config: unknown
     onChange: (next: Record<string, unknown>) => void
   }>
+  /** A static, store-free stand-in for the Widget Gallery's thumbnail (#22) - only needed
+   * when `Component`'s default/empty render depends on real store state that's almost never
+   * representative during ordinary Edit-Mode browsing (an empty queue, a mic not yet
+   * granted, a song not currently playing). Unset means the gallery renders `Component`
+   * itself with no config, which is perfectly representative for most widgets. */
+  Preview?: ComponentType
 }
 
 interface WidgetSpec<C> {
@@ -79,6 +90,7 @@ interface WidgetSpec<C> {
   configSchema?: z.ZodType<C>
   Component: ComponentType<{ config: C }>
   ConfigPanel?: ComponentType<{ config: C; onChange: (next: C) => void }>
+  Preview?: ComponentType
 }
 
 /**
@@ -113,6 +125,7 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
           />
         )
       : undefined,
+    Preview: spec.Preview,
   }
 }
 
@@ -132,13 +145,14 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     defaultLayout: { w: 4, h: 12, minW: 3, minH: 4 },
     Component: LiveQueueWidget,
+    Preview: LiveQueueWidgetPreview,
   }),
   defineWidget({
     type: 'next-song',
     title: 'Next Song',
     description: 'Vorheriger, aktueller und nächster Song, Master-Token, Vor/Zurück.',
     category: 'performance',
-    defaultLayout: { w: 7, h: 2, minW: 3, minH: 2 },
+    defaultLayout: { w: 7, h: 2, minW: 3, minH: 2, maxH: 6 },
     Component: NextSongWidget,
   }),
   defineWidget({
@@ -146,7 +160,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Aktive Setlist',
     description: 'Zeigt, welche Setlist gerade aktiv ist - auch ohne Live-Queue/Next Song.',
     category: 'performance',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     Component: ActiveSetlistWidget,
   }),
   defineWidget({
@@ -154,7 +168,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Show-Transport',
     description: 'Play/Pause/Stop/Reset für den aktuellen Song - Gig oder Solo Üben, mit oder ohne Backing-Track-Plugin.',
     category: 'performance',
-    defaultLayout: { w: 4, h: 3, minW: 3, minH: 2 },
+    defaultLayout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 8, maxH: 6 },
     Component: ShowTransportWidget,
   }),
   defineWidget({
@@ -162,17 +176,18 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Visueller Metronom',
     description: 'Blitzt im Takt des aktiven Songs (BPM/Taktart), Downbeat farblich abgesetzt.',
     category: 'performance',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: MetronomeConfigSchema,
     Component: VisualMetronomeWidget,
     ConfigPanel: MetronomeConfigPanel,
+    Preview: VisualMetronomeWidgetPreview,
   }),
   defineWidget({
     type: 'tempo-nudge',
     title: 'Tempo-Korrektur',
     description: 'Live +/- Anpassung des Klick-/Metronom-Tempos, ohne den Song-BPM zu ändern.',
     category: 'performance',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     Component: TempoNudgeWidget,
   }),
   defineWidget({
@@ -180,7 +195,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Klick',
     description: 'Synthetisierter Klick/Metronom-Ton, an/aus - läuft auf dem als Klick-Ausgabe eingerichteten Gerät.',
     category: 'performance',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     Component: ClickTrackWidget,
   }),
   defineWidget({
@@ -188,7 +203,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Track-Wahl',
     description: 'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre").',
     category: 'performance',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     Component: TrackOverrideWidget,
   }),
   defineWidget({
@@ -197,7 +212,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Status des MIDI-Fußtasters, Sprung zum nächsten Song-Part.',
     requires: [CAPABILITIES.midiInput],
     category: 'performance',
-    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
     Component: MidiStatusWidget,
   }),
   defineWidget({
@@ -205,7 +220,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Dashboard-Umschalter',
     description: 'Große Buttons, um zwischen den Dashboards zu wechseln.',
     category: 'performance',
-    defaultLayout: { w: 12, h: 2, minW: 2, minH: 2 },
+    defaultLayout: { w: 12, h: 2, minW: 2, minH: 2, maxH: 4 },
     configSchema: DashboardSwitcherConfigSchema,
     Component: DashboardSwitcherView,
     ConfigPanel: DashboardSwitcherConfigPanel,
@@ -252,7 +267,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Blitzt im Takt der Server-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.',
     category: 'system-crew',
     relevantRoles: ['crew'],
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     Component: SyncCheckWidget,
   }),
   defineWidget({
@@ -268,6 +283,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: TunerConfigSchema,
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,
+    Preview: TunerWidgetPreview,
   }),
   defineWidget({
     type: 'show-notes',
@@ -283,7 +299,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Glanceable Indikator, ob das Backup-Plugin erreichbar ist.',
     requires: [CAPABILITIES.backup],
     category: 'system-crew',
-    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
+    defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
     Component: BackupStatusWidget,
   }),
   defineWidget({

@@ -15,6 +15,8 @@ export const LayoutItemSchema = z.object({
   h: z.number().int().positive(),
   minW: z.number().int().positive().optional(),
   minH: z.number().int().positive().optional(),
+  maxW: z.number().int().positive().optional(),
+  maxH: z.number().int().positive().optional(),
 })
 export type LayoutItem = z.infer<typeof LayoutItemSchema>
 

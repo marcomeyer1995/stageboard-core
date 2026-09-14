@@ -210,6 +210,29 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
   )
 }
 
+/**
+ * Static stand-in for the Widget Gallery (#22) - the real component only ever shows a note
+ * once the mic is both permitted and actively hearing one, neither of which a gallery tile
+ * can fake without literally asking for microphone access just to render a thumbnail. Mimics
+ * the real "listening, in tune" markup/classes (minus the container-query units, which need
+ * an actual sized ancestor a small fixed-height tile already provides differently) so it
+ * still reads as "this is the tuner", not a generic placeholder.
+ */
+export function TunerWidgetPreview() {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-ink-soft">
+      <p className="text-3xl font-bold leading-none text-ink">
+        A<span className="text-sm text-ink-faint">4</span>
+      </p>
+      <div className="relative h-1.5 w-4/5 rounded-full bg-control">
+        <div className="absolute left-1/2 top-1/2 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
+        <div className="absolute top-1/2 left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500" />
+      </div>
+      <p className="text-[10px] text-ink-faint">440.0 Hz</p>
+    </div>
+  )
+}
+
 export function TunerConfigPanel({
   config,
   onChange,

@@ -300,6 +300,17 @@ describe('normalizeLayout', () => {
     expect(item.minW).toBe(2)
   })
 
+  it('shrinks an item resized (or seeded) past its maxW/maxH, not just past the grid (#22)', () => {
+    const [item] = normalizeLayout([{ i: 'a', x: 0, y: 0, w: 6, h: 6, maxW: 3, maxH: 4 }])
+    expect(item.w).toBe(3)
+    expect(item.h).toBe(4)
+  })
+
+  it('leaves an item within its maxW/maxH untouched', () => {
+    const layout = [{ i: 'a', x: 0, y: 0, w: 3, h: 3, maxW: 6, maxH: 6 }]
+    expect(normalizeLayout(layout)).toEqual(layout)
+  })
+
   it('leaves a compact, valid layout untouched', () => {
     const layout = [
       { i: 'a', x: 0, y: 0, w: 12, h: 3 },

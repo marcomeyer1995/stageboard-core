@@ -65,8 +65,12 @@ export function breakpointFor(width: number): Breakpoint {
 }
 
 function clampItem(item: LayoutItem, cols: number, rows: number): LayoutItem {
-  const w = Math.min(Math.max(1, item.w), cols)
-  const h = Math.min(Math.max(1, item.h), rows)
+  // maxW/maxH are enforced here too (#22), not just handed to react-grid-layout as a resize
+  // hint - a dashboard stored before a widget had a max (or with one from an older, larger
+  // registry value) must come back within bounds on its own, same "clamped on read" reasoning
+  // minW/minH already followed below.
+  const w = Math.min(Math.max(1, item.w), cols, item.maxW ?? cols)
+  const h = Math.min(Math.max(1, item.h), rows, item.maxH ?? rows)
   return {
     ...item,
     w,

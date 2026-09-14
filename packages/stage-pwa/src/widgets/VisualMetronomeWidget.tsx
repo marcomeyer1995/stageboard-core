@@ -119,6 +119,22 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   )
 }
 
+/**
+ * Static stand-in for the Widget Gallery (#22) - the real component only pulses while a song
+ * is actually playing (`useShowMode()`), which is almost never true while someone is sitting
+ * in Edit Mode browsing widgets to add. Shows the downbeat-pulse state (config's `number`
+ * style) so the tile reads as "this flashes on the beat", not the misleadingly static
+ * "Wartet auf Play" idle state the real widget would otherwise show here.
+ */
+export function VisualMetronomeWidgetPreview() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-sb bg-accent text-surface">
+      <span className="text-4xl font-bold tabular-nums">1</span>
+      <span className="text-xs opacity-70 tabular-nums">120.0 BPM · 4/4</span>
+    </div>
+  )
+}
+
 export function MetronomeConfigPanel({
   config,
   onChange,

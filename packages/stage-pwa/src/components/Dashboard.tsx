@@ -39,15 +39,30 @@ const COLS: Record<Breakpoint, number> = {
 }
 
 function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint): LayoutItem[] {
-  // Clamped on read, not only on write: a dashboard stored before the grid had bounds
-  // must become usable again immediately, without the user first having to fix it.
-  return normalizeLayout(dashboard.layouts[breakpoint] ?? [])
+  // Clamped on read, not only on write: a dashboard stored before the grid had bounds - or
+  // whose widget's min/max changed since it was placed - must become usable again
+  // immediately, without the user first having to fix it. So min/max come from the
+  // *current* WIDGET_REGISTRY entry, not whatever happened to be persisted at placement
+  // time (#22) - a widget instance's own x/y/w/h stay as placed, only its bounds refresh.
+  const items = (dashboard.layouts[breakpoint] ?? []).map((item) => {
+    const widget = dashboard.widgets.find((w) => w.i === item.i)
+    const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
+    if (!bounds) return item
+    return {
+      ...item,
+      ...(bounds.minW === undefined ? {} : { minW: bounds.minW }),
+      ...(bounds.minH === undefined ? {} : { minH: bounds.minH }),
+      ...(bounds.maxW === undefined ? {} : { maxW: bounds.maxW }),
+      ...(bounds.maxH === undefined ? {} : { maxH: bounds.maxH }),
+    }
+  })
+  return normalizeLayout(items)
 }
 
 // Only our own LayoutItem fields, not react-grid-layout's interaction bookkeeping (moved,
 // static, ...) - that's meaningless once persisted and just noise the next read carries.
 function toItems(layout: Layout): LayoutItem[] {
-  return layout.map(({ i, x, y, w, h, minW, minH }) => ({
+  return layout.map(({ i, x, y, w, h, minW, minH, maxW, maxH }) => ({
     i,
     x,
     y,
@@ -55,6 +70,8 @@ function toItems(layout: Layout): LayoutItem[] {
     h,
     ...(minW === undefined ? {} : { minW }),
     ...(minH === undefined ? {} : { minH }),
+    ...(maxW === undefined ? {} : { maxW }),
+    ...(maxH === undefined ? {} : { maxH }),
   }))
 }
 
