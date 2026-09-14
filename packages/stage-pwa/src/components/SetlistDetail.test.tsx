@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Setlist, SetlistEntry, Song } from 'shared-types'
+import type { Setlist, SetlistEntry, Song, SongVariant } from 'shared-types'
 
 // Every *Store.ts pulls in a real PouchDB at import time (createWorkspaceCollection et al.),
 // unavailable under happy-dom - same stand-in as LibraryView.test.tsx/SheetEditor.test.tsx.
@@ -23,6 +23,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { useSongsStore } = await import('../store/useSongsStore')
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
+const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { SetlistDetail } = await import('./SetlistDetail')
 
@@ -32,6 +33,26 @@ function song(id: string, title: string, artist?: string): Song {
 
 function entry(id: string, songId: string): SetlistEntry {
   return { id, songId, variantId: null, trackId: null }
+}
+
+function variant(id: string, songId: string, label: string, isDefault: boolean): SongVariant {
+  return {
+    id,
+    songId,
+    label,
+    isDefault,
+    bpm: 120,
+    timeSignature: '4/4',
+    clickTrackEnabled: false,
+    chordProContent: '',
+    timecodes: [],
+    tracks: [],
+    cues: [],
+    beatAnchors: [],
+    tempoMarkers: [],
+    countInEnabled: false,
+    countInBars: 1,
+  }
 }
 
 const setlist: Setlist = {
@@ -74,6 +95,47 @@ describe('SetlistDetail - row reorder/remove', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Entfernen' }))
 
     expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [entry('e2', 'b')] }))
+  })
+})
+
+describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => {
+  // A plain <select>'s open popup got clipped in half by this row's own scrolling <ul> on a
+  // laptop (confirmed working on a tablet, which renders <select> as a completely separate
+  // OS-level picker instead) - portal-rendered now, same escape-any-ancestor pattern the ⋯
+  // menu already uses, so this exercises the picker as an ordinary button + portal menu.
+  beforeEach(() => {
+    useSongVariantsStore.setState({
+      variants: [
+        variant('v1', 'a', 'Original', true),
+        variant('v2', 'a', 'Akustik', false),
+      ],
+    })
+  })
+
+  it('shows the selected variant\'s label on its trigger button, not a native <select>', () => {
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    expect(within(row).getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(row.querySelector('select')).not.toBeInTheDocument()
+  })
+
+  it('opens a menu listing every variant, and picking one saves it onto the entry', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
+
+    expect(await screen.findByRole('button', { name: 'Akustik' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Akustik' }))
+
+    expect(saveSetlist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [expect.objectContaining({ id: 'e1', variantId: 'v2' }), entry('e2', 'b')],
+      }),
+    )
   })
 })
 

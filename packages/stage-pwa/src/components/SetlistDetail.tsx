@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -27,6 +28,85 @@ interface SetlistDetailProps {
   onDeleted: () => void
 }
 
+/**
+ * A plain `<select>`'s open popup list is positioned by the browser as part of normal page
+ * layout in most desktop Chromium builds (unlike Android, which shows a completely separate
+ * OS-level picker instead) - nested inside this row's own scrolling `<ul>` (SetlistDetail's
+ * entries list), that popup got clipped in half on a laptop, confirmed working fine on a
+ * tablet (Marco, live report). Portal-rendered instead, same escape-any-ancestor pattern
+ * `OverflowMenu` already uses, so it can never be clipped by a scroll container again
+ * regardless of platform/browser.
+ */
+function VariantPicker({
+  variants,
+  selectedId,
+  onSelect,
+}: {
+  variants: SongVariant[]
+  selectedId: string
+  onSelect: (variantId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selectedLabel = variants.find((v) => v.id === selectedId)?.label ?? ''
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Variante wählen"
+        className="h-10 w-32 min-w-0 flex-shrink-0 truncate rounded-sb-sm bg-control-strong px-2 text-left text-sm text-ink hover:bg-control-strong-hover"
+      >
+        {selectedLabel}
+      </button>
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              className="flex w-full max-w-[min(320px,85vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Variante</p>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  title="Schließen"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {variants.map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      onSelect(variant.id)
+                    }}
+                    className={`h-11 w-full rounded-sb px-3 text-left text-base ${
+                      variant.id === selectedId
+                        ? 'bg-accent text-accent-ink'
+                        : 'bg-control text-ink hover:bg-control-hover'
+                    }`}
+                  >
+                    {variant.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
 interface EntryRowProps {
   entry: SetlistEntry
   index: number
@@ -38,7 +118,7 @@ interface EntryRowProps {
 }
 
 /** A grip handle carries the drag listeners, not the row itself - the song title stays a
- * plain clickable button and the variant `<select>` stays a plain select, neither fighting
+ * plain clickable button and the variant picker stays a plain button too, neither fighting
  * a drag gesture that would otherwise be listening on the same element. Drag is the only
  * reorder gesture (Marco, explicit request: the row menu's own "Nach oben"/"Nach unten" from
  * #181 went unused once drag existed, so they were removed rather than kept as a redundant
@@ -84,22 +164,11 @@ function EntryRow({
         {index + 1}. {title}
       </button>
       {songVariants.length > 1 && (
-        // A long variant label (e.g. an auto-detection tool's full name) otherwise sizes the
-        // closed <select> to fit itself, squeezing the title button down to almost nothing
-        // (Marco, live screenshot: "Wie ein s..." with the rest cut off). Fixed, capped width
-        // instead - w-32 comfortably fits a short label like "Original" in full and ellipsizes
-        // a longer one; the dropdown's own open options still show full text either way.
-        <select
-          value={selectedVariantId}
-          onChange={(e) => onSetVariant(entry.id, e.target.value)}
-          className="h-10 w-32 min-w-0 flex-shrink-0 truncate rounded-sb-sm bg-control-strong px-2 text-sm text-ink"
-        >
-          {songVariants.map((variant) => (
-            <option key={variant.id} value={variant.id}>
-              {variant.label}
-            </option>
-          ))}
-        </select>
+        <VariantPicker
+          variants={songVariants}
+          selectedId={selectedVariantId}
+          onSelect={(variantId) => onSetVariant(entry.id, variantId)}
+        />
       )}
       {/* flat, not the default boxed pill - same unboxed treatment LibraryView.tsx's own song
           rows already use for their ⋯ (Marco, explicit request: match "the left ones"). */}
