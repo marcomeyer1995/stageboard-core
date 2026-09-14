@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Song, Setlist } from 'shared-types'
 
 // Every *Store.ts pulls in a real PouchDB at import time (createWorkspaceCollection et al.),
@@ -38,6 +38,13 @@ function song(id: string, title: string): Song {
 
 function setlist(id: string, name: string, createdAt: number): Setlist {
   return { id, name, entries: [], createdAt }
+}
+
+/** happy-dom's default matchMedia reports every query as matching, which is the 'pointer' lane
+ * for useInputCapability.ts (confirmed live: the unstubbed render below showed the "+" button,
+ * not the swipe reveal) - only the 'touch' lane needs stubbing here. */
+function stubTouchLane() {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })))
 }
 
 describe('LibraryView', () => {
@@ -140,5 +147,28 @@ describe('LibraryView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Offline anheften' }))
 
     expect(togglePin).toHaveBeenCalledWith('', 'b')
+  })
+})
+
+describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('touch lane: swipe reveal present, no "+" button', () => {
+    stubTouchLane()
+    render(<LibraryView />)
+
+    const row = screen.getByText('Alpha').closest('li')!
+    expect(within(row).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: '+' })).not.toBeInTheDocument()
+  })
+
+  it('pointer lane (happy-dom default): "+" button present, no swipe reveal', () => {
+    render(<LibraryView />)
+
+    const row = screen.getByText('Alpha').closest('li')!
+    expect(within(row).queryByText('+ Zur aktiven Setlist')).not.toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: '+' })).toBeInTheDocument()
   })
 })
