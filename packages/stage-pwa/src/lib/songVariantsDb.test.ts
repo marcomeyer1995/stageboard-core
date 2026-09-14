@@ -52,9 +52,15 @@ vi.mock('./audioCache', () => ({
   listCachedKeys: async () => [...cacheStore.keys()],
 }))
 
-const { getVariantsDb, putTrack, getTrack, removeTrack, ensureDefaultVariant, removeSongAndVariants } = await import(
-  './songVariantsDb'
-)
+const {
+  getVariantsDb,
+  putTrack,
+  getTrack,
+  removeTrack,
+  ensureDefaultVariant,
+  removeSongAndVariants,
+  duplicateSongAndVariants,
+} = await import('./songVariantsDb')
 
 function makeTrackMeta(overrides: Partial<TrackMeta> = {}): TrackMeta {
   return {
@@ -272,5 +278,65 @@ describe('removeSongAndVariants (#105)', () => {
 
     await expect(removeSongAndVariants('song-1')).resolves.toBeUndefined()
     expect(store.has('songs:song-1')).toBe(false)
+  })
+})
+
+describe('duplicateSongAndVariants (#178)', () => {
+  beforeEach(() => {
+    store.clear()
+    cacheStore.clear()
+    vi.clearAllMocks()
+  })
+
+  it('copies the song under a new id/title, and every one of its variants pointed at the copy', async () => {
+    store.set('song-variants:variant-1', {
+      _id: 'song-variants:variant-1',
+      id: 'variant-1',
+      songId: 'song-1',
+      label: 'Original',
+      isDefault: true,
+      chordProContent: '[Verse]\n[C]Hello',
+      tracks: [makeTrackMeta({ id: 'track-1' })],
+    })
+    store.set('song-variants:variant-2', {
+      _id: 'song-variants:variant-2',
+      id: 'variant-2',
+      songId: 'song-1',
+      label: 'Akustik',
+      isDefault: false,
+      chordProContent: '[Verse]\n[Am]Hello',
+      tracks: [],
+    })
+    // A different song's own variant must be left alone.
+    store.set('song-variants:variant-3', { _id: 'song-variants:variant-3', id: 'variant-3', songId: 'song-2' })
+
+    const source = makeSong({ id: 'song-1', title: 'Original Title' })
+    const copy = await duplicateSongAndVariants(source, 'Original Title (Kopie)')
+
+    expect(copy.id).not.toBe('song-1')
+    expect(copy.title).toBe('Original Title (Kopie)')
+
+    const db = getVariantsDb()
+    const copiedVariants = (await db.allDocs({ include_docs: true })).rows
+      .map((row) => row.doc as { songId: string; label: string; chordProContent: string; tracks: unknown[] })
+      .filter((doc) => doc.songId === copy.id)
+
+    expect(copiedVariants).toHaveLength(2)
+    expect(copiedVariants.map((v) => v.label).sort()).toEqual(['Akustik', 'Original'])
+    // Content comes along...
+    expect(copiedVariants.find((v) => v.label === 'Original')?.chordProContent).toBe('[Verse]\n[C]Hello')
+    // ...tracks deliberately don't (audio lives server-side, not copied here).
+    expect(copiedVariants.find((v) => v.label === 'Original')?.tracks).toEqual([])
+
+    // The source's own variants and the unrelated song-2 variant are untouched, not moved.
+    expect(store.has('song-variants:variant-1')).toBe(true)
+    expect(store.has('song-variants:variant-2')).toBe(true)
+    expect(store.has('song-variants:variant-3')).toBe(true)
+  })
+
+  it('duplicates a song with no variants at all without throwing', async () => {
+    const source = makeSong({ id: 'song-1' })
+    const copy = await duplicateSongAndVariants(source, 'Copy')
+    expect(copy.title).toBe('Copy')
   })
 })

@@ -67,3 +67,45 @@ describe('useSongsStore - toSong reads back every field saveSong writes', () => 
     expect(useSongsStore.getState().songs[0]?.artist).toBeUndefined()
   })
 })
+
+describe('useSongsStore.duplicateSong (#178)', () => {
+  it('copies the source song under a new id and the given title', async () => {
+    docs = [
+      {
+        id: 'song-1',
+        title: 'Original',
+        bpm: 120,
+        timeSignature: '4/4',
+        clickTrackEnabled: false,
+        chordProContent: '[Verse]\n[C]Hello',
+        timecodes: [],
+      },
+    ]
+    await useSongsStore.getState().init('test-workspace')
+
+    const copy = await useSongsStore.getState().duplicateSong('song-1', 'Original (Kopie)')
+
+    expect(copy?.id).not.toBe('song-1')
+    expect(copy?.title).toBe('Original (Kopie)')
+    expect(copy?.chordProContent).toBe('[Verse]\n[C]Hello')
+  })
+
+  it('returns null for a song id that no longer exists', async () => {
+    // A non-empty catalog, same as every other test here - an empty one triggers
+    // seedDummySongsIfEmpty's own bulkDocs call, which this file's minimal FakePouchDB mock
+    // doesn't implement (unrelated to what this test actually checks).
+    docs = [
+      {
+        id: 'song-1',
+        title: 'Original',
+        bpm: 120,
+        timeSignature: '4/4',
+        clickTrackEnabled: false,
+        chordProContent: '',
+        timecodes: [],
+      },
+    ]
+    await useSongsStore.getState().init('test-workspace')
+    expect(await useSongsStore.getState().duplicateSong('missing', 'Copy')).toBeNull()
+  })
+})
