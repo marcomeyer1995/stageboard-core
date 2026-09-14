@@ -85,6 +85,10 @@ function DraggableSongRow({
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
+    // Drag/swipe is a touch-only gesture now (Marco, explicit request) - the pointer/mouse
+    // lane has the "+" button instead, so there's no drag left to disambiguate there at all,
+    // not even the "drop directly onto an open setlist pane" case #191 still allowed.
+    disabled: !showSwipeReveal,
   })
 
   return (
@@ -98,7 +102,11 @@ function DraggableSongRow({
           + Zur aktiven Setlist
         </div>
       )}
-      <div className="relative z-10 flex gap-1">
+      {/* One unified row surface, not three independently-boxed controls sitting next to each
+          other with a gap between them (Marco: "+"/⋯ read as a separate, mismatched-size box
+          beside the entry) - same single bg-control embedding SetlistDetail's own row already
+          uses, its grip handle and ⋯ menu as accents within it rather than boxes of their own. */}
+      <div className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1">
         <button
           ref={setNodeRef}
           type="button"
@@ -114,7 +122,7 @@ function DraggableSongRow({
             // scrolling working natively; only the horizontal swipe/drag is JS-driven.
             touchAction: 'pan-y',
           }}
-          className="min-w-0 flex-1 truncate rounded-sb-sm bg-control px-4 py-3 text-left text-base hover:bg-control-hover"
+          className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base hover:underline"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
@@ -125,7 +133,7 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="h-auto w-12 flex-shrink-0 rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-xl text-ink-soft hover:bg-control-strong-hover disabled:opacity-40"
           >
             +
           </button>
@@ -265,10 +273,11 @@ export function LibraryView() {
       return
     }
 
-    // Touch lane only (Marco, explicit request) - dropping directly onto an open setlist pane
-    // (above) stays a real gesture for a mouse too, but "dragged right a bit with nowhere to
-    // drop" isn't a swipe a mouse user meant to make; they have the "+" button for that.
-    if (inputCapability === 'touch' && event.delta.x >= SWIPE_THRESHOLD_PX) {
+    // This whole handler only runs for a row that could actually start a drag - the
+    // pointer/mouse lane disables dragging at the source (DraggableSongRow's own `disabled`
+    // on useDraggable), not here, so there's exactly one place deciding whether dragging is
+    // even possible rather than two checks that could drift apart.
+    if (event.delta.x >= SWIPE_THRESHOLD_PX) {
       addToActiveSetlist(songId)
     }
   }
