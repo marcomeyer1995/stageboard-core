@@ -609,19 +609,6 @@ export function LibraryView() {
                   />
                 ))}
               </ul>
-              {inputCapability === 'pointer' && (
-                <p className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2 text-xs text-ink-faint">
-                  <span>
-                    <kbd className="rounded border border-line px-1 font-mono">↑↓</kbd> Liste
-                  </span>
-                  <span>
-                    <kbd className="rounded border border-line px-1 font-mono">⏎</kbd> Öffnen
-                  </span>
-                  <span>
-                    <kbd className="rounded border border-line px-1 font-mono">⌘F</kbd> Suche
-                  </span>
-                </p>
-              )}
             </div>
           )}
         </div>
