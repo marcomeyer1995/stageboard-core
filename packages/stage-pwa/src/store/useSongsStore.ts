@@ -14,6 +14,12 @@ function toSong(doc: SongDoc): Song {
   return {
     id: doc.id,
     title: doc.title,
+    // Correctly written by saveSong (it's a plain field on Song), but silently dropped on
+    // every read here until now - nothing defaulted it away like timeSignature below, this
+    // mapper just never copied it across. Found live: Band appeared to "not save" because the
+    // very next refresh (the change feed fires right after every save) read it back as
+    // undefined.
+    artist: doc.artist,
     bpm: doc.bpm,
     // A song written before `timeSignature` existed (#25) simply lacks the key - see
     // useSongVariantsStore.ts's `toVariant` for the same read-time-fallback reasoning.
