@@ -15,6 +15,12 @@ interface OverflowMenuProps {
   /** Shown as the menu's own heading - the name of the thing this menu acts on. */
   title: string
   actions: OverflowMenuAction[]
+  /** 'boxed' (default) is the standalone filled pill used in SetlistDetail's header/row.
+   * 'flat' drops the fill so the trigger reads as an accent within a row that already has its
+   * own background, the same way the ⠿ grip handle sits unboxed on the row's own bg-control -
+   * LibraryView's song row (Marco, explicit request: "no separate visible box around the dots",
+   * pointing at the grip handle as the reference). */
+  variant?: 'boxed' | 'flat'
 }
 
 /**
@@ -25,7 +31,7 @@ interface OverflowMenuProps {
  * itself stays on its own inline version - not worth the risk of refactoring a third, working,
  * unrelated system into this just to remove one duplicate.
  */
-export function OverflowMenu({ title, actions }: OverflowMenuProps) {
+export function OverflowMenu({ title, actions, variant = 'boxed' }: OverflowMenuProps) {
   const [open, setOpen] = useState(false)
   const normal = actions.filter((a) => !a.danger)
   const danger = actions.filter((a) => a.danger)
@@ -36,7 +42,11 @@ export function OverflowMenu({ title, actions }: OverflowMenuProps) {
         type="button"
         onClick={() => setOpen(true)}
         title="Menü öffnen"
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover"
+        className={
+          variant === 'flat'
+            ? 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink'
+            : 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover'
+        }
       >
         ⋯
       </button>

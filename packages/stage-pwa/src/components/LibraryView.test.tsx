@@ -174,13 +174,26 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
 
   it('dragging itself is disabled in the pointer lane, not just the swipe fallback', () => {
     render(<LibraryView />)
-    // dnd-kit reflects a disabled useDraggable via aria-disabled on the draggable node.
-    expect(screen.getByText('Alpha')).toHaveAttribute('aria-disabled', 'true')
+    // dnd-kit reflects a disabled useDraggable via aria-disabled on the draggable node - the
+    // whole row surface (parent of the title button), not just the title text itself, since
+    // the entire row is the swipe/drag target, not only its text.
+    expect(screen.getByText('Alpha').parentElement).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('dragging stays enabled in the touch lane', () => {
     stubTouchLane()
     render(<LibraryView />)
-    expect(screen.getByText('Alpha')).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByText('Alpha').parentElement).toHaveAttribute('aria-disabled', 'false')
+  })
+
+  it('the whole row is the swipe target, not just the title text (regression: used to be text-only)', () => {
+    stubTouchLane()
+    render(<LibraryView />)
+
+    const titleButton = screen.getByText('Alpha')
+    // dnd-kit only stamps 'aria-roledescription' onto the actual draggable node - the row
+    // surface wrapping the title, not the title button itself.
+    expect(titleButton).not.toHaveAttribute('aria-roledescription')
+    expect(titleButton.parentElement).toHaveAttribute('aria-roledescription', 'draggable')
   })
 })
