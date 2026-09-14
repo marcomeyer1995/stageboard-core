@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // PluginManager/BackupManager/PostShowReport transitively import workspaceDb.ts, which
 // constructs a real PouchDB at module load time - unavailable under happy-dom (see
@@ -19,6 +19,36 @@ const { SystemView } = await import('./SystemView')
 beforeEach(() => {
   useWorkspaceStore.setState({ workspaces: [], activeWorkspaceId: '' })
 })
+
+/** Mutable matchMedia stand-in for useInputCapability.ts - both queries it makes
+ * ((pointer: fine)/(hover: hover)) are driven by one flag here, since these tests only need a
+ * clean pointer/touch toggle, not to distinguish the two queries from each other. A downgrade
+ * (pointer -> touch) commits immediately with no mousemove corroboration needed, per
+ * useInputCapability.ts's own doc comment, so `.set(false)` alone is enough to flip the lane
+ * live. */
+function stubMatchMedia(isPointer: boolean) {
+  const state = { isPointer }
+  const listeners: Array<() => void> = []
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      get matches() {
+        return state.isPointer
+      },
+      addEventListener: (_: string, cb: () => void) => listeners.push(cb),
+      removeEventListener: (_: string, cb: () => void) => {
+        const i = listeners.indexOf(cb)
+        if (i !== -1) listeners.splice(i, 1)
+      },
+    })),
+  )
+  return {
+    set(next: boolean) {
+      state.isPointer = next
+      listeners.forEach((cb) => cb())
+    },
+  }
+}
 
 describe('SystemView', () => {
   it('defaults to the Band tab and switches to Plugins/Nachbericht on click', () => {
@@ -74,5 +104,43 @@ describe('SystemView', () => {
     // Vollbild stays in AppMenu.tsx (Marco asked for it to remain directly reachable there),
     // not duplicated here.
     expect(screen.queryByText('Anzeige')).not.toBeInTheDocument()
+  })
+})
+
+describe('SystemView - sidebar (pointer lane) vs. tab strip (touch lane), #179', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('pointer lane (happy-dom default): a vertical sidebar, not the horizontal strip', () => {
+    usePluginsStore.setState({ installed: [] })
+    render(<SystemView />)
+
+    const bandButton = screen.getByRole('button', { name: 'Band' })
+    expect(bandButton.parentElement).toHaveClass('w-56')
+    expect(bandButton.parentElement).not.toHaveClass('overflow-x-auto')
+  })
+
+  it('touch lane: the existing horizontal strip, not the sidebar', () => {
+    stubMatchMedia(false)
+    usePluginsStore.setState({ installed: [] })
+    render(<SystemView />)
+
+    const bandButton = screen.getByRole('button', { name: 'Band' })
+    expect(bandButton.parentElement).toHaveClass('overflow-x-auto')
+    expect(bandButton.parentElement).not.toHaveClass('w-56')
+  })
+
+  it('switching lanes mid-session (e.g. unplugging a mouse) keeps the active tab', () => {
+    const media = stubMatchMedia(true)
+    usePluginsStore.setState({ installed: [] })
+    render(<SystemView />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+
+    act(() => media.set(false))
+
+    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
   })
 })

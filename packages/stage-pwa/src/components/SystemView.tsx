@@ -9,6 +9,7 @@ import { PostShowReport } from './PostShowReport'
 import { SystemSettings } from './SystemSettings'
 import { capabilityStatusFor } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
+import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 
 const TAB_LABEL: Record<SystemTab, string> = {
@@ -46,6 +47,7 @@ export function SystemView() {
   const [tab, setTab] = useState<SystemTab>('band')
   const activeTab = tabs.includes(tab) ? tab : 'band'
   const setActiveSystemTab = useActiveSystemTabStore((state) => state.setActiveTab)
+  const inputCapability = useInputCapability()
 
   // Publishes which tab is actually on screen for useHardwareDetection.ts's Hardware-tab gate
   // (see useActiveSystemTabStore.ts's own doc comment) - and clears it back to `null` on
@@ -56,6 +58,51 @@ export function SystemView() {
   }, [activeTab, setActiveSystemTab])
   useEffect(() => () => setActiveSystemTab(null), [setActiveSystemTab])
 
+  const content = (
+    <>
+      {activeTab === 'band' && <BandManagementView />}
+      {activeTab === 'plugins' && <PluginManager />}
+      {activeTab === 'hardware' && <HardwareSetupManager />}
+      {activeTab === 'devices' && <DeviceLedgerView />}
+      {activeTab === 'backup' && <BackupManager />}
+      {activeTab === 'post-show' && <PostShowReport />}
+      {activeTab === 'settings' && <SystemSettings />}
+    </>
+  )
+
+  // Mouse+keyboard lane (#179, rollout step 3/3 of the "UI Tech Rider" concept, following
+  // #177/#178): all seven tabs listed vertically in an always-visible sidebar with hover, so a
+  // mouse user doesn't have to horizontally scan a strip that only exists because touch needs
+  // one. `tab`/`activeTab` state lives above this branch, so switching lanes mid-session (e.g.
+  // unplugging a mouse) can't lose the active tab - only which of these two layouts renders it
+  // changes.
+  if (inputCapability === 'pointer') {
+    return (
+      <div className="flex h-dvh sb-app-bg text-ink">
+        <div className="flex w-56 flex-shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-2">
+          {tabs.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              onClick={() => setTab(candidate)}
+              className={`rounded-sb px-4 py-3 text-left text-sm font-semibold ${
+                activeTab === candidate
+                  ? 'bg-accent text-accent-ink'
+                  : 'bg-control text-ink-soft hover:bg-control-hover'
+              }`}
+            >
+              {TAB_LABEL[candidate]}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto">{content}</div>
+      </div>
+    )
+  }
+
+  // Touch lane (phone, tablet portrait and landscape - landscape already fits all seven tabs
+  // without scrolling at that width, so it doesn't need the sidebar either): unchanged
+  // horizontal tab strip.
   return (
     <div className="h-dvh overflow-y-auto sb-app-bg text-ink">
       <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-line bg-surface p-2">
@@ -73,13 +120,7 @@ export function SystemView() {
         ))}
       </div>
 
-      {activeTab === 'band' && <BandManagementView />}
-      {activeTab === 'plugins' && <PluginManager />}
-      {activeTab === 'hardware' && <HardwareSetupManager />}
-      {activeTab === 'devices' && <DeviceLedgerView />}
-      {activeTab === 'backup' && <BackupManager />}
-      {activeTab === 'post-show' && <PostShowReport />}
-      {activeTab === 'settings' && <SystemSettings />}
+      {content}
     </div>
   )
 }
