@@ -124,12 +124,12 @@ function DraggableSongRow({
           // scrolling working natively; only the horizontal swipe/drag is JS-driven.
           touchAction: 'pan-y',
         }}
-        className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1"
+        className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1 hover:bg-control-hover"
       >
         <button
           type="button"
           onClick={onClick}
-          className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base hover:underline"
+          className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
