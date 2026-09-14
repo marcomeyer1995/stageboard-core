@@ -1,4 +1,5 @@
 import { useSyncStore } from '../store/useSyncStore'
+import { configLog } from './configDebug'
 
 /** A cancellable handle - safe to cancel whether the underlying sync has actually started
  * yet (see the queue below) or not. */
@@ -96,6 +97,22 @@ export function trackedSync<T extends object>(
             const docs = info.change.docs
             const isNoiseOnly = docs.length > 0 && docs.every((doc) => options.isNoiseDocId?.(doc._id) ?? false)
             report(isNoiseOnly ? 'paused' : 'active')
+
+            // Only ever meaningfully noisy for a stream that legitimately writes very often
+            // (isNoiseDocId) - for everything else, seeing exactly which doc ids came down
+            // and in which direction is the whole point when chasing a "value changed on its
+            // own" symptom (Marco, 2026-09-14): a *pull* landing a `dashboards:` doc here
+            // moments after a local write is the remote sync echoing a - possibly stale -
+            // version of it back down.
+            const dashboardDocs = docs.filter((doc) => doc._id.startsWith('dashboards:'))
+            if (dashboardDocs.length > 0) {
+              configLog(
+                `trackedSync[${name}]`,
+                info.direction,
+                'dashboards docs:',
+                dashboardDocs.map((doc) => ({ id: doc._id, rev: doc._rev })),
+              )
+            }
 
             // CouchDB (2.0+) reports how many changes are still left on every batch of its
             // `_changes` feed - not in @types/pouchdb-replication's declarations, but present

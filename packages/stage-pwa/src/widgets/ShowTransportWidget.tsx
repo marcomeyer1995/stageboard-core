@@ -5,6 +5,7 @@ import { supportsLocalExecution } from '../lib/clientTranslator'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { triggerShowControl } from '../lib/showControlClient'
 import { resolveExecutionEngine } from '../lib/hardwareRouting'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
@@ -73,6 +74,21 @@ export function ShowTransportWidget() {
 
   const [error, setError] = useState<string | null>(null)
 
+  // Title+clock auto-fits its own row, and all four transport buttons share one font size
+  // fit to the longest label ("Pause") so they stay uniform - chosen over cq units/discrete
+  // tiers after Marco compared all three live (2026-09-14, see the widget-font-autofit
+  // memory). Both called unconditionally, ahead of the early returns below.
+  // Not keyed on elapsedMs: the clock's digit count is effectively constant (MM:SS), so
+  // re-fitting on every playback tick would just be wasted work, not a real size change.
+  const [titleContainerRef, titleTextRef, titleFontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 10, max: 64 },
+    [currentSong?.id, currentVariant?.label],
+  )
+  const [buttonContainerRef, buttonTextRef, buttonFontSize] = useAutoFitFontSize<
+    HTMLButtonElement,
+    HTMLSpanElement
+  >({ min: 8, max: 40 }, [])
+
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, event)
@@ -106,14 +122,16 @@ export function ShowTransportWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
-      <span className="truncate text-sm">
-        <span className="font-semibold text-ink">{currentSong.title}</span>
-        {currentVariant && !currentVariant.isDefault && (
-          <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
-        )}
-        <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
-      </span>
+    <div className="flex h-full flex-col gap-2 text-ink-soft">
+      <div ref={titleContainerRef} className="flex w-full flex-1 items-center overflow-hidden">
+        <span ref={titleTextRef} style={{ fontSize: titleFontSize }} className="whitespace-nowrap">
+          <span className="font-semibold text-ink">{currentSong.title}</span>
+          {currentVariant && !currentVariant.isDefault && (
+            <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
+          )}
+          <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
+        </span>
+      </div>
       <div className="grid grid-cols-4 gap-2">
         <button
           type="button"
@@ -121,27 +139,30 @@ export function ShowTransportWidget() {
             void play()
             if (!usesDeviceOutput) void forward({ type: 'play' })
           }}
-          className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
+          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'playing'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          Play
+          <span style={{ fontSize: buttonFontSize }}>Play</span>
         </button>
         <button
+          ref={buttonContainerRef}
           type="button"
           onClick={() => {
             void pause()
             if (!usesDeviceOutput) void forward({ type: 'pause' })
           }}
-          className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
+          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'paused'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          Pause
+          <span ref={buttonTextRef} style={{ fontSize: buttonFontSize }}>
+            Pause
+          </span>
         </button>
         <button
           type="button"
@@ -149,16 +170,16 @@ export function ShowTransportWidget() {
             void stop()
             if (!usesDeviceOutput) void forward({ type: 'stop' })
           }}
-          className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          Stop
+          <span style={{ fontSize: buttonFontSize }}>Stop</span>
         </button>
         <button
           type="button"
           onClick={() => void reset()}
-          className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          Reset
+          <span style={{ fontSize: buttonFontSize }}>Reset</span>
         </button>
       </div>
       {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}

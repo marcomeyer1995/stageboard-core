@@ -81,6 +81,7 @@ export function Dashboard() {
   const resetNonce = useDashboardsStore((state) => state.resetNonce)
   const setLayout = useDashboardsStore((state) => state.setLayout)
   const save = useDashboardsStore((state) => state.save)
+  const updateWidget = useDashboardsStore((state) => state.updateWidget)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const byWorkspace = useActiveDashboardStore((state) => state.byWorkspace)
   const isEditing = useEditModeStore((state) => state.isEditing)
@@ -248,22 +249,12 @@ export function Dashboard() {
 
   function updateConfig(instanceId: string, config: Record<string, unknown>) {
     if (!active) return
-    void save({
-      ...active,
-      widgets: active.widgets.map((widget) =>
-        widget.i === instanceId ? { ...widget, config } : widget,
-      ),
-    })
+    void updateWidget(active.id, instanceId, (widget) => ({ ...widget, config }))
   }
 
   function toggleFrameless(instanceId: string) {
     if (!active) return
-    void save({
-      ...active,
-      widgets: active.widgets.map((widget) =>
-        widget.i === instanceId ? { ...widget, frameless: !widget.frameless } : widget,
-      ),
-    })
+    void updateWidget(active.id, instanceId, (widget) => ({ ...widget, frameless: !widget.frameless }))
   }
 
   return (

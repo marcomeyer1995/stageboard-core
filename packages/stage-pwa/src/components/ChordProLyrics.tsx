@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 
 interface ChordProLyricsProps {
@@ -11,6 +12,18 @@ interface ChordProLyricsProps {
   startIndex?: number
   /** Set by the Paginated View, which already shows the part name in its page header. */
   hidePartLabels?: boolean
+  /** px, defaults to 18 (the previous fixed `text-lg`) - PrompterWidget.tsx drives this from
+   * useContentFontSize.ts, every other caller (SongPreview/SheetEditor) keeps the default. */
+  fontSize?: number
+  /** px, absolute - unset keeps the previous proportional default (0.7em, relative to
+   * `fontSize`), so every caller but PrompterWidget.tsx (which can now set an independent
+   * chord size, Marco 2026-09-14) is unaffected. */
+  chordFontSize?: number
+  /** Rendered above the lines, inside the same scrolling/spacing context - so it scrolls
+   * away with everything else once playback moves past it, rather than staying pinned
+   * (Marco, 2026-09-14: key/tuning/capo shouldn't need permanent screen space). Only
+   * PrompterWidget.tsx passes this; every other caller is unaffected. */
+  headerContent?: ReactNode
 }
 
 export function ChordProLyrics({
@@ -18,13 +31,17 @@ export function ChordProLyrics({
   activeIndex,
   startIndex = 0,
   hidePartLabels = false,
+  fontSize = 18,
+  chordFontSize,
+  headerContent,
 }: ChordProLyricsProps) {
   if (lines.length === 0) {
     return <p className="text-ink-faint">Kein Text.</p>
   }
 
   return (
-    <div className="space-y-3 pt-4 font-sb-mono text-lg leading-loose text-ink">
+    <div className="space-y-3 pt-4 font-sb-mono leading-loose text-ink" style={{ fontSize }}>
+      {headerContent}
       {lines.map((line, offset) => {
         const lineIndex = startIndex + offset
         const previous = offset > 0 ? lines[offset - 1] : null
@@ -40,7 +57,7 @@ export function ChordProLyrics({
             )}
             <p
               data-line-index={lineIndex}
-              className={`-mx-2 whitespace-pre-wrap rounded-sb-sm px-2 transition-colors duration-300 ${
+              className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
                 // A chord sits absolutely -top-4 above its line's text. Normally the previous
                 // line's own leading-loose height absorbs that overlap, but the part label
                 // above it (small font-sans text, no leading-loose) doesn't - without this,
@@ -53,7 +70,10 @@ export function ChordProLyrics({
               {line.segments.map((segment, segmentIndex) => (
                 <span key={segmentIndex} className="relative inline-block">
                   {segment.chord && (
-                    <span className="absolute -top-4 left-0 text-xs font-bold text-accent">
+                    <span
+                      style={chordFontSize === undefined ? { fontSize: '0.7em' } : { fontSize: chordFontSize }}
+                      className="absolute -top-4 left-0 font-bold text-accent"
+                    >
                       {segment.chord}
                     </span>
                   )}

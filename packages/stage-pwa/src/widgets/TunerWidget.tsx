@@ -3,6 +3,7 @@ import { centsToColor } from '../lib/centsColor'
 import { detectPitch } from '../lib/pitchDetection'
 import { noteFromFrequency, type NoteMatch } from '../lib/noteFromFrequency'
 import { PitchHistory } from '../lib/pitchSmoothing'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import {
   minRmsToSlider,
   responsivenessFromWindow,
@@ -26,10 +27,13 @@ type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-cont
  * isSecureContext first, before the generic feature check, is what tells those two
  * apart instead of showing a misleading "not supported here" on hardware that's fine.
  *
- * Sized with CSS container query units (cqw/cqh, via [container-type:size] on the root)
- * rather than fixed-size text/height/width classes, so the note display actually fills
- * whatever size the widget has been resized to instead of sitting small in the middle of
- * a lot of empty space.
+ * The note name auto-fits (useAutoFitFontSize.ts) - chosen over cq units/discrete tiers
+ * after Marco compared all three live (2026-09-14, see the widget-font-autofit memory).
+ * Everything else (the meter bar/tick/ball, the "Aus" button, and the idle/error/status
+ * messages) still uses CSS container query units (cqw/cqh, via [container-type:size] on
+ * the root) - the meter is a decorative shape rather than text, and several of the status
+ * messages are full sentences meant to wrap onto multiple lines, which auto-fit's
+ * single-line shrink-to-fit approach isn't built for.
  */
 export function TunerWidget({ config }: { config: TunerConfig }) {
   const [status, setStatus] = useState<MicStatus>('idle')
@@ -43,6 +47,13 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
   // the ConfigPanel's settings takes effect immediately on an already-listening widget
   // instead of only after the mic is stopped and restarted.
   const configRef = useRef(config)
+  // Not keyed on note/frequency: a note name's length is effectively constant (1-2 chars +
+  // an octave digit), so re-fitting on every ~60fps pitch-detection tick would be wasted
+  // work, not a real size change - same reasoning ShowTransportWidget's clock uses.
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLParagraphElement>(
+    { min: 16, max: 300 },
+    [],
+  )
 
   useEffect(() => {
     configRef.current = config
@@ -143,10 +154,10 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
         // visually extend past its thin track - can no longer collide with the note name
         // above it; they now have a full row reserved for them.
         <div className="flex flex-1 flex-col items-center [container-type:size]">
-          <div className="flex w-full flex-[6] items-center justify-center">
-            <p className="text-[32cqh] font-bold leading-none text-ink">
+          <div ref={containerRef} className="flex w-full flex-[6] items-center justify-center overflow-hidden">
+            <p ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-bold leading-none text-ink">
               {note.name}
-              <span className="text-[11cqh] text-ink-faint">{note.octave}</span>
+              <span className="text-[0.35em] text-ink-faint">{note.octave}</span>
             </p>
           </div>
           {/* The meter: a fixed center tick marks exactly where "in tune" is, taller

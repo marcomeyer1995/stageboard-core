@@ -1,7 +1,9 @@
 import { reorderToPlayNext } from '../lib/computeQueue'
 import { useQueue } from '../lib/queue'
+import { useContentFontSize } from '../lib/useContentFontSize'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 /** docs/07 section 3: "die nächsten 5-10 Songs". */
 const WINDOW_SIZE = 8
@@ -13,10 +15,11 @@ const WINDOW_SIZE = 8
  * less risky to get right without real device testing (see docs/03's Live-Tablet-Debugging
  * section for why that matters here).
  */
-export function LiveQueueWidget() {
+export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   const { activeSetlist, orderedItems, currentSong, isMaster } = useQueue()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const claimMaster = useShowStateStore((state) => state.claimMaster)
+  const fontSize = useContentFontSize(config)
 
   const currentIndex = currentSong
     ? orderedItems.findIndex((item) => item.song.id === currentSong.id)
@@ -33,7 +36,7 @@ export function LiveQueueWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto text-sm text-ink-soft">
+    <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
         {!isMaster && (

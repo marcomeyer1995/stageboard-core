@@ -22,25 +22,25 @@ beforeEach(() => {
 
 describe('SystemHealthWidget - Uhrzeit-Sync', () => {
   it('shows "not yet synchronized" before the first successful sync', () => {
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     expect(screen.getByText('Noch nicht synchronisiert')).toBeInTheDocument()
   })
 
   it('shows offset, drift, and time-since-sync after a successful sync', () => {
     useClockSyncStore.getState().setSync({ offsetMs: 12, rttMs: 8, jitterMs: 3, driftMs: 2 })
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     expect(screen.getByText(/^Offset \+12 ms · Drift 2 ms · vor \d+s$/)).toBeInTheDocument()
   })
 
   it('renders a negative offset with a minus sign, not a double sign', () => {
     useClockSyncStore.getState().setSync({ offsetMs: -7, rttMs: 8, jitterMs: 1, driftMs: 1 })
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     expect(screen.getByText(/^Offset -7 ms/)).toBeInTheDocument()
   })
 
   it('shows a "?" drift and a green dot right after the first-ever sync, with nothing yet to compare against', () => {
     useClockSyncStore.getState().setSync({ offsetMs: 5, rttMs: 10, jitterMs: 2, driftMs: null })
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     expect(screen.getByText(/Drift \? ms/)).toBeInTheDocument()
     const dot = screen.getByText(/Drift \? ms/).firstChild as HTMLElement
     expect(dot).toHaveClass('bg-green-500')
@@ -51,14 +51,14 @@ describe('SystemHealthWidget - Uhrzeit-Sync', () => {
     // see clockSync.ts's #31 follow-up doc comment: this specifically confirms that a huge
     // jitterMs alone does NOT flag amber unless driftMs also crosses the threshold.
     useClockSyncStore.getState().setSync({ offsetMs: 5, rttMs: 40, jitterMs: 400, driftMs: 45 })
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     const dot = screen.getByText(/Drift 45 ms/).firstChild as HTMLElement
     expect(dot).toHaveClass('bg-amber-500')
   })
 
   it('flags a stable offset (small cross-sync drift) green, even with a noisy burst\'s raw jitter', () => {
     useClockSyncStore.getState().setSync({ offsetMs: 5, rttMs: 40, jitterMs: 373, driftMs: 3 })
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     const dot = screen.getByText(/Drift 3 ms/).firstChild as HTMLElement
     expect(dot).toHaveClass('bg-green-500')
   })
@@ -66,7 +66,7 @@ describe('SystemHealthWidget - Uhrzeit-Sync', () => {
 
 describe('SystemHealthWidget - capabilities', () => {
   it('shows the empty-state message when no plugins are installed', () => {
-    render(<SystemHealthWidget />)
+    render(<SystemHealthWidget config={{}} />)
     expect(screen.getByText('Keine Plugins installiert.')).toBeInTheDocument()
   })
 })

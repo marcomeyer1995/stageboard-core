@@ -1,5 +1,6 @@
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { pluginProviding, pluginStatus, type CapabilityStatus } from '../lib/capabilities'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useMidiTrigger } from '../lib/useMidiTrigger'
 import { useNow } from '../lib/useNow'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -33,6 +34,15 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
 
   const device = devices.find((d) => d.id === config.logicalDeviceId) ?? null
 
+  // The status line (dot + label) auto-fits the space left over once the device-name caption
+  // takes its own, fixed-size row - chosen over cq units/discrete tiers after Marco compared
+  // all three live (2026-09-14, see the widget-font-autofit memory). Called unconditionally,
+  // ahead of the "no device" early return.
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 10, max: 96 },
+    [device?.id],
+  )
+
   if (!device) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
@@ -54,13 +64,22 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
     : 'missing'
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+    <div className="flex h-full flex-col items-center gap-1 text-center">
       <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
         {device.name}
       </span>
-      <div className="flex items-center gap-2 text-sm text-ink-soft">
-        <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
-        {STATUS_LABEL[status]}
+      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span
+          ref={textRef}
+          style={{ fontSize }}
+          className="flex items-center gap-[0.3em] whitespace-nowrap text-ink-soft"
+        >
+          <span
+            className={`inline-block rounded-full ${STATUS_DOT[status]}`}
+            style={{ width: '0.6em', height: '0.6em' }}
+          />
+          {STATUS_LABEL[status]}
+        </span>
       </div>
     </div>
   )

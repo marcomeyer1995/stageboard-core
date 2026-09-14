@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useClockSyncStore } from '../store/useClockSyncStore'
 
 /**
@@ -44,14 +45,26 @@ export function SyncCheckWidget() {
   const serverTime = useServerTimeTick()
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const flashOn = Math.floor(serverTime / 1000) % 2 === 0
+  // Not keyed on serverTime: the clock's digit count is constant (HH:MM:SS.mmm), so
+  // re-fitting on every animation-frame tick would be wasted work, not a real size change -
+  // same reasoning ShowTransportWidget's clock uses. Chosen over cq units/discrete tiers
+  // after Marco compared all three live (2026-09-14, see the widget-font-autofit memory).
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 14, max: 56 },
+    [],
+  )
 
   return (
     <div
-      className={`flex h-full flex-col items-center justify-center gap-1 rounded-sb transition-colors duration-75 ${
+      className={`flex h-full flex-col items-center gap-1 rounded-sb transition-colors duration-75 ${
         flashOn ? 'bg-ink text-surface' : 'bg-surface text-ink'
       }`}
     >
-      <span className="font-mono text-3xl tabular-nums">{formatClock(serverTime)}</span>
+      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-mono tabular-nums">
+          {formatClock(serverTime)}
+        </span>
+      </div>
       <span className="text-xs uppercase tracking-widest opacity-70">Sync-Blitz - Geräte nebeneinander vergleichen</span>
       {lastSyncedAt !== null && (
         <span className="text-xs opacity-70">

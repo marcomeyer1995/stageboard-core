@@ -1,18 +1,49 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
+import { configLog } from '../lib/configDebug'
+import { useContentFontSize } from '../lib/useContentFontSize'
+import { useDeferredSliderValue } from '../lib/useDeferredSliderValue'
 import { useShowMode } from '../lib/showMode'
+import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
+import {
+  DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO,
+  DEFAULT_ARTIST_SIZE_RATIO,
+  DEFAULT_CHORD_SIZE_RATIO,
+  DEFAULT_SECTION_LABEL_SIZE_RATIO,
+  DEFAULT_TITLE_SIZE_RATIO,
+  type PrompterConfig,
+} from './prompterConfig'
 
-type ViewMode = 'scroll' | 'paginated'
-
-export function PrompterWidget() {
+export function PrompterWidget({ config }: { config: PrompterConfig }) {
+  // The one anchor size - every other element below is a ratio of this, not its own
+  // absolute px value (Marco, 2026-09-14), so changing this (globally in Settings, or just
+  // for this instance via the shared "Text" control below) rescales everything else with it.
+  const fontSize = useContentFontSize(config)
+  const titleFontSize = fontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO)
+  const artistFontSize = fontSize * (config.artistSizeRatio ?? DEFAULT_ARTIST_SIZE_RATIO)
+  const sectionLabelFontSize = fontSize * (config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO)
+  const chordFontSize = fontSize * (config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO)
+  const arrangementInfoFontSize = fontSize * (config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO)
+  // What the widget actually renders, every time `config` prop changes - the ground truth to
+  // correlate against the write-pipeline logs above (Marco, 2026-09-14).
+  useEffect(() => {
+    configLog('PrompterWidget rendering with config ->', config, '| resolved sizes:', {
+      fontSize,
+      titleFontSize,
+      artistFontSize,
+      sectionLabelFontSize,
+      chordFontSize,
+      arrangementInfoFontSize,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- log-only effect, config is the one thing worth keying on
+  }, [config])
   // useShowMode already picks the right song/clock for Gig vs. Practice mode - Gig mode's
   // clock is ShowState-synced (every tablet scrolls off the same value), Practice mode's is
   // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
   const { queue, elapsedMs } = useShowMode()
   const { currentSong, currentVariant } = queue
-  const [viewMode, setViewMode] = useState<ViewMode>('scroll')
   const containerRef = useRef<HTMLDivElement>(null)
 
   // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
@@ -20,13 +51,31 @@ export function PrompterWidget() {
   // back to the Song only for a song Phase 1's lazy migration hasn't touched yet.
   const chordProContent = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
   const lines = currentSong ? parseChordPro(chordProContent) : []
+
+  // Key/Tuning/Capo (SongVariant-only - genuinely arrangement-specific, see songVariant.ts)
+  // are important enough to show, but not important enough to sit in the permanently
+  // visible header wasting space all show long (Marco, 2026-09-14) - rendered as the first
+  // line of the scrolling lyrics content instead, so it scrolls away on its own once
+  // playback moves past it, the same way the rest of the song does.
+  const arrangementInfo = [
+    currentVariant?.key && `Key: ${currentVariant.key}`,
+    currentVariant?.tuning && `Tuning: ${currentVariant.tuning}`,
+    currentVariant?.capo !== undefined && `Capo: ${currentVariant.capo}. Bund`,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('  ·  ')
+  const arrangementInfoNode = arrangementInfo ? (
+    <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
+      {arrangementInfo}
+    </p>
+  ) : null
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]
 
   useEffect(() => {
-    if (viewMode !== 'scroll') return
+    if (config.viewMode !== 'scroll') return
     const container = containerRef.current
     const activeEl = container?.querySelector<HTMLElement>(`[data-line-index="${activeIndex}"]`)
     if (!container || !activeEl) return
@@ -41,7 +90,7 @@ export function PrompterWidget() {
 
     // Smooth Scroll: ease continuously toward the active line every tick.
     container.scrollTop += (target - container.scrollTop) * 0.08
-  }, [activeIndex, elapsedMs, viewMode])
+  }, [activeIndex, elapsedMs, config.viewMode])
 
   if (!currentSong) {
     return (
@@ -53,27 +102,31 @@ export function PrompterWidget() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-2 flex items-start justify-between">
-        <div>
-          <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
-          <h1 className="text-4xl font-bold text-ink">{currentSong.title}</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => setViewMode(viewMode === 'scroll' ? 'paginated' : 'scroll')}
-          className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+      <div className="mb-2 min-w-0">
+        <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
+        <h1
+          style={{ fontSize: titleFontSize }}
+          className="overflow-hidden break-words font-bold leading-tight text-ink"
         >
-          {viewMode === 'scroll' ? 'Smooth Scroll' : 'Paginated View'}
-        </button>
+          {currentSong.title}
+        </h1>
+        {currentSong.artist && (
+          <p style={{ fontSize: artistFontSize }} className="overflow-hidden break-words text-ink-muted">
+            {currentSong.artist}
+          </p>
+        )}
       </div>
 
-      {viewMode === 'paginated' && page ? (
+      {config.viewMode === 'paginated' && page ? (
         <>
-          <div className="flex items-baseline justify-between border-b border-line pb-2">
-            <p className="text-xl font-bold uppercase tracking-widest text-accent">
+          <div className="flex items-baseline justify-between gap-2 border-b border-line pb-2">
+            <p
+              style={{ fontSize: sectionLabelFontSize }}
+              className="min-w-0 overflow-hidden break-words font-bold uppercase tracking-widest text-accent"
+            >
               {page.label ?? `Seite ${pageIndex + 1}`}
             </p>
-            <p className="font-sb-mono text-sm text-ink-faint">
+            <p className="flex-shrink-0 font-sb-mono text-sm text-ink-faint">
               {pageIndex + 1}/{pages.length}
               {pages[pageIndex + 1]?.label && (
                 <span className="ml-3 text-ink-faint">
@@ -84,20 +137,124 @@ export function PrompterWidget() {
           </div>
           {/* One page at a time: the whole block is replaced when the clock crosses into the
               next part, instead of scrolling line by line. */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-x-hidden overflow-y-auto">
             <ChordProLyrics
               lines={lines.slice(page.startIndex, page.endIndex)}
               activeIndex={activeIndex}
               startIndex={page.startIndex}
               hidePartLabels
+              fontSize={fontSize}
+              chordFontSize={chordFontSize}
+              headerContent={pageIndex === 0 ? arrangementInfoNode : null}
             />
           </div>
         </>
       ) : (
-        <div ref={containerRef} className="flex-1 overflow-y-auto">
-          <ChordProLyrics lines={lines} activeIndex={activeIndex} />
+        <div ref={containerRef} className="flex-1 overflow-x-hidden overflow-y-auto">
+          <ChordProLyrics
+            lines={lines}
+            activeIndex={activeIndex}
+            fontSize={fontSize}
+            chordFontSize={chordFontSize}
+            headerContent={arrangementInfoNode}
+          />
         </div>
       )}
+    </div>
+  )
+}
+
+/** min/max/step in percent of the anchor "Text" size - 25%-400% covers everything from a
+ * barely-there Key/Tuning/Capo line up to a title bigger than the text itself many times
+ * over, without letting the slider's own range feel arbitrary. */
+const RATIO_MIN_PERCENT = 25
+const RATIO_MAX_PERCENT = 400
+const RATIO_STEP_PERCENT = 5
+
+function SizeRatioSlider({
+  label,
+  ratio,
+  onChange,
+}: {
+  label: string
+  ratio: number
+  onChange: (next: number) => void
+}) {
+  // Debounced commit (useDeferredSliderValue.ts) - committing straight through on every
+  // drag tick round-trips through a real PouchDB write each time, which is what made this
+  // stutter (Marco, 2026-09-14).
+  const [displayRatio, onDrag, flush] = useDeferredSliderValue(ratio, onChange, label)
+  const percent = Math.round(displayRatio * 100)
+  return (
+    <label className="flex flex-col gap-1 text-xs text-ink-muted">
+      <div className="flex items-center justify-between">
+        <span>{label}</span>
+        <span className="text-ink-faint">{percent}%</span>
+      </div>
+      <input
+        type="range"
+        min={RATIO_MIN_PERCENT}
+        max={RATIO_MAX_PERCENT}
+        step={RATIO_STEP_PERCENT}
+        value={percent}
+        onChange={(e) => onDrag(Number(e.target.value) / 100)}
+        onPointerUp={flush}
+        className="w-full accent-accent"
+      />
+    </label>
+  )
+}
+
+export function PrompterConfigPanel({
+  config,
+  onChange,
+}: {
+  config: PrompterConfig
+  onChange: (next: PrompterConfig) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Ansicht
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.viewMode}
+          onChange={(e) => onChange({ ...config, viewMode: e.target.value as PrompterConfig['viewMode'] })}
+        >
+          <option value="scroll">Smooth Scroll</option>
+          <option value="paginated">Paginated View</option>
+        </select>
+      </label>
+
+      {/* The one anchor size (device-wide default, or this instance's own absolute
+          override) - every slider below is a percentage of whatever this resolves to. */}
+      <ContentFontSizeConfigPanel config={config} onChange={(next) => onChange({ ...config, ...next })} />
+
+      <SizeRatioSlider
+        label="Chords"
+        ratio={config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO}
+        onChange={(chordSizeRatio) => onChange({ ...config, chordSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Titel"
+        ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}
+        onChange={(titleSizeRatio) => onChange({ ...config, titleSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Interpret"
+        ratio={config.artistSizeRatio ?? DEFAULT_ARTIST_SIZE_RATIO}
+        onChange={(artistSizeRatio) => onChange({ ...config, artistSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Abschnitt (Paginated View)"
+        ratio={config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO}
+        onChange={(sectionLabelSizeRatio) => onChange({ ...config, sectionLabelSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Key/Tuning/Capo"
+        ratio={config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO}
+        onChange={(arrangementInfoSizeRatio) => onChange({ ...config, arrangementInfoSizeRatio })}
+      />
     </div>
   )
 }

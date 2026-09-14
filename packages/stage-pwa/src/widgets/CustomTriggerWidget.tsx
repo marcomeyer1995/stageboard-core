@@ -3,6 +3,7 @@ import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getTranslator, preloadDynamicTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { resolveHardwareBindingById, resolveHardwareEngine } from '../lib/hardwareRouting'
 import { getStageServerUrl } from '../lib/stageServer'
 import { triggerShowControl } from '../lib/showControlClient'
@@ -43,6 +44,12 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   const [pressed, setPressed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, forceRerender] = useState(0)
+  // Chosen over cq units/discrete tiers after Marco compared all three live (2026-09-14,
+  // see the widget-font-autofit memory).
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLButtonElement, HTMLSpanElement>(
+    { min: 10, max: 64 },
+    [config.label],
+  )
 
   const device = resolveHardwareBindingById(devices, config.targetLogicalDeviceId ?? '')
 
@@ -107,17 +114,20 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   return (
     <div className="flex h-full flex-col gap-2">
       <button
+        ref={containerRef}
         type="button"
         disabled={disabled}
         onClick={config.behavior === 'latching' ? handleLatchingClick : undefined}
         onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
         onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
         onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        className={`h-full min-h-0 flex-1 rounded-sb text-sm font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
-        {config.label}
+        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap">
+          {config.label}
+        </span>
       </button>
       {disabled && <p className="text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
       {error && <p className="text-xs text-red-500">{error}</p>}

@@ -1,4 +1,5 @@
 import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from '../lib/metronome'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useShowMode } from '../lib/showMode'
 
 /** Step size per tap - fine enough to correct real drift without overshooting, coarse enough
@@ -15,6 +16,13 @@ const STEP_PERCENT = 1
 export function TempoNudgeWidget() {
   const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
     useShowMode()
+  // The percent value auto-fits the row's height, flanked by fixed-size +/- buttons - chosen
+  // over cq units/discrete tiers after Marco compared all three live (2026-09-14, see the
+  // widget-font-autofit memory).
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 14, max: 72 },
+    [liveTempoAdjustPercent],
+  )
 
   if (mode !== 'gig') {
     return (
@@ -28,26 +36,28 @@ export function TempoNudgeWidget() {
   const atMax = liveTempoAdjustPercent >= LIVE_TEMPO_ADJUST_LIMIT_PERCENT
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
+    <div className="flex h-full flex-col items-center gap-2 text-ink-soft">
       <span className="text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>
-      <div className="flex items-center gap-3">
+      <div className="flex w-full flex-1 items-center justify-center gap-3">
         <button
           type="button"
           disabled={!canControl || atMin}
           onClick={() => nudgeLiveTempoAdjustPercent(-STEP_PERCENT)}
-          className="h-9 w-9 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-9 w-9 flex-shrink-0 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           −
         </button>
-        <span className="w-16 text-center text-xl font-bold tabular-nums">
-          {liveTempoAdjustPercent > 0 ? '+' : ''}
-          {liveTempoAdjustPercent}%
-        </span>
+        <div ref={containerRef} className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">
+          <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums">
+            {liveTempoAdjustPercent > 0 ? '+' : ''}
+            {liveTempoAdjustPercent}%
+          </span>
+        </div>
         <button
           type="button"
           disabled={!canControl || atMax}
           onClick={() => nudgeLiveTempoAdjustPercent(STEP_PERCENT)}
-          className="h-9 w-9 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-9 w-9 flex-shrink-0 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           +
         </button>

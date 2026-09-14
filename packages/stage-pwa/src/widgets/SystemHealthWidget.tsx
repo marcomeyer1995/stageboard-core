@@ -1,7 +1,9 @@
 import type { CapabilityStatus } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
+import { useContentFontSize } from '../lib/useContentFontSize'
 import { useNow } from '../lib/useNow'
 import { useClockSyncStore } from '../store/useClockSyncStore'
+import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
   available: 'Online',
@@ -32,14 +34,15 @@ const DRIFT_WARN_THRESHOLD_MS = 15
  * relevantRoles in registry.tsx), used during setup/soundcheck, not something a
  * performing musician needs cluttering their own Station.
  */
-export function SystemHealthWidget() {
+export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }) {
   const capabilities = useCapabilities()
   const entries = [...capabilities.entries()]
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const now = useNow()
+  const fontSize = useContentFontSize(config)
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto text-sm text-ink-soft">
+    <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">System-Status</p>
       {entries.length === 0 && <p className="text-ink-faint">Keine Plugins installiert.</p>}
       {entries.map(([capability, status]) => (
@@ -48,8 +51,11 @@ export function SystemHealthWidget() {
           className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-2 py-1"
         >
           <span className="text-ink">{capability}</span>
-          <span className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
+          <span className="flex items-center gap-[0.4em]">
+            <span
+              className={`inline-block rounded-full ${STATUS_DOT[status]}`}
+              style={{ width: '0.5em', height: '0.5em' }}
+            />
             {STATUS_LABEL[status]}
           </span>
         </div>
@@ -59,16 +65,17 @@ export function SystemHealthWidget() {
       <div className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-2 py-1">
         <span className="text-ink">Stage-Server</span>
         {lastSyncedAt === null ? (
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-control-strong-hover" />
+          <span className="flex items-center gap-[0.4em]">
+            <span className="inline-block rounded-full bg-control-strong-hover" style={{ width: '0.5em', height: '0.5em' }} />
             Noch nicht synchronisiert
           </span>
         ) : (
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-[0.4em]">
             <span
-              className={`h-2 w-2 rounded-full ${
+              className={`inline-block rounded-full ${
                 driftMs !== null && driftMs > DRIFT_WARN_THRESHOLD_MS ? 'bg-amber-500' : 'bg-green-500'
               }`}
+              style={{ width: '0.5em', height: '0.5em' }}
             />
             {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms · vor ${Math.max(0, Math.round((now - lastSyncedAt) / 1000))}s`}
           </span>

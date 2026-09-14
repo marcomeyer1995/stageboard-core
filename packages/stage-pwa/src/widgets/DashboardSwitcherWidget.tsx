@@ -1,6 +1,7 @@
 import type { DashboardSwitcherConfig } from './dashboardSwitcherConfig'
 import { isDashboardVisible } from '../lib/dashboardLayout'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -26,6 +27,18 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
     : selectable
   const activeId = byWorkspace[workspaceId] ?? selectable[0]?.id
 
+  // All buttons share one font size, fit to whichever one has the longest name - chosen
+  // over cq units/discrete tiers after Marco compared all three live (2026-09-14, see the
+  // widget-font-autofit memory).
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLButtonElement, HTMLSpanElement>(
+    { min: 10, max: 40 },
+    [visible.map((d) => d.name).join('|'), config.orientation],
+  )
+  const longestId = visible.reduce<{ id: string; length: number } | null>(
+    (longest, d) => (longest === null || d.name.length > longest.length ? { id: d.id, length: d.name.length } : longest),
+    null,
+  )?.id
+
   return (
     <div
       className={`flex h-full w-full gap-2 ${
@@ -35,15 +48,18 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
       {visible.map((dashboard) => (
         <button
           key={dashboard.id}
+          ref={dashboard.id === longestId ? containerRef : undefined}
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`flex-1 rounded-sb px-4 text-base font-bold uppercase tracking-wide transition-colors ${
+          className={`flex-1 overflow-hidden rounded-sb px-4 font-bold uppercase tracking-wide transition-colors ${
             dashboard.id === activeId
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          {dashboard.name}
+          <span ref={dashboard.id === longestId ? textRef : undefined} style={{ fontSize }} className="whitespace-nowrap">
+            {dashboard.name}
+          </span>
         </button>
       ))}
     </div>

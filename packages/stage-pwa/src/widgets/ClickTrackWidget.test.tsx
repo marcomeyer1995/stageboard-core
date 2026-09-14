@@ -95,7 +95,7 @@ describe('ClickTrackWidget', () => {
     ])
     mockShowMode({ currentSong: song(true) })
     const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('An')
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('An')
     expect(screen.getByText('Klick · dieses Gerät')).toBeInTheDocument()
   })
 
@@ -105,7 +105,7 @@ describe('ClickTrackWidget', () => {
     ])
     mockShowMode({ currentSong: song(false) })
     const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('Aus')
   })
 
   it('force-off overrides an on-by-default song', () => {
@@ -114,7 +114,7 @@ describe('ClickTrackWidget', () => {
     ])
     mockShowMode({ currentSong: song(true), clickTrackOverride: 'off' })
     const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('Aus')
   })
 
   it('lets the Master change the override, disables the buttons for a non-Master device', () => {

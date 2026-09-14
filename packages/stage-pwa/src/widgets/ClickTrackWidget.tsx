@@ -1,5 +1,6 @@
 import { CAPABILITIES } from 'shared-types'
 import { supportsLocalExecution } from '../lib/clientTranslator'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { resolveExecutionEngine } from '../lib/hardwareRouting'
 import { effectiveClickEnabled } from '../lib/metronome'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
@@ -42,6 +43,13 @@ export function ClickTrackWidget() {
   )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
+  // The "An"/"Aus" label auto-fits the space left over once the caption and buttons take
+  // theirs (useAutoFitFontSize.ts) - chosen over cq units/discrete tiers after Marco compared
+  // all three live (2026-09-14, see the widget-font-autofit memory).
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 10, max: 160 },
+    [enabled],
+  )
 
   if (engine === 'none') {
     return (
@@ -52,11 +60,15 @@ export function ClickTrackWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
+    <div className="flex h-full flex-col items-center gap-1 text-ink-soft">
       <span className="text-xs uppercase tracking-widest text-ink-faint">
         Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
       </span>
-      <span className="text-xl font-bold">{enabled ? 'An' : 'Aus'}</span>
+      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-bold">
+          {enabled ? 'An' : 'Aus'}
+        </span>
+      </div>
       <div className="flex items-center gap-1">
         {OVERRIDE_OPTIONS.map((option) => (
           <button

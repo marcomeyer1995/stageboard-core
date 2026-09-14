@@ -1,10 +1,12 @@
-import type { ComponentType } from 'react'
+import { useMemo, type ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { BackupStatusWidget } from './BackupStatusWidget'
 import { ClickTrackWidget } from './ClickTrackWidget'
 import { ClockWidget } from './ClockWidget'
+import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
+import { ContentFontSizeConfigSchema } from './contentFontSizeConfig'
 import { CustomTriggerConfigPanel, CustomTriggerWidget } from './CustomTriggerWidget'
 import { CustomTriggerConfigSchema } from './customTriggerConfig'
 import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './DashboardSwitcherWidget'
@@ -16,7 +18,8 @@ import { LightingCuesWidget } from './LightingCuesWidget'
 import { LiveQueueWidget, LiveQueueWidgetPreview } from './LiveQueueWidget'
 import { MidiStatusWidget } from './MidiStatusWidget'
 import { NextSongWidget } from './NextSongWidget'
-import { PrompterWidget } from './PrompterWidget'
+import { PrompterConfigPanel, PrompterWidget } from './PrompterWidget'
+import { PrompterConfigSchema } from './prompterConfig'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { SeparatorConfigPanel, SeparatorWidget } from './SeparatorWidget'
 import { SeparatorConfigSchema } from './separatorConfig'
@@ -116,14 +119,27 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
     category: spec.category,
     relevantRoles: spec.relevantRoles,
     defaultLayout: spec.defaultLayout,
-    Component: ({ config }) => <Component config={parse(config)} />,
+    // `parse()` (Zod's safeParse) allocates a new object on every call, even for the exact
+    // same raw input - without memoizing on the raw `config` prop's own reference, any parent
+    // re-render (e.g. Dashboard.tsx's useCapabilities()/useNow() heartbeat, every 5s, with
+    // nothing actually changed) would hand every widget a structurally-identical but
+    // reference-new config on every tick, forever - silently defeating any child effect/memo
+    // keyed on `config` and forcing widgets like Prompter to re-parse their ChordPro content
+    // needlessly, all render, all the time (Marco, 2026-09-14).
+    Component: ({ config }) => {
+      const parsedConfig = useMemo(() => parse(config), [config])
+      return <Component config={parsedConfig} />
+    },
     ConfigPanel: ConfigPanel
-      ? ({ config, onChange }) => (
-          <ConfigPanel
-            config={parse(config)}
-            onChange={(next) => onChange(next as Record<string, unknown>)}
-          />
-        )
+      ? ({ config, onChange }) => {
+          const parsedConfig = useMemo(() => parse(config), [config])
+          return (
+            <ConfigPanel
+              config={parsedConfig}
+              onChange={(next) => onChange(next as Record<string, unknown>)}
+            />
+          )
+        }
       : undefined,
     Preview: spec.Preview,
   }
@@ -136,7 +152,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Text und Akkorde, wahlweise Smooth Scroll oder Paginated View.',
     category: 'performance',
     defaultLayout: { w: 12, h: 16, minW: 3, minH: 6 },
+    configSchema: PrompterConfigSchema,
     Component: PrompterWidget,
+    ConfigPanel: PrompterConfigPanel,
   }),
   defineWidget({
     type: 'live-queue',
@@ -144,7 +162,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Die nächsten Songs der Setlist, mit "Als nächstes spielen".',
     category: 'performance',
     defaultLayout: { w: 4, h: 12, minW: 3, minH: 4 },
+    configSchema: ContentFontSizeConfigSchema,
     Component: LiveQueueWidget,
+    ConfigPanel: ContentFontSizeConfigPanel,
     Preview: LiveQueueWidgetPreview,
   }),
   defineWidget({
@@ -259,7 +279,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'system-crew',
     relevantRoles: ['crew'],
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
+    configSchema: ContentFontSizeConfigSchema,
     Component: SystemHealthWidget,
+    ConfigPanel: ContentFontSizeConfigPanel,
   }),
   defineWidget({
     type: 'sync-check',
@@ -291,7 +313,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Live-Notizen von Band und Crew, zum Nachbericht sichtbar.',
     category: 'system-crew',
     defaultLayout: { w: 4, h: 8, minW: 3, minH: 4 },
+    configSchema: ContentFontSizeConfigSchema,
     Component: ShowNoteWidget,
+    ConfigPanel: ContentFontSizeConfigPanel,
   }),
   defineWidget({
     type: 'backup-status',

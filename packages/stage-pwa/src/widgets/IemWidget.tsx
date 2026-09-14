@@ -3,6 +3,7 @@ import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
+import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
@@ -63,15 +64,33 @@ export function IemWidget() {
   }
 
   const levels = usesLocalMixerStore ? { ...ownLevels, ...localVolumes } : ownLevels
+  // All three channel labels/readouts share one font size, fit to the longest label
+  // ("Meine Gitarre") - chosen over cq units/discrete tiers after Marco compared all three
+  // live (2026-09-14, see the widget-font-autofit memory). The fader itself already fills
+  // its column (h-full/flex-1), no text sizing involved.
+  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
+    { min: 9, max: 22 },
+    [],
+  )
+  const longestChannel = CHANNELS.reduce((a, b) => (b.length > a.length ? b : a))
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
       <div className="flex min-h-0 flex-1 gap-4">
         {CHANNELS.map((channel) => (
           <div key={channel} className="flex flex-1 flex-col items-center gap-2">
-            <span className="text-center text-xs uppercase tracking-wide text-ink-muted">
-              {channel}
-            </span>
+            <div
+              ref={channel === longestChannel ? containerRef : undefined}
+              className="w-full overflow-hidden"
+            >
+              <span
+                ref={channel === longestChannel ? textRef : undefined}
+                style={{ fontSize }}
+                className="block truncate text-center uppercase tracking-wide text-ink-muted"
+              >
+                {channel}
+              </span>
+            </div>
             <input
               type="range"
               min={0}
@@ -84,7 +103,9 @@ export function IemWidget() {
               style={{ accentColor: 'rgb(var(--sb-accent))' }}
               className="h-full w-2 flex-1 appearance-none rounded-sb-sm bg-control-strong [writing-mode:vertical-lr] [direction:rtl]"
             />
-            <span className="font-sb-mono text-sm text-ink">{levels[channel]}</span>
+            <span style={{ fontSize }} className="font-sb-mono text-ink">
+              {levels[channel]}
+            </span>
           </div>
         ))}
       </div>
