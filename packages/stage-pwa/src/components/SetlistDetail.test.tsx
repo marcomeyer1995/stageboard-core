@@ -26,8 +26,8 @@ const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { SetlistDetail } = await import('./SetlistDetail')
 
-function song(id: string, title: string): Song {
-  return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
+function song(id: string, title: string, artist?: string): Song {
+  return { id, title, artist, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
 }
 
 function entry(id: string, songId: string): SetlistEntry {
@@ -42,7 +42,9 @@ const setlist: Setlist = {
 }
 
 beforeEach(() => {
-  useSongsStore.setState({ songs: [song('a', 'Alpha'), song('b', 'Bravo')] })
+  useSongsStore.setState({
+    songs: [song('a', 'Alpha'), song('b', 'Bravo'), song('c', 'Creep', 'Radiohead')],
+  })
   useSetlistsStore.setState({ setlists: [setlist] })
 })
 
@@ -118,5 +120,64 @@ describe('SetlistDetail - header ⋯ menu (#181)', () => {
 
     await waitFor(() => expect(remove).toHaveBeenCalledWith('sl-1'))
     expect(onDeleted).toHaveBeenCalled()
+  })
+})
+
+describe('SetlistDetail - "Song hinzufügen" search combobox', () => {
+  it('focusing the input shows every song; typing narrows by title or artist', () => {
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bravo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Creep/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Songs durchsuchen…'), { target: { value: 'radio' } })
+    expect(screen.getByRole('button', { name: /Creep/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Alpha' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Bravo' })).not.toBeInTheDocument()
+  })
+
+  it('shows "Keine Songs gefunden." for a query matching nothing', () => {
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
+    fireEvent.change(screen.getByPlaceholderText('Songs durchsuchen…'), { target: { value: 'zzz' } })
+
+    expect(screen.getByText('Keine Songs gefunden.')).toBeInTheDocument()
+  })
+
+  it('picking a result adds it to the setlist and resets/closes the dropdown', () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    const input = screen.getByPlaceholderText('Songs durchsuchen…')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'Creep' } })
+    fireEvent.click(screen.getByRole('button', { name: /Creep/ }))
+
+    expect(saveSetlist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [entry('e1', 'a'), entry('e2', 'b'), expect.objectContaining({ songId: 'c' })],
+      }),
+    )
+    expect(screen.queryByRole('button', { name: /Creep/ })).not.toBeInTheDocument()
+    expect(input).toHaveValue('')
+  })
+
+  it('closes the dropdown on an outside click', () => {
+    render(
+      <div>
+        <button type="button">outside</button>
+        <SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />
+      </div>,
+    )
+
+    fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument()
+
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'outside' }))
+    expect(screen.queryByRole('button', { name: 'Alpha' })).not.toBeInTheDocument()
   })
 })

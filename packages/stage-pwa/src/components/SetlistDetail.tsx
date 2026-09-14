@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -97,6 +98,80 @@ function EntryRow({
       )}
       <OverflowMenu title={title} actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]} />
     </li>
+  )
+}
+
+/** A plain `<select>` doesn't let you type to filter its own options - this is a small
+ * hand-rolled combobox instead (text input + a dropdown of matches below it), same
+ * title/artist substring match LibraryView.tsx's own search box already uses. Opening it
+ * (focus) shows every song; typing narrows the list; picking one adds it and resets. Closes on
+ * Escape or a click outside - `mousedown`, not `click`, so it fires before a dropdown button's
+ * own click would otherwise be pre-empted by an intervening blur. */
+function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: string) => void }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  const term = query.trim().toLowerCase()
+  const filtered = term
+    ? songs.filter((s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term))
+    : songs
+
+  function pick(songId: string) {
+    onAdd(songId)
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative flex flex-col gap-1 text-sm text-ink-muted">
+      Song hinzufügen
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setOpen(false)
+        }}
+        placeholder="Songs durchsuchen…"
+        className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+      />
+      {open && (
+        <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-sb border border-line bg-surface shadow-sb">
+          {filtered.length === 0 ? (
+            <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
+          ) : (
+            filtered.map((song) => (
+              <li key={song.id}>
+                <button
+                  type="button"
+                  onClick={() => pick(song.id)}
+                  className="block w-full truncate px-4 py-3 text-left text-base text-ink hover:bg-control-hover"
+                >
+                  {song.title || '(ohne Titel)'}
+                  {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -257,23 +332,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           </ul>
         </SortableContext>
       </DndContext>
-      <label className="flex flex-col gap-1 text-sm text-ink-muted">
-        Song hinzufügen
-        <select
-          className="h-12 rounded-sb-sm bg-control px-2 text-base text-ink"
-          value=""
-          onChange={(e) => addSong(e.target.value)}
-        >
-          <option value="" disabled>
-            Song wählen...
-          </option>
-          {songs.map((song) => (
-            <option key={song.id} value={song.id}>
-              {song.title}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AddSongCombobox songs={songs} onAdd={addSong} />
     </div>
   )
 }
