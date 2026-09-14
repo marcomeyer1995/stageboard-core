@@ -171,4 +171,16 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
     expect(within(row).queryByText('+ Zur aktiven Setlist')).not.toBeInTheDocument()
     expect(within(row).getByRole('button', { name: '+' })).toBeInTheDocument()
   })
+
+  it('dragging itself is disabled in the pointer lane, not just the swipe fallback', () => {
+    render(<LibraryView />)
+    // dnd-kit reflects a disabled useDraggable via aria-disabled on the draggable node.
+    expect(screen.getByText('Alpha')).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('dragging stays enabled in the touch lane', () => {
+    stubTouchLane()
+    render(<LibraryView />)
+    expect(screen.getByText('Alpha')).toHaveAttribute('aria-disabled', 'false')
+  })
 })
