@@ -27,6 +27,11 @@ export const WidgetInstanceSchema = z.object({
   i: z.string().min(1),
   type: z.string().min(1),
   config: z.record(z.string(), z.unknown()).optional(),
+  /** Hides WidgetFrame's border/background/padding chrome, so a purely visual widget (a
+   * divider) can blend into the dashboard instead of looking like a boxed card. A structural
+   * instance property, not part of `config`, since it's about the frame every widget type
+   * shares, not any one type's own settings. */
+  frameless: z.boolean().default(false),
 })
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>
 

@@ -11,6 +11,13 @@ interface WidgetFrameProps {
   /** Pre-rendered <ConfigPanel config={...} onChange={...} />, or undefined if this
    * widget type has none - shown inline in the same menu as Entfernen/Abbrechen. */
   configPanel?: ReactNode
+  /** Hides the border/background/padding chrome (Marco, 2026-09-14: a SeparatorWidget
+   * shouldn't look like a boxed card). Defaults to false so every existing call site
+   * (WidgetFrame.test.tsx included) keeps today's look with no change. */
+  frameless?: boolean
+  /** Only rendered in the menu when provided - Dashboard.tsx wires it per instance;
+   * WidgetFrame.test.tsx's bare renders simply don't offer the toggle. */
+  onToggleFrameless?: () => void
 }
 
 /**
@@ -42,20 +49,25 @@ export function WidgetFrame({
   onRemove,
   children,
   configPanel,
+  frameless = false,
+  onToggleFrameless,
 }: WidgetFrameProps) {
   const isDisabled = status === 'degraded'
   const [menuOpen, setMenuOpen] = useState(false)
   const inert = isDisabled || isEditing
+  // Hidden chrome is a live/locked-view thing only - while editing, every widget keeps its
+  // border so its drag/resize bounds stay visible, same reasoning `inert` already applies.
+  const hideChrome = frameless && !isEditing
 
   return (
     <div
-      className={`relative flex h-full w-full flex-col overflow-hidden rounded-sb border border-line bg-surface shadow-sb ${
-        isEditing ? 'widget-drag-handle cursor-move' : ''
-      }`}
+      className={`relative flex h-full w-full flex-col overflow-hidden rounded-sb ${
+        hideChrome ? '' : 'border border-line bg-surface shadow-sb'
+      } ${isEditing ? 'widget-drag-handle cursor-move' : ''}`}
       onDoubleClick={isEditing ? () => setMenuOpen(true) : undefined}
     >
       <div
-        className={`min-h-0 flex-1 p-4 ${inert ? 'pointer-events-none' : ''} ${isDisabled ? 'opacity-50' : ''}`}
+        className={`min-h-0 flex-1 ${hideChrome ? '' : 'p-4'} ${inert ? 'pointer-events-none' : ''} ${isDisabled ? 'opacity-50' : ''}`}
         aria-disabled={isDisabled}
       >
         {children}
@@ -127,6 +139,16 @@ export function WidgetFrame({
               </div>
 
               {configPanel}
+
+              {onToggleFrameless && (
+                <button
+                  type="button"
+                  onClick={onToggleFrameless}
+                  className="h-11 w-full rounded-sb bg-control text-sm text-ink-soft hover:bg-control-hover"
+                >
+                  {frameless ? 'Rahmen einblenden' : 'Rahmen ausblenden'}
+                </button>
+              )}
 
               {/* Deliberately last, with a divider and extra space above it, and in red:
                   the safety net against removing a widget by mistake is distance and

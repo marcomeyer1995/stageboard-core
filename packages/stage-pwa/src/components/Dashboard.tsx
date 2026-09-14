@@ -239,6 +239,16 @@ export function Dashboard() {
     })
   }
 
+  function toggleFrameless(instanceId: string) {
+    if (!active) return
+    void save({
+      ...active,
+      widgets: active.widgets.map((widget) =>
+        widget.i === instanceId ? { ...widget, frameless: !widget.frameless } : widget,
+      ),
+    })
+  }
+
   return (
     <div className="flex h-dvh flex-col sb-app-bg">
       {isEditing && <DashboardEditBar dashboard={active} capabilities={capabilities} />}
@@ -317,6 +327,8 @@ export function Dashboard() {
                     status={status}
                     isEditing={isEditing}
                     onRemove={() => removeWidget(widget.i)}
+                    frameless={widget.frameless}
+                    onToggleFrameless={() => toggleFrameless(widget.i)}
                     configPanel={
                       ConfigPanel && (
                         <ConfigPanel

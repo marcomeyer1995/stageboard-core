@@ -316,7 +316,11 @@ export function withWidgetAppended(
     }),
   )
 
-  return { ...dashboard, widgets: [...dashboard.widgets, { i: instanceId, type }], layouts }
+  return {
+    ...dashboard,
+    widgets: [...dashboard.widgets, { i: instanceId, type, frameless: false }],
+    layouts,
+  }
 }
 
 /** Removes a widget instance from the widget list and from every breakpoint's layout. */
