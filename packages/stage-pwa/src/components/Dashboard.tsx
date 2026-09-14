@@ -80,6 +80,23 @@ export function Dashboard() {
   // portrait tablet writing its edits into the landscape layout.
   const breakpoint = breakpointFor(width)
   const metrics = gridMetrics(height)
+  // Diagnostic for "widgets jumping/resizing" reports that aren't from a drag/resize gesture
+  // (those are already covered by captureBaseline/stopInteraction above) - rowHeight is a
+  // direct function of the measured container height (gridMetrics), so anything that jitters
+  // that height (mobile browser chrome hiding/showing its address bar as the page is touched,
+  // on-screen keyboard, orientation flapping) reflows every widget in lockstep. Logged here,
+  // not in useElementSize itself, since only Dashboard's *consequence* of a size change
+  // (rowHeight, breakpoint) is the question - the raw ResizeObserver firing isn't.
+  const lastLoggedMetrics = useRef<{ width: number; height: number; rowHeight: number } | null>(null)
+  useEffect(() => {
+    const prev = lastLoggedMetrics.current
+    if (prev && prev.width === width && prev.height === height && prev.rowHeight === metrics.rowHeight) return
+    gridLog(
+      `size ${width}x${height} -> rowHeight=${metrics.rowHeight} breakpoint=${breakpoint}`,
+      prev ? `(was ${prev.width}x${prev.height} rowHeight=${prev.rowHeight})` : '(initial)',
+    )
+    lastLoggedMetrics.current = { width, height, rowHeight: metrics.rowHeight }
+  }, [width, height, metrics.rowHeight, breakpoint])
   // The layout as it stood right before the current drag/resize, plus which widget that
   // interaction belongs to - resolveInteraction needs both to tell "genuinely still in the
   // way" apart from "just passed over a moment ago", live as the interaction happens. null
