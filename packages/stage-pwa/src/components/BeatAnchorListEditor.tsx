@@ -47,36 +47,44 @@ export function BeatAnchorListEditor({ anchors, timeSignature, onChange }: BeatA
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-muted">Klick-Anker</p>
-      {anchors.length === 0 && <p className="text-xs text-ink-faint">Noch keine Anker für diese Variante.</p>}
-      {anchors.map((anchor) => (
-        <div
-          key={anchor.id}
-          className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
-        >
-          <span className="flex-1 font-sb-mono text-ink">{formatTime(anchor.timeMs)}</span>
-          <label className="flex items-center gap-1 text-xs text-ink-muted">
-            Beat
-            <select
-              value={(anchor.beatInBar ?? 0) % beatCount}
-              onChange={(e) => setBeatInBar(anchor.id, Number(e.target.value))}
-              className="rounded-sb-sm bg-control-strong px-1 py-0.5 text-xs text-ink"
+      {anchors.length === 0 ? (
+        <p className="text-xs text-ink-faint">Noch keine Anker für diese Variante.</p>
+      ) : (
+        // Capped height, not open-ended - a fully-anchored song can have dozens of these, and
+        // without a cap the list pushes "Anker hinzufügen" (and everything after this section)
+        // further down with every anchor added.
+        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+          {anchors.map((anchor) => (
+            <div
+              key={anchor.id}
+              className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
             >
-              {Array.from({ length: beatCount }, (_, i) => (
-                <option key={i} value={i}>
-                  {i + 1}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => remove(anchor.id)}
-            className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
-          >
-            Entfernen
-          </button>
+              <span className="flex-1 font-sb-mono text-ink">{formatTime(anchor.timeMs)}</span>
+              <label className="flex items-center gap-1 text-xs text-ink-muted">
+                Beat
+                <select
+                  value={(anchor.beatInBar ?? 0) % beatCount}
+                  onChange={(e) => setBeatInBar(anchor.id, Number(e.target.value))}
+                  className="rounded-sb-sm bg-control-strong px-1 py-0.5 text-xs text-ink"
+                >
+                  {Array.from({ length: beatCount }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => remove(anchor.id)}
+                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
+              >
+                Entfernen
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       <div className="flex items-center gap-2 rounded-sb-sm border border-dashed border-line p-3">
         <label className="flex flex-col gap-1 text-xs text-ink-muted">

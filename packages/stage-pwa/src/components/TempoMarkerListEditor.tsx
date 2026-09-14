@@ -46,32 +46,39 @@ export function TempoMarkerListEditor({ tempoMarkers, onChange }: TempoMarkerLis
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-muted">Tempo-Wechsel</p>
-      {tempoMarkers.length === 0 && <p className="text-xs text-ink-faint">Kein Tempo-Wechsel in dieser Variante.</p>}
-      {tempoMarkers.map((marker) => (
-        <div
-          key={marker.id}
-          className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
-        >
-          <span className="flex-1 font-sb-mono text-ink">{formatTime(marker.timeMs)}</span>
-          <label className="flex items-center gap-1 text-xs text-ink-muted">
-            BPM
-            <input
-              type="number"
-              min={1}
-              value={marker.bpm}
-              onChange={(e) => setMarkerBpm(marker.id, Number(e.target.value))}
-              className="w-16 rounded-sb-sm bg-control-strong px-1 py-0.5 text-xs text-ink"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => remove(marker.id)}
-            className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
-          >
-            Entfernen
-          </button>
+      {tempoMarkers.length === 0 ? (
+        <p className="text-xs text-ink-faint">Kein Tempo-Wechsel in dieser Variante.</p>
+      ) : (
+        // Capped height, not open-ended - same reasoning as BeatAnchorListEditor.tsx: a long
+        // list here shouldn't push "Marker hinzufügen" further down with every addition.
+        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+          {tempoMarkers.map((marker) => (
+            <div
+              key={marker.id}
+              className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+            >
+              <span className="flex-1 font-sb-mono text-ink">{formatTime(marker.timeMs)}</span>
+              <label className="flex items-center gap-1 text-xs text-ink-muted">
+                BPM
+                <input
+                  type="number"
+                  min={1}
+                  value={marker.bpm}
+                  onChange={(e) => setMarkerBpm(marker.id, Number(e.target.value))}
+                  className="w-16 rounded-sb-sm bg-control-strong px-1 py-0.5 text-xs text-ink"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => remove(marker.id)}
+                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
+              >
+                Entfernen
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       <div className="flex items-end gap-2 rounded-sb-sm border border-dashed border-line p-3">
         <label className="flex flex-col gap-1 text-xs text-ink-muted">
