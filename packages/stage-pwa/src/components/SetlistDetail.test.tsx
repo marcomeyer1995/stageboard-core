@@ -46,27 +46,20 @@ beforeEach(() => {
   useSetlistsStore.setState({ setlists: [setlist] })
 })
 
-describe('SetlistDetail - row reorder/remove (#181)', () => {
-  it('has no up/down arrow buttons on a row - drag plus its own ⋯ menu instead', () => {
+describe('SetlistDetail - row reorder/remove', () => {
+  it('has no up/down arrow buttons, and no "Nach oben"/"Nach unten" in the row menu - drag is the only reorder gesture', async () => {
     render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: '↑' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '↓' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '×' })).not.toBeInTheDocument()
-  })
 
-  it("a row's ⋯ menu moves it up, saving the reordered entries", async () => {
-    const saveSetlist = vi.fn(async () => {})
-    useSetlistsStore.setState({ saveSetlist })
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
-
-    const row = screen.getByText('2. Bravo').closest('li')!
+    const row = screen.getByText('1. Alpha').closest('li')!
     fireEvent.click(within(row).getByTitle('Menü öffnen'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Nach oben' }))
 
-    expect(saveSetlist).toHaveBeenCalledWith(
-      expect.objectContaining({ entries: [entry('e2', 'b'), entry('e1', 'a')] }),
-    )
+    expect(await screen.findByRole('button', { name: 'Entfernen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nach oben' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Nach unten' })).not.toBeInTheDocument()
   })
 
   it("a row's ⋯ menu removes it, saving the entries without it", async () => {
