@@ -22,6 +22,26 @@ const TAB_LABEL: Record<SystemTab, string> = {
   settings: 'Einstellungen',
 }
 
+/** Mirrors LibraryView.tsx's own two-pane breakpoint (Tailwind's `lg`, min-width 1024px) -
+ * once the screen is wide enough that Bibliothek would show both its panes side by side
+ * (including a tablet held in landscape, not just desktop), System gets the same "there's
+ * room for more than one column" treatment (Marco, explicit request: "similar to the
+ * Bibliothek approach"). Local rather than shared yet, same reasoning as SheetEditor.tsx's own
+ * screen-class hook - a second/third consumer wanting the exact same threshold can justify
+ * extracting a shared version later. */
+function useIsWideScreen(): boolean {
+  const [isWide, setIsWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches)
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsWide(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return isWide
+}
+
 /**
  * The "System" pillar of the Live / Bibliothek / System structure #20 originally planned -
  * Plugins, Hardware (#10's Logical Device / HardwareSetup admin UI), Backup, Nachbericht, the
@@ -48,6 +68,8 @@ export function SystemView() {
   const activeTab = tabs.includes(tab) ? tab : 'band'
   const setActiveSystemTab = useActiveSystemTabStore((state) => state.setActiveTab)
   const inputCapability = useInputCapability()
+  const isWideScreen = useIsWideScreen()
+  const showSidebar = inputCapability === 'pointer' || isWideScreen
 
   // Publishes which tab is actually on screen for useHardwareDetection.ts's Hardware-tab gate
   // (see useActiveSystemTabStore.ts's own doc comment) - and clears it back to `null` on
@@ -70,13 +92,14 @@ export function SystemView() {
     </>
   )
 
-  // Mouse+keyboard lane (#179, rollout step 3/3 of the "UI Tech Rider" concept, following
-  // #177/#178): all seven tabs listed vertically in an always-visible sidebar with hover, so a
-  // mouse user doesn't have to horizontally scan a strip that only exists because touch needs
-  // one. `tab`/`activeTab` state lives above this branch, so switching lanes mid-session (e.g.
-  // unplugging a mouse) can't lose the active tab - only which of these two layouts renders it
-  // changes.
-  if (inputCapability === 'pointer') {
+  // Sidebar (#179, rollout step 3/3 of the "UI Tech Rider" concept, following #177/#178): all
+  // seven tabs listed vertically with hover, so a mouse user (any screen size) or anyone on a
+  // wide-enough screen (a tablet in landscape included, not just desktop - Marco, explicit
+  // request to match Bibliothek's own width-driven layout switch) doesn't have to horizontally
+  // scan a strip that only exists for narrow touch. `tab`/`activeTab` state lives above this
+  // branch, so switching lanes/rotating the device mid-session can't lose the active tab - only
+  // which of these two layouts renders it changes.
+  if (showSidebar) {
     return (
       <div className="flex h-dvh sb-app-bg text-ink">
         <div className="flex w-56 flex-shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-2">
@@ -100,9 +123,7 @@ export function SystemView() {
     )
   }
 
-  // Touch lane (phone, tablet portrait and landscape - landscape already fits all seven tabs
-  // without scrolling at that width, so it doesn't need the sidebar either): unchanged
-  // horizontal tab strip.
+  // Narrow touch (phone, tablet portrait): unchanged horizontal tab strip.
   return (
     <div className="h-dvh overflow-y-auto sb-app-bg text-ink">
       <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-line bg-surface p-2">
