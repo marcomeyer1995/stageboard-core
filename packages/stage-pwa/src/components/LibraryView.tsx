@@ -16,6 +16,7 @@ import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
 import { useInputCapability } from '../lib/useInputCapability'
+import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -198,6 +199,10 @@ export function LibraryView() {
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
   const inputCapability = useInputCapability()
+  // Two-pane breakpoint (#178): moved down from a flat lg (1024px) to "desktop-wide, or
+  // landscape at tablet width already" - a landscape tablet has the room for two panes well
+  // below 1024px, same threshold SheetEditor.tsx's own 'panel' tier already uses.
+  const isPanel = useIsPanelLayout()
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
   const [selection, setSelection] = useState<Selection>(null)
@@ -356,14 +361,17 @@ export function LibraryView() {
       modifiers={[restrictToHorizontalAxis, clampSwipe]}
       onDragEnd={handleDragEnd}
     >
-      {/* Below lg (tablet portrait and phones - docs/07's "phone"/"tablet portrait" classes),
-          there isn't room for both panes side by side: show the tree until something is
-          picked, then swap to just the detail pane with a way back. At lg and up, both stay
+      {/* Single-focus (list -> pick -> detail) is the base case everywhere (#178) - below the
+          panel threshold, there isn't room for both panes side by side: show the tree until
+          something is picked, then swap to just the detail pane with a way back. At/above the
+          panel threshold (desktop-wide, or a landscape tablet already wide enough), both stay
           visible at once - no need to hide either. */}
-      <div className="flex h-dvh flex-col gap-3 sb-app-bg p-3 text-ink lg:grid lg:grid-cols-[minmax(0,1fr)_2fr]">
+      <div
+        className={`flex h-dvh gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
+      >
         <div
-          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb lg:flex ${
-            selection ? 'hidden' : 'flex'
+          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb ${
+            isPanel || !selection ? 'flex' : 'hidden'
           }`}
         >
           <input
@@ -485,8 +493,8 @@ export function LibraryView() {
 
         <div
           ref={setDropzoneRef}
-          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-sb border p-4 shadow-sb lg:flex ${
-            selection ? 'flex' : 'hidden'
+          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-sb border p-4 shadow-sb ${
+            isPanel || selection ? 'flex' : 'hidden'
           } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
         >
           {selection?.type === 'setlist' ? (
@@ -494,7 +502,9 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className="mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover lg:hidden"
+                className={`mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                  isPanel ? 'hidden' : ''
+                }`}
               >
                 ← Bibliothek
               </button>
@@ -509,7 +519,9 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className="mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover lg:hidden"
+                className={`mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                  isPanel ? 'hidden' : ''
+                }`}
               >
                 ← Bibliothek
               </button>

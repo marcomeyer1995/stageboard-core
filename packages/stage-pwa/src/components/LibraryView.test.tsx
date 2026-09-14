@@ -58,6 +58,23 @@ function stubTouchLane() {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })))
 }
 
+/** Dispatches by query-string substring, same pattern SheetEditor.test.tsx's own stubViewport
+ * and useIsPanelLayout.test.ts already use - independently drives useInputCapability.ts's
+ * `(pointer: fine)`/`(hover: hover)` queries and useIsPanelLayout.ts's own three queries, so a
+ * test can stub e.g. "touch lane, but landscape-tablet-wide" without the two axes fighting. */
+function stubMedia(opts: { pointer: boolean; width1024: boolean; width768: boolean; landscape: boolean }) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => {
+      let matches = opts.pointer
+      if (query.includes('1024')) matches = opts.width1024
+      else if (query.includes('768')) matches = opts.width768
+      else if (query.includes('landscape')) matches = opts.landscape
+      return { matches, addEventListener: () => {}, removeEventListener: () => {} }
+    }),
+  )
+}
+
 describe('LibraryView', () => {
   beforeEach(() => {
     useSongsStore.setState({
@@ -258,5 +275,44 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
     // surface wrapping the title, not the title button itself.
     expect(titleButton).not.toHaveAttribute('aria-roledescription')
     expect(titleButton.parentElement).toHaveAttribute('aria-roledescription', 'draggable')
+  })
+})
+
+describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not just lg (#178)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const placeholder = 'Wähle links eine Setlist oder einen Song aus.'
+
+  it('narrow portrait: the right pane stays hidden until something is selected', () => {
+    stubMedia({ pointer: false, width1024: false, width768: false, landscape: false })
+    render(<LibraryView />)
+
+    expect(screen.getByText(placeholder).parentElement).toHaveClass('hidden')
+  })
+
+  it('landscape tablet (touch, below 1024px but past the landscape threshold): both panes visible with nothing selected yet', () => {
+    stubMedia({ pointer: false, width1024: false, width768: true, landscape: true })
+    render(<LibraryView />)
+
+    expect(screen.getByText(placeholder).parentElement).not.toHaveClass('hidden')
+    expect(screen.getByText(placeholder).parentElement).toHaveClass('flex')
+  })
+
+  it('panel mode hides the mobile-only "← Bibliothek" back button once something is selected', () => {
+    stubMedia({ pointer: false, width1024: false, width768: true, landscape: true })
+    render(<LibraryView />)
+
+    fireEvent.click(screen.getByText('Alpha'))
+    expect(screen.getByRole('button', { name: '← Bibliothek' })).toHaveClass('hidden')
+  })
+
+  it('narrow portrait still shows the "← Bibliothek" back button once something is selected', () => {
+    stubMedia({ pointer: false, width1024: false, width768: false, landscape: false })
+    render(<LibraryView />)
+
+    fireEvent.click(screen.getByText('Alpha'))
+    expect(screen.getByRole('button', { name: '← Bibliothek' })).not.toHaveClass('hidden')
   })
 })

@@ -15,6 +15,7 @@ import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
+import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongsStore } from '../store/useSongsStore'
@@ -87,36 +88,28 @@ type EditorLayout = 'phoneTabs' | 'tabletPortraitSheet' | 'panel'
 /** Screen-class detection for the Text/Details split (#177) - phone and tablet portrait get a
  * tab switcher (tablet portrait renders Details as a bottom sheet over Text rather than
  * replacing it, since there's more vertical room), landscape and desktop show both panes at
- * once. Deliberately its own small hook rather than a shared one yet - #178 introduces the
- * input-capability axis this editor doesn't need, and extracting a shared screen-class hook
- * can happen once a second consumer actually needs it. */
-function computeEditorLayout(): EditorLayout {
-  if (window.matchMedia('(min-width: 1024px)').matches) return 'panel'
-  if (window.matchMedia('(min-width: 768px)').matches && window.matchMedia('(orientation: landscape)').matches) {
-    return 'panel'
-  }
-  if (window.matchMedia('(min-width: 640px)').matches && window.matchMedia('(orientation: portrait)').matches) {
-    return 'tabletPortraitSheet'
-  }
-  return 'phoneTabs'
-}
-
+ * once. The 'panel' tier itself is useIsPanelLayout.ts, shared with LibraryView.tsx's own
+ * single-focus-vs-two-pane switch (#178) - the second consumer that justified pulling it out
+ * of this hook, which keeps only its own extra 'tabletPortraitSheet' tier local. */
 function useEditorLayout(): EditorLayout {
-  const [layout, setLayout] = useState<EditorLayout>(computeEditorLayout)
+  const isPanel = useIsPanelLayout()
+  const [isPortraitTablet, setIsPortraitTablet] = useState(
+    () => window.matchMedia('(min-width: 640px)').matches && window.matchMedia('(orientation: portrait)').matches,
+  )
 
   useEffect(() => {
-    const queries = [
-      window.matchMedia('(min-width: 1024px)'),
-      window.matchMedia('(min-width: 768px)'),
-      window.matchMedia('(min-width: 640px)'),
-      window.matchMedia('(orientation: portrait)'),
-    ]
-    const update = () => setLayout(computeEditorLayout())
+    const queries = [window.matchMedia('(min-width: 640px)'), window.matchMedia('(orientation: portrait)')]
+    const update = () =>
+      setIsPortraitTablet(
+        window.matchMedia('(min-width: 640px)').matches && window.matchMedia('(orientation: portrait)').matches,
+      )
     queries.forEach((q) => q.addEventListener('change', update))
     return () => queries.forEach((q) => q.removeEventListener('change', update))
   }, [])
 
-  return layout
+  if (isPanel) return 'panel'
+  if (isPortraitTablet) return 'tabletPortraitSheet'
+  return 'phoneTabs'
 }
 
 interface SheetEditorProps {
