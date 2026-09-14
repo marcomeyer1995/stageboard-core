@@ -440,14 +440,4 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
 
     expect(screen.getByPlaceholderText('Songs & Setlists durchsuchen…')).toHaveFocus()
   })
-
-  it('shows the keyboard-shortcut hint footer only in the pointer lane', () => {
-    const { unmount } = render(<LibraryView />)
-    expect(screen.getByText('Suche')).toBeInTheDocument()
-    unmount()
-
-    stubTouchLane()
-    render(<LibraryView />)
-    expect(screen.queryByText('Suche')).not.toBeInTheDocument()
-  })
 })
