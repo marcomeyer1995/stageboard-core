@@ -122,6 +122,15 @@ describe('LibraryView', () => {
     expect(saveSong).toHaveBeenCalledWith(expect.objectContaining({ title: 'Wonderwall' }))
   })
 
+  it('highlights the selected song row, same as a selected setlist', () => {
+    render(<LibraryView />)
+    const alphaRow = screen.getByText('Alpha').parentElement!
+    expect(alphaRow).not.toHaveClass('bg-accent')
+
+    fireEvent.click(screen.getByText('Alpha'))
+    expect(alphaRow).toHaveClass('bg-accent')
+  })
+
   it('clicking an existing song shows its preview first, not the editor directly - unlike "+ Neu"', () => {
     render(<LibraryView />)
     fireEvent.click(screen.getByText('Alpha'))

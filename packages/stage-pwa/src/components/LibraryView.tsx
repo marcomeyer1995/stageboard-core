@@ -50,6 +50,9 @@ function songEntry(songId: string) {
 interface DraggableSongRowProps {
   song: Song
   onClick: () => void
+  /** Same selected-state treatment the Setlists list already has (Marco: "why is the setlist
+   * highlighted after clicking, but the song not?" - it simply never got one). */
+  selected: boolean
   /** True only in the pointer/mouse lane (Marco, explicit request) - the "+" button and the
    * swipe gesture below are two ways to do the same thing, and each only makes sense for one
    * input type: dragging/swiping is natural on touch but awkward with a mouse, while a mouse
@@ -77,6 +80,7 @@ interface DraggableSongRowProps {
 function DraggableSongRow({
   song,
   onClick,
+  selected,
   onAddToActiveSetlist,
   showAddButton,
   showSwipeReveal,
@@ -125,7 +129,9 @@ function DraggableSongRow({
           // scrolling working natively; only the horizontal swipe/drag is JS-driven.
           touchAction: 'pan-y',
         }}
-        className="relative z-10 flex items-center gap-1 rounded-sb-sm bg-control py-1 pl-2 pr-1 hover:bg-control-hover"
+        className={`relative z-10 flex items-center gap-1 rounded-sb-sm py-1 pl-2 pr-1 ${
+          selected ? 'bg-accent text-accent-ink' : 'bg-control hover:bg-control-hover'
+        }`}
       >
         <button
           type="button"
@@ -133,7 +139,7 @@ function DraggableSongRow({
           className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
-          {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
+          {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
         </button>
         {showAddButton && (
           <button
@@ -447,6 +453,7 @@ export function LibraryView() {
                     key={song.id}
                     song={song}
                     onClick={() => selectSong(song.id, null)}
+                    selected={selection?.type === 'song' && selection.songId === song.id}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}
