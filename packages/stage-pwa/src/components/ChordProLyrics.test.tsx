@@ -4,9 +4,9 @@ import type { ChordProLine } from '../lib/chordpro'
 import { ChordProLyrics } from './ChordProLyrics'
 
 const lines: ChordProLine[] = [
-  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1' },
-  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1' },
-  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus' },
+  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null },
+  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1', comment: null },
+  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus', comment: null },
 ]
 
 describe('ChordProLyrics', () => {
@@ -56,5 +56,30 @@ describe('ChordProLyrics', () => {
     expect(container.querySelector('[data-line-index="0"]')).not.toHaveClass('bg-accent-2/20')
     expect(container.querySelector('[data-line-index="1"]')).toHaveClass('bg-accent-2/20')
     expect(container.querySelector('[data-line-index="2"]')).not.toHaveClass('bg-accent-2/20')
+  })
+})
+
+describe('ChordProLyrics comment lines (#215)', () => {
+  const commentLines: ChordProLine[] = [
+    { timeMs: null, segments: [{ chord: null, text: 'Regular lyric' }], partIndex: 0, partLabel: null, comment: null },
+    { timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: 'Play softer here' },
+  ]
+
+  it('renders a comment line by its text, distinct from a lyric line', () => {
+    render(<ChordProLyrics lines={commentLines} />)
+    const commentEl = screen.getByText('Play softer here')
+    expect(commentEl.className).toContain('italic')
+    expect(commentEl.className).not.toContain('font-sb-mono')
+  })
+
+  it('gives a comment line no chord segments', () => {
+    const { container } = render(<ChordProLyrics lines={commentLines} />)
+    const commentEl = container.querySelector('[data-line-index="1"]')
+    expect(commentEl?.querySelector('.text-accent')).toBeNull()
+  })
+
+  it('sizes a comment line from commentFontSize, independent of chordFontSize', () => {
+    render(<ChordProLyrics lines={commentLines} chordFontSize={99} commentFontSize={42} />)
+    expect(screen.getByText('Play softer here')).toHaveStyle({ fontSize: '42px' })
   })
 })

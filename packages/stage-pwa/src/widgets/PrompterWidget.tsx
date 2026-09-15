@@ -10,6 +10,7 @@ import {
   DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO,
   DEFAULT_ARTIST_SIZE_RATIO,
   DEFAULT_CHORD_SIZE_RATIO,
+  DEFAULT_COMMENT_SIZE_RATIO,
   DEFAULT_SECTION_LABEL_SIZE_RATIO,
   DEFAULT_TITLE_SIZE_RATIO,
   type PrompterConfig,
@@ -25,6 +26,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const sectionLabelFontSize = fontSize * (config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO)
   const chordFontSize = fontSize * (config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO)
   const arrangementInfoFontSize = fontSize * (config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO)
+  const commentFontSize = fontSize * (config.commentSizeRatio ?? DEFAULT_COMMENT_SIZE_RATIO)
   // What the widget actually renders, every time `config` prop changes - the ground truth to
   // correlate against the write-pipeline logs above (Marco, 2026-09-14).
   useEffect(() => {
@@ -35,6 +37,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
       sectionLabelFontSize,
       chordFontSize,
       arrangementInfoFontSize,
+      commentFontSize,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- log-only effect, config is the one thing worth keying on
   }, [config])
@@ -145,6 +148,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               hidePartLabels
               fontSize={fontSize}
               chordFontSize={chordFontSize}
+              commentFontSize={commentFontSize}
               headerContent={pageIndex === 0 ? arrangementInfoNode : null}
             />
           </div>
@@ -156,6 +160,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             activeIndex={activeIndex}
             fontSize={fontSize}
             chordFontSize={chordFontSize}
+            commentFontSize={commentFontSize}
             headerContent={arrangementInfoNode}
           />
         </div>
@@ -213,6 +218,11 @@ export function PrompterConfigPanel({
         label="Key/Tuning/Capo"
         ratio={config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO}
         onChange={(arrangementInfoSizeRatio) => onChange({ ...config, arrangementInfoSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Kommentare"
+        ratio={config.commentSizeRatio ?? DEFAULT_COMMENT_SIZE_RATIO}
+        onChange={(commentSizeRatio) => onChange({ ...config, commentSizeRatio })}
       />
     </div>
   )

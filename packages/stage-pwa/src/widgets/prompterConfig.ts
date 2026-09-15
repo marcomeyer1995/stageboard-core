@@ -16,6 +16,9 @@ export const DEFAULT_ARTIST_SIZE_RATIO = 0.9
 export const DEFAULT_SECTION_LABEL_SIZE_RATIO = 1.1
 export const DEFAULT_CHORD_SIZE_RATIO = 0.7
 export const DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO = 0.6
+/** Musician-comment lines (issue #215) - same default as chords, the closest existing
+ * secondary-text size, since comments never existed as a distinct element before this. */
+export const DEFAULT_COMMENT_SIZE_RATIO = 0.7
 
 export const PrompterConfigSchema = ContentFontSizeConfigSchema.extend({
   /** Moved out of the widget's own live UI into this config (Marco, 2026-09-14) - toggling
@@ -27,5 +30,7 @@ export const PrompterConfigSchema = ContentFontSizeConfigSchema.extend({
   sectionLabelSizeRatio: z.number().positive().optional(),
   /** The Key/Tuning/Capo line at the top of the scrolling lyrics content. */
   arrangementInfoSizeRatio: z.number().positive().optional(),
+  /** Musician comment lines (`{comment:}`/`{c:}`, issue #215). */
+  commentSizeRatio: z.number().positive().optional(),
 })
 export type PrompterConfig = z.infer<typeof PrompterConfigSchema>

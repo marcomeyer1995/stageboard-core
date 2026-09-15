@@ -153,6 +153,38 @@ describe('song parts', () => {
   })
 })
 
+describe('musician comments (#215)', () => {
+  it('parses {comment: ...} into a distinct comment line, not lyric text', () => {
+    const lines = parseChordPro('{comment: Play softer here}\nActual lyric')
+    expect(lines).toHaveLength(2)
+    expect(lines[0].comment).toBe('Play softer here')
+    expect(lines[0].segments).toEqual([])
+    expect(lines[1].comment).toBeNull()
+    expect(lines[1].segments).toEqual([{ chord: null, text: 'Actual lyric' }])
+  })
+
+  it('accepts the {c: ...} shorthand', () => {
+    const [line] = parseChordPro('{c: Watch the tempo}')
+    expect(line.comment).toBe('Watch the tempo')
+  })
+
+  it('keeps a comment line tagged with the part it falls in', () => {
+    const lines = parseChordPro('{part: Chorus}\n{comment: Big finish}\nHook')
+    expect(lines[0].comment).toBe('Big finish')
+    expect(lines[0].partLabel).toBe('Chorus')
+  })
+
+  it('is case-insensitive and tolerant of whitespace around the directive name', () => {
+    const [line] = parseChordPro('{Comment:  Note}')
+    expect(line.comment).toBe('Note')
+  })
+
+  it('does not treat other directives as comments', () => {
+    const [line] = parseChordPro('{title: Sweet Home}')
+    expect(line.comment).toBeNull()
+  })
+})
+
 describe('buildPages', () => {
   it('makes one page per song part', () => {
     const lines = parseChordPro('{part: Verse}\nOne\nTwo\n{part: Chorus}\nThree')

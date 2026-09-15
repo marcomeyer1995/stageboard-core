@@ -10,6 +10,10 @@ export interface ChordProLine {
   partIndex: number
   /** Label of that part, or null when the line sits outside any labelled part. */
   partLabel: string | null
+  /** Text of a `{comment:}`/`{c:}` directive line (issue #215) - a musician-facing note
+   * ("play softer here"), never folded into `segments` since it isn't part of the lyric.
+   * Null for an ordinary lyric line. A comment line has empty `segments` and carries no chords. */
+  comment: string | null
 }
 
 /** A block of consecutive lines the Paginated View shows as one "page" (docs/07). */
@@ -52,6 +56,21 @@ export function parsePartDirective(line: string): { label: string | null } | nul
   if (name in SECTION_ALIASES) return { label: value.length > 0 ? value : SECTION_ALIASES[name] }
   if (SECTION_END.test(name)) return { label: null }
   return null
+}
+
+/**
+ * Recognises a standard ChordPro musician-comment directive (`{comment: ...}` / `{c: ...}`,
+ * docs/04, issue #215) - a note for the band, not part of the lyric, so it must not be folded
+ * into `parseChordSegments`'s text. Returns null (not just an empty string) for anything that
+ * isn't this directive, so callers can tell "no comment" apart from "an empty `{comment:}`".
+ */
+export function parseCommentDirective(line: string): string | null {
+  const match = line.trim().match(DIRECTIVE_RE)
+  if (!match) return null
+
+  const name = match[1].trim().toLowerCase().replace(/\s+/g, '_')
+  if (name !== 'comment' && name !== 'c') return null
+  return match[2]?.trim() ?? ''
 }
 
 function parseTimeTag(line: string): { timeMs: number | null; rest: string } {
@@ -107,8 +126,15 @@ export function parseChordPro(content: string): ChordProLine[] {
       continue
     }
 
+    const comment = parseCommentDirective(raw)
+    if (comment !== null) {
+      lines.push({ timeMs: null, segments: [], partIndex, partLabel, comment })
+      partStarted = true
+      continue
+    }
+
     const { timeMs, rest } = parseTimeTag(raw)
-    lines.push({ timeMs, segments: parseChordSegments(rest), partIndex, partLabel })
+    lines.push({ timeMs, segments: parseChordSegments(rest), partIndex, partLabel, comment: null })
     partStarted = true
   }
 
