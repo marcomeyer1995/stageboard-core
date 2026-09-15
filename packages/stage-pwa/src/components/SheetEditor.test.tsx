@@ -136,8 +136,8 @@ describe('SheetEditor - always-visible header (Titel/Band/Key/Tuning/Capo)', () 
   })
 })
 
-describe('SheetEditor - Text/Tempo/Audio/Cues tabs (phone/tablet portrait)', () => {
-  it('phone portrait: four tabs, Text active by default', async () => {
+describe('SheetEditor - Text/Tempo/Audio/Cues/Kommentare tabs (phone/tablet portrait)', () => {
+  it('phone portrait: five tabs, Text active by default', async () => {
     stubViewport({ orientation: 'portrait' })
     await renderLoaded()
 
@@ -145,6 +145,7 @@ describe('SheetEditor - Text/Tempo/Audio/Cues tabs (phone/tablet portrait)', () 
     expect(screen.getByRole('button', { name: 'Tempo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Audio' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cues' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Kommentare' })).toBeInTheDocument()
 
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
     expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
@@ -161,6 +162,11 @@ describe('SheetEditor - Text/Tempo/Audio/Cues tabs (phone/tablet portrait)', () 
     fireEvent.click(screen.getByRole('button', { name: 'Cues' }))
     expect(screen.getByText('Noch keine Cues für diese Variante.')).toBeInTheDocument()
     expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kommentare' }))
+    expect(
+      screen.getByText('Noch keine Kommentare - "+ Kommentar" im ChordPro-Text fügt einen an der Cursorposition ein.'),
+    ).toBeInTheDocument()
   })
 
   it('tablet portrait: a tab opens as a sheet over Text, which stays mounted underneath', async () => {
@@ -172,6 +178,23 @@ describe('SheetEditor - Text/Tempo/Audio/Cues tabs (phone/tablet portrait)', () 
     expect(screen.getByLabelText('Takt')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Fertig' })).toBeInTheDocument()
+  })
+})
+
+describe('SheetEditor - "+ Kommentar" button (issue #215 follow-up)', () => {
+  it('inserts a blank {cc: } directive into the ChordPro text, immediately listed in the Kommentare tab', async () => {
+    stubViewport({ orientation: 'portrait' })
+    await renderLoaded()
+
+    // Not queried by accessible name (getByRole): this button sits inside the same <label> as
+    // several siblings, so its computed accessible name absorbs the whole label's text (a
+    // pre-existing quirk of every button in this row, not something #215 introduced).
+    fireEvent.click(screen.getByText('+ Kommentar'))
+    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
+    expect(textarea.value).toContain('{cc: }')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kommentare' }))
+    expect(screen.queryByText(/Noch keine Kommentare/)).not.toBeInTheDocument()
   })
 })
 

@@ -10,10 +10,15 @@ export interface ChordProLine {
   partIndex: number
   /** Label of that part, or null when the line sits outside any labelled part. */
   partLabel: string | null
-  /** Text of a `{comment:}`/`{c:}` directive line (issue #215) - a musician-facing note
-   * ("play softer here"), never folded into `segments` since it isn't part of the lyric.
-   * Null for an ordinary lyric line. A comment line has empty `segments` and carries no chords. */
+  /** Text of a `{comment:}`/`{c:}`/`{cc:}`/`{cc4...}` directive line (issue #215) - a
+   * musician-facing note ("play softer here"), never folded into `segments` since it isn't
+   * part of the lyric. Null for an ordinary lyric line. A comment line has empty `segments`
+   * and carries no chords. */
   comment: string | null
+  /** Lowercased profile-name tokens a `{cc4marco,jamie: ...}` directive targets (issue #215
+   * follow-up) - null means "everyone," the case for a plain `{comment:}`/`{c:}`/`{cc:}`/
+   * `{cc4all:}` line, and for every ordinary lyric line. See `commentVisibleTo`. */
+  commentTargets: string[] | null
 }
 
 /** A block of consecutive lines the Paginated View shows as one "page" (docs/07). */
@@ -39,6 +44,12 @@ const SECTION_ALIASES: Record<string, string> = {
   start_of_bridge: 'Bridge',
 }
 const SECTION_END = /^(eov|eoc|eob|end_of_(verse|chorus|bridge|part))$/
+const PLAIN_COMMENT_NAME_RE = /^(comment|c)$/i
+/** StageBoard's own targeted-comment directive (issue #215 follow-up): `{cc}`/`{cc4all}` for
+ * everyone, `{cc4marco}` or `{cc4marco,jamie}` (comma-separated, no spaces required around the
+ * commas) for specific band members, matched by `Profile.name` - readable text, not an opaque
+ * id, since Marco reads/writes these directives by hand same as any other. */
+const CUSTOM_COMMENT_NAME_RE = /^cc(?:4(.+))?$/i
 
 /**
  * Recognises the directive lines that open or close a song part - StageBoard's own
@@ -58,19 +69,93 @@ export function parsePartDirective(line: string): { label: string | null } | nul
   return null
 }
 
+export interface ParsedComment {
+  text: string
+  /** Lowercased target-name tokens, or null for "everyone" - see `ChordProLine.commentTargets`. */
+  targets: string[] | null
+}
+
 /**
- * Recognises a standard ChordPro musician-comment directive (`{comment: ...}` / `{c: ...}`,
- * docs/04, issue #215) - a note for the band, not part of the lyric, so it must not be folded
- * into `parseChordSegments`'s text. Returns null (not just an empty string) for anything that
- * isn't this directive, so callers can tell "no comment" apart from "an empty `{comment:}`".
+ * Recognises a musician-comment directive line - a note for the band, not part of the lyric,
+ * so it must not be folded into `parseChordSegments`'s text. Two families:
+ * - Standard ChordPro `{comment: ...}` / `{c: ...}` (docs/04, issue #215) - always "everyone,"
+ *   since a plain imported ChordPro file has no concept of StageBoard's roster at all.
+ * - StageBoard's own `{cc: ...}` / `{cc4all: ...}` (everyone) / `{cc4marco: ...}` /
+ *   `{cc4marco,jamie: ...}` (issue #215 follow-up) - targets specific band members by name.
+ * Returns null (not just an empty string/target list) for anything that isn't one of these,
+ * so callers can tell "no comment" apart from "an empty `{comment:}`".
  */
-export function parseCommentDirective(line: string): string | null {
+export function parseCommentDirective(line: string): ParsedComment | null {
   const match = line.trim().match(DIRECTIVE_RE)
   if (!match) return null
 
-  const name = match[1].trim().toLowerCase().replace(/\s+/g, '_')
-  if (name !== 'comment' && name !== 'c') return null
-  return match[2]?.trim() ?? ''
+  const name = match[1].trim()
+  const text = match[2]?.trim() ?? ''
+
+  if (PLAIN_COMMENT_NAME_RE.test(name)) return { text, targets: null }
+
+  const customMatch = name.match(CUSTOM_COMMENT_NAME_RE)
+  if (!customMatch) return null
+
+  const rawTargets = customMatch[1]?.trim() ?? ''
+  if (rawTargets.length === 0 || rawTargets.toLowerCase() === 'all') return { text, targets: null }
+
+  const targets = rawTargets
+    .split(',')
+    .map((target) => target.trim().toLowerCase())
+    .filter((target) => target.length > 0)
+  return { text, targets: targets.length > 0 ? targets : null }
+}
+
+/** Writes a `{cc...}` directive line from a comment's text and targets - the inverse of
+ * `parseCommentDirective`, used by the Kommentare tab so nobody has to hand-write the
+ * comma-separated syntax. Preserves the targets' original display case (`Profile.name`,
+ * not the lowercased tokens `parseCommentDirective` produces for matching). */
+export function formatCommentDirective(text: string, targets: string[] | null): string {
+  const name = targets === null || targets.length === 0 ? 'cc' : `cc4${targets.join(',')}`
+  return `{${name}: ${text}}`
+}
+
+export interface CommentDirectiveOccurrence extends ParsedComment {
+  /** 0-based index into `content.split('\n')` - lets the Kommentare tab patch this exact line
+   * back into `chordProContent` without needing a stable id on the comment itself (there isn't
+   * one - the directive's own readable text is the only thing persisted). Recomputed fresh from
+   * the current text on every call, so it's only valid until the text next changes. */
+  lineNumber: number
+}
+
+/** Every comment directive currently in `content`, in the order they appear - what the
+ * Kommentare tab (issue #215 follow-up) lists and edits against. */
+export function listCommentDirectives(content: string): CommentDirectiveOccurrence[] {
+  const occurrences: CommentDirectiveOccurrence[] = []
+  content.split('\n').forEach((raw, lineNumber) => {
+    const parsed = parseCommentDirective(raw)
+    if (parsed) occurrences.push({ ...parsed, lineNumber })
+  })
+  return occurrences
+}
+
+/**
+ * Whether a comment's targets should be shown to the given active profile. `targets === null`
+ * ("everyone") always matches, including when nobody's signed in on this device - same
+ * before-this-feature behavior as every comment being visible to everyone. A targeted comment
+ * whose names don't resolve to anyone on the current roster (a typo, or a profile renamed/
+ * removed since) also fails open (shown to everyone) rather than silently vanishing forever -
+ * missing a real note like "start solo fret 7" live is worse than one extra person seeing it.
+ */
+export function commentVisibleTo(
+  targets: string[] | null,
+  activeProfileName: string | null | undefined,
+  rosterNames: readonly string[],
+): boolean {
+  if (targets === null) return true
+
+  const normalizedRoster = rosterNames.map((name) => name.trim().toLowerCase())
+  const resolvesToSomeone = targets.some((target) => normalizedRoster.includes(target))
+  if (!resolvesToSomeone) return true
+
+  if (!activeProfileName || activeProfileName.trim().length === 0) return true
+  return targets.includes(activeProfileName.trim().toLowerCase())
 }
 
 function parseTimeTag(line: string): { timeMs: number | null; rest: string } {
@@ -128,13 +213,27 @@ export function parseChordPro(content: string): ChordProLine[] {
 
     const comment = parseCommentDirective(raw)
     if (comment !== null) {
-      lines.push({ timeMs: null, segments: [], partIndex, partLabel, comment })
+      lines.push({
+        timeMs: null,
+        segments: [],
+        partIndex,
+        partLabel,
+        comment: comment.text,
+        commentTargets: comment.targets,
+      })
       partStarted = true
       continue
     }
 
     const { timeMs, rest } = parseTimeTag(raw)
-    lines.push({ timeMs, segments: parseChordSegments(rest), partIndex, partLabel, comment: null })
+    lines.push({
+      timeMs,
+      segments: parseChordSegments(rest),
+      partIndex,
+      partLabel,
+      comment: null,
+      commentTargets: null,
+    })
     partStarted = true
   }
 

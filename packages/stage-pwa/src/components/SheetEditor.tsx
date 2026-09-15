@@ -22,6 +22,7 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { BeatAnchorListEditor } from './BeatAnchorListEditor'
 import { ChordProLyrics } from './ChordProLyrics'
+import { CommentListEditor } from './CommentListEditor'
 import { CueListEditor } from './CueListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapBeatAnchors } from './TapBeatAnchors'
@@ -149,7 +150,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
-  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues'>('text')
+  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
   // Every section starts collapsed (Marco, explicit request) - opening a song for editing
   // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
   // deliberately expanded, not a screenful of whichever section used to default open.
@@ -157,6 +158,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tempoExpanded, setTempoExpanded] = useState(false)
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [cuesExpanded, setCuesExpanded] = useState(false)
+  const [commentsExpanded, setCommentsExpanded] = useState(false)
 
   const variantsForSong = draft ? variants.filter((v) => v.songId === draft.songId) : []
   const currentTracks = draft ? (variants.find((v) => v.id === draft.variantId)?.tracks ?? []) : []
@@ -320,6 +322,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     })
     requestAnimationFrame(() => {
       const caretAfter = lineStart + directive.length
+      textarea?.focus()
+      textarea?.setSelectionRange(caretAfter, caretAfter)
+    })
+  }
+
+  /** Inserts a blank `{cc: }` comment directive at the caret's line (issue #215 follow-up) -
+   * "+ Kommentar" alongside the part buttons above. Puts the caret *inside* the braces, unlike
+   * insertPart's fixed labels - a comment has no label to pick, it's typed right here. Starts
+   * targeted at everyone (`cc`, no name); retarget it afterward in the Kommentare tab. */
+  const insertComment = () => {
+    const textarea = textareaRef.current
+    const content = draft.chordProContent
+    const caret = textarea?.selectionStart ?? content.length
+    const lineStart = content.lastIndexOf('\n', caret - 1) + 1
+    const prefix = '{cc: '
+    const directive = `${prefix}}\n`
+    setDraft({
+      ...draft,
+      chordProContent: content.slice(0, lineStart) + directive + content.slice(lineStart),
+    })
+    requestAnimationFrame(() => {
+      const caretAfter = lineStart + prefix.length
       textarea?.focus()
       textarea?.setSelectionRange(caretAfter, caretAfter)
     })
@@ -600,6 +624,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   )
 
   const cuesContent = <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+  const commentsContent = (
+    <CommentListEditor
+      content={draft.chordProContent}
+      onChange={(chordProContent) => setDraft({ ...draft, chordProContent })}
+    />
+  )
 
   // `label` for the (space-constrained) phone tab strip, `fullLabel` for the desktop accordion
   // headers, which have the room to spell it out.
@@ -627,6 +657,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       content: cuesContent,
       expanded: cuesExpanded,
       onToggleExpand: () => setCuesExpanded((v) => !v),
+    },
+    {
+      key: 'comments' as const,
+      label: 'Kommentare',
+      fullLabel: 'Kommentare',
+      content: commentsContent,
+      expanded: commentsExpanded,
+      onToggleExpand: () => setCommentsExpanded((v) => !v),
     },
   ]
 
@@ -680,6 +718,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 + {label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={insertComment}
+              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
+            >
+              + Kommentar
+            </button>
           </div>
           <textarea
             ref={textareaRef}
