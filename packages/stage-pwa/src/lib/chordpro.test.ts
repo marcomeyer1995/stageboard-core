@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildPages,
+  commentVisibleTo,
   currentLineIndex,
   currentPageIndex,
+  formatCommentDirective,
   formatTimeTag,
+  listCommentDirectives,
   nextSectionIndex,
   parseChordPro,
   setLineTimeTag,
@@ -182,6 +185,106 @@ describe('musician comments (#215)', () => {
   it('does not treat other directives as comments', () => {
     const [line] = parseChordPro('{title: Sweet Home}')
     expect(line.comment).toBeNull()
+  })
+
+  it('targets a plain {comment:}/{c:} comment at everyone', () => {
+    const [line] = parseChordPro('{c: Watch the tempo}')
+    expect(line.commentTargets).toBeNull()
+  })
+})
+
+describe('targeted musician comments - {cc}/{cc4...} (#215 follow-up)', () => {
+  it('targets everyone with bare {cc: ...} or explicit {cc4all: ...}', () => {
+    const [bare] = parseChordPro('{cc: For everyone}')
+    expect(bare.comment).toBe('For everyone')
+    expect(bare.commentTargets).toBeNull()
+
+    const [explicit] = parseChordPro('{cc4all: Also for everyone}')
+    expect(explicit.commentTargets).toBeNull()
+  })
+
+  it('targets a single band member by name', () => {
+    const [line] = parseChordPro('{cc4marco: Start solo fret 7}')
+    expect(line.comment).toBe('Start solo fret 7')
+    expect(line.commentTargets).toEqual(['marco'])
+  })
+
+  it('targets several band members with a comma-separated list', () => {
+    const [line] = parseChordPro('{cc4marco,jamie: Watch each other here}')
+    expect(line.commentTargets).toEqual(['marco', 'jamie'])
+  })
+
+  it('matches target names case-insensitively, tolerating spaces around commas', () => {
+    const [line] = parseChordPro('{cc4Marco, Jamie: Note}')
+    expect(line.commentTargets).toEqual(['marco', 'jamie'])
+  })
+
+  it('does not confuse {cc...} with the plain {c:} shorthand', () => {
+    const [line] = parseChordPro('{c: Not targeted}')
+    expect(line.commentTargets).toBeNull()
+  })
+})
+
+describe('formatCommentDirective', () => {
+  it('writes an untargeted comment as bare {cc: ...}', () => {
+    expect(formatCommentDirective('For everyone', null)).toBe('{cc: For everyone}')
+    expect(formatCommentDirective('For everyone', [])).toBe('{cc: For everyone}')
+  })
+
+  it('writes a targeted comment with the comma-separated syntax, preserving display case', () => {
+    expect(formatCommentDirective('Start solo fret 7', ['Marco'])).toBe('{cc4Marco: Start solo fret 7}')
+    expect(formatCommentDirective('Watch each other', ['Marco', 'Jamie'])).toBe('{cc4Marco,Jamie: Watch each other}')
+  })
+
+  it('round-trips through parseChordPro', () => {
+    const directive = formatCommentDirective('Start solo fret 7', ['Marco', 'Jamie'])
+    const [line] = parseChordPro(directive)
+    expect(line.comment).toBe('Start solo fret 7')
+    expect(line.commentTargets).toEqual(['marco', 'jamie'])
+  })
+})
+
+describe('listCommentDirectives', () => {
+  it('lists every comment directive with its line number, in order', () => {
+    const content = 'Intro lyric\n{cc4marco: Fret 7}\nMore lyric\n{cc: For everyone}'
+    const occurrences = listCommentDirectives(content)
+    expect(occurrences).toEqual([
+      { lineNumber: 1, text: 'Fret 7', targets: ['marco'] },
+      { lineNumber: 3, text: 'For everyone', targets: null },
+    ])
+  })
+
+  it('returns an empty list for a song with no comments', () => {
+    expect(listCommentDirectives('Just a lyric\nAnother one')).toEqual([])
+  })
+})
+
+describe('commentVisibleTo', () => {
+  it('always shows an untargeted (null) comment', () => {
+    expect(commentVisibleTo(null, 'Marco', ['Marco', 'Jamie'])).toBe(true)
+    expect(commentVisibleTo(null, undefined, [])).toBe(true)
+  })
+
+  it('shows a targeted comment only to a matching active profile', () => {
+    expect(commentVisibleTo(['marco'], 'Marco', ['Marco', 'Jamie'])).toBe(true)
+    expect(commentVisibleTo(['marco'], 'Jamie', ['Marco', 'Jamie'])).toBe(false)
+  })
+
+  it('matches case-insensitively against the active profile name', () => {
+    expect(commentVisibleTo(['marco'], 'MARCO', ['Marco'])).toBe(true)
+  })
+
+  it('shows a targeted comment to everyone when no active profile is known - same as before this feature existed', () => {
+    expect(commentVisibleTo(['marco'], undefined, ['Marco'])).toBe(true)
+    expect(commentVisibleTo(['marco'], '', ['Marco'])).toBe(true)
+  })
+
+  it('fails open when the target resolves to nobody on the roster - a typo or a since-renamed profile', () => {
+    expect(commentVisibleTo(['marcoo'], 'Jamie', ['Marco', 'Jamie'])).toBe(true)
+  })
+
+  it('still hides from a non-target when at least one of several targets resolves to someone real', () => {
+    expect(commentVisibleTo(['marco', 'typoo'], 'Jamie', ['Marco', 'Jamie'])).toBe(false)
   })
 })
 

@@ -4,9 +4,9 @@ import type { ChordProLine } from '../lib/chordpro'
 import { ChordProLyrics } from './ChordProLyrics'
 
 const lines: ChordProLine[] = [
-  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null },
-  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1', comment: null },
-  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus', comment: null },
+  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null },
+  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null },
+  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus', comment: null, commentTargets: null },
 ]
 
 describe('ChordProLyrics', () => {
@@ -61,8 +61,8 @@ describe('ChordProLyrics', () => {
 
 describe('ChordProLyrics comment lines (#215)', () => {
   const commentLines: ChordProLine[] = [
-    { timeMs: null, segments: [{ chord: null, text: 'Regular lyric' }], partIndex: 0, partLabel: null, comment: null },
-    { timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: 'Play softer here' },
+    { timeMs: null, segments: [{ chord: null, text: 'Regular lyric' }], partIndex: 0, partLabel: null, comment: null, commentTargets: null },
+    { timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: 'Play softer here', commentTargets: null },
   ]
 
   it('renders a comment line by its text, distinct from a lyric line', () => {

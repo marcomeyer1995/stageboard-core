@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { ChordProLyrics } from '../components/ChordProLyrics'
-import { buildPages, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
+import { buildPages, commentVisibleTo, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useShowMode } from '../lib/showMode'
+import { useProfilesStore } from '../store/useProfilesStore'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import {
@@ -48,12 +50,22 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const { queue, elapsedMs } = useShowMode()
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
+  // Who's targeted comments (`{cc4marco:}`, issue #215 follow-up) resolve against - this
+  // device's active profile, and the whole roster (so a typo'd/stale target name still fails
+  // open instead of silently vanishing forever, see commentVisibleTo's own doc comment).
+  const activeProfile = useActiveProfile()
+  const rosterNames = useProfilesStore((state) => state.profiles).map((profile) => profile.name)
 
   // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
   // so the actual content to render comes from the variant, not the Song mirror - falling
   // back to the Song only for a song Phase 1's lazy migration hasn't touched yet.
   const chordProContent = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
-  const lines = currentSong ? parseChordPro(chordProContent) : []
+  // Filtered before anything else (pagination, section-jump, the scroll effect below) ever
+  // sees these lines - a comment not meant for this device simply isn't part of the song, not
+  // shown-but-greyed (Marco, issue #215 follow-up).
+  const lines = currentSong
+    ? parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames))
+    : []
 
   // Key/Tuning/Capo (SongVariant-only - genuinely arrangement-specific, see songVariant.ts)
   // are important enough to show, but not important enough to sit in the permanently
