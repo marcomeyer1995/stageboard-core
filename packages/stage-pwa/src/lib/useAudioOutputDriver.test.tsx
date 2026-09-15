@@ -332,7 +332,7 @@ describe('surviving a top-level tab switch (Live -> Bibliothek/System, #13/#25 f
       return (
         <>
           <DriverHost />
-          {onLiveTab && <ShowTransportWidget />}
+          {onLiveTab && <ShowTransportWidget config={{}} />}
         </>
       )
     }

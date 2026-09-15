@@ -10,7 +10,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { type CustomTriggerConfig } from './customTriggerConfig'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type CustomTriggerConfig } from './customTriggerConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
 
 const INACTIVE_CLASS = 'bg-control-strong text-ink hover:bg-control-strong-hover'
@@ -43,6 +45,10 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   const [pressed, setPressed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, forceRerender] = useState(0)
+  // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   const device = resolveHardwareBindingById(devices, config.targetLogicalDeviceId ?? '')
 
@@ -113,11 +119,13 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
         onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
         onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        className={`h-full min-h-0 flex-1 rounded-sb text-sm font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
-        {config.label}
+        <span style={{ fontSize }} className="whitespace-nowrap">
+          {config.label}
+        </span>
       </button>
       {disabled && <p className="text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -212,6 +220,11 @@ export function CustomTriggerConfigPanel({
         />
         {!payloadValid && <span className="text-red-500">Ungültiges JSON</span>}
       </label>
+      <SizeRatioSlider
+        label="Größe"
+        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+      />
     </div>
   )
 }

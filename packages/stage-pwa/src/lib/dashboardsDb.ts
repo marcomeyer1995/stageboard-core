@@ -9,5 +9,6 @@ export const getDashboardsDb = dashboards.getDb
 export const switchDashboardsWorkspace = dashboards.switchWorkspace
 export const getAllDashboards = dashboards.getAll
 export const putDashboard = dashboards.put
+export const updateDashboard = dashboards.update
 export const removeDashboard = dashboards.remove
 export const dashboardsChanges = dashboards.changes

@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+/** Roughly matches each element's previous typical auto-fit size at the device default. */
+export const DEFAULT_NOTE_SIZE_RATIO = 8
+export const DEFAULT_METER_SIZE_RATIO = 3
+
 export const TunerConfigSchema = z.object({
   /** How quiet a note can still be and get picked up - lower catches more of a note's
    * decay, at the cost of also catching more background noise. Passed directly to
@@ -16,6 +20,8 @@ export const TunerConfigSchema = z.object({
   /** A4's frequency in Hz - 440 is standard, but some bands tune to 442/443 (orchestral
    * sharp) or 415 (baroque). */
   referenceFrequency: z.number().min(400).max(480).default(440),
+  noteSizeRatio: z.number().positive().optional(),
+  meterSizeRatio: z.number().positive().optional(),
 })
 export type TunerConfig = z.infer<typeof TunerConfigSchema>
 

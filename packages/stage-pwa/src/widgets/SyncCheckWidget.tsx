@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
 import { useClockSyncStore } from '../store/useClockSyncStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type SyncCheckConfig } from './syncCheckConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /**
  * Re-renders every animation frame so the displayed server time and flash edge are as smooth
@@ -40,18 +43,26 @@ function formatClock(ms: number): string {
  * this device's own offset/driftMs (useClockSyncStore.ts) so the "why" is right there without
  * switching to the System-Status widget.
  */
-export function SyncCheckWidget() {
+export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   const serverTime = useServerTimeTick()
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const flashOn = Math.floor(serverTime / 1000) % 2 === 0
+  // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   return (
     <div
-      className={`flex h-full flex-col items-center justify-center gap-1 rounded-sb transition-colors duration-75 ${
+      className={`flex h-full flex-col items-center gap-1 rounded-sb transition-colors duration-75 ${
         flashOn ? 'bg-ink text-surface' : 'bg-surface text-ink'
       }`}
     >
-      <span className="font-mono text-3xl tabular-nums">{formatClock(serverTime)}</span>
+      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap font-mono tabular-nums">
+          {formatClock(serverTime)}
+        </span>
+      </div>
       <span className="text-xs uppercase tracking-widest opacity-70">Sync-Blitz - Geräte nebeneinander vergleichen</span>
       {lastSyncedAt !== null && (
         <span className="text-xs opacity-70">
@@ -59,5 +70,21 @@ export function SyncCheckWidget() {
         </span>
       )}
     </div>
+  )
+}
+
+export function SyncCheckConfigPanel({
+  config,
+  onChange,
+}: {
+  config: SyncCheckConfig
+  onChange: (next: SyncCheckConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

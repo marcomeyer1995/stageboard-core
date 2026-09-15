@@ -49,7 +49,15 @@ export function finalizeSongPlay(
   showId: string,
 ): SongPlayed | null {
   if (!shouldConfirmSong(activeMs)) return null
-  return { showId, songId: entry.songId, songTitle: entry.songTitle, at: startedAt, endedAt, activeMs }
+  // activeMs can start from a fractional count-in origin (metronome.ts's countInLeadMs - BPM
+  // rarely divides 60000 evenly, e.g. 128 BPM -> 468.75ms/beat) - that sub-ms precision is
+  // real and needed for beat-locked playback timing, but ShowLogEvent's activeMs is a
+  // human-facing "how long did we play this song" duration, not a timing input, and its
+  // schema requires an integer (shared-types' showLog.ts). Round only here, at the log-entry
+  // boundary, so this doesn't touch the actual playback/cue-timing precision anywhere else
+  // (found live, 2026-09-14: a stored fractional activeMs crashed the whole app on load, since
+  // useShowLogStore parsed every event with .parse() rather than tolerating one bad one).
+  return { showId, songId: entry.songId, songTitle: entry.songTitle, at: startedAt, endedAt, activeMs: Math.round(activeMs) }
 }
 
 export interface CapabilityTransition {

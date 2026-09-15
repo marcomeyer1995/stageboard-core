@@ -68,4 +68,35 @@ describe('Dashboard', () => {
 
     errorSpy.mockRestore()
   })
+
+  it('clamps a widget to its current registry maxW/maxH, not just whatever was persisted (#22)', () => {
+    // 'active-setlist' registers maxW:6/maxH:6 (registry.tsx) - 'a' is persisted well past
+    // that (e.g. seeded before the widget had a max, or from an older/larger registry
+    // value). layoutFor must refresh the bound from WIDGET_REGISTRY on every read, so 'a'
+    // renders exactly like 'b', which was placed at 6x6 to begin with.
+    const dashboard: DashboardDoc = {
+      id: 'default-prompter',
+      name: 'Prompter',
+      order: 0,
+      widgets: [
+        { i: 'a', type: 'active-setlist', frameless: false },
+        { i: 'b', type: 'active-setlist', frameless: false },
+      ],
+      layouts: {
+        lg: [
+          { i: 'a', x: 0, y: 0, w: 10, h: 10 },
+          { i: 'b', x: 6, y: 0, w: 6, h: 6 },
+        ],
+      },
+      visibility: 'public',
+    }
+    useDashboardsStore.setState({ dashboards: [dashboard], loaded: true, resetNonce: 0 })
+
+    const { container } = render(<Dashboard />)
+    const [oversized, reference] = [...container.querySelectorAll('.react-grid-item')]
+    const sizeOf = (el: Element) => el.getAttribute('style')?.match(/width: (\d+)px; height: (\d+)px/)?.slice(1)
+
+    expect(sizeOf(reference)).toBeDefined()
+    expect(sizeOf(oversized)).toEqual(sizeOf(reference))
+  })
 })

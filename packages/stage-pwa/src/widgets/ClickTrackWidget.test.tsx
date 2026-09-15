@@ -85,7 +85,7 @@ beforeEach(() => {
 describe('ClickTrackWidget', () => {
   it('shows a placeholder when no device is bound as the click output', () => {
     mockShowMode({ currentSong: song(true) })
-    render(<ClickTrackWidget />)
+    render(<ClickTrackWidget config={{}} />)
     expect(screen.getByText('Kein Klick-Ausgabegerät eingerichtet')).toBeInTheDocument()
   })
 
@@ -94,8 +94,8 @@ describe('ClickTrackWidget', () => {
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
     ])
     mockShowMode({ currentSong: song(true) })
-    const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('An')
+    const { container } = render(<ClickTrackWidget config={{}} />)
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('An')
     expect(screen.getByText('Klick · dieses Gerät')).toBeInTheDocument()
   })
 
@@ -104,8 +104,8 @@ describe('ClickTrackWidget', () => {
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
     ])
     mockShowMode({ currentSong: song(false) })
-    const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
+    const { container } = render(<ClickTrackWidget config={{}} />)
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('Aus')
   })
 
   it('force-off overrides an on-by-default song', () => {
@@ -113,8 +113,8 @@ describe('ClickTrackWidget', () => {
       { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
     ])
     mockShowMode({ currentSong: song(true), clickTrackOverride: 'off' })
-    const { container } = render(<ClickTrackWidget />)
-    expect(container.querySelector('span.text-xl')).toHaveTextContent('Aus')
+    const { container } = render(<ClickTrackWidget config={{}} />)
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('Aus')
   })
 
   it('lets the Master change the override, disables the buttons for a non-Master device', () => {
@@ -123,13 +123,13 @@ describe('ClickTrackWidget', () => {
     ])
     const setClickTrackOverride = vi.fn()
     mockShowMode({ currentSong: song(true), setClickTrackOverride, canControl: true })
-    const { rerender } = render(<ClickTrackWidget />)
+    const { rerender } = render(<ClickTrackWidget config={{}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Aus' }))
     expect(setClickTrackOverride).toHaveBeenCalledWith('off')
 
     setClickTrackOverride.mockClear()
     mockShowMode({ currentSong: song(true), setClickTrackOverride, canControl: false })
-    rerender(<ClickTrackWidget />)
+    rerender(<ClickTrackWidget config={{}} />)
     expect(screen.getByRole('button', { name: 'Aus' })).toBeDisabled()
   })
 
@@ -139,7 +139,7 @@ describe('ClickTrackWidget', () => {
     ])
     const setClickTrackOverride = vi.fn()
     mockShowMode({ mode: 'practice', currentSong: song(true), setClickTrackOverride, canControl: true })
-    render(<ClickTrackWidget />)
+    render(<ClickTrackWidget config={{}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Aus' }))
     expect(setClickTrackOverride).toHaveBeenCalledWith('off')
   })
@@ -147,7 +147,7 @@ describe('ClickTrackWidget', () => {
   it('shows no placeholder in Practice mode with no Hardware Setup at all - no LogicalDevice bound (Marco, 2026-09-09: practicing solo shouldn\'t require Gig-mode hardware configuration)', () => {
     mockLogicalDevices([]) // no click-track device configured anywhere
     mockShowMode({ mode: 'practice', currentSong: song(true) })
-    render(<ClickTrackWidget />)
+    render(<ClickTrackWidget config={{}} />)
     expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
   })
 })

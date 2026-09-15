@@ -10,8 +10,10 @@ import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { CueGrid, type CueAction } from './CueGrid'
+import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
 
 const ACTIONS: CueAction[] = [
   { label: 'Voll', type: 'full' },
@@ -28,7 +30,7 @@ const ACTIONS: CueAction[] = [
  * when it's a different tablet, or straight into useLocalLightingStore when it's this one -
  * QuickActionsWidget's ad-hoc cues share the same binding, since they're the same physical rig.
  */
-export function LightingCuesWidget() {
+export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.lighting, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -38,6 +40,8 @@ export function LightingCuesWidget() {
   const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
   const lastCue = useLocalLightingStore((state) => state.lastCue)
   const [error, setError] = useState<string | null>(null)
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   async function fire(type: string) {
     if (engine === 'local-mine') {
@@ -57,7 +61,7 @@ export function LightingCuesWidget() {
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1">
-        <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} />
+        <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} fontSize={fontSize} />
       </div>
       {engine === 'local-mine' && lastCue && (
         <p className="text-xs text-ink-faint">Zuletzt: {lastCue}</p>

@@ -48,6 +48,18 @@ describe('finalizeSongPlay', () => {
     expect(result?.activeMs).toBe(25_000)
     expect((result?.endedAt ?? 0) - (result?.at ?? 0)).toBe(90_000)
   })
+
+  it('rounds a fractional activeMs to an integer - ShowLogEvent.activeMs requires .int()', () => {
+    // A song with a count-in seeds accumulatedMs from metronome.ts's countInLeadMs, which is
+    // fractional for almost any real BPM (60000/bpm rarely divides evenly, e.g. 128 BPM ->
+    // 468.75ms/beat) - that sub-ms precision matters for beat-locked playback timing, but not
+    // for a human-facing "how long did we play this song" log entry. Found live, 2026-09-14:
+    // an unrounded fractional activeMs got persisted and crashed the whole app on the next
+    // load, since ShowLogEventSchema requires activeMs to be an integer.
+    const result = finalizeSongPlay(entry, 1000, 25_468.75, 1000 + 90_000, 'show-1')
+    expect(result?.activeMs).toBe(25_469)
+    expect(Number.isInteger(result?.activeMs)).toBe(true)
+  })
 })
 
 describe('diffCapabilities', () => {

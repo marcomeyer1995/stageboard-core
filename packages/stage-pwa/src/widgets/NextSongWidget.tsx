@@ -1,35 +1,43 @@
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
-export function NextSongWidget() {
+/** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
+export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const { queue, canControl, next, previous } = useShowMode()
   const { previousSong, currentSong, nextSong, currentVariant, nextVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   return (
-    <div className="flex h-full items-center justify-between text-sm text-ink-soft">
-      <span>
-        {currentSong ? (
-          <>
-            Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
-            {currentVariant && !currentVariant.isDefault && (
-              <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
-            )}
-          </>
-        ) : (
-          'Keine Songs vorhanden'
-        )}
-        {nextSong && (
-          <>
-            {' | '}
-            Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
-            ({(nextVariant ?? nextSong).bpm} BPM)
-            {nextVariant && !nextVariant.isDefault && (
-              <span className="ml-1 text-xs text-accent">({nextVariant.label})</span>
-            )}
-          </>
-        )}
-      </span>
+    <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
+      <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap">
+          {currentSong ? (
+            <>
+              Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
+              {currentVariant && !currentVariant.isDefault && (
+                <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
+              )}
+            </>
+          ) : (
+            'Keine Songs vorhanden'
+          )}
+          {nextSong && (
+            <>
+              {' | '}
+              Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
+              ({(nextVariant ?? nextSong).bpm} BPM)
+              {nextVariant && !nextVariant.isDefault && (
+                <span className="ml-1 text-[0.6em] text-accent">({nextVariant.label})</span>
+              )}
+            </>
+          )}
+        </span>
+      </div>
       {canControl ? (
         <div className="flex gap-2">
           <button
@@ -62,5 +70,21 @@ export function NextSongWidget() {
         </button>
       )}
     </div>
+  )
+}
+
+export function NextSongConfigPanel({
+  config,
+  onChange,
+}: {
+  config: NextSongConfig
+  onChange: (next: NextSongConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

@@ -6,6 +6,9 @@ import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type ClickTrackConfig } from './clickTrackConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
   { value: null, label: 'Standard' },
@@ -25,8 +28,11 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * Play/Pause), a local per-device choice in Practice mode (useShowMode.ts) - either way
  * `useShowMode()` already resolves which one applies, so this widget doesn't need its own mode
  * branching.
+ *
+ * The "An"/"Aus" label is sized as a ratio of the device-wide default, not auto-fit to the
+ * tile (Marco, 2026-09-14).
  */
-export function ClickTrackWidget() {
+export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
@@ -42,6 +48,8 @@ export function ClickTrackWidget() {
   )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   if (engine === 'none') {
     return (
@@ -52,11 +60,15 @@ export function ClickTrackWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
+    <div className="flex h-full flex-col items-center gap-1 text-ink-soft">
       <span className="text-xs uppercase tracking-widest text-ink-faint">
         Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
       </span>
-      <span className="text-xl font-bold">{enabled ? 'An' : 'Aus'}</span>
+      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap font-bold">
+          {enabled ? 'An' : 'Aus'}
+        </span>
+      </div>
       <div className="flex items-center gap-1">
         {OVERRIDE_OPTIONS.map((option) => (
           <button
@@ -75,5 +87,21 @@ export function ClickTrackWidget() {
         ))}
       </div>
     </div>
+  )
+}
+
+export function ClickTrackConfigPanel({
+  config,
+  onChange,
+}: {
+  config: ClickTrackConfig
+  onChange: (next: ClickTrackConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

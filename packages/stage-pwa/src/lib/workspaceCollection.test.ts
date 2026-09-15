@@ -32,6 +32,13 @@ vi.mock('pouchdb-browser', () => ({
     }
 
     async put(doc: { _id: string; _rev?: string; [key: string]: unknown }) {
+      // Real CouchDB/PouchDB's actual optimistic-concurrency precondition: a put naming a
+      // stale (or, for a new doc, any) _rev loses the race and rejects with a 409 - this is
+      // what putWithConflictRetry (workspaceCollection.ts) exists to retry through.
+      const current = this.store.get(doc._id)
+      if (current && doc._rev !== current._rev) {
+        throw Object.assign(new Error('Document update conflict'), { status: 409, name: 'conflict' })
+      }
       const nextRev = `${(Number(doc._rev?.split('-')[0]) || 0) + 1}-fake`
       this.store.set(doc._id, { ...doc, _rev: nextRev } as { _id: string; _rev: string })
       return { ok: true, id: doc._id, rev: nextRev }
@@ -66,6 +73,7 @@ const { createWorkspaceCollection } = await import('./workspaceCollection')
 interface Widget {
   id: string
   name: string
+  tag?: string
 }
 
 // getWorkspaceDb (workspaceDb.ts) caches its PouchDB instance per workspaceId at module
@@ -131,6 +139,86 @@ describe('createWorkspaceCollection', () => {
     const stored = storeFor(`stageboard-${workspaceId}`).get('widgets:w1')
     expect(stored?.name).toBe('Renamed Fader')
     expect(stored?._attachments).toEqual({ 'stub.bin': { stub: true } })
+  })
+
+  it('put() lands both of two near-simultaneous writes to the same doc instead of silently dropping the loser', async () => {
+    const workspaceId = freshWorkspaceId()
+    const widgets = createWorkspaceCollection<Widget>('widgets')
+    widgets.switchWorkspace(workspaceId)
+    await widgets.put({ id: 'w1', name: 'Fader' })
+
+    // Two near-simultaneous writes to the same doc (e.g. two debounced config sliders
+    // committing moments apart). queuedWrite (workspaceCollection.ts) now serializes same-
+    // process writes to one document, so neither actually races the other's db.get()/db.put()
+    // pair - but the point of this test predates that (Marco, 2026-09-14: without any retry
+    // *or* serialization, the loser of a real revision conflict would vanish silently, fire-
+    // and-forget with no .catch()). Kept as a regression test for the outcome, not the
+    // mechanism: both calls must still resolve and the doc must reflect a real write.
+    await Promise.all([
+      widgets.put({ id: 'w1', name: 'Renamed by A' }),
+      widgets.put({ id: 'w1', name: 'Renamed by B' }),
+    ])
+
+    // Serialized, so this is deterministic: whichever call was issued second lands last.
+    const stored = storeFor(`stageboard-${workspaceId}`).get('widgets:w1')
+    expect(stored?.name).toBe('Renamed by B')
+  })
+
+  it("update() re-applies the patch against freshly re-read data, so two concurrent field-level edits both land instead of one silently overwriting the other", async () => {
+    const workspaceId = freshWorkspaceId()
+    const widgets = createWorkspaceCollection<Widget>('widgets')
+    widgets.switchWorkspace(workspaceId)
+    await widgets.put({ id: 'w1', name: 'Fader', tag: 'A' })
+
+    // Two edits to *different* fields of the same doc, committing moments apart (e.g. two
+    // independently-debounced config sliders). A naive "read from cache, put() the whole
+    // spread object" approach would let whichever commits second silently revert the
+    // other's field, even with a successful (non-conflicting) write. update()'s patch is
+    // re-applied against the real current document on every attempt (whether serialized by
+    // queuedWrite, as these two now are, or genuinely retried after a conflict from outside
+    // this process), so both edits survive regardless of which one lands last.
+    await Promise.all([
+      widgets.update('w1', (current) => ({ ...current, name: 'Renamed' })),
+      widgets.update('w1', (current) => ({ ...current, tag: 'B' })),
+    ])
+
+    const stored = storeFor(`stageboard-${workspaceId}`).get('widgets:w1')
+    expect(stored?.name).toBe('Renamed')
+    expect(stored?.tag).toBe('B')
+  })
+
+  it('queues concurrent update() calls to the same document so a burst of debounced commits lands deterministically instead of racing', async () => {
+    const workspaceId = freshWorkspaceId()
+    const widgets = createWorkspaceCollection<Widget>('widgets')
+    widgets.switchWorkspace(workspaceId)
+    await widgets.put({ id: 'w1', name: 'Fader', tag: '0' })
+
+    // Six debounced commits firing back-to-back with none of them awaiting the previous one -
+    // exactly the shape that produced a live conflict storm and a value visibly jumping
+    // through every intermediate commit for 30-40+ seconds before this queue existed (Marco,
+    // 2026-09-14, workspaceCollection.ts's `queuedWrite`).
+    await Promise.all(
+      ['1', '2', '3', '4', '5', '6'].map((tag) => widgets.update('w1', (current) => ({ ...current, tag }))),
+    )
+
+    // Serialized, so the outcome is the last commit issued winning deterministically - not
+    // "whichever happened to win a race" (which, pre-fix, could even be a stale earlier value
+    // landing *after* a later one, since retries had no guaranteed ordering either).
+    const stored = storeFor(`stageboard-${workspaceId}`).get('widgets:w1')
+    expect(stored?.tag).toBe('6')
+    // Exactly one successful put per commit (the initial one plus the six updates) - no
+    // conflict-driven retry attempts wasted along the way, since each commit only starts its
+    // own read-then-write once the previous one has actually landed.
+    expect(stored?._rev).toBe('7-fake')
+  })
+
+  it('update() no-ops when the document does not exist - nothing sensible to patch', async () => {
+    const workspaceId = freshWorkspaceId()
+    const widgets = createWorkspaceCollection<Widget>('widgets')
+    widgets.switchWorkspace(workspaceId)
+
+    await expect(widgets.update('never-existed', (current) => ({ ...current, name: 'x' }))).resolves.toBeUndefined()
+    expect(storeFor(`stageboard-${workspaceId}`).has('widgets:never-existed')).toBe(false)
   })
 
   it('remove() deletes by the prefixed id and no-ops when the doc is missing', async () => {

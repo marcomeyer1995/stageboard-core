@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { useContentFontSize } from '../lib/useContentFontSize'
 import { latestShowId, useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
+import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 /**
  * Live in-show notes from anyone - musicians or crew - not gated to the Master-Token
@@ -10,12 +12,13 @@ import { useProfilesStore } from '../store/useProfilesStore'
  * something ("guitar's too loud for this song") and logs it here to check after the
  * show, per the Post-Gig Report discussion.
  */
-export function ShowNoteWidget() {
+export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
   const events = useShowLogStore((state) => state.events)
   const addNote = useShowLogStore((state) => state.addNote)
   const activeProfile = useActiveProfile()
   const profiles = useProfilesStore((state) => state.profiles)
   const [text, setText] = useState('')
+  const fontSize = useContentFontSize(config)
 
   const showId = latestShowId(events)
   const notes = events
@@ -37,7 +40,7 @@ export function ShowNoteWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 text-sm text-ink-soft">
+    <div className="flex h-full flex-col gap-2 text-ink-soft" style={{ fontSize }}>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {!showId && <p className="text-ink-faint">Noch keine Show aktiv.</p>}
         {showId && notes.length === 0 && <p className="text-ink-faint">Noch keine Notizen.</p>}

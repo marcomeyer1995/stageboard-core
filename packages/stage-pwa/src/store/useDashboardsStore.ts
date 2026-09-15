@@ -1,15 +1,17 @@
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
-import type { Dashboard, LayoutItem, Breakpoint } from 'shared-types'
+import type { Dashboard, LayoutItem, Breakpoint, WidgetInstance } from 'shared-types'
 import {
   dashboardsChanges,
   getAllDashboards,
   putDashboard,
   removeDashboard,
   switchDashboardsWorkspace,
+  updateDashboard,
   type DashboardDoc,
 } from '../lib/dashboardsDb'
 import { defaultDashboards } from '../lib/defaultDashboards'
+import { configLog } from '../lib/configDebug'
 
 function toDashboard(doc: DashboardDoc): Dashboard {
   return {
@@ -43,6 +45,17 @@ interface DashboardsState {
   resetNonce: number
   init: (workspaceId: string) => Promise<void>
   save: (dashboard: Dashboard) => Promise<void>
+  /**
+   * A true read-modify-write against the *freshly re-read* document (`updateDashboard`,
+   * `workspaceCollection.ts`'s `update`), not a spread of this store's own (possibly stale)
+   * cached `dashboards` state the way `save({...active, ...})` used to do it. Several
+   * independently-debounced fields on the same widget instance (a Prompter config panel with
+   * multiple sliders, `useDeferredSliderValue.ts`; the "⋯" menu's frameless toggle) can commit
+   * moments apart; reading from the store risked one commit's write silently overwriting
+   * another's with stale data even when neither write actually conflicted (found live, Marco
+   * 2026-09-14: a slider value visibly oscillating for several seconds after being changed).
+   */
+  updateWidget: (dashboardId: string, widgetInstanceId: string, patch: (widget: WidgetInstance) => WidgetInstance) => Promise<void>
   create: (
     name: string,
     owner?: { ownerProfileId?: string; ownerRole?: string; visibility?: Dashboard['visibility'] },
@@ -64,7 +77,14 @@ let changesHandle: PouchDB.Core.Changes<Dashboard> | null = null
 
 async function refresh(set: (partial: Partial<DashboardsState>) => void) {
   const docs = await getAllDashboards()
-  set({ dashboards: docs.map(toDashboard).sort(byOrder) })
+  const dashboards = docs.map(toDashboard).sort(byOrder)
+  // Only 'prompter' instances, not every widget on every dashboard - keeps the log focused
+  // on what #configDebug's investigation actually needs (Marco, 2026-09-14).
+  const prompters = dashboards.flatMap((d) =>
+    d.widgets.filter((w) => w.type === 'prompter').map((w) => ({ dashboard: d.id, i: w.i, config: w.config })),
+  )
+  configLog('refresh() from changes() feed - prompter widget configs now:', prompters)
+  set({ dashboards })
 }
 
 export const useDashboardsStore = create<DashboardsState>((set, get) => ({
@@ -91,6 +111,25 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
   },
   save: async (dashboard) => {
     await putDashboard(dashboard)
+  },
+  updateWidget: async (dashboardId, widgetInstanceId, patch) => {
+    configLog('updateWidget() called for', dashboardId, widgetInstanceId)
+    await updateDashboard(dashboardId, (current) => {
+      configLog(
+        'updateWidget() patch running against freshly-read dashboard, widget configs:',
+        current.widgets.map((w) => ({ i: w.i, config: w.config })),
+      )
+      const next = {
+        ...current,
+        widgets: current.widgets.map((widget) => (widget.i === widgetInstanceId ? patch(widget) : widget)),
+      }
+      configLog(
+        'updateWidget() patch result, widget configs:',
+        next.widgets.map((w) => ({ i: w.i, config: w.config })),
+      )
+      return next
+    })
+    configLog('updateWidget() write settled for', dashboardId, widgetInstanceId)
   },
   create: async (name, owner) => {
     const order = get().dashboards.reduce((max, item) => Math.max(max, item.order), -1) + 1

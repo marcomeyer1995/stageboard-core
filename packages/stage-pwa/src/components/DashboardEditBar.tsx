@@ -29,7 +29,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
 
       <button
         type="button"
-        onClick={() => setShowLibrary(!showLibrary)}
+        onClick={() => setShowLibrary(true)}
         className="rounded-sb-sm bg-accent-2 px-3 py-1 font-bold text-accent-ink hover:bg-accent-2-hover"
       >
         + Widget
@@ -73,6 +73,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
             void save(next)
             setShowLibrary(false)
           }}
+          onClose={() => setShowLibrary(false)}
         />
       )}
 

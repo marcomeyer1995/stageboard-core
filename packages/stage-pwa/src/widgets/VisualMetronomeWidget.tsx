@@ -1,6 +1,8 @@
 import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
-import { type MetronomeConfig } from './metronomeConfig'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type MetronomeConfig } from './metronomeConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /** How long each beat's flash stays visible, in ms - short enough to read as a pulse rather
  * than a slow color swap, comfortably visible even at fast tempos (at 200 BPM a beat is only
@@ -10,14 +12,14 @@ const PULSE_WINDOW_MS = 90
 function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
   const flashOn = beat.msIntoBeat < PULSE_WINDOW_MS
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-[5cqmin]">
       {Array.from({ length: totalBeats }, (_, i) => {
         const isDownbeat = i === 0
         const isCurrent = i === beat.beatInBar && flashOn
         return (
           <span
             key={i}
-            className={`rounded-full transition-colors duration-75 ${isDownbeat ? 'h-4 w-4' : 'h-3 w-3'} ${
+            className={`rounded-full transition-colors duration-75 ${isDownbeat ? 'h-[22cqmin] w-[22cqmin]' : 'h-[16cqmin] w-[16cqmin]'} ${
               isCurrent ? (beat.isCountIn ? 'bg-ink-muted' : isDownbeat ? 'bg-accent' : 'bg-ink') : 'bg-control-strong'
             }`}
           />
@@ -40,10 +42,20 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   const song = queue.currentVariant ?? queue.currentSong
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
 
+  // The primary label (song-less placeholder, "Wartet auf Play"/"Einzählen…", or the big beat
+  // number) is sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+
   if (!song) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
-        <span className="text-sm">Kein Song aktiv</span>
+        <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+          <span style={{ fontSize }} className="whitespace-nowrap">
+            Kein Song aktiv
+          </span>
+        </div>
       </div>
     )
   }
@@ -78,10 +90,14 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
 
   if (beat === null) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
+      <div className="flex h-full flex-col items-center gap-1 rounded-sb bg-surface text-ink-soft">
         {/* Not playing at all, vs. playing but still before the first beat anchor (a count-in) -
             both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
-        <span className="text-sm">{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
+        <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+          <span style={{ fontSize }} className="whitespace-nowrap font-semibold">
+            {playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}
+          </span>
+        </div>
         <span className="text-xs opacity-70 tabular-nums">
           {bpmLabel} · {song.timeSignature}
         </span>
@@ -93,7 +109,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
 
   return (
     <div
-      className={`flex h-full flex-col items-center justify-center gap-2 rounded-sb transition-colors duration-75 ${
+      className={`flex h-full flex-col items-center gap-1 rounded-sb transition-colors duration-75 [container-type:size] ${
         config.style === 'number' && pulseOn
           ? beat.isCountIn
             ? 'bg-control-strong text-ink'
@@ -108,13 +124,35 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
           the song's actual first bar. */}
       {beat.isCountIn && <span className="text-xs uppercase tracking-wide text-ink-muted">Einzählen…</span>}
       {config.style === 'beat-dots' ? (
-        <BeatDots beat={beat} totalBeats={beatsPerBar(song.timeSignature)} />
+        <div className="flex w-full flex-1 items-center justify-center">
+          <BeatDots beat={beat} totalBeats={beatsPerBar(song.timeSignature)} />
+        </div>
       ) : (
-        <span className="text-4xl font-bold tabular-nums">{beat.beatInBar + 1}</span>
+        <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+          <span style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums leading-none">
+            {beat.beatInBar + 1}
+          </span>
+        </div>
       )}
       <span className="text-xs opacity-70 tabular-nums">
         {bpmLabel} · {song.timeSignature}
       </span>
+    </div>
+  )
+}
+
+/**
+ * Static stand-in for the Widget Gallery (#22) - the real component only pulses while a song
+ * is actually playing (`useShowMode()`), which is almost never true while someone is sitting
+ * in Edit Mode browsing widgets to add. Shows the downbeat-pulse state (config's `number`
+ * style) so the tile reads as "this flashes on the beat", not the misleadingly static
+ * "Wartet auf Play" idle state the real widget would otherwise show here.
+ */
+export function VisualMetronomeWidgetPreview() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-sb bg-accent text-surface">
+      <span className="text-4xl font-bold tabular-nums">1</span>
+      <span className="text-xs opacity-70 tabular-nums">120.0 BPM · 4/4</span>
     </div>
   )
 }
@@ -127,16 +165,23 @@ export function MetronomeConfigPanel({
   onChange: (next: MetronomeConfig) => void
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-ink-muted">
-      Anzeige
-      <select
-        className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-        value={config.style}
-        onChange={(e) => onChange({ ...config, style: e.target.value as MetronomeConfig['style'] })}
-      >
-        <option value="number">Zahl (Beat im Takt)</option>
-        <option value="beat-dots">Punkte (Taktposition)</option>
-      </select>
-    </label>
+    <div className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Anzeige
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.style}
+          onChange={(e) => onChange({ ...config, style: e.target.value as MetronomeConfig['style'] })}
+        >
+          <option value="number">Zahl (Beat im Takt)</option>
+          <option value="beat-dots">Punkte (Taktposition)</option>
+        </select>
+      </label>
+      <SizeRatioSlider
+        label="Größe"
+        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+      />
+    </div>
   )
 }

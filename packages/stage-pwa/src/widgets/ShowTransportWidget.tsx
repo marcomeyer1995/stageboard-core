@@ -10,6 +10,13 @@ import { useShowMode } from '../lib/showMode'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import {
+  DEFAULT_BUTTONS_SIZE_RATIO,
+  DEFAULT_TITLE_SIZE_RATIO,
+  type ShowTransportConfig,
+} from './showTransportConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
  * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
@@ -45,8 +52,12 @@ function formatClock(ms: number): string {
  * backing track mid-song (found live, 2026-09-10). The routing booleans below
  * (`engine`/`usesDeviceOutput`/`pluginId`) are safe to re-derive here too, purely for display -
  * they're plain derivations, not the side-effecting part.
+ *
+ * Two functional elements, each a ratio of the device-wide default rather than auto-fit to
+ * the tile (Marco, 2026-09-14): the title+clock row, and the four transport buttons (which
+ * all share one size).
  */
-export function ShowTransportWidget() {
+export function ShowTransportWidget({ config }: { config: ShowTransportConfig }) {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
   const { currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
@@ -72,6 +83,9 @@ export function ShowTransportWidget() {
   const usesLocalEngine = engine === 'local-mine'
 
   const [error, setError] = useState<string | null>(null)
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const titleFontSize = baseFontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO)
+  const buttonFontSize = baseFontSize * (config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO)
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -106,14 +120,16 @@ export function ShowTransportWidget() {
   }
 
   return (
-    <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
-      <span className="truncate text-sm">
-        <span className="font-semibold text-ink">{currentSong.title}</span>
-        {currentVariant && !currentVariant.isDefault && (
-          <span className="ml-1 text-xs text-accent">({currentVariant.label})</span>
-        )}
-        <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
-      </span>
+    <div className="flex h-full flex-col gap-2 text-ink-soft">
+      <div className="flex w-full flex-1 items-center overflow-hidden">
+        <span style={{ fontSize: titleFontSize }} className="whitespace-nowrap">
+          <span className="font-semibold text-ink">{currentSong.title}</span>
+          {currentVariant && !currentVariant.isDefault && (
+            <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
+          )}
+          <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
+        </span>
+      </div>
       <div className="grid grid-cols-4 gap-2">
         <button
           type="button"
@@ -121,13 +137,13 @@ export function ShowTransportWidget() {
             void play()
             if (!usesDeviceOutput) void forward({ type: 'play' })
           }}
-          className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
+          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'playing'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          Play
+          <span style={{ fontSize: buttonFontSize }}>Play</span>
         </button>
         <button
           type="button"
@@ -135,13 +151,13 @@ export function ShowTransportWidget() {
             void pause()
             if (!usesDeviceOutput) void forward({ type: 'pause' })
           }}
-          className={`rounded-sb py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
+          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'paused'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          Pause
+          <span style={{ fontSize: buttonFontSize }}>Pause</span>
         </button>
         <button
           type="button"
@@ -149,21 +165,44 @@ export function ShowTransportWidget() {
             void stop()
             if (!usesDeviceOutput) void forward({ type: 'stop' })
           }}
-          className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          Stop
+          <span style={{ fontSize: buttonFontSize }}>Stop</span>
         </button>
         <button
           type="button"
           onClick={() => void reset()}
-          className="rounded-sb bg-control-strong py-2 text-sm font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          Reset
+          <span style={{ fontSize: buttonFontSize }}>Reset</span>
         </button>
       </div>
       {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
       {noLocalTrack && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
       {(error ?? driverError) && <p className="text-xs text-red-500">{error ?? driverError}</p>}
+    </div>
+  )
+}
+
+export function ShowTransportConfigPanel({
+  config,
+  onChange,
+}: {
+  config: ShowTransportConfig
+  onChange: (next: ShowTransportConfig) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <SizeRatioSlider
+        label="Titel & Uhr"
+        ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}
+        onChange={(titleSizeRatio) => onChange({ ...config, titleSizeRatio })}
+      />
+      <SizeRatioSlider
+        label="Buttons"
+        ratio={config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO}
+        onChange={(buttonsSizeRatio) => onChange({ ...config, buttonsSizeRatio })}
+      />
     </div>
   )
 }

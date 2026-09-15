@@ -301,6 +301,13 @@ export async function buildApp() {
   await app.register(cors, {
     origin: (process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGINS).split(','),
     methods: ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH'],
+    // Every PouchDB request through the /db proxy below sends `credentials: 'include'` (it
+    // needs that for its own Basic Auth header) - without this, @fastify/cors never sends
+    // Access-Control-Allow-Credentials at all, so the browser blocks the preflight outright
+    // ("the value of the 'Access-Control-Allow-Credentials' header ... is '' which must be
+    // 'true'"), and every live PouchDB<->CouchDB sync fails forever, retrying with backoff
+    // (Marco, 2026-09-14).
+    credentials: true,
   })
 
   app.get('/health', async () => ({ status: 'ok' }))

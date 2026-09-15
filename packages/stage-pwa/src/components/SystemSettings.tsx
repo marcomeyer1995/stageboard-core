@@ -3,6 +3,7 @@ import { AudioSyncSettings } from './AudioSyncSettings'
 import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
+import { TextSizeSettings } from './TextSizeSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -35,6 +36,10 @@ export function SystemSettings() {
 
       <Section title="Darstellung">
         <ThemeSwitcher />
+      </Section>
+
+      <Section title="Textgröße">
+        <TextSizeSettings />
       </Section>
 
       <Section title="Stage-Server">
