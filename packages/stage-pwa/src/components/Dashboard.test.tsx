@@ -69,6 +69,40 @@ describe('Dashboard', () => {
     errorSpy.mockRestore()
   })
 
+  it('remounts the grid when the active dashboard\'s own widget set changes, not just on dashboard switch/reset (adding a widget from the library writes to *this same* dashboard, so active.id/resetNonce alone never changed for that case - the grid used to receive a fresh `layouts` object as a bare prop update on an already-mounted instance instead, which is exactly the react-grid-layout stale-internal-state resync bug this file\'s key already exists to avoid for other transitions - found live, 2026-09-15: "widgets jumping and resizing" specifically right after initial load or right after adding a widget)', () => {
+    const dashboard: DashboardDoc = {
+      id: 'default-prompter',
+      name: 'Prompter',
+      order: 0,
+      widgets: [{ i: 'a', type: 'active-setlist', frameless: false }],
+      layouts: { lg: [{ i: 'a', x: 0, y: 0, w: 3, h: 3 }] },
+      visibility: 'public',
+    }
+    useDashboardsStore.setState({ dashboards: [dashboard], loaded: true, resetNonce: 0 })
+
+    const { container } = render(<Dashboard />)
+    const gridBefore = container.querySelector('.react-grid-layout')
+    expect(gridBefore).not.toBeNull()
+
+    // Same dashboard id/resetNonce - only the widget set changed, the same shape a "+
+    // Widget" add (or an incoming remote sync of the same dashboard) produces.
+    act(() => {
+      useDashboardsStore.setState({
+        dashboards: [
+          {
+            ...dashboard,
+            widgets: [...dashboard.widgets, { i: 'b', type: 'active-setlist', frameless: false }],
+            layouts: { lg: [...dashboard.layouts.lg!, { i: 'b', x: 3, y: 0, w: 3, h: 3 }] },
+          },
+        ],
+      })
+    })
+
+    const gridAfter = container.querySelector('.react-grid-layout')
+    expect(gridAfter).not.toBeNull()
+    expect(gridAfter).not.toBe(gridBefore)
+  })
+
   it('clamps a widget to its current registry maxW/maxH, not just whatever was persisted (#22)', () => {
     // 'active-setlist' registers maxW:6/maxH:6 (registry.tsx) - 'a' is persisted well past
     // that (e.g. seeded before the widget had a max, or from an older/larger registry

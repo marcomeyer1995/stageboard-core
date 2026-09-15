@@ -274,7 +274,17 @@ export function Dashboard() {
             // still wrong) layout every time, forever, entirely inside the library.
             // Remounting sidesteps that class of bug outright: the initial state a fresh
             // instance computes always comes straight from the current, consistent props.
-            key={`${active.id}:${resetNonce}`}
+            //
+            // Also keyed on the widget id set (not just active.id/resetNonce): adding a
+            // widget (DashboardEditBar's "+ Widget") writes it to *this same* dashboard
+            // document, and that write's echo back through the local changes() feed hands
+            // Dashboard a fresh `layouts` object for the *same* active.id - previously not
+            // a remount at all, just a bare prop change on an already-mounted instance,
+            // which is exactly the class of bug above. A remote CouchDB pull landing
+            // moments after initial load hits the identical shape (found live, 2026-09-15:
+            // "widgets jumping and resizing", specifically right after initial load or
+            // right after adding a widget - never during otherwise-idle normal use).
+            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}`}
             width={width}
             layouts={layouts}
             breakpoints={BREAKPOINT_WIDTHS}
