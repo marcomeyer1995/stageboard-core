@@ -1,11 +1,12 @@
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { pluginProviding, pluginStatus, type CapabilityStatus } from '../lib/capabilities'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useMidiTrigger } from '../lib/useMidiTrigger'
 import { useNow } from '../lib/useNow'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
-import type { DeviceStatusConfig } from './deviceStatusConfig'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type DeviceStatusConfig } from './deviceStatusConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
   available: 'Online',
@@ -34,14 +35,10 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
 
   const device = devices.find((d) => d.id === config.logicalDeviceId) ?? null
 
-  // The status line (dot + label) auto-fits the space left over once the device-name caption
-  // takes its own, fixed-size row - chosen over cq units/discrete tiers after Marco compared
-  // all three live (2026-09-14, see the widget-font-autofit memory). Called unconditionally,
-  // ahead of the "no device" early return.
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 10, max: 96 },
-    [device?.id],
-  )
+  // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   if (!device) {
     return (
@@ -68,12 +65,8 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
       <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
         {device.name}
       </span>
-      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
-        <span
-          ref={textRef}
-          style={{ fontSize }}
-          className="flex items-center gap-[0.3em] whitespace-nowrap text-ink-soft"
-        >
+      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span style={{ fontSize }} className="flex items-center gap-[0.3em] whitespace-nowrap text-ink-soft">
           <span
             className={`inline-block rounded-full ${STATUS_DOT[status]}`}
             style={{ width: '0.6em', height: '0.6em' }}
@@ -95,20 +88,27 @@ export function DeviceStatusConfigPanel({
   const devices = useLogicalDevicesStore((s) => s.devices)
 
   return (
-    <label className="flex flex-col gap-1 text-xs text-ink-muted">
-      Gerät
-      <select
-        className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-        value={config.logicalDeviceId ?? ''}
-        onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
-      >
-        <option value="">— Gerät wählen —</option>
-        {devices.map((device) => (
-          <option key={device.id} value={device.id}>
-            {device.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-xs text-ink-muted">
+        Gerät
+        <select
+          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          value={config.logicalDeviceId ?? ''}
+          onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
+        >
+          <option value="">— Gerät wählen —</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <SizeRatioSlider
+        label="Größe"
+        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+      />
+    </div>
   )
 }

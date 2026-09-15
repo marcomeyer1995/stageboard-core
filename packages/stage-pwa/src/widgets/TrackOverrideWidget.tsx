@@ -1,5 +1,7 @@
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useShowMode } from '../lib/showMode'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /**
  * Swaps which track of the current variant plays, on top of the setlist's own lasting default
@@ -10,18 +12,14 @@ import { useShowMode } from '../lib/showMode'
  * that write is Master-gated and shared (ShowState.trackOverride, everyone hears the same
  * feed); in Practice mode it's a purely personal, local choice (only this device's speakers
  * are affected) - see useShowMode.ts.
+ *
+ * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14).
  */
-export function TrackOverrideWidget() {
+export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
   const { queue, trackOverride, canControl, setTrackOverride } = useShowMode()
   const { currentVariant } = queue
-  // Fits the caption ("Track für ...") - a native <select>'s own rendering isn't reliably
-  // measurable the way plain text is, so the <select> just reuses this same computed size
-  // rather than being auto-fit independently. Chosen over cq units/discrete tiers after
-  // Marco compared all three live (2026-09-14, see the widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 10, max: 32 },
-    [currentVariant?.id],
-  )
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   if (!currentVariant || currentVariant.tracks.length === 0) {
     return (
@@ -41,8 +39,8 @@ export function TrackOverrideWidget() {
 
   return (
     <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
-      <div ref={containerRef} className="w-full overflow-hidden">
-        <span ref={textRef} style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
+      <div className="w-full overflow-hidden">
+        <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
           Track für „{currentVariant.label}"
         </span>
       </div>
@@ -61,5 +59,21 @@ export function TrackOverrideWidget() {
         ))}
       </select>
     </div>
+  )
+}
+
+export function TrackOverrideConfigPanel({
+  config,
+  onChange,
+}: {
+  config: TrackOverrideConfig
+  onChange: (next: TrackOverrideConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

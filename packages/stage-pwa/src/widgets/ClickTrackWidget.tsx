@@ -1,12 +1,14 @@
 import { CAPABILITIES } from 'shared-types'
 import { supportsLocalExecution } from '../lib/clientTranslator'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { resolveExecutionEngine } from '../lib/hardwareRouting'
 import { effectiveClickEnabled } from '../lib/metronome'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { useShowMode } from '../lib/showMode'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type ClickTrackConfig } from './clickTrackConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
   { value: null, label: 'Standard' },
@@ -26,8 +28,11 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * Play/Pause), a local per-device choice in Practice mode (useShowMode.ts) - either way
  * `useShowMode()` already resolves which one applies, so this widget doesn't need its own mode
  * branching.
+ *
+ * The "An"/"Aus" label is sized as a ratio of the device-wide default, not auto-fit to the
+ * tile (Marco, 2026-09-14).
  */
-export function ClickTrackWidget() {
+export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
@@ -43,13 +48,8 @@ export function ClickTrackWidget() {
   )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
-  // The "An"/"Aus" label auto-fits the space left over once the caption and buttons take
-  // theirs (useAutoFitFontSize.ts) - chosen over cq units/discrete tiers after Marco compared
-  // all three live (2026-09-14, see the widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 10, max: 160 },
-    [enabled],
-  )
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   if (engine === 'none') {
     return (
@@ -64,8 +64,8 @@ export function ClickTrackWidget() {
       <span className="text-xs uppercase tracking-widest text-ink-faint">
         Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
       </span>
-      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
-        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-bold">
+      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap font-bold">
           {enabled ? 'An' : 'Aus'}
         </span>
       </div>
@@ -87,5 +87,21 @@ export function ClickTrackWidget() {
         ))}
       </div>
     </div>
+  )
+}
+
+export function ClickTrackConfigPanel({
+  config,
+  onChange,
+}: {
+  config: ClickTrackConfig
+  onChange: (next: ClickTrackConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

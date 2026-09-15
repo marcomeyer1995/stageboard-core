@@ -1,6 +1,8 @@
 import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from '../lib/metronome'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useShowMode } from '../lib/showMode'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type TempoNudgeConfig } from './tempoNudgeConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /** Step size per tap - fine enough to correct real drift without overshooting, coarse enough
  * that reaching the +/-15% limit doesn't take a dozen taps. */
@@ -12,17 +14,15 @@ const STEP_PERCENT = 1
  * touching the song's own stored tempo. Gig mode only: Practice mode's tempo control is #61's
  * Speed Trainer's job (a deliberate practice choice), not a live-drift correction, so this
  * widget explains itself away there rather than offering a control that would do nothing.
+ *
+ * The percent readout is sized as a ratio of the device-wide default, not auto-fit to the
+ * tile (Marco, 2026-09-14).
  */
-export function TempoNudgeWidget() {
+export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
     useShowMode()
-  // The percent value auto-fits the row's height, flanked by fixed-size +/- buttons - chosen
-  // over cq units/discrete tiers after Marco compared all three live (2026-09-14, see the
-  // widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 14, max: 72 },
-    [liveTempoAdjustPercent],
-  )
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   if (mode !== 'gig') {
     return (
@@ -47,8 +47,8 @@ export function TempoNudgeWidget() {
         >
           −
         </button>
-        <div ref={containerRef} className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">
-          <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums">
+        <div className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">
+          <span style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums">
             {liveTempoAdjustPercent > 0 ? '+' : ''}
             {liveTempoAdjustPercent}%
           </span>
@@ -73,5 +73,21 @@ export function TempoNudgeWidget() {
         </button>
       )}
     </div>
+  )
+}
+
+export function TempoNudgeConfigPanel({
+  config,
+  onChange,
+}: {
+  config: TempoNudgeConfig
+  onChange: (next: TempoNudgeConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

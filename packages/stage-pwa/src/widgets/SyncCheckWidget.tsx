@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useClockSyncStore } from '../store/useClockSyncStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type SyncCheckConfig } from './syncCheckConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /**
  * Re-renders every animation frame so the displayed server time and flash edge are as smooth
@@ -41,18 +43,14 @@ function formatClock(ms: number): string {
  * this device's own offset/driftMs (useClockSyncStore.ts) so the "why" is right there without
  * switching to the System-Status widget.
  */
-export function SyncCheckWidget() {
+export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   const serverTime = useServerTimeTick()
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const flashOn = Math.floor(serverTime / 1000) % 2 === 0
-  // Not keyed on serverTime: the clock's digit count is constant (HH:MM:SS.mmm), so
-  // re-fitting on every animation-frame tick would be wasted work, not a real size change -
-  // same reasoning ShowTransportWidget's clock uses. Chosen over cq units/discrete tiers
-  // after Marco compared all three live (2026-09-14, see the widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 14, max: 56 },
-    [],
-  )
+  // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   return (
     <div
@@ -60,8 +58,8 @@ export function SyncCheckWidget() {
         flashOn ? 'bg-ink text-surface' : 'bg-surface text-ink'
       }`}
     >
-      <div ref={containerRef} className="flex w-full flex-1 items-center justify-center overflow-hidden">
-        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap font-mono tabular-nums">
+      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap font-mono tabular-nums">
           {formatClock(serverTime)}
         </span>
       </div>
@@ -72,5 +70,21 @@ export function SyncCheckWidget() {
         </span>
       )}
     </div>
+  )
+}
+
+export function SyncCheckConfigPanel({
+  config,
+  onChange,
+}: {
+  config: SyncCheckConfig
+  onChange: (next: SyncCheckConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

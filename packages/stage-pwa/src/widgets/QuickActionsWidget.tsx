@@ -9,8 +9,10 @@ import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
 import { triggerShowControl } from '../lib/showControlClient'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { CueGrid, type CueAction } from './CueGrid'
+import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
 
 const ACTIONS: CueAction[] = [
   { label: 'Strobo', type: 'strobe' },
@@ -32,7 +34,7 @@ const ACTIONS: CueAction[] = [
  * the same rig - so a `lighting` binding in the active HardwareSetup (#10) takes over here too,
  * via the relay (deviceControlClient.ts) rather than a second, redundant binding lookup.
  */
-export function QuickActionsWidget() {
+export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.lighting, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -41,6 +43,8 @@ export function QuickActionsWidget() {
   const pluginId = binding === null ? pluginProviding(installed, CAPABILITIES.showControl) : null
   const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
   const [error, setError] = useState<string | null>(null)
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   async function fire(type: string) {
     if (engine === 'local-mine') {
@@ -60,7 +64,7 @@ export function QuickActionsWidget() {
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1">
-        <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} />
+        <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} fontSize={fontSize} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>

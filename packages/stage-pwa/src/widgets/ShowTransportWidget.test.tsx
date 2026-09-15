@@ -128,7 +128,7 @@ beforeEach(() => {
 describe('ShowTransportWidget', () => {
   it('shows "Kein Song aktiv" when there is no current entry', () => {
     mockShowMode({ currentSong: null })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
     expect(screen.getByText('Kein Song aktiv')).toBeInTheDocument()
   })
 
@@ -139,13 +139,13 @@ describe('ShowTransportWidget', () => {
       currentVariant: variant('v1', 's1'),
       elapsedMs: -1500,
     })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
     expect(screen.getByText('-00:01')).toBeInTheDocument()
   })
 
   it('offers to claim Master instead of transport controls when this device has no control', () => {
     mockShowMode({ currentSong: song('s1', 'Sweet Home Chicago'), canControl: false })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
     expect(screen.getByText('Master übernehmen')).toBeInTheDocument()
     expect(screen.queryByText('Play')).not.toBeInTheDocument()
   })
@@ -156,7 +156,7 @@ describe('ShowTransportWidget', () => {
       currentEntry: entry('e1', 's1'),
       currentVariant: variant('v1', 's1'),
     })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
 
     fireEvent.click(screen.getByText('Play'))
 
@@ -181,7 +181,7 @@ describe('ShowTransportWidget', () => {
       currentEntry: entry('e1', 's1'),
       currentVariant: variant('v1', 's1'),
     })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
 
     expect(screen.getByText('Kein Track angehängt')).toBeInTheDocument()
   })
@@ -189,7 +189,7 @@ describe('ShowTransportWidget', () => {
   it('shows the local-output driver error (useAudioOutputDriver.ts) when set', () => {
     useLocalAudioOutputStore.setState({ error: 'Kein Track gefunden' })
     mockShowMode({ currentSong: song('s1', 'Sweet Home Chicago') })
-    render(<ShowTransportWidget />)
+    render(<ShowTransportWidget config={{}} />)
 
     expect(screen.getByText('Kein Track gefunden')).toBeInTheDocument()
   })

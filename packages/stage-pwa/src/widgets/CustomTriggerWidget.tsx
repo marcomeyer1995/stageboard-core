@@ -3,7 +3,6 @@ import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getTranslator, preloadDynamicTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { resolveHardwareBindingById, resolveHardwareEngine } from '../lib/hardwareRouting'
 import { getStageServerUrl } from '../lib/stageServer'
 import { triggerShowControl } from '../lib/showControlClient'
@@ -11,7 +10,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { type CustomTriggerConfig } from './customTriggerConfig'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type CustomTriggerConfig } from './customTriggerConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
 
 const INACTIVE_CLASS = 'bg-control-strong text-ink hover:bg-control-strong-hover'
@@ -44,12 +45,10 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   const [pressed, setPressed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, forceRerender] = useState(0)
-  // Chosen over cq units/discrete tiers after Marco compared all three live (2026-09-14,
-  // see the widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLButtonElement, HTMLSpanElement>(
-    { min: 10, max: 64 },
-    [config.label],
-  )
+  // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
+  // 2026-09-14).
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   const device = resolveHardwareBindingById(devices, config.targetLogicalDeviceId ?? '')
 
@@ -114,7 +113,6 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   return (
     <div className="flex h-full flex-col gap-2">
       <button
-        ref={containerRef}
         type="button"
         disabled={disabled}
         onClick={config.behavior === 'latching' ? handleLatchingClick : undefined}
@@ -125,7 +123,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
-        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap">
+        <span style={{ fontSize }} className="whitespace-nowrap">
           {config.label}
         </span>
       </button>
@@ -222,6 +220,11 @@ export function CustomTriggerConfigPanel({
         />
         {!payloadValid && <span className="text-red-500">Ungültiges JSON</span>}
       </label>
+      <SizeRatioSlider
+        label="Größe"
+        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+      />
     </div>
   )
 }

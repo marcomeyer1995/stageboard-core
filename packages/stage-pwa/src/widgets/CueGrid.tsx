@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
+import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 export interface CueAction {
   /** Shown on the button. */
@@ -14,28 +15,28 @@ export interface CueAction {
  * cues (docs/07 / docs/08 Use Case 4.5). Purely the grid/button chrome and "which one did I
  * just press" visual feedback; each caller supplies its own `onFire` wired to whichever
  * capability's plugin it needs (#3) - CueGrid itself doesn't know or care what a press does.
+ *
+ * `fontSize` is computed by the caller from its own config (a ratio of the device-wide
+ * default, not auto-fit to the tile - Marco, 2026-09-14) - every button just renders at that
+ * one fixed size now, so there's no more "fit to whichever cell has the longest label"
+ * measurement.
  */
-export function CueGrid({ actions, onFire }: { actions: readonly CueAction[]; onFire: (type: string) => void }) {
+export function CueGrid({
+  actions,
+  onFire,
+  fontSize,
+}: {
+  actions: readonly CueAction[]
+  onFire: (type: string) => void
+  fontSize: number
+}) {
   const [lastFired, setLastFired] = useState<string | null>(null)
-  // Every button shares one font size, fit to whichever cell has the longest label - each
-  // grid cell is an equal-size column, so the widest label is the binding constraint for
-  // all of them. Chosen over cq units/discrete tiers after Marco compared all three live
-  // (2026-09-14, see the widget-font-autofit memory).
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLButtonElement, HTMLSpanElement>(
-    { min: 10, max: 32 },
-    [actions.map((a) => a.label).join('|')],
-  )
-  const longestType = actions.reduce<CueAction | null>(
-    (longest, a) => (longest === null || a.label.length > longest.label.length ? a : longest),
-    null,
-  )?.type
 
   return (
     <div className="grid h-full w-full grid-cols-2 gap-2">
       {actions.map((action) => (
         <button
           key={action.type}
-          ref={action.type === longestType ? containerRef : undefined}
           type="button"
           onClick={() => {
             setLastFired(action.type)
@@ -47,11 +48,29 @@ export function CueGrid({ actions, onFire }: { actions: readonly CueAction[]; on
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          <span ref={action.type === longestType ? textRef : undefined} style={{ fontSize }} className="whitespace-nowrap">
+          <span style={{ fontSize }} className="whitespace-nowrap">
             {action.label}
           </span>
         </button>
       ))}
     </div>
+  )
+}
+
+/** Shared by QuickActionsWidget and LightingCuesWidget - identical config shape, so one
+ * component covers both rather than duplicating it. */
+export function CueGridConfigPanel({
+  config,
+  onChange,
+}: {
+  config: CueGridConfig
+  onChange: (next: CueGridConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

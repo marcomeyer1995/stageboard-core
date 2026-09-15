@@ -17,7 +17,7 @@ describe('SyncCheckWidget', () => {
     vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-09-02T10:15:20.500Z').getTime())
     useClockSyncStore.getState().setSync({ offsetMs: 250, rttMs: 10, jitterMs: 2, driftMs: 3 })
 
-    render(<SyncCheckWidget />)
+    render(<SyncCheckWidget config={{}} />)
 
     // Date.now() (10:15:20.500) + 250ms offset = 10:15:20.750
     expect(screen.getByText(/^\d{2}:\d{2}:20\.750$/)).toBeInTheDocument()
@@ -31,12 +31,12 @@ describe('SyncCheckWidget', () => {
     // Math.floor(serverTime / 1000) % 2, not tied to any particular wall-clock parity).
     const t0 = Date.now()
     vi.spyOn(Date, 'now').mockReturnValue(t0)
-    const { container: first, unmount } = render(<SyncCheckWidget />)
+    const { container: first, unmount } = render(<SyncCheckWidget config={{}} />)
     const firstFlashOn = (first.firstChild as HTMLElement).classList.contains('bg-ink')
     unmount()
 
     vi.spyOn(Date, 'now').mockReturnValue(t0 + 1000)
-    const { container: second } = render(<SyncCheckWidget />)
+    const { container: second } = render(<SyncCheckWidget config={{}} />)
     const secondFlashOn = (second.firstChild as HTMLElement).classList.contains('bg-ink')
 
     expect(secondFlashOn).toBe(!firstFlashOn)
@@ -45,11 +45,11 @@ describe('SyncCheckWidget', () => {
   it('shows offset/drift once synced, and hides that line before the first sync', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.now())
 
-    const { rerender } = render(<SyncCheckWidget />)
+    const { rerender } = render(<SyncCheckWidget config={{}} />)
     expect(screen.queryByText(/Offset/)).not.toBeInTheDocument()
 
     useClockSyncStore.getState().setSync({ offsetMs: -12, rttMs: 8, jitterMs: 400, driftMs: 4 })
-    rerender(<SyncCheckWidget />)
+    rerender(<SyncCheckWidget config={{}} />)
     expect(screen.getByText('Offset -12 ms · Drift 4 ms')).toBeInTheDocument()
   })
 })

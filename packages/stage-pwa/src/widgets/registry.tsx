@@ -1,10 +1,14 @@
 import { useMemo, type ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
-import { ActiveSetlistWidget } from './ActiveSetlistWidget'
-import { BackupStatusWidget } from './BackupStatusWidget'
-import { ClickTrackWidget } from './ClickTrackWidget'
-import { ClockWidget } from './ClockWidget'
+import { ActiveSetlistConfigPanel, ActiveSetlistWidget } from './ActiveSetlistWidget'
+import { ActiveSetlistConfigSchema } from './activeSetlistConfig'
+import { BackupStatusConfigPanel, BackupStatusWidget } from './BackupStatusWidget'
+import { BackupStatusConfigSchema } from './backupStatusConfig'
+import { ClickTrackConfigPanel, ClickTrackWidget } from './ClickTrackWidget'
+import { ClickTrackConfigSchema } from './clickTrackConfig'
+import { ClockConfigPanel, ClockWidget } from './ClockWidget'
+import { ClockConfigSchema } from './clockConfig'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import { ContentFontSizeConfigSchema } from './contentFontSizeConfig'
 import { CustomTriggerConfigPanel, CustomTriggerWidget } from './CustomTriggerWidget'
@@ -13,22 +17,31 @@ import { DashboardSwitcherConfigPanel, DashboardSwitcherView } from './Dashboard
 import { DashboardSwitcherConfigSchema } from './dashboardSwitcherConfig'
 import { DeviceStatusConfigPanel, DeviceStatusWidget } from './DeviceStatusWidget'
 import { DeviceStatusConfigSchema } from './deviceStatusConfig'
-import { IemWidget } from './IemWidget'
+import { IemConfigPanel, IemWidget } from './IemWidget'
+import { IemConfigSchema } from './iemConfig'
 import { LightingCuesWidget } from './LightingCuesWidget'
+import { CueGridConfigPanel } from './CueGrid'
+import { CueGridConfigSchema } from './cueGridConfig'
 import { LiveQueueWidget, LiveQueueWidgetPreview } from './LiveQueueWidget'
-import { MidiStatusWidget } from './MidiStatusWidget'
-import { NextSongWidget } from './NextSongWidget'
+import { MidiStatusConfigPanel, MidiStatusWidget } from './MidiStatusWidget'
+import { MidiStatusConfigSchema } from './midiStatusConfig'
+import { NextSongConfigPanel, NextSongWidget } from './NextSongWidget'
+import { NextSongConfigSchema } from './nextSongConfig'
 import { PrompterConfigPanel, PrompterWidget } from './PrompterWidget'
 import { PrompterConfigSchema } from './prompterConfig'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { SeparatorConfigPanel, SeparatorWidget } from './SeparatorWidget'
 import { SeparatorConfigSchema } from './separatorConfig'
 import { ShowNoteWidget } from './ShowNoteWidget'
-import { ShowTransportWidget } from './ShowTransportWidget'
-import { SyncCheckWidget } from './SyncCheckWidget'
+import { ShowTransportConfigPanel, ShowTransportWidget } from './ShowTransportWidget'
+import { ShowTransportConfigSchema } from './showTransportConfig'
+import { SyncCheckConfigPanel, SyncCheckWidget } from './SyncCheckWidget'
+import { SyncCheckConfigSchema } from './syncCheckConfig'
 import { SystemHealthWidget } from './SystemHealthWidget'
-import { TempoNudgeWidget } from './TempoNudgeWidget'
-import { TrackOverrideWidget } from './TrackOverrideWidget'
+import { TempoNudgeConfigPanel, TempoNudgeWidget } from './TempoNudgeWidget'
+import { TempoNudgeConfigSchema } from './tempoNudgeConfig'
+import { TrackOverrideConfigPanel, TrackOverrideWidget } from './TrackOverrideWidget'
+import { TrackOverrideConfigSchema } from './trackOverrideConfig'
 import { TunerConfigPanel, TunerWidget, TunerWidgetPreview } from './TunerWidget'
 import { TunerConfigSchema } from './tunerConfig'
 import { MetronomeConfigPanel, VisualMetronomeWidget, VisualMetronomeWidgetPreview } from './VisualMetronomeWidget'
@@ -173,7 +186,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Vorheriger, aktueller und nächster Song, Master-Token, Vor/Zurück.',
     category: 'performance',
     defaultLayout: { w: 7, h: 2, minW: 3, minH: 2, maxH: 6 },
+    configSchema: NextSongConfigSchema,
     Component: NextSongWidget,
+    ConfigPanel: NextSongConfigPanel,
   }),
   defineWidget({
     type: 'active-setlist',
@@ -181,7 +196,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Zeigt, welche Setlist gerade aktiv ist - auch ohne Live-Queue/Next Song.',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    configSchema: ActiveSetlistConfigSchema,
     Component: ActiveSetlistWidget,
+    ConfigPanel: ActiveSetlistConfigPanel,
   }),
   defineWidget({
     type: 'show-transport',
@@ -189,7 +206,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Play/Pause/Stop/Reset für den aktuellen Song - Gig oder Solo Üben, mit oder ohne Backing-Track-Plugin.',
     category: 'performance',
     defaultLayout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 8, maxH: 6 },
+    configSchema: ShowTransportConfigSchema,
     Component: ShowTransportWidget,
+    ConfigPanel: ShowTransportConfigPanel,
   }),
   defineWidget({
     type: 'visual-metronome',
@@ -208,7 +227,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Live +/- Anpassung des Klick-/Metronom-Tempos, ohne den Song-BPM zu ändern.',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    configSchema: TempoNudgeConfigSchema,
     Component: TempoNudgeWidget,
+    ConfigPanel: TempoNudgeConfigPanel,
   }),
   defineWidget({
     type: 'click-track',
@@ -216,7 +237,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Synthetisierter Klick/Metronom-Ton, an/aus - läuft auf dem als Klick-Ausgabe eingerichteten Gerät.',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    configSchema: ClickTrackConfigSchema,
     Component: ClickTrackWidget,
+    ConfigPanel: ClickTrackConfigPanel,
   }),
   defineWidget({
     type: 'track-override',
@@ -224,7 +247,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre").',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    configSchema: TrackOverrideConfigSchema,
     Component: TrackOverrideWidget,
+    ConfigPanel: TrackOverrideConfigPanel,
   }),
   defineWidget({
     type: 'midi-status',
@@ -233,7 +258,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     requires: [CAPABILITIES.midiInput],
     category: 'performance',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
+    configSchema: MidiStatusConfigSchema,
     Component: MidiStatusWidget,
+    ConfigPanel: MidiStatusConfigPanel,
   }),
   defineWidget({
     type: 'dashboard-switcher',
@@ -252,7 +279,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     requires: [CAPABILITIES.mixer],
     category: 'monitoring',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 5 },
+    configSchema: IemConfigSchema,
     Component: IemWidget,
+    ConfigPanel: IemConfigPanel,
   }),
   defineWidget({
     type: 'quick-actions',
@@ -261,7 +290,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     requires: [CAPABILITIES.showControl],
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
+    configSchema: CueGridConfigSchema,
     Component: QuickActionsWidget,
+    ConfigPanel: CueGridConfigPanel,
   }),
   defineWidget({
     type: 'lighting-cues',
@@ -270,7 +301,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     requires: [CAPABILITIES.lighting],
     category: 'show-control',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
+    configSchema: CueGridConfigSchema,
     Component: LightingCuesWidget,
+    ConfigPanel: CueGridConfigPanel,
   }),
   defineWidget({
     type: 'system-health',
@@ -290,7 +323,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'system-crew',
     relevantRoles: ['crew'],
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    configSchema: SyncCheckConfigSchema,
     Component: SyncCheckWidget,
+    ConfigPanel: SyncCheckConfigPanel,
   }),
   defineWidget({
     type: 'tuner',
@@ -324,7 +359,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     requires: [CAPABILITIES.backup],
     category: 'system-crew',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
+    configSchema: BackupStatusConfigSchema,
     Component: BackupStatusWidget,
+    ConfigPanel: BackupStatusConfigPanel,
   }),
   defineWidget({
     type: 'clock',
@@ -332,7 +369,9 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Große, gut lesbare Digitaluhr für die Bühne.',
     category: 'utility',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+    configSchema: ClockConfigSchema,
     Component: ClockWidget,
+    ConfigPanel: ClockConfigPanel,
   }),
   defineWidget({
     type: 'separator',

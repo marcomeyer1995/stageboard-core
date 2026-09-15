@@ -4,11 +4,12 @@ import { ContentFontSizeConfigSchema } from './contentFontSizeConfig'
 /**
  * Every element but the lyrics text itself is sized as a *ratio* of it, not an absolute px
  * value (Marco, 2026-09-14: "einmal zentral ändern und alle Verhältnisse bleiben gleich") -
- * the lyrics text's own resolved size (`fontSize`, inherited from ContentFontSizeConfigSchema
- * - the device-wide "Textgröße" default, or this instance's own override) is the one anchor
- * point. Change that anchor (globally in Settings, or just for this instance) and every
- * ratio below scales with it automatically, no per-element re-tuning needed. Defaults below
- * match what each element looked like before this became configurable.
+ * the lyrics text's own resolved size (inherited from ContentFontSizeConfigSchema's
+ * `sizeRatio`, itself a ratio of the device-wide "Textgröße" default - see
+ * contentFontSizeConfig.ts) is the one anchor point. Change that anchor (globally in
+ * Settings, or just for this instance) and every ratio below scales with it automatically,
+ * no per-element re-tuning needed. Defaults below match what each element looked like
+ * before this became configurable.
  */
 export const DEFAULT_TITLE_SIZE_RATIO = 2
 export const DEFAULT_ARTIST_SIZE_RATIO = 0.9

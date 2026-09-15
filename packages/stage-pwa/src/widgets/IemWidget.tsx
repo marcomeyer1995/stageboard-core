@@ -3,7 +3,6 @@ import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
 import { getTranslator, supportsLocalExecution } from '../lib/clientTranslator'
 import { triggerDeviceControl } from '../lib/deviceControlClient'
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useDynamicTranslatorPreload } from '../lib/useDynamicTranslatorPreload'
 import { resolveHardwareEngine } from '../lib/hardwareRouting'
 import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
@@ -11,7 +10,10 @@ import { triggerShowControl } from '../lib/showControlClient'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { DEFAULT_SIZE_RATIO, type IemConfig } from './iemConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
 /**
  * "More Me" from docs/07: only the musician's own channels plus a band group fader. #3:
@@ -29,7 +31,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  */
 const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
-export function IemWidget() {
+export function IemWidget({ config }: { config: IemConfig }) {
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.mixer, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -64,30 +66,19 @@ export function IemWidget() {
   }
 
   const levels = usesLocalMixerStore ? { ...ownLevels, ...localVolumes } : ownLevels
-  // All three channel labels/readouts share one font size, fit to the longest label
-  // ("Meine Gitarre") - chosen over cq units/discrete tiers after Marco compared all three
-  // live (2026-09-14, see the widget-font-autofit memory). The fader itself already fills
-  // its column (h-full/flex-1), no text sizing involved.
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 9, max: 22 },
-    [],
-  )
-  const longestChannel = CHANNELS.reduce((a, b) => (b.length > a.length ? b : a))
+  // All three channel labels/readouts share one fixed size, a ratio of the device-wide
+  // default rather than auto-fit to the tile (Marco, 2026-09-14). The fader itself already
+  // fills its column (h-full/flex-1), no text sizing involved.
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   return (
     <div className="flex h-full w-full flex-col gap-2">
       <div className="flex min-h-0 flex-1 gap-4">
         {CHANNELS.map((channel) => (
           <div key={channel} className="flex flex-1 flex-col items-center gap-2">
-            <div
-              ref={channel === longestChannel ? containerRef : undefined}
-              className="w-full overflow-hidden"
-            >
-              <span
-                ref={channel === longestChannel ? textRef : undefined}
-                style={{ fontSize }}
-                className="block truncate text-center uppercase tracking-wide text-ink-muted"
-              >
+            <div className="w-full overflow-hidden">
+              <span style={{ fontSize }} className="block truncate text-center uppercase tracking-wide text-ink-muted">
                 {channel}
               </span>
             </div>
@@ -111,5 +102,15 @@ export function IemWidget() {
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
+  )
+}
+
+export function IemConfigPanel({ config, onChange }: { config: IemConfig; onChange: (next: IemConfig) => void }) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

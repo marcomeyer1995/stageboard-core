@@ -3,9 +3,9 @@ import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
 import { useContentFontSize } from '../lib/useContentFontSize'
-import { useDeferredSliderValue } from '../lib/useDeferredSliderValue'
 import { useShowMode } from '../lib/showMode'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
+import { SizeRatioSlider } from './SizeRatioSlider'
 import {
   DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO,
   DEFAULT_ARTIST_SIZE_RATIO,
@@ -161,47 +161,6 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
         </div>
       )}
     </div>
-  )
-}
-
-/** min/max/step in percent of the anchor "Text" size - 25%-400% covers everything from a
- * barely-there Key/Tuning/Capo line up to a title bigger than the text itself many times
- * over, without letting the slider's own range feel arbitrary. */
-const RATIO_MIN_PERCENT = 25
-const RATIO_MAX_PERCENT = 400
-const RATIO_STEP_PERCENT = 5
-
-function SizeRatioSlider({
-  label,
-  ratio,
-  onChange,
-}: {
-  label: string
-  ratio: number
-  onChange: (next: number) => void
-}) {
-  // Debounced commit (useDeferredSliderValue.ts) - committing straight through on every
-  // drag tick round-trips through a real PouchDB write each time, which is what made this
-  // stutter (Marco, 2026-09-14).
-  const [displayRatio, onDrag, flush] = useDeferredSliderValue(ratio, onChange, label)
-  const percent = Math.round(displayRatio * 100)
-  return (
-    <label className="flex flex-col gap-1 text-xs text-ink-muted">
-      <div className="flex items-center justify-between">
-        <span>{label}</span>
-        <span className="text-ink-faint">{percent}%</span>
-      </div>
-      <input
-        type="range"
-        min={RATIO_MIN_PERCENT}
-        max={RATIO_MAX_PERCENT}
-        step={RATIO_STEP_PERCENT}
-        value={percent}
-        onChange={(e) => onDrag(Number(e.target.value) / 100)}
-        onPointerUp={flush}
-        className="w-full accent-accent"
-      />
-    </label>
   )
 }
 

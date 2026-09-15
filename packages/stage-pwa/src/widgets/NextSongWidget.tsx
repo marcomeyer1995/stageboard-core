@@ -1,32 +1,21 @@
-import { useAutoFitFontSize } from '../lib/useAutoFitFontSize'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
+import { SizeRatioSlider } from './SizeRatioSlider'
 
-export function NextSongWidget() {
+/** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
+export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const { queue, canControl, next, previous } = useShowMode()
   const { previousSong, currentSong, nextSong, currentVariant, nextVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
-
-  // A JS auto-fit spike (#22 follow-up) against VisualMetronomeWidget's CSS container-query
-  // approach - re-measures the actual rendered text (title length varies a lot, unlike a
-  // fixed-vocabulary label a cq unit alone would size fine), so this fits the label's real
-  // content rather than just scaling with the container's own box.
-  const [containerRef, textRef, fontSize] = useAutoFitFontSize<HTMLDivElement, HTMLSpanElement>(
-    { min: 10, max: 96 },
-    [currentSong?.id, nextSong?.id, currentVariant?.label, nextVariant?.label],
-  )
+  const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
+  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
   return (
     <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
-      {/* h-full, not just flex-1: the outer row centers its items on the cross axis
-          (items-center), which does NOT stretch a flex item to the parent's height - without
-          an explicit height this div sized itself to its own text content instead, so
-          clientHeight only ever measured "whatever the text currently needs", never a real
-          ceiling. That let the binary search treat height as unconstrained and walk font-size
-          all the way to `max` regardless of the widget's actual box (Marco, 2026-09-14: "keine
-          Größenänderung erkennbar... viel zu groß"). */}
-      <div ref={containerRef} className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
-        <span ref={textRef} style={{ fontSize }} className="whitespace-nowrap">
+      <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
+        <span style={{ fontSize }} className="whitespace-nowrap">
           {currentSong ? (
             <>
               Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
@@ -81,5 +70,21 @@ export function NextSongWidget() {
         </button>
       )}
     </div>
+  )
+}
+
+export function NextSongConfigPanel({
+  config,
+  onChange,
+}: {
+  config: NextSongConfig
+  onChange: (next: NextSongConfig) => void
+}) {
+  return (
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }
