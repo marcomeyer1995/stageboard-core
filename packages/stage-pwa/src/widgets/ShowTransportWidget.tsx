@@ -1,14 +1,10 @@
 import { useState } from 'react'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET, type ShowControlEvent } from 'shared-types'
-import { pluginProviding } from '../lib/capabilities'
-import { supportsLocalExecution } from '../lib/clientTranslator'
+import { CAPABILITIES, type ShowControlEvent } from 'shared-types'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { triggerShowControl } from '../lib/showControlClient'
-import { resolveExecutionEngine } from '../lib/hardwareRouting'
-import { useHardwareBindingFor } from '../lib/useHardwareBindingFor'
+import { useCapabilityRouting } from '../lib/useCapabilityRouting'
 import { useShowMode } from '../lib/showMode'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
-import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import {
@@ -61,26 +57,15 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
   const { currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
-  const deviceId = useShowStateStore((state) => state.deviceId)
-  const audioBinding = useHardwareBindingFor(CAPABILITIES.audioPlayback)
-  const installed = usePluginsStore((state) => state.installed)
   const driverError = useLocalAudioOutputStore((state) => state.error)
 
-  const usesDeviceOutput =
-    mode === 'gig' && audioBinding !== null && audioBinding.executionTarget !== SERVER_EXECUTION_TARGET
-  const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
   // resolveExecutionEngine's Practice branch plays locally regardless of any Gig-mode binding -
   // supportsLocalExecution is unconditionally true for audio-playback (native <audio>, no
   // plugin needed - #98), so Practice mode always resolves to 'local-mine' here.
-  const engine = resolveExecutionEngine(
-    mode,
-    audioBinding,
-    deviceId,
-    pluginId,
-    supportsLocalExecution(installed, CAPABILITIES.audioPlayback),
-  )
+  const { engine, pluginId } = useCapabilityRouting(CAPABILITIES.audioPlayback, mode)
   const remoteDeviceOutput = engine === 'local-other'
   const usesLocalEngine = engine === 'local-mine'
+  const usesDeviceOutput = usesLocalEngine || remoteDeviceOutput
 
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
