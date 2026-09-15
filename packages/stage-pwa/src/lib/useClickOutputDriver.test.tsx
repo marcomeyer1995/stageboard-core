@@ -1,7 +1,7 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPABILITIES } from 'shared-types'
-import type { LogicalDevice, Song } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import type { LogicalDevice, PluginInstallation, Song } from 'shared-types'
 import { useClickOutputDriver } from './useClickOutputDriver'
 import { startClick, stopClick } from './clickEngine'
 import { useShowMode } from './showMode'
@@ -165,6 +165,32 @@ describe('useClickOutputDriver', () => {
     mockShowMode({ mode: 'practice', currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
     render(<DriverHost />)
     expect(startClick).toHaveBeenCalled()
+  })
+
+  it('does not start the local click engine when the device is bound through the Stage-Server/a plugin, not a specific tablet - that capability is produced by the plugin/server-side hardware, not this tab\'s own Web Audio (#148: useCapabilityRouting\'s pluginId now resolves correctly for this binding shape, but shouldPlay only ever cares about engine === \'local-mine\', so this case is unaffected either way)', () => {
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
+    ])
+    vi.mocked(usePluginsStore).mockImplementation((selector) =>
+      selector({
+        installed: [
+          {
+            id: 'mock-click',
+            name: 'Mock Click',
+            version: '0.0.1',
+            runtime: 'server',
+            capabilities: [CAPABILITIES.clickTrack],
+            transports: [],
+            hardwareIds: [],
+            enabled: true,
+            installedAt: 0,
+          } satisfies PluginInstallation,
+        ],
+      } as never),
+    )
+    mockShowMode({ currentSong: song(true), elapsedMs: 0, playbackStatus: 'playing' })
+    render(<DriverHost />)
+    expect(startClick).not.toHaveBeenCalled()
   })
 
   it('keeps playing when a widget that merely displays click status unmounts, as long as the driver itself stays mounted (#25 found live, 2026-09-10: same tab-switch bug as the audio-playback path)', () => {

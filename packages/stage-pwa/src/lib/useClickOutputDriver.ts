@@ -1,13 +1,9 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
-import { supportsLocalExecution } from './clientTranslator'
-import { resolveExecutionEngine } from './hardwareRouting'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
-import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowMode } from './showMode'
-import { usePluginsStore } from '../store/usePluginsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -42,8 +38,18 @@ function isPageVisibleSnapshot(): boolean {
  * unconditionally, in App.tsx. Same reasoning and same bug as useAudioOutputDriver.ts: this used
  * to live inside ClickTrackWidget.tsx's own effect, so switching away from the Live tab unmounted
  * the widget and, via the effect's cleanup, silently stopped the click mid-show. ClickTrackWidget
- * still owns the status/override UI and re-derives the same read-only booleans purely for
- * display - only the actual startClick/stopClick calls live here, exactly once.
+ * still owns the status/override UI and re-derives the same `useCapabilityRouting` (#148) purely
+ * for display - only the actual startClick/stopClick calls live here, exactly once.
+ *
+ * `shouldPlay` below only ever cares whether `engine === 'local-mine'` - this tab's own Web
+ * Audio is the right output *only* when this specific tablet is the bound device; a plugin/
+ * server-routed capability is produced by that plugin's own hardware instead, nothing this
+ * hook should schedule locally. So unlike ClickTrackWidget.tsx's identical-shaped bug, this
+ * hook's own former hand-rolled `pluginId: null` was behaviorally inert here (the `'plugin'`
+ * vs `'none'` distinction it affects is never consulted by the `local-mine` check) - still
+ * moved onto the shared `useCapabilityRouting` for #148's actual ask (stop hand-copying this
+ * derivation per call site so the copies can't drift, the way ClickTrackWidget.tsx's real
+ * display bug happened), not because this specific hook needed the pluginId fix itself.
  *
  * Explicitly stops while the page is hidden (`document.visibilityState`), rather than leaving
  * clickEngine.ts's own resync-on-a-large-gap logic to paper over it: a backgrounded tab still
@@ -57,19 +63,10 @@ function isPageVisibleSnapshot(): boolean {
  */
 export function useClickOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride } = useShowMode()
-  const deviceId = useShowStateStore((state) => state.deviceId)
-  const installed = usePluginsStore((state) => state.installed)
-  const binding = useHardwareBindingFor(CAPABILITIES.clickTrack)
+  const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
 
   const song = queue.currentVariant ?? queue.currentSong
-  const engine = resolveExecutionEngine(
-    mode,
-    binding,
-    deviceId,
-    null,
-    supportsLocalExecution(installed, CAPABILITIES.clickTrack),
-  )
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
   const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedMs !== null && isPageVisible

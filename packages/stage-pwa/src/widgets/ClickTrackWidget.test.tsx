@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CAPABILITIES } from 'shared-types'
-import type { LogicalDevice, Song } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import type { LogicalDevice, PluginInstallation, Song } from 'shared-types'
 import { ClickTrackWidget } from './ClickTrackWidget'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -149,5 +149,32 @@ describe('ClickTrackWidget', () => {
     mockShowMode({ mode: 'practice', currentSong: song(true) })
     render(<ClickTrackWidget config={{}} />)
     expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
+  })
+
+  it('shows the effective state (not the placeholder) when the click-track device is bound through the Stage-Server/a plugin, not a specific tablet (#148: pluginId used to be hardcoded null here, so this binding shape always showed "Kein Klick-Ausgabegerät eingerichtet" even though it was correctly configured)', () => {
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: SERVER_EXECUTION_TARGET },
+    ])
+    vi.mocked(usePluginsStore).mockImplementation((selector) =>
+      selector({
+        installed: [
+          {
+            id: 'mock-click',
+            name: 'Mock Click',
+            version: '0.0.1',
+            runtime: 'server',
+            capabilities: [CAPABILITIES.clickTrack],
+            transports: [],
+            hardwareIds: [],
+            enabled: true,
+            installedAt: 0,
+          } satisfies PluginInstallation,
+        ],
+      } as never),
+    )
+    mockShowMode({ currentSong: song(true) })
+    const { container } = render(<ClickTrackWidget config={{}} />)
+    expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
+    expect(container.querySelector('span.font-bold')).toHaveTextContent('An')
   })
 })
