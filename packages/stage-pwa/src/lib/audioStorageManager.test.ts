@@ -3,10 +3,13 @@ import type { Setlist, SetlistEntry, SongVariant, TrackMeta } from 'shared-types
 import { fetchTrack } from './audioClient'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import {
+  __getReconcileInFlightForTests,
+  __resetReconcileSchedulerForTests,
   computeTargetKeys,
   getCatalogSizeBytes,
   isFullSyncSafe,
   reconcileAudioCache,
+  scheduleReconcileAudioCache,
   SAFE_QUOTA_FRACTION,
 } from './audioStorageManager'
 
@@ -185,5 +188,70 @@ describe('reconcileAudioCache', () => {
     await reconcilePromise
 
     expect(fetchTrack).toHaveBeenCalledWith('vb', 'b1')
+  })
+})
+
+describe('scheduleReconcileAudioCache (found live, 2026-09-16: useAudioSyncReconciler.ts re-firing many times in quick succession during PouchDB startup sync raced several full reconciliations against each other, each redundantly re-downloading the same tracks in parallel)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(fetchTrack).mockReset()
+    __resetReconcileSchedulerForTests()
+  })
+
+  const trackA1 = track('a1')
+  const trackB1 = track('b1')
+  const variants: SongVariant[] = [
+    variant({ id: 'va', songId: 'song-a', tracks: [trackA1] }),
+    variant({ id: 'vb', songId: 'song-b', tracks: [trackB1] }),
+  ]
+
+  it('coalesces several rapid calls into a single reconciliation using the latest args, not one run per call', async () => {
+    const listKeys = vi.fn().mockResolvedValue([])
+    vi.mocked(getAudioStorageBackend).mockReturnValue({ get: vi.fn(), set: vi.fn(), remove: vi.fn(), listKeys })
+    // Only the very first fetchTrack call stays pending (so the first run's own in-flight fetch
+    // can be observed before releasing it) - every later call, including the coalesced run's
+    // own fetch, resolves immediately so awaiting the whole thing below can't hang.
+    let resolveFirstFetch!: (blob: Blob) => void
+    let firstFetchSeen = false
+    vi.mocked(fetchTrack).mockImplementation(() => {
+      if (!firstFetchSeen) {
+        firstFetchSeen = true
+        return new Promise((resolve) => { resolveFirstFetch = resolve })
+      }
+      return Promise.resolve(new Blob(['audio']))
+    })
+
+    // First call starts a run immediately (nothing in flight yet) - it "sees" only variant a.
+    scheduleReconcileAudioCache('full', [variants[0]], null, [], new Set())
+    // Two more calls land while that first run is still awaiting its fetch - neither should
+    // start its own reconciliation; only the last one's args should end up mattering.
+    scheduleReconcileAudioCache('full', variants, null, [], new Set())
+    scheduleReconcileAudioCache('full', [variants[1]], null, [], new Set())
+
+    await vi.waitFor(() => expect(fetchTrack).toHaveBeenCalledWith('va', 'a1'))
+    expect(listKeys).toHaveBeenCalledTimes(1) // only the first run has actually started reading the cache
+
+    resolveFirstFetch(new Blob(['audio'])) // lets the first (in-flight) run's fetch finish
+    await __getReconcileInFlightForTests()
+
+    // Exactly one queued follow-up run, using the *last* scheduled args (song-b only) - not
+    // three separate reconciliations.
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(fetchTrack).toHaveBeenCalledWith('va', 'a1')
+    expect(fetchTrack).toHaveBeenCalledWith('vb', 'b1')
+  })
+
+  it('runs immediately when nothing is already in flight', async () => {
+    vi.mocked(getAudioStorageBackend).mockReturnValue({
+      get: vi.fn(),
+      set: vi.fn(),
+      remove: vi.fn(),
+      listKeys: vi.fn().mockResolvedValue(['va:a1', 'vb:b1']),
+    })
+
+    scheduleReconcileAudioCache('full', variants, null, [], new Set())
+    await __getReconcileInFlightForTests()
+
+    expect(fetchTrack).not.toHaveBeenCalled() // both already cached, nothing to fetch
   })
 })

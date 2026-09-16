@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { cacheKey } from './audioCache'
-import { reconcileAudioCache } from './audioStorageManager'
+import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { resolveTrackForEntry } from './computeQueue'
 import { useQueue } from './queue'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
@@ -16,6 +16,12 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
  * Also always keeps whatever song is currently active in the (Gig-mode) queue cached, regardless
  * of sync mode - see computeTargetKeys's own doc comment for why: a reload must never depend on
  * a live network fetch for a song that's already playing.
+ *
+ * Goes through `scheduleReconcileAudioCache` (not `reconcileAudioCache` directly) - this effect
+ * can fire many times in quick succession during PouchDB's initial sync, as `variants`/
+ * `activeSetlist` arrive incrementally; without coalescing, each firing started its own full
+ * catalog reconciliation, and several of them ended up racing each other, redundantly
+ * re-downloading the same tracks in parallel (found live, 2026-09-16).
  */
 export function useAudioSyncReconciler(workspaceId: string) {
   const mode = useAudioSyncStore((state) => state.modeFor(workspaceId))
@@ -32,6 +38,6 @@ export function useAudioSyncReconciler(workspaceId: string) {
   }, [currentVariant?.id, currentTrack?.id])
 
   useEffect(() => {
-    void reconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
+    scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
   }, [workspaceId, mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys])
 }

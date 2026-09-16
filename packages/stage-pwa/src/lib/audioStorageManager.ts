@@ -106,7 +106,17 @@ export function computeTargetKeys(
  * set that isn't cached yet, and evicts anything cached that no longer belongs. This eviction
  * is the actual "quota-aware" behavior #30 deferred to this issue - without it, switching
  * from Full to Selective/None would only stop the cache from growing further, not shrink it.
- * Safe to call redundantly (e.g. on every relevant state change); each call is independent.
+ *
+ * NOT safe to call redundantly while a previous call is still running - each invocation reads
+ * `backend.listKeys()` fresh and re-fetches everything it doesn't see there *yet*, so two
+ * overlapping calls both start from the same "nothing new cached" snapshot and both re-download
+ * the same tracks in parallel, each fighting the other for bandwidth (found live, 2026-09-16:
+ * useAudioSyncReconciler.ts's effect re-fires many times in quick succession while PouchDB's
+ * initial sync streams in `variants`/`activeSetlist` updates - several full "Full"-mode
+ * reconciliations ended up racing each other, all re-downloading the same ~20-track, tens-of-MB
+ * catalog concurrently, so even the one track meant to be prioritized sat behind a many-second
+ * bandwidth pile-up). Callers that may fire in quick succession should go through
+ * `scheduleReconcileAudioCache` below instead of calling this directly.
  */
 export async function reconcileAudioCache(
   mode: AudioSyncMode,
@@ -135,4 +145,47 @@ export async function reconcileAudioCache(
   // no real priority to any of them).
   await Promise.all(toFetch.filter((key) => alwaysKeepKeys.has(key)).map(fetchAndCache))
   await Promise.all(toFetch.filter((key) => !alwaysKeepKeys.has(key)).map(fetchAndCache))
+}
+
+type ReconcileArgs = Parameters<typeof reconcileAudioCache>
+
+let reconcileInFlight: Promise<void> | null = null
+let pendingReconcileArgs: ReconcileArgs | null = null
+
+/**
+ * Serializes `reconcileAudioCache` calls: if one is already running, only the latest set of
+ * args is remembered, and exactly one more pass runs once the current one finishes - never two
+ * full reconciliations racing each other (see `reconcileAudioCache`'s own doc comment for why
+ * that matters). This is what `useAudioSyncReconciler.ts` calls on every dependency change,
+ * rather than `reconcileAudioCache` directly - safe to call as often as inputs change, including
+ * many times within the same second.
+ */
+export function scheduleReconcileAudioCache(...args: ReconcileArgs): void {
+  pendingReconcileArgs = args
+  if (reconcileInFlight) return
+
+  async function runQueued(): Promise<void> {
+    while (pendingReconcileArgs) {
+      const next = pendingReconcileArgs
+      pendingReconcileArgs = null
+      await reconcileAudioCache(...next)
+    }
+  }
+  reconcileInFlight = runQueued().finally(() => {
+    reconcileInFlight = null
+  })
+}
+
+/** Test-only escape hatch - lets a test await the currently scheduled/running reconciliation
+ * (including any queued trailing run) instead of racing it with fixed delays. */
+export function __getReconcileInFlightForTests(): Promise<void> | null {
+  return reconcileInFlight
+}
+
+/** Test-only reset - the in-flight/pending state above is module-level (deliberately, it must
+ * survive across every caller and every `useAudioSyncReconciler` render), so it would otherwise
+ * leak between tests. */
+export function __resetReconcileSchedulerForTests(): void {
+  reconcileInFlight = null
+  pendingReconcileArgs = null
 }

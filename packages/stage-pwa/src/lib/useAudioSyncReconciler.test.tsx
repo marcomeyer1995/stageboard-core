@@ -2,14 +2,14 @@ import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, SongVariant, TrackMeta } from 'shared-types'
 import { useAudioSyncReconciler } from './useAudioSyncReconciler'
-import { reconcileAudioCache } from './audioStorageManager'
+import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { useQueue } from './queue'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 
-vi.mock('./audioStorageManager', () => ({ reconcileAudioCache: vi.fn() }))
+vi.mock('./audioStorageManager', () => ({ scheduleReconcileAudioCache: vi.fn() }))
 vi.mock('./queue', () => ({ useQueue: vi.fn() }))
 vi.mock('../store/useAudioPinsStore', () => ({ useAudioPinsStore: vi.fn() }))
 vi.mock('../store/useAudioSyncStore', () => ({ useAudioSyncStore: vi.fn() }))
@@ -79,7 +79,7 @@ beforeEach(() => {
 describe('useAudioSyncReconciler', () => {
   it('passes an empty always-keep set when nothing is currently active', () => {
     render(<DriverHost workspaceId="ws-1" />)
-    expect(reconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
   })
 
   it("always keeps whatever song is currently active in the queue, even in 'none' mode", () => {
@@ -88,7 +88,7 @@ describe('useAudioSyncReconciler', () => {
       currentVariant: variant('v1', 'song-a', [track('t1')]),
     })
     render(<DriverHost workspaceId="ws-1" />)
-    expect(reconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['v1:t1']))
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['v1:t1']))
   })
 
   it('has nothing to always-keep when the current song has no track attached', () => {
@@ -97,6 +97,6 @@ describe('useAudioSyncReconciler', () => {
       currentVariant: variant('v1', 'song-a', []), // no tracks at all
     })
     render(<DriverHost workspaceId="ws-1" />)
-    expect(reconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
   })
 })
