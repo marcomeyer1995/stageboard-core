@@ -2,12 +2,32 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { stopClick } from '../lib/clickEngine'
 import { unloadLocalTrack } from '../lib/localAudioEngine'
+import { usePracticeStateStore } from './usePracticeStateStore'
+import { useShowStateStore } from './useShowStateStore'
+import { useWorkspaceStore } from './useWorkspaceStore'
 
 export type SessionMode = 'gig' | 'practice'
 
 interface AppModeState {
   mode: SessionMode
-  setMode: (mode: SessionMode) => void
+  /** Returns whether the switch actually happened - `false` means it was refused because a
+   * song is currently playing in `sessionMode`'s own current mode (see the guard below).
+   * SessionModeControl.tsx doesn't strictly need this (it already disables the button whenever
+   * that's the case), but callers that don't pre-check for themselves still get a clear signal
+   * instead of a silent no-op. */
+  setMode: (mode: SessionMode) => boolean
+}
+
+/** Whether `sessionMode`'s own transport is actively playing right now - read via `getState()`
+ * rather than a hook, since `setMode` is a plain store action, not a component. Mirrors
+ * showMode.ts's `useShowMode()` branching (Gig mode: the shared ShowState; Practice mode: this
+ * device's own per-workspace echo), just without the React subscription that hook needs. */
+function isModePlaying(sessionMode: SessionMode): boolean {
+  if (sessionMode === 'gig') {
+    return useShowStateStore.getState().state.playbackStatus === 'playing'
+  }
+  const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+  return usePracticeStateStore.getState().get(workspaceId).playbackStatus === 'playing'
 }
 
 /**
@@ -34,6 +54,14 @@ export const useAppModeStore = create<AppModeState>()(
     (set, get) => ({
       mode: 'gig',
       setMode: (mode) => {
+        const current = get().mode
+        if (mode === current) return true
+        // Safety feature (Marco, explicit request): switching Gig <-> Solo Üben mid-song risks
+        // yanking whatever's actually making sound - the band's live rig in Gig mode, this
+        // device's own speaker in Practice mode - out from under an active song. Block the
+        // switch outright rather than just cleaning up after it, unlike the leaving-Practice
+        // cleanup below.
+        if (isModePlaying(current)) return false
         // Leaving Practice mode must never leave its local-only playback running into Gig mode -
         // Practice's Play/Pause/Stop (practiceQueue.ts) drives localAudioEngine.ts imperatively,
         // entirely decoupled from ShowTransportWidget's own Gig-mode-only "stop when no longer
@@ -41,11 +69,12 @@ export const useAppModeStore = create<AppModeState>()(
         // ever tell it to stop (found live, 2026-09-10: a Solo-mode backing track kept audibly
         // playing after switching to Gig mode). stopClick() is the same story for the Click
         // Generator's Practice-mode override (#25) - both are no-ops if nothing was playing.
-        if (get().mode === 'practice' && mode !== 'practice') {
+        if (current === 'practice' && mode !== 'practice') {
           unloadLocalTrack()
           stopClick()
         }
         set({ mode })
+        return true
       },
     }),
     { name: 'stageboard-app-mode' },
