@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { AppMenu } from './components/AppMenu'
+import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { Dashboard } from './components/Dashboard'
 import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
@@ -254,6 +255,7 @@ function App() {
 
       <DialogHost />
       <DiscoveryBanner />
+      <AudioResumeOverlay />
     </div>
   )
 }

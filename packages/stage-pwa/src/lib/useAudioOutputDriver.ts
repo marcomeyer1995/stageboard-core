@@ -125,6 +125,7 @@ export function useAudioOutputDriver(): void {
       if (lastAppliedStatusRef.current !== playbackStatus) {
         lastAppliedStatusRef.current = playbackStatus
         audioStartedForRunRef.current = false
+        useLocalAudioOutputStore.setState({ audioBlocked: false })
         if (playbackStatus === 'paused') pauseLocalTrack()
         else stopLocalTrack()
       }
@@ -137,7 +138,14 @@ export function useAudioOutputDriver(): void {
     if (audioStartedForRunRef.current) return // already started this run
     if (elapsedMs === null || elapsedMs < 0) return // still counting in, or not ready yet
     audioStartedForRunRef.current = true
-    playLocalTrack(elapsedMs)
+    // Gestureless - this can run on a bare reload while ShowState already says "playing", the
+    // exact case the browser's autoplay policy exists to block. Unlike a load failure, the
+    // driver has no retry of its own for this (audioStartedForRunRef is already true and stays
+    // true), so a rejection here surfaces as `audioBlocked` for ShowTransportWidget.tsx's "tap to
+    // resume" control - a real tap satisfies the same gesture requirement play() lacked here.
+    void playLocalTrack(elapsedMs).then((result) => {
+      useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
+    })
   }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
@@ -160,6 +168,7 @@ export function useAudioOutputDriver(): void {
       stopLocalTrack()
       lastAppliedStatusRef.current = null
       audioStartedForRunRef.current = false
+      useLocalAudioOutputStore.setState({ audioBlocked: false })
     }
   }, [isMyDeviceAudioOutput])
 }
