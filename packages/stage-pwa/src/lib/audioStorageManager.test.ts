@@ -1,11 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Setlist, SetlistEntry, SongVariant, TrackMeta } from 'shared-types'
+import { fetchTrack } from './audioClient'
+import { getAudioStorageBackend } from './audioStorageBackend'
 import {
   computeTargetKeys,
   getCatalogSizeBytes,
   isFullSyncSafe,
+  reconcileAudioCache,
   SAFE_QUOTA_FRACTION,
 } from './audioStorageManager'
+
+vi.mock('./audioClient', () => ({ fetchTrack: vi.fn() }))
+vi.mock('./audioStorageBackend', () => ({
+  getAudioStorageBackend: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), remove: vi.fn(), listKeys: vi.fn() })),
+}))
 
 function track(id: string, overrides: Partial<TrackMeta> = {}): TrackMeta {
   return {
@@ -105,5 +113,77 @@ describe('computeTargetKeys', () => {
   it('selective mode resolves an entry to its default variant when its own pick is not found', () => {
     const active = setlist('s1', [entry('e1', 'song-a', 'no-such-variant')])
     expect(computeTargetKeys('selective', variants, active, [])).toEqual(new Set(['va:a1']))
+  })
+
+  describe('alwaysKeepKeys (found live, 2026-09-16: a reload must never depend on a live network fetch for a song already playing)', () => {
+    it('"none" mode still keeps whatever is currently playing, even though it targets nothing else', () => {
+      expect(computeTargetKeys('none', variants, null, [], new Set(['va:a1']))).toEqual(new Set(['va:a1']))
+    })
+
+    it('"selective" mode keeps the currently-playing track even if it is outside the active setlist and not pinned', () => {
+      const active = setlist('s1', [])
+      expect(computeTargetKeys('selective', variants, active, [], new Set(['vb:b1']))).toEqual(
+        new Set(['vb:b1']),
+      )
+    })
+
+    it('"full" mode is unaffected - everything is already targeted', () => {
+      expect(computeTargetKeys('full', variants, null, [], new Set(['va:a1']))).toEqual(
+        new Set(['va:a1', 'vb:b1']),
+      )
+    })
+  })
+})
+
+describe('reconcileAudioCache', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const trackA1 = track('a1', { sizeBytes: 10 })
+  const trackB1 = track('b1', { sizeBytes: 10 })
+  const variants: SongVariant[] = [
+    variant({ id: 'va', songId: 'song-a', tracks: [trackA1] }),
+    variant({ id: 'vb', songId: 'song-b', tracks: [trackB1] }),
+  ]
+
+  it('never evicts the always-keep key, even in "none" mode', async () => {
+    const remove = vi.fn()
+    vi.mocked(getAudioStorageBackend).mockReturnValue({
+      get: vi.fn(),
+      set: vi.fn(),
+      remove,
+      listKeys: vi.fn().mockResolvedValue(['va:a1']),
+    })
+    vi.mocked(fetchTrack).mockResolvedValue(new Blob(['audio']))
+
+    // "none" mode alone would target nothing (and evict the already-cached va:a1) - the
+    // always-keep key overrides both.
+    await reconcileAudioCache('none', variants, null, [], new Set(['va:a1']))
+
+    expect(remove).not.toHaveBeenCalledWith('va:a1')
+  })
+
+  it('fetches the always-keep key on its own, fully resolved before any of the rest starts', async () => {
+    vi.mocked(getAudioStorageBackend).mockReturnValue({
+      get: vi.fn(),
+      set: vi.fn(),
+      remove: vi.fn(),
+      listKeys: vi.fn().mockResolvedValue([]), // nothing cached yet - both keys need fetching
+    })
+    let resolvePriorityFetch!: (blob: Blob) => void
+    vi.mocked(fetchTrack).mockImplementation(async (variantId) => {
+      if (variantId === 'va') return new Promise((resolve) => { resolvePriorityFetch = resolve })
+      return new Blob(['audio']) // the non-priority fetch (vb:b1) resolves immediately
+    })
+
+    const reconcilePromise = reconcileAudioCache('full', variants, null, [], new Set(['va:a1']))
+    await vi.waitFor(() => expect(fetchTrack).toHaveBeenCalledWith('va', 'a1'))
+
+    // The non-priority key must not have been requested yet - it's waiting behind the priority batch.
+    expect(fetchTrack).not.toHaveBeenCalledWith('vb', 'b1')
+
+    resolvePriorityFetch(new Blob(['audio']))
+    await reconcilePromise
+
+    expect(fetchTrack).toHaveBeenCalledWith('vb', 'b1')
   })
 })
