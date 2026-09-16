@@ -44,6 +44,18 @@ Zwei einmalige, pro Maschine auszuführende Setup-Schritte bleiben auf der Stage
 
 Ein Gerät, das die nackte Domain ohne Schema eintippt (`stageboard.local` statt `https://stageboard.local`), bekommt vom Browser oft `http://` geraten - dafür lauscht `core-backend` zusätzlich auf Port 80 und leitet direkt auf `https://` um (derselbe Server, dieselbe `LAN_IP`/Port-443-Grundlage, kein weiterer Setup-Schritt).
 
+## 0b. Testen direkt auf dem echten Stage-Server, kein separater Dev-Server (Marcos ausdrücklicher Wunsch, 2026-09-16)
+
+Solange StageBoard noch nicht produktiv im Einsatz ist, gibt es keinen Grund, Änderungen erst gegen einen separaten `npm run dev`/Vite-Dev-Server zu testen und erst später auf den echten, dauerhaft laufenden Stage-Server (`node dist/index.js`, siehe oben) zu bringen - der echte Server *ist* der Testserver. Zwei parallele, unterschiedlich konfigurierte Server (unterschiedlicher Port, unterschiedliche `FRONTEND_ORIGIN`/CORS-Origin) waren bereits einmal die eigentliche Ursache eines "Stage-Server nicht erreichbar"-Bugs, der wie ein App-Fehler aussah, aber nur eine CORS-Origin-Diskrepanz zwischen einem abweichend gestarteten Vite-Port (5174 statt 5173) und dem Server-Default war.
+
+**Der aktuelle Workflow:** Nach jeder Änderung, die getestet werden soll:
+1. `git checkout main && git pull` (nach dem Mergen eines PRs).
+2. `npm run build` in `packages/shared-types` und `packages/core-backend` (nur falls Backend-Code sich geändert hat) sowie `packages/stage-pwa`.
+3. Reine Frontend-Änderungen brauchen keinen Neustart - `@fastify/static` liefert `packages/stage-pwa/dist` frisch pro Request aus.
+4. Backend-Änderungen brauchen einen Neustart des laufenden `node dist/index.js`-Prozesses mit denselben Env-Variablen (`PORT=443 LAN_IP=<Stage-Server-IP> STAGEBOARD_WORKSPACE=<echte Band-Workspace-ID>`).
+
+Details und die genauen Befehle dazu, siehe [[real-server-deployment]]. Weder `vite --host` noch `tsx watch` (core-backend) laufen aktuell als eigene, dauerhafte Prozesse - beide wurden am 2026-09-16 bewusst gestoppt. Die Dev-Server-Infrastruktur selbst (Vite-Config, `scripts/generate-dev-certs.sh`) bleibt im Repo bestehen, falls sie später wieder gebraucht wird (z.B. für sehr schnelle UI-Iteration ohne Redeploy) - sie ist nur nicht mehr der Standard-Testweg.
+
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
 
