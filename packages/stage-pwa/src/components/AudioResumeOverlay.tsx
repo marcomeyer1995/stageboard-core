@@ -1,6 +1,8 @@
+import { getServerTime } from '../lib/clockSync'
 import { playLocalTrack } from '../lib/localAudioEngine'
-import { useShowMode } from '../lib/showMode'
+import { computeActiveMs } from '../lib/playbackTransport'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
+import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Full-screen, unmissable blocking overlay for the one moment useAudioOutputDriver.ts's
@@ -16,15 +18,30 @@ import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
  * mounted" reasoning as useAudioOutputDriver.ts itself. A higher z-index than every other overlay
  * in the app (DialogHost is z-30) is deliberate: losing the band's audio outranks anything else
  * this device could be showing right now.
+ *
+ * Deliberately does NOT read `useShowMode()`/`elapsedMs` reactively (Marco, found live,
+ * 2026-09-16: the button needed up to 5 taps to register) - `usePlaybackElapsedMs.ts` ticks via
+ * `requestAnimationFrame`, up to 60 times a second, for as long as `playbackStatus` stays
+ * 'playing' (which it does the whole time this overlay is up - the audio being silently blocked
+ * doesn't change ShowState). Subscribing to that here re-rendered this component (plus
+ * `useShowMode()`'s own `useQueue()`/`usePracticeQueue()` work) 60x/sec purely to show a static
+ * overlay, competing with the main thread for exactly the touch event this component exists to
+ * catch. The elapsed position is only ever needed once, at the moment of the actual tap - read
+ * imperatively there instead, the same computation `usePlaybackElapsedMs.ts` does, just without
+ * its reactive subscription.
  */
 export function AudioResumeOverlay() {
   const audioBlocked = useLocalAudioOutputStore((state) => state.audioBlocked)
-  const { elapsedMs } = useShowMode()
 
   if (!audioBlocked) return null
 
   async function resume() {
-    const result = await playLocalTrack(elapsedMs ?? 0)
+    const { playbackStatus, playbackStartedAt, playbackAccumulatedMs } = useShowStateStore.getState().state
+    const elapsedMs = computeActiveMs(
+      { status: playbackStatus, startedAt: playbackStartedAt, accumulatedMs: playbackAccumulatedMs },
+      getServerTime(),
+    )
+    const result = await playLocalTrack(Math.max(0, elapsedMs))
     useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
   }
 
