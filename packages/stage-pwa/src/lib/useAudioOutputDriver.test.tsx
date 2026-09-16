@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
@@ -8,6 +8,7 @@ import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, syncLo
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { ShowTransportWidget } from '../widgets/ShowTransportWidget'
 
 // Same explicit-factory reasoning as ShowTransportWidget.test.tsx (which this file's tests used
@@ -145,6 +146,8 @@ beforeEach(() => {
   ])
   vi.mocked(usePluginsStore).mockImplementation((selector) => selector({ installed: [] } as never))
   vi.mocked(loadLocalTrack).mockResolvedValue({ status: 'ok' })
+  vi.mocked(playLocalTrack).mockResolvedValue({ status: 'ok' })
+  useLocalAudioOutputStore.setState({ error: null, audioBlocked: false })
 })
 
 describe('useAudioOutputDriver - claimed audio-output device, not the master', () => {
@@ -314,6 +317,60 @@ describe('deferred audio start during a count-in (#25 follow-up: negative-clock 
     rerender(<DriverHost />)
     expect(playLocalTrack).not.toHaveBeenCalled()
     expect(pauseLocalTrack).toHaveBeenCalled()
+  })
+})
+
+describe('reload-time autoplay block (found live, 2026-09-16: a reload while a song was already playing tried to auto-resume with no user gesture, and the browser silently refused it)', () => {
+  it('marks audio as blocked when the gestureless auto-resume is rejected', async () => {
+    vi.mocked(playLocalTrack).mockResolvedValue({ status: 'error', message: 'Wiedergabe durch den Browser blockiert - bitte antippen' })
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 0,
+    })
+    render(<DriverHost />)
+
+    await waitFor(() => expect(useLocalAudioOutputStore.getState().audioBlocked).toBe(true))
+  })
+
+  it('does not mark audio as blocked when the auto-resume succeeds', async () => {
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 0,
+    })
+    render(<DriverHost />)
+
+    await waitFor(() => expect(playLocalTrack).toHaveBeenCalledTimes(1))
+    expect(useLocalAudioOutputStore.getState().audioBlocked).toBe(false)
+  })
+
+  it('clears a stale blocked flag once playback is paused or stopped', async () => {
+    vi.mocked(playLocalTrack).mockResolvedValue({ status: 'error', message: 'blocked' })
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs: 0,
+    })
+    const { rerender } = render(<DriverHost />)
+    await waitFor(() => expect(useLocalAudioOutputStore.getState().audioBlocked).toBe(true))
+
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'paused',
+      elapsedMs: 0,
+    })
+    rerender(<DriverHost />)
+
+    expect(useLocalAudioOutputStore.getState().audioBlocked).toBe(false)
   })
 })
 

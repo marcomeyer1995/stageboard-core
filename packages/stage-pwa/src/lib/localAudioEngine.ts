@@ -48,14 +48,26 @@ export async function loadLocalTrack(variantId: string, trackId: string, atMs: n
 /** Seeks to `atMs` before starting - without this, resuming played from wherever the element
  * happened to be cued (stale from a previous song, or the load-time position even if paused
  * partway through), not the actual synced position (found live, 2026-09-10 alongside the
- * missing sync fix below). */
-export function playLocalTrack(atMs: number): void {
+ * missing sync fix below).
+ *
+ * Returns whether playback actually started, not just whether it was attempted - `audio.play()`
+ * can reject for two very different reasons. `AbortError` (pause() interrupting play() before it
+ * resolves, e.g. a quick double-tap) is expected and swallowed, same as BackingTrackPlayerWidget
+ * and TapToSync's identical pattern. Anything else - in practice almost always `NotAllowedError`,
+ * the browser's autoplay policy refusing an unattended `play()` call with no user gesture behind
+ * it - is a real failure callers need to know about: useAudioOutputDriver.ts's reload-time
+ * auto-resume has no gesture to offer, so a reload during an already-playing song silently lost
+ * its audio with no indication anything had gone wrong (found live, 2026-09-16). */
+export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   const audio = getAudioEl()
   audio.currentTime = atMs / 1000
-  // play() returns a promise that rejects with AbortError if pause() interrupts it before it
-  // resolves (e.g. a quick double-tap) - expected, not a bug (same as BackingTrackPlayerWidget
-  // and TapToSync's identical pattern).
-  void audio.play().catch(() => {})
+  try {
+    await audio.play()
+    return { status: 'ok' }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return { status: 'ok' }
+    return { status: 'error', message: 'Wiedergabe durch den Browser blockiert - bitte antippen' }
+  }
 }
 
 export function pauseLocalTrack(): void {

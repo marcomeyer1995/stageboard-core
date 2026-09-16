@@ -105,7 +105,7 @@ function mockNoAudioClaim() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useLocalAudioOutputStore.setState({ error: null })
+  useLocalAudioOutputStore.setState({ error: null, audioBlocked: false })
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({
       state: {},

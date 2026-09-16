@@ -95,10 +95,10 @@ export async function practicePlaySong(): Promise<void> {
   if (seededMs < 0) {
     scheduledAudioStart = setTimeout(() => {
       scheduledAudioStart = null
-      playLocalTrack(0)
+      void playLocalTrack(0)
     }, -seededMs)
   } else {
-    playLocalTrack(seededMs)
+    void playLocalTrack(seededMs)
   }
 }
 
