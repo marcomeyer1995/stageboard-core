@@ -61,19 +61,31 @@ function resolveVariant(
  * can be unit-tested without touching IndexedDB or the network. "Selective" targets the
  * active setlist's songs plus manually pinned songs, each resolved to its actual variant the
  * same way the live queue does (see computeQueue.ts's resolveVariantForEntry).
+ *
+ * `alwaysKeepKeys` is unioned in regardless of mode - including "None", which otherwise targets
+ * nothing at all. Whatever's actively playing right now must survive a reload without a live
+ * network fetch (Marco, explicit request, 2026-09-16: "it is important to continue the show" -
+ * a reconciler running purely off sync-mode targeting had been evicting a song's own cached
+ * audio while it was still the one playing, so a reload forced a full re-download - or, if the
+ * Stage-Server happened to be unreachable at that exact moment, no recovery at all).
  */
 export function computeTargetKeys(
   mode: AudioSyncMode,
   variants: SongVariant[],
   activeSetlist: Setlist | null,
   pinnedSongIds: string[],
+  alwaysKeepKeys: ReadonlySet<string> = new Set(),
 ): Set<string> {
-  if (mode === 'none') return new Set()
-  if (mode === 'full') {
-    return new Set(variants.flatMap((v) => v.tracks.map((t) => cacheKey(v.id, t.id))))
-  }
+  const keys = new Set<string>(alwaysKeepKeys)
 
-  const keys = new Set<string>()
+  if (mode === 'full') {
+    for (const variant of variants) {
+      for (const track of variant.tracks) keys.add(cacheKey(variant.id, track.id))
+    }
+    return keys
+  }
+  if (mode === 'none') return keys
+
   const seenSongIds = new Set<string>()
   const addSong = (songId: string, variantId: string | null) => {
     seenSongIds.add(songId)
@@ -101,19 +113,26 @@ export async function reconcileAudioCache(
   variants: SongVariant[],
   activeSetlist: Setlist | null,
   pinnedSongIds: string[],
+  alwaysKeepKeys: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   const backend = getAudioStorageBackend()
-  const target = computeTargetKeys(mode, variants, activeSetlist, pinnedSongIds)
+  const target = computeTargetKeys(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
   const cached = new Set(await backend.listKeys())
 
   await Promise.all([...cached].filter((key) => !target.has(key)).map((key) => backend.remove(key)))
 
+  async function fetchAndCache(key: string): Promise<void> {
+    const [variantId, trackId] = key.split(':')
+    const blob = await fetchTrack(variantId, trackId)
+    if (blob) await backend.set(key, blob)
+  }
+
   const toFetch = [...target].filter((key) => !cached.has(key))
-  await Promise.all(
-    toFetch.map(async (key) => {
-      const [variantId, trackId] = key.split(':')
-      const blob = await fetchTrack(variantId, trackId)
-      if (blob) await backend.set(key, blob)
-    }),
-  )
+  // The currently-playing track (if any) fetches first, awaited on its own - a live show can't
+  // wait behind the rest of a large "Full" catalog sync for the one file it actually needs
+  // right now, and every fetch otherwise competes for the same bandwidth (core-backend serves
+  // audio over one multiplexed HTTP/2 connection, so issuing them all via one Promise.all gives
+  // no real priority to any of them).
+  await Promise.all(toFetch.filter((key) => alwaysKeepKeys.has(key)).map(fetchAndCache))
+  await Promise.all(toFetch.filter((key) => !alwaysKeepKeys.has(key)).map(fetchAndCache))
 }
