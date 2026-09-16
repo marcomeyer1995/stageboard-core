@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   adjustedBpm,
+  barMsAt,
   beatAt,
   beatsPerBar,
   type BeatAnchorLike,
@@ -506,5 +507,36 @@ describe('upcomingBeats', () => {
     const beats = upcomingBeats(5000, 600, 120, '4/4', [{ timeMs: 5000 }])
     // Beat 0 is "now" (not upcoming); beat 1 at +500ms is the next one within the window.
     expect(beats).toEqual([{ beatIndex: 1, isDownbeat: false, msFromNow: 500 }])
+  })
+})
+
+describe('barMsAt (#231)', () => {
+  it('is a plain beatsPerBar * msPerBeat with no anchors/markers', () => {
+    expect(barMsAt(10_000, 120, '4/4')).toBeCloseTo(4 * (60_000 / 120))
+    expect(barMsAt(10_000, 90, '6/8')).toBeCloseTo(6 * (60_000 / 90))
+  })
+
+  it('matches beatsPerBar times the corrected per-beat spacing resolveBeatGrid itself reports (anchor correction), not the flat nominal bpm', () => {
+    // Nominal 120bpm implies a 500ms beat, but these two anchors are really 2 beats apart at a
+    // slightly different spacing - a genuine correction case, not a 1.0 no-op ratio.
+    const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 960 }]
+    const grid = resolveBeatGrid(anchors, 500, 120, '4/4')
+    if (grid === null) throw new Error('expected a resolved grid')
+    expect(grid.correctionRatio).not.toBe(1)
+    expect(barMsAt(500, 120, '4/4', anchors)).toBeCloseTo(beatsPerBar('4/4') * (60_000 / grid.bpm) * grid.correctionRatio)
+  })
+
+  it("uses the TempoMarker (#141) segment active at the given position, not the variant's own bpm/timeSignature", () => {
+    const markers: TempoMarkerLike[] = [{ timeMs: 4_000, bpm: 160, timeSignature: '3/4' }]
+    const grid = resolveBeatGrid([], 5_000, 120, '4/4', 0, markers)
+    if (grid === null) throw new Error('expected a resolved grid')
+    expect(grid.timeSignature).toBe('3/4')
+    expect(barMsAt(5_000, 120, '4/4', [], 0, markers)).toBeCloseTo(
+      beatsPerBar('3/4') * (60_000 / grid.bpm) * grid.correctionRatio,
+    )
+  })
+
+  it('falls back to the plain nominal tempo before the first anchor (a count-in state)', () => {
+    expect(barMsAt(0, 120, '4/4', [{ timeMs: 5000 }])).toBeCloseTo(4 * (60_000 / 120))
   })
 })

@@ -15,6 +15,7 @@ import { MODE_LABEL, type Mode } from './lib/modes'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioOutputDriver } from './lib/useAudioOutputDriver'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
+import { useAutoStopDriver } from './lib/useAutoStopDriver'
 import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
 import { useClickOutputDriver } from './lib/useClickOutputDriver'
 import { useClockSync } from './lib/useClockSync'
@@ -135,6 +136,7 @@ function App() {
   // live-found bug this fixes (a show's backing track/click silently stopping on tab switch).
   useAudioOutputDriver()
   useClickOutputDriver()
+  useAutoStopDriver()
   useHardwareDetection()
   useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit

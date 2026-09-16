@@ -4,6 +4,19 @@ import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 const loadClientPlugin = vi.hoisted(() => vi.fn())
 vi.mock('./loadClientPlugin', () => ({ loadClientPlugin }))
 
+// #231: click-track's own Translator dispatches to queue.ts/practiceQueue.ts by session mode -
+// mocked here rather than exercised for real, same reasoning as the pouchdb-browser mock below
+// (both transitively construct real PouchDB instances at import time).
+const extendClickTrack = vi.hoisted(() => vi.fn())
+const practiceExtendClickTrack = vi.hoisted(() => vi.fn())
+vi.mock('./queue', () => ({ extendClickTrack }))
+vi.mock('./practiceQueue', () => ({ practiceExtendClickTrack }))
+
+const useAppModeStoreState = vi.hoisted(() => ({ mode: 'gig' as 'gig' | 'practice' }))
+vi.mock('../store/useAppModeStore', () => ({
+  useAppModeStore: { getState: () => useAppModeStoreState },
+}))
+
 // clientTranslator.ts now registers kemperTranslator.ts, which transitively imports
 // workspaceDb.ts - constructs a real PouchDB at module load time, unavailable under happy-dom
 // (see SystemView.test.tsx/workspaceDb.test.ts's identical mock).
@@ -138,5 +151,50 @@ describe('preloadDynamicTranslator (#109)', () => {
 
     await expect(preloadDynamicTranslator(DYNAMIC_CAPABILITY + '-4', [kemper], null)).resolves.toBeUndefined()
     expect(hasClientTranslator([kemper], DYNAMIC_CAPABILITY + '-4')).toBe(false)
+  })
+})
+
+describe('click-track Translator (#231)', () => {
+  beforeEach(() => {
+    extendClickTrack.mockReset()
+    practiceExtendClickTrack.mockReset()
+    useAppModeStoreState.mode = 'gig'
+  })
+
+  function fire(payload: Record<string, unknown> | undefined) {
+    return getTranslator(CAPABILITIES.clickTrack)!({ type: 'click.extend', payload })
+  }
+
+  it('routes to extendClickTrack in Gig mode', async () => {
+    const result = await fire({ bars: 2, active: true })
+    expect(result).toEqual({ status: 'ok', data: { bars: 2 } })
+    expect(extendClickTrack).toHaveBeenCalledWith(2)
+    expect(practiceExtendClickTrack).not.toHaveBeenCalled()
+  })
+
+  it('routes to practiceExtendClickTrack in Practice mode', async () => {
+    useAppModeStoreState.mode = 'practice'
+    await fire({ bars: 1 })
+    expect(practiceExtendClickTrack).toHaveBeenCalledWith(1)
+    expect(extendClickTrack).not.toHaveBeenCalled()
+  })
+
+  it('ignores a momentary release (active: false) - a one-shot action, not a hold', async () => {
+    const result = await fire({ bars: 2, active: false })
+    expect(result).toEqual({ status: 'ok' })
+    expect(extendClickTrack).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-positive/non-integer bar count', async () => {
+    for (const bars of [0, -1, 1.5, undefined]) {
+      const result = await fire({ bars })
+      expect(result.status).toBe('error')
+    }
+    expect(extendClickTrack).not.toHaveBeenCalled()
+  })
+
+  it('rejects any event type other than click.extend', async () => {
+    const result = await getTranslator(CAPABILITIES.clickTrack)!({ type: 'something.else' })
+    expect(result.status).toBe('error')
   })
 })

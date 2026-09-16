@@ -1,7 +1,8 @@
 import type { ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
+import { getServerTime } from './clockSync'
 import { randomId } from './id'
-import { countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
+import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -81,6 +82,7 @@ async function activateEntry(entryId: string): Promise<void> {
     trackOverride: null,
     liveTempoAdjustPercent: 0,
     clickTrackOverride: null,
+    clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
     ...showBookkeepingPatch(state, now),
   })
@@ -205,4 +207,32 @@ export async function setClickTrackOverride(override: 'on' | 'off' | null): Prom
   const { isMaster, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   await applyPatch({ clickTrackOverride: override })
+}
+
+/** Pushes the current entry's auto-stop point (#231, `useAutoStopDriver.ts`) forward by `bars`
+ * bars - a real-time "the band is running long, don't cut it off yet" trigger (dashboard button,
+ * footswitch, or MIDI, all via CustomTriggerWidget/clientTranslator.ts's `click-track`
+ * translator). Uses `barMsAt` against the current elapsed position, not the song's flat bpm, so
+ * the pushed-forward amount matches whatever tempo is actually playing right now. Stacks:
+ * firing again before the previous extension is reached pushes the end further still. A no-op
+ * with nothing currently active - firing this after a song has already stopped would otherwise
+ * silently carry a stale extension into whatever plays next (activateEntry always resets it to 0
+ * on a genuine song change, but a stopped-but-still-current entry isn't one). Master-gated and
+ * cleared on song change, same for-tonight-only pattern as `setLiveTempoAdjustPercent` above. */
+export async function extendClickTrack(bars: number): Promise<void> {
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
+  if (!isMaster || state.playbackStatus === 'stopped') return
+  const { currentSong, currentVariant } = getQueueSnapshot()
+  if (!currentSong) return
+  const activeSong = currentVariant ?? currentSong
+  const elapsedMs = computeActiveMs(currentTransport(state), getServerTime())
+  const perBarMs = barMsAt(
+    elapsedMs,
+    activeSong.bpm,
+    activeSong.timeSignature,
+    currentVariant?.beatAnchors ?? [],
+    currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+    currentVariant?.tempoMarkers ?? [],
+  )
+  await applyPatch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

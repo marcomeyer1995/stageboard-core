@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTrack } from './songVariantsDb'
 import {
   __getAudioElForTests,
+  getLocalTrackDurationMs,
   loadLocalTrack,
   playLocalTrack,
   stopLocalTrack,
@@ -56,6 +57,25 @@ describe('playLocalTrack', () => {
 
     // Once the load finally resolves, playLocalTrack's own seek takes effect (not the load's).
     expect(currentTimeMs()).toBe(12_340)
+  })
+})
+
+describe('getLocalTrackDurationMs (#231)', () => {
+  // jsdom's <audio> never actually decodes media, so `duration` stays NaN forever - these tests
+  // fake the browser's own post-metadata-load state directly on the shared element, the same
+  // "no real audio pipeline available under test" workaround useAudioOutputDriver.test.tsx's
+  // mocks apply one level up.
+  afterEach(() => {
+    Object.defineProperty(__getAudioElForTests(), 'duration', { value: NaN, configurable: true })
+  })
+
+  it('is null before any track has been loaded (or duration genuinely not parsed yet)', () => {
+    expect(getLocalTrackDurationMs()).toBeNull()
+  })
+
+  it('reads the element\'s real, browser-reported duration once known, converted to ms', () => {
+    Object.defineProperty(__getAudioElForTests(), 'duration', { value: 183.5, configurable: true })
+    expect(getLocalTrackDurationMs()).toBeCloseTo(183_500)
   })
 })
 

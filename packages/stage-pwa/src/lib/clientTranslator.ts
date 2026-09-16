@@ -9,6 +9,50 @@ import { useLocalLightingStore } from '../store/useLocalLightingStore'
 import { useLocalMixerStore } from '../store/useLocalMixerStore'
 
 /**
+ * The `click-track` capability's own Translator (#231) - unlike every other entry in
+ * `TRANSLATORS` below, `click-track`/`audio-playback` normally need no Translator at all
+ * (`supportsLocalExecution`'s own doc comment: a browser-native API does the job). The one
+ * exception is this single event: pushing the current entry's auto-stop point forward by N
+ * bars, fired from CustomTriggerWidget (dashboard button) or, once that binding exists, a
+ * footswitch/MIDI controller - both reuse this exact generic dispatch path, no new mechanism.
+ * Routes to Gig's `extendClickTrack` (queue.ts, Master-gated) or Practice's
+ * `practiceExtendClickTrack` (practiceQueue.ts, ungated) depending on the current session mode -
+ * this module has no React context to read `useShowMode()` from, so it checks the plain store
+ * directly instead, same as `useAppModeStore.ts`'s own `isModePlaying` does.
+ *
+ * `queue.ts`/`practiceQueue.ts`/`useAppModeStore.ts` are all deliberately dynamic `import()`s
+ * here, not static ones - every other Translator in this file only ever needs
+ * `useLogicalDevicesStore`/`useDeviceTransportConfigStore` (both mocked in every driver/widget
+ * test that touches this module), while these three transitively construct a real workspace
+ * PouchDB at module load (`useWorkspaceStore.ts` -> `workspaceDb.ts`) - a static import broke
+ * every test exercising this file that doesn't itself mock that whole chain (found while
+ * implementing this very translator, 2026-09-16).
+ *
+ * Only the press (`active` absent or `true`) does anything - a momentary trigger's release
+ * (`active: false`) is deliberately ignored, since extending is a one-shot action, not something
+ * that should also fire again on release.
+ */
+async function applyClickTrackEvent(event: ShowControlEvent): Promise<ShowControlResult> {
+  if (event.type !== 'click.extend') {
+    return { status: 'error', message: `Unbekannter Click-Track-Befehl: ${event.type}` }
+  }
+  if (event.payload?.active === false) return { status: 'ok' }
+  const bars = Number(event.payload?.bars)
+  if (!Number.isInteger(bars) || bars <= 0) {
+    return { status: 'error', message: 'click.extend: bars muss eine positive Ganzzahl sein.' }
+  }
+  const { useAppModeStore } = await import('../store/useAppModeStore')
+  if (useAppModeStore.getState().mode === 'practice') {
+    const { practiceExtendClickTrack } = await import('./practiceQueue')
+    practiceExtendClickTrack(bars)
+  } else {
+    const { extendClickTrack } = await import('./queue')
+    await extendClickTrack(bars)
+  }
+  return { status: 'ok', data: { bars } }
+}
+
+/**
  * What a client-side plugin does with a fired event, running entirely on this tablet - the
  * browser-side sibling of core-backend's `IShowControlPlugin.trigger` (#98). Every entry here
  * corresponds 1:1 to a `runtime: 'client' | 'both'` catalog entry in PluginManager.tsx, and is
@@ -21,6 +65,7 @@ export type Translator = (event: ShowControlEvent) => Promise<ShowControlResult>
 const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [CAPABILITIES.mixer]: (event) => useLocalMixerStore.getState().applyEvent(event),
   [CAPABILITIES.lighting]: (event) => useLocalLightingStore.getState().applyEvent(event),
+  [CAPABILITIES.clickTrack]: applyClickTrackEvent,
   [KEMPER_CAPABILITY]: kemperTranslator,
   [CQ18T_CAPABILITY]: cq18tTranslator,
   [MG30_CAPABILITY]: mg30Translator,
