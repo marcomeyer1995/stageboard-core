@@ -6,9 +6,24 @@ import { useAppModeStore } from './useAppModeStore'
 vi.mock('../lib/clickEngine', () => ({ stopClick: vi.fn() }))
 vi.mock('../lib/localAudioEngine', () => ({ unloadLocalTrack: vi.fn() }))
 
+// useShowStateStore transitively imports showStateDb.ts, which instantiates a real PouchDB at
+// module load - not viable in this test environment (same reason ShowTransportWidget.test.tsx
+// mocks it). Module-mocked here purely for its `getState().state.playbackStatus` read.
+const showStateGetState = vi.fn()
+vi.mock('./useShowStateStore', () => ({ useShowStateStore: { getState: () => showStateGetState() } }))
+
+const workspaceGetState = vi.fn()
+vi.mock('./useWorkspaceStore', () => ({ useWorkspaceStore: { getState: () => workspaceGetState() } }))
+
+const practiceGetState = vi.fn()
+vi.mock('./usePracticeStateStore', () => ({ usePracticeStateStore: { getState: () => practiceGetState() } }))
+
 beforeEach(() => {
   vi.clearAllMocks()
   useAppModeStore.setState({ mode: 'gig' })
+  showStateGetState.mockReturnValue({ state: { playbackStatus: 'stopped' } })
+  workspaceGetState.mockReturnValue({ activeWorkspaceId: 'ws-1' })
+  practiceGetState.mockReturnValue({ get: () => ({ playbackStatus: 'stopped' }) })
 })
 
 describe('setMode', () => {
@@ -35,5 +50,46 @@ describe('setMode', () => {
 
     expect(unloadLocalTrack).not.toHaveBeenCalled()
     expect(stopClick).not.toHaveBeenCalled()
+  })
+
+  it('refuses to switch out of Gig mode while a song is playing there', () => {
+    showStateGetState.mockReturnValue({ state: { playbackStatus: 'playing' } })
+
+    const switched = useAppModeStore.getState().setMode('practice')
+
+    expect(switched).toBe(false)
+    expect(useAppModeStore.getState().mode).toBe('gig')
+  })
+
+  it('refuses to switch out of Practice mode while a song is playing there', () => {
+    useAppModeStore.setState({ mode: 'practice' })
+    practiceGetState.mockReturnValue({ get: () => ({ playbackStatus: 'playing' }) })
+
+    const switched = useAppModeStore.getState().setMode('gig')
+
+    expect(switched).toBe(false)
+    expect(useAppModeStore.getState().mode).toBe('practice')
+    expect(unloadLocalTrack).not.toHaveBeenCalled()
+    expect(stopClick).not.toHaveBeenCalled()
+  })
+
+  it('allows switching once Gig playback is no longer "playing"', () => {
+    showStateGetState.mockReturnValue({ state: { playbackStatus: 'paused' } })
+
+    const switched = useAppModeStore.getState().setMode('practice')
+
+    expect(switched).toBe(true)
+    expect(useAppModeStore.getState().mode).toBe('practice')
+  })
+
+  it("only checks the mode being left, not the destination mode's playback state", () => {
+    // Gig's ShowState is playing, Practice's own echo is not - switching gig -> practice from Gig
+    // mode should still be refused by Gig's own playing state, not Practice's unrelated one.
+    showStateGetState.mockReturnValue({ state: { playbackStatus: 'playing' } })
+    practiceGetState.mockReturnValue({ get: () => ({ playbackStatus: 'stopped' }) })
+
+    const switched = useAppModeStore.getState().setMode('practice')
+
+    expect(switched).toBe(false)
   })
 })
