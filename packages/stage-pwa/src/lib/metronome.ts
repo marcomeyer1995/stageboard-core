@@ -345,6 +345,32 @@ export function countInLeadMs(anchors: readonly BeatAnchorLike[], bpm: number, t
 }
 
 /**
+ * The real duration (ms) of one bar at whatever tempo governs `atMs` right now (#231's live
+ * bar-extend trigger) - the corrected, live-nudged tempo `resolveBeatGrid` resolves, not the
+ * song's flat authored `bpm`, so pushing a scheduled end forward by N bars matches what's
+ * actually audible at that point in the song (a late `TempoMarker`, #141, or an in-show nudge,
+ * #140, both already folded into `grid.bpm`/`correctionRatio`). Falls back to the plain
+ * `bpm`/`timeSignature` with no correction when `atMs` is still before the first beat anchor (a
+ * count-in) - not a real path for this trigger (nobody extends a song that hasn't started
+ * yet), kept only so the function is total rather than nullable.
+ */
+export function barMsAt(
+  atMs: number,
+  bpm: number,
+  timeSignature: string,
+  anchors: readonly BeatAnchorLike[] = [],
+  countInBars: number = 0,
+  tempoMarkers: readonly TempoMarkerLike[] = [],
+): number {
+  const grid = resolveBeatGrid(anchors, atMs, bpm, timeSignature, countInBars, tempoMarkers)
+  // Same formula beatAt/upcomingBeats use for their own msPerBeat - correctionRatio scales the
+  // nominal *ms-per-beat*, not the bpm itself (60000/(bpm*ratio) would silently invert it).
+  const msPerBeat = grid ? (60000 / grid.bpm) * grid.correctionRatio : 60000 / bpm
+  const activeTimeSignature = grid ? grid.timeSignature : timeSignature
+  return beatsPerBar(activeTimeSignature) * msPerBeat
+}
+
+/**
  * The beat at a given elapsed-ms position into a song, locked to the same synced elapsed time
  * every other timeline consumer uses (usePlaybackElapsedMs.ts) - not a local setInterval, so
  * it stays sample-accurate to the beat across every tablet in the workspace the same way the

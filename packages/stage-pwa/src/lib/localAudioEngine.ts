@@ -117,6 +117,18 @@ export function syncLocalTrackPosition(atMs: number): void {
   if (Math.abs(driftMs) > DRIFT_CORRECTION_THRESHOLD_MS) audio.currentTime = atMs / 1000
 }
 
+/** This tablet's own loaded track's length, once the browser has parsed its metadata - `null`
+ * before any track is loaded, or while a freshly-`loadLocalTrack`-ed one's duration genuinely
+ * isn't known yet. Read fresh off the element rather than cached at load time:
+ * `HTMLMediaElement.duration` only becomes a real number sometime after `src` is assigned, not
+ * synchronously - useAutoStopDriver.ts polls this every tick rather than needing to be told once
+ * it's ready. Naturally resets to unknown (NaN) the moment `src` changes (a new `loadLocalTrack`
+ * or `unloadLocalTrack`), so a stale duration can never leak onto a different, just-loaded song. */
+export function getLocalTrackDurationMs(): number | null {
+  const duration = getAudioEl().duration
+  return Number.isFinite(duration) ? duration * 1000 : null
+}
+
 export function stopLocalTrack(): void {
   const audio = getAudioEl()
   audio.pause()

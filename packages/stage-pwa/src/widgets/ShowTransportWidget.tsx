@@ -54,7 +54,8 @@ function formatClock(ms: number): string {
  * all share one size).
  */
 export function ShowTransportWidget({ config }: { config: ShowTransportConfig }) {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, play, pause, stop, reset } = useShowMode()
+  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
+    useShowMode()
   const { currentSong, currentVariant } = queue
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const driverError = useLocalAudioOutputStore((state) => state.error)
@@ -164,6 +165,10 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       </div>
       {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
       {noLocalTrack && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
+      {/* #231: the song is running past its originally authored end, via the live bar-extend
+          trigger - shown whenever any extension is active, playing or not (a pause mid-extension
+          shouldn't make the indicator flicker off). */}
+      {clickExtendMs > 0 && <p className="text-xs text-accent">Verlängert - läuft über die reguläre Länge hinaus</p>}
       {(error ?? driverError) && <p className="text-xs text-red-500">{error ?? driverError}</p>}
     </div>
   )

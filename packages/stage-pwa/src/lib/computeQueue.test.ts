@@ -48,6 +48,7 @@ const emptyShowState: ShowState = {
   trackOverride: null,
   liveTempoAdjustPercent: 0,
   clickTrackOverride: null,
+  clickExtendMs: 0,
   currentShowId: null,
   lastActivityAt: null,
 }

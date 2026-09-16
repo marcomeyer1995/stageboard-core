@@ -50,6 +50,11 @@ export interface ShowModeApi {
    * exactly what solo practice is for, so unlike liveTempoAdjustPercent this isn't Gig-only. */
   clickTrackOverride: 'on' | 'off' | null
   setClickTrackOverride: (override: 'on' | 'off' | null) => void
+  /** How far (ms) the current entry's auto-stop point (#231, `useAutoStopDriver.ts`) has been
+   * pushed forward by the live bar-extend trigger - read-only here (fired via
+   * CustomTriggerWidget/clientTranslator.ts's `click-track` translator, not a direct UI action
+   * on any queue/transport widget), so ShowTransportWidget can show "running in extended time". */
+  clickExtendMs: number
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
@@ -81,6 +86,7 @@ export function useShowMode(): ShowModeApi {
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
   const gigLiveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const gigClickTrackOverride = useShowStateStore((state) => state.state.clickTrackOverride)
+  const gigClickExtendMs = useShowStateStore((state) => state.state.clickExtendMs)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
 
   if (mode === 'practice') {
@@ -95,6 +101,7 @@ export function useShowMode(): ShowModeApi {
       nudgeLiveTempoAdjustPercent: () => {},
       clickTrackOverride: practiceState.clickTrackOverride,
       setClickTrackOverride: practiceSetClickTrackOverride,
+      clickExtendMs: practiceState.clickExtendMs,
       canControl: true,
       play: practicePlaySong,
       pause: practicePauseSong,
@@ -117,6 +124,7 @@ export function useShowMode(): ShowModeApi {
     nudgeLiveTempoAdjustPercent: (deltaPercent) => void nudgeLiveTempoAdjustPercent(deltaPercent),
     clickTrackOverride: gigClickTrackOverride,
     setClickTrackOverride: (override) => void setClickTrackOverride(override),
+    clickExtendMs: gigClickExtendMs,
     canControl: gigQueue.isMaster,
     play: playSong,
     pause: pauseSong,

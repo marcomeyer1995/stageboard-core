@@ -1,6 +1,12 @@
 import { computeQueue, type Queue } from './computeQueue'
-import { countInLeadMs } from './metronome'
-import { ARMED_TRANSPORT, pause as pauseTransport, play as playTransport, type TransportState } from './playbackTransport'
+import { barMsAt, countInLeadMs } from './metronome'
+import {
+  ARMED_TRANSPORT,
+  computeActiveMs,
+  pause as pauseTransport,
+  play as playTransport,
+  type TransportState,
+} from './playbackTransport'
 import { pauseLocalTrack, playLocalTrack, stopLocalTrack } from './localAudioEngine'
 import { DEFAULT_PRACTICE_STATE, usePracticeStateStore, type PracticeState } from '../store/usePracticeStateStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -124,7 +130,13 @@ export async function practiceAdvanceNext(): Promise<void> {
   const { nextEntry } = snapshot()
   if (!nextEntry) return
   clearScheduledAudioStart()
-  patch({ activeEntryId: nextEntry.id, trackOverride: null, clickTrackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
+  patch({
+    activeEntryId: nextEntry.id,
+    trackOverride: null,
+    clickTrackOverride: null,
+    clickExtendMs: 0,
+    ...transportPatch(ARMED_TRANSPORT),
+  })
   stopLocalTrack()
 }
 
@@ -132,7 +144,13 @@ export async function practiceAdvancePrevious(): Promise<void> {
   const { previousEntry } = snapshot()
   if (!previousEntry) return
   clearScheduledAudioStart()
-  patch({ activeEntryId: previousEntry.id, trackOverride: null, clickTrackOverride: null, ...transportPatch(ARMED_TRANSPORT) })
+  patch({
+    activeEntryId: previousEntry.id,
+    trackOverride: null,
+    clickTrackOverride: null,
+    clickExtendMs: 0,
+    ...transportPatch(ARMED_TRANSPORT),
+  })
   stopLocalTrack()
 }
 
@@ -142,4 +160,24 @@ export function practiceSetTrackOverride(trackId: string | null): void {
 
 export function practiceSetClickTrackOverride(override: 'on' | 'off' | null): void {
   patch({ clickTrackOverride: override })
+}
+
+/** Practice mode's counterpart to queue.ts's `extendClickTrack` - no Master-Token to gate here,
+ * same reasoning every other practice action above already follows. */
+export function practiceExtendClickTrack(bars: number): void {
+  const state = currentPracticeState()
+  if (state.playbackStatus === 'stopped') return
+  const { currentSong, currentVariant } = snapshot()
+  if (!currentSong) return
+  const activeSong = currentVariant ?? currentSong
+  const elapsedMs = computeActiveMs(currentTransport(state), Date.now())
+  const perBarMs = barMsAt(
+    elapsedMs,
+    activeSong.bpm,
+    activeSong.timeSignature,
+    currentVariant?.beatAnchors ?? [],
+    currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+    currentVariant?.tempoMarkers ?? [],
+  )
+  patch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

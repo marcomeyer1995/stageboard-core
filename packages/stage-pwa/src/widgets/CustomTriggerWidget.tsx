@@ -220,6 +220,22 @@ export function CustomTriggerConfigPanel({
         />
         {!payloadValid && <span className="text-red-500">Ungültiges JSON</span>}
       </label>
+      {config.commandType === 'click.extend' && (
+        <label className="flex flex-col gap-1 text-xs text-ink-muted">
+          Takte (#231: wie weit der Endpunkt bei jedem Druck verschoben wird)
+          <input
+            type="number"
+            min={1}
+            step={1}
+            className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+            value={String(parsePayload(config.commandPayloadJson).bars ?? 1)}
+            onChange={(e) => {
+              const bars = Math.max(1, Math.round(Number(e.target.value) || 1))
+              onChange({ ...config, commandPayloadJson: JSON.stringify({ ...parsePayload(config.commandPayloadJson), bars }) })
+            }}
+          />
+        </label>
+      )}
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

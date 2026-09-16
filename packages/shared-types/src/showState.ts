@@ -57,6 +57,14 @@ export const ShowStateSchema = z.object({
    * tonight's performance of this song. Master-gated, cleared on song change (activateEntry
    * below), same for-tonight-only pattern as `trackOverride`/`liveTempoAdjustPercent` above. */
   clickTrackOverride: z.enum(['on', 'off']).nullable(),
+  /** How far (ms) the current entry's auto-stop point (#231) has been pushed forward by the
+   * live bar-extend trigger, on top of the backing track's own natural end - each press adds
+   * however many ms the configured bar count is worth at whatever tempo is active *right now*
+   * (live-nudged bpm, #140; the tempo segment a `TempoMarker`, #141, may have introduced),
+   * stacking across repeated presses within the same play-through. Master-gated and cleared on
+   * song change (activateEntry below), same for-tonight-only pattern as `trackOverride`/
+   * `liveTempoAdjustPercent`/`clickTrackOverride` above. */
+  clickExtendMs: z.number(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -79,6 +87,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   trackOverride: null,
   liveTempoAdjustPercent: 0,
   clickTrackOverride: null,
+  clickExtendMs: 0,
   currentShowId: null,
   lastActivityAt: null,
 }
