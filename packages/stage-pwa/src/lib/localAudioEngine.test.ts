@@ -39,6 +39,24 @@ describe('playLocalTrack', () => {
     playLocalTrack(12_340)
     expect(currentTimeMs()).toBe(12_340)
   })
+
+  it("waits for a still-in-flight loadLocalTrack before touching the element (found live, 2026-09-16: a play attempt racing ahead of the load it depends on rejected for an unrelated reason, misreported as the browser's autoplay policy)", async () => {
+    let resolveTrack!: (blob: Blob) => void
+    vi.mocked(getTrack).mockReturnValueOnce(new Promise((resolve) => { resolveTrack = resolve }))
+
+    const loadPromise = loadLocalTrack('v1', 't1', 30_000)
+    const playPromise = playLocalTrack(12_340) // fired before the load above has resolved
+
+    // The load hasn't resolved yet - playLocalTrack must not have touched currentTime yet either.
+    expect(currentTimeMs()).toBe(0)
+
+    resolveTrack(new Blob(['fake-audio'], { type: 'audio/mpeg' }))
+    await loadPromise
+    await playPromise
+
+    // Once the load finally resolves, playLocalTrack's own seek takes effect (not the load's).
+    expect(currentTimeMs()).toBe(12_340)
+  })
 })
 
 describe('syncLocalTrackPosition', () => {

@@ -21,6 +21,11 @@ export interface LocalAudioResult {
 let audioEl: HTMLAudioElement | null = null
 let currentObjectUrl: string | null = null
 
+/** Whichever `loadLocalTrack` call is currently in flight, if any - `playLocalTrack` awaits this
+ * before touching the element (see its own doc comment) so a play attempt can never race ahead
+ * of the load it depends on. */
+let pendingLoad: Promise<LocalAudioResult> | null = null
+
 function getAudioEl(): HTMLAudioElement {
   if (!audioEl) audioEl = new Audio()
   return audioEl
@@ -32,17 +37,24 @@ function getAudioEl(): HTMLAudioElement {
  * the beginning - found live, 2026-09-10). Revokes the previous object URL first - PouchDB
  * attachments are fetched as Blobs, and object URLs otherwise leak for the lifetime of the
  * page. */
-export async function loadLocalTrack(variantId: string, trackId: string, atMs: number): Promise<LocalAudioResult> {
-  const blob = await getTrack(variantId, trackId)
-  if (!blob) return { status: 'error', message: 'Kein Track gefunden' }
+export function loadLocalTrack(variantId: string, trackId: string, atMs: number): Promise<LocalAudioResult> {
+  const promise = (async (): Promise<LocalAudioResult> => {
+    const blob = await getTrack(variantId, trackId)
+    if (!blob) return { status: 'error', message: 'Kein Track gefunden' }
 
-  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
-  currentObjectUrl = URL.createObjectURL(blob)
+    if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+    currentObjectUrl = URL.createObjectURL(blob)
 
-  const audio = getAudioEl()
-  audio.src = currentObjectUrl
-  audio.currentTime = atMs / 1000
-  return { status: 'ok' }
+    const audio = getAudioEl()
+    audio.src = currentObjectUrl
+    audio.currentTime = atMs / 1000
+    return { status: 'ok' }
+  })()
+  pendingLoad = promise
+  void promise.finally(() => {
+    if (pendingLoad === promise) pendingLoad = null
+  })
+  return promise
 }
 
 /** Seeks to `atMs` before starting - without this, resuming played from wherever the element
@@ -57,8 +69,18 @@ export async function loadLocalTrack(variantId: string, trackId: string, atMs: n
  * the browser's autoplay policy refusing an unattended `play()` call with no user gesture behind
  * it - is a real failure callers need to know about: useAudioOutputDriver.ts's reload-time
  * auto-resume has no gesture to offer, so a reload during an already-playing song silently lost
- * its audio with no indication anything had gone wrong (found live, 2026-09-16). */
+ * its audio with no indication anything had gone wrong (found live, 2026-09-16).
+ *
+ * Waits for any in-flight `loadLocalTrack` first - useAudioOutputDriver.ts's load and play
+ * effects fire independently (deliberately, see its own doc comment on why they can't share one
+ * dependency array), so this can otherwise run before the Blob fetch behind `loadLocalTrack`
+ * finishes, calling `audio.play()` on an element with no source yet. That rejection has nothing
+ * to do with the browser's autoplay policy, but without this wait it got reported as exactly
+ * that ("tap to resume") - and a user's actual tap, landing while the same load was still in
+ * flight, could race the same way and silently fail again, looking like the button just wasn't
+ * working (found live, 2026-09-16, the day after the autoplay-block fix itself). */
 export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
+  if (pendingLoad) await pendingLoad.catch(() => {})
   const audio = getAudioEl()
   audio.currentTime = atMs / 1000
   try {
