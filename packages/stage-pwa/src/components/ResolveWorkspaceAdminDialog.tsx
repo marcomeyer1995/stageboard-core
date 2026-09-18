@@ -21,8 +21,9 @@ type Step = 'checking' | 'code' | 'roster' | 'pin'
  *   `resolveMemberCredentials()` (deliberately not `joinAsMember()`, which would also switch
  *   what this device displays - see that action's own doc comment).
  *
- * Either path ends the same way: real `{ username, password }` handed back via `onResolved`,
- * or `null` on cancel.
+ * Either path ends the same way: real `{ username, password, profileId }` handed back via
+ * `onResolved` (`profileId` is which admin was picked - the caller may want to display as them
+ * afterward), or `null` on cancel.
  */
 export function ResolveWorkspaceAdminDialog({
   workspaceId,
@@ -31,7 +32,7 @@ export function ResolveWorkspaceAdminDialog({
 }: {
   workspaceId: string
   workspaceName: string
-  onResolved: (credentials: { username: string; password: string } | null) => void
+  onResolved: (credentials: { username: string; password: string; profileId: string } | null) => void
 }) {
   const getAccessCode = useWorkspaceStore((state) => state.getAccessCode)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
@@ -93,7 +94,7 @@ export function ResolveWorkspaceAdminDialog({
       : await resolveMemberCredentials(workspaceId, workspaceName, code, pickedProfileId, pinInput)
     setBusy(false)
     if (result?.username && result.couchPassword) {
-      onResolved({ username: result.username, password: result.couchPassword })
+      onResolved({ username: result.username, password: result.couchPassword, profileId: pickedProfileId })
       return
     }
     setPinInput('')

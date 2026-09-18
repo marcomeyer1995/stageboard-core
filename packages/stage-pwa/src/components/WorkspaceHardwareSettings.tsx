@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react'
 import type { WorkspaceSummary } from 'shared-types'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
+import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { ResolveWorkspaceAdminDialog } from './ResolveWorkspaceAdminDialog'
 
 interface ResolvedCredentials {
   username: string
   password: string
+  profileId: string
 }
 
 /**
@@ -25,6 +27,8 @@ interface ResolvedCredentials {
 export function WorkspaceHardwareSettings() {
   const { workspaces, activeWorkspaceId, reload } = useStageServerStatus()
   const activateWorkspaceHardware = useWorkspaceStore((state) => state.activateWorkspaceHardware)
+  const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
+  const setActiveProfile = useActiveProfileStore((state) => state.setActive)
 
   const [switching, setSwitching] = useState(false)
   const [pendingDialog, setPendingDialog] = useState<{ workspaceId: string; workspaceName: string } | null>(null)
@@ -70,7 +74,14 @@ export function WorkspaceHardwareSettings() {
         closing?.username,
         closing?.password,
       )
-      if (ok) await reload()
+      if (ok) {
+        // The device that commanded the switch follows it: shows the newly active band, as the
+        // admin it just proved itself as (same reasoning as JoinBandView.tsx's post-join
+        // setActiveProfile - otherwise the profile picker immediately re-asks who this is).
+        setActiveWorkspace(workspace.workspaceId)
+        setActiveProfile(workspace.workspaceId, opening.profileId)
+        await reload()
+      }
     } finally {
       setSwitching(false)
     }
