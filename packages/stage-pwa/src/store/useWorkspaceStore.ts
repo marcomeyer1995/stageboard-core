@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
+import type { AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
@@ -159,21 +159,16 @@ interface WorkspaceState {
    * "collapse not-configured and unreachable into one null" shape as every other fetch* action
    * here (useStageServerStatus.ts is what turns that into a displayed reachability state). */
   fetchServerInfo: () => Promise<ServerInfo | null>
-  /** Switches this Stage-Server's hardware to serve `workspaceId` (admin-only, one box, one
-   * band at a time - SystemSettings.tsx's "Aktive Band" control). Takes fresh admin
-   * credentials rather than reusing whatever this device already has stored, since switching
-   * to the *other* band is exactly the case where this device may not already be admin on
-   * that workspace at all. `closingAdminUsername`/`closingAdminPassword` are only needed (and
-   * only sent) when some *other* workspace is currently active on that box - proof that the
-   * caller may interrupt whatever's actually live right now, not just that they're an admin of
-   * wherever they're switching to (see the matching backend-side reasoning in index.ts). */
-  activateWorkspaceHardware: (
-    workspaceId: string,
-    openingAdminUsername: string,
-    openingAdminPassword: string,
-    closingAdminUsername?: string,
-    closingAdminPassword?: string,
-  ) => Promise<boolean>
+  /** `POST /workspaces/:id/verify-admin-pin` - stateless "is this roster admin + PIN valid for
+   * that workspace" (own PIN or the band code's last 4 digits). Lets the hardware-switch wizard
+   * reject a wrong PIN at the step it was typed. Alerts on failure, like the other actions here. */
+  verifyAdminPin: (workspaceId: string, profileId: string, pin: string) => Promise<boolean>
+  /** Switches this Stage-Server's hardware to serve `workspaceId` (one box, one band at a time -
+   * SwitchServerBandWizard.tsx). `opening` is an admin of that workspace; `closing` is an admin of
+   * the band currently active on the box, only needed (and only sent) when switching away from
+   * one - proof the caller may interrupt whatever's actually live. Both are verified server-side
+   * (index.ts's `verifyAdminPin`), not device credentials. */
+  activateWorkspaceHardware: (workspaceId: string, opening: AdminPinProof, closing?: AdminPinProof) => Promise<boolean>
   /** Second step of the self-service join (2026-09-01 redesign) - resolves one workspace's
    * roster (names/roles only, no credentials) using its standing code, for JoinBandView.tsx to
    * render a "who are you" picker. `isAdmin` per member (2026-09-02 second follow-up) tells the
@@ -187,22 +182,6 @@ interface WorkspaceState {
    * always works for any admin here) - see `RosterMemberSchema`'s doc comment for the full
    * reasoning. Adds or updates the workspace locally and activates it on success. */
   joinAsMember: (
-    workspaceId: string,
-    workspaceName: string,
-    code: string,
-    profileId: string,
-    password?: string,
-  ) => Promise<Workspace | null>
-  /** Same request/response as `joinAsMember` (same route, same code-or-PIN trust model), for
-   * a caller that needs a workspace member's real, working credentials for its own purposes -
-   * ResolveWorkspaceAdminDialog.tsx's "this device has no local history with the target
-   * workspace" fallback - without also making this device *display* that workspace afterward.
-   * `joinAsMember` sets `activeWorkspaceId` as a side effect; this deliberately doesn't, since
-   * resolving someone else's admin identity to authorize an unrelated action (a hardware
-   * switch) must never silently change what this device is currently showing. Still caches the
-   * resolved credentials into `workspaces` like `joinAsMember` does - a real, desirable side
-   * effect, since it means this device also won't need the code again next time. */
-  resolveMemberCredentials: (
     workspaceId: string,
     workspaceName: string,
     code: string,
@@ -729,7 +708,30 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      activateWorkspaceHardware: async (workspaceId, openingAdminUsername, openingAdminPassword, closingAdminUsername, closingAdminPassword) => {
+      verifyAdminPin: async (workspaceId, profileId, pin) => {
+        const base = getStageServerUrl()
+        if (!base) return false
+
+        try {
+          const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/verify-admin-pin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileId, pin }),
+          })
+          if (response.ok) return true
+          if (response.status === 403) {
+            void useDialogStore.getState().alert('Falscher PIN.')
+          } else {
+            void useDialogStore.getState().alert('PIN konnte nicht geprüft werden - Fehler beim Stage-Server.')
+          }
+          return false
+        } catch (err) {
+          console.error('Failed to verify admin PIN', err)
+          void useDialogStore.getState().alert('PIN konnte nicht geprüft werden - Stage-Server nicht erreichbar.')
+          return false
+        }
+      },
+      activateWorkspaceHardware: async (workspaceId, opening, closing) => {
         const base = getStageServerUrl()
         if (!base) return false
 
@@ -737,20 +739,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/activate-hardware`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ openingAdminUsername, openingAdminPassword, closingAdminUsername, closingAdminPassword }),
+            body: JSON.stringify({ opening, closing }),
           })
           if (!response.ok) {
             if (response.status === 403) {
-              void useDialogStore.getState().alert('Falscher Admin-Zugang für dieses Band - Aktivierung nicht möglich.')
+              void useDialogStore.getState().alert('Admin-Nachweis abgelehnt - Wechsel nicht möglich.')
             } else {
-              void useDialogStore.getState().alert('Hardware konnte nicht aktiviert werden - Stage-Server nicht erreichbar oder Fehler.')
+              void useDialogStore.getState().alert('Wechsel fehlgeschlagen - Stage-Server nicht erreichbar oder Fehler.')
             }
             return false
           }
           return true
         } catch (err) {
           console.error('Failed to activate workspace hardware', err)
-          void useDialogStore.getState().alert('Hardware konnte nicht aktiviert werden - Stage-Server nicht erreichbar.')
+          void useDialogStore.getState().alert('Wechsel fehlgeschlagen - Stage-Server nicht erreichbar.')
           return false
         }
       },
@@ -856,65 +858,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         } catch (err) {
           console.error('Failed to parse join response', err)
           void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
-          return null
-        }
-      },
-      resolveMemberCredentials: async (workspaceId, workspaceName, code, profileId, password) => {
-        const base = getStageServerUrl()
-        if (!base) {
-          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert.')
-          return null
-        }
-
-        let response: Response
-        try {
-          response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/join/${encodeURIComponent(profileId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, password, deviceId: getDeviceId() }),
-          })
-        } catch (err) {
-          console.error('Failed to reach Stage-Server to resolve member credentials', err)
-          void useDialogStore
-            .getState()
-            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
-          return null
-        }
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            void useDialogStore.getState().alert('Falscher Code oder falscher PIN.')
-          } else if (response.status === 404) {
-            void useDialogStore.getState().alert('Unbekanntes Mitglied.')
-          } else {
-            console.error('Failed to resolve member credentials', new Error(`HTTP ${response.status}`))
-            void useDialogStore.getState().alert('Fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
-          }
-          return null
-        }
-
-        try {
-          const resolved = (await response.json()) as { username: string; password: string; isAdmin: boolean }
-
-          const existing = get().workspaces.find((w) => w.id === workspaceId)
-          const workspace: Workspace = existing
-            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
-            : {
-                id: workspaceId,
-                name: workspaceName,
-                couchPassword: resolved.password,
-                username: resolved.username,
-                isAdmin: resolved.isAdmin,
-              }
-          set({
-            workspaces: existing
-              ? get().workspaces.map((w) => (w.id === workspaceId ? workspace : w))
-              : [...get().workspaces, workspace],
-          })
-          return workspace
-        } catch (err) {
-          console.error('Failed to parse resolve-member-credentials response', err)
-          void useDialogStore.getState().alert('Fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
           return null
         }
       },

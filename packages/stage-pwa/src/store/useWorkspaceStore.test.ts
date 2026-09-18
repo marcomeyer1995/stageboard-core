@@ -769,42 +769,40 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     expect(await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()).toBeNull()
   })
 
-  it('activateWorkspaceHardware posts fresh opening admin credentials, not any locally stored ones', async () => {
+  it('activateWorkspaceHardware posts the opening admin proof', async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
 
-    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '4444' })
 
     expect(result).toBe(true)
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-b/activate-hardware')
-    expect(JSON.parse(init.body)).toEqual({ openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'fresh-pw' })
+    expect(JSON.parse(init.body)).toEqual({ opening: { profileId: 'q1', pin: '4444' } })
   })
 
-  it('activateWorkspaceHardware also posts closing admin credentials when given', async () => {
+  it('activateWorkspaceHardware also posts the closing admin proof when given', async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
 
     await useWorkspaceStore
       .getState()
-      .activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw', 'stageboard-band-a-p1', 'other-fresh-pw')
+      .activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '4444' }, { profileId: 'p1', pin: '4242' })
 
     const [, init] = fetchMock.mock.calls[0]
     expect(JSON.parse(init.body)).toEqual({
-      openingAdminUsername: 'stageboard-band-b-p1',
-      openingAdminPassword: 'fresh-pw',
-      closingAdminUsername: 'stageboard-band-a-p1',
-      closingAdminPassword: 'other-fresh-pw',
+      opening: { profileId: 'q1', pin: '4444' },
+      closing: { profileId: 'p1', pin: '4242' },
     })
   })
 
-  it('activateWorkspaceHardware alerts and returns false on a 403 (wrong admin credentials)', async () => {
+  it('activateWorkspaceHardware alerts and returns false on a 403 (proof rejected)', async () => {
     stubFetch({ ok: false, status: 403 })
     const alertMock = vi.fn().mockResolvedValue(undefined)
     useDialogStore.setState({ alert: alertMock })
 
-    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'wrong-pw')
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '0000' })
 
     expect(result).toBe(false)
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Admin-Zugang'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Admin-Nachweis'))
   })
 
   it('activateWorkspaceHardware alerts and returns false when the Stage-Server is unreachable', async () => {
@@ -812,9 +810,36 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     const alertMock = vi.fn().mockResolvedValue(undefined)
     useDialogStore.setState({ alert: alertMock })
 
-    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '4444' })
 
     expect(result).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
+  })
+
+  it('verifyAdminPin posts the profile and PIN and returns true when the server accepts', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
+
+    expect(await useWorkspaceStore.getState().verifyAdminPin('band-b', 'q1', '4444')).toBe(true)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-b/verify-admin-pin')
+    expect(JSON.parse(init.body)).toEqual({ profileId: 'q1', pin: '4444' })
+  })
+
+  it('verifyAdminPin alerts "Falscher PIN" and returns false on a 403', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().verifyAdminPin('band-b', 'q1', '0000')).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith('Falscher PIN.')
+  })
+
+  it('verifyAdminPin alerts and returns false when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().verifyAdminPin('band-b', 'q1', '4444')).toBe(false)
     expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
   })
 })
@@ -1070,54 +1095,6 @@ describe('joinAsMember', () => {
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p2')
 
     expect(workspace?.ownProfileId).toBeUndefined()
-  })
-})
-
-describe('resolveMemberCredentials', () => {
-  beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
-  })
-
-  afterEach(() => {
-    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
-  })
-
-  it('posts to the same join route as joinAsMember, caches the resolved credentials, but never touches activeWorkspaceId', async () => {
-    useWorkspaceStore.setState({ activeWorkspaceId: 'band-a' })
-    const fetchMock = stubFetch({
-      ok: true,
-      status: 200,
-      json: async () => ({ username: 'stageboard-band-c-p1', password: 'admin-pw', isAdmin: true }),
-    })
-
-    const workspace = await useWorkspaceStore.getState().resolveMemberCredentials('band-c', 'Band C', '11112222', 'p1', '1234')
-
-    expect(workspace).toEqual({
-      id: 'band-c',
-      name: 'Band C',
-      couchPassword: 'admin-pw',
-      username: 'stageboard-band-c-p1',
-      isAdmin: true,
-    })
-    const state = useWorkspaceStore.getState()
-    expect(state.workspaces).toContainEqual(workspace)
-    // The whole point: unlike joinAsMember, this must not change what this device is displaying.
-    expect(state.activeWorkspaceId).toBe('band-a')
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://stage-server:3001/workspaces/band-c/join/p1')
-    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: '1234', deviceId: expect.any(String) })
-  })
-
-  it('alerts with a distinct "wrong code/PIN" message on a 403, and returns null', async () => {
-    stubFetch({ ok: false, status: 403 })
-    const alertMock = vi.fn().mockResolvedValue(undefined)
-    useDialogStore.setState({ alert: alertMock })
-
-    const workspace = await useWorkspaceStore.getState().resolveMemberCredentials('band-c', 'Band C', '11112222', 'p1', 'wrong')
-
-    expect(workspace).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falscher PIN'))
   })
 })
 

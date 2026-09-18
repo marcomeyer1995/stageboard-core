@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-// useWorkspaceStore transitively imports workspaceDb.ts, which constructs a real PouchDB at
-// module load time - unavailable under happy-dom (see SyncIndicator.test.tsx's identical mock).
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
@@ -11,31 +9,26 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-// ResolveWorkspaceAdminDialog has its own dedicated test file - here it's mocked out entirely
-// so these tests focus purely on WorkspaceHardwareSettings' own job: deciding whether a
-// closing dialog is needed before the opening one, and wiring both results into
-// activateWorkspaceHardware. Exposes which workspace each mock instance was opened for, and one
-// button each for "resolved successfully" / "cancelled", so a test can drive either outcome.
-vi.mock('./ResolveWorkspaceAdminDialog', () => ({
-  ResolveWorkspaceAdminDialog: ({
-    workspaceId,
-    onResolved,
+// The wizard has its own test file - mocked here so these tests cover only this section's job:
+// showing the current state and starting/closing the wizard.
+vi.mock('./SwitchServerBandWizard', () => ({
+  SwitchServerBandWizard: ({
+    activeWorkspaceId,
+    bands,
+    onClose,
   }: {
-    workspaceId: string
-    workspaceName: string
-    onResolved: (credentials: { username: string; password: string; profileId: string } | null) => void
+    activeWorkspaceId: string | null
+    bands: { workspaceId: string }[]
+    onClose: (switched: boolean) => void
   }) => (
-    <div data-testid={`dialog-${workspaceId}`}>
-      <button onClick={() => onResolved({ username: `resolved-${workspaceId}-user`, password: `resolved-${workspaceId}-pw`, profileId: `profile-${workspaceId}` })}>
-        resolve-ok-{workspaceId}
-      </button>
-      <button onClick={() => onResolved(null)}>resolve-cancel-{workspaceId}</button>
+    <div data-testid="wizard" data-active={activeWorkspaceId ?? ''} data-bands={bands.length}>
+      <button onClick={() => onClose(false)}>wizard-abort</button>
+      <button onClick={() => onClose(true)}>wizard-done</button>
     </div>
   ),
 }))
 
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { WorkspaceHardwareSettings } = await import('./WorkspaceHardwareSettings')
 
 const workspaceList = [
@@ -43,142 +36,68 @@ const workspaceList = [
   { workspaceId: 'band-b', workspaceName: 'SOAT' },
 ]
 
-beforeEach(() => {
+function stub(overrides: Partial<Parameters<typeof useWorkspaceStore.setState>[0]> = {}) {
   useWorkspaceStore.setState({
     listWorkspaces: vi.fn().mockResolvedValue(workspaceList),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
     fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
-    activateWorkspaceHardware: vi.fn().mockResolvedValue(true),
+    ...overrides,
   })
-})
+}
+
+beforeEach(() => stub())
 
 describe('WorkspaceHardwareSettings', () => {
-  it('lists every band the Stage-Server hosts, marking the currently active one', async () => {
+  it('shows the band currently active on the server and a button to change it', async () => {
     render(<WorkspaceHardwareSettings />)
 
     await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
-    expect(screen.getByText('SOAT')).toBeInTheDocument()
-    expect(screen.getByText('Aktiv')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Band wechseln…' })).not.toBeDisabled()
+    expect(screen.queryByTestId('wizard')).not.toBeInTheDocument()
   })
 
-  it('does nothing when tapping the already-active band', async () => {
+  it('shows "keine" when nothing has been activated on the server yet', async () => {
+    stub({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
+    render(<WorkspaceHardwareSettings />)
+
+    await waitFor(() => expect(screen.getByText('keine')).toBeInTheDocument())
+  })
+
+  it('disables the button and says so when the Stage-Server is unreachable', async () => {
+    stub({
+      listWorkspaces: vi.fn().mockResolvedValue(null),
+      fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
+      fetchServerInfo: vi.fn().mockResolvedValue(null),
+    })
+    render(<WorkspaceHardwareSettings />)
+
+    await waitFor(() => expect(screen.getByText('Stage-Server nicht erreichbar.')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Band wechseln…' })).toBeDisabled()
+  })
+
+  it('the button opens the wizard with the server\'s bands and active band; aborting closes it', async () => {
     render(<WorkspaceHardwareSettings />)
     await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByText('Abadschendaler').closest('button')!)
-    expect(screen.queryByTestId('dialog-band-a')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Band wechseln…' }))
+
+    const wizard = screen.getByTestId('wizard')
+    expect(wizard).toHaveAttribute('data-active', 'band-a')
+    expect(wizard).toHaveAttribute('data-bands', '2')
+
+    fireEvent.click(screen.getByText('wizard-abort'))
+    expect(screen.queryByTestId('wizard')).not.toBeInTheDocument()
   })
 
-  it('opens the closing dialog first, then the opening dialog, then activates with both resolved credentials', async () => {
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
+  it('reloads the server status after a completed switch', async () => {
+    const fetchActive = vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' })
+    stub({ fetchActiveWorkspaceHardware: fetchActive })
     render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
+    await waitFor(() => expect(fetchActive).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Band wechseln…' }))
+    fireEvent.click(screen.getByText('wizard-done'))
 
-    // Closing dialog (band-a, currently active) appears first, not the opening one yet.
-    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
-    expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('resolve-ok-band-a'))
-
-    // Then the opening dialog (band-b).
-    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-b'))
-
-    await waitFor(() =>
-      expect(activateWorkspaceHardware).toHaveBeenCalledWith(
-        'band-b',
-        'resolved-band-b-user',
-        'resolved-band-b-pw',
-        'resolved-band-a-user',
-        'resolved-band-a-pw',
-      ),
-    )
-  })
-
-  it('after a successful switch, this device follows: shows the new band, as the admin it just proved itself as', async () => {
-    useWorkspaceStore.setState({ activeWorkspaceId: 'band-a' })
-    useActiveProfileStore.setState({ byWorkspace: {} })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-a'))
-    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-b'))
-
-    await waitFor(() => expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b'))
-    expect(useActiveProfileStore.getState().byWorkspace['band-b']).toBe('profile-band-b')
-  })
-
-  it('does not change this device\'s workspace when the activation fails', async () => {
-    useWorkspaceStore.setState({ activeWorkspaceId: 'band-a', activateWorkspaceHardware: vi.fn().mockResolvedValue(false) })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-a'))
-    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-b'))
-
-    await waitFor(() => expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument())
-    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-a')
-  })
-
-  it('aborts without activating if the closing dialog is cancelled', async () => {
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-cancel-band-a'))
-
-    await waitFor(() => expect(screen.queryByTestId('dialog-band-a')).not.toBeInTheDocument())
-    expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument()
-    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
-  })
-
-  it('aborts without activating if the opening dialog is cancelled', async () => {
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-a'))
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-cancel-band-b'))
-
-    await waitFor(() => expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument())
-    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
-  })
-
-  it('on a first activation (nothing active yet) skips the closing dialog entirely', async () => {
-    useWorkspaceStore.setState({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('resolve-ok-band-b'))
-
-    await waitFor(() =>
-      expect(activateWorkspaceHardware).toHaveBeenCalledWith('band-b', 'resolved-band-b-user', 'resolved-band-b-pw', undefined, undefined),
-    )
+    await waitFor(() => expect(fetchActive).toHaveBeenCalledTimes(2))
   })
 })
