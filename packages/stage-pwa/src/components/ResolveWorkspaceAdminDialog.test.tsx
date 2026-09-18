@@ -112,7 +112,7 @@ describe('ResolveWorkspaceAdminDialog', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('4-stelliger PIN')).toBeInTheDocument())
     enterPin('1234')
 
-    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ username: 'stageboard-band-b-p1', password: 'fresh-pw' }))
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ username: 'stageboard-band-b-p1', password: 'fresh-pw', profileId: 'p1' }))
     expect(resolveMemberCredentials).toHaveBeenCalledWith('band-b', 'SOAT', '11112222', 'p1', '1234')
     expect(activateProfile).not.toHaveBeenCalled()
   })
@@ -134,7 +134,7 @@ describe('ResolveWorkspaceAdminDialog', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('4-stelliger PIN')).toBeInTheDocument())
     enterPin('5678')
 
-    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ username: 'stageboard-band-b-p3', password: 'refreshed-pw' }))
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ username: 'stageboard-band-b-p3', password: 'refreshed-pw', profileId: 'p3' }))
     expect(activateProfile).toHaveBeenCalledWith('band-b', 'p3', '5678')
     expect(resolveMemberCredentials).not.toHaveBeenCalled()
   })
