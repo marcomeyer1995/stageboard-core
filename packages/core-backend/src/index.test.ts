@@ -6,6 +6,16 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
+
+// The activate-hardware route (below) reaches real createPluginSync/createMidiWatcher through
+// workspaceHardwareController.ts - mocked here so activating a workspace in a test never tries
+// real CouchDB network calls or real MIDI port enumeration on whatever machine runs the suite.
+vi.mock('./plugins/pluginSync.js', () => ({
+  createPluginSync: vi.fn(() => ({ stop: vi.fn(), syncOnce: vi.fn(), writeHeartbeat: vi.fn() })),
+}))
+vi.mock('./midiWatcher.js', () => ({
+  createMidiWatcher: vi.fn(() => ({ stop: vi.fn() })),
+}))
 import {
   __resetDeviceInfoStoreForTests,
   getSnapshot as getDeviceInfoSnapshot,
@@ -1894,6 +1904,95 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/activate-hardware and GET /server/active-workspace', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    let stateDir: string
+
+    beforeEach(() => {
+      stateDir = mkdtempSync(join(tmpdir(), 'stageboard-active-workspace-route-test-'))
+      process.env.STAGEBOARD_STATE_DIR = stateDir
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      delete process.env.STAGEBOARD_STATE_DIR
+      rmSync(stateDir, { recursive: true, force: true })
+    })
+
+    it('reports no active workspace before anything is activated', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ activeWorkspaceId: null })
+    })
+
+    it('activates the workspace when the caller verifies as that workspace\'s admin', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+
+      const activate = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+      expect(activate.statusCode).toBe(200)
+
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/activate-hardware', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('activating a second workspace leaves no trace of the first one\'s plugins in GET /plugins', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+      await registry.register(fakeShowControlPlugin(), testContext())
+      expect(await (await app.inject({ method: 'GET', url: '/plugins' })).json()).toHaveLength(1)
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: { adminUsername: 'stageboard-band-b-p1', adminPassword: 'correct-pw' },
+      })
+
+      const plugins = await app.inject({ method: 'GET', url: '/plugins' })
+      expect(plugins.json()).toEqual([])
+
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-b' })
     })
   })
 
