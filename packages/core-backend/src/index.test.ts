@@ -97,13 +97,14 @@ describe('Fastify routes', () => {
   describe('GET /server-info', () => {
     afterEach(() => {
       delete process.env.LAN_IP
+      delete process.env.MDNS_HOSTNAME
     })
 
     it('reports the LAN_IP override when set', async () => {
       process.env.LAN_IP = '10.1.2.3'
       const response = await app.inject({ method: 'GET', url: '/server-info' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ lanIp: '10.1.2.3' })
+      expect(response.json()).toMatchObject({ lanIp: '10.1.2.3' })
     })
 
     it('falls back to a detected address or null, never throwing, with no LAN_IP set', async () => {
@@ -111,6 +112,17 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(200)
       const { lanIp } = response.json() as { lanIp: string | null }
       expect(lanIp === null || typeof lanIp === 'string').toBe(true)
+    })
+
+    it('defaults hostname to stageboard.local', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.json()).toMatchObject({ hostname: 'stageboard.local' })
+    })
+
+    it('reports the MDNS_HOSTNAME override when set', async () => {
+      process.env.MDNS_HOSTNAME = 'my-band.local'
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.json()).toMatchObject({ hostname: 'my-band.local' })
     })
   })
 

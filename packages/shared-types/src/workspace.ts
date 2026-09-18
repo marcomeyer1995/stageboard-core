@@ -180,6 +180,17 @@ export const ActiveWorkspaceStatusSchema = z.object({
 })
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
+/** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
+ * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
+ * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
+ * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
+ * Ledger's "this is the Stage-Server itself" row. */
+export const ServerInfoSchema = z.object({
+  lanIp: z.string(),
+  hostname: z.string(),
+})
+export type ServerInfo = z.infer<typeof ServerInfoSchema>
+
 /** Body to rename a workspace (admin-only, #58) - persists the new display name onto the same
  * `workspace:access` doc the standing access code already lives in (`workspaceProvisioning.ts`'s
  * `renameWorkspace`), leaving the code itself untouched. That doc already replicates to every

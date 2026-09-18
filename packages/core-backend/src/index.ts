@@ -324,7 +324,15 @@ export async function buildApp() {
   // printing a stale IP after a DHCP lease change is a re-open of that screen away, not a
   // server restart away. No auth: this is the same address the mDNS responder already
   // broadcasts to anything listening on the LAN, not new information.
-  app.get('/server-info', async () => ({ lanIp: process.env.LAN_IP ?? detectLanIp() }))
+  //
+  // `hostname` (Device Ledger follow-up) is the same `MDNS_HOSTNAME` value the mDNS responder
+  // below already broadcasts - exposed here too for a device that's never seen that broadcast
+  // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
+  // address.
+  app.get('/server-info', async () => ({
+    lanIp: process.env.LAN_IP ?? detectLanIp(),
+    hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
+  }))
 
   // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
   // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
