@@ -47,7 +47,7 @@ export function SystemSettings() {
         <StageServerSettings />
       </Section>
 
-      <Section title="Aktives Band (Hardware)">
+      <Section title="Aktive Band (Hardware)">
         <WorkspaceHardwareSettings />
       </Section>
 
