@@ -151,6 +151,16 @@ interface WorkspaceState {
   /** Every band the currently-configured Stage-Server hosts, with no code needed at all - the
    * WiFi "which networks are in range" step, `JoinBandView.tsx`'s first screen. */
   listWorkspaces: () => Promise<WorkspaceSummary[] | null>
+  /** Which workspace (if any) this specific Stage-Server's local hardware - plugin sync,
+   * Discovery Mode's MIDI watcher - currently serves. `null` on a fetch failure; a resolved
+   * `activeWorkspaceId: null` is a valid answer (nothing activated on that box yet). */
+  fetchActiveWorkspaceHardware: () => Promise<{ activeWorkspaceId: string | null } | null>
+  /** Switches this Stage-Server's hardware to serve `workspaceId` (admin-only, one box, one
+   * band at a time - SystemSettings.tsx's "Aktives Band" control). Takes fresh admin
+   * credentials rather than reusing whatever this device already has stored, since switching
+   * to the *other* band is exactly the case where this device may not already be admin on
+   * that workspace at all. */
+  activateWorkspaceHardware: (workspaceId: string, adminUsername: string, adminPassword: string) => Promise<boolean>
   /** Second step of the self-service join (2026-09-01 redesign) - resolves one workspace's
    * roster (names/roles only, no credentials) using its standing code, for JoinBandView.tsx to
    * render a "who are you" picker. `isAdmin` per member (2026-09-02 second follow-up) tells the
@@ -662,6 +672,44 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           console.error('Failed to parse workspace list', err)
           void useDialogStore.getState().alert('Bands konnten nicht geladen werden (unerwartete Server-Antwort).')
           return null
+        }
+      },
+      fetchActiveWorkspaceHardware: async () => {
+        const base = getStageServerUrl()
+        if (!base) return null
+
+        try {
+          const response = await fetch(`${base}/server/active-workspace`)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          return (await response.json()) as { activeWorkspaceId: string | null }
+        } catch (err) {
+          console.error('Failed to fetch active workspace hardware status', err)
+          return null
+        }
+      },
+      activateWorkspaceHardware: async (workspaceId, adminUsername, adminPassword) => {
+        const base = getStageServerUrl()
+        if (!base) return false
+
+        try {
+          const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/activate-hardware`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUsername, adminPassword }),
+          })
+          if (!response.ok) {
+            if (response.status === 403) {
+              void useDialogStore.getState().alert('Falscher Admin-Zugang für dieses Band - Aktivierung nicht möglich.')
+            } else {
+              void useDialogStore.getState().alert('Hardware konnte nicht aktiviert werden - Stage-Server nicht erreichbar oder Fehler.')
+            }
+            return false
+          }
+          return true
+        } catch (err) {
+          console.error('Failed to activate workspace hardware', err)
+          void useDialogStore.getState().alert('Hardware konnte nicht aktiviert werden - Stage-Server nicht erreichbar.')
+          return false
         }
       },
       fetchRoster: async (workspaceId, code) => {

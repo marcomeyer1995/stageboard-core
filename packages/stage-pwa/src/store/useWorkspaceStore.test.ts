@@ -745,6 +745,64 @@ describe('getAccessCode / rotateAccessCode (2026-09-01 WiFi-style redesign)', ()
   })
 })
 
+describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('fetchActiveWorkspaceHardware returns the active workspace id', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ activeWorkspaceId: 'band-a' }) })
+
+    const result = await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()
+
+    expect(result).toEqual({ activeWorkspaceId: 'band-a' })
+    expect(fetchMock.mock.calls[0][0]).toBe('https://stage-server:3001/server/active-workspace')
+  })
+
+  it('fetchActiveWorkspaceHardware returns null when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    expect(await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()).toBeNull()
+  })
+
+  it('activateWorkspaceHardware posts fresh admin credentials, not any locally stored ones', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+
+    expect(result).toBe(true)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-b/activate-hardware')
+    expect(JSON.parse(init.body)).toEqual({ adminUsername: 'stageboard-band-b-p1', adminPassword: 'fresh-pw' })
+  })
+
+  it('activateWorkspaceHardware alerts and returns false on a 403 (wrong admin credentials)', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'wrong-pw')
+
+    expect(result).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Admin-Zugang'))
+  })
+
+  it('activateWorkspaceHardware alerts and returns false when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+
+    expect(result).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
+  })
+})
+
 describe('listWorkspaces', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
