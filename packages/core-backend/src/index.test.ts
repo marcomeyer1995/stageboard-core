@@ -1940,6 +1940,15 @@ describe('Fastify routes', () => {
           }
           return { ok: false, status: 401 } as Response
         }
+        const roster = url.match(/\/stageboard-([^/]+)\/_all_docs\?/)
+        if (roster && bands[roster[1]]) {
+          const band = bands[roster[1]]
+          return json({
+            rows: Object.entries(band.roster).map(([profileId, isAdmin]) => ({
+              doc: { _id: `profiles:${profileId}`, id: profileId, name: `Name ${profileId}`, stageRoles: isAdmin ? ['admin'] : ['instrumentalist'] },
+            })),
+          })
+        }
         const match = url.match(/\/stageboard-([^/]+)\/(.+)$/)
         const band = match && bands[match[1]]
         if (!band) return notFound
@@ -2007,6 +2016,33 @@ describe('Fastify routes', () => {
 
       it('returns 400 for a malformed body', async () => {
         expect((await verify('band-a', { profileId: 'p1', pin: 'abcd' })).statusCode).toBe(400)
+      })
+    })
+
+    describe('GET /server/active-workspace/admins', () => {
+      it('is 404 when nothing is active', async () => {
+        const response = await app.inject({ method: 'GET', url: '/server/active-workspace/admins' })
+        expect(response.statusCode).toBe(404)
+      })
+
+      it('lists only the admins (id + name) of the band the server is serving, with no code', async () => {
+        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
+
+        const response = await app.inject({ method: 'GET', url: '/server/active-workspace/admins' })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toEqual({ workspaceId: 'band-a', admins: [{ profileId: 'p1', name: 'Name p1' }] })
+      })
+
+      it('follows the switch - after switching, it lists the new active band\'s admins, never the old one\'s', async () => {
+        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
+        await activate('band-b', { opening: { profileId: 'q1', pin: '4444' }, closing: { profileId: 'p1', pin: '4242' } })
+
+        const response = await app.inject({ method: 'GET', url: '/server/active-workspace/admins' })
+
+        expect(response.json()).toEqual({ workspaceId: 'band-b', admins: [{ profileId: 'q1', name: 'Name q1' }] })
       })
     })
 

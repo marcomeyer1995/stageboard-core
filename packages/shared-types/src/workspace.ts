@@ -193,6 +193,17 @@ export const ActiveWorkspaceStatusSchema = z.object({
 })
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
 
+/** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
+ * band this Stage-Server is *currently serving*, no band code needed: that band is already
+ * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
+ * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
+ * any other band's admins (those stay behind that band's code, `POST /workspaces/:id/roster`). */
+export const ActiveWorkspaceAdminsSchema = z.object({
+  workspaceId: z.string(),
+  admins: z.array(z.object({ profileId: z.string().min(1), name: z.string().min(1) })),
+})
+export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
+
 /** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
  * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never

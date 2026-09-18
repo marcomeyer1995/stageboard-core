@@ -1098,6 +1098,42 @@ describe('joinAsMember', () => {
   })
 })
 
+describe('fetchActiveWorkspaceAdmins', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('returns the active band\'s admins from the server, with no code', async () => {
+    const fetchMock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ workspaceId: 'band-a', admins: [{ profileId: 'p1', name: 'Marco' }] }),
+    })
+
+    expect(await useWorkspaceStore.getState().fetchActiveWorkspaceAdmins()).toEqual([{ profileId: 'p1', name: 'Marco' }])
+    expect(fetchMock.mock.calls[0][0]).toBe('https://stage-server:3001/server/active-workspace/admins')
+  })
+
+  it('returns null, without alerting, when nothing is active (404)', async () => {
+    stubFetch({ ok: false, status: 404 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().fetchActiveWorkspaceAdmins()).toBeNull()
+    expect(alertMock).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    expect(await useWorkspaceStore.getState().fetchActiveWorkspaceAdmins()).toBeNull()
+  })
+})
+
 describe('fetchServerInfo', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

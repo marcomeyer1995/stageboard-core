@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { WorkspaceRoster } from 'shared-types'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
+
+interface AdminOption {
+  profileId: string
+  name: string
+}
 
 export interface VerifiedAdmin {
   profileId: string
@@ -20,6 +24,9 @@ export interface VerifiedAdmin {
  *
  * - `knownProfileId` given (the closing band's current user on this device): only the PIN is asked,
  *   the name never - "Anderer Admin wählen" falls back to the picker below.
+ * - `loadAdmins` given (the band the server is currently serving): its admins are listed straight
+ *   from the server, no band code at all - that band is already registered on this box. Falls
+ *   back to the code-gated path below only if the loader comes back empty-handed.
  * - Otherwise: mirrors JoinBandView.tsx's code -> roster -> PIN sequence. The code is only asked
  *   when this device has no cached admin session for the workspace; with one, it's fetched
  *   silently (`getAccessCode`, admin-gated on this device's own stored credentials). Only roster
@@ -28,16 +35,22 @@ export interface VerifiedAdmin {
  * Content only - the wizard owns the modal frame, and mounts one instance per step (`key`), so
  * nothing here can inherit another band's leftover state.
  */
+function adminsOf(members: { profileId: string; name: string; isAdmin: boolean }[]): AdminOption[] {
+  return members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name }))
+}
+
 export function VerifyWorkspaceAdmin({
   workspaceId,
   workspaceName,
   knownProfileId,
+  loadAdmins,
   onVerified,
   onCancel,
 }: {
   workspaceId: string
   workspaceName: string
   knownProfileId?: string
+  loadAdmins?: () => Promise<AdminOption[] | null>
   onVerified: (admin: VerifiedAdmin) => void
   onCancel: () => void
 }) {
@@ -49,7 +62,7 @@ export function VerifyWorkspaceAdmin({
   const [step, setStep] = useState<Step>(knownProfileId ? 'pin' : 'checking')
   const [manualCode, setManualCode] = useState('')
   const [code, setCode] = useState<string | null>(null)
-  const [roster, setRoster] = useState<WorkspaceRoster | null>(null)
+  const [admins, setAdmins] = useState<AdminOption[]>([])
   const [pickedProfileId, setPickedProfileId] = useState<string | null>(knownProfileId ?? null)
   const [pinInput, setPinInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -57,13 +70,19 @@ export function VerifyWorkspaceAdmin({
   useEffect(() => {
     if (useKnownProfile) return
     async function identify() {
+      const loaded = loadAdmins ? await loadAdmins() : null
+      if (loaded) {
+        setAdmins(loaded)
+        setStep('roster')
+        return
+      }
       const local = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
       if (local?.isAdmin && local.couchPassword && local.username) {
         const accessCode = await getAccessCode(workspaceId)
         const fetchedRoster = accessCode ? await fetchRoster(workspaceId, accessCode.code) : null
         if (accessCode && fetchedRoster) {
           setCode(accessCode.code)
-          setRoster(fetchedRoster)
+          setAdmins(adminsOf(fetchedRoster.members))
           setStep('roster')
           return
         }
@@ -82,7 +101,7 @@ export function VerifyWorkspaceAdmin({
     setBusy(false)
     if (result) {
       setCode(manualCode.trim())
-      setRoster(result)
+      setAdmins(adminsOf(result.members))
       setStep('roster')
     }
   }
@@ -98,8 +117,6 @@ export function VerifyWorkspaceAdmin({
     }
     setPinInput('')
   }
-
-  const admins = roster?.members.filter((m) => m.isAdmin) ?? []
 
   return (
     <div className="space-y-4">

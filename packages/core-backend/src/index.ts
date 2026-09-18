@@ -1114,6 +1114,23 @@ export async function buildApp() {
     reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
   )
 
+  // The admins of the band this box is currently serving - so the hardware-switch wizard can show
+  // whose PIN closes it without asking for that band's code (it's already registered here; the
+  // code exists to gate *joining*, not to gate stopping what the box itself is running). Only
+  // names and ids, only for the active band: no workspace parameter, so it can't enumerate any
+  // other band's roster. A PIN is still required to do anything with them (verify-admin-pin).
+  app.get('/server/active-workspace/admins', async (_request, reply) => {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId) {
+      return reply.status(404).send({ status: 'error', message: 'No workspace is active on this server' })
+    }
+    const members = await readRoster(couch, workspaceId)
+    return reply.status(200).send({
+      workspaceId,
+      admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })),
+    })
+  })
+
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and CouchDB onto this one origin, so a new device only ever has to accept one self-signed
   // certificate exception - browsers trust per *origin* (scheme+host+port), not per-certificate,

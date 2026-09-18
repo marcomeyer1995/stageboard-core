@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
+import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
@@ -159,6 +159,11 @@ interface WorkspaceState {
    * "collapse not-configured and unreachable into one null" shape as every other fetch* action
    * here (useStageServerStatus.ts is what turns that into a displayed reachability state). */
   fetchServerInfo: () => Promise<ServerInfo | null>
+  /** The admins (id + name) of the band this Stage-Server is currently serving, with no band code
+   * (`GET /server/active-workspace/admins`) - what lets the hardware-switch wizard show whose PIN
+   * closes that band. `null` on any failure, including nothing being active; the caller falls
+   * back to the code-gated roster. Silent (no alert): a failure just means "ask for the code". */
+  fetchActiveWorkspaceAdmins: () => Promise<ActiveWorkspaceAdmins['admins'] | null>
   /** `POST /workspaces/:id/verify-admin-pin` - stateless "is this roster admin + PIN valid for
    * that workspace" (own PIN or the band code's last 4 digits). Lets the hardware-switch wizard
    * reject a wrong PIN at the step it was typed. Alerts on failure, like the other actions here. */
@@ -705,6 +710,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return (await response.json()) as ServerInfo
         } catch (err) {
           console.error('Failed to fetch server info', err)
+          return null
+        }
+      },
+      fetchActiveWorkspaceAdmins: async () => {
+        const base = getStageServerUrl()
+        if (!base) return null
+
+        try {
+          const response = await fetch(`${base}/server/active-workspace/admins`)
+          if (!response.ok) return null
+          return ((await response.json()) as ActiveWorkspaceAdmins).admins
+        } catch (err) {
+          console.error('Failed to fetch active workspace admins', err)
           return null
         }
       },

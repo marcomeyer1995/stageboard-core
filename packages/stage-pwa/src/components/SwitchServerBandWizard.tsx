@@ -14,7 +14,8 @@ type Step = 'closing' | 'pick-band' | 'target' | 'committing'
  * 2. Only when some band is currently active: confirm the PIN of its admin. The name is never
  *    asked - it's this device's own current profile in that band (only an admin has one that
  *    passes) - and a wrong PIN ends the wizard's progress right here. A device with no admin
- *    session in that band falls back to picking an admin (VerifyWorkspaceAdmin's own picker).
+ *    session in that band picks one of that band's admins instead, listed by the server itself
+ *    with no band code - it's the band this box is already running.
  * 3. Pick the target from every band the server hosts.
  * 4. The target's band code - only when this device has no cached admin session for it.
  * 5. The target's admins, 6. the chosen admin's PIN (own, or the universal recovery code).
@@ -36,6 +37,7 @@ export function SwitchServerBandWizard({
   const activateWorkspaceHardware = useWorkspaceStore((state) => state.activateWorkspaceHardware)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
+  const fetchActiveWorkspaceAdmins = useWorkspaceStore((state) => state.fetchActiveWorkspaceAdmins)
   const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
 
@@ -84,6 +86,7 @@ export function SwitchServerBandWizard({
             workspaceId={closingBand.workspaceId}
             workspaceName={closingBand.workspaceName}
             knownProfileId={closingKnownProfileId()}
+            loadAdmins={fetchActiveWorkspaceAdmins}
             onVerified={(admin) => {
               setClosing({ profileId: admin.profileId, pin: admin.pin })
               setStep('pick-band')

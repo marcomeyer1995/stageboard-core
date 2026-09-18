@@ -36,6 +36,7 @@ const activateProfile = vi.fn()
 const joinAsMember = vi.fn()
 const getAccessCode = vi.fn()
 const fetchRoster = vi.fn()
+const fetchActiveWorkspaceAdmins = vi.fn()
 
 function enterPin(value: string) {
   fireEvent.change(screen.getByPlaceholderText('4-stelliger PIN'), { target: { value } })
@@ -53,6 +54,8 @@ beforeEach(() => {
   joinAsMember.mockReset().mockResolvedValue({ id: 'x' })
   getAccessCode.mockReset().mockResolvedValue({ code: '11112222' })
   fetchRoster.mockReset().mockImplementation(async (id: string) => rosterFor(id))
+  // The server's code-free list of the *active* band's admins (band-a in these tests).
+  fetchActiveWorkspaceAdmins.mockReset().mockResolvedValue([{ profileId: 'band-a-admin', name: 'Admin band-a' }])
   useWorkspaceStore.setState({
     // This device holds an admin session in Abadschendaler (the active band) - not in SOAT.
     workspaces: [cachedAdmin('band-a')],
@@ -63,6 +66,7 @@ beforeEach(() => {
     joinAsMember,
     getAccessCode,
     fetchRoster,
+    fetchActiveWorkspaceAdmins,
   })
   useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'band-a-admin' } })
 })
@@ -106,19 +110,31 @@ describe('SwitchServerBandWizard', () => {
       expect(activateWorkspaceHardware).not.toHaveBeenCalled()
     })
 
-    it('with no admin session in the active band, falls back to code -> admin list -> PIN', async () => {
+    it('with no admin session in the active band, lists that band\'s admins straight from the server - no band code - then asks that admin\'s PIN', async () => {
       useWorkspaceStore.setState({ workspaces: [] })
+      render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
+
+      await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
+      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('Admin band-a'))
+      enterPin('1111')
+
+      await waitFor(() => expect(screen.getByText('Zu welcher Band wechseln?')).toBeInTheDocument())
+      expect(verifyAdminPin).toHaveBeenCalledWith('band-a', 'band-a-admin', '1111')
+      // The band is already registered on the server: its code was never needed.
+      expect(getAccessCode).not.toHaveBeenCalled()
+      expect(fetchRoster).not.toHaveBeenCalled()
+    })
+
+    it('only falls back to the band code when the server can\'t list the active band\'s admins', async () => {
+      useWorkspaceStore.setState({ workspaces: [] })
+      fetchActiveWorkspaceAdmins.mockResolvedValue(null)
       render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       await waitFor(() => expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument())
       enterCode('11112222')
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
       expect(screen.queryByText('Member band-a')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByText('Admin band-a'))
-      enterPin('1111')
-
-      await waitFor(() => expect(screen.getByText('Zu welcher Band wechseln?')).toBeInTheDocument())
-      expect(verifyAdminPin).toHaveBeenCalledWith('band-a', 'band-a-admin', '1111')
     })
 
     it('"Anderer Admin wählen" leaves the known profile for the admin picker', async () => {
@@ -127,6 +143,7 @@ describe('SwitchServerBandWizard', () => {
       fireEvent.click(screen.getByText('Anderer Admin wählen'))
 
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
+      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
     })
   })
 
