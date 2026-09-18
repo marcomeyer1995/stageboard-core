@@ -32,6 +32,13 @@ beforeEach(() => {
   useWorkspaceStore.setState({
     workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'admin-pw', username: 'stageboard-band-a-p1', isAdmin: true }],
     activeWorkspaceId: 'band-a',
+    // useStageServerStatus.ts fires all three on every mount (the new "Stage-Server" row) -
+    // same "every test needs some stub for it" reasoning as JoinBandView.test.tsx's default
+    // for listWorkspaces(); a test that doesn't care about this row gets a deterministic
+    // "unreachable" state instead of a stray real fetch.
+    listWorkspaces: vi.fn().mockResolvedValue(null),
+    fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
+    fetchServerInfo: vi.fn().mockResolvedValue(null),
   })
   useDevicesStore.setState({
     devices: [{ id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: Date.now() - 100_000, revoked: false }],
@@ -142,5 +149,38 @@ describe('DeviceLedgerView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
 
     await waitFor(() => expect(alert).toHaveBeenCalled())
+  })
+
+  describe('Stage-Server row', () => {
+    it('shows "keine Verbindung" while unreachable', async () => {
+      render(<DeviceLedgerView />)
+      await waitFor(() => expect(screen.getByText('Keine Verbindung zum Stage-Server.')).toBeInTheDocument())
+    })
+
+    it('shows IP, hostname, and the active band once reachable', async () => {
+      useWorkspaceStore.setState({
+        listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'band-a', workspaceName: 'Band A' }]),
+        fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
+        fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
+      })
+
+      render(<DeviceLedgerView />)
+
+      await waitFor(() => expect(screen.getByText(/IP 192\.168\.1\.50/)).toBeInTheDocument())
+      expect(screen.getByText('stageboard.local', { exact: false })).toBeInTheDocument()
+      expect(screen.getByText('Aktives Band: Band A')).toBeInTheDocument()
+    })
+
+    it('shows "keine" for the active band when reachable but nothing has been activated yet', async () => {
+      useWorkspaceStore.setState({
+        listWorkspaces: vi.fn().mockResolvedValue([]),
+        fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }),
+        fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
+      })
+
+      render(<DeviceLedgerView />)
+
+      await waitFor(() => expect(screen.getByText('Aktives Band: keine')).toBeInTheDocument())
+    })
   })
 })

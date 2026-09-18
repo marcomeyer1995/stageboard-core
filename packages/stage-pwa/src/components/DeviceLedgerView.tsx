@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { DEVICE_INFO_TIMEOUT_MS, type Device } from 'shared-types'
 import { useNow } from '../lib/useNow'
+import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -59,6 +60,7 @@ export function DeviceLedgerView() {
   }, [activeWorkspaceId])
   const alert = useDialogStore((state) => state.alert)
   const now = useNow()
+  const stageServer = useStageServerStatus()
 
   async function toggleRevoked(device: Device) {
     const nextRevoked = !device.revoked
@@ -83,6 +85,35 @@ export function DeviceLedgerView() {
         sind zwei unabhängige Signale - ein Gerät kann im Netzwerk erreichbar sein, ohne dass die
         App gerade läuft, oder umgekehrt gerade das Netzwerk gewechselt haben.
       </p>
+
+      {/* The Stage-Server itself, not a roster `Device` (it never joins a band, it hosts one) -
+          its own row, same visual language as the tablets below, so "is anything down" reads
+          the same way for the box everything else here depends on. */}
+      <div className="mb-2 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <p className="font-semibold">Stage-Server</p>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
+          <span className="flex items-center gap-1.5">
+            <StatusDot on={stageServer.status === 'loading' ? null : stageServer.status === 'reachable'} title="Netzwerk erreichbar" />
+            Netzwerk erreichbar
+          </span>
+          {stageServer.status === 'reachable' ? (
+            <>
+              <span>
+                IP {stageServer.lanIp}
+                {stageServer.hostname && <span className="text-ink-faint"> ({stageServer.hostname})</span>}
+              </span>
+              <span>Stage-Server</span>
+              <span>Aktives Band: {stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? 'keine'}</span>
+            </>
+          ) : (
+            <span className="text-ink-faint">{stageServer.status === 'loading' ? 'Lade…' : 'Keine Verbindung zum Stage-Server.'}</span>
+          )}
+        </div>
+      </div>
 
       {sorted.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte registriert.</p>}
 
