@@ -1934,7 +1934,7 @@ describe('Fastify routes', () => {
       expect(response.json()).toEqual({ activeWorkspaceId: null })
     })
 
-    it('activates the workspace when the caller verifies as that workspace\'s admin', async () => {
+    it('activates the workspace (first activation, nothing to close) when the caller verifies as that workspace\'s admin', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
       ])
@@ -1942,7 +1942,7 @@ describe('Fastify routes', () => {
       const activate = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/activate-hardware',
-        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
       })
       expect(activate.statusCode).toBe(200)
 
@@ -1956,7 +1956,24 @@ describe('Fastify routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/activate-hardware',
-        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'wrong-pw' },
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 403 for a real admin whose username belongs to a different workspace (the flat "admin" role isn\'t enough on its own)', async () => {
+      // A genuine admin - just of band-b, not band-a. verifyUser would happily verify these
+      // credentials (same literal 'admin' role string every workspace's admin gets), so the
+      // username-prefix check has to be what actually rejects this, not verifyAdmin() alone.
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -1967,26 +1984,87 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(400)
     })
 
-    it('activating a second workspace leaves no trace of the first one\'s plugins in GET /plugins', async () => {
+    it('returns 400 when switching away from a currently active workspace without closing credentials', async () => {
       stubFetch([
         { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
       ])
       await app.inject({
         method: 'POST',
         url: '/workspaces/band-a/activate-hardware',
-        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('returns 403 when the closing credentials don\'t verify as the currently active workspace\'s admin', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+        { ok: false, status: 401 },
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: {
+          openingAdminUsername: 'stageboard-band-b-p1',
+          openingAdminPassword: 'correct-pw',
+          closingAdminUsername: 'stageboard-band-a-p1',
+          closingAdminPassword: 'wrong-pw',
+        },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('activating a second workspace with both admin proofs leaves no trace of the first one\'s plugins in GET /plugins', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
       })
       await registry.register(fakeShowControlPlugin(), testContext())
       expect(await (await app.inject({ method: 'GET', url: '/plugins' })).json()).toHaveLength(1)
 
       stubFetch([
         { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
       ])
-      await app.inject({
+      const activate = await app.inject({
         method: 'POST',
         url: '/workspaces/band-b/activate-hardware',
-        payload: { adminUsername: 'stageboard-band-b-p1', adminPassword: 'correct-pw' },
+        payload: {
+          openingAdminUsername: 'stageboard-band-b-p1',
+          openingAdminPassword: 'correct-pw',
+          closingAdminUsername: 'stageboard-band-a-p1',
+          closingAdminPassword: 'correct-pw',
+        },
       })
+      expect(activate.statusCode).toBe(200)
 
       const plugins = await app.inject({ method: 'GET', url: '/plugins' })
       expect(plugins.json()).toEqual([])

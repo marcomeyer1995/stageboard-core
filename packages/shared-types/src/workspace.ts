@@ -155,8 +155,21 @@ export type RotateAccessCodeRequest = z.infer<typeof RotateAccessCodeRequestSche
  * serve this workspace (admin-only). Activating always deactivates whichever workspace was
  * previously active on this box first - the two subsystems this gates are inherently tied to
  * physically local gear, so exactly one workspace's hardware ever runs on a given Stage-Server
- * at a time, never two concurrently (see workspaceHardwareController.ts). */
-export const ActivateWorkspaceHardwareRequestSchema = AdminProofSchema
+ * at a time, never two concurrently (see workspaceHardwareController.ts).
+ *
+ * Two separate admin proofs, not one, because they guard two different mistakes: the *opening*
+ * proof (always required) is this workspace's own admin, proving the caller has a legitimate
+ * claim to the band it's switching *to*. The *closing* proof (required only when some other
+ * workspace is currently active on this box) is that *other*, currently-live workspace's own
+ * admin - without it, anyone who merely knows the opening band's password could silently
+ * interrupt whatever band is actually live on stage right now, with no relationship to it at
+ * all. When nothing is active yet (a fresh box), there's nothing to close, so it's omitted. */
+export const ActivateWorkspaceHardwareRequestSchema = z.object({
+  openingAdminUsername: z.string().min(1),
+  openingAdminPassword: z.string().min(1),
+  closingAdminUsername: z.string().min(1).optional(),
+  closingAdminPassword: z.string().min(1).optional(),
+})
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
 /** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific

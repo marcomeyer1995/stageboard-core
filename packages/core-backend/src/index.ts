@@ -1028,8 +1028,37 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    // Opening proof: the caller must be an admin of the workspace being activated. The
+    // username-prefix check matters just as much as verifyAdmin() itself here - 'admin' is the
+    // same flat CouchDB role string every workspace's admin gets, so verifyAdmin() alone would
+    // accept *any* workspace's real admin credentials, not specifically this one's (same
+    // "checked by username prefix" reasoning as /members/:profileId/activate above).
+    if (
+      !parsed.data.openingAdminUsername.startsWith(`${workspaceDbName(workspaceId)}-`) ||
+      !(await verifyAdmin(couch, parsed.data.openingAdminUsername, parsed.data.openingAdminPassword))
+    ) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    // Closing proof: only required when some *other* workspace is currently active on this
+    // box - proves the caller is allowed to interrupt whatever's actually live right now, not
+    // just that they're an admin of wherever they're switching to. Without this, anyone who
+    // merely knows the *opening* band's password could silently kill a different band's live
+    // show, with no relationship to it at all.
+    const currentlyActive = workspaceHardware.getActiveWorkspaceId()
+    if (currentlyActive && currentlyActive !== workspaceId) {
+      if (!parsed.data.closingAdminUsername || !parsed.data.closingAdminPassword) {
+        return reply.status(400).send({
+          status: 'error',
+          message: `Admin credentials for the currently active workspace (${currentlyActive}) are required to switch away from it`,
+        })
+      }
+      if (
+        !parsed.data.closingAdminUsername.startsWith(`${workspaceDbName(currentlyActive)}-`) ||
+        !(await verifyAdmin(couch, parsed.data.closingAdminUsername, parsed.data.closingAdminPassword))
+      ) {
+        return reply.status(403).send({ status: 'error', message: 'Not the currently active workspace\'s admin' })
+      }
     }
 
     await workspaceHardware.activate(workspaceId)
