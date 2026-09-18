@@ -113,7 +113,13 @@ export function WorkspaceHardwareSettings() {
       )}
 
       {pendingDialog && (
+        // `key` matters: the closing dialog resolving and the opening one starting can batch
+        // into one render, in which case React would reuse the same instance for both - and its
+        // leftover state (which resolution path applies, the previous band's code/roster/picked
+        // admin) silently made the second PIN step call activateProfile against a workspace this
+        // device has no cached credentials for, sending nothing and showing no error.
         <ResolveWorkspaceAdminDialog
+          key={pendingDialog.workspaceId}
           workspaceId={pendingDialog.workspaceId}
           workspaceName={pendingDialog.workspaceName}
           onResolved={(credentials) => resolveDialogRef.current?.(credentials)}
