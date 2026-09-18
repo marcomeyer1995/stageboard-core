@@ -11,6 +11,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useStageServerStatus, STATUS_TIMEOUT_MS } = await import('./useStageServerStatus')
+const { setStageServerDebugEnabled, getStageServerLogLines } = await import('./stageServerDebug')
 
 const bands = [
   { workspaceId: 'band-a', workspaceName: 'Abadschendaler' },
@@ -34,8 +35,14 @@ function stub(overrides: Partial<Parameters<typeof useWorkspaceStore.setState>[0
   })
 }
 
-beforeEach(() => stub())
-afterEach(() => vi.useRealTimers())
+beforeEach(() => {
+  stub()
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+})
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('useStageServerStatus', () => {
   it('starts as loading, then reports everything once answered', async () => {
@@ -175,6 +182,56 @@ describe('useStageServerStatus', () => {
     const third = renderHook(() => useStageServerStatus())
     expect(third.result.current.status).toBe('loading')
     expect(third.result.current.workspaces).toBeNull()
+  })
+
+  describe('timing log (sb:debug:stageServer)', () => {
+    it('records nothing while switched off', async () => {
+      const { result } = renderHook(() => useStageServerStatus())
+      await waitFor(() => expect(result.current.refreshing).toBe(false))
+
+      expect(getStageServerLogLines()).toEqual([])
+    })
+
+    it('when on, logs the reload and how long each of the three requests took', async () => {
+      setStageServerDebugEnabled(true)
+      const { result } = renderHook(() => useStageServerStatus())
+      await waitFor(() => expect(result.current.refreshing).toBe(false))
+
+      const text = getStageServerLogLines().map((l) => l.text).join('\n')
+      expect(text).toContain('reload start')
+      expect(text).toMatch(/listWorkspaces ok \d+ms total/)
+      expect(text).toMatch(/fetchActiveWorkspaceHardware ok \d+ms total/)
+      expect(text).toMatch(/fetchServerInfo ok \d+ms total/)
+      expect(text).toContain('reload done')
+      expect(text).toContain('3/3 answered')
+    })
+
+    it('marks a request that came back empty as FAILED', async () => {
+      setStageServerDebugEnabled(true)
+      stub({ fetchServerInfo: vi.fn().mockResolvedValue(null) })
+      const { result } = renderHook(() => useStageServerStatus())
+      await waitFor(() => expect(result.current.refreshing).toBe(false))
+
+      expect(getStageServerLogLines().map((l) => l.text).join('\n')).toMatch(/fetchServerInfo FAILED/)
+    })
+
+    it('logs when the timeout fires', async () => {
+      vi.useFakeTimers()
+      setStageServerDebugEnabled(true)
+      const never = () => new Promise<never>(() => {})
+      stub({
+        listWorkspaces: vi.fn().mockImplementation(never),
+        fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
+        fetchServerInfo: vi.fn().mockImplementation(never),
+      })
+      renderHook(() => useStageServerStatus())
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STATUS_TIMEOUT_MS + 100)
+      })
+
+      expect(getStageServerLogLines().map((l) => l.text).join('\n')).toContain('nothing answered')
+    })
   })
 
   it('reload() resolves only once all three requests have settled', async () => {

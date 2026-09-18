@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
+import { StageServerDiagnostics } from './StageServerDiagnostics'
 import { SwitchServerBandWizard } from './SwitchServerBandWizard'
 
 /**
@@ -34,6 +35,8 @@ export function WorkspaceHardwareSettings() {
       >
         Band wechseln…
       </button>
+
+      <StageServerDiagnostics reload={reload} />
 
       {wizardOpen && workspaces && (
         <SwitchServerBandWizard

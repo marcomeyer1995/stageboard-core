@@ -64,6 +64,12 @@ describe('WorkspaceHardwareSettings', () => {
     expect(screen.getByText(/aktualisiere…/)).toBeInTheDocument()
   })
 
+  it('offers the on-device Diagnose section', async () => {
+    render(<WorkspaceHardwareSettings />)
+
+    expect(screen.getByText('Diagnose')).toBeInTheDocument()
+  })
+
   it('shows "keine" when nothing has been activated on the server yet', async () => {
     stub({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
     render(<WorkspaceHardwareSettings />)
