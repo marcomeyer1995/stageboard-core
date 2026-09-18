@@ -10,7 +10,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { useStageServerStatus, STATUS_TIMEOUT_MS } = await import('./useStageServerStatus')
+const { useStageServerStatus, STATUS_SLOW_AFTER_MS } = await import('./useStageServerStatus')
 const { setStageServerDebugEnabled, getStageServerLogLines } = await import('./stageServerDebug')
 
 const bands = [
@@ -102,7 +102,7 @@ describe('useStageServerStatus', () => {
     expect(result.current.activeWorkspaceName).toBeNull()
   })
 
-  it('found live (30s of "Lade…"): with requests that never come back, says "unreachable" after the timeout instead of loading forever - and a late answer still wins', async () => {
+  it('found live (30s of "Lade…", answers stuck behind audio downloads): with no answer after the delay it is flagged slow - NOT unreachable - and a late answer still wins', async () => {
     vi.useFakeTimers()
     const never = () => new Promise<never>(() => {})
     const lateActive = deferred<{ activeWorkspaceId: string | null }>()
@@ -113,21 +113,46 @@ describe('useStageServerStatus', () => {
     })
 
     const { result } = renderHook(() => useStageServerStatus())
-    expect(result.current.status).toBe('loading')
+    expect(result.current.slow).toBe(false)
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(STATUS_TIMEOUT_MS - 100)
+      await vi.advanceTimersByTimeAsync(STATUS_SLOW_AFTER_MS - 100)
     })
-    expect(result.current.status).toBe('loading')
+    expect(result.current.slow).toBe(false)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(200)
     })
-    expect(result.current.status).toBe('unreachable')
+    // Late is not failed: still loading, just flagged - never "unreachable" while it may yet answer.
+    expect(result.current.slow).toBe(true)
+    expect(result.current.status).toBe('loading')
 
     await act(async () => lateActive.resolve({ activeWorkspaceId: 'band-b' }))
     expect(result.current.status).toBe('reachable')
+    expect(result.current.slow).toBe(false)
     expect(result.current.activeWorkspaceId).toBe('band-b')
+  })
+
+  it('with a last known status on screen, a slow refresh keeps showing it (flagged slow) instead of blanking it', async () => {
+    const first = renderHook(() => useStageServerStatus())
+    await waitFor(() => expect(first.result.current.refreshing).toBe(false))
+    first.unmount()
+
+    vi.useFakeTimers()
+    const hang = () => new Promise<never>(() => {})
+    stub({
+      listWorkspaces: vi.fn().mockImplementation(hang),
+      fetchActiveWorkspaceHardware: vi.fn().mockImplementation(hang),
+      fetchServerInfo: vi.fn().mockImplementation(hang),
+    })
+    const second = renderHook(() => useStageServerStatus())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STATUS_SLOW_AFTER_MS + 100)
+    })
+
+    expect(second.result.current.slow).toBe(true)
+    expect(second.result.current.status).toBe('reachable')
+    expect(second.result.current.activeWorkspaceName).toBe('Abadschendaler')
   })
 
   it('a second screen shows the last known status instantly, marked as refreshing, while re-checking', async () => {
@@ -227,7 +252,7 @@ describe('useStageServerStatus', () => {
       renderHook(() => useStageServerStatus())
 
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(STATUS_TIMEOUT_MS + 100)
+        await vi.advanceTimersByTimeAsync(STATUS_SLOW_AFTER_MS + 100)
       })
 
       expect(getStageServerLogLines().map((l) => l.text).join('\n')).toContain('nothing answered')

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -68,6 +68,26 @@ describe('WorkspaceHardwareSettings', () => {
     render(<WorkspaceHardwareSettings />)
 
     expect(screen.getByText('Diagnose')).toBeInTheDocument()
+  })
+
+  it('says the server is slow to answer - not unreachable - when nothing has come back after a while', async () => {
+    vi.useFakeTimers()
+    const never = () => new Promise<never>(() => {})
+    stub({
+      listWorkspaces: vi.fn().mockImplementation(never),
+      fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
+      fetchServerInfo: vi.fn().mockImplementation(never),
+    })
+    render(<WorkspaceHardwareSettings />)
+    expect(screen.getByText('Lade…')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8100)
+    })
+
+    expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
+    expect(screen.queryByText('Stage-Server nicht erreichbar.')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('shows "keine" when nothing has been activated on the server yet', async () => {

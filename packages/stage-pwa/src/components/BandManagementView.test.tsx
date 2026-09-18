@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // useProfilesStore transitively imports workspaceDb.ts, which constructs a real PouchDB at
@@ -74,6 +74,25 @@ describe('BandManagementView "Hardware auf diesem Server" indicator', () => {
     render(<BandManagementView />)
     await Promise.resolve()
     expect(screen.queryByText(/Hardware auf diesem Server aktiv für/)).not.toBeInTheDocument()
+  })
+
+  it('says the server is slow to answer, not unreachable, while its requests are merely late', async () => {
+    vi.useFakeTimers()
+    const never = () => new Promise<never>(() => {})
+    useWorkspaceStore.setState({
+      listWorkspaces: vi.fn().mockImplementation(never),
+      fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
+      fetchServerInfo: vi.fn().mockImplementation(never),
+    })
+    render(<BandManagementView />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8100)
+    })
+
+    expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
+    expect(screen.queryByText('Stage-Server nicht erreichbar.')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('shows the currently active band\'s name, resolved from the server-wide workspace list even when this device hasn\'t joined it locally', async () => {

@@ -12,9 +12,9 @@ import {
 
 export type StageServerReachability = 'loading' | 'reachable' | 'unreachable'
 
-/** How long the hook shows "loading" with nothing at all to show before it says "nicht
- * erreichbar". Nothing is aborted: an answer that arrives later still flips it back. */
-export const STATUS_TIMEOUT_MS = 8000
+/** How long the hook waits with no answer at all before it flags the status as `slow`. Not a
+ * failure and nothing is aborted: an answer that arrives later still just shows up. */
+export const STATUS_SLOW_AFTER_MS = 8000
 
 const EMPTY: StageServerSnapshot = { lanIp: null, hostname: null, workspaces: null, activeWorkspaceId: null }
 
@@ -85,12 +85,15 @@ async function timed<T>(name: string, path: string, run: () => Promise<T>): Prom
  * conflate), and DeviceLedgerView.tsx's "this is the Stage-Server itself" row.
  *
  * Built so a slow answer never leaves the screen on a bare "Lade…" (found live: 30+ seconds in
- * Settings, with the server itself answering in milliseconds):
+ * Settings, with the server itself answering in milliseconds - its answers were stuck behind the
+ * app's own audio downloads on the same connection, audioStorageManager.ts):
  * - The last answer this page got (stageServerStatusCache.ts) is shown instantly, `refreshing`
  *   marking that it's being re-checked.
  * - The three requests are applied one by one as they arrive, not held until the slowest is in.
- * - With nothing at all after STATUS_TIMEOUT_MS the status becomes `'unreachable'` - but nothing
- *   is aborted, so a late answer still turns it back into `'reachable'`.
+ * - With no answer at all after STATUS_SLOW_AFTER_MS, `slow` is set - and that is all: a slow
+ *   answer is not an unreachable server (an earlier version said "nicht erreichbar" here while the
+ *   server was fine and merely congested), and nothing is aborted, so the answer still shows up.
+ *   `'unreachable'` is only for when the requests actually *fail*.
  *
  * `status` is `'reachable'` as soon as *any* request got an answer - a server that's up but has
  * never had a workspace activated on it is still reachable, just with `activeWorkspaceId: null`.
@@ -108,6 +111,7 @@ export function useStageServerStatus() {
   const [snapshot, setSnapshot] = useState<StageServerSnapshot>(cached ?? EMPTY)
   const [status, setStatus] = useState<StageServerReachability>(cached ? 'reachable' : 'loading')
   const [refreshing, setRefreshing] = useState(false)
+  const [slow, setSlow] = useState(false)
   const runRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const unmountedRef = useRef(false)
@@ -127,20 +131,21 @@ export function useStageServerStatus() {
     }
     const finishLongTaskProbe = startLongTaskProbe()
     setRefreshing(true)
+    setSlow(false)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       if (current() && answered === 0) {
-        stageServerLog(`nothing answered after ${STATUS_TIMEOUT_MS}ms - showing "unreachable"`)
-        clearLastKnownStageServer()
-        setStatus('unreachable')
+        stageServerLog(`nothing answered after ${STATUS_SLOW_AFTER_MS}ms - flagged as slow (still waiting, not failed)`)
+        setSlow(true)
       }
-    }, STATUS_TIMEOUT_MS)
+    }, STATUS_SLOW_AFTER_MS)
 
     function applyAnswer(patch: Partial<StageServerSnapshot>) {
       if (!current()) return
       answered += 1
       setSnapshot(updateLastKnownStageServer(patch))
       setStatus('reachable')
+      setSlow(false)
     }
 
     await Promise.all([
@@ -159,6 +164,7 @@ export function useStageServerStatus() {
     stageServerLog(`reload done in ${Math.round(performance.now() - startedAt)}ms`, `${answered}/3 answered`, finishLongTaskProbe())
     if (!current()) return
     setRefreshing(false)
+    setSlow(false)
     if (answered === 0) {
       clearLastKnownStageServer()
       setStatus('unreachable')
@@ -181,6 +187,7 @@ export function useStageServerStatus() {
   return {
     status,
     refreshing,
+    slow,
     lanIp: snapshot.lanIp,
     hostname: snapshot.hostname,
     workspaces: snapshot.workspaces,

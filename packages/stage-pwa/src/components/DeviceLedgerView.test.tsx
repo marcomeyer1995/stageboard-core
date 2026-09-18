@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // useWorkspaceStore.ts (transitively, via useDevicesStore.ts's revoke()) imports
@@ -155,6 +155,25 @@ describe('DeviceLedgerView', () => {
     it('shows "keine Verbindung" while unreachable', async () => {
       render(<DeviceLedgerView />)
       await waitFor(() => expect(screen.getByText('Keine Verbindung zum Stage-Server.')).toBeInTheDocument())
+    })
+
+    it('says the server is slow to answer, not that the connection is gone, while requests are merely late', async () => {
+      vi.useFakeTimers()
+      const never = () => new Promise<never>(() => {})
+      useWorkspaceStore.setState({
+        listWorkspaces: vi.fn().mockImplementation(never),
+        fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
+        fetchServerInfo: vi.fn().mockImplementation(never),
+      })
+      render(<DeviceLedgerView />)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(8100)
+      })
+
+      expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
+      expect(screen.queryByText('Keine Verbindung zum Stage-Server.')).not.toBeInTheDocument()
+      vi.useRealTimers()
     })
 
     it('shows IP, hostname, and the active band once reachable', async () => {
