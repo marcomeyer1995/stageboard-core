@@ -1919,13 +1919,49 @@ describe('Fastify routes', () => {
     })
   })
 
-  describe('POST /workspaces/:workspaceId/activate-hardware and GET /server/active-workspace', () => {
-    function stubFetch(responses: Array<Partial<Response>>) {
-      const fetchMock = vi.fn()
-      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+  describe('verify-admin-pin, activate-hardware and GET /server/active-workspace', () => {
+    /** Routes CouchDB calls by URL instead of by call order, so these tests don't depend on how
+     * many round trips verifyAdminPin happens to make. `bands` maps a workspace id to its roster
+     * (profileId -> isAdmin), its access code, and optionally each admin's own PIN. */
+    function stubCouch(bands: Record<string, { roster: Record<string, boolean>; code: string; pins?: Record<string, string> }>) {
+      const fetchMock = vi.fn(async (input: string | URL, init?: { headers?: Record<string, string> }) => {
+        const url = String(input)
+        const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+        const notFound = { ok: false, status: 404 } as Response
+
+        if (url.endsWith('/_session')) {
+          const [user, pass] = Buffer.from((init?.headers?.Authorization ?? '').replace('Basic ', ''), 'base64').toString().split(':')
+          for (const [id, band] of Object.entries(bands)) {
+            for (const [profileId, pin] of Object.entries(band.pins ?? {})) {
+              if (user === `stageboard-${id}-${profileId}` && pass === pin) {
+                return json({ ok: true, userCtx: { name: user, roles: ['member', 'admin'] } })
+              }
+            }
+          }
+          return { ok: false, status: 401 } as Response
+        }
+        const match = url.match(/\/stageboard-([^/]+)\/(.+)$/)
+        const band = match && bands[match[1]]
+        if (!band) return notFound
+        const doc = decodeURIComponent(match[2])
+        if (doc === 'workspace:access') return json({ _id: doc, code: band.code, name: 'Band' })
+        if (doc.startsWith('profiles:')) {
+          const profileId = doc.slice('profiles:'.length)
+          return profileId in band.roster
+            ? json({ _id: doc, id: profileId, stageRoles: band.roster[profileId] ? ['admin'] : ['instrumentalist'] })
+            : notFound
+        }
+        return notFound
+      })
       vi.stubGlobal('fetch', fetchMock)
       return fetchMock
     }
+
+    const bandA = { roster: { p1: true, p2: false }, code: '11112222', pins: { p1: '4242' } }
+    const bandB = { roster: { q1: true }, code: '33334444' }
+
+    const activate = (workspaceId: string, payload: unknown) =>
+      app.inject({ method: 'POST', url: `/workspaces/${workspaceId}/activate-hardware`, payload: payload as never })
 
     let stateDir: string
 
@@ -1940,149 +1976,113 @@ describe('Fastify routes', () => {
       rmSync(stateDir, { recursive: true, force: true })
     })
 
+    describe('POST /workspaces/:workspaceId/verify-admin-pin', () => {
+      const verify = (workspaceId: string, payload: unknown) =>
+        app.inject({ method: 'POST', url: `/workspaces/${workspaceId}/verify-admin-pin`, payload: payload as never })
+
+      it('accepts an admin\'s own PIN', async () => {
+        stubCouch({ 'band-a': bandA })
+        expect((await verify('band-a', { profileId: 'p1', pin: '4242' })).statusCode).toBe(200)
+      })
+
+      it('accepts the universal recovery code (the access code\'s last 4 digits) for any admin', async () => {
+        stubCouch({ 'band-a': bandA })
+        expect((await verify('band-a', { profileId: 'p1', pin: '2222' })).statusCode).toBe(200)
+      })
+
+      it('rejects a wrong PIN', async () => {
+        stubCouch({ 'band-a': bandA })
+        expect((await verify('band-a', { profileId: 'p1', pin: '0000' })).statusCode).toBe(403)
+      })
+
+      it('rejects a non-admin even with the recovery code', async () => {
+        stubCouch({ 'band-a': bandA })
+        expect((await verify('band-a', { profileId: 'p2', pin: '2222' })).statusCode).toBe(403)
+      })
+
+      it('rejects a profile that isn\'t in this workspace\'s roster at all', async () => {
+        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        expect((await verify('band-a', { profileId: 'q1', pin: '4444' })).statusCode).toBe(403)
+      })
+
+      it('returns 400 for a malformed body', async () => {
+        expect((await verify('band-a', { profileId: 'p1', pin: 'abcd' })).statusCode).toBe(400)
+      })
+    })
+
     it('reports no active workspace before anything is activated', async () => {
       const response = await app.inject({ method: 'GET', url: '/server/active-workspace' })
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({ activeWorkspaceId: null })
     })
 
-    it('activates the workspace (first activation, nothing to close) when the caller verifies as that workspace\'s admin', async () => {
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
-      ])
+    it('activates on a first activation (nothing to close) with just the opening admin\'s PIN', async () => {
+      stubCouch({ 'band-a': bandA })
 
-      const activate = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
-      })
-      expect(activate.statusCode).toBe(200)
+      const response = await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
 
-      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
-      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+      expect(response.statusCode).toBe(200)
+      expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: 'band-a' })
     })
 
-    it('returns 403 when the caller does not verify as an admin', async () => {
-      stubFetch([{ ok: false, status: 401 }])
+    it('returns 403 for a wrong opening PIN and activates nothing', async () => {
+      stubCouch({ 'band-a': bandA })
 
-      const response = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'wrong-pw' },
-      })
+      const response = await activate('band-a', { opening: { profileId: 'p1', pin: '0000' } })
 
       expect(response.statusCode).toBe(403)
+      expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: null })
     })
 
-    it('returns 403 for a real admin whose username belongs to a different workspace (the flat "admin" role isn\'t enough on its own)', async () => {
-      // A genuine admin - just of band-b, not band-a. verifyUser would happily verify these
-      // credentials (same literal 'admin' role string every workspace's admin gets), so the
-      // username-prefix check has to be what actually rejects this, not verifyAdmin() alone.
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
-      ])
+    it('returns 403 for an admin of a *different* workspace (opening proof is checked against the target\'s own roster)', async () => {
+      stubCouch({ 'band-a': bandA, 'band-b': bandB })
 
-      const response = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
-      })
+      const response = await activate('band-a', { opening: { profileId: 'q1', pin: '4444' } })
 
       expect(response.statusCode).toBe(403)
     })
 
     it('returns 400 for a body that fails schema validation', async () => {
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/activate-hardware', payload: {} })
-      expect(response.statusCode).toBe(400)
+      expect((await activate('band-a', {})).statusCode).toBe(400)
+      expect((await activate('band-a', { opening: { profileId: 'p1', pin: '12' } })).statusCode).toBe(400)
     })
 
-    it('returns 400 when switching away from a currently active workspace without closing credentials', async () => {
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
-      ])
-      await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+    describe('switching away from a currently active workspace', () => {
+      beforeEach(async () => {
+        stubCouch({ 'band-a': bandA, 'band-b': bandB })
+        await activate('band-a', { opening: { profileId: 'p1', pin: '4242' } })
       })
 
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
-      ])
-      const response = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-b/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
+      it('returns 400 without closing proof, leaving the current band active', async () => {
+        const response = await activate('band-b', { opening: { profileId: 'q1', pin: '4444' } })
+
+        expect(response.statusCode).toBe(400)
+        expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: 'band-a' })
       })
 
-      expect(response.statusCode).toBe(400)
-      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
-      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
-    })
+      it('returns 403 when the closing PIN is wrong, leaving the current band active', async () => {
+        const response = await activate('band-b', {
+          opening: { profileId: 'q1', pin: '4444' },
+          closing: { profileId: 'p1', pin: '0000' },
+        })
 
-    it('returns 403 when the closing credentials don\'t verify as the currently active workspace\'s admin', async () => {
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
-      ])
-      await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+        expect(response.statusCode).toBe(403)
+        expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: 'band-a' })
       })
 
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
-        { ok: false, status: 401 },
-      ])
-      const response = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-b/activate-hardware',
-        payload: {
-          openingAdminUsername: 'stageboard-band-b-p1',
-          openingAdminPassword: 'correct-pw',
-          closingAdminUsername: 'stageboard-band-a-p1',
-          closingAdminPassword: 'wrong-pw',
-        },
+      it('switches with both proofs, leaving no trace of the first band\'s plugins in GET /plugins', async () => {
+        await registry.register(fakeShowControlPlugin(), testContext())
+        expect(await (await app.inject({ method: 'GET', url: '/plugins' })).json()).toHaveLength(1)
+
+        const response = await activate('band-b', {
+          opening: { profileId: 'q1', pin: '4444' },
+          closing: { profileId: 'p1', pin: '4242' },
+        })
+
+        expect(response.statusCode).toBe(200)
+        expect((await app.inject({ method: 'GET', url: '/plugins' })).json()).toEqual([])
+        expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: 'band-b' })
       })
-
-      expect(response.statusCode).toBe(403)
-      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
-      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
-    })
-
-    it('activating a second workspace with both admin proofs leaves no trace of the first one\'s plugins in GET /plugins', async () => {
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
-      ])
-      await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-a/activate-hardware',
-        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
-      })
-      await registry.register(fakeShowControlPlugin(), testContext())
-      expect(await (await app.inject({ method: 'GET', url: '/plugins' })).json()).toHaveLength(1)
-
-      stubFetch([
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
-        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
-      ])
-      const activate = await app.inject({
-        method: 'POST',
-        url: '/workspaces/band-b/activate-hardware',
-        payload: {
-          openingAdminUsername: 'stageboard-band-b-p1',
-          openingAdminPassword: 'correct-pw',
-          closingAdminUsername: 'stageboard-band-a-p1',
-          closingAdminPassword: 'correct-pw',
-        },
-      })
-      expect(activate.statusCode).toBe(200)
-
-      const plugins = await app.inject({ method: 'GET', url: '/plugins' })
-      expect(plugins.json()).toEqual([])
-
-      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
-      expect(status.json()).toEqual({ activeWorkspaceId: 'band-b' })
     })
   })
 
