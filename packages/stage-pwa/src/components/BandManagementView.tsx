@@ -187,6 +187,7 @@ export function BandManagementView() {
   // be showing right now.
   const {
     status: hardwareStatus,
+    slow: hardwareSlow,
     activeWorkspaceId: activeHardwareWorkspaceId,
     activeWorkspaceName: activeHardwareWorkspaceName,
   } = useStageServerStatus()
@@ -271,8 +272,9 @@ export function BandManagementView() {
     <div className="flex h-dvh flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
 
-      {hardwareStatus !== 'loading' && (
+      {(hardwareStatus !== 'loading' || hardwareSlow) && (
         <p className="rounded-sb border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
+          {hardwareStatus === 'loading' && 'Stage-Server antwortet langsam…'}
           {hardwareStatus === 'unreachable' && 'Stage-Server nicht erreichbar.'}
           {hardwareStatus === 'reachable' && activeHardwareWorkspaceId === null && 'Keine Band-Hardware auf diesem Server aktiv.'}
           {hardwareStatus === 'reachable' && activeHardwareWorkspaceId !== null && (

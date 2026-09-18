@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
+import { StageServerDiagnostics } from './StageServerDiagnostics'
 import { SwitchServerBandWizard } from './SwitchServerBandWizard'
 
 /**
@@ -10,18 +11,19 @@ import { SwitchServerBandWizard } from './SwitchServerBandWizard'
  * (abortable) switch - band list, admin proofs and all.
  */
 export function WorkspaceHardwareSettings() {
-  const { status, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
+  const { status, refreshing, slow, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
   const [wizardOpen, setWizardOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-muted">
-        {status === 'loading' && 'Lade…'}
+        {status === 'loading' && (slow ? 'Stage-Server antwortet langsam…' : 'Lade…')}
         {status === 'unreachable' && 'Stage-Server nicht erreichbar.'}
         {status === 'reachable' && (
           <>
             Aktiv:{' '}
             <span className="font-semibold text-ink">{activeWorkspaceId === null ? 'keine' : (activeWorkspaceName ?? activeWorkspaceId)}</span>
+            {refreshing && <span className="text-ink-faint"> · {slow ? 'antwortet langsam…' : 'aktualisiere…'}</span>}
           </>
         )}
       </p>
@@ -33,6 +35,8 @@ export function WorkspaceHardwareSettings() {
       >
         Band wechseln…
       </button>
+
+      <StageServerDiagnostics reload={reload} />
 
       {wizardOpen && workspaces && (
         <SwitchServerBandWizard

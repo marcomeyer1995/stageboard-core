@@ -191,6 +191,68 @@ describe('reconcileAudioCache', () => {
   })
 })
 
+describe('reconcileAudioCache - background downloads (found live, 2026-09-18: several tracks downloading at once saturated the link and made a 1 ms status request take 3.5 s)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const tracks = ['t1', 't2', 't3'].map((id) => track(id, { sizeBytes: 10 }))
+  const variants: SongVariant[] = tracks.map((t, i) => variant({ id: `v${i + 1}`, songId: `song-${i + 1}`, tracks: [t] }))
+
+  function stubEmptyCache() {
+    const set = vi.fn()
+    vi.mocked(getAudioStorageBackend).mockReturnValue({ get: vi.fn(), set, remove: vi.fn(), listKeys: vi.fn().mockResolvedValue([]) })
+    return set
+  }
+
+  it('downloads the tracks one at a time - the next one is only requested once the previous has finished', async () => {
+    stubEmptyCache()
+    const finish: Array<(blob: Blob) => void> = []
+    vi.mocked(fetchTrack).mockImplementation(() => new Promise((resolve) => finish.push(resolve)))
+
+    const reconciling = reconcileAudioCache('full', variants, null, [])
+
+    await vi.waitFor(() => expect(fetchTrack).toHaveBeenCalledTimes(1))
+    // Give the others every chance to start - they must not.
+    await new Promise((r) => setTimeout(r, 20))
+    expect(fetchTrack).toHaveBeenCalledTimes(1)
+
+    finish[0](new Blob(['a']))
+    await vi.waitFor(() => expect(fetchTrack).toHaveBeenCalledTimes(2))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(fetchTrack).toHaveBeenCalledTimes(2)
+
+    finish[1](new Blob(['b']))
+    await vi.waitFor(() => expect(fetchTrack).toHaveBeenCalledTimes(3))
+    finish[2](new Blob(['c']))
+    await reconciling
+  })
+
+  it('still caches every track, and a failed download does not stop the ones after it', async () => {
+    const set = stubEmptyCache()
+    vi.mocked(fetchTrack).mockImplementation(async (variantId) => (variantId === 'v2' ? null : new Blob(['audio'])))
+
+    await reconcileAudioCache('full', variants, null, [])
+
+    expect(fetchTrack).toHaveBeenCalledTimes(3)
+    expect(set).toHaveBeenCalledTimes(2)
+    expect(set).toHaveBeenCalledWith('v1:t1', expect.anything())
+    expect(set).toHaveBeenCalledWith('v3:t3', expect.anything())
+  })
+
+  it('the currently-playing track still goes first, before any of the one-at-a-time background ones', async () => {
+    stubEmptyCache()
+    const order: string[] = []
+    vi.mocked(fetchTrack).mockImplementation(async (variantId) => {
+      order.push(variantId)
+      return new Blob(['audio'])
+    })
+
+    await reconcileAudioCache('full', variants, null, [], new Set(['v3:t3']))
+
+    expect(order[0]).toBe('v3')
+    expect(order).toHaveLength(3)
+  })
+})
+
 describe('scheduleReconcileAudioCache (found live, 2026-09-16: useAudioSyncReconciler.ts re-firing many times in quick succession during PouchDB startup sync raced several full reconciliations against each other, each redundantly re-downloading the same tracks in parallel)', () => {
   beforeEach(() => {
     vi.clearAllMocks()

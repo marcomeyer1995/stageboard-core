@@ -144,7 +144,17 @@ export async function reconcileAudioCache(
   // audio over one multiplexed HTTP/2 connection, so issuing them all via one Promise.all gives
   // no real priority to any of them).
   await Promise.all(toFetch.filter((key) => alwaysKeepKeys.has(key)).map(fetchAndCache))
-  await Promise.all(toFetch.filter((key) => !alwaysKeepKeys.has(key)).map(fetchAndCache))
+
+  // Everything else downloads one track at a time, never all at once (found live, 2026-09-18:
+  // right after a band switch the device started several of these at once, and for the ~27
+  // seconds they ran the WiFi link and the one shared HTTP/2 connection were saturated - a
+  // status request the server answers in 1 ms took 3.5 s, its first byte arriving 5-9 s late).
+  // Background caching has no deadline, so it must not starve the interactive requests (status,
+  // PouchDB sync, the live streams) sharing that connection. `fetchTrack` never throws (a failed
+  // download is a `null`), so one bad track can't stop the ones after it.
+  for (const key of toFetch.filter((key) => !alwaysKeepKeys.has(key))) {
+    await fetchAndCache(key)
+  }
 }
 
 type ReconcileArgs = Parameters<typeof reconcileAudioCache>

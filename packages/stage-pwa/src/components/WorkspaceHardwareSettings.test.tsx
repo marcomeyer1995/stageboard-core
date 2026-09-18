@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -54,6 +54,40 @@ describe('WorkspaceHardwareSettings', () => {
     await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Band wechseln…' })).not.toBeDisabled()
     expect(screen.queryByTestId('wizard')).not.toBeInTheDocument()
+  })
+
+  it('shows the band as soon as its request is answered and marks that the rest is still being fetched', async () => {
+    stub({ fetchServerInfo: vi.fn().mockReturnValue(new Promise(() => {})) })
+    render(<WorkspaceHardwareSettings />)
+
+    await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
+    expect(screen.getByText(/aktualisiere…/)).toBeInTheDocument()
+  })
+
+  it('offers the on-device Diagnose section', async () => {
+    render(<WorkspaceHardwareSettings />)
+
+    expect(screen.getByText('Diagnose')).toBeInTheDocument()
+  })
+
+  it('says the server is slow to answer - not unreachable - when nothing has come back after a while', async () => {
+    vi.useFakeTimers()
+    const never = () => new Promise<never>(() => {})
+    stub({
+      listWorkspaces: vi.fn().mockImplementation(never),
+      fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
+      fetchServerInfo: vi.fn().mockImplementation(never),
+    })
+    render(<WorkspaceHardwareSettings />)
+    expect(screen.getByText('Lade…')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8100)
+    })
+
+    expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
+    expect(screen.queryByText('Stage-Server nicht erreichbar.')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('shows "keine" when nothing has been activated on the server yet', async () => {

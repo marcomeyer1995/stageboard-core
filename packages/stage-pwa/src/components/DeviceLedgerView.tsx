@@ -110,7 +110,9 @@ export function DeviceLedgerView() {
               <span>Aktive Band: {stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? 'keine'}</span>
             </>
           ) : (
-            <span className="text-ink-faint">{stageServer.status === 'loading' ? 'Lade…' : 'Keine Verbindung zum Stage-Server.'}</span>
+            <span className="text-ink-faint">
+              {stageServer.status === 'loading' ? (stageServer.slow ? 'Stage-Server antwortet langsam…' : 'Lade…') : 'Keine Verbindung zum Stage-Server.'}
+            </span>
           )}
         </div>
       </div>
