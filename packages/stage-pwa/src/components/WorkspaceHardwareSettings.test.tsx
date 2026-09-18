@@ -64,12 +64,6 @@ describe('WorkspaceHardwareSettings', () => {
     expect(screen.getByText(/aktualisiere…/)).toBeInTheDocument()
   })
 
-  it('offers the on-device Diagnose section', async () => {
-    render(<WorkspaceHardwareSettings />)
-
-    expect(screen.getByText('Diagnose')).toBeInTheDocument()
-  })
-
   it('says the server is slow to answer - not unreachable - when nothing has come back after a while', async () => {
     vi.useFakeTimers()
     const never = () => new Promise<never>(() => {})

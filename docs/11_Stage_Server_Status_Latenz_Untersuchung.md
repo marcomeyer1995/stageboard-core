@@ -49,15 +49,28 @@ all via one Promise.all gives no real priority to any of them"), begrenzt hatte 
 
 ## 4. Methodik (wiederverwendbar)
 
-### 4.1 On-Device-Diagnose ohne adb
+### 4.1 On-Device-Diagnose ohne adb (inzwischen wieder entfernt)
 
-Einstellungen -> Diagnose -> "Timing-Log ... aufzeichnen" (`stageServerDebug.ts`, Flag
-`sb:debug:stageServer`, gleiches Muster wie `gridDebug.ts`, docs/03 §1a). Pro Anfrage: Gesamtzeit und
-aus dem Resource-Timing des Browsers `blocked` (Warteschlange/Verbindungsaufbau), `server` (bis zum
-ersten Byte), `transfer`, `js-continuation` (wie lange nach vollständigem Empfang der eigene Code
-lief - ein beschäftigter Main-Thread zeigt sich hier), dazu Netzwerk-Schätzung, Event-Loop-Lag und
-Long Tasks. Der Log wird auf dem Gerät angezeigt (Neu messen / Kopieren / Leeren), weil ohne adb keine
-Konsole zur Verfügung steht.
+Für die Untersuchung gab es kurz einen Diagnose-Schalter in den Einstellungen (Flag
+`sb:debug:stageServer`, Muster wie `gridDebug.ts`, docs/03 §1a), der die Status-Anfragen auf dem
+Tablet vermaß und den Log auf dem Gerät anzeigte, weil ohne adb keine Konsole zur Verfügung stand. Pro
+Anfrage: Gesamtzeit und aus dem Resource-Timing des Browsers `blocked` (Warteschlange/Verbindungsaufbau),
+`server` (bis zum ersten Byte), `transfer`, `js-continuation` (wie lange nach vollständigem Empfang der
+eigene Code lief - ein beschäftigter Main-Thread zeigt sich hier), dazu Netzwerk-Schätzung
+(`navigator.connection`), Event-Loop-Lag (Verzögerung eines `setTimeout(0)`) und Long Tasks
+(`PerformanceObserver`, Typ `longtask`).
+
+**Entfernt am 2026-09-18** (Marco: "we remove it completely and add it later again if necessary"):
+jeder Musiker sah "Diagnose" in den Einstellungen, was dem Prinzip "Standard-UI idiotensicher, Komplexes
+versteckt" widerspricht. Der Code steht unverändert in der Git-History (Squash-Commit von #240,
+`c7285a0`): `packages/stage-pwa/src/lib/stageServerDebug.ts` (Flag, Logger, Ringpuffer),
+`components/StageServerDiagnostics.tsx` (Schalter + Anzeige) samt Tests und die Instrumentierung in
+`lib/useStageServerStatus.ts` (`timed()`, `describeNetwork()`, `startLongTaskProbe()`). Zurückholen z.B.
+mit `git show c7285a0:<Pfad>`. **Falls wieder eingebaut, nicht wieder für alle sichtbar:** besprochen
+wurden ein Entwicklermodus zum Freischalten (wie bei Android: mehrfach auf die App-Version tippen, nur
+lokal am Gerät gespeichert) oder Sichtbarkeit nur für Admins der aktiven Band; eine eigene
+"Entwickler"-Rolle wäre für ein paar Timing-Zeilen unverhältnismäßig (serverseitige Speicherung,
+Admin-Oberfläche).
 
 ### 4.2 Tablet-Log mit dem Server-Log korrelieren
 
@@ -129,10 +142,13 @@ Cache sofort den letzten Stand.
    streamen? Das würde auch die 330-445 ms von `/workspaces` erklären (Event-Loop-Konkurrenz). Nicht
    geprüft.
 
-**Zum Wiederaufnehmen:** Diagnose-Schalter einschalten, Band wechseln, während des Audio-Syncs
-"Neu messen"; `server`/`blocked` im Log gegen die Werte hier halten (vorher 9-15 s, jetzt ~1,2 s) und
-dieselbe Server-Log-Auswertung wie in 4.2 fahren.
+**Zum Wiederaufnehmen:** entweder den Diagnose-Code aus der Git-History zurückholen (siehe 4.1) oder
+ohne ihn messen - per adb/CDP-Netzwerkaufzeichnung (docs/03 §1a, docs/10 §6.1) oder allein mit dem
+Server-Log (4.2: `responseTime` der kleinen Routen gegen gleichzeitig laufende `/audio/...`-Requests
+halten). Vergleichswerte: vorher 9-15 s, jetzt ~1,2 s Zeit bis zum ersten Byte während des Audio-Syncs,
+im Leerlauf ~0,15 s.
 
 ## Verwandte PRs
 
-#236 (Band-Wechsel), #238-#239 (Wizard, PIN-Prüfung serverseitig), #240 (dieser Fix, Diagnose-Log)
+#236 (Band-Wechsel), #238-#239 (Wizard, PIN-Prüfung serverseitig), #240 (dieser Fix; enthielt den
+inzwischen wieder entfernten Diagnose-Schalter)
