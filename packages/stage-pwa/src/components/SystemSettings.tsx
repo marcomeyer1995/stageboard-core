@@ -5,6 +5,7 @@ import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
+import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -44,6 +45,10 @@ export function SystemSettings() {
 
       <Section title="Stage-Server">
         <StageServerSettings />
+      </Section>
+
+      <Section title="Aktives Band (Hardware)">
+        <WorkspaceHardwareSettings />
       </Section>
 
       <Section title="Synchronisation">

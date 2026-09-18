@@ -151,6 +151,46 @@ export type GetAccessCodeRequest = z.infer<typeof GetAccessCodeRequestSchema>
 export const RotateAccessCodeRequestSchema = AdminProofSchema
 export type RotateAccessCodeRequest = z.infer<typeof RotateAccessCodeRequestSchema>
 
+/** Body to make this Stage-Server's local hardware (plugin sync, Discovery Mode's MIDI watcher)
+ * serve this workspace (admin-only). Activating always deactivates whichever workspace was
+ * previously active on this box first - the two subsystems this gates are inherently tied to
+ * physically local gear, so exactly one workspace's hardware ever runs on a given Stage-Server
+ * at a time, never two concurrently (see workspaceHardwareController.ts).
+ *
+ * Two separate admin proofs, not one, because they guard two different mistakes: the *opening*
+ * proof (always required) is this workspace's own admin, proving the caller has a legitimate
+ * claim to the band it's switching *to*. The *closing* proof (required only when some other
+ * workspace is currently active on this box) is that *other*, currently-live workspace's own
+ * admin - without it, anyone who merely knows the opening band's password could silently
+ * interrupt whatever band is actually live on stage right now, with no relationship to it at
+ * all. When nothing is active yet (a fresh box), there's nothing to close, so it's omitted. */
+export const ActivateWorkspaceHardwareRequestSchema = z.object({
+  openingAdminUsername: z.string().min(1),
+  openingAdminPassword: z.string().min(1),
+  closingAdminUsername: z.string().min(1).optional(),
+  closingAdminPassword: z.string().min(1).optional(),
+})
+export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
+
+/** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
+ * Stage-Server's local hardware currently serves. `null` before any workspace has ever been
+ * activated on this box. */
+export const ActiveWorkspaceStatusSchema = z.object({
+  activeWorkspaceId: z.string().nullable(),
+})
+export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
+
+/** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
+ * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`
+ * env var, defaulting to `stageboard.local`), just also exposed here so a device that's never
+ * seen the mDNS broadcast (e.g. typed a raw IP) can still show it, for example in the Device
+ * Ledger's "this is the Stage-Server itself" row. */
+export const ServerInfoSchema = z.object({
+  lanIp: z.string(),
+  hostname: z.string(),
+})
+export type ServerInfo = z.infer<typeof ServerInfoSchema>
+
 /** Body to rename a workspace (admin-only, #58) - persists the new display name onto the same
  * `workspace:access` doc the standing access code already lives in (`workspaceProvisioning.ts`'s
  * `renameWorkspace`), leaving the code itself untouched. That doc already replicates to every

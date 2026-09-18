@@ -17,7 +17,17 @@ const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { SystemView } = await import('./SystemView')
 
 beforeEach(() => {
-  useWorkspaceStore.setState({ workspaces: [], activeWorkspaceId: '' })
+  useWorkspaceStore.setState({
+    workspaces: [],
+    activeWorkspaceId: '',
+    // Renders SystemSettings.tsx -> WorkspaceHardwareSettings.tsx, whose useStageServerStatus.ts
+    // fires all three of these on mount (same "every test needs some stub for it" reasoning as
+    // JoinBandView.test.tsx's default for listWorkspaces()) - without this, an unstubbed real
+    // fetch to a fake test hostname was surfacing as a flaky "unhandled rejection" at teardown.
+    listWorkspaces: vi.fn().mockResolvedValue(null),
+    fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue(null),
+    fetchServerInfo: vi.fn().mockResolvedValue(null),
+  })
 })
 
 /** Mutable matchMedia stand-in driving two independent axes: useInputCapability.ts's own

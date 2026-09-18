@@ -4,6 +4,7 @@ import { InviteBandView } from './InviteBandView'
 import { JoinBandView } from './JoinBandView'
 import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
+import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useNow } from '../lib/useNow'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -179,6 +180,16 @@ export function BandManagementView() {
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
   const alert = useDialogStore((state) => state.alert)
+  // Deliberately separate from `activeWorkspaceId` above, which is this *device's* own "which
+  // band am I displaying" pointer (SystemSettings.tsx's "Aktives Band (Hardware)" is the
+  // control for this one) - shown here too so the two can't be mistaken for each other: this
+  // is the currently-*live* band on the shared physical box, not what this tablet happens to
+  // be showing right now.
+  const {
+    status: hardwareStatus,
+    activeWorkspaceId: activeHardwareWorkspaceId,
+    activeWorkspaceName: activeHardwareWorkspaceName,
+  } = useStageServerStatus()
 
   // Presence has no event for "went offline" (usePresenceReporter.ts's doc comment - a device
   // going stale is the only signal), so this needs re-deriving on a ticking clock, not just on
@@ -259,6 +270,19 @@ export function BandManagementView() {
   return (
     <div className="flex h-dvh flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
+
+      {hardwareStatus !== 'loading' && (
+        <p className="rounded-sb border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
+          {hardwareStatus === 'unreachable' && 'Stage-Server nicht erreichbar.'}
+          {hardwareStatus === 'reachable' && activeHardwareWorkspaceId === null && 'Keine Band-Hardware auf diesem Server aktiv.'}
+          {hardwareStatus === 'reachable' && activeHardwareWorkspaceId !== null && (
+            <>
+              Hardware auf diesem Server aktiv für:{' '}
+              <span className="font-semibold text-ink">{activeHardwareWorkspaceName ?? activeHardwareWorkspaceId}</span>
+            </>
+          )}
+        </p>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Bands</h2>

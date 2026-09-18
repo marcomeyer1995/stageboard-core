@@ -6,6 +6,16 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { ILookupPlugin, IShowControlPlugin, PluginContext } from 'shared-types'
+
+// The activate-hardware route (below) reaches real createPluginSync/createMidiWatcher through
+// workspaceHardwareController.ts - mocked here so activating a workspace in a test never tries
+// real CouchDB network calls or real MIDI port enumeration on whatever machine runs the suite.
+vi.mock('./plugins/pluginSync.js', () => ({
+  createPluginSync: vi.fn(() => ({ stop: vi.fn(), syncOnce: vi.fn(), writeHeartbeat: vi.fn() })),
+}))
+vi.mock('./midiWatcher.js', () => ({
+  createMidiWatcher: vi.fn(() => ({ stop: vi.fn() })),
+}))
 import {
   __resetDeviceInfoStoreForTests,
   getSnapshot as getDeviceInfoSnapshot,
@@ -87,13 +97,14 @@ describe('Fastify routes', () => {
   describe('GET /server-info', () => {
     afterEach(() => {
       delete process.env.LAN_IP
+      delete process.env.MDNS_HOSTNAME
     })
 
     it('reports the LAN_IP override when set', async () => {
       process.env.LAN_IP = '10.1.2.3'
       const response = await app.inject({ method: 'GET', url: '/server-info' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ lanIp: '10.1.2.3' })
+      expect(response.json()).toMatchObject({ lanIp: '10.1.2.3' })
     })
 
     it('falls back to a detected address or null, never throwing, with no LAN_IP set', async () => {
@@ -101,6 +112,17 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(200)
       const { lanIp } = response.json() as { lanIp: string | null }
       expect(lanIp === null || typeof lanIp === 'string').toBe(true)
+    })
+
+    it('defaults hostname to stageboard.local', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.json()).toMatchObject({ hostname: 'stageboard.local' })
+    })
+
+    it('reports the MDNS_HOSTNAME override when set', async () => {
+      process.env.MDNS_HOSTNAME = 'my-band.local'
+      const response = await app.inject({ method: 'GET', url: '/server-info' })
+      expect(response.json()).toMatchObject({ hostname: 'my-band.local' })
     })
   })
 
@@ -1894,6 +1916,173 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/activate-hardware and GET /server/active-workspace', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    let stateDir: string
+
+    beforeEach(() => {
+      stateDir = mkdtempSync(join(tmpdir(), 'stageboard-active-workspace-route-test-'))
+      process.env.STAGEBOARD_STATE_DIR = stateDir
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      delete process.env.STAGEBOARD_STATE_DIR
+      rmSync(stateDir, { recursive: true, force: true })
+    })
+
+    it('reports no active workspace before anything is activated', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ activeWorkspaceId: null })
+    })
+
+    it('activates the workspace (first activation, nothing to close) when the caller verifies as that workspace\'s admin', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+
+      const activate = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+      expect(activate.statusCode).toBe(200)
+
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('returns 403 when the caller does not verify as an admin', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'wrong-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 403 for a real admin whose username belongs to a different workspace (the flat "admin" role isn\'t enough on its own)', async () => {
+      // A genuine admin - just of band-b, not band-a. verifyUser would happily verify these
+      // credentials (same literal 'admin' role string every workspace's admin gets), so the
+      // username-prefix check has to be what actually rejects this, not verifyAdmin() alone.
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+      ])
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('returns 400 for a body that fails schema validation', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/activate-hardware', payload: {} })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('returns 400 when switching away from a currently active workspace without closing credentials', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('returns 403 when the closing credentials don\'t verify as the currently active workspace\'s admin', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+        { ok: false, status: 401 },
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: {
+          openingAdminUsername: 'stageboard-band-b-p1',
+          openingAdminPassword: 'correct-pw',
+          closingAdminUsername: 'stageboard-band-a-p1',
+          closingAdminPassword: 'wrong-pw',
+        },
+      })
+
+      expect(response.statusCode).toBe(403)
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-a' })
+    })
+
+    it('activating a second workspace with both admin proofs leaves no trace of the first one\'s plugins in GET /plugins', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/activate-hardware',
+        payload: { openingAdminUsername: 'stageboard-band-a-p1', openingAdminPassword: 'correct-pw' },
+      })
+      await registry.register(fakeShowControlPlugin(), testContext())
+      expect(await (await app.inject({ method: 'GET', url: '/plugins' })).json()).toHaveLength(1)
+
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p1', roles: ['member', 'admin'] } }) },
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+      ])
+      const activate = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-b/activate-hardware',
+        payload: {
+          openingAdminUsername: 'stageboard-band-b-p1',
+          openingAdminPassword: 'correct-pw',
+          closingAdminUsername: 'stageboard-band-a-p1',
+          closingAdminPassword: 'correct-pw',
+        },
+      })
+      expect(activate.statusCode).toBe(200)
+
+      const plugins = await app.inject({ method: 'GET', url: '/plugins' })
+      expect(plugins.json()).toEqual([])
+
+      const status = await app.inject({ method: 'GET', url: '/server/active-workspace' })
+      expect(status.json()).toEqual({ activeWorkspaceId: 'band-b' })
     })
   })
 

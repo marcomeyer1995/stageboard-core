@@ -10,6 +10,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import mdnsFactory from 'multicast-dns'
 import {
   ActivateProfileRequestSchema,
+  ActivateWorkspaceHardwareRequestSchema,
   CreateMemberRequestSchema,
   DeviceInfoReportSchema,
   DeviceTriggerSchema,
@@ -35,19 +36,19 @@ import {
   type Device,
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
 import { allDocs, getDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
-import { createMidiWatcher } from './midiWatcher.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
-import { createPluginSync } from './plugins/pluginSync.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
+import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
   deprovisionWorkspace,
@@ -323,7 +324,15 @@ export async function buildApp() {
   // printing a stale IP after a DHCP lease change is a re-open of that screen away, not a
   // server restart away. No auth: this is the same address the mDNS responder already
   // broadcasts to anything listening on the LAN, not new information.
-  app.get('/server-info', async () => ({ lanIp: process.env.LAN_IP ?? detectLanIp() }))
+  //
+  // `hostname` (Device Ledger follow-up) is the same `MDNS_HOSTNAME` value the mDNS responder
+  // below already broadcasts - exposed here too for a device that's never seen that broadcast
+  // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
+  // address.
+  app.get('/server-info', async () => ({
+    lanIp: process.env.LAN_IP ?? detectLanIp(),
+    hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
+  }))
 
   // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,
   // audio/wav, ...) - Fastify only parses application/json and text/plain by default, so
@@ -580,6 +589,18 @@ export async function buildApp() {
   })
 
   const registry = new PluginRegistry()
+
+  const pluginLog = {
+    info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
+    error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
+  }
+
+  // Owns which single workspace's hardware (plugin sync, Discovery Mode's MIDI watcher) this
+  // box currently serves - lives here, not in main(), so the activate-hardware route below can
+  // reach the same instance main() activates at boot. deactivate() on close covers both a real
+  // shutdown and every test's afterEach(() => app.close()).
+  const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
+  app.addHook('onClose', async () => workspaceHardware.deactivate())
 
   app.get('/plugins', async () => registry.list())
 
@@ -1003,6 +1024,63 @@ export async function buildApp() {
     return reply.status(200).send({ status: 'ok' })
   })
 
+  // Makes this box's hardware (plugin sync, Discovery Mode's MIDI watcher) serve `workspaceId`
+  // instead of whichever workspace was previously active - the runtime replacement for having
+  // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
+  // real case of one Stage-Server serving two of Marco's own bands on different days, never at
+  // the same time (see workspaceHardwareController.ts).
+  app.post('/workspaces/:workspaceId/activate-hardware', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = ActivateWorkspaceHardwareRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    // Opening proof: the caller must be an admin of the workspace being activated. The
+    // username-prefix check matters just as much as verifyAdmin() itself here - 'admin' is the
+    // same flat CouchDB role string every workspace's admin gets, so verifyAdmin() alone would
+    // accept *any* workspace's real admin credentials, not specifically this one's (same
+    // "checked by username prefix" reasoning as /members/:profileId/activate above).
+    if (
+      !parsed.data.openingAdminUsername.startsWith(`${workspaceDbName(workspaceId)}-`) ||
+      !(await verifyAdmin(couch, parsed.data.openingAdminUsername, parsed.data.openingAdminPassword))
+    ) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+
+    // Closing proof: only required when some *other* workspace is currently active on this
+    // box - proves the caller is allowed to interrupt whatever's actually live right now, not
+    // just that they're an admin of wherever they're switching to. Without this, anyone who
+    // merely knows the *opening* band's password could silently kill a different band's live
+    // show, with no relationship to it at all.
+    const currentlyActive = workspaceHardware.getActiveWorkspaceId()
+    if (currentlyActive && currentlyActive !== workspaceId) {
+      if (!parsed.data.closingAdminUsername || !parsed.data.closingAdminPassword) {
+        return reply.status(400).send({
+          status: 'error',
+          message: `Admin credentials for the currently active workspace (${currentlyActive}) are required to switch away from it`,
+        })
+      }
+      if (
+        !parsed.data.closingAdminUsername.startsWith(`${workspaceDbName(currentlyActive)}-`) ||
+        !(await verifyAdmin(couch, parsed.data.closingAdminUsername, parsed.data.closingAdminPassword))
+      ) {
+        return reply.status(403).send({ status: 'error', message: 'Not the currently active workspace\'s admin' })
+      }
+    }
+
+    await workspaceHardware.activate(workspaceId)
+    return reply.status(200).send({ status: 'ok' })
+  })
+
+  // Which workspace (if any) this specific box's hardware currently serves - not scoped under
+  // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
+  // for the same reason /server-info needs none: not new information beyond what's already
+  // observable on the LAN.
+  app.get('/server/active-workspace', async (_request, reply) =>
+    reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
+  )
+
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and CouchDB onto this one origin, so a new device only ever has to accept one self-signed
   // certificate exception - browsers trust per *origin* (scheme+host+port), not per-certificate,
@@ -1036,7 +1114,7 @@ export async function buildApp() {
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1082,14 +1160,9 @@ function createMdnsSocket(lanIp: string): Promise<Socket> {
 }
 
 async function main() {
-  const { app, registry, lookupRegistry, couch } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog } = await buildApp()
 
   try {
-    const pluginLog = {
-      info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
-      error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
-    }
-
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).
     //
@@ -1102,20 +1175,15 @@ async function main() {
     // restart silently recreated an empty "band-a" nobody ever founded through the app. Now
     // this hardware/plugin sync simply doesn't run at all unless a real workspace is
     // deliberately configured, rather than ever phantom-creating one of its own.
-    if (process.env.STAGEBOARD_WORKSPACE) {
-      const sync = createPluginSync({
-        couch,
-        workspaceId: process.env.STAGEBOARD_WORKSPACE,
-        registry,
-        log: pluginLog,
-      })
-      app.addHook('onClose', async () => sync.stop())
-
-      // Discovery Mode's Stage-Server-plugged-gear participant (discoverySessionStore.ts) -
-      // same "only for a deliberately configured workspace" gate as plugin sync above, same
-      // reasoning: nothing here should ever phantom-touch a workspace nobody founded.
-      const midiWatcher = createMidiWatcher({ couch, workspaceId: process.env.STAGEBOARD_WORKSPACE, log: pluginLog })
-      app.addHook('onClose', async () => midiWatcher.stop())
+    //
+    // Later follow-up: which workspace that is no longer has to come from this env var every
+    // time - once `POST /workspaces/:id/activate-hardware` has been called at least once, the
+    // persisted choice (activeWorkspaceStateStore.ts) wins, surviving restarts on its own. The
+    // env var is only the first-boot bootstrap for a truly fresh box that's never activated
+    // anything yet.
+    const bootWorkspaceId = readPersistedActiveWorkspace() ?? process.env.STAGEBOARD_WORKSPACE ?? null
+    if (bootWorkspaceId) {
+      await workspaceHardware.activate(bootWorkspaceId)
     }
 
     // Device Ledger's background reachability/hostname refresh (pingLoop.ts, Marco's explicit

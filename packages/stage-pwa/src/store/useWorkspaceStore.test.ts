@@ -745,6 +745,80 @@ describe('getAccessCode / rotateAccessCode (2026-09-01 WiFi-style redesign)', ()
   })
 })
 
+describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('fetchActiveWorkspaceHardware returns the active workspace id', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ activeWorkspaceId: 'band-a' }) })
+
+    const result = await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()
+
+    expect(result).toEqual({ activeWorkspaceId: 'band-a' })
+    expect(fetchMock.mock.calls[0][0]).toBe('https://stage-server:3001/server/active-workspace')
+  })
+
+  it('fetchActiveWorkspaceHardware returns null when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    expect(await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()).toBeNull()
+  })
+
+  it('activateWorkspaceHardware posts fresh opening admin credentials, not any locally stored ones', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+
+    expect(result).toBe(true)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-b/activate-hardware')
+    expect(JSON.parse(init.body)).toEqual({ openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'fresh-pw' })
+  })
+
+  it('activateWorkspaceHardware also posts closing admin credentials when given', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
+
+    await useWorkspaceStore
+      .getState()
+      .activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw', 'stageboard-band-a-p1', 'other-fresh-pw')
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(JSON.parse(init.body)).toEqual({
+      openingAdminUsername: 'stageboard-band-b-p1',
+      openingAdminPassword: 'fresh-pw',
+      closingAdminUsername: 'stageboard-band-a-p1',
+      closingAdminPassword: 'other-fresh-pw',
+    })
+  })
+
+  it('activateWorkspaceHardware alerts and returns false on a 403 (wrong admin credentials)', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'wrong-pw')
+
+    expect(result).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Admin-Zugang'))
+  })
+
+  it('activateWorkspaceHardware alerts and returns false when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
+
+    expect(result).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht erreichbar'))
+  })
+})
+
 describe('listWorkspaces', () => {
   beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -996,6 +1070,79 @@ describe('joinAsMember', () => {
     const workspace = await useWorkspaceStore.getState().joinAsMember('band-c', 'Band C', '11112222', 'p2')
 
     expect(workspace?.ownProfileId).toBeUndefined()
+  })
+})
+
+describe('resolveMemberCredentials', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('posts to the same join route as joinAsMember, caches the resolved credentials, but never touches activeWorkspaceId', async () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: 'band-a' })
+    const fetchMock = stubFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: 'stageboard-band-c-p1', password: 'admin-pw', isAdmin: true }),
+    })
+
+    const workspace = await useWorkspaceStore.getState().resolveMemberCredentials('band-c', 'Band C', '11112222', 'p1', '1234')
+
+    expect(workspace).toEqual({
+      id: 'band-c',
+      name: 'Band C',
+      couchPassword: 'admin-pw',
+      username: 'stageboard-band-c-p1',
+      isAdmin: true,
+    })
+    const state = useWorkspaceStore.getState()
+    expect(state.workspaces).toContainEqual(workspace)
+    // The whole point: unlike joinAsMember, this must not change what this device is displaying.
+    expect(state.activeWorkspaceId).toBe('band-a')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://stage-server:3001/workspaces/band-c/join/p1')
+    expect(JSON.parse(init.body)).toEqual({ code: '11112222', password: '1234', deviceId: expect.any(String) })
+  })
+
+  it('alerts with a distinct "wrong code/PIN" message on a 403, and returns null', async () => {
+    stubFetch({ ok: false, status: 403 })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    const workspace = await useWorkspaceStore.getState().resolveMemberCredentials('band-c', 'Band C', '11112222', 'p1', 'wrong')
+
+    expect(workspace).toBeNull()
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Falscher Code oder falscher PIN'))
+  })
+})
+
+describe('fetchServerInfo', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+  })
+
+  it('fetches the server\'s own LAN IP and hostname', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }) })
+
+    const result = await useWorkspaceStore.getState().fetchServerInfo()
+
+    expect(result).toEqual({ lanIp: '192.168.1.50', hostname: 'stageboard.local' })
+    expect(fetchMock.mock.calls[0][0]).toBe('https://stage-server:3001/server-info')
+  })
+
+  it('returns null when the Stage-Server is unreachable', async () => {
+    stubFetch(null)
+    expect(await useWorkspaceStore.getState().fetchServerInfo()).toBeNull()
   })
 })
 
