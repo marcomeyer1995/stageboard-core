@@ -151,24 +151,37 @@ export type GetAccessCodeRequest = z.infer<typeof GetAccessCodeRequestSchema>
 export const RotateAccessCodeRequestSchema = AdminProofSchema
 export type RotateAccessCodeRequest = z.infer<typeof RotateAccessCodeRequestSchema>
 
+/** One admin's proof for a hardware switch: which roster admin, and their 4-digit PIN (their own,
+ * or the universal recovery code - the band's access code's last 4 digits). Verified server-side
+ * (`verifyAdminPin` in core-backend), never a username/password the client could have cached. */
+export const AdminPinProofSchema = z.object({
+  profileId: z.string().min(1),
+  pin: z.string().regex(/^\d{4}$/, 'PIN must be 4 digits'),
+})
+export type AdminPinProof = z.infer<typeof AdminPinProofSchema>
+
+/** Body of `POST /workspaces/:id/verify-admin-pin` - a stateless "is this admin + PIN valid for
+ * this workspace" check, so the hardware-switch wizard can reject a wrong PIN at the very step it
+ * was typed instead of only when the switch is finally committed. No side effects at all. */
+export const VerifyAdminPinRequestSchema = AdminPinProofSchema
+export type VerifyAdminPinRequest = z.infer<typeof VerifyAdminPinRequestSchema>
+
 /** Body to make this Stage-Server's local hardware (plugin sync, Discovery Mode's MIDI watcher)
- * serve this workspace (admin-only). Activating always deactivates whichever workspace was
- * previously active on this box first - the two subsystems this gates are inherently tied to
- * physically local gear, so exactly one workspace's hardware ever runs on a given Stage-Server
- * at a time, never two concurrently (see workspaceHardwareController.ts).
+ * serve this workspace. Activating always deactivates whichever workspace was previously active
+ * on this box first - the two subsystems this gates are inherently tied to physically local
+ * gear, so exactly one workspace's hardware ever runs on a given Stage-Server at a time, never
+ * two concurrently (see workspaceHardwareController.ts).
  *
  * Two separate admin proofs, not one, because they guard two different mistakes: the *opening*
- * proof (always required) is this workspace's own admin, proving the caller has a legitimate
- * claim to the band it's switching *to*. The *closing* proof (required only when some other
- * workspace is currently active on this box) is that *other*, currently-live workspace's own
- * admin - without it, anyone who merely knows the opening band's password could silently
- * interrupt whatever band is actually live on stage right now, with no relationship to it at
- * all. When nothing is active yet (a fresh box), there's nothing to close, so it's omitted. */
+ * proof (always required) is an admin of the workspace being switched *to*, proving a legitimate
+ * claim to that band. The *closing* proof (required only when some other workspace is currently
+ * active on this box) is an admin of that other, currently-live workspace - without it, anyone
+ * who merely knows the opening band's PIN could silently interrupt whatever band is actually live
+ * on stage right now, with no relationship to it at all. When nothing is active yet (a fresh
+ * box), there's nothing to close, so it's omitted. */
 export const ActivateWorkspaceHardwareRequestSchema = z.object({
-  openingAdminUsername: z.string().min(1),
-  openingAdminPassword: z.string().min(1),
-  closingAdminUsername: z.string().min(1).optional(),
-  closingAdminPassword: z.string().min(1).optional(),
+  opening: AdminPinProofSchema,
+  closing: AdminPinProofSchema.optional(),
 })
 export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
 
@@ -179,6 +192,17 @@ export const ActiveWorkspaceStatusSchema = z.object({
   activeWorkspaceId: z.string().nullable(),
 })
 export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
+
+/** Response of `GET /server/active-workspace/admins` - the roster admins (names + ids only) of the
+ * band this Stage-Server is *currently serving*, no band code needed: that band is already
+ * registered here, and the hardware-switch wizard only needs to show whose PIN can close it. Only
+ * ever the active band - the route takes no workspace parameter, so it can't be used to enumerate
+ * any other band's admins (those stay behind that band's code, `POST /workspaces/:id/roster`). */
+export const ActiveWorkspaceAdminsSchema = z.object({
+  workspaceId: z.string(),
+  admins: z.array(z.object({ profileId: z.string().min(1), name: z.string().min(1) })),
+})
+export type ActiveWorkspaceAdmins = z.infer<typeof ActiveWorkspaceAdminsSchema>
 
 /** Response shape for `GET /server-info` - this specific box's own address/name, not tied to
  * any one workspace. `hostname` is the same name already broadcast over mDNS (`MDNS_HOSTNAME`

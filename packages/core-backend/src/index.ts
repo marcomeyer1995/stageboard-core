@@ -31,6 +31,7 @@ import {
   SetMemberAdminRequestSchema,
   SetOwnPinRequestSchema,
   ShowControlEventSchema,
+  VerifyAdminPinRequestSchema,
   WorkspaceDeleteRequestSchema,
   WorkspaceProvisionRequestSchema,
   type Device,
@@ -48,6 +49,7 @@ import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
+import { createPinThrottle } from './pinThrottle.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -218,6 +220,27 @@ async function resolveOutcome(
   const isAdmin = verified.roles.includes('admin')
   const credentials = await provisionDevice(couch, workspaceId, profileId, deviceId, isAdmin)
   return { ok: true, code: 200, body: { ...credentials, isAdmin } }
+}
+
+/**
+ * True if `profileId` is a real roster admin of `workspaceId` and `pin` is either their own PIN
+ * or the workspace's universal recovery code (its access code's last 4 digits) - the exact
+ * proof `resolveOutcome`'s admin path accepts, but as a pure check: nothing is provisioned,
+ * rotated, or handed back. Used by the hardware-switch wizard, which only needs to know "is this
+ * genuinely that band's admin", not to become them on any device.
+ *
+ * Deliberately not `activateProfile`'s route: that one short-circuits (no PIN check at all) when
+ * a device re-picks its own already-active profile, so it can't prove anything about a PIN.
+ */
+async function verifyAdminPin(couch: CouchConfig, workspaceId: string, profileId: string, pin: string): Promise<boolean> {
+  const profile = await getDoc<CouchDoc & { stageRoles?: string[] }>(couch, workspaceDbName(workspaceId), `${PROFILE_ID_PREFIX}${profileId}`)
+  if (!profile || !(profile.stageRoles ?? []).includes('admin')) return false
+
+  const accessCode = await getOrCreateAccessCode(couch, workspaceId, workspaceId)
+  if (pin === accessCode.code.slice(-4)) return true
+
+  const verified = await verifyUser(couch, memberUsername(workspaceId, profileId), pin)
+  return verified !== null && verified.roles.includes('admin')
 }
 
 /**
@@ -601,6 +624,38 @@ export async function buildApp() {
   // shutdown and every test's afterEach(() => app.close()).
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
+
+  // Temporary lockout for guessing an admin PIN (only 10,000 possibilities) - shared by every route
+  // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh
+  // set of guesses. Keyed per workspace + profile.
+  const pinThrottle = createPinThrottle()
+
+  type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
+  async function checkAdminPin(request: FastifyRequest, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
+    const key = `${workspaceId}:${profileId}`
+    const retryAfterSeconds = pinThrottle.lockedForSeconds(key)
+    if (retryAfterSeconds > 0) return { ok: false, retryAfterSeconds }
+
+    if (await verifyAdminPin(couch, workspaceId, profileId, pin)) {
+      pinThrottle.recordSuccess(key)
+      return { ok: true }
+    }
+    if (pinThrottle.recordFailure(key)) {
+      app.log.warn({ workspaceId, profileId, remoteAddress: request.ip }, 'Too many wrong admin PINs - locked out temporarily')
+    }
+    return { ok: false }
+  }
+
+  /** 429 with how long to wait when locked, otherwise the plain 403 for a wrong proof. */
+  function rejectPin(reply: FastifyReply, check: { ok: false; retryAfterSeconds?: number }, forbiddenMessage: string) {
+    if (check.retryAfterSeconds) {
+      return reply
+        .status(429)
+        .header('Retry-After', String(check.retryAfterSeconds))
+        .send({ status: 'error', message: 'Too many wrong PINs - try again later', retryAfterSeconds: check.retryAfterSeconds })
+    }
+    return reply.status(403).send({ status: 'error', message: forbiddenMessage })
+  }
 
   app.get('/plugins', async () => registry.list())
 
@@ -1036,40 +1091,48 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    // Opening proof: the caller must be an admin of the workspace being activated. The
-    // username-prefix check matters just as much as verifyAdmin() itself here - 'admin' is the
-    // same flat CouchDB role string every workspace's admin gets, so verifyAdmin() alone would
-    // accept *any* workspace's real admin credentials, not specifically this one's (same
-    // "checked by username prefix" reasoning as /members/:profileId/activate above).
-    if (
-      !parsed.data.openingAdminUsername.startsWith(`${workspaceDbName(workspaceId)}-`) ||
-      !(await verifyAdmin(couch, parsed.data.openingAdminUsername, parsed.data.openingAdminPassword))
-    ) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
+    // Opening proof: an admin of the workspace being activated. Checked against *that*
+    // workspace's own roster and PIN (verifyAdminPin), so it can't be satisfied by an admin of
+    // some other workspace - unlike a bare verifyAdmin(), the flat 'admin' CouchDB role is never
+    // what decides this.
+    const { opening, closing } = parsed.data
+    const openingCheck = await checkAdminPin(request, workspaceId, opening.profileId, opening.pin)
+    if (!openingCheck.ok) return rejectPin(reply, openingCheck, 'Not this workspace\'s admin')
 
     // Closing proof: only required when some *other* workspace is currently active on this
     // box - proves the caller is allowed to interrupt whatever's actually live right now, not
     // just that they're an admin of wherever they're switching to. Without this, anyone who
-    // merely knows the *opening* band's password could silently kill a different band's live
-    // show, with no relationship to it at all.
+    // merely knows the *opening* band's PIN could silently kill a different band's live show,
+    // with no relationship to it at all.
     const currentlyActive = workspaceHardware.getActiveWorkspaceId()
     if (currentlyActive && currentlyActive !== workspaceId) {
-      if (!parsed.data.closingAdminUsername || !parsed.data.closingAdminPassword) {
+      if (!closing) {
         return reply.status(400).send({
           status: 'error',
-          message: `Admin credentials for the currently active workspace (${currentlyActive}) are required to switch away from it`,
+          message: `Admin proof for the currently active workspace (${currentlyActive}) is required to switch away from it`,
         })
       }
-      if (
-        !parsed.data.closingAdminUsername.startsWith(`${workspaceDbName(currentlyActive)}-`) ||
-        !(await verifyAdmin(couch, parsed.data.closingAdminUsername, parsed.data.closingAdminPassword))
-      ) {
-        return reply.status(403).send({ status: 'error', message: 'Not the currently active workspace\'s admin' })
-      }
+      const closingCheck = await checkAdminPin(request, currentlyActive, closing.profileId, closing.pin)
+      if (!closingCheck.ok) return rejectPin(reply, closingCheck, 'Not the currently active workspace\'s admin')
     }
 
     await workspaceHardware.activate(workspaceId)
+    return reply.status(200).send({ status: 'ok' })
+  })
+
+  // Stateless "is this roster admin + PIN valid for this workspace" - lets the hardware-switch
+  // wizard reject a wrong PIN at the step it was typed, rather than only when the switch is
+  // finally committed (activate-hardware re-verifies both proofs itself; nothing here is a
+  // token). No side effects beyond the shared PIN lockout (pinThrottle).
+  app.post('/workspaces/:workspaceId/verify-admin-pin', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = VerifyAdminPinRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    const check = await checkAdminPin(request, workspaceId, parsed.data.profileId, parsed.data.pin)
+    if (!check.ok) return rejectPin(reply, check, 'Wrong admin or PIN')
     return reply.status(200).send({ status: 'ok' })
   })
 
@@ -1080,6 +1143,23 @@ export async function buildApp() {
   app.get('/server/active-workspace', async (_request, reply) =>
     reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
   )
+
+  // The admins of the band this box is currently serving - so the hardware-switch wizard can show
+  // whose PIN closes it without asking for that band's code (it's already registered here; the
+  // code exists to gate *joining*, not to gate stopping what the box itself is running). Only
+  // names and ids, only for the active band: no workspace parameter, so it can't enumerate any
+  // other band's roster. A PIN is still required to do anything with them (verify-admin-pin).
+  app.get('/server/active-workspace/admins', async (_request, reply) => {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId) {
+      return reply.status(404).send({ status: 'error', message: 'No workspace is active on this server' })
+    }
+    const members = await readRoster(couch, workspaceId)
+    return reply.status(200).send({
+      workspaceId,
+      admins: members.filter((m) => m.isAdmin).map(({ profileId, name }) => ({ profileId, name })),
+    })
+  })
 
   // 2026-09-02 fourth follow-up, at Marco's explicit request: consolidates the PWA, this API,
   // and CouchDB onto this one origin, so a new device only ever has to accept one self-signed
