@@ -168,7 +168,7 @@ describe('DeviceLedgerView', () => {
 
       await waitFor(() => expect(screen.getByText(/IP 192\.168\.1\.50/)).toBeInTheDocument())
       expect(screen.getByText('stageboard.local', { exact: false })).toBeInTheDocument()
-      expect(screen.getByText('Aktives Band: Band A')).toBeInTheDocument()
+      expect(screen.getByText('Aktive Band: Band A')).toBeInTheDocument()
     })
 
     it('shows "keine" for the active band when reachable but nothing has been activated yet', async () => {
@@ -180,7 +180,7 @@ describe('DeviceLedgerView', () => {
 
       render(<DeviceLedgerView />)
 
-      await waitFor(() => expect(screen.getByText('Aktives Band: keine')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByText('Aktive Band: keine')).toBeInTheDocument())
     })
   })
 })

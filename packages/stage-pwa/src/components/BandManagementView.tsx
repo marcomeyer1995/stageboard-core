@@ -181,7 +181,7 @@ export function BandManagementView() {
   const confirm = useDialogStore((state) => state.confirm)
   const alert = useDialogStore((state) => state.alert)
   // Deliberately separate from `activeWorkspaceId` above, which is this *device's* own "which
-  // band am I displaying" pointer (SystemSettings.tsx's "Aktives Band (Hardware)" is the
+  // band am I displaying" pointer (SystemSettings.tsx's "Aktive Band (Hardware)" is the
   // control for this one) - shown here too so the two can't be mistaken for each other: this
   // is the currently-*live* band on the shared physical box, not what this tablet happens to
   // be showing right now.
