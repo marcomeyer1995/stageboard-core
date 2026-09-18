@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
+import type { ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getStageServerUrl } from '../lib/stageServer'
@@ -155,6 +155,10 @@ interface WorkspaceState {
    * Discovery Mode's MIDI watcher - currently serves. `null` on a fetch failure; a resolved
    * `activeWorkspaceId: null` is a valid answer (nothing activated on that box yet). */
   fetchActiveWorkspaceHardware: () => Promise<{ activeWorkspaceId: string | null } | null>
+  /** This box's own address/name (`GET /server-info`) - `null` on a fetch failure, same
+   * "collapse not-configured and unreachable into one null" shape as every other fetch* action
+   * here (useStageServerStatus.ts is what turns that into a displayed reachability state). */
+  fetchServerInfo: () => Promise<ServerInfo | null>
   /** Switches this Stage-Server's hardware to serve `workspaceId` (admin-only, one box, one
    * band at a time - SystemSettings.tsx's "Aktives Band" control). Takes fresh admin
    * credentials rather than reusing whatever this device already has stored, since switching
@@ -183,6 +187,22 @@ interface WorkspaceState {
    * always works for any admin here) - see `RosterMemberSchema`'s doc comment for the full
    * reasoning. Adds or updates the workspace locally and activates it on success. */
   joinAsMember: (
+    workspaceId: string,
+    workspaceName: string,
+    code: string,
+    profileId: string,
+    password?: string,
+  ) => Promise<Workspace | null>
+  /** Same request/response as `joinAsMember` (same route, same code-or-PIN trust model), for
+   * a caller that needs a workspace member's real, working credentials for its own purposes -
+   * ResolveWorkspaceAdminDialog.tsx's "this device has no local history with the target
+   * workspace" fallback - without also making this device *display* that workspace afterward.
+   * `joinAsMember` sets `activeWorkspaceId` as a side effect; this deliberately doesn't, since
+   * resolving someone else's admin identity to authorize an unrelated action (a hardware
+   * switch) must never silently change what this device is currently showing. Still caches the
+   * resolved credentials into `workspaces` like `joinAsMember` does - a real, desirable side
+   * effect, since it means this device also won't need the code again next time. */
+  resolveMemberCredentials: (
     workspaceId: string,
     workspaceName: string,
     code: string,
@@ -696,6 +716,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
+      fetchServerInfo: async () => {
+        const base = getStageServerUrl()
+        if (!base) return null
+
+        try {
+          const response = await fetch(`${base}/server-info`)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          return (await response.json()) as ServerInfo
+        } catch (err) {
+          console.error('Failed to fetch server info', err)
+          return null
+        }
+      },
       activateWorkspaceHardware: async (workspaceId, openingAdminUsername, openingAdminPassword, closingAdminUsername, closingAdminPassword) => {
         const base = getStageServerUrl()
         if (!base) return false
@@ -823,6 +856,65 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         } catch (err) {
           console.error('Failed to parse join response', err)
           void useDialogStore.getState().alert('Beitritt fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
+          return null
+        }
+      },
+      resolveMemberCredentials: async (workspaceId, workspaceName, code, profileId, password) => {
+        const base = getStageServerUrl()
+        if (!base) {
+          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert.')
+          return null
+        }
+
+        let response: Response
+        try {
+          response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/join/${encodeURIComponent(profileId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, password, deviceId: getDeviceId() }),
+          })
+        } catch (err) {
+          console.error('Failed to reach Stage-Server to resolve member credentials', err)
+          void useDialogStore
+            .getState()
+            .alert('Stage-Server nicht erreichbar - Netzwerkverbindung und Stage-Server-Adresse prüfen, dann erneut versuchen.')
+          return null
+        }
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            void useDialogStore.getState().alert('Falscher Code oder falscher PIN.')
+          } else if (response.status === 404) {
+            void useDialogStore.getState().alert('Unbekanntes Mitglied.')
+          } else {
+            console.error('Failed to resolve member credentials', new Error(`HTTP ${response.status}`))
+            void useDialogStore.getState().alert('Fehlgeschlagen (Serverfehler) - bitte erneut versuchen.')
+          }
+          return null
+        }
+
+        try {
+          const resolved = (await response.json()) as { username: string; password: string; isAdmin: boolean }
+
+          const existing = get().workspaces.find((w) => w.id === workspaceId)
+          const workspace: Workspace = existing
+            ? { ...existing, couchPassword: resolved.password, username: resolved.username, isAdmin: resolved.isAdmin }
+            : {
+                id: workspaceId,
+                name: workspaceName,
+                couchPassword: resolved.password,
+                username: resolved.username,
+                isAdmin: resolved.isAdmin,
+              }
+          set({
+            workspaces: existing
+              ? get().workspaces.map((w) => (w.id === workspaceId ? workspace : w))
+              : [...get().workspaces, workspace],
+          })
+          return workspace
+        } catch (err) {
+          console.error('Failed to parse resolve-member-credentials response', err)
+          void useDialogStore.getState().alert('Fehlgeschlagen (unerwartete Server-Antwort) - bitte erneut versuchen.')
           return null
         }
       },
