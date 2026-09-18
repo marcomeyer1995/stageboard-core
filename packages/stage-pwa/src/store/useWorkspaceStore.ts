@@ -39,6 +39,14 @@ export interface Workspace {
   isAdmin?: boolean
 }
 
+/** The message for a 429 from the Stage-Server's temporary admin-PIN lockout, with how long is
+ * left (its `Retry-After`, in seconds) rounded up to whole minutes. */
+function pinLockoutMessage(response: Response): string {
+  const seconds = Number(response.headers.get('retry-after'))
+  const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.ceil(seconds / 60)) : null
+  return `Zu viele falsche PINs - dieser Admin ist vorübergehend gesperrt.${minutes ? ` Bitte in ${minutes} Min. erneut versuchen.` : ' Bitte später erneut versuchen.'}`
+}
+
 /**
  * Recovers this device's own `Profile.id` on demand for any device that isn't the founder (see
  * `ownProfileId`'s own doc comment for why that field itself must stay untouched by anything but
@@ -739,6 +747,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (response.ok) return true
           if (response.status === 403) {
             void useDialogStore.getState().alert('Falscher PIN.')
+          } else if (response.status === 429) {
+            void useDialogStore.getState().alert(pinLockoutMessage(response))
           } else {
             void useDialogStore.getState().alert('PIN konnte nicht geprüft werden - Fehler beim Stage-Server.')
           }
@@ -762,6 +772,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (!response.ok) {
             if (response.status === 403) {
               void useDialogStore.getState().alert('Admin-Nachweis abgelehnt - Wechsel nicht möglich.')
+            } else if (response.status === 429) {
+              void useDialogStore.getState().alert(pinLockoutMessage(response))
             } else {
               void useDialogStore.getState().alert('Wechsel fehlgeschlagen - Stage-Server nicht erreichbar oder Fehler.')
             }

@@ -834,6 +834,26 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     expect(alertMock).toHaveBeenCalledWith('Falscher PIN.')
   })
 
+  it('verifyAdminPin tells a locked-out admin how many minutes to wait (429 + Retry-After), rounding up', async () => {
+    stubFetch({ ok: false, status: 429, headers: new Headers({ 'retry-after': '241' }) })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().verifyAdminPin('band-b', 'q1', '4444')).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('gesperrt'))
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('5 Min.'))
+  })
+
+  it('activateWorkspaceHardware tells a locked-out admin to wait, instead of calling the proof rejected', async () => {
+    stubFetch({ ok: false, status: 429, headers: new Headers({ 'retry-after': '60' }) })
+    const alertMock = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert: alertMock })
+
+    expect(await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', { profileId: 'q1', pin: '4444' })).toBe(false)
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('1 Min.'))
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('Admin-Nachweis'))
+  })
+
   it('verifyAdminPin alerts and returns false when the Stage-Server is unreachable', async () => {
     stubFetch(null)
     const alertMock = vi.fn().mockResolvedValue(undefined)

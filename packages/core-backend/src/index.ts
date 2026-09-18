@@ -49,6 +49,7 @@ import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
+import { createPinThrottle } from './pinThrottle.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -624,6 +625,38 @@ export async function buildApp() {
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
 
+  // Temporary lockout for guessing an admin PIN (only 10,000 possibilities) - shared by every route
+  // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh
+  // set of guesses. Keyed per workspace + profile.
+  const pinThrottle = createPinThrottle()
+
+  type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
+  async function checkAdminPin(request: FastifyRequest, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
+    const key = `${workspaceId}:${profileId}`
+    const retryAfterSeconds = pinThrottle.lockedForSeconds(key)
+    if (retryAfterSeconds > 0) return { ok: false, retryAfterSeconds }
+
+    if (await verifyAdminPin(couch, workspaceId, profileId, pin)) {
+      pinThrottle.recordSuccess(key)
+      return { ok: true }
+    }
+    if (pinThrottle.recordFailure(key)) {
+      app.log.warn({ workspaceId, profileId, remoteAddress: request.ip }, 'Too many wrong admin PINs - locked out temporarily')
+    }
+    return { ok: false }
+  }
+
+  /** 429 with how long to wait when locked, otherwise the plain 403 for a wrong proof. */
+  function rejectPin(reply: FastifyReply, check: { ok: false; retryAfterSeconds?: number }, forbiddenMessage: string) {
+    if (check.retryAfterSeconds) {
+      return reply
+        .status(429)
+        .header('Retry-After', String(check.retryAfterSeconds))
+        .send({ status: 'error', message: 'Too many wrong PINs - try again later', retryAfterSeconds: check.retryAfterSeconds })
+    }
+    return reply.status(403).send({ status: 'error', message: forbiddenMessage })
+  }
+
   app.get('/plugins', async () => registry.list())
 
   // #101's Stage-Server mirror: whatever pluginSync.ts's downloadMissingBundles already
@@ -1063,9 +1096,8 @@ export async function buildApp() {
     // some other workspace - unlike a bare verifyAdmin(), the flat 'admin' CouchDB role is never
     // what decides this.
     const { opening, closing } = parsed.data
-    if (!(await verifyAdminPin(couch, workspaceId, opening.profileId, opening.pin))) {
-      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
-    }
+    const openingCheck = await checkAdminPin(request, workspaceId, opening.profileId, opening.pin)
+    if (!openingCheck.ok) return rejectPin(reply, openingCheck, 'Not this workspace\'s admin')
 
     // Closing proof: only required when some *other* workspace is currently active on this
     // box - proves the caller is allowed to interrupt whatever's actually live right now, not
@@ -1080,9 +1112,8 @@ export async function buildApp() {
           message: `Admin proof for the currently active workspace (${currentlyActive}) is required to switch away from it`,
         })
       }
-      if (!(await verifyAdminPin(couch, currentlyActive, closing.profileId, closing.pin))) {
-        return reply.status(403).send({ status: 'error', message: 'Not the currently active workspace\'s admin' })
-      }
+      const closingCheck = await checkAdminPin(request, currentlyActive, closing.profileId, closing.pin)
+      if (!closingCheck.ok) return rejectPin(reply, closingCheck, 'Not the currently active workspace\'s admin')
     }
 
     await workspaceHardware.activate(workspaceId)
@@ -1092,7 +1123,7 @@ export async function buildApp() {
   // Stateless "is this roster admin + PIN valid for this workspace" - lets the hardware-switch
   // wizard reject a wrong PIN at the step it was typed, rather than only when the switch is
   // finally committed (activate-hardware re-verifies both proofs itself; nothing here is a
-  // token). No side effects. Same PIN exposure as the join/activate routes already have.
+  // token). No side effects beyond the shared PIN lockout (pinThrottle).
   app.post('/workspaces/:workspaceId/verify-admin-pin', async (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
     const parsed = VerifyAdminPinRequestSchema.safeParse(request.body)
@@ -1100,9 +1131,8 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdminPin(couch, workspaceId, parsed.data.profileId, parsed.data.pin))) {
-      return reply.status(403).send({ status: 'error', message: 'Wrong admin or PIN' })
-    }
+    const check = await checkAdminPin(request, workspaceId, parsed.data.profileId, parsed.data.pin)
+    if (!check.ok) return rejectPin(reply, check, 'Wrong admin or PIN')
     return reply.status(200).send({ status: 'ok' })
   })
 

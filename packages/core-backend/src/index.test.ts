@@ -2019,6 +2019,105 @@ describe('Fastify routes', () => {
       })
     })
 
+    describe('temporary lockout after wrong PINs', () => {
+      const bandC = { roster: { p1: true, p3: true }, code: '55556666', pins: { p1: '4242', p3: '5353' } }
+      const verify = (workspaceId: string, profileId: string, pin: string) =>
+        app.inject({ method: 'POST', url: `/workspaces/${workspaceId}/verify-admin-pin`, payload: { profileId, pin } })
+      const wrong = async (n: number, workspaceId = 'band-c', profileId = 'p1') => {
+        for (let i = 0; i < n; i++) expect((await verify(workspaceId, profileId, '0000')).statusCode).toBe(403)
+      }
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('locks an admin after 5 wrong PINs - even the right PIN is refused, with how long to wait', async () => {
+        stubCouch({ 'band-c': bandC })
+        await wrong(5)
+
+        const locked = await verify('band-c', 'p1', '4242')
+
+        expect(locked.statusCode).toBe(429)
+        expect(Number(locked.headers['retry-after'])).toBeGreaterThan(290)
+        expect(Number(locked.headers['retry-after'])).toBeLessThanOrEqual(300)
+        expect(locked.json()).toMatchObject({ status: 'error', retryAfterSeconds: Number(locked.headers['retry-after']) })
+      })
+
+      it('only for a dedicated time: the lock lifts by itself and the right PIN works again', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        stubCouch({ 'band-c': bandC })
+        await wrong(5)
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(429)
+
+        vi.setSystemTime(Date.now() + 5 * 60_000 + 1000)
+
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(200)
+      })
+
+      it('after the lock ends the full budget is back, not a single strike', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        stubCouch({ 'band-c': bandC })
+        await wrong(5)
+        vi.setSystemTime(Date.now() + 5 * 60_000 + 1000)
+
+        await wrong(4)
+
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(200)
+      })
+
+      it('a correct PIN resets the count', async () => {
+        stubCouch({ 'band-c': bandC })
+        await wrong(4)
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(200)
+
+        await wrong(4)
+
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(200)
+      })
+
+      it('locks one admin, not the band - another admin of the same band still works', async () => {
+        stubCouch({ 'band-c': bandC })
+        await wrong(5)
+
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(429)
+        expect((await verify('band-c', 'p3', '5353')).statusCode).toBe(200)
+      })
+
+      it('verify-admin-pin and activate-hardware share one budget, so neither is a way around the other', async () => {
+        stubCouch({ 'band-c': bandC })
+        await wrong(3)
+        for (let i = 0; i < 2; i++) {
+          expect((await activate('band-c', { opening: { profileId: 'p1', pin: '0000' } })).statusCode).toBe(403)
+        }
+
+        expect((await verify('band-c', 'p1', '4242')).statusCode).toBe(429)
+      })
+
+      it('activate-hardware refuses a locked opening admin even with the right PIN, activating nothing', async () => {
+        stubCouch({ 'band-c': bandC })
+        await wrong(5)
+
+        const response = await activate('band-c', { opening: { profileId: 'p1', pin: '4242' } })
+
+        expect(response.statusCode).toBe(429)
+        expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: null })
+      })
+
+      it('a locked closing admin blocks the switch away from that band too', async () => {
+        stubCouch({ 'band-c': bandC, 'band-b': bandB })
+        await activate('band-c', { opening: { profileId: 'p1', pin: '4242' } })
+        await wrong(5)
+
+        const response = await activate('band-b', {
+          opening: { profileId: 'q1', pin: '4444' },
+          closing: { profileId: 'p1', pin: '4242' },
+        })
+
+        expect(response.statusCode).toBe(429)
+        expect((await app.inject({ method: 'GET', url: '/server/active-workspace' })).json()).toEqual({ activeWorkspaceId: 'band-c' })
+      })
+    })
+
     describe('GET /server/active-workspace/admins', () => {
       it('is 404 when nothing is active', async () => {
         const response = await app.inject({ method: 'GET', url: '/server/active-workspace/admins' })
