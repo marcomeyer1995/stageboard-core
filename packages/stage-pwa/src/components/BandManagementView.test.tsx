@@ -48,6 +48,13 @@ beforeEach(() => {
       { id: 'band-b', name: 'Band B', isAdmin: false },
     ],
     activeWorkspaceId: 'band-a',
+    // useActiveWorkspaceHardware.ts fires both of these on every mount (the "hardware active
+    // for" indicator) - same "every test needs some stub for it" reasoning as
+    // JoinBandView.test.tsx's identical default for listWorkspaces(), so a test that doesn't
+    // care about the indicator doesn't also get a stray alert() from the no-server-configured
+    // fallback path.
+    listWorkspaces: vi.fn().mockResolvedValue([]),
+    fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }),
   })
   useProfilesStore.setState({
     profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['admin'] }],
@@ -60,6 +67,29 @@ beforeEach(() => {
   })
   useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' } })
   usePresenceStore.setState({ presence: { devices: {} } })
+})
+
+describe('BandManagementView "Hardware auf diesem Server" indicator', () => {
+  it('shows nothing when no workspace has ever been activated on this box', async () => {
+    render(<BandManagementView />)
+    await Promise.resolve()
+    expect(screen.queryByText(/Hardware auf diesem Server aktiv für/)).not.toBeInTheDocument()
+  })
+
+  it('shows the currently active band\'s name, resolved from the server-wide workspace list even when this device hasn\'t joined it locally', async () => {
+    useWorkspaceStore.setState({
+      listWorkspaces: vi.fn().mockResolvedValue([
+        { workspaceId: 'band-a', workspaceName: 'Band A' },
+        { workspaceId: 'band-c', workspaceName: 'SOAT' },
+      ]),
+      fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-c' }),
+    })
+
+    render(<BandManagementView />)
+
+    await waitFor(() => expect(screen.getByText(/Hardware auf diesem Server aktiv für/)).toBeInTheDocument())
+    expect(screen.getByText('SOAT')).toBeInTheDocument()
+  })
 })
 
 describe('BandManagementView', () => {

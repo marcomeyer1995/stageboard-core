@@ -159,8 +159,17 @@ interface WorkspaceState {
    * band at a time - SystemSettings.tsx's "Aktives Band" control). Takes fresh admin
    * credentials rather than reusing whatever this device already has stored, since switching
    * to the *other* band is exactly the case where this device may not already be admin on
-   * that workspace at all. */
-  activateWorkspaceHardware: (workspaceId: string, adminUsername: string, adminPassword: string) => Promise<boolean>
+   * that workspace at all. `closingAdminUsername`/`closingAdminPassword` are only needed (and
+   * only sent) when some *other* workspace is currently active on that box - proof that the
+   * caller may interrupt whatever's actually live right now, not just that they're an admin of
+   * wherever they're switching to (see the matching backend-side reasoning in index.ts). */
+  activateWorkspaceHardware: (
+    workspaceId: string,
+    openingAdminUsername: string,
+    openingAdminPassword: string,
+    closingAdminUsername?: string,
+    closingAdminPassword?: string,
+  ) => Promise<boolean>
   /** Second step of the self-service join (2026-09-01 redesign) - resolves one workspace's
    * roster (names/roles only, no credentials) using its standing code, for JoinBandView.tsx to
    * render a "who are you" picker. `isAdmin` per member (2026-09-02 second follow-up) tells the
@@ -687,7 +696,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return null
         }
       },
-      activateWorkspaceHardware: async (workspaceId, adminUsername, adminPassword) => {
+      activateWorkspaceHardware: async (workspaceId, openingAdminUsername, openingAdminPassword, closingAdminUsername, closingAdminPassword) => {
         const base = getStageServerUrl()
         if (!base) return false
 
@@ -695,7 +704,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/activate-hardware`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername, adminPassword }),
+            body: JSON.stringify({ openingAdminUsername, openingAdminPassword, closingAdminUsername, closingAdminPassword }),
           })
           if (!response.ok) {
             if (response.status === 403) {

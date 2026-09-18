@@ -769,7 +769,7 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     expect(await useWorkspaceStore.getState().fetchActiveWorkspaceHardware()).toBeNull()
   })
 
-  it('activateWorkspaceHardware posts fresh admin credentials, not any locally stored ones', async () => {
+  it('activateWorkspaceHardware posts fresh opening admin credentials, not any locally stored ones', async () => {
     const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
 
     const result = await useWorkspaceStore.getState().activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw')
@@ -777,7 +777,23 @@ describe('fetchActiveWorkspaceHardware / activateWorkspaceHardware', () => {
     expect(result).toBe(true)
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('https://stage-server:3001/workspaces/band-b/activate-hardware')
-    expect(JSON.parse(init.body)).toEqual({ adminUsername: 'stageboard-band-b-p1', adminPassword: 'fresh-pw' })
+    expect(JSON.parse(init.body)).toEqual({ openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'fresh-pw' })
+  })
+
+  it('activateWorkspaceHardware also posts closing admin credentials when given', async () => {
+    const fetchMock = stubFetch({ ok: true, status: 200, json: async () => ({ status: 'ok' }) })
+
+    await useWorkspaceStore
+      .getState()
+      .activateWorkspaceHardware('band-b', 'stageboard-band-b-p1', 'fresh-pw', 'stageboard-band-a-p1', 'other-fresh-pw')
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(JSON.parse(init.body)).toEqual({
+      openingAdminUsername: 'stageboard-band-b-p1',
+      openingAdminPassword: 'fresh-pw',
+      closingAdminUsername: 'stageboard-band-a-p1',
+      closingAdminPassword: 'other-fresh-pw',
+    })
   })
 
   it('activateWorkspaceHardware alerts and returns false on a 403 (wrong admin credentials)', async () => {
