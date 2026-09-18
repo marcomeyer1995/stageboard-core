@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceSummary } from 'shared-types'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { getStageServerUrl } from './stageServer'
-import { stageServerDebugEnabled, stageServerLog } from './stageServerDebug'
 import {
   clearLastKnownStageServer,
   getLastKnownStageServer,
@@ -17,63 +15,6 @@ export type StageServerReachability = 'loading' | 'reachable' | 'unreachable'
 export const STATUS_SLOW_AFTER_MS = 8000
 
 const EMPTY: StageServerSnapshot = { lanIp: null, hostname: null, workspaces: null, activeWorkspaceId: null }
-
-const round = (ms: number) => Math.round(ms)
-
-/** The browser's own idea of the connection (Chrome/Android only) - a slow link explains slow
- * answers without anything being wrong in the app. */
-function describeNetwork(): string {
-  const connection = (navigator as Navigator & { connection?: { effectiveType?: string; downlink?: number; rtt?: number } }).connection
-  if (!connection) return 'network: no info from this browser'
-  return `network: ${connection.effectiveType ?? '?'} down ${connection.downlink ?? '?'}Mbps rtt ${connection.rtt ?? '?'}ms`
-}
-
-/** Watches for long tasks (main thread blocked >50ms) until the returned function is called,
- * which reports them - the "is the tablet just busy" half of the question. Only with the debug
- * flag on, and only where the browser supports it. */
-function startLongTaskProbe(): () => string {
-  if (!stageServerDebugEnabled() || typeof PerformanceObserver === 'undefined' || !PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
-    return () => ''
-  }
-  const durations: number[] = []
-  const observer = new PerformanceObserver((list) => list.getEntries().forEach((entry) => durations.push(entry.duration)))
-  observer.observe({ entryTypes: ['longtask'] })
-  return () => {
-    observer.takeRecords().forEach((entry) => durations.push(entry.duration))
-    observer.disconnect()
-    if (durations.length === 0) return 'long tasks: none'
-    return `long tasks: ${durations.length}, longest ${round(Math.max(...durations))}ms, total ${round(durations.reduce((a, b) => a + b, 0))}ms`
-  }
-}
-
-/** Runs one status request, and - only with the `sb:debug:stageServer` flag on - logs where its
- * time went, using the browser's resource timing entry for that URL (see stageServerDebug.ts). */
-async function timed<T>(name: string, path: string, run: () => Promise<T>): Promise<T> {
-  const start = performance.now()
-  const result = await run()
-  if (stageServerDebugEnabled()) {
-    const end = performance.now()
-    const base = getStageServerUrl()
-    const entry = base
-      ? (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter((e) => e.name === `${base}${path}`).pop()
-      : undefined
-    stageServerLog(
-      name,
-      result === null ? 'FAILED' : 'ok',
-      `${round(end - start)}ms total`,
-      ...(entry
-        ? [
-            `blocked ${round(entry.requestStart - entry.startTime)}ms`,
-            `server ${round(entry.responseStart - entry.requestStart)}ms`,
-            `transfer ${round(entry.responseEnd - entry.responseStart)}ms`,
-            `js-continuation ${round(end - entry.responseEnd)}ms`,
-            entry.nextHopProtocol,
-          ]
-        : ['(no resource timing entry)']),
-    )
-  }
-  return result
-}
 
 /**
  * Everything the UI needs to know about this specific physical Stage-Server: whether it's
@@ -119,23 +60,13 @@ export function useStageServerStatus() {
   async function reload(): Promise<void> {
     const run = ++runRef.current
     const current = () => run === runRef.current && !unmountedRef.current
-    const startedAt = performance.now()
     let answered = 0
 
-    stageServerLog('reload start', cached ? '(showing last known status meanwhile)' : '(nothing cached)')
-    if (stageServerDebugEnabled()) {
-      stageServerLog(describeNetwork())
-      // How long a zero-delay timer really takes: a busy main thread shows up here right away.
-      const scheduledAt = performance.now()
-      setTimeout(() => stageServerLog(`event-loop lag ${round(performance.now() - scheduledAt)}ms`), 0)
-    }
-    const finishLongTaskProbe = startLongTaskProbe()
     setRefreshing(true)
     setSlow(false)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       if (current() && answered === 0) {
-        stageServerLog(`nothing answered after ${STATUS_SLOW_AFTER_MS}ms - flagged as slow (still waiting, not failed)`)
         setSlow(true)
       }
     }, STATUS_SLOW_AFTER_MS)
@@ -149,19 +80,18 @@ export function useStageServerStatus() {
     }
 
     await Promise.all([
-      timed('listWorkspaces', '/workspaces', listWorkspaces).then((list) => {
+      listWorkspaces().then((list) => {
         if (list) applyAnswer({ workspaces: list })
       }),
-      timed('fetchActiveWorkspaceHardware', '/server/active-workspace', fetchActiveWorkspaceHardware).then((result) => {
+      fetchActiveWorkspaceHardware().then((result) => {
         if (result) applyAnswer({ activeWorkspaceId: result.activeWorkspaceId })
       }),
-      timed('fetchServerInfo', '/server-info', fetchServerInfo).then((info) => {
+      fetchServerInfo().then((info) => {
         if (info) applyAnswer({ lanIp: info.lanIp, hostname: info.hostname })
       }),
     ])
 
     clearTimeout(timerRef.current)
-    stageServerLog(`reload done in ${Math.round(performance.now() - startedAt)}ms`, `${answered}/3 answered`, finishLongTaskProbe())
     if (!current()) return
     setRefreshing(false)
     setSlow(false)
