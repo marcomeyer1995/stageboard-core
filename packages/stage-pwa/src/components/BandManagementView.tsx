@@ -4,7 +4,7 @@ import { InviteBandView } from './InviteBandView'
 import { JoinBandView } from './JoinBandView'
 import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
-import { useActiveWorkspaceHardware } from '../lib/useActiveWorkspaceHardware'
+import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useNow } from '../lib/useNow'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -185,8 +185,11 @@ export function BandManagementView() {
   // control for this one) - shown here too so the two can't be mistaken for each other: this
   // is the currently-*live* band on the shared physical box, not what this tablet happens to
   // be showing right now.
-  const { workspaces: serverWorkspaces, activeWorkspaceId: activeHardwareWorkspaceId } = useActiveWorkspaceHardware()
-  const activeHardwareWorkspaceName = serverWorkspaces?.find((w) => w.workspaceId === activeHardwareWorkspaceId)?.workspaceName
+  const {
+    status: hardwareStatus,
+    activeWorkspaceId: activeHardwareWorkspaceId,
+    activeWorkspaceName: activeHardwareWorkspaceName,
+  } = useStageServerStatus()
 
   // Presence has no event for "went offline" (usePresenceReporter.ts's doc comment - a device
   // going stale is the only signal), so this needs re-deriving on a ticking clock, not just on
@@ -268,9 +271,16 @@ export function BandManagementView() {
     <div className="flex h-dvh flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
 
-      {activeHardwareWorkspaceId !== null && (
+      {hardwareStatus !== 'loading' && (
         <p className="rounded-sb border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
-          Hardware auf diesem Server aktiv für: <span className="font-semibold text-ink">{activeHardwareWorkspaceName ?? activeHardwareWorkspaceId}</span>
+          {hardwareStatus === 'unreachable' && 'Stage-Server nicht erreichbar.'}
+          {hardwareStatus === 'reachable' && activeHardwareWorkspaceId === null && 'Keine Band-Hardware auf diesem Server aktiv.'}
+          {hardwareStatus === 'reachable' && activeHardwareWorkspaceId !== null && (
+            <>
+              Hardware auf diesem Server aktiv für:{' '}
+              <span className="font-semibold text-ink">{activeHardwareWorkspaceName ?? activeHardwareWorkspaceId}</span>
+            </>
+          )}
         </p>
       )}
 

@@ -11,8 +11,30 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+// ResolveWorkspaceAdminDialog has its own dedicated test file - here it's mocked out entirely
+// so these tests focus purely on WorkspaceHardwareSettings' own job: deciding whether a
+// closing dialog is needed before the opening one, and wiring both results into
+// activateWorkspaceHardware. Exposes which workspace each mock instance was opened for, and one
+// button each for "resolved successfully" / "cancelled", so a test can drive either outcome.
+vi.mock('./ResolveWorkspaceAdminDialog', () => ({
+  ResolveWorkspaceAdminDialog: ({
+    workspaceId,
+    onResolved,
+  }: {
+    workspaceId: string
+    workspaceName: string
+    onResolved: (credentials: { username: string; password: string } | null) => void
+  }) => (
+    <div data-testid={`dialog-${workspaceId}`}>
+      <button onClick={() => onResolved({ username: `resolved-${workspaceId}-user`, password: `resolved-${workspaceId}-pw` })}>
+        resolve-ok-{workspaceId}
+      </button>
+      <button onClick={() => onResolved(null)}>resolve-cancel-{workspaceId}</button>
+    </div>
+  ),
+}))
+
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
-const { useDialogStore } = await import('../store/useDialogStore')
 const { WorkspaceHardwareSettings } = await import('./WorkspaceHardwareSettings')
 
 const workspaceList = [
@@ -24,6 +46,7 @@ beforeEach(() => {
   useWorkspaceStore.setState({
     listWorkspaces: vi.fn().mockResolvedValue(workspaceList),
     fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-a' }),
+    fetchServerInfo: vi.fn().mockResolvedValue({ lanIp: '192.168.1.50', hostname: 'stageboard.local' }),
     activateWorkspaceHardware: vi.fn().mockResolvedValue(true),
   })
 })
@@ -38,24 +61,14 @@ describe('WorkspaceHardwareSettings', () => {
   })
 
   it('does nothing when tapping the already-active band', async () => {
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
     render(<WorkspaceHardwareSettings />)
     await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
 
     fireEvent.click(screen.getByText('Abadschendaler').closest('button')!)
-    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('dialog-band-a')).not.toBeInTheDocument()
   })
 
-  it('prompts for both the opening and closing band\'s admin credentials when switching away from an active band', async () => {
-    const promptFields = vi.fn().mockResolvedValue({
-      openingAdminUsername: 'stageboard-band-b-p1',
-      openingAdminPassword: 'fresh-pw',
-      closingAdminUsername: 'stageboard-band-a-p1',
-      closingAdminPassword: 'other-fresh-pw',
-    })
-    useDialogStore.setState({ promptFields })
+  it('opens the closing dialog first, then the opening dialog, then activates with both resolved credentials', async () => {
     const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
     useWorkspaceStore.setState({ activateWorkspaceHardware })
 
@@ -63,71 +76,75 @@ describe('WorkspaceHardwareSettings', () => {
     await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
 
     fireEvent.click(screen.getByText('SOAT').closest('button')!)
+
+    // Closing dialog (band-a, currently active) appears first, not the opening one yet.
+    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
+    expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('resolve-ok-band-a'))
+
+    // Then the opening dialog (band-b).
+    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('resolve-ok-band-b'))
 
     await waitFor(() =>
       expect(activateWorkspaceHardware).toHaveBeenCalledWith(
         'band-b',
-        'stageboard-band-b-p1',
-        'fresh-pw',
-        'stageboard-band-a-p1',
-        'other-fresh-pw',
+        'resolved-band-b-user',
+        'resolved-band-b-pw',
+        'resolved-band-a-user',
+        'resolved-band-a-pw',
       ),
     )
-    const [, fields] = promptFields.mock.calls[0]
-    expect(fields.map((f: { key: string }) => f.key)).toEqual([
-      'closingAdminUsername',
-      'closingAdminPassword',
-      'openingAdminUsername',
-      'openingAdminPassword',
-    ])
   })
 
-  it('only prompts for the opening band\'s credentials on a first activation (nothing active yet)', async () => {
+  it('aborts without activating if the closing dialog is cancelled', async () => {
+    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
+    useWorkspaceStore.setState({ activateWorkspaceHardware })
+
+    render(<WorkspaceHardwareSettings />)
+    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('SOAT').closest('button')!)
+
+    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('resolve-cancel-band-a'))
+
+    await waitFor(() => expect(screen.queryByTestId('dialog-band-a')).not.toBeInTheDocument())
+    expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument()
+    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
+  })
+
+  it('aborts without activating if the opening dialog is cancelled', async () => {
+    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
+    useWorkspaceStore.setState({ activateWorkspaceHardware })
+
+    render(<WorkspaceHardwareSettings />)
+    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('SOAT').closest('button')!)
+
+    await waitFor(() => expect(screen.getByTestId('dialog-band-a')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('resolve-ok-band-a'))
+
+    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('resolve-cancel-band-b'))
+
+    await waitFor(() => expect(screen.queryByTestId('dialog-band-b')).not.toBeInTheDocument())
+    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
+  })
+
+  it('on a first activation (nothing active yet) skips the closing dialog entirely', async () => {
     useWorkspaceStore.setState({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
-    const promptFields = vi.fn().mockResolvedValue({ openingAdminUsername: 'stageboard-band-b-p1', openingAdminPassword: 'fresh-pw' })
-    useDialogStore.setState({ promptFields })
     const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
     useWorkspaceStore.setState({ activateWorkspaceHardware })
 
     render(<WorkspaceHardwareSettings />)
     await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-
     fireEvent.click(screen.getByText('SOAT').closest('button')!)
 
-    await waitFor(() => expect(activateWorkspaceHardware).toHaveBeenCalledWith('band-b', 'stageboard-band-b-p1', 'fresh-pw', undefined, undefined))
-    const [, fields] = promptFields.mock.calls[0]
-    expect(fields.map((f: { key: string }) => f.key)).toEqual(['openingAdminUsername', 'openingAdminPassword'])
-  })
+    await waitFor(() => expect(screen.getByTestId('dialog-band-b')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('resolve-ok-band-b'))
 
-  it('does not activate when the credential prompt is cancelled', async () => {
-    useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue(null) })
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await Promise.resolve()
-    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
-  })
-
-  it('does not activate when the closing credentials are left blank', async () => {
-    const promptFields = vi.fn().mockResolvedValue({
-      openingAdminUsername: 'stageboard-band-b-p1',
-      openingAdminPassword: 'fresh-pw',
-    })
-    useDialogStore.setState({ promptFields })
-    const activateWorkspaceHardware = vi.fn().mockResolvedValue(true)
-    useWorkspaceStore.setState({ activateWorkspaceHardware })
-
-    render(<WorkspaceHardwareSettings />)
-    await waitFor(() => expect(screen.getByText('SOAT')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByText('SOAT').closest('button')!)
-
-    await Promise.resolve()
-    expect(activateWorkspaceHardware).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(activateWorkspaceHardware).toHaveBeenCalledWith('band-b', 'resolved-band-b-user', 'resolved-band-b-pw', undefined, undefined),
+    )
   })
 })

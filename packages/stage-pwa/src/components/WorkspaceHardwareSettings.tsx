@@ -1,29 +1,48 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { WorkspaceSummary } from 'shared-types'
-import { useActiveWorkspaceHardware } from '../lib/useActiveWorkspaceHardware'
-import { useDialogStore } from '../store/useDialogStore'
+import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { ResolveWorkspaceAdminDialog } from './ResolveWorkspaceAdminDialog'
+
+interface ResolvedCredentials {
+  username: string
+  password: string
+}
 
 /**
  * Which band this physical Stage-Server's hardware (plugin sync, Discovery Mode's MIDI
  * watcher) currently serves - never more than one at a time (see
  * workspaceHardwareController.ts on the server; real case: Marco runs one box for two of his
  * own bands, never simultaneously). Lists every band the server knows about via
- * listWorkspaces(), not just whatever this device happens to be locally joined to - switching
- * to the *other* band is exactly the case where this device may not already be admin there, so
- * activating always asks for fresh admin credentials rather than reusing any stored ones.
+ * listWorkspaces(), not just whatever this device happens to be locally joined to.
  *
- * Asks for two sets of credentials when switching away from a band that's currently active:
- * the target band's own admin (always) and the currently-active band's admin (proof that this
- * caller may interrupt whatever's actually live right now) - see the matching backend-side
- * reasoning in index.ts.
+ * Resolves admin identity via `ResolveWorkspaceAdminDialog` (picked from that workspace's real
+ * roster + a PIN, never a hand-typed username/password) - once for the band being closed (only
+ * when a different one is currently active) and once for the band being opened, run
+ * sequentially since the closing dialog's roster/PIN flow needs to fully resolve before the
+ * opening one starts.
  */
 export function WorkspaceHardwareSettings() {
-  const { workspaces, activeWorkspaceId, reload } = useActiveWorkspaceHardware()
+  const { workspaces, activeWorkspaceId, reload } = useStageServerStatus()
   const activateWorkspaceHardware = useWorkspaceStore((state) => state.activateWorkspaceHardware)
-  const promptFields = useDialogStore((state) => state.promptFields)
 
   const [switching, setSwitching] = useState(false)
+  const [pendingDialog, setPendingDialog] = useState<{ workspaceId: string; workspaceName: string } | null>(null)
+  // A plain local variable wouldn't survive the re-render that actually mounts the dialog (a
+  // fresh one gets created, and closed-over, on every render) - this needs a ref specifically
+  // so the *same* object is still there once React commits the state update above and the
+  // dialog's onResolved prop is created for real.
+  const resolveDialogRef = useRef<((credentials: ResolvedCredentials | null) => void) | null>(null)
+
+  async function resolveAdmin(workspace: WorkspaceSummary): Promise<ResolvedCredentials | null> {
+    return new Promise((resolve) => {
+      setPendingDialog({ workspaceId: workspace.workspaceId, workspaceName: workspace.workspaceName })
+      resolveDialogRef.current = (credentials) => {
+        setPendingDialog(null)
+        resolve(credentials)
+      }
+    })
+  }
 
   async function handleSelect(workspace: WorkspaceSummary) {
     if (workspace.workspaceId === activeWorkspaceId || switching) return
@@ -33,32 +52,23 @@ export function WorkspaceHardwareSettings() {
         ? workspaces?.find((w) => w.workspaceId === activeWorkspaceId)
         : undefined
 
-    const fields = [
-      ...(closingWorkspace
-        ? [
-            {
-              key: 'closingAdminUsername',
-              label: `Admin-Benutzername (${closingWorkspace.workspaceName}, wird deaktiviert)`,
-            },
-            { key: 'closingAdminPassword', label: `Admin-Passwort (${closingWorkspace.workspaceName})`, type: 'password' as const },
-          ]
-        : []),
-      { key: 'openingAdminUsername', label: `Admin-Benutzername (${workspace.workspaceName})` },
-      { key: 'openingAdminPassword', label: `Admin-Passwort (${workspace.workspaceName})`, type: 'password' as const },
-    ]
-
-    const result = await promptFields(`Hardware für "${workspace.workspaceName}" aktivieren`, fields)
-    if (!result?.openingAdminUsername || !result?.openingAdminPassword) return
-    if (closingWorkspace && (!result.closingAdminUsername || !result.closingAdminPassword)) return
-
     setSwitching(true)
     try {
+      let closing: ResolvedCredentials | null = null
+      if (closingWorkspace) {
+        closing = await resolveAdmin(closingWorkspace)
+        if (!closing) return
+      }
+
+      const opening = await resolveAdmin(workspace)
+      if (!opening) return
+
       const ok = await activateWorkspaceHardware(
         workspace.workspaceId,
-        result.openingAdminUsername,
-        result.openingAdminPassword,
-        result.closingAdminUsername,
-        result.closingAdminPassword,
+        opening.username,
+        opening.password,
+        closing?.username,
+        closing?.password,
       )
       if (ok) await reload()
     } finally {
@@ -89,6 +99,14 @@ export function WorkspaceHardwareSettings() {
             )
           })}
         </ul>
+      )}
+
+      {pendingDialog && (
+        <ResolveWorkspaceAdminDialog
+          workspaceId={pendingDialog.workspaceId}
+          workspaceName={pendingDialog.workspaceName}
+          onResolved={(credentials) => resolveDialogRef.current?.(credentials)}
+        />
       )}
     </div>
   )
