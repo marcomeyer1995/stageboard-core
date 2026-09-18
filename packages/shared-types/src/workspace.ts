@@ -151,6 +151,22 @@ export type GetAccessCodeRequest = z.infer<typeof GetAccessCodeRequestSchema>
 export const RotateAccessCodeRequestSchema = AdminProofSchema
 export type RotateAccessCodeRequest = z.infer<typeof RotateAccessCodeRequestSchema>
 
+/** Body to make this Stage-Server's local hardware (plugin sync, Discovery Mode's MIDI watcher)
+ * serve this workspace (admin-only). Activating always deactivates whichever workspace was
+ * previously active on this box first - the two subsystems this gates are inherently tied to
+ * physically local gear, so exactly one workspace's hardware ever runs on a given Stage-Server
+ * at a time, never two concurrently (see workspaceHardwareController.ts). */
+export const ActivateWorkspaceHardwareRequestSchema = AdminProofSchema
+export type ActivateWorkspaceHardwareRequest = z.infer<typeof ActivateWorkspaceHardwareRequestSchema>
+
+/** Response shape for `GET /server/active-workspace` - which workspace (if any) this specific
+ * Stage-Server's local hardware currently serves. `null` before any workspace has ever been
+ * activated on this box. */
+export const ActiveWorkspaceStatusSchema = z.object({
+  activeWorkspaceId: z.string().nullable(),
+})
+export type ActiveWorkspaceStatus = z.infer<typeof ActiveWorkspaceStatusSchema>
+
 /** Body to rename a workspace (admin-only, #58) - persists the new display name onto the same
  * `workspace:access` doc the standing access code already lives in (`workspaceProvisioning.ts`'s
  * `renameWorkspace`), leaving the code itself untouched. That doc already replicates to every
