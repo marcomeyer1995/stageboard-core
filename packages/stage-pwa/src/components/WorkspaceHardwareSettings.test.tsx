@@ -56,6 +56,14 @@ describe('WorkspaceHardwareSettings', () => {
     expect(screen.queryByTestId('wizard')).not.toBeInTheDocument()
   })
 
+  it('shows the band as soon as its request is answered and marks that the rest is still being fetched', async () => {
+    stub({ fetchServerInfo: vi.fn().mockReturnValue(new Promise(() => {})) })
+    render(<WorkspaceHardwareSettings />)
+
+    await waitFor(() => expect(screen.getByText('Abadschendaler')).toBeInTheDocument())
+    expect(screen.getByText(/aktualisiere…/)).toBeInTheDocument()
+  })
+
   it('shows "keine" when nothing has been activated on the server yet', async () => {
     stub({ fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: null }) })
     render(<WorkspaceHardwareSettings />)

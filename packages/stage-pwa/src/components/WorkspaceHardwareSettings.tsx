@@ -10,7 +10,7 @@ import { SwitchServerBandWizard } from './SwitchServerBandWizard'
  * (abortable) switch - band list, admin proofs and all.
  */
 export function WorkspaceHardwareSettings() {
-  const { status, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
+  const { status, refreshing, workspaces, activeWorkspaceName, activeWorkspaceId, reload } = useStageServerStatus()
   const [wizardOpen, setWizardOpen] = useState(false)
 
   return (
@@ -22,6 +22,7 @@ export function WorkspaceHardwareSettings() {
           <>
             Aktiv:{' '}
             <span className="font-semibold text-ink">{activeWorkspaceId === null ? 'keine' : (activeWorkspaceName ?? activeWorkspaceId)}</span>
+            {refreshing && <span className="text-ink-faint"> · aktualisiere…</span>}
           </>
         )}
       </p>
