@@ -160,7 +160,7 @@ interface WorkspaceState {
    * here (useStageServerStatus.ts is what turns that into a displayed reachability state). */
   fetchServerInfo: () => Promise<ServerInfo | null>
   /** Switches this Stage-Server's hardware to serve `workspaceId` (admin-only, one box, one
-   * band at a time - SystemSettings.tsx's "Aktives Band" control). Takes fresh admin
+   * band at a time - SystemSettings.tsx's "Aktive Band" control). Takes fresh admin
    * credentials rather than reusing whatever this device already has stored, since switching
    * to the *other* band is exactly the case where this device may not already be admin on
    * that workspace at all. `closingAdminUsername`/`closingAdminPassword` are only needed (and
