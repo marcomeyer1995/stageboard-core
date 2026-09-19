@@ -81,14 +81,15 @@ describe('resolveTrackEndAction', () => {
 describe('transitionItemEndMs', () => {
   const item = (over: Partial<TransitionEntry>): TransitionEntry => ({ ...announcement, ...over })
 
-  it('is the duration for a non-manual item', () => {
+  it('is the duration for any item with one - a manual item stops there, others hand off', () => {
     expect(transitionItemEndMs(item({ estimatedDurationMs: 30000, transitionType: 'seamless' }))).toBe(30000)
+    expect(transitionItemEndMs(item({ estimatedDurationMs: 30000 }))).toBe(30000)
+    expect(resolveTrackEndAction(item({ estimatedDurationMs: 30000 }), next)).toEqual({ kind: 'stop' })
   })
 
-  it('is null for manual items, items without a duration, sections and songs', () => {
-    expect(transitionItemEndMs(item({ estimatedDurationMs: 30000 }))).toBeNull()
+  it('is null for items without a duration (they wait for Weiter) and for songs', () => {
     expect(transitionItemEndMs(item({ transitionType: 'seamless' }))).toBeNull()
-    expect(transitionItemEndMs(heading)).toBeNull() // no duration/type: waits for Weiter
+    expect(transitionItemEndMs(heading)).toBeNull()
     expect(transitionItemEndMs(next)).toBeNull()
   })
 })

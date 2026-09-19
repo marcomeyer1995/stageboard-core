@@ -117,6 +117,9 @@ export const SongVariantSchema = z.object({
   /** Bars of count-in to play when enabled, at the corrected tempo of the segment between the
    * first and second beat anchor (falls back to the plain bpm if there's no second anchor yet). */
   countInBars: z.number().int().positive().default(1),
+  /** Playing length in ms entered by hand (#28) - for songs without a backing track, or to
+   * override a measured track length. The Festival Clock prefers it over `TrackMeta.durationMs`. */
+  durationMs: z.number().int().positive().optional(),
   /** Musical key, e.g. "F#m" - genuinely arrangement-specific (a capo/tuning change can
    * shift it), so it lives here rather than on Song. Optional/absent, not a forced default:
    * most sources (including Ultimate Guitar's own data) simply omit it when unknown, and a

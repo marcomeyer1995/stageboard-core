@@ -55,6 +55,8 @@ interface EditorDraft {
   tempoMarkers: TempoMarker[]
   countInEnabled: boolean
   countInBars: number
+  /** Hand-entered playing length in ms (Festival Clock, #28). */
+  durationMs?: number
   key?: string
   tuning?: string
   capo?: number
@@ -78,6 +80,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     tempoMarkers: variant.tempoMarkers,
     countInEnabled: variant.countInEnabled,
     countInBars: variant.countInBars,
+    durationMs: variant.durationMs,
     key: variant.key,
     tuning: variant.tuning,
     capo: variant.capo,
@@ -236,6 +239,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       tempoMarkers: variant.tempoMarkers,
       countInEnabled: variant.countInEnabled,
       countInBars: variant.countInBars,
+      durationMs: variant.durationMs,
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
@@ -271,6 +275,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       tempoMarkers: draft.tempoMarkers,
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,
+      durationMs: draft.durationMs,
       tracks: currentTracks,
       key: draft.key,
       tuning: draft.tuning,
@@ -612,15 +617,51 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   // Audio (attached recordings) and Cues (show-control triggers) are different topics that
   // used to share one "leftover" tab - split for the same reason.
+  // With a track attached, its length *is* the song's length (read-only, measured from the file);
+  // the hand-entered one only exists for songs without a track - e.g. click-only playback (#28).
+  const playingTrack = currentTracks.find((t) => t.kind === 'band-mix') ?? currentTracks[0]
   const audioContent = (
-    <TrackManagerField
-      variantId={draft.variantId}
-      tracks={currentTracks}
-      // True only for a variant that exists in this draft but not yet in the store - i.e. a
-      // fresh "+ Neue Variante" click that hasn't been saved yet, not "this song is new" (that
-      // state no longer exists here at all - see the props/selectSong doc comments above).
-      disabled={!variantsForSong.some((v) => v.id === draft.variantId)}
-    />
+    <div className="flex flex-col gap-3">
+      {playingTrack ? (
+        <div className="flex flex-col gap-1 text-sm text-ink-muted">
+          Dauer
+          <span className="flex h-12 w-40 items-center rounded-sb bg-control px-3 text-ink">
+            {playingTrack.durationMs === undefined
+              ? 'wird gemessen…'
+              : `${Math.round(playingTrack.durationMs / 1000)} s`}
+          </span>
+          <span className="text-xs text-ink-faint">
+            Länge des Tracks - wird automatisch gemessen und kann nicht geändert werden.
+          </span>
+        </div>
+      ) : (
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Dauer (Sekunden)
+          <input
+            type="number"
+            min={1}
+            value={draft.durationMs === undefined ? '' : Math.round(draft.durationMs / 1000)}
+            onChange={(e) => {
+              const seconds = Math.round(Number(e.target.value))
+              setDraft({ ...draft, durationMs: e.target.value === '' || !(seconds > 0) ? undefined : seconds * 1000 })
+            }}
+            className="h-12 w-40 rounded-sb bg-control px-3 text-ink"
+          />
+          <span className="text-xs text-ink-faint">
+            Ohne Track: die Länge für Festival-Uhr und automatisches Stoppen (auch bei reinem Klick). Leer = geschätzt
+            (Standard 4 min), kein automatisches Stoppen.
+          </span>
+        </label>
+      )}
+      <TrackManagerField
+        variantId={draft.variantId}
+        tracks={currentTracks}
+        // True only for a variant that exists in this draft but not yet in the store - i.e. a
+        // fresh "+ Neue Variante" click that hasn't been saved yet, not "this song is new" (that
+        // state no longer exists here at all - see the props/selectSong doc comments above).
+        disabled={!variantsForSong.some((v) => v.id === draft.variantId)}
+      />
+    </div>
   )
 
   const cuesContent = <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />

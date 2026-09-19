@@ -4,7 +4,8 @@ import {
   isTransitionEntry,
   type Setlist,
 } from 'shared-types'
-import { resolveTrackForEntry, type QueueItem } from './computeQueue'
+import type { QueueItem } from './computeQueue'
+import { countInDurationMs, songDurationMs } from './entryDuration'
 
 export interface FestivalClockInput {
   items: QueueItem[]
@@ -15,6 +16,8 @@ export interface FestivalClockInput {
   now: number
   /** Extends the current entry's end (#231's bar-extend). */
   clickExtendMs?: number
+  /** Tonight-only track swap for the *current* entry (it resets on advancing). */
+  trackOverrideId?: string | null
   setlist: Pick<Setlist, 'targetEndTime' | 'defaultTransitionMs' | 'defaultSongDurationMs'> | null
 }
 
@@ -43,14 +46,18 @@ export function resolveTargetEnd(now: number, targetEndTime: string): number {
 }
 
 /** Length of one queue position, and whether it had to be estimated. */
-function entryDurationMs(item: QueueItem, defaultSongMs: number, defaultPauseMs: number): { ms: number; estimated: boolean } {
+function entryDurationMs(
+  item: QueueItem,
+  isCurrent: boolean,
+  trackOverrideId: string | null,
+  defaultSongMs: number,
+  defaultPauseMs: number,
+): { ms: number; estimated: boolean } {
   if (isTransitionEntry(item.entry)) {
     return { ms: item.entry.estimatedDurationMs ?? defaultPauseMs, estimated: false }
   }
-  const track = resolveTrackForEntry(item.entry, item.variant, null)
-  return track?.durationMs !== undefined
-    ? { ms: track.durationMs, estimated: false }
-    : { ms: defaultSongMs, estimated: true }
+  const known = songDurationMs(item.entry, item.variant, isCurrent ? trackOverrideId : null)
+  return known ? { ms: known.ms, estimated: false } : { ms: defaultSongMs, estimated: true }
 }
 
 /**
@@ -78,11 +85,20 @@ export function computeFestivalClock(input: FestivalClockInput): FestivalClockRe
   let estimatedSongs = 0
   for (let i = startIndex; i < items.length; i += 1) {
     const item = items[i]!
-    const { ms, estimated } = entryDurationMs(item, defaultSongMs, defaultPauseMs)
-    if (estimated) estimatedSongs += 1
     const isCurrent = i === startIndex
-    const started = isCurrent && playbackStatus !== 'stopped' && (elapsedMs ?? 0) > 0
-    remainingMs += started ? Math.max(0, ms + (input.clickExtendMs ?? 0) - (elapsedMs ?? 0)) : ms
+    const { ms, estimated } = entryDurationMs(item, isCurrent, input.trackOverrideId ?? null, defaultSongMs, defaultPauseMs)
+    if (estimated) estimatedSongs += 1
+    // Running (or paused) already: what is left of it, counting from its own position 0 - a
+    // negative position during the count-in adds the count-in time still to come. Otherwise it
+    // starts fresh: its count-in first, unless the previous entry hands over seamlessly.
+    const running = isCurrent && playbackStatus !== 'stopped' && elapsedMs !== null
+    if (running) {
+      remainingMs += Math.max(0, ms + (input.clickExtendMs ?? 0) - (elapsedMs ?? 0))
+    } else {
+      const previous = i > startIndex ? items[i - 1] : undefined
+      const seamlessIn = previous !== undefined && (previous.entry.transitionType ?? 'manual') === 'seamless'
+      remainingMs += ms + (seamlessIn || isTransitionEntry(item.entry) ? 0 : countInDurationMs(item.variant))
+    }
     const next = items[i + 1]
     if (next) remainingMs += gapAfterMs(item, next, defaultPauseMs)
   }
