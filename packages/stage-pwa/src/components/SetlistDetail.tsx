@@ -10,7 +10,10 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   DEFAULT_TRANSITION_DELAY_MS,
+  isHeadingEntry,
+  isSongEntry,
   isTransitionEntry,
+  type ItemStyle,
   type SongEntry,
   type Song,
   type SongVariant,
@@ -24,6 +27,7 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 
 interface SetlistDetailProps {
@@ -115,11 +119,31 @@ function VariantPicker({
   )
 }
 
-const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string }[] = [
-  { type: 'manual', label: 'Manuell', hint: 'Wiedergabe stoppt am Ende, der nächste Song wird von Hand gestartet.' },
-  { type: 'next-ready', label: 'Nächster bereit', hint: 'Stoppt am Ende und stellt den nächsten Song bereit - Start von Hand.' },
-  { type: 'seamless', label: 'Nahtlos', hint: 'Der nächste Song startet sofort, ohne Pause und ohne Einzähler.' },
-  { type: 'delayed', label: 'Mit Pause', hint: 'Der nächste Song startet nach einer festen Pause, mit Einzähler.' },
+const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string; itemHint: string }[] = [
+  {
+    type: 'manual',
+    label: 'Manuell',
+    hint: 'Wiedergabe stoppt am Ende, der nächste Song wird von Hand gestartet.',
+    itemHint: 'Läuft nicht von selbst weiter - mit „Weiter" von Hand.',
+  },
+  {
+    type: 'next-ready',
+    label: 'Nächster bereit',
+    hint: 'Stoppt am Ende und stellt den nächsten Song bereit - Start von Hand.',
+    itemHint: 'Nach Ablauf der Dauer wird der nächste Eintrag bereitgestellt - Start von Hand.',
+  },
+  {
+    type: 'seamless',
+    label: 'Nahtlos',
+    hint: 'Der nächste Song startet sofort, ohne Pause und ohne Einzähler.',
+    itemHint: 'Nach Ablauf der Dauer startet der nächste Eintrag sofort, ohne Einzähler.',
+  },
+  {
+    type: 'delayed',
+    label: 'Mit Pause',
+    hint: 'Der nächste Song startet nach einer festen Pause, mit Einzähler.',
+    itemHint: 'Nach Ablauf der Dauer und einer weiteren Pause startet der nächste Eintrag, mit Einzähler.',
+  },
 ]
 
 /** Per-entry "what happens when this song ends" (#232) - same portal-dialog shape as
@@ -129,10 +153,13 @@ const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string }[
 function TransitionPicker({
   type,
   delayMs,
+  isItem = false,
   onChange,
 }: {
   type: TransitionType
   delayMs: number
+  /** A transition item's type applies after its own countdown rather than at a track's end. */
+  isItem?: boolean
   onChange: (type: TransitionType, delayMs: number) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -143,7 +170,7 @@ function TransitionPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={`Übergang zum nächsten Song: ${current.label}`}
+        title={`Übergang zum nächsten Eintrag: ${current.label}`}
         className={`h-10 flex-shrink-0 rounded-sb-sm px-2 text-sm hover:bg-control-strong-hover ${
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
         }`}
@@ -162,7 +189,7 @@ function TransitionPicker({
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
-                  Übergang zum nächsten Song
+                  {isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'}
                 </p>
                 <button
                   type="button"
@@ -184,7 +211,7 @@ function TransitionPicker({
                     }`}
                   >
                     <span className="text-base font-semibold">{option.label}</span>
-                    <span className="text-xs opacity-80">{option.hint}</span>
+                    <span className="text-xs opacity-80">{isItem ? option.itemHint : option.hint}</span>
                   </button>
                 ))}
               </div>
@@ -212,6 +239,8 @@ function TransitionPicker({
 interface EntryRowProps {
   entry: SongEntry
   index: number
+  /** Position among the songs only - announcements and section headings aren't numbered. */
+  songNumber: number
   song: Song | undefined
   songVariants: SongVariant[]
   onSelectSong: (songId: string, variantId: string | null) => void
@@ -230,6 +259,7 @@ interface EntryRowProps {
 function EntryRow({
   entry,
   index,
+  songNumber,
   song,
   songVariants,
   onSelectSong,
@@ -266,7 +296,7 @@ function EntryRow({
         onClick={() => onSelectSong(entry.songId, entry.variantId)}
         className="min-w-0 flex-1 truncate text-left hover:underline"
       >
-        {index + 1}. {title}
+        {songNumber}. {title}
       </button>
       {onSetTransition && (
         <TransitionPicker
@@ -293,34 +323,36 @@ function EntryRow({
   )
 }
 
-/** Whole minutes as text for the dialog field; empty = no estimate. */
-function minutesText(ms: number | undefined): string {
-  return ms ? String(Math.round((ms / 60000) * 10) / 10) : ''
+/** Whole seconds as text for the dialog field; empty = no duration. */
+function secondsText(ms: number | undefined): string {
+  return ms ? String(Math.round(ms / 1000)) : ''
 }
 
-function parseMinutes(text: string | undefined): number | undefined {
-  const minutes = Number((text ?? '').trim().replace(',', '.'))
-  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60000) : undefined
+function parseSeconds(text: string | undefined): number | undefined {
+  const seconds = Number((text ?? '').trim().replace(',', '.'))
+  return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) * 1000 : undefined
 }
 
 interface TransitionItemRowProps {
   entry: TransitionEntry
   index: number
   onEdit: (entry: TransitionEntry) => void
+  onSetTransition?: (entryId: string, type: TransitionType, delayMs: number) => void
   onRemove: (index: number) => void
 }
 
 /** A non-song item (#29): announcement/pause. Same drag handle as EntryRow; tapping the title
  * edits it. Shown distinctly (accent text + "Ansage" tag) so it can't be mistaken for a song. */
-function TransitionItemRow({ entry, index, onEdit, onRemove }: TransitionItemRowProps) {
+function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: TransitionItemRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
+  const heading = isHeadingEntry(entry)
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-sb-sm border border-dashed border-line bg-control px-3 py-3 text-base ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      className={`flex items-center gap-2 px-3 py-3 text-base ${
+        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-sb-sm border border-dashed border-line bg-control'
+      } ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
@@ -333,11 +365,26 @@ function TransitionItemRow({ entry, index, onEdit, onRemove }: TransitionItemRow
         ⠿
       </button>
       <button type="button" onClick={() => onEdit(entry)} className="min-w-0 flex-1 truncate text-left hover:underline">
-        {index + 1}. <span className="text-accent">{entry.title}</span>
-        <span className="ml-2 text-xs italic text-ink-faint">
-          Ansage{entry.estimatedDurationMs ? ` · ${minutesText(entry.estimatedDurationMs)} min` : ''}
-        </span>
+        {heading ? (
+          <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
+        ) : (
+          <>
+            <span className="mr-2 text-xs font-bold uppercase tracking-wider text-accent">Ansage</span>
+            <span className="italic">{entry.title}</span>
+          </>
+        )}
+        {entry.estimatedDurationMs ? (
+          <span className="ml-2 text-xs text-ink-faint">{formatItemSeconds(entry.estimatedDurationMs)}</span>
+        ) : null}
       </button>
+      {onSetTransition && (
+        <TransitionPicker
+          isItem
+          type={entry.transitionType ?? 'manual'}
+          delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
+          onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
+        />
+      )}
       <OverflowMenu
         title={entry.title}
         variant="flat"
@@ -512,36 +559,53 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     })
   }
 
-  const transitionFields = (entry?: TransitionEntry) => [
-    { key: 'title', label: 'Titel (z. B. "Ansage Merch-Stand")', defaultValue: entry?.title ?? '' },
-    { key: 'notes', label: 'Notizen für die Band', type: 'textarea' as const, defaultValue: entry?.notes ?? '' },
-    { key: 'minutes', label: 'Geschätzte Dauer (Minuten, optional)', defaultValue: minutesText(entry?.estimatedDurationMs) },
+  const transitionFields = (entry?: TransitionEntry, defaultStyle: ItemStyle = 'announcement') => [
+    { key: 'title', label: 'Titel (z. B. "Ansage Merch-Stand" oder "Set 2")', defaultValue: entry?.title ?? '' },
+    {
+      key: 'style',
+      label: 'Darstellung',
+      type: 'radio' as const,
+      defaultValue: entry?.style ?? defaultStyle,
+      options: [
+        { value: 'announcement', label: 'Ansage / Pause' },
+        { value: 'heading', label: 'Abschnitts-Überschrift (z. B. Set 1)' },
+      ],
+    },
+    { key: 'notes', label: 'Notizen für die Band (optional)', type: 'textarea' as const, defaultValue: entry?.notes ?? '' },
+    { key: 'seconds', label: 'Dauer (Sekunden, optional - für automatischen Übergang)', defaultValue: secondsText(entry?.estimatedDurationMs) },
   ]
 
   /** Adds an announcement/pause between songs (#29) - a real queue position with notes, no audio. */
-  async function addTransition() {
+  async function addTransition(defaultStyle: ItemStyle) {
     if (!setlist) return
-    const result = await promptFields('Ansage / Pause hinzufügen', transitionFields(), 'Hinzufügen')
+    const heading = defaultStyle === 'heading'
+    const result = await promptFields(
+      heading ? 'Abschnitt hinzufügen' : 'Ansage / Pause hinzufügen',
+      transitionFields(undefined, defaultStyle),
+      'Hinzufügen',
+    )
     if (!result?.title?.trim()) return
     const item: TransitionEntry = {
       id: randomId(),
       kind: 'transition',
+      style: result.style === 'heading' ? 'heading' : 'announcement',
       title: result.title.trim(),
       notes: result.notes ?? '',
-      estimatedDurationMs: parseMinutes(result.minutes),
+      estimatedDurationMs: parseSeconds(result.seconds),
     }
     saveSetlist({ ...setlist, entries: [...setlist.entries, item] })
   }
 
   async function editTransition(entry: TransitionEntry) {
     if (!setlist) return
-    const result = await promptFields('Ansage bearbeiten', transitionFields(entry), 'Speichern')
+    const result = await promptFields('Eintrag bearbeiten', transitionFields(entry), 'Speichern')
     if (!result?.title?.trim()) return
     const updated: TransitionEntry = {
       ...entry,
+      style: result.style === 'heading' ? 'heading' : 'announcement',
       title: result.title.trim(),
       notes: result.notes ?? '',
-      estimatedDurationMs: parseMinutes(result.minutes),
+      estimatedDurationMs: parseSeconds(result.seconds),
     }
     saveSetlist({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
   }
@@ -551,7 +615,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     saveSetlist({
       ...setlist,
       entries: setlist.entries.map((entry) =>
-        entry.id === entryId && !isTransitionEntry(entry) ? { ...entry, variantId } : entry,
+        entry.id === entryId && isSongEntry(entry) ? { ...entry, variantId } : entry,
       ),
     })
   }
@@ -561,7 +625,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     saveSetlist({
       ...setlist,
       entries: setlist.entries.map((entry) =>
-        entry.id === entryId && !isTransitionEntry(entry) ? { ...entry, transitionType, transitionDelayMs } : entry,
+        entry.id === entryId ? { ...entry, transitionType, transitionDelayMs } : entry,
       ),
     })
   }
@@ -627,6 +691,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
                   entry={entry}
                   index={index}
                   onEdit={(item) => void editTransition(item)}
+                  onSetTransition={index < setlist.entries.length - 1 ? setTransition : undefined}
                   onRemove={removeSong}
                 />
               ) : (
@@ -634,6 +699,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
                 key={entry.id}
                 entry={entry}
                 index={index}
+                songNumber={setlist.entries.slice(0, index + 1).filter(isSongEntry).length}
                 song={songs.find((s) => s.id === entry.songId)}
                 songVariants={variants.filter((v) => v.songId === entry.songId)}
                 onSelectSong={onSelectSong}
@@ -652,10 +718,17 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
         </div>
         <button
           type="button"
-          onClick={() => void addTransition()}
+          onClick={() => void addTransition('announcement')}
           className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover"
         >
           + Ansage / Pause
+        </button>
+        <button
+          type="button"
+          onClick={() => void addTransition('heading')}
+          className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover"
+        >
+          + Abschnitt
         </button>
       </div>
     </div>

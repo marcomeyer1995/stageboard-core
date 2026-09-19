@@ -86,16 +86,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const track = resolveTrackForEntry(queue.currentEntry, currentVariant, trackOverride)
   const noLocalTrack = usesLocalEngine && (!currentVariant || !track)
 
-  if (queue.currentEntry && isTransitionEntry(queue.currentEntry)) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-ink-soft">
-        <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">Ansage</span>
-        <span className="font-semibold text-ink">{queue.currentEntry.title}</span>
-        <span className="text-xs text-ink-faint">Kein Abspielen - weiter mit „Weiter ›"</span>
-      </div>
-    )
-  }
-  if (!currentSong) {
+  // A transition item (#29) plays as a silent countdown with the same Play/Pause/Stop controls.
+  const transitionItem = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
+  if (!currentSong && !transitionItem) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Kein Song aktiv</div>
   }
 
@@ -118,11 +111,14 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
     <div className="flex h-full flex-col gap-2 text-ink-soft">
       <div className="flex w-full flex-1 items-center overflow-hidden">
         <span style={{ fontSize: titleFontSize }} className="whitespace-nowrap">
-          <span className="font-semibold text-ink">{currentSong.title}</span>
+          <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
           )}
           <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
+          {transitionItem?.estimatedDurationMs ? (
+            <span className="ml-1 font-sb-mono text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
+          ) : null}
         </span>
       </div>
       <div className="grid grid-cols-4 gap-2">
@@ -130,7 +126,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           type="button"
           onClick={() => {
             void play()
-            if (!usesDeviceOutput) void forward({ type: 'play' })
+            if (!usesDeviceOutput && !transitionItem) void forward({ type: 'play' })
           }}
           className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'playing'
@@ -144,7 +140,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           type="button"
           onClick={() => {
             void pause()
-            if (!usesDeviceOutput) void forward({ type: 'pause' })
+            if (!usesDeviceOutput && !transitionItem) void forward({ type: 'pause' })
           }}
           className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'paused'
@@ -158,7 +154,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           type="button"
           onClick={() => {
             void stop()
-            if (!usesDeviceOutput) void forward({ type: 'stop' })
+            if (!usesDeviceOutput && !transitionItem) void forward({ type: 'stop' })
           }}
           className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
@@ -173,7 +169,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
         </button>
       </div>
       {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
-      {noLocalTrack && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
+      {noLocalTrack && !transitionItem && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
       {/* #231: the song is running past its originally authored end, via the live bar-extend
           trigger - shown whenever any extension is active, playing or not (a pause mid-extension
           shouldn't make the indicator flicker off). */}

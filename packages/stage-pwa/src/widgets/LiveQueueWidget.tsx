@@ -3,7 +3,8 @@ import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } f
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { OverflowMenu } from '../components/OverflowMenu'
-import { isTransitionEntry } from 'shared-types'
+import { isHeadingEntry, isTransitionEntry } from 'shared-types'
+import { formatItemSeconds } from '../lib/formatItemDuration'
 import { queueItemTitle, reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
@@ -14,16 +15,11 @@ import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 type RowStatus = 'past' | 'current' | 'upcoming'
 
-function formatMinutes(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return seconds === 0 ? `${minutes} min` : `${minutes}:${String(seconds).padStart(2, '0')} min`
-}
-
 interface QueueRowProps {
   item: QueueItem
-  index: number
+  /** The song's position among the songs only - null for transition items and section headings,
+   * which aren't numbered. */
+  number: number | null
   status: RowStatus
   canManage: boolean
   /** Omitted for the row already up next - "Als nächstes spielen" on it would be a no-op. */
@@ -41,11 +37,13 @@ interface QueueRowProps {
  * Row actions live behind the same "⋯" `OverflowMenu` LibraryView/SetlistDetail already use
  * instead of a long-press context menu, so this doesn't compete with the drag gesture above,
  * and instead of the old always-visible "Als nächstes" button, which ate too much row width. */
-function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
+function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.entry.id,
     disabled: !canManage,
   })
+  const isSection = isHeadingEntry(item.entry)
+  const isTransition = isTransitionEntry(item.entry) && !isSection
 
   return (
     <div
@@ -54,12 +52,18 @@ function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, curren
         if (status === 'current') currentRowRef?.(el)
       }}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-1 rounded-sb-sm px-2 py-1 ${isDragging ? 'opacity-50' : ''} ${
-        status === 'current'
-          ? 'bg-accent text-accent-ink font-semibold'
-          : status === 'past'
-            ? 'bg-control text-ink-faint opacity-60'
-            : 'bg-control'
+      className={`flex items-center gap-1 px-2 py-1 ${isDragging ? 'opacity-50' : ''} ${
+        isSection
+          ? `mt-2 rounded-sb-sm border-b-2 ${
+              status === 'current' ? 'border-accent-ink bg-accent text-accent-ink' : 'border-accent bg-transparent'
+            } ${status === 'past' ? 'opacity-50' : ''}`
+          : `rounded-sb-sm ${isTransition ? 'border border-dashed border-accent' : ''} ${
+              status === 'current'
+                ? 'bg-accent text-accent-ink font-semibold'
+                : status === 'past'
+                  ? 'bg-control text-ink-faint opacity-60'
+                  : 'bg-control'
+            }`
       }`}
     >
       {canManage && (
@@ -76,20 +80,38 @@ function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, curren
           ⠿
         </button>
       )}
-      <span className="min-w-0 flex-1 truncate">
-        <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{index + 1}.</span>
-        {queueItemTitle(item)}
-        {isTransitionEntry(item.entry) && (
-          <span className={`ml-2 text-xs italic ${status === 'current' ? '' : 'text-ink-faint'}`}>
-            Ansage{item.entry.estimatedDurationMs ? ` · ${formatMinutes(item.entry.estimatedDurationMs)}` : ''}
+      {isSection ? (
+        <span className="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-widest">
+          {queueItemTitle(item)}
+          {isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
+            <span className="ml-2 font-normal normal-case tracking-normal opacity-70">
+              {formatItemSeconds(item.entry.estimatedDurationMs)}
+            </span>
+          ) : null}
+        </span>
+      ) : isTransition ? (
+        <span className="min-w-0 flex-1 truncate italic">
+          <span className={`mr-2 text-xs font-bold not-italic uppercase tracking-wider ${status === 'current' ? '' : 'text-accent'}`}>
+            Ansage
           </span>
-        )}
-        {item.variant && !item.variant.isDefault && (
-          <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-accent'}`}>
-            ({item.variant.label})
-          </span>
-        )}
-      </span>
+          {queueItemTitle(item)}
+          {isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
+            <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-ink-faint'}`}>
+              {formatItemSeconds(item.entry.estimatedDurationMs)}
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">
+          <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{number}.</span>
+          {queueItemTitle(item)}
+          {item.variant && !item.variant.isDefault && (
+            <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-accent'}`}>
+              ({item.variant.label})
+            </span>
+          )}
+        </span>
+      )}
       {canManage && (
         <OverflowMenu
           title={queueItemTitle(item)}
@@ -188,13 +210,14 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedItems.map((item) => item.entry.id)} strategy={verticalListSortingStrategy}>
           {orderedItems.map((item, i) => {
+            const songNumber = item.song ? orderedItems.slice(0, i + 1).filter((it) => it.song).length : null
             const status: RowStatus = i < currentIndex ? 'past' : i === currentIndex ? 'current' : 'upcoming'
             const isImmediateNext = i === currentIndex + 1
             return (
               <QueueRow
                 key={item.entry.id}
                 item={item}
-                index={i}
+                number={songNumber}
                 status={status}
                 canManage={canManage && status === 'upcoming'}
                 onPlayNext={status === 'upcoming' && !isImmediateNext ? playNext : null}
@@ -211,32 +234,57 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   )
 }
 
-const PREVIEW_SONGS = ['Highway to Hell', 'Wie ein schützender Engel', 'Sweet Home Alabama']
+const PREVIEW_ROWS: { kind: 'section' | 'song' | 'announcement'; title: string }[] = [
+  { kind: 'section', title: 'Set 1' },
+  { kind: 'song', title: 'Highway to Hell' },
+  { kind: 'announcement', title: 'Ansage Merch-Stand' },
+  { kind: 'song', title: 'Wie ein schützender Engel' },
+  { kind: 'song', title: 'Sweet Home Alabama' },
+]
 
 /**
  * Static stand-in for the Widget Gallery (#22) - the real component reads the active
  * setlist's queue (`useQueue()`), which is empty during ordinary Edit-Mode browsing (no
  * show running) and would otherwise render nothing but "Keine Setlist aktiv.", telling a
  * musician nothing about what this widget actually looks like mid-gig. Mirrors the real
- * row markup with a few representative song titles instead.
+ * row markup with a few representative rows instead, including a section heading and an
+ * announcement so the special items are recognisable.
  */
 export function LiveQueueWidgetPreview() {
+  let songNumber = 0
+  let currentShown = false
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-sm text-ink-soft">
       <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
-      {PREVIEW_SONGS.map((title, i) => (
-        <div
-          key={title}
-          className={`flex items-center justify-between gap-2 rounded-sb-sm px-2 py-1 ${
-            i === 0 ? 'bg-accent text-accent-ink font-semibold' : 'bg-control'
-          }`}
-        >
-          <span className="min-w-0 flex-1 truncate">
-            <span className={`mr-2 ${i === 0 ? '' : 'text-ink-faint'}`}>{i + 1}.</span>
-            {title}
-          </span>
-        </div>
-      ))}
+      {PREVIEW_ROWS.map((row) => {
+        if (row.kind === 'section') {
+          return (
+            <div key={row.title} className="mt-1 border-b-2 border-accent px-2 py-1 text-xs font-bold uppercase tracking-widest">
+              {row.title}
+            </div>
+          )
+        }
+        const current = row.kind === 'song' && !currentShown
+        if (current) currentShown = true
+        if (row.kind === 'song') songNumber += 1
+        return (
+          <div
+            key={row.title}
+            className={`flex items-center gap-2 rounded-sb-sm px-2 py-1 ${
+              row.kind === 'announcement' ? 'border border-dashed border-accent bg-control italic' : current ? 'bg-accent text-accent-ink font-semibold' : 'bg-control'
+            }`}
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {row.kind === 'announcement' ? (
+                <span className="mr-2 text-xs font-bold not-italic uppercase tracking-wider text-accent">Ansage</span>
+              ) : (
+                <span className={`mr-2 ${current ? '' : 'text-ink-faint'}`}>{songNumber}.</span>
+              )}
+              {row.title}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }

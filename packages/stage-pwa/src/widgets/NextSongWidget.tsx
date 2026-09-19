@@ -1,16 +1,21 @@
-import { isTransitionEntry } from 'shared-types'
+import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 
+/** What to call a non-song queue entry on screen. */
+function itemLabel(entry: SetlistEntry): string {
+  return isHeadingEntry(entry) ? 'Abschnitt' : 'Ansage'
+}
+
 /** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const { queue, canControl, next, previous } = useShowMode()
   const { previousEntry, currentEntry, nextEntry, currentSong, nextSong, currentVariant, nextVariant } = queue
-  const currentTransition = currentEntry && isTransitionEntry(currentEntry) ? currentEntry : null
-  const nextTransition = nextEntry && isTransitionEntry(nextEntry) ? nextEntry : null
+  const currentItem = currentEntry && !isSongEntry(currentEntry) ? currentEntry : null
+  const nextItem = nextEntry && !isSongEntry(nextEntry) ? nextEntry : null
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
@@ -19,9 +24,9 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
     <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
       <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
         <span style={{ fontSize }} className="whitespace-nowrap">
-          {currentTransition ? (
+          {currentItem ? (
             <>
-              Ansage: <span className="font-semibold text-ink">{currentTransition.title}</span>
+              {itemLabel(currentItem)}: <span className="font-semibold text-ink">{currentItem.title}</span>
             </>
           ) : currentSong ? (
             <>
@@ -33,10 +38,10 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
           ) : (
             'Keine Songs vorhanden'
           )}
-          {nextTransition && (
+          {nextItem && (
             <>
               {' | '}
-              Next: <span className="font-semibold text-ink">{nextTransition.title}</span> (Ansage)
+              Next: <span className="font-semibold text-ink">{nextItem.title}</span> ({itemLabel(nextItem)})
             </>
           )}
           {nextSong && (

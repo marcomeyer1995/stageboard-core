@@ -1,4 +1,4 @@
-import type { ShowState } from 'shared-types'
+import { isTransitionEntry, type ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
@@ -118,23 +118,25 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
-  if (!currentEntry || !currentSong) return
+  // A transition item (#29) plays too - as a silent countdown, so it has a clock but no song.
+  if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
   const now = Date.now()
 
   const isFreshStart = state.activeEntryStartedAt === null
-  const seedCountIn = isFreshStart && !opts.skipCountIn
+  const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
-  const seededTransport: TransportState = seedCountIn
-    ? {
-        ...currentTransport(state),
-        accumulatedMs: countInLeadMs(
-          currentVariant?.beatAnchors ?? [],
-          activeSong.bpm,
-          activeSong.timeSignature,
-          currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
-        ),
-      }
-    : currentTransport(state)
+  const seededTransport: TransportState =
+    seedCountIn && activeSong
+      ? {
+          ...currentTransport(state),
+          accumulatedMs: countInLeadMs(
+            currentVariant?.beatAnchors ?? [],
+            activeSong.bpm,
+            activeSong.timeSignature,
+            currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+          ),
+        }
+      : currentTransport(state)
 
   const patch: Partial<ShowState> = transportPatch(playTransport(seededTransport, now))
   if (isFreshStart) {

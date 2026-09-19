@@ -33,11 +33,17 @@ export const SongEntrySchema = z.object({
 })
 export type SongEntry = z.infer<typeof SongEntrySchema>
 
+export const ITEM_STYLES = ['announcement', 'heading'] as const
+export type ItemStyle = (typeof ITEM_STYLES)[number]
+
 /**
- * A non-musical item in the setlist flow (#29): banter, an announcement, a technical pause. It is
- * a real queue position - it becomes the current entry and its notes are shown to the band - but
- * has no audio, click or cues, and playback never starts or ends it by itself; it is advanced
- * manually like any other entry.
+ * A non-musical item in the setlist flow (#29): banter, an announcement, a technical pause - or,
+ * with `style: 'heading'`, a section heading that structures the setlist ("Set 1", "Zugabe").
+ * Both are the same element and differ only in how they look. It is a real queue position with
+ * notes but no audio, click or cues, and plays like a silent track whose length is
+ * `estimatedDurationMs`: Play starts its countdown, and at the end its `transitionType` decides
+ * what happens (same choices as a song's). `manual` never auto-advances - the countdown is then
+ * just a stopwatch and "Weiter" moves on.
  */
 export const TransitionEntrySchema = z.object({
   id: z.string().min(1),
@@ -45,8 +51,12 @@ export const TransitionEntrySchema = z.object({
   title: z.string().min(1),
   /** What the band needs to read while this item is current (e.g. the announcement text). */
   notes: z.string(),
-  /** Planning estimate only - nothing counts it down. Shown in the editor and queue. */
+  /** Absent = 'announcement'. */
+  style: z.enum(ITEM_STYLES).optional(),
+  /** Length of the countdown; without it the item has no end and behaves as `manual`. */
   estimatedDurationMs: z.number().int().nonnegative().optional(),
+  transitionType: z.enum(TRANSITION_TYPES).optional(),
+  transitionDelayMs: z.number().int().nonnegative().optional(),
 })
 export type TransitionEntry = z.infer<typeof TransitionEntrySchema>
 
@@ -55,6 +65,14 @@ export type SetlistEntry = SongEntry | TransitionEntry
 
 export function isTransitionEntry(entry: SetlistEntry): entry is TransitionEntry {
   return entry.kind === 'transition'
+}
+
+export function isSongEntry(entry: SetlistEntry): entry is SongEntry {
+  return entry.kind !== 'transition'
+}
+
+export function isHeadingEntry(entry: SetlistEntry): boolean {
+  return isTransitionEntry(entry) && entry.style === 'heading'
 }
 
 export const SetlistSchema = z.object({

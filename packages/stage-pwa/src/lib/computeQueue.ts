@@ -1,17 +1,17 @@
-import { isTransitionEntry } from 'shared-types'
+import { isSongEntry } from 'shared-types'
 import type { Setlist, SetlistEntry, ShowState, Song, SongEntry, SongVariant, TrackMeta } from 'shared-types'
 
 /** One resolved position in the queue: the setlist entry, its song, and the variant it plays.
- * A transition item (#29) has no song or variant - both are null. */
+ * A transition item or section heading (#29) has no song or variant - both are null. */
 export interface QueueItem {
   entry: SetlistEntry
   song: Song | null
   variant: SongVariant | null
 }
 
-/** What to call a queue position on screen: the song's title, or a transition item's own. */
+/** What to call a queue position on screen: the song's title, or the item's own. */
 export function queueItemTitle(item: Pick<QueueItem, 'entry' | 'song'>): string {
-  return isTransitionEntry(item.entry) ? item.entry.title : (item.song?.title ?? '')
+  return isSongEntry(item.entry) ? (item.song?.title ?? '') : item.entry.title
 }
 
 export interface Queue {
@@ -23,7 +23,7 @@ export interface Queue {
   /** Songs only - transition items have none. */
   orderedSongs: Song[]
   /** Null when there is no such position, *or* when it is a transition item (#29) - check the
-   * matching `*Entry` with `isTransitionEntry` to tell the two apart. */
+   * matching `*Entry` with `isSongEntry` to tell the two apart. */
   previousSong: Song | null
   currentSong: Song | null
   nextSong: Song | null
@@ -67,7 +67,7 @@ export function resolveTrackForEntry(
   overrideTrackId: string | null,
 ): TrackMeta | null {
   if (!variant || variant.tracks.length === 0) return null
-  const entryTrackId = entry && !isTransitionEntry(entry) ? entry.trackId : null
+  const entryTrackId = entry && isSongEntry(entry) ? entry.trackId : null
   const requestedId = overrideTrackId ?? entryTrackId
   const requested = requestedId ? variant.tracks.find((t) => t.id === requestedId) : undefined
   return requested ?? variant.tracks.find((t) => t.kind === 'band-mix') ?? variant.tracks[0]
@@ -89,7 +89,7 @@ export function computeQueue(
     : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
 
   const orderedItems: QueueItem[] = entries.flatMap<QueueItem>((entry) => {
-    if (isTransitionEntry(entry)) return [{ entry, song: null, variant: null }]
+    if (!isSongEntry(entry)) return [{ entry, song: null, variant: null }]
     const song = songs.find((s) => s.id === entry.songId)
     return song ? [{ entry, song, variant: resolveVariantForEntry(entry, variants) }] : []
   })

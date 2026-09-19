@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SongEntry, TransitionEntry } from 'shared-types'
-import { resolveTrackEndAction } from './trackEndTransition'
+import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 
 const entry = (over: Partial<SongEntry> = {}): SongEntry => ({
   id: 'e1',
@@ -11,6 +11,7 @@ const entry = (over: Partial<SongEntry> = {}): SongEntry => ({
 })
 const next = entry({ id: 'e2', songId: 's2' })
 const announcement: TransitionEntry = { id: 't1', kind: 'transition', title: 'Ansage Merch', notes: '' }
+const heading: TransitionEntry = { id: 'h1', kind: 'transition', style: 'heading', title: 'Set 1', notes: '' }
 
 describe('resolveTrackEndAction', () => {
   it('defaults to stop for legacy entries without a transition type', () => {
@@ -47,13 +48,47 @@ describe('resolveTrackEndAction', () => {
     }
   })
 
-  it('arms a transition item instead of auto-playing into it', () => {
-    for (const type of ['seamless', 'delayed'] as const) {
-      expect(resolveTrackEndAction(entry({ transitionType: type }), announcement)).toEqual({ kind: 'arm-next' })
-    }
+  it('starts a following transition item like any next entry', () => {
+    expect(resolveTrackEndAction(entry({ transitionType: 'seamless' }), announcement)).toEqual({
+      kind: 'start-next',
+      skipCountIn: true,
+      delayMs: 0,
+    })
   })
 
-  it('never hands off from a transition item itself', () => {
-    expect(resolveTrackEndAction(announcement, next)).toEqual({ kind: 'stop' })
+  it('treats a following section heading like any other next entry', () => {
+    expect(resolveTrackEndAction(entry({ transitionType: 'seamless' }), heading)).toEqual({
+      kind: 'start-next',
+      skipCountIn: true,
+      delayMs: 0,
+    })
+  })
+
+  it('applies a transition item\'s own type and delay after its countdown', () => {
+    const timed: TransitionEntry = { ...announcement, transitionType: 'delayed', transitionDelayMs: 3000 }
+    expect(resolveTrackEndAction(timed, next)).toEqual({ kind: 'start-next', skipCountIn: false, delayMs: 3000 })
+    expect(resolveTrackEndAction({ ...announcement, transitionType: 'next-ready' }, next)).toEqual({ kind: 'arm-next' })
+  })
+
+  it('lets a section heading auto-continue like any transition item', () => {
+    const timed: TransitionEntry = { ...heading, estimatedDurationMs: 5000, transitionType: 'seamless' }
+    expect(transitionItemEndMs(timed)).toBe(5000)
+    expect(resolveTrackEndAction(timed, next)).toEqual({ kind: 'start-next', skipCountIn: true, delayMs: 0 })
+    expect(resolveTrackEndAction(heading, next)).toEqual({ kind: 'stop' })
+  })
+})
+
+describe('transitionItemEndMs', () => {
+  const item = (over: Partial<TransitionEntry>): TransitionEntry => ({ ...announcement, ...over })
+
+  it('is the duration for a non-manual item', () => {
+    expect(transitionItemEndMs(item({ estimatedDurationMs: 30000, transitionType: 'seamless' }))).toBe(30000)
+  })
+
+  it('is null for manual items, items without a duration, sections and songs', () => {
+    expect(transitionItemEndMs(item({ estimatedDurationMs: 30000 }))).toBeNull()
+    expect(transitionItemEndMs(item({ transitionType: 'seamless' }))).toBeNull()
+    expect(transitionItemEndMs(heading)).toBeNull() // no duration/type: waits for Weiter
+    expect(transitionItemEndMs(next)).toBeNull()
   })
 })

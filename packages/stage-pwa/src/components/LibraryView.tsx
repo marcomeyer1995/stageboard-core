@@ -11,7 +11,7 @@ import {
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isTransitionEntry, type Setlist, type Song } from 'shared-types'
+import { isSongEntry, type Setlist, type Song } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
@@ -557,7 +557,7 @@ export function LibraryView() {
                             : 'text-ink-faint'
                         }
                       >
-                        ({setlist.entries.filter((entry) => !isTransitionEntry(entry)).length})
+                        ({setlist.entries.filter(isSongEntry).length})
                       </span>
                       {activeSetlist?.id === setlist.id && (
                         <span
