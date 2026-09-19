@@ -9,12 +9,12 @@ function entryDelayMs(entry: SetlistEntry | null): number {
   return entry?.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS
 }
 
-/** How long a transition item's countdown runs, or null when it has no scheduled end - an item
- * without a duration, or one set to `manual` (then it's only a stopwatch and "Weiter" ends it). Songs end with their backing track instead, so this is null for them. */
+/** How long a transition item's countdown runs, or null when it has no scheduled end (no duration:
+ * then it's only a stopwatch and "Weiter" ends it). At the end it stops (`manual`) or hands off
+ * per its type. Songs end after their own length instead (entryDuration.ts), so null for them. */
 export function transitionItemEndMs(entry: SetlistEntry | null): number | null {
   if (!entry || !isTransitionEntry(entry)) return null
-  if (entry.estimatedDurationMs === undefined || entryTransitionType(entry) === 'manual') return null
-  return entry.estimatedDurationMs
+  return entry.estimatedDurationMs ?? null
 }
 
 export type TrackEndAction =

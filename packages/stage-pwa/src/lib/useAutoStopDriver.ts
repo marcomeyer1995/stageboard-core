@@ -1,39 +1,33 @@
 import { useEffect, useRef } from 'react'
 import { isSongEntry } from 'shared-types'
+import { songDurationMs } from './entryDuration'
+import { resolveTrackForEntry } from './computeQueue'
 import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
 import { useShowMode } from './showMode'
 
 /**
- * Auto-stops playback once the current entry's backing track reaches its natural end (#231) -
- * mounted once, unconditionally, in App.tsx, same reasoning as useAudioOutputDriver.ts/
- * useClickOutputDriver.ts (a widget-local effect would stop working the moment its tab is
- * switched away from).
+ * Ends the current entry once its length has elapsed (#231, #28), then acts on its
+ * `transitionType` (#232, trackEndTransition.ts) - mounted once, unconditionally, in App.tsx, same
+ * reasoning as useAudioOutputDriver.ts/useClickOutputDriver.ts (a widget-local effect would stop
+ * working the moment its tab is switched away from).
  *
- * Works identically in both Gig and Practice mode purely through useShowMode.ts's shared API,
- * with no explicit "is this the audio-output device" check needed: `getLocalTrackDurationMs()`
- * (localAudioEngine.ts) is naturally `null` on any Gig-mode tablet that hasn't itself loaded the
- * track - only useAudioOutputDriver.ts's claimed-output tablet ever calls `loadLocalTrack` there
- * - and Practice mode always plays locally on this exact device. Combined with `canControl`
- * (Gig's Master-Token, always-true in Practice), the auto-stop fires exactly on whichever single
- * device happens to satisfy both. The one real gap this leaves: a Gig-mode setup where Master
- * and the claimed audio output are two different tablets never auto-stops, since neither one
- * alone satisfies both conditions - the same class of limitation useAudioOutputDriver.ts's "only
- * Master forwards a load event" already has, and out of scope to solve here (it would need
- * broadcasting duration into ShowState, real cross-device plumbing this issue doesn't ask for).
+ * The length comes from stored data (entryDuration.ts), not from whichever tablet has the audio
+ * loaded, so it works identically in Gig and Practice through useShowMode.ts's shared API and
+ * only needs `canControl` (Gig's Master-Token, always-true in Practice) - Master and the audio
+ * tablet no longer have to be the same device, and a click-only song with a hand-entered length
+ * stops too. Only a track with no stored length yet falls back to the loaded audio's own length.
  *
- * A transition item (#29) plays like a silent track whose length is its estimated duration, so the
- * same handoff applies at the end of its countdown. What happens at that end depends on the
- * entry's `transitionType` (#232, trackEndTransition.ts):
- * `manual` stops, `next-ready` advances to the next entry without playing it, `seamless`
+ * `manual` stops; `next-ready` advances to the next entry without playing it; `seamless`
  * advances and starts it at once (no count-in; useAudioOutputDriver.ts preloads its track so the
- * swap has no load gap), `delayed` advances and starts it after the entry's `transitionDelayMs`.
- * #231's bar-extend trigger needs no special handling: it already pushes the end point this
- * driver waits for, so it delays the handoff too.
+ * swap has no load gap); `delayed` advances and starts it after the entry's `transitionDelayMs`.
+ * A transition item or section heading (#29) plays as a silent countdown of its own duration and
+ * ends the same way. #231's bar-extend trigger needs no special handling: it already pushes the
+ * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, canControl, clickExtendMs, stop, next, play, queue } = useShowMode()
-  const { currentEntry, nextEntry } = queue
+  const { elapsedMs, playbackStatus, canControl, clickExtendMs, stop, next, play, queue, trackOverride } = useShowMode()
+  const { currentEntry, currentVariant, nextEntry } = queue
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`
   // keeps ticking via requestAnimationFrame for a frame or two after it fires, before the
@@ -49,10 +43,15 @@ export function useAutoStopDriver(): void {
       return
     }
     if (!canControl || handledForRunRef.current || elapsedMs === null) return
-    // A song ends with its loaded backing track; a transition item (#29) with its own countdown.
-    // Sections and `manual` items have no scheduled end - "Weiter" moves on from those.
+    // A song ends after its stored length (#28: the selected track's, else the hand-entered one -
+    // which also ends click-only songs); a track whose length isn't stored yet falls back to the
+    // audio actually loaded on this device. A song with no known length never stops by itself. A
+    // transition item or section heading (#29) ends after its own duration.
     const durationMs =
-      currentEntry && isSongEntry(currentEntry) ? getLocalTrackDurationMs() : transitionItemEndMs(currentEntry)
+      currentEntry && isSongEntry(currentEntry)
+        ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
+          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? getLocalTrackDurationMs() : null))
+        : transitionItemEndMs(currentEntry)
     if (durationMs === null || elapsedMs < durationMs + clickExtendMs) return
     handledForRunRef.current = true
     const action = resolveTrackEndAction(currentEntry, nextEntry)
@@ -64,7 +63,7 @@ export function useAutoStopDriver(): void {
       pendingStartRef.current = { entryId: nextEntry.id, skipCountIn: action.skipCountIn, delayMs: action.delayMs }
     }
     void next()
-  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stop, next, currentEntry, nextEntry])
+  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stop, next, currentEntry, currentVariant, trackOverride, nextEntry])
 
   const currentEntryId = currentEntry?.id ?? null
   useEffect(() => {

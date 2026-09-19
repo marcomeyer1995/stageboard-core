@@ -20,7 +20,7 @@ function formatMinutes(ms: number): string {
  * the current mode.
  */
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
-  const { queue, elapsedMs, playbackStatus, clickExtendMs } = useShowMode()
+  const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
@@ -36,6 +36,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
     elapsedMs,
     now,
     clickExtendMs,
+    trackOverrideId: trackOverride,
     setlist: queue.activeSetlist,
   })
   const overtime = result.overrunMs !== null && result.overrunMs > 0
