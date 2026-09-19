@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { stopClick } from '../lib/clickEngine'
 import { unloadLocalTrack } from '../lib/localAudioEngine'
+import { practiceResetSong } from '../lib/practiceQueue'
 import { usePracticeStateStore } from './usePracticeStateStore'
 import { useShowStateStore } from './useShowStateStore'
 import { useWorkspaceStore } from './useWorkspaceStore'
@@ -10,8 +11,8 @@ export type SessionMode = 'gig' | 'practice'
 
 interface AppModeState {
   mode: SessionMode
-  /** Returns whether the switch actually happened - `false` means it was refused because a
-   * song is currently playing in `sessionMode`'s own current mode (see the guard below).
+  /** Returns whether the switch actually happened - `false` means it was refused because the
+   * live show is playing and the switch would leave Gig mode (see the guard below).
    * SessionModeControl.tsx doesn't strictly need this (it already disables the button whenever
    * that's the case), but callers that don't pre-check for themselves still get a clear signal
    * instead of a silent no-op. */
@@ -56,12 +57,11 @@ export const useAppModeStore = create<AppModeState>()(
       setMode: (mode) => {
         const current = get().mode
         if (mode === current) return true
-        // Safety feature (Marco, explicit request): switching Gig <-> Solo Üben mid-song risks
-        // yanking whatever's actually making sound - the band's live rig in Gig mode, this
-        // device's own speaker in Practice mode - out from under an active song. Block the
-        // switch outright rather than just cleaning up after it, unlike the leaving-Practice
-        // cleanup below.
-        if (isModePlaying(current)) return false
+        // Safety feature (Marco, explicit request): leaving Gig mode while the live show is
+        // playing risks yanking the band's rig out from under an active song - block the switch
+        // outright. Deliberately one-directional (#233): leaving Practice mode only ever affects
+        // this one tablet's own local playback, so there it's force-stopped below instead.
+        if (current === 'gig' && isModePlaying('gig')) return false
         // Leaving Practice mode must never leave its local-only playback running into Gig mode -
         // Practice's Play/Pause/Stop (practiceQueue.ts) drives localAudioEngine.ts imperatively,
         // entirely decoupled from ShowTransportWidget's own Gig-mode-only "stop when no longer
@@ -69,7 +69,10 @@ export const useAppModeStore = create<AppModeState>()(
         // ever tell it to stop (found live, 2026-09-10: a Solo-mode backing track kept audibly
         // playing after switching to Gig mode). stopClick() is the same story for the Click
         // Generator's Practice-mode override (#25) - both are no-ops if nothing was playing.
+        // practiceResetSong() also rearms Practice's own transport (and cancels a pending
+        // count-in start), so coming back later doesn't resume mid-song from a stale position.
         if (current === 'practice' && mode !== 'practice') {
+          void practiceResetSong()
           unloadLocalTrack()
           stopClick()
         }

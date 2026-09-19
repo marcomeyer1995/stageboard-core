@@ -130,6 +130,22 @@ export async function practiceResetSong(): Promise<void> {
   stopLocalTrack()
 }
 
+/** Picks which setlist Practice mode works through (`null` = the whole catalog). Never touches
+ * the shared ShowState. The song list changes under the current entry, so playback stops and the
+ * position/overrides reset - same shape as advancing to another entry. */
+export function practiceSetActiveSetlist(setlistId: string | null): void {
+  clearScheduledAudioStart()
+  patch({
+    activeSetlistId: setlistId,
+    activeEntryId: null,
+    trackOverride: null,
+    clickTrackOverride: null,
+    clickExtendMs: 0,
+    ...transportPatch(ARMED_TRANSPORT),
+  })
+  stopLocalTrack()
+}
+
 export async function practiceAdvanceNext(): Promise<void> {
   const { nextEntry } = snapshot()
   if (!nextEntry) return

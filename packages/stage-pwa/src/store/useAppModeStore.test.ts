@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { stopClick } from '../lib/clickEngine'
 import { unloadLocalTrack } from '../lib/localAudioEngine'
+import { practiceResetSong } from '../lib/practiceQueue'
 import { useAppModeStore } from './useAppModeStore'
 
 vi.mock('../lib/clickEngine', () => ({ stopClick: vi.fn() }))
 vi.mock('../lib/localAudioEngine', () => ({ unloadLocalTrack: vi.fn() }))
+vi.mock('../lib/practiceQueue', () => ({ practiceResetSong: vi.fn() }))
 
 // useShowStateStore transitively imports showStateDb.ts, which instantiates a real PouchDB at
 // module load - not viable in this test environment (same reason ShowTransportWidget.test.tsx
@@ -31,6 +33,7 @@ describe('setMode', () => {
     useAppModeStore.setState({ mode: 'practice' })
     useAppModeStore.getState().setMode('gig')
 
+    expect(practiceResetSong).toHaveBeenCalledTimes(1)
     expect(unloadLocalTrack).toHaveBeenCalledTimes(1)
     expect(stopClick).toHaveBeenCalledTimes(1)
     expect(useAppModeStore.getState().mode).toBe('gig')
@@ -39,6 +42,7 @@ describe('setMode', () => {
   it('does nothing extra when switching from Gig to Practice', () => {
     useAppModeStore.getState().setMode('practice')
 
+    expect(practiceResetSong).not.toHaveBeenCalled()
     expect(unloadLocalTrack).not.toHaveBeenCalled()
     expect(stopClick).not.toHaveBeenCalled()
     expect(useAppModeStore.getState().mode).toBe('practice')
@@ -61,16 +65,17 @@ describe('setMode', () => {
     expect(useAppModeStore.getState().mode).toBe('gig')
   })
 
-  it('refuses to switch out of Practice mode while a song is playing there', () => {
+  it('switches out of Practice mode while a song is playing there, force-stopping and rearming it (#233)', () => {
     useAppModeStore.setState({ mode: 'practice' })
     practiceGetState.mockReturnValue({ get: () => ({ playbackStatus: 'playing' }) })
 
     const switched = useAppModeStore.getState().setMode('gig')
 
-    expect(switched).toBe(false)
-    expect(useAppModeStore.getState().mode).toBe('practice')
-    expect(unloadLocalTrack).not.toHaveBeenCalled()
-    expect(stopClick).not.toHaveBeenCalled()
+    expect(switched).toBe(true)
+    expect(useAppModeStore.getState().mode).toBe('gig')
+    expect(practiceResetSong).toHaveBeenCalledTimes(1)
+    expect(unloadLocalTrack).toHaveBeenCalledTimes(1)
+    expect(stopClick).toHaveBeenCalledTimes(1)
   })
 
   it('allows switching once Gig playback is no longer "playing"', () => {

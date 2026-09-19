@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { OverflowMenu } from '../components/OverflowMenu'
 import { reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
-import { useQueue } from '../lib/queue'
+import { useShowMode } from '../lib/showMode'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -104,7 +104,11 @@ function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, curren
  * #18's own draft).
  */
 export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
-  const { activeSetlist, orderedItems, currentEntry, isMaster } = useQueue()
+  const {
+    mode,
+    canControl,
+    queue: { activeSetlist, orderedItems, currentEntry },
+  } = useShowMode()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const fontSize = useContentFontSize(config)
@@ -118,7 +122,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   const currentIndex = currentEntry
     ? orderedItems.findIndex((item) => item.entry.id === currentEntry.id)
     : -1
-  const canManage = isMaster && !!activeSetlist
+  const canManage = canControl && !!activeSetlist
 
   useEffect(() => {
     currentRowEl.current?.scrollIntoView({ block: 'center' })
@@ -152,7 +156,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
-        {!isMaster && (
+        {mode === 'gig' && !canControl && (
           <button
             type="button"
             onClick={claimMaster}
