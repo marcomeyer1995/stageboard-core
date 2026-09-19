@@ -9,6 +9,8 @@ import { ClickTrackConfigPanel, ClickTrackWidget } from './ClickTrackWidget'
 import { ClickTrackConfigSchema } from './clickTrackConfig'
 import { ClockConfigPanel, ClockWidget } from './ClockWidget'
 import { ClockConfigSchema } from './clockConfig'
+import { FestivalClockConfigPanel, FestivalClockWidget, FestivalClockWidgetPreview } from './FestivalClockWidget'
+import { FestivalClockConfigSchema } from './festivalClockConfig'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import { ContentFontSizeConfigSchema } from './contentFontSizeConfig'
 import { CustomTriggerConfigPanel, CustomTriggerWidget } from './CustomTriggerWidget'
@@ -362,6 +364,17 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: BackupStatusConfigSchema,
     Component: BackupStatusWidget,
     ConfigPanel: BackupStatusConfigPanel,
+  }),
+  defineWidget({
+    type: 'festival-clock',
+    title: 'Festival-Uhr',
+    description: 'Voraussichtliches Ende der restlichen Setlist - wird rot, wenn das Ende nach der Zielzeit (Curfew) liegt.',
+    category: 'performance',
+    defaultLayout: { w: 4, h: 3, minW: 3, minH: 2 },
+    configSchema: FestivalClockConfigSchema,
+    Component: FestivalClockWidget,
+    ConfigPanel: FestivalClockConfigPanel,
+    Preview: FestivalClockWidgetPreview,
   }),
   defineWidget({
     type: 'clock',
