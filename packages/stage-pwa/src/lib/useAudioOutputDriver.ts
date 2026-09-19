@@ -7,6 +7,7 @@ import { resolveTrackForEntry } from './computeQueue'
 import { resolveExecutionEngine } from './hardwareRouting'
 import {
   loadLocalTrack,
+  preloadLocalTrack,
   pauseLocalTrack,
   playLocalTrack,
   stopLocalTrack,
@@ -40,7 +41,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
  */
 export function useAudioOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl } = useShowMode()
-  const { currentEntry, currentSong, currentVariant } = queue
+  const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
 
   // Kept fresh every render without being a dependency of the load/play effects below (same
   // reasoning as useClickOutputDriver.ts's stateRef) - those must fire only on a genuine
@@ -102,6 +103,14 @@ export function useAudioOutputDriver(): void {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
+
+  // Buffers the next entry's track ahead of a `seamless` transition (#232), so the swap at the
+  // current track's end has no Blob-fetch gap (loadLocalTrack picks the preloaded element up).
+  const nextTrack = resolveTrackForEntry(nextEntry, nextVariant, null)
+  useEffect(() => {
+    if (!usesLocalEngine || currentEntry?.transitionType !== 'seamless' || !nextVariant || !nextTrack) return
+    void preloadLocalTrack(nextVariant.id, nextTrack.id)
+  }, [usesLocalEngine, currentEntry?.transitionType, nextVariant?.id, nextTrack?.id])
 
   // Reactively mirrors the synced playbackStatus onto this device's local engine, whenever this
   // device is Gig mode's claimed audio output. Seeks to the current synced position before

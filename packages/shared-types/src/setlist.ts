@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+export const TRANSITION_TYPES = ['manual', 'next-ready', 'seamless', 'delayed'] as const
+export type TransitionType = (typeof TRANSITION_TYPES)[number]
+export const DEFAULT_TRANSITION_DELAY_MS = 8000
+
 /**
  * One occurrence of a song in a setlist. A distinct `id` (not just the songId) is what lets
  * the same song appear twice with two different variants selected - e.g. the full version
@@ -16,6 +20,14 @@ export const SetlistEntrySchema = z.object({
    * choice of backing track (e.g. "no guitar" vs "full band" for tonight's lineup), separate
    * from a per-device override for one specific show (TrackOverrideWidget). */
   trackId: z.string().nullable(),
+  /** What happens when this entry's backing track reaches its scheduled end (#232, see
+   * TRANSITION_TYPES): `manual` (default) just stops, `next-ready` stops and arms the next entry,
+   * `seamless` starts the next entry immediately with no count-in, `delayed` starts it after
+   * `transitionDelayMs` (absent = DEFAULT_TRANSITION_DELAY_MS) with its normal count-in. Legacy
+   * documents without the field behave as `manual` (no migration needed). */
+  transitionType: z.enum(TRANSITION_TYPES).optional(),
+  /** Only meaningful for `transitionType: 'delayed'` - the pause before the next entry starts. */
+  transitionDelayMs: z.number().int().nonnegative().optional(),
 })
 export type SetlistEntry = z.infer<typeof SetlistEntrySchema>
 

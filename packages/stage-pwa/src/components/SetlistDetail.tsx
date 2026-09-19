@@ -8,7 +8,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { SetlistEntry, Song, SongVariant } from 'shared-types'
+import { DEFAULT_TRANSITION_DELAY_MS, type SetlistEntry, type Song, type SongVariant, type TransitionType } from 'shared-types'
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
@@ -107,6 +107,100 @@ function VariantPicker({
   )
 }
 
+const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string }[] = [
+  { type: 'manual', label: 'Manuell', hint: 'Wiedergabe stoppt am Ende, der nächste Song wird von Hand gestartet.' },
+  { type: 'next-ready', label: 'Nächster bereit', hint: 'Stoppt am Ende und stellt den nächsten Song bereit - Start von Hand.' },
+  { type: 'seamless', label: 'Nahtlos', hint: 'Der nächste Song startet sofort, ohne Pause und ohne Einzähler.' },
+  { type: 'delayed', label: 'Mit Pause', hint: 'Der nächste Song startet nach einer festen Pause, mit Einzähler.' },
+]
+
+/** Per-entry "what happens when this song ends" (#232) - same portal-dialog shape as
+ * VariantPicker above, for the same reason (a row-embedded popup gets clipped by the scrolling
+ * entries list). The button shows "→" plus a short label only when it isn't the default, so the
+ * common all-manual setlist stays uncluttered. */
+function TransitionPicker({
+  type,
+  delayMs,
+  onChange,
+}: {
+  type: TransitionType
+  delayMs: number
+  onChange: (type: TransitionType, delayMs: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title={`Übergang zum nächsten Song: ${current.label}`}
+        className={`h-10 flex-shrink-0 rounded-sb-sm px-2 text-sm hover:bg-control-strong-hover ${
+          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
+        }`}
+      >
+        {type === 'manual' ? '→' : `→ ${current.label}`}
+      </button>
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              className="flex w-full max-w-[min(360px,90vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
+                  Übergang zum nächsten Song
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  title="Schließen"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {TRANSITION_OPTIONS.map((option) => (
+                  <button
+                    key={option.type}
+                    type="button"
+                    onClick={() => onChange(option.type, delayMs)}
+                    className={`flex flex-col rounded-sb px-3 py-2 text-left ${
+                      option.type === type ? 'bg-accent text-accent-ink' : 'bg-control text-ink hover:bg-control-hover'
+                    }`}
+                  >
+                    <span className="text-base font-semibold">{option.label}</span>
+                    <span className="text-xs opacity-80">{option.hint}</span>
+                  </button>
+                ))}
+              </div>
+              {type === 'delayed' && (
+                <label className="flex items-center justify-between gap-2 text-sm text-ink-soft">
+                  Pause (Sekunden)
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={Math.round(delayMs / 1000)}
+                    onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
+                    className="h-10 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
+                  />
+                </label>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
 interface EntryRowProps {
   entry: SetlistEntry
   index: number
@@ -114,6 +208,8 @@ interface EntryRowProps {
   songVariants: SongVariant[]
   onSelectSong: (songId: string, variantId: string | null) => void
   onSetVariant: (entryId: string, variantId: string) => void
+  /** Omitted for the last entry - nothing follows it to transition into. */
+  onSetTransition?: (entryId: string, type: TransitionType, delayMs: number) => void
   onRemove: (index: number) => void
 }
 
@@ -130,6 +226,7 @@ function EntryRow({
   songVariants,
   onSelectSong,
   onSetVariant,
+  onSetTransition,
   onRemove,
 }: EntryRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -163,6 +260,13 @@ function EntryRow({
       >
         {index + 1}. {title}
       </button>
+      {onSetTransition && (
+        <TransitionPicker
+          type={entry.transitionType ?? 'manual'}
+          delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
+          onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
+        />
+      )}
       {songVariants.length > 1 && (
         <VariantPicker
           variants={songVariants}
@@ -352,6 +456,16 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     })
   }
 
+  function setTransition(entryId: string, transitionType: TransitionType, transitionDelayMs: number) {
+    if (!setlist) return
+    saveSetlist({
+      ...setlist,
+      entries: setlist.entries.map((entry) =>
+        entry.id === entryId ? { ...entry, transitionType, transitionDelayMs } : entry,
+      ),
+    })
+  }
+
   if (!setlist) {
     return <p className="text-ink-faint">Setlist wurde entfernt.</p>
   }
@@ -415,6 +529,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
                 songVariants={variants.filter((v) => v.songId === entry.songId)}
                 onSelectSong={onSelectSong}
                 onSetVariant={setVariant}
+                onSetTransition={index < setlist.entries.length - 1 ? setTransition : undefined}
                 onRemove={removeSong}
               />
             ))}
