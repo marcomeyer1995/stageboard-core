@@ -299,3 +299,17 @@ describe('computeQueue - transition items (#29)', () => {
     expect(queue.orderedItems.map(queueItemTitle)).toEqual(['Song A', 'Ansage Merch', 'Song B'])
   })
 })
+
+describe('computeQueue - section headings (#29 follow-up)', () => {
+  const heading: SetlistEntry = { id: 'h1', kind: 'transition', style: 'heading', title: 'Set 2', notes: '' }
+
+  it('keeps a section heading as a queue position with no song, and titles it', () => {
+    const sl = setlist('sl-1', [entry('e1', 'a'), heading, entry('e2', 'b')])
+    const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1', activeEntryId: 'h1' })
+    expect(queue.orderedItems.map(queueItemTitle)).toEqual(['Song A', 'Set 2', 'Song B'])
+    expect(queue.currentEntry?.id).toBe('h1')
+    expect(queue.currentSong).toBeNull()
+    expect(queue.orderedSongs.map((s) => s.id)).toEqual(['a', 'b'])
+  })
+})
+

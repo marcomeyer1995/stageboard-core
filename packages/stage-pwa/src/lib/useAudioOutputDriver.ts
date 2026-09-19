@@ -91,8 +91,8 @@ export function useAudioOutputDriver(): void {
   // synced position, not always 0 - a device that becomes the claimed output mid-song (a
   // hardware rebind, a late join) must start from the right place (found live, 2026-09-10).
   useEffect(() => {
-    if (!currentSong || !usesLocalEngine) return
-    if (!currentVariant || !track) {
+    if (!usesLocalEngine) return
+    if (!currentSong || !currentVariant || !track) {
       // No track for this song at all - make sure the local player isn't still holding a
       // previous song's audio loaded.
       unloadLocalTrack()
@@ -146,6 +146,7 @@ export function useAudioOutputDriver(): void {
       audioStartedForRunRef.current = false
     }
     if (audioStartedForRunRef.current) return // already started this run
+    if (!currentSong) return // a transition item (#29) plays silently - there is no audio to start
     if (elapsedMs === null || elapsedMs < 0) return // still counting in, or not ready yet
     audioStartedForRunRef.current = true
     // Gestureless - this can run on a bare reload while ShowState already says "playing", the
@@ -156,7 +157,7 @@ export function useAudioOutputDriver(): void {
     void playLocalTrack(elapsedMs).then((result) => {
       useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
     })
-  }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs])
+  }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs, currentSong])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
   // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.

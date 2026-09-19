@@ -1,3 +1,4 @@
+import { isTransitionEntry } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
 import { barMsAt, countInLeadMs } from './metronome'
@@ -84,12 +85,13 @@ function clearScheduledAudioStart(): void {
  * whatever `accumulatedMs` pause froze and reschedules from there. */
 export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   const { currentEntry, currentSong, currentVariant } = snapshot()
-  if (!currentEntry || !currentSong) return
+  // A transition item (#29) plays too - as a silent countdown: it has a clock but no audio.
+  if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
   const state = currentPracticeState()
   const isFreshStart = state.playbackStatus === 'stopped'
-  const seedCountIn = isFreshStart && !opts.skipCountIn
+  const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong
-  const seededMs = seedCountIn
+  const seededMs = seedCountIn && activeSong
     ? countInLeadMs(
         currentVariant?.beatAnchors ?? [],
         activeSong.bpm,
@@ -102,6 +104,7 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   patch(transportPatch(playTransport({ ...currentTransport(state), accumulatedMs: seededMs }, Date.now())))
 
   clearScheduledAudioStart()
+  if (!currentSong) return
   if (seededMs < 0) {
     scheduledAudioStart = setTimeout(() => {
       scheduledAudioStart = null

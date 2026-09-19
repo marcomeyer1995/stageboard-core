@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { resolveTrackEndAction } from './trackEndTransition'
+import { isSongEntry } from 'shared-types'
+import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
 import { useShowMode } from './showMode'
 
@@ -21,7 +22,9 @@ import { useShowMode } from './showMode'
  * Master forwards a load event" already has, and out of scope to solve here (it would need
  * broadcasting duration into ShowState, real cross-device plumbing this issue doesn't ask for).
  *
- * What happens at that end depends on the entry's `transitionType` (#232, trackEndTransition.ts):
+ * A transition item (#29) plays like a silent track whose length is its estimated duration, so the
+ * same handoff applies at the end of its countdown. What happens at that end depends on the
+ * entry's `transitionType` (#232, trackEndTransition.ts):
  * `manual` stops, `next-ready` advances to the next entry without playing it, `seamless`
  * advances and starts it at once (no count-in; useAudioOutputDriver.ts preloads its track so the
  * swap has no load gap), `delayed` advances and starts it after the entry's `transitionDelayMs`.
@@ -46,7 +49,10 @@ export function useAutoStopDriver(): void {
       return
     }
     if (!canControl || handledForRunRef.current || elapsedMs === null) return
-    const durationMs = getLocalTrackDurationMs()
+    // A song ends with its loaded backing track; a transition item (#29) with its own countdown.
+    // Sections and `manual` items have no scheduled end - "Weiter" moves on from those.
+    const durationMs =
+      currentEntry && isSongEntry(currentEntry) ? getLocalTrackDurationMs() : transitionItemEndMs(currentEntry)
     if (durationMs === null || elapsedMs < durationMs + clickExtendMs) return
     handledForRunRef.current = true
     const action = resolveTrackEndAction(currentEntry, nextEntry)
