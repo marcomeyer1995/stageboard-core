@@ -1,3 +1,4 @@
+import { isTransitionEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -7,7 +8,9 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 /** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const { queue, canControl, next, previous } = useShowMode()
-  const { previousSong, currentSong, nextSong, currentVariant, nextVariant } = queue
+  const { previousEntry, currentEntry, nextEntry, currentSong, nextSong, currentVariant, nextVariant } = queue
+  const currentTransition = currentEntry && isTransitionEntry(currentEntry) ? currentEntry : null
+  const nextTransition = nextEntry && isTransitionEntry(nextEntry) ? nextEntry : null
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
@@ -16,7 +19,11 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
     <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
       <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
         <span style={{ fontSize }} className="whitespace-nowrap">
-          {currentSong ? (
+          {currentTransition ? (
+            <>
+              Ansage: <span className="font-semibold text-ink">{currentTransition.title}</span>
+            </>
+          ) : currentSong ? (
             <>
               Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
               {currentVariant && !currentVariant.isDefault && (
@@ -25,6 +32,12 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
             </>
           ) : (
             'Keine Songs vorhanden'
+          )}
+          {nextTransition && (
+            <>
+              {' | '}
+              Next: <span className="font-semibold text-ink">{nextTransition.title}</span> (Ansage)
+            </>
           )}
           {nextSong && (
             <>
@@ -43,7 +56,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
           <button
             type="button"
             onClick={previous}
-            disabled={!previousSong}
+            disabled={!previousEntry}
             title="Vorheriger Song"
             className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -52,7 +65,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
           <button
             type="button"
             onClick={next}
-            disabled={!nextSong}
+            disabled={!nextEntry}
             title="Nächster Song"
             className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
           >

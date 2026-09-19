@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CAPABILITIES, type ShowControlEvent } from 'shared-types'
+import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-types'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
@@ -86,6 +86,15 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const track = resolveTrackForEntry(queue.currentEntry, currentVariant, trackOverride)
   const noLocalTrack = usesLocalEngine && (!currentVariant || !track)
 
+  if (queue.currentEntry && isTransitionEntry(queue.currentEntry)) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-ink-soft">
+        <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">Ansage</span>
+        <span className="font-semibold text-ink">{queue.currentEntry.title}</span>
+        <span className="text-xs text-ink-faint">Kein Abspielen - weiter mit „Weiter ›"</span>
+      </div>
+    )
+  }
   if (!currentSong) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Kein Song aktiv</div>
   }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isTransitionEntry } from 'shared-types'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, commentVisibleTo, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
@@ -106,6 +107,26 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     // Smooth Scroll: ease continuously toward the active line every tick.
     container.scrollTop += (target - container.scrollTop) * 0.08
   }, [activeIndex, elapsedMs, config.viewMode])
+
+  const currentTransition = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
+  if (currentTransition) {
+    return (
+      <div className="flex h-full flex-col gap-2 overflow-y-auto">
+        <p className="text-sm uppercase tracking-widest text-ink-faint">Ansage</p>
+        <h1 style={{ fontSize: titleFontSize }} className="break-words font-bold leading-tight text-ink">
+          {currentTransition.title}
+        </h1>
+        {currentTransition.estimatedDurationMs ? (
+          <p style={{ fontSize: artistFontSize }} className="text-ink-muted">
+            ca. {Math.max(1, Math.round(currentTransition.estimatedDurationMs / 60000))} min
+          </p>
+        ) : null}
+        <p style={{ fontSize }} className="whitespace-pre-wrap break-words text-ink">
+          {currentTransition.notes}
+        </p>
+      </div>
+    )
+  }
 
   if (!currentSong) {
     return (

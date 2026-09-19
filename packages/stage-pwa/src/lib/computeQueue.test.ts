@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Setlist, SetlistEntry, ShowState, Song, SongVariant } from 'shared-types'
 import type { TrackMeta } from 'shared-types'
-import { computeQueue, resolveTrackForEntry, reorderToPlayNext } from './computeQueue'
+import { computeQueue, queueItemTitle, resolveTrackForEntry, reorderToPlayNext } from './computeQueue'
 
 function song(id: string, title: string): Song {
   return { id, title, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }
@@ -131,7 +131,7 @@ describe('computeQueue', () => {
   it('allows the same song to appear twice as two distinct queue items', () => {
     const sl = setlist('sl-1', [entry('e1', 'a'), entry('e2', 'b'), entry('e3', 'a')])
     const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' })
-    expect(queue.orderedItems.map((item) => item.song.id)).toEqual(['a', 'b', 'a'])
+    expect(queue.orderedItems.map((item) => item.song?.id)).toEqual(['a', 'b', 'a'])
     expect(queue.orderedItems.map((item) => item.entry.id)).toEqual(['e1', 'e2', 'e3'])
   })
 })
@@ -266,5 +266,36 @@ describe('reorderToPlayNext', () => {
   it('moving one occurrence of a duplicated song never touches the other', () => {
     const dup = [entry('e1', 'a'), entry('e2', 'b'), entry('e3', 'a')]
     expect(reorderToPlayNext(dup, 'e3', 'e1').map((e) => e.id)).toEqual(['e1', 'e3', 'e2'])
+  })
+})
+
+describe('computeQueue - transition items (#29)', () => {
+  const announcement: SetlistEntry = { id: 't1', kind: 'transition', title: 'Ansage Merch', notes: 'Merch-Stand!' }
+  const sl = setlist('sl-1', [entry('e1', 'a'), announcement, entry('e2', 'b')])
+
+  it('keeps the transition as its own queue position, with no song or variant', () => {
+    const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' })
+    expect(queue.orderedItems.map((item) => item.entry.id)).toEqual(['e1', 't1', 'e2'])
+    expect(queue.orderedItems[1]).toMatchObject({ song: null, variant: null })
+    expect(queue.orderedSongs.map((s) => s.id)).toEqual(['a', 'b'])
+  })
+
+  it('makes the transition current with no song, and still points at the entries around it', () => {
+    const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1', activeEntryId: 't1' })
+    expect(queue.currentEntry?.id).toBe('t1')
+    expect(queue.currentSong).toBeNull()
+    expect(queue.previousEntry?.id).toBe('e1')
+    expect(queue.previousSong?.id).toBe('a')
+    expect(queue.nextEntry?.id).toBe('e2')
+    expect(queue.nextSong?.id).toBe('b')
+  })
+
+  it('has no track for a transition item', () => {
+    expect(resolveTrackForEntry(announcement, null, 'some-track')).toBeNull()
+  })
+
+  it('queueItemTitle uses the transition title, or the song title', () => {
+    const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' })
+    expect(queue.orderedItems.map(queueItemTitle)).toEqual(['Song A', 'Ansage Merch', 'Song B'])
   })
 })

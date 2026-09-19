@@ -10,8 +10,10 @@ export const DEFAULT_TRANSITION_DELAY_MS = 8000
  * early in the set and a shortened "Kurzfassung" as the encore - since a plain songId can't
  * distinguish which occurrence is which.
  */
-export const SetlistEntrySchema = z.object({
+export const SongEntrySchema = z.object({
   id: z.string().min(1),
+  /** Absent on every entry that predates transition items (#29) - absent means 'song'. */
+  kind: z.literal('song').optional(),
   songId: z.string().min(1),
   /** null = play this song's isDefault variant. */
   variantId: z.string().nullable(),
@@ -29,7 +31,31 @@ export const SetlistEntrySchema = z.object({
   /** Only meaningful for `transitionType: 'delayed'` - the pause before the next entry starts. */
   transitionDelayMs: z.number().int().nonnegative().optional(),
 })
-export type SetlistEntry = z.infer<typeof SetlistEntrySchema>
+export type SongEntry = z.infer<typeof SongEntrySchema>
+
+/**
+ * A non-musical item in the setlist flow (#29): banter, an announcement, a technical pause. It is
+ * a real queue position - it becomes the current entry and its notes are shown to the band - but
+ * has no audio, click or cues, and playback never starts or ends it by itself; it is advanced
+ * manually like any other entry.
+ */
+export const TransitionEntrySchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('transition'),
+  title: z.string().min(1),
+  /** What the band needs to read while this item is current (e.g. the announcement text). */
+  notes: z.string(),
+  /** Planning estimate only - nothing counts it down. Shown in the editor and queue. */
+  estimatedDurationMs: z.number().int().nonnegative().optional(),
+})
+export type TransitionEntry = z.infer<typeof TransitionEntrySchema>
+
+export const SetlistEntrySchema = z.union([TransitionEntrySchema, SongEntrySchema])
+export type SetlistEntry = SongEntry | TransitionEntry
+
+export function isTransitionEntry(entry: SetlistEntry): entry is TransitionEntry {
+  return entry.kind === 'transition'
+}
 
 export const SetlistSchema = z.object({
   id: z.string().min(1),

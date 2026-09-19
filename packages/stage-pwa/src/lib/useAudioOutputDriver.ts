@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { entryTransitionType } from './trackEndTransition'
 import { pluginProviding } from './capabilities'
 import { supportsLocalExecution } from './clientTranslator'
 import { resolveTrackForEntry } from './computeQueue'
@@ -108,9 +109,9 @@ export function useAudioOutputDriver(): void {
   // current track's end has no Blob-fetch gap (loadLocalTrack picks the preloaded element up).
   const nextTrack = resolveTrackForEntry(nextEntry, nextVariant, null)
   useEffect(() => {
-    if (!usesLocalEngine || currentEntry?.transitionType !== 'seamless' || !nextVariant || !nextTrack) return
+    if (!usesLocalEngine || entryTransitionType(currentEntry) !== 'seamless' || !nextVariant || !nextTrack) return
     void preloadLocalTrack(nextVariant.id, nextTrack.id)
-  }, [usesLocalEngine, currentEntry?.transitionType, nextVariant?.id, nextTrack?.id])
+  }, [usesLocalEngine, currentEntry, nextVariant?.id, nextTrack?.id])
 
   // Reactively mirrors the synced playbackStatus onto this device's local engine, whenever this
   // device is Gig mode's claimed audio output. Seeks to the current synced position before
