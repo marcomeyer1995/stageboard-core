@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
+import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
 import { isDashboardVisible } from '../lib/dashboardLayout'
 import { useActiveProfile } from '../lib/useActiveProfile'
@@ -125,6 +126,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
         <Section title="Modus">
           <SessionModeControl />
+          {sessionMode === 'practice' && <PracticeSetlistPicker />}
         </Section>
 
         {sessionMode === 'gig' && (
