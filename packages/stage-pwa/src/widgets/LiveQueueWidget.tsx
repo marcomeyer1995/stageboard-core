@@ -3,7 +3,8 @@ import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } f
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { OverflowMenu } from '../components/OverflowMenu'
-import { reorderToPlayNext } from '../lib/computeQueue'
+import { isTransitionEntry } from 'shared-types'
+import { queueItemTitle, reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSize } from '../lib/useContentFontSize'
@@ -12,6 +13,13 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 type RowStatus = 'past' | 'current' | 'upcoming'
+
+function formatMinutes(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds === 0 ? `${minutes} min` : `${minutes}:${String(seconds).padStart(2, '0')} min`
+}
 
 interface QueueRowProps {
   item: QueueItem
@@ -70,7 +78,12 @@ function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, curren
       )}
       <span className="min-w-0 flex-1 truncate">
         <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{index + 1}.</span>
-        {item.song.title}
+        {queueItemTitle(item)}
+        {isTransitionEntry(item.entry) && (
+          <span className={`ml-2 text-xs italic ${status === 'current' ? '' : 'text-ink-faint'}`}>
+            Ansage{item.entry.estimatedDurationMs ? ` · ${formatMinutes(item.entry.estimatedDurationMs)}` : ''}
+          </span>
+        )}
         {item.variant && !item.variant.isDefault && (
           <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-accent'}`}>
             ({item.variant.label})
@@ -79,7 +92,7 @@ function QueueRow({ item, index, status, canManage, onPlayNext, onRemove, curren
       </span>
       {canManage && (
         <OverflowMenu
-          title={item.song.title}
+          title={queueItemTitle(item)}
           variant="flat"
           actions={[
             ...(onPlayNext

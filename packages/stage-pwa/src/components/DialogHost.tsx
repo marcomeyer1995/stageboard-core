@@ -115,6 +115,17 @@ function PromptFields({
               })}
             </div>
           </fieldset>
+        ) : field.type === 'textarea' ? (
+          <label key={field.key} className="block text-sm">
+            <span className="mb-1 block text-ink-muted">{field.label}</span>
+            <textarea
+              autoFocus={index === 0}
+              rows={5}
+              value={values[field.key]}
+              onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+              className="w-full resize-y rounded-sb bg-control px-3 py-2 text-ink-soft"
+            />
+          </label>
         ) : (
           <label key={field.key} className="block text-sm">
             <span className="mb-1 block text-ink-muted">{field.label}</span>

@@ -8,7 +8,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DEFAULT_TRANSITION_DELAY_MS, type SetlistEntry, type Song, type SongVariant, type TransitionType } from 'shared-types'
+import {
+  DEFAULT_TRANSITION_DELAY_MS,
+  isTransitionEntry,
+  type SongEntry,
+  type Song,
+  type SongVariant,
+  type TransitionEntry,
+  type TransitionType,
+} from 'shared-types'
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
@@ -202,7 +210,7 @@ function TransitionPicker({
 }
 
 interface EntryRowProps {
-  entry: SetlistEntry
+  entry: SongEntry
   index: number
   song: Song | undefined
   songVariants: SongVariant[]
@@ -280,6 +288,63 @@ function EntryRow({
         title={title}
         variant="flat"
         actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]}
+      />
+    </li>
+  )
+}
+
+/** Whole minutes as text for the dialog field; empty = no estimate. */
+function minutesText(ms: number | undefined): string {
+  return ms ? String(Math.round((ms / 60000) * 10) / 10) : ''
+}
+
+function parseMinutes(text: string | undefined): number | undefined {
+  const minutes = Number((text ?? '').trim().replace(',', '.'))
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60000) : undefined
+}
+
+interface TransitionItemRowProps {
+  entry: TransitionEntry
+  index: number
+  onEdit: (entry: TransitionEntry) => void
+  onRemove: (index: number) => void
+}
+
+/** A non-song item (#29): announcement/pause. Same drag handle as EntryRow; tapping the title
+ * edits it. Shown distinctly (accent text + "Ansage" tag) so it can't be mistaken for a song. */
+function TransitionItemRow({ entry, index, onEdit, onRemove }: TransitionItemRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-2 rounded-sb-sm border border-dashed border-line bg-control px-3 py-3 text-base ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        style={{ touchAction: 'none' }}
+        className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        aria-label="Ziehen zum Sortieren"
+      >
+        ⠿
+      </button>
+      <button type="button" onClick={() => onEdit(entry)} className="min-w-0 flex-1 truncate text-left hover:underline">
+        {index + 1}. <span className="text-accent">{entry.title}</span>
+        <span className="ml-2 text-xs italic text-ink-faint">
+          Ansage{entry.estimatedDurationMs ? ` · ${minutesText(entry.estimatedDurationMs)} min` : ''}
+        </span>
+      </button>
+      <OverflowMenu
+        title={entry.title}
+        variant="flat"
+        actions={[
+          { label: 'Bearbeiten', onClick: () => onEdit(entry) },
+          { label: 'Entfernen', danger: true, onClick: () => onRemove(index) },
+        ]}
       />
     </li>
   )
@@ -379,6 +444,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const removeSetlist = useSetlistsStore((state) => state.remove)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
+  const promptFields = useDialogStore((state) => state.promptFields)
   const { activeSetlist, isMaster } = useQueue()
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -446,12 +512,46 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     })
   }
 
+  const transitionFields = (entry?: TransitionEntry) => [
+    { key: 'title', label: 'Titel (z. B. "Ansage Merch-Stand")', defaultValue: entry?.title ?? '' },
+    { key: 'notes', label: 'Notizen für die Band', type: 'textarea' as const, defaultValue: entry?.notes ?? '' },
+    { key: 'minutes', label: 'Geschätzte Dauer (Minuten, optional)', defaultValue: minutesText(entry?.estimatedDurationMs) },
+  ]
+
+  /** Adds an announcement/pause between songs (#29) - a real queue position with notes, no audio. */
+  async function addTransition() {
+    if (!setlist) return
+    const result = await promptFields('Ansage / Pause hinzufügen', transitionFields(), 'Hinzufügen')
+    if (!result?.title?.trim()) return
+    const item: TransitionEntry = {
+      id: randomId(),
+      kind: 'transition',
+      title: result.title.trim(),
+      notes: result.notes ?? '',
+      estimatedDurationMs: parseMinutes(result.minutes),
+    }
+    saveSetlist({ ...setlist, entries: [...setlist.entries, item] })
+  }
+
+  async function editTransition(entry: TransitionEntry) {
+    if (!setlist) return
+    const result = await promptFields('Ansage bearbeiten', transitionFields(entry), 'Speichern')
+    if (!result?.title?.trim()) return
+    const updated: TransitionEntry = {
+      ...entry,
+      title: result.title.trim(),
+      notes: result.notes ?? '',
+      estimatedDurationMs: parseMinutes(result.minutes),
+    }
+    saveSetlist({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
+  }
+
   function setVariant(entryId: string, variantId: string) {
     if (!setlist) return
     saveSetlist({
       ...setlist,
       entries: setlist.entries.map((entry) =>
-        entry.id === entryId ? { ...entry, variantId } : entry,
+        entry.id === entryId && !isTransitionEntry(entry) ? { ...entry, variantId } : entry,
       ),
     })
   }
@@ -461,7 +561,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     saveSetlist({
       ...setlist,
       entries: setlist.entries.map((entry) =>
-        entry.id === entryId ? { ...entry, transitionType, transitionDelayMs } : entry,
+        entry.id === entryId && !isTransitionEntry(entry) ? { ...entry, transitionType, transitionDelayMs } : entry,
       ),
     })
   }
@@ -520,7 +620,16 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">
-            {setlist.entries.map((entry, index) => (
+            {setlist.entries.map((entry, index) =>
+              isTransitionEntry(entry) ? (
+                <TransitionItemRow
+                  key={entry.id}
+                  entry={entry}
+                  index={index}
+                  onEdit={(item) => void editTransition(item)}
+                  onRemove={removeSong}
+                />
+              ) : (
               <EntryRow
                 key={entry.id}
                 entry={entry}
@@ -532,11 +641,23 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
                 onSetTransition={index < setlist.entries.length - 1 ? setTransition : undefined}
                 onRemove={removeSong}
               />
-            ))}
+              ),
+            )}
           </ul>
         </SortableContext>
       </DndContext>
-      <AddSongCombobox songs={songs} onAdd={addSong} />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <AddSongCombobox songs={songs} onAdd={addSong} />
+        </div>
+        <button
+          type="button"
+          onClick={() => void addTransition()}
+          className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover"
+        >
+          + Ansage / Pause
+        </button>
+      </div>
     </div>
   )
 }

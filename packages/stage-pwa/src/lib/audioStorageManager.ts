@@ -1,4 +1,4 @@
-import type { Setlist, SongVariant } from 'shared-types'
+import { isTransitionEntry, type Setlist, type SongVariant } from 'shared-types'
 import { fetchTrack } from './audioClient'
 import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
@@ -94,7 +94,9 @@ export function computeTargetKeys(
     for (const track of variant.tracks) keys.add(cacheKey(variant.id, track.id))
   }
 
-  for (const entry of activeSetlist?.entries ?? []) addSong(entry.songId, entry.variantId)
+  for (const entry of activeSetlist?.entries ?? []) {
+    if (!isTransitionEntry(entry)) addSong(entry.songId, entry.variantId)
+  }
   for (const songId of pinnedSongIds) {
     if (!seenSongIds.has(songId)) addSong(songId, null)
   }

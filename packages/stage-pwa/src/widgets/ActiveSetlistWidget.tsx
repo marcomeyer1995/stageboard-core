@@ -1,3 +1,4 @@
+import { isTransitionEntry } from 'shared-types'
 import { useQueue } from '../lib/queue'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ActiveSetlistConfig } from './activeSetlistConfig'
@@ -27,7 +28,7 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
           {activeSetlist ? activeSetlist.name : 'Keine'}
         </span>
       </div>
-      {activeSetlist && <span className="text-sm text-ink-muted">{activeSetlist.entries.length} Songs</span>}
+      {activeSetlist && <span className="text-sm text-ink-muted">{activeSetlist.entries.filter((entry) => !isTransitionEntry(entry)).length} Songs</span>}
     </div>
   )
 }

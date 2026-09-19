@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SetlistEntry } from 'shared-types'
+import type { SongEntry, TransitionEntry } from 'shared-types'
 import { resolveTrackEndAction } from './trackEndTransition'
 
-const entry = (over: Partial<SetlistEntry> = {}): SetlistEntry => ({
+const entry = (over: Partial<SongEntry> = {}): SongEntry => ({
   id: 'e1',
   songId: 's1',
   variantId: null,
@@ -10,6 +10,7 @@ const entry = (over: Partial<SetlistEntry> = {}): SetlistEntry => ({
   ...over,
 })
 const next = entry({ id: 'e2', songId: 's2' })
+const announcement: TransitionEntry = { id: 't1', kind: 'transition', title: 'Ansage Merch', notes: '' }
 
 describe('resolveTrackEndAction', () => {
   it('defaults to stop for legacy entries without a transition type', () => {
@@ -44,5 +45,15 @@ describe('resolveTrackEndAction', () => {
     for (const type of ['next-ready', 'seamless', 'delayed'] as const) {
       expect(resolveTrackEndAction(entry({ transitionType: type }), null)).toEqual({ kind: 'stop' })
     }
+  })
+
+  it('arms a transition item instead of auto-playing into it', () => {
+    for (const type of ['seamless', 'delayed'] as const) {
+      expect(resolveTrackEndAction(entry({ transitionType: type }), announcement)).toEqual({ kind: 'arm-next' })
+    }
+  })
+
+  it('never hands off from a transition item itself', () => {
+    expect(resolveTrackEndAction(announcement, next)).toEqual({ kind: 'stop' })
   })
 })
