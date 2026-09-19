@@ -3,6 +3,8 @@ import { z } from 'zod'
 export const TRANSITION_TYPES = ['manual', 'next-ready', 'seamless', 'delayed'] as const
 export type TransitionType = (typeof TRANSITION_TYPES)[number]
 export const DEFAULT_TRANSITION_DELAY_MS = 8000
+export const DEFAULT_PAUSE_BETWEEN_SONGS_MS = 30000
+export const DEFAULT_SONG_DURATION_MS = 240000
 
 /**
  * One occurrence of a song in a setlist. A distinct `id` (not just the songId) is what lets
@@ -83,5 +85,17 @@ export const SetlistSchema = z.object({
    * setlists that predate this field - they simply sort as the oldest, which is correct:
    * no migration needed, nothing before this field genuinely has a creation time to recover. */
   createdAt: z.number().int().nonnegative().default(0),
+  /** Festival-slot / curfew end as a local time of day, "HH:mm" (#28). A time of day rather than
+   * a timestamp so the setlist stays reusable for the next gig. */
+  targetEndTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
+  /** Expected dead air between two songs, for the Festival Clock's prediction. Absent =
+   * DEFAULT_PAUSE_BETWEEN_SONGS_MS. */
+  defaultTransitionMs: z.number().int().nonnegative().optional(),
+  /** Length assumed for a song whose backing track length is unknown. Absent =
+   * DEFAULT_SONG_DURATION_MS. */
+  defaultSongDurationMs: z.number().int().nonnegative().optional(),
 })
 export type Setlist = z.infer<typeof SetlistSchema>

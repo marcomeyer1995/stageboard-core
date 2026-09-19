@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHeadingEntry, isSongEntry, isTransitionEntry, SetlistEntrySchema } from './setlist.js'
+import { isHeadingEntry, isSongEntry, isTransitionEntry, SetlistEntrySchema, SetlistSchema } from './setlist.js'
 
 describe('SetlistEntrySchema', () => {
   it('parses a legacy song entry without a kind', () => {
@@ -40,5 +40,20 @@ describe('heading style', () => {
       transitionType: 'seamless',
     })
     expect(isTransitionEntry(entry) && entry.transitionType).toBe('seamless')
+  })
+})
+
+describe('SetlistSchema time budget (#28)', () => {
+  const base = { id: 's1', name: 'Gig', entries: [] }
+
+  it('accepts a target end time and budget fields, all optional', () => {
+    expect(SetlistSchema.parse(base).targetEndTime).toBeUndefined()
+    const parsed = SetlistSchema.parse({ ...base, targetEndTime: '22:15', defaultTransitionMs: 20000, defaultSongDurationMs: 200000 })
+    expect(parsed.targetEndTime).toBe('22:15')
+  })
+
+  it('rejects a malformed target end time', () => {
+    expect(SetlistSchema.safeParse({ ...base, targetEndTime: '25:00' }).success).toBe(false)
+    expect(SetlistSchema.safeParse({ ...base, targetEndTime: '9:00' }).success).toBe(false)
   })
 })

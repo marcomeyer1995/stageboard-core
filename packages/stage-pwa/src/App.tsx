@@ -16,6 +16,7 @@ import { type TrackedSync } from './lib/trackedSync'
 import { useAudioOutputDriver } from './lib/useAudioOutputDriver'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
 import { useAutoStopDriver } from './lib/useAutoStopDriver'
+import { useTrackDurationBackfill } from './lib/useTrackDurationBackfill'
 import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
 import { useClickOutputDriver } from './lib/useClickOutputDriver'
 import { useClockSync } from './lib/useClockSync'
@@ -137,6 +138,7 @@ function App() {
   useAudioOutputDriver()
   useClickOutputDriver()
   useAutoStopDriver()
+  useTrackDurationBackfill()
   useHardwareDetection()
   useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit

@@ -9,11 +9,14 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
+  DEFAULT_PAUSE_BETWEEN_SONGS_MS,
+  DEFAULT_SONG_DURATION_MS,
   DEFAULT_TRANSITION_DELAY_MS,
   isHeadingEntry,
   isSongEntry,
   isTransitionEntry,
   type ItemStyle,
+  type Setlist,
   type SongEntry,
   type Song,
   type SongVariant,
@@ -320,6 +323,62 @@ function EntryRow({
         actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]}
       />
     </li>
+  )
+}
+
+/** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
+ * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
+function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
+  const inputClass = 'h-10 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
+  function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
+    const seconds = Number(text.trim().replace(',', '.'))
+    const value = text.trim() === '' || !Number.isFinite(seconds) || seconds < 0 ? undefined : Math.round(seconds) * 1000
+    if (value !== setlist[field]) onSave({ ...setlist, [field]: value })
+  }
+  return (
+    <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+      <summary className="cursor-pointer select-none font-medium text-ink-muted">
+        Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">
+        <label className="flex items-center justify-between gap-2">
+          Endzeit (Curfew)
+          <input
+            type="time"
+            value={setlist.targetEndTime ?? ''}
+            onChange={(e) => onSave({ ...setlist, targetEndTime: e.target.value || undefined })}
+            className="h-10 rounded-sb-sm bg-surface px-2 text-ink"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          Pause zwischen Songs (Sekunden)
+          <input
+            key={`pause-${setlist.defaultTransitionMs ?? ''}`}
+            type="number"
+            min={0}
+            placeholder={String(DEFAULT_PAUSE_BETWEEN_SONGS_MS / 1000)}
+            defaultValue={setlist.defaultTransitionMs === undefined ? '' : Math.round(setlist.defaultTransitionMs / 1000)}
+            onBlur={(e) => commitSeconds('defaultTransitionMs', e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          Songlänge ohne Track (Sekunden)
+          <input
+            key={`song-${setlist.defaultSongDurationMs ?? ''}`}
+            type="number"
+            min={0}
+            placeholder={String(DEFAULT_SONG_DURATION_MS / 1000)}
+            defaultValue={setlist.defaultSongDurationMs === undefined ? '' : Math.round(setlist.defaultSongDurationMs / 1000)}
+            onBlur={(e) => commitSeconds('defaultSongDurationMs', e.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <p className="text-xs text-ink-faint">
+          Grundlage für die voraussichtliche Endzeit. Songs mit hinterlegtem Track zählen mit ihrer echten Länge.
+        </p>
+      </div>
+    </details>
   )
 }
 
@@ -681,6 +740,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           Setlist deaktivieren (alle Songs)
         </button>
       )}
+      <ScheduleSettings setlist={setlist} onSave={(next) => void saveSetlist(next)} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">

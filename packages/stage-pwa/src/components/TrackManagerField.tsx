@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TrackKind, TrackMeta } from 'shared-types'
+import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { putTrack, removeTrack } from '../lib/songVariantsDb'
 import { randomId } from '../lib/id'
 
@@ -27,6 +28,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     if (!file) return
     const id = randomId()
     setBusyTrackId(id)
+    const durationMs = await measureAudioDurationMs(file)
     await putTrack(
       variantId,
       {
@@ -37,6 +39,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
         parentTrackId: null,
         mimeType: file.type,
         addedAt: Date.now(),
+        ...(durationMs !== null && { durationMs }),
       },
       file,
     )
