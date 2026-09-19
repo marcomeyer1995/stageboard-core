@@ -44,3 +44,9 @@ export function pause(state: TransportState, now: number): TransportState {
 export function reset(): TransportState {
   return { ...ARMED_TRANSPORT }
 }
+
+/** `skipCountIn`: start the entry at position 0 instead of seeding its count-in lead - a seamless
+ * transition (#232) is already in time, so a count-in there would only delay the segue. */
+export interface PlayOptions {
+  skipCountIn?: boolean
+}

@@ -1,5 +1,6 @@
 import type { PlaybackStatus } from 'shared-types'
 import type { Queue } from './computeQueue'
+import type { PlayOptions } from './playbackTransport'
 import {
   advanceToNextSong,
   advanceToPreviousSong,
@@ -58,7 +59,7 @@ export interface ShowModeApi {
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
-  play: () => Promise<void>
+  play: (opts?: PlayOptions) => Promise<void>
   pause: () => Promise<void>
   stop: () => Promise<void>
   reset: () => Promise<void>

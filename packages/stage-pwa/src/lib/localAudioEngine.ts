@@ -26,6 +26,44 @@ let currentObjectUrl: string | null = null
  * of the load it depends on. */
 let pendingLoad: Promise<LocalAudioResult> | null = null
 
+/** A second, already-buffered element for the entry after the current one (#232's seamless
+ * transition) - `loadLocalTrack` swaps it in instead of fetching, so the handoff has no
+ * Blob-fetch gap. `activeKey`/`preloaded.key` are `variantId:trackId`. */
+let activeKey: string | null = null
+let preloaded: { key: string; el: HTMLAudioElement; objectUrl: string } | null = null
+let pendingPreload: { key: string; promise: Promise<void> } | null = null
+
+function trackKey(variantId: string, trackId: string): string {
+  return `${variantId}:${trackId}`
+}
+
+function releasePreloaded(): void {
+  if (preloaded) URL.revokeObjectURL(preloaded.objectUrl)
+  preloaded = null
+}
+
+/** Buffers a track in the background without touching what's currently playing. No-op if that
+ * track is already active or preloaded; a different pending preload is simply superseded. */
+export function preloadLocalTrack(variantId: string, trackId: string): Promise<void> {
+  const key = trackKey(variantId, trackId)
+  if (key === activeKey || preloaded?.key === key) return Promise.resolve()
+  if (pendingPreload?.key === key) return pendingPreload.promise
+  releasePreloaded()
+  const promise = (async () => {
+    const blob = await getTrack(variantId, trackId)
+    if (!blob || pendingPreload?.key !== key) return
+    const objectUrl = URL.createObjectURL(blob)
+    const el = new Audio()
+    el.preload = 'auto'
+    el.src = objectUrl
+    preloaded = { key, el, objectUrl }
+  })().finally(() => {
+    if (pendingPreload?.key === key) pendingPreload = null
+  })
+  pendingPreload = { key, promise }
+  return promise
+}
+
 function getAudioEl(): HTMLAudioElement {
   if (!audioEl) audioEl = new Audio()
   return audioEl
@@ -38,7 +76,21 @@ function getAudioEl(): HTMLAudioElement {
  * attachments are fetched as Blobs, and object URLs otherwise leak for the lifetime of the
  * page. */
 export function loadLocalTrack(variantId: string, trackId: string, atMs: number): Promise<LocalAudioResult> {
+  const key = trackKey(variantId, trackId)
   const promise = (async (): Promise<LocalAudioResult> => {
+    if (pendingPreload?.key === key) await pendingPreload.promise.catch(() => {})
+    if (preloaded?.key === key) {
+      // Swap in the already-buffered element: nothing to fetch, so playback can start at once.
+      const old = audioEl
+      old?.pause()
+      if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
+      audioEl = preloaded.el
+      currentObjectUrl = preloaded.objectUrl
+      preloaded = null
+      activeKey = key
+      audioEl.currentTime = atMs / 1000
+      return { status: 'ok' }
+    }
     const blob = await getTrack(variantId, trackId)
     if (!blob) return { status: 'error', message: 'Kein Track gefunden' }
 
@@ -48,6 +100,7 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
     const audio = getAudioEl()
     audio.src = currentObjectUrl
     audio.currentTime = atMs / 1000
+    activeKey = key
     return { status: 'ok' }
   })()
   pendingLoad = promise
@@ -147,6 +200,7 @@ export function unloadLocalTrack(): void {
   audio.pause()
   audio.removeAttribute('src')
   audio.load()
+  activeKey = null
   if (currentObjectUrl) {
     URL.revokeObjectURL(currentObjectUrl)
     currentObjectUrl = null

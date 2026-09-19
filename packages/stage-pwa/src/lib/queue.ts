@@ -3,7 +3,7 @@ import { computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
-import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type TransportState } from './playbackTransport'
+import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowLogStore } from '../store/useShowLogStore'
@@ -114,7 +114,7 @@ export async function advanceToPreviousSong(): Promise<void> {
  * (useAudioOutputDriver.ts defers `playLocalTrack` until then). A *resume* from pause is
  * untouched - it carries forward whatever `accumulatedMs` pause froze, correctly negative too
  * if paused mid-count-in. */
-export async function playSong(): Promise<void> {
+export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
   const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
@@ -122,8 +122,9 @@ export async function playSong(): Promise<void> {
   const now = Date.now()
 
   const isFreshStart = state.activeEntryStartedAt === null
+  const seedCountIn = isFreshStart && !opts.skipCountIn
   const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
-  const seededTransport: TransportState = isFreshStart
+  const seededTransport: TransportState = seedCountIn
     ? {
         ...currentTransport(state),
         accumulatedMs: countInLeadMs(

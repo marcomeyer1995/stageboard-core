@@ -1,4 +1,5 @@
 import { computeQueue, type Queue } from './computeQueue'
+import type { PlayOptions } from './playbackTransport'
 import { barMsAt, countInLeadMs } from './metronome'
 import {
   ARMED_TRANSPORT,
@@ -81,20 +82,23 @@ function clearScheduledAudioStart(): void {
  * reactive effect, for exactly however long remains until elapsedMs would reach 0. A
  * pause-then-resume mid-count-in needs no extra bookkeeping: each call here freshly reads
  * whatever `accumulatedMs` pause froze and reschedules from there. */
-export async function practicePlaySong(): Promise<void> {
+export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   const { currentEntry, currentSong, currentVariant } = snapshot()
   if (!currentEntry || !currentSong) return
   const state = currentPracticeState()
   const isFreshStart = state.playbackStatus === 'stopped'
+  const seedCountIn = isFreshStart && !opts.skipCountIn
   const activeSong = currentVariant ?? currentSong
-  const seededMs = isFreshStart
+  const seededMs = seedCountIn
     ? countInLeadMs(
         currentVariant?.beatAnchors ?? [],
         activeSong.bpm,
         activeSong.timeSignature,
         currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
       )
-    : state.playbackAccumulatedMs
+    : isFreshStart
+      ? 0
+      : state.playbackAccumulatedMs
   patch(transportPatch(playTransport({ ...currentTransport(state), accumulatedMs: seededMs }, Date.now())))
 
   clearScheduledAudioStart()
