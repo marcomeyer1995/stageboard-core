@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
+import { ChordOffsetControls } from '../components/ChordOffsetControls'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, commentVisibleTo, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
+import { transposeKey, transposeLines } from '../lib/transposeChord'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { useChordOffsets } from '../lib/useChordOffsets'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useShowMode } from '../lib/showMode'
 import { useProfilesStore } from '../store/useProfilesStore'
@@ -65,8 +68,17 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // Filtered before anything else (pagination, section-jump, the scroll effect below) ever
   // sees these lines - a comment not meant for this device simply isn't part of the song, not
   // shown-but-greyed (Marco, issue #215 follow-up).
+  const authoredCapo = currentVariant?.capo ?? 0
+  const offsets = useChordOffsets(queue.currentEntry?.id ?? null, authoredCapo)
+  const baseKey = currentVariant?.key
+  // #59: this device's own transpose/capo shift, applied to the chords only (line count and
+  // indices stay identical, so pagination and scrolling are unaffected).
   const lines = currentSong
-    ? parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames))
+    ? transposeLines(
+        parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames)),
+        offsets.chordShift,
+        baseKey,
+      )
     : []
 
   // Key/Tuning/Capo (SongVariant-only - genuinely arrangement-specific, see songVariant.ts)
@@ -77,15 +89,22 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const arrangementInfo = [
     currentVariant?.key && `Key: ${currentVariant.key}`,
     currentVariant?.tuning && `Tuning: ${currentVariant.tuning}`,
-    currentVariant?.capo !== undefined && `Capo: ${currentVariant.capo}. Bund`,
+    (currentVariant?.capo !== undefined || offsets.capoOffset !== 0) && `Capo: ${offsets.effectiveCapo}. Bund`,
+    // The key the audience hears: base key + transpose only - a capo shifts the shapes, not the sound.
+    baseKey && (offsets.transposeOffset !== 0 || offsets.capoOffset !== 0) && `Klingende Tonart: ${transposeKey(baseKey, offsets.transposeOffset)}`,
   ]
     .filter((part): part is string => Boolean(part))
     .join('  ·  ')
-  const arrangementInfoNode = arrangementInfo ? (
-    <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
-      {arrangementInfo}
-    </p>
-  ) : null
+  const arrangementInfoNode = (
+    <>
+      {arrangementInfo && (
+        <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
+          {arrangementInfo}
+        </p>
+      )}
+      {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} />}
+    </>
+  )
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)
