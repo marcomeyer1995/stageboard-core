@@ -67,8 +67,48 @@ export function DashboardSwitcherConfigPanel({
   config: DashboardSwitcherConfig
   onChange: (next: DashboardSwitcherConfig) => void
 }) {
+  const dashboards = useDashboardsStore((state) => state.dashboards)
+  const activeProfile = useActiveProfile()
+  // Same visibility rule as the render logic above: a private Station is never offered here
+  // to anyone but its owner.
+  const selectable = dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile))
+  const pinned = config.dashboardIds
+  const showAll = pinned === null
+
+  // Buttons show in pick order, so checking appends and unchecking removes.
+  const toggle = (id: string) => {
+    const current = pinned ?? []
+    onChange({
+      ...config,
+      dashboardIds: current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id],
+    })
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1 text-xs text-ink-muted">
+        Dashboards
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={showAll}
+            // null (not every id) keeps dashboards added later showing up automatically.
+            onChange={(e) => onChange({ ...config, dashboardIds: e.target.checked ? null : [] })}
+          />
+          Alle anzeigen
+        </label>
+        {!showAll &&
+          selectable.map((dashboard) => {
+            const position = pinned.indexOf(dashboard.id)
+            return (
+              <label key={dashboard.id} className="flex items-center gap-2 pl-4 text-sm text-ink">
+                <input type="checkbox" checked={position >= 0} onChange={() => toggle(dashboard.id)} />
+                {dashboard.name}
+                {position >= 0 && <span className="text-xs text-ink-faint">#{position + 1}</span>}
+              </label>
+            )
+          })}
+      </div>
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Ausrichtung
         <select
