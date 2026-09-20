@@ -13,10 +13,10 @@ describe('mockBackupPlugin', () => {
     expect(plugin.trigger({ type: 'status' })).toEqual({ status: 'ok', data: { lastBackupAt: null } })
   })
 
-  it('records when a backup was requested', () => {
+  it('records when a backup was requested', async () => {
     const plugin = createMockBackupPlugin()
     plugin.init(testContext())
-    const result = plugin.trigger({ type: 'backup' })
+    const result = await plugin.trigger({ type: 'backup' })
     expect(result.status).toBe('ok')
     expect(typeof (result.data as { lastBackupAt: unknown }).lastBackupAt).toBe('number')
   })
