@@ -4,6 +4,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
+import { ReadyCheckControl } from '../components/ReadyCheckControl'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -56,7 +57,8 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
         </span>
       </div>
       {canControl ? (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <ReadyCheckControl />
           <button
             type="button"
             onClick={previous}

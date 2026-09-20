@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
+import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
 import { Dashboard } from './components/Dashboard'
 import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
@@ -26,6 +27,7 @@ import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
 import { useLoopTrainerDriver } from './lib/loopTrainer'
+import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
 import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
@@ -141,6 +143,7 @@ function App() {
   useClickOutputDriver()
   useAutoStopDriver()
   useLoopTrainerDriver()
+  useReadyCheckResponder()
   useTrackDurationBackfill()
   useHardwareDetection()
   useDiscoveryTrigger()
@@ -265,6 +268,7 @@ function App() {
       <DialogHost />
       <DiscoveryBanner />
       <AudioResumeOverlay />
+      <ReadyCheckOverlay />
     </div>
   )
 }

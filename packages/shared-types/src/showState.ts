@@ -65,6 +65,11 @@ export const ShowStateSchema = z.object({
    * song change (activateEntry below), same for-tonight-only pattern as `trackOverride`/
    * `liveTempoAdjustPercent`/`clickTrackOverride` above. */
   clickExtendMs: z.number(),
+  /** The id of the Ready Check the Master has open (#60), or null when none is. Only the OPEN/CLOSE
+   * state lives here (Master-gated like everything else in this doc); the musicians' answers do not -
+   * every tablet would write the same doc, so they go to the Stage-Server's in-memory presence
+   * snapshot instead (`Presence.readyCheck`). A new id starts a fresh check. */
+  readyCheckId: z.string().nullable(),
   /** A "show" is every ShowLog event sharing one id - see showLog.ts. Null until the first
    * entry of a session is activated. */
   currentShowId: z.string().nullable(),
@@ -81,6 +86,7 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   activeEntryStartedAt: null,
   masterHolderId: null,
   masterClaimedAt: null,
+  readyCheckId: null,
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
