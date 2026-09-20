@@ -50,20 +50,20 @@ Das Ziel: Absicherung und Ausbau für große Gigs. Anders als Phase 1–5 ist di
 ### 6a: Kern-Engine — ✅ im Kern abgeschlossen
 Das "Venue Profile" (Graceful Degradation von UI-Widgets) ist umgesetzt als **Capability-Modell** (siehe [docs/07](07_UI_Konzept.md#7-plugins--capabilities-der-vertrag-zwischen-ui-und-hardware)) — Plugins deklarieren Capabilities, Widgets fordern sie an, Heartbeats steuern den Disabled-State. Auch das docs/00 §4–5 beschriebene Fundament der Präzisions-Bühnenausführung, das im Stand 2026-08-31 noch komplett fehlte, existiert jetzt im Code:
 
-* **#31 — NTP-Style Clock Sync:** ✅ Kern erledigt. Burst-Handshake (`clockSync.ts`), `driftMs`-basierter Status statt reiner `jitterMs`-Momentaufnahme, Korrektur für asymmetrische WLAN-Pfade — verifiziert per USB/adb-Ground-Truth-Check und Ende-zu-Ende-MIDI-Test (0–7.5ms Abweichung zwischen Geräten, siehe [docs/09](09_Clock_Sync_Untersuchung.md)). Issue bleibt bewusst offen für den originalen Restumfang: `scheduledAt`-basiertes Ahead-of-Time-Dispatch im `ShowControlGateway`, konsumiert vom Visual-Metronome-Widget (#25).
+* **#31 — NTP-Style Clock Sync:** ✅ Erledigt und geschlossen (2026-09-10). Burst-Handshake (`clockSync.ts`), `driftMs`-basierter Status statt reiner `jitterMs`-Momentaufnahme, Korrektur für asymmetrische WLAN-Pfade — verifiziert per USB/adb-Ground-Truth-Check und Ende-zu-Ende-MIDI-Test (0–7.5ms Abweichung zwischen Geräten, siehe [docs/09](09_Clock_Sync_Untersuchung.md)). Der ursprüngliche Restumfang (`scheduledAt`-basiertes Ahead-of-Time-Dispatch im `ShowControlGateway`) wurde beim Schließen nicht mitgeliefert und ist weiterhin unimplementiert (kein Client sendet `scheduledAt`, siehe [docs/12](12_Projektstatus_und_Use_Cases.md#8-abweichungen-doku--code-und-auffälligkeiten) §8.1) — bei Bedarf für #25 als eigenes Issue neu aufnehmen.
 * **#10 — Logical Devices & Hardware Setup Profiles:** ✅ Kern erledigt. `DeviceRegistry`, `LogicalDevice`-Schema, `HardwareSetup`-Routing (ersetzt das alte `pluginProviding`/`deviceClaims`), echte Client-Runtime-Translatoren statt Mock-Stores, `ShowCue`-Schema plus Ahead-of-Time-Scheduler pro Tablet, dynamisches Plugin-Laden. Restumfang (mehrere gleichzeitige Instanzen derselben Hardware, z.B. zwei Kemper) ist in Folge-Issues gesplittet, siehe unten.
 
 **Organisch aus #10 entstanden und nicht im ursprünglichen Plan, aber komplett ausgeliefert:** die komplette "Plug, Prompt, and Play"-Kette, die docs/00 §5 als Hardware Abstraction Layer & Auto-Binding beschreibt.
 
-* **#100 — Plugin-driven HardwareBinding config:** Slice 1 (bandweite Plugin-Auswahl, geräte-lokale `DeviceTransportConfig`) ausgeliefert. Restumfang (WebMIDI/WebUSB-Erkennung) nach #106 gesplittet.
-* **#106 — WebMIDI/WebUSB-Geräteerkennung + Auto-Memory:** ausgeliefert, erweitert um bandweiten, admin-initiierten Discovery Mode und einen geführten Hardware-Setup-Wizard.
+* **#100 — Plugin-driven HardwareBinding config:** ✅ Erledigt und geschlossen (2026-09-10). Slice 1 (bandweite Plugin-Auswahl, geräte-lokale `DeviceTransportConfig`) ausgeliefert. Restumfang (WebMIDI/WebUSB-Erkennung) nach #106 gesplittet.
+* **#106 — WebMIDI/WebUSB-Geräteerkennung + Auto-Memory:** ✅ Erledigt und geschlossen (2026-09-10). Ausgeliefert, erweitert um bandweiten, admin-initiierten Discovery Mode und einen geführten Hardware-Setup-Wizard.
 * Fünf reale Geräte-Plugins statt Mocks: Kemper Profiler, Allen & Heath CQ-18T, NUX MG-30, BOSS RC-500, Soundcraft Ui24R.
 * Device Ledger: Diagnose-Store, Revoke-Endpoint, Ping-Loop, Self-Lock-Guard, UI.
 * Fünf Bugfixes an Discovery Mode aus echtem Gebrauch (#133–#138: manuelle Kandidaten-Bestätigung, Re-Binding, verwaiste Rollen-Bindings, Geräte-Neuanlage aus dem Dialog, Schutz vor Rollen-Diebstahl).
 
-**#100 und #106 bleiben als Tracking-Issues offen**, obwohl ihr Kern-Scope erledigt ist — analog zu #31 wäre der sinnvolle nächste Schritt, dort einen Abschluss-Kommentar zu hinterlassen und nur noch den echten Restumfang (Multi-Instanz-Routing) offen zu halten, statt sie unbegrenzt als "offen" zu führen.
+**#100 und #106 wurden inzwischen geschlossen** (2026-09-10); der echte Restumfang (Multi-Instanz-Routing) läuft als eigenes Issue weiter unter #149.
 
-* **#129 — Migrate core-backend to HTTP/2** *(neu, 2026-09-08 gefiled)* — behebt eine latente SSE-Connection-Budget-Ceiling. Gehört thematisch zur Kern-Engine-Infrastruktur, war im vorigen Stand dieses Plans noch nicht eingeordnet.
+* ✅ **#129 — Migrate core-backend to HTTP/2** *(neu, 2026-09-08 gefiled)* — behebt eine latente SSE-Connection-Budget-Ceiling. Gehört thematisch zur Kern-Engine-Infrastruktur, war im vorigen Stand dieses Plans noch nicht eingeordnet.
 
 ### 6b: Live-Ausführung
 Bringt aufgezeichnete/ausgelöste Cues tatsächlich zur Hardware — baut auf 6a auf, das jetzt steht:
@@ -82,20 +82,20 @@ Alles, was Musiker im Alltag/auf der Bühne direkt spüren. Einiges hängt an 6a
 * **#59** — Advanced Transposition & Capo Engine
 * **#60** — Multi-User "Ready Check" Pre-Flight Protocol
 * **#61** — Smart Rehearsal Looper & Speed Trainer
-* **#28** — Dynamic Setlist Time Management / Festival Clock (enthält die gemergte Curfew-Warnung)
+* ✅ **#28** — Dynamic Setlist Time Management / Festival Clock (enthält die gemergte Curfew-Warnung)
 * **#26** — Stage Messenger & Flash Alerts (enthält den gemergten timeline-getriggerten `[alert:]`-Teil)
 * **#25** — Visual Metronome & Hardware-Routed Click Generator *(Abhängigkeit #10 erledigt — bereit, sobald #31s Ahead-of-Time-Dispatch steht)*
 * **#62** — Spatial Stage Layout & Interactive Hardware Matrix *(hängt am Multi-Instanz-Restumfang von #10)*
 * **#63** — "Stage Call" IEM Text-to-Speech Announcer *(hängt an #3, erledigt)*
 * **#64** — Post-Gig Telemetry & Rehearsal Analytics *(hängt an #13, erledigt)*
-* **#23** — Expand Widget Library (Clock, Status, Grouping, Custom Buttons) *(Status-Widget-Abhängigkeit #10 erledigt)*
+* ✅ **#23** — Expand Widget Library (Clock, Status, Grouping, Custom Buttons)
 * **#24** — Musical Reference Widgets (Chord Lookup & Circle of Fifths)
-* **#18** — Touch Gestures and Drag-and-Drop for Live Queue
-* **#22** — Widget Gallery Overlay & Resize Constraints
-* **#35** — Main Menu Dashboard Selector & Sub-Navigation
+* ✅ **#18** — Touch Gestures and Drag-and-Drop for Live Queue
+* ✅ **#22** — Widget Gallery Overlay & Resize Constraints
+* ✅ **#35** — Main Menu Dashboard Selector & Sub-Navigation
 * **#16** — "Read-Only" Template Dashboards & Edit Protection
 * **#14** — Build "Live-Debug-Console" UI
-* **#29** — Setlist Transition Notes & Show Flow Items
+* ✅ **#29** — Setlist Transition Notes & Show Flow Items
 * **#36** — Define Core vs. Plugin System Boundary & Standard Widgets
 * **#57** — Role-Based Access to Widgets & Dashboards *(braucht erst ein Scoping-Gespräch, siehe Issue)*
 * ✅ **#58** — Band-Umbenennen (Workspace-Name nicht synchronisiert)
