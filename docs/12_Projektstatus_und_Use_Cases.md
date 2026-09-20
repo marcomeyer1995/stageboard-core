@@ -1,6 +1,6 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-09-19, `main` @ `e265c88` (nach #242, #243, #245). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden aus dem Code erhoben und stichprobenartig gegengeprüft (Transposition fehlt, kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`, 34 offene Issues). Nichts davon wurde neu auf Tablets getestet.
+Stand: 2026-09-20, `main` @ `5324037` (nach #255-#260). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61) und die Bugfixes #247-#249. 29 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-Prüfungen von #32, #59 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
 ## 1. Kurzfassung
 
@@ -12,32 +12,31 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 |---|---|
 | Bands, Beitritt, Roster, PINs, Geräte-Ledger | fertig |
 | Bibliothek, Song-Editor, ChordPro, Tap-to-Sync, Tab-Import | fertig (UG-Scraper fragil) |
-| Setlists, Queue, Master-Token, Solo/Gig | fertig (kein Master-Heartbeat) |
-| Prompter, Metronom, Klick, Beat-Erkennung | fertig |
+| Setlists, Queue, Master-Token, Solo/Gig | fertig (Master-Heartbeat und Force Takeover seit #32, noch nicht auf Tablets geprüft) |
+| Prompter (inkl. Transposition/Capo), Metronom, Klick, Beat-Erkennung | fertig |
+| Loop-Trainer (Solo Üben), Festival-Uhr, Übergangs-/Abschnitts-Einträge | fertig (Loop-Trainer noch nicht auf Tablets geprüft) |
 | Backing-Tracks, Offline-Cache, Audio-Resume | fertig (Übergänge noch nicht auf Tablet geprüft) |
 | Hardware-Erkennung/-Bindung, Cue-Timeline | fertig, aber Polling (~60 fps), nicht sample-genau |
-| Server-Plugins (Mixer/Licht/Playback/Backup/Click) | nur Mocks |
-| Stems, YouTube-Extraktion, Transposition/Capo, Festival-Clock, Show-Flow-Items, Crossfade | geplant, nicht gebaut |
+| Server-Plugins (Mixer/Licht/Playback/Backup/Click) | nur Mocks (`mock-backup`/`mock-click` haben seit #249 eine Server-Seite) |
+| Stems, YouTube-Extraktion, Crossfade | geplant, nicht gebaut |
 
 ### Wichtigste Lücken und Risiken
 
 1. **Keine Zugriffskontrolle im LAN:** Audio-Upload/-Löschung, Plugin-Trigger, Geräte-Relay und Discovery sind unauthentifiziert (Modell: "wer im Band-WLAN ist, vertraut sich"). Relevant, sobald ein fremdes Venue-WLAN genutzt wird. CouchDB-Default-Zugang ist `admin/admin`, wenn nichts gesetzt ist.
-2. **Master-Token ohne Heartbeat/Force-Override (#32):** Fällt das Master-Tablet aus, muss jemand manuell übernehmen; "Übernehmen" ist ungeschützt.
+2. **Master-Token (#32, neu, ungetestet auf Tablets):** Der Master sendet alle 5 s einen Heartbeat; nach 15 s ohne Beat gilt er als weg und jeder kann übernehmen. Ein *lebender* Master lässt sich nur per Force Takeover (Rolle `admin` oder `showmaster`) verdrängen - das ist ein reines UI-Gate, keine Sicherheitsgrenze. Offen: kein Schutz davor, dass ein abgekoppelter alter Master bis zur Reconnect-Replikation weiter schreibt.
 3. **Uhr-Basis beim Transportstart:** Der Master schreibt `Date.now()` seiner eigenen Uhr, Leser rechnen mit Serverzeit. Stimmt nur, wenn die Master-Systemuhr nahe an der Server-Uhr liegt (Code-Lesart, nicht live gemessen).
 4. **Übergänge (#232) ungetestet auf Hardware:** Nahtlos hängt an lokaler Audio-Ausgabe und daran, dass Master und Audio-Tablet dasselbe Gerät sind. Ob ein Gig-Modus-`delayed`-Start einen Einzähler bekommt, ist offen.
-5. **Doku teilweise veraltet:** `docs/05` führt einige inzwischen ausgelieferte Issues noch als offen.
+5. **Loop-Trainer (#61) und Transposition (#59) ungetestet auf Hardware:** Lückenlosigkeit des Loops, Tonhöhe bei 70 %, Ausrichtung von Prompter/Klick zum Audio und der erste Loop ohne Netz (Service-Worker-Cache des SoundTouch-Worklets) sind nur durch Unit-Tests und den Build abgedeckt.
 
 ### Kleine Unstimmigkeiten (nur beobachtet)
 
-- Widget "Aktive Setlist" zeigt in Solo Üben weiterhin die Gig-Setlist.
-- "Dashboard-Umschalter" hat `dashboardIds` im Schema, aber keine Oberfläche dafür.
-- `mock-backup` und `mock-click` sind im Client installierbar, laufen serverseitig aber ins Leere.
+Die drei am 2026-09-19 hier gelisteten Punkte (Aktive Setlist in Solo Üben, fehlende Oberfläche für `dashboardIds`, `mock-backup`/`mock-click` ohne Server-Seite) sind mit #247-#249 behoben; aktuell sind keine neuen kleinen Unstimmigkeiten bekannt.
 
 ---
 
-## Teil A - Widgets (23 Typen)
+## Teil A - Widgets (25 Typen)
 
-Stand: Code auf `main` (nach #245). Alle Angaben aus dem Quelltext verifiziert. Quelle für Registrierung: `widgets/registry.tsx` (23 Widget-Typen).
+Stand: Code auf `main` (nach #260). Quelle für Registrierung: `widgets/registry.tsx` (25 Widget-Typen). Die Beschreibungen 1-23 stammen vom 2026-09-19 (soweit nicht im Text als geändert markiert); neu sind die Festival-Uhr (24) und der Loop-Trainer (25) am Ende von Kategorie `performance`.
 
 ### Gemeinsame Mechanik
 
@@ -55,9 +54,10 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 ### Kategorie: performance
 
 #### 1. Prompter (`prompter`)
-- **Was:** Zeigt Titel, Interpret und den ChordPro-Text (Akkorde + Lyrics) des aktuellen Songs bzw. der aktuellen Variante. Zwei Ansichten: **Smooth Scroll** (die aktive Zeile wird pro Tick sanft zur Mitte gezogen, Easing-Faktor 0,08) und **Paginated View** (Seitenwechsel je Abschnitt, Kopfzeile mit Abschnittsname, `n/m` und „next: …"). Key/Tuning/Capo der Variante erscheinen als erste, mitscrollende Zeile. Kommentar-Zeilen (`{comment:}`/`{c:}`, gezielt `{cc4<Name>:}`) werden je aktivem Profil gefiltert (nicht adressierte Kommentare sind gar nicht Teil des Songs; unbekannte Ziel-Namen bleiben sichtbar).
+- **Was:** Zeigt Titel, Interpret und den ChordPro-Text (Akkorde + Lyrics) des aktuellen Songs bzw. der aktuellen Variante. Zwei Ansichten: **Smooth Scroll** (die aktive Zeile wird pro Tick sanft zur Mitte gezogen, Easing-Faktor 0,08) und **Paginated View** (Seitenwechsel je Abschnitt, Kopfzeile mit Abschnittsname, `n/m` und „next: …"). Key/Tuning/Capo der Variante erscheinen als erste, mitscrollende Zeile - darunter (neu, #59) die **Transpose**- und **Capo**-Stepper samt „Klingende Tonart"-Anzeige. Kommentar-Zeilen (`{comment:}`/`{c:}`, gezielt `{cc4<Name>:}`) werden je aktivem Profil gefiltert (nicht adressierte Kommentare sind gar nicht Teil des Songs; unbekannte Ziel-Namen bleiben sichtbar).
 - **Config:** `viewMode` (`scroll`|`paginated`, Default `scroll`), `sizeRatio` (Anker-Textgröße) und relative Verhältnisse `chordSizeRatio` (0,7), `titleSizeRatio` (2), `artistSizeRatio` (0,9), `sectionLabelSizeRatio` (1,1, nur Paginated), `arrangementInfoSizeRatio` (0,6), `commentSizeRatio` (0,7).
-- **Gig vs. Practice:** beide. Gig: Uhr ist ShowState-synchron (alle Tablets scrollen zum selben Wert). Practice: lokale Uhr. `elapsedMs` ist `null`, wenn nichts läuft → Anzeige bleibt am Songanfang.
+- **Transposition/Capo (#59, neu):** Angezeigter Akkord = notierter Akkord + Transpose − Capo-Versatz. Beide Werte gelten **nur für dieses Tablet** (kein Sync, kein Master), gehören zum aktuellen Queue-Eintrag (Song-Wechsel setzt sie zurück) und werden nicht gespeichert. Die Basis-Tonart ist das bestehende `SongVariant.key`; der schon im Text notierte `capo` der Variante zählt als eingebaut, die Capo-Anzeige zeigt notierten + zusätzlichen Bund (0-11). „Klingende Tonart" = Tonart + Transpose (ein Capo ändert nur die Griffe, nicht den Klang) und erscheint, sobald ein Versatz ≠ 0 gesetzt ist und die Variante eine Tonart hat. Vorzeichen (b/#) richten sich nach der Zieltonart; Nicht-Akkorde wie `N.C.` bleiben unverändert. Transponiert wird nur, was der Spieler liest - ein Backing-Track läuft weiter in Originaltonhöhe.
+- **Gig vs. Practice:** beide. Gig: Uhr ist ShowState-synchron (alle Tablets scrollen zum selben Wert). Practice: lokale Uhr (während eines Loops die des Loop-Trainers). `elapsedMs` ist `null`, wenn nichts läuft → Anzeige bleibt am Songanfang.
 - **Disabled/Degradation:** Kein Song → „Keine Songs vorhanden". Keine Capability nötig, kann nie ausgegraut werden.
 - **Capability:** keine (Kernwidget).
 - **Use Cases:** (1) Sängerin liest während des Gigs auf dem Tablet auf dem Notenständer den Text mit Akkorden, der Prompter scrollt synchron zum Backing-Track. (2) Gitarrist stellt auf Paginated um, weil er lieber Abschnittsweise blättern lässt, und sieht „next: Bridge" vorab; ein an ihn gerichteter `{cc4marco:}`-Kommentar („Solo 8 Takte") erscheint nur bei ihm.
@@ -81,7 +81,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 #### 4. Aktive Setlist (`active-setlist`)
 - **Was:** Anzeige des Namens der aktuell aktiven Gig-Setlist plus „n Songs"; sonst „Keine".
 - **Config:** `sizeRatio` (Default 1,5).
-- **Gig vs. Practice:** **nur Gig** – liest `useQueue()` (ShowState), nicht `useShowMode()`. In Solo Üben zeigt es weiterhin die Gig-Setlist (nicht auf Practice umgestellt).
+- **Gig vs. Practice:** beide (seit #247, `useShowMode().queue`). Gig: aktive Setlist aus ShowState. Solo Üben: die gewählte Übungs-Setlist, ohne Auswahl „Keine" (ganzer Katalog).
 - **Disabled/Degradation:** „Keine", solange keine Setlist aktiv ist.
 - **Capability:** keine.
 - **Use Cases:** (1) Ein reduziertes Dashboard ohne Queue zeigt dem Techniker trotzdem, welche Setlist heute läuft („Sommerfest 2026"). (2) Kurz vor dem Gig prüft der Bandleader mit einem Blick, dass nicht versehentlich die Probe-Setlist aktiv ist.
@@ -105,7 +105,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 #### 7. Tempo-Korrektur (`tempo-nudge`)
 - **Was:** Live „−"/„+" (1 %-Schritte, Grenze `LIVE_TEMPO_ADJUST_LIMIT_PERCENT`) auf das Click-/Metronom-Tempo, ohne das gespeicherte BPM des Songs zu ändern; „Zurücksetzen"-Link bei ≠ 0 %.
 - **Config:** `sizeRatio` (2,2).
-- **Gig vs. Practice:** **nur Gig**. In Practice zeigt das Widget „Nur im Gig-Modus verfügbar" (Übungs-Tempo ist Aufgabe des späteren Speed-Trainers #61). Änderungen sind Master-gesteuert (`canControl`).
+- **Gig vs. Practice:** **nur Gig**. In Practice zeigt das Widget „Nur im Gig-Modus verfügbar" (das Übungs-Tempo regelt der Loop-Trainer, Widget 25). Änderungen sind Master-gesteuert (`canControl`).
 - **Disabled/Degradation:** Buttons deaktiviert ohne Master bzw. an den Grenzen.
 - **Capability:** keine.
 - **Use Cases:** (1) Die Band drückt live merklich, der Bandleader nimmt 3 % raus, damit Klick/Metronom folgen. (2) Nach dem Song „Zurücksetzen", damit der nächste Song wieder mit dem Original-Tempo startet (die Korrektur wird beim Songwechsel ohnehin auf 0 zurückgesetzt).
@@ -137,7 +137,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 
 #### 11. Dashboard-Umschalter (`dashboard-switcher`)
 - **Was:** Große Buttons zum Wechsel zwischen Dashboards (Stationen), aktives hervorgehoben. Private Stationen erscheinen nur für ihren Besitzer (`isDashboardVisible`).
-- **Config:** `orientation` (`horizontal`|`vertical`), `sizeRatio` (1,3). Das Schema hat außerdem `dashboardIds` (Liste oder `null` = alle), das **Config-Panel bietet dafür keine Auswahl** – nur per Dokument setzbar.
+- **Config:** `orientation` (`horizontal`|`vertical`), `sizeRatio` (1,3). Dazu `dashboardIds` (Liste oder `null` = alle); seit #248 hat das Config-Panel dafür „Alle anzeigen" (schreibt `null`, damit später angelegte Dashboards automatisch erscheinen) und eine Checkbox-Liste der für das aktive Profil sichtbaren Dashboards - die Buttons erscheinen in der Reihenfolge, in der man sie ankreuzt.
 - **Gig vs. Practice:** modusunabhängig.
 - **Disabled/Degradation:** keine Capability; leere Liste, wenn keine sichtbaren Dashboards.
 - **Capability:** keine.
@@ -256,18 +256,36 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Capability:** keine fest; abhängig vom gewählten Gerät (bezieht `midi-input`-Status clientseitig).
 - **Use Cases:** (1) Techniker hat je ein Widget für „Mischpult links" und „Mischpult rechts". (2) Bandleader sieht per Punkt, ob der Licht-Controller verbunden ist.
 
+### Neu seit 2026-09-19 (Kategorie `performance`)
+
+#### 24. Festival-Uhr (`festival-clock`) (#28)
+- **Was:** „Voraussichtliches Ende" der restlichen Setlist als Uhrzeit, gerechnet aus der Restdauer aller Einträge (Songlänge aus der Variante oder dem gemessenen Track, Einzähler, Pausen/Übergänge, `clickExtendMs`), gegen die **Zielzeit der Setlist** (`Setlist.targetEndTime`, in den Setlist-Einstellungen gesetzt). Wird rot mit „n min Überzug", sonst grün mit „n min Puffer"; ohne Zielzeit ein Hinweis, sie in den Setlist-Einstellungen zu setzen.
+- **Config:** `sizeRatio` (2,5).
+- **Gig vs. Practice:** beide (über `useShowMode()`, die Setlist ist die des jeweiligen Modus).
+- **Disabled/Degradation:** Ohne Einträge „Keine Songs vorhanden". Keine Capability nötig.
+- **Use Cases:** (1) Festival mit hartem Curfew um 23:00: die Uhr wird rot, sobald die Vorhersage darüber liegt - der Bandleader streicht einen Song. (2) Länge einer Ansage oder Umbaupause verschiebt die Vorhersage sofort mit.
+
+#### 25. Loop-Trainer (`loop-trainer`) (#61)
+- **Was:** Wiederholt einen Abschnitt des Backing-Tracks **lückenlos** und lässt ihn auf Wunsch pro Durchgang schneller werden. Loop-Anfang/-Ende („A setzen"/„B setzen" an der aktuellen Position, oder per „Von Abschnitt"/„Bis Ende von" an die zeitgestempelten Song-Teile (`{part:}` + `[mm:ss]`) gehängt), **Tempo** 25-150 %, optional **Speed Trainer** mit Ziel-% und Schritt je Durchgang (z. B. 80 % → 100 % in +5 %). Anzeige „Durchgang N · X %". Start/Stopp; Stopp lässt Solo Üben an der Loop-Position pausiert, sodass Play dort weitermacht.
+- **Wie:** `loopTrainerEngine.ts` dekodiert den Track einmal, behält nur den Abschnitt im Speicher und loopt ihn per Web Audio (`AudioBufferSourceNode`); die Tempo-Änderung jedes Durchgangs ist sample-genau vorab eingeplant, die Tonhöhe bleibt über den SoundTouch-Worklet (`@soundtouchjs/audio-worklet`, MPL-2.0, wird erst beim ersten Loop nachgeladen). Die reine Zeitrechnung (`loopSchedule.ts`) liefert dieselbe Position für Audio und Uhr: solange ein Loop läuft, liest `usePracticeElapsedMs` sie aus der Engine - Prompter-Scroll und Beat-Raster folgen Loop und Tempo. Die Klick-Engine kennt `playbackRate` und `loop`: sie folgt dem Durchgangs-Tempo, plant keinen Schlag jenseits des Loop-Endes und synchronisiert sich beim Umbruch neu, sodass ein Schlag genau auf dem Loop-Anfang noch klingt. `useLoopTrainerDriver` beendet den Loop, sobald Practice-Wiedergabe endet (Pause/Stopp/Weiter, anderer Song, Wechsel zu Gig).
+- **Config:** `sizeRatio` (1, für die Durchgang-Anzeige). Loop-Punkte und Tempo-Einstellungen sind lokal, nicht gespeichert und gehören zum aktuellen Queue-Eintrag.
+- **Gig vs. Practice:** **nur Solo Üben** - im Gig zeigt das Widget „Nur in Solo Üben verfügbar", weil ein band-synchrone Uhr nie von einem Tablet allein verlangsamt oder gelooped werden darf.
+- **Disabled/Degradation:** Ohne Track „Kein Track angehängt"; „Loop starten" ist erst mit A und B aktiv; Fehler (z. B. Loop zu kurz, Track nicht dekodierbar) erscheinen als Text.
+- **Grenzen:** Nicht auf Tablets geprüft (Lückenlosigkeit, Tonhöhe, Versatz durch die SoundTouch-Verzögerung von einigen 10 ms, erster Loop offline). Das Dekodieren des ganzen Tracks belastet kleine Tablets kurz.
+- **Use Cases:** (1) Gitarristin loopt ein 15-Sekunden-Solo, startet bei 80 % und hört es jeden Durchgang um 5 % schneller wiederholt, bis das Originaltempo erreicht ist. (2) Sänger übt die Bridge („Bis Ende von: Bridge") langsam mit mitlaufendem Klick.
+
 ---
 
 ### Nicht-Widgets in `widgets/`
 - `SizeRatioSlider.tsx` (Regler 25–400 %, Schritt 5, debounced Commit gegen PouchDB-Schreib-Stottern), `ContentFontSizeConfigPanel.tsx`, `widgetColors.ts` (Farbvokabular), `CueGrid.tsx` (gemeinsames Button-Raster für Quick Actions/Lighting Cues), `*Config.ts` (Zod-Schemata).
 
 ### Auffälligkeiten / Lücken (nur beobachtet, nicht geändert)
-1. **Aktive Setlist** liest immer die Gig-Setlist – in Solo Üben nicht auf die Übungs-Setlist umgestellt (im Gegensatz zu Live-Queue seit #234).
-2. **Dashboard-Umschalter:** `dashboardIds` (Auswahl bestimmter Dashboards) existiert im Schema, hat aber kein UI im Config-Panel.
+1. *(erledigt mit #247)* Aktive Setlist ist modusbewusst.
+2. *(erledigt mit #248)* Dashboard-Umschalter hat eine Auswahl für `dashboardIds`.
 3. **Quick Actions / Lighting Cues / More Me:** Aktionen bzw. Kanäle sind fest im Code (nicht konfigurierbar).
 4. **Fußtaster-Widget** enthält einen Test-/Simulier-Button; die eigentliche Fußtaster-Logik lebt in `useMidiTrigger` (nicht Teil dieser Bestandsaufnahme).
 5. Kategorie `post-show` ist definiert, aber von keinem Widget belegt.
-6. Kein Widget in `widgets/` implementiert Transition-Notes/Show-Flow-Items (#29) oder Festival Clock (#28).
+6. *(erledigt)* Transition-/Abschnitts-Einträge (#29) werden vom Prompter angezeigt, die Festival-Uhr (#28) ist Widget 24.
 
 ---
 
@@ -315,13 +333,15 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - `Workspace.isAdmin` ist **nur eine UI-Weiche**; die echte Durchsetzung liegt laut Kommentar in CouchDB-Validierung (`_design/roster`) und in Server-Prüfungen.
 
 #### Rollen
-- `STAGE_ROLES = performer | lighttech | soundtech | crew | admin` (mehrere pro Profil möglich). `admin` ist eine Rolle in derselben Liste (Roster-Label + UI-Gate).
+- `STAGE_ROLES = performer | lighttech | soundtech | crew | admin | showmaster` (mehrere pro Profil möglich). `admin` ist eine Rolle in derselben Liste (Roster-Label + UI-Gate); `showmaster` (#32) berechtigt, wie `admin`, zum Force Takeover des Master-Tokens - `crew` bewusst nicht.
 - Rollen steuern **nur Sichtbarkeit/Relevanz**: Widget-Bibliothek (`relevantRoles`) und private Dashboards („Stations"). Das ist ausdrücklich **client-seitig, keine Zugriffskontrolle** (Kommentar in `dashboard.ts`).
 - Das aktive Profil pro Gerät/Band ist eine **lokale Wahl** (`useActiveProfileStore`, `localStorage`) und keine Authentifizierung im Sinne von Login – ausgenommen der Wechsel auf ein Admin-Profil, der die PIN prüft.
 
 #### Master-Token (Gig-Modus)
 - Ein Gerät hält den Master-Token (`ShowState.masterHolderId`); nur der Master schreibt Queue/Transport in den geteilten ShowState (`applyPatch`, `setActiveSetlist` prüfen `isMaster`).
-- **„Übernehmen" ist ungeschützt** (kein PIN, keine Rolle) – bewusst als „Take Over" nach abgestürztem Master. Force-Override/Heartbeat (#32) ist **nicht** implementiert (offenes Issue).
+- **Heartbeat (#32, neu):** Der Master meldet sich alle 5 s beim Stage-Server (`POST /workspaces/:id/master-heartbeat`); der Beat reist im Snapshot des bestehenden Präsenz-SSE-Streams (`Presence.masterHeartbeat`, kein zusätzlicher Stream). Jedes Tablet leitet daraus selbst den Zustand ab (`masterTakeover.ts`): `self`, `vacant`, `alive`, oder `stale` (kein Beat seit 15 s bzw. Beat eines Geräts, das nicht mehr Halter ist). Es wird nichts in den ShowState geschrieben - „automatisch freigegeben" heißt nur, dass Übernehmen wieder frei ist. Nach einem Server-Neustart gilt der Halter bis zu 5 s als `stale`.
+- **Übernehmen (Regeln):** Bei `vacant`/`stale` darf jedes Profil („Master übernehmen"). Ist der Master `alive`, wird der Knopf zu **Force Takeover** (Bestätigungsdialog), nutzbar nur mit Rolle `admin` oder `showmaster`; alle anderen sehen ihn deaktiviert. Das ist ein reines UI-Gate im Client (das aktive Profil ist eine lokale Wahl, keine Authentifizierung).
+- **„Master abgeben":** Der Master kann das Token bewusst zurückgeben (`releaseMaster` schreibt `masterHolderId: null`), mit Bestätigung, solange ein Song läuft - für einen geplanten Wechsel ohne 15 s Wartezeit. Der einzige Weg, wie das Token je wieder `null` wird.
 
 ---
 
@@ -391,11 +411,11 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 | **Dashboards** | Aktives Dashboard wählen | nur bei >1 sichtbarem |
 | **Modus** (`SessionModeControl`) | **Gig** ↔ **Solo Üben**. In Solo läuft die Queue rein lokal, Wiedergabe über das eigene Gerät. Wechsel **Solo → Gig** stoppt lokales Playback und setzt es zurück (#233); **Gig → Solo** ist gesperrt, solange die geteilte Show spielt („Wechsel zu Solo Üben erst möglich, wenn gerade kein Song läuft"). | nur pro Gerät; Sperre = Sicherheitsfeature |
 | **Setlist zum Üben** (`PracticeSetlistPicker`) | Nur im Solo-Modus: „Keine Setlist (ganzer Katalog)" oder eine bestehende Setlist. Wechsel stoppt Wiedergabe und setzt Position/Overrides zurück (#234). | lokal, berührt nie den ShowState |
-| **Master-Kontrolle** (`MasterControl`) | Zeigt, wer Master ist; „Übernehmen"; zeigt die aktive Setlist. | nur im Gig-Modus; Übernehmen ungeschützt |
+| **Master-Kontrolle** (`MasterControl`) | Zeigt, wer Master ist (mit „antwortet nicht" bei ausbleibendem Heartbeat); „Übernehmen" bzw. „Force Takeover" (nur `admin`/`showmaster` gegen einen lebenden Master); als Master „Master abgeben"; zeigt die aktive Setlist. | nur im Gig-Modus |
 | **Dashboard** (`EditLock`) | Langdruck „Bearbeiten 🔒" | nur in Live |
 | **Anzeige** | Vollbild an/aus | nur wenn Browser es unterstützt |
 
-- **UC (Solo):** Gitarrist übt zu Hause die Setlist der nächsten Show mit Klick und Backing-Track, ohne dass die Band-Show-Uhr berührt wird. **UC (Gig):** Beim Stagewechsel „Übernehmen", damit das Tablet des Bandleaders die Queue steuert.
+- **UC (Solo):** Gitarrist übt zu Hause die Setlist der nächsten Show mit Klick und Backing-Track, ohne dass die Band-Show-Uhr berührt wird. **UC (Gig):** Beim Stagewechsel gibt der bisherige Master das Token mit „Master abgeben" zurück und das Tablet des Bandleaders übernimmt; fällt ein Master aus, übernimmt nach 15 s jeder, oder ein Admin/Showmaster sofort per Force Takeover.
 
 ---
 
@@ -415,6 +435,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Einträge:** Ziehgriff ⠿ zum Umsortieren (Drag), Titel-Klick öffnet den Song, **Variantenwahl** (Portal-Dialog, weil ein `<select>` im scrollenden Container abgeschnitten wurde), ⋯ **Entfernen**. Derselbe Song darf **mehrfach** vorkommen (z. B. Vollversion + Kurzfassung als Zugabe).
 - **Song hinzufügen:** durchsuchbare Combobox (Tippen filtert, Esc/Klick außerhalb schließt).
 - **Übergangstyp pro Eintrag** (#232, neu): „→"-Button in jeder Zeile außer der letzten öffnet einen Dialog mit **Manuell** (Standard, stoppt am Ende), **Nächster bereit** (stoppt, stellt den nächsten Song bereit), **Nahtlos** (nächster Song startet sofort ohne Einzähler; Track wird vorgeladen), **Mit Pause** (Pause in Sekunden, dann Start mit Einzähler). Fortgeschrittenes Detail: Bar-Extend (#231) verschiebt den Übergangspunkt.
+- **Übergangs- und Abschnitts-Einträge (#29, neu):** Neben Songs kann eine Setlist Einträge ohne Song enthalten: **Ansage/Pause** (Titel, Notizen, geschätzte Dauer - Play startet einen Countdown, danach entscheidet der Übergangstyp, wie es weitergeht) und **Abschnitts-Überschriften**. Der Prompter zeigt sie als „Ansage" bzw. „Abschnitt" mit Titel, Notizen und „noch n s"; die Festival-Uhr rechnet ihre Dauer mit. Setlist-weit gibt es `targetEndTime` (Zielzeit), `defaultTransitionMs` und `defaultSongDurationMs`.
 - **UC:** Ballade → Rocknummer als Segue: erster Eintrag „Nahtlos". **UC:** Ansage-Pause zwischen zwei Songs: „Mit Pause 10 s".
 - **Grenzen:** Übergänge funktionieren, wo dieses Gerät die Audio-Ausgabe lokal übernimmt; Server-Audio-Plugins werden nicht vorgeladen. Ob bei „Mit Pause" im **Gig**-Modus ein Einzähler folgt, ist nicht abschließend verifiziert. Crossfade fehlt bewusst (#244).
 
@@ -467,7 +488,7 @@ Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbe
 
 #### 7.6 Backup (`BackupManager`)
 - **Backup-Plugins:** nur Statusanzeige (Name, Health, Aktiv) – StageBoard löst selbst keine Backups aus. **Lokale Snapshots** (unabhängig vom Plugin, *real*): **Backup herunterladen** (JSON-Dump von Songs, Setlists, Dashboards, Profilen, Plugins, Show-Log) und **Backup wiederherstellen…** (Datei wählen, Bestätigung, wird mit lokalen Daten **zusammengeführt**).
-- **Gating:** Tab nur mit Backup-Capability sichtbar; Snapshot-Funktionen offen. **Stub-Hinweis:** der Katalog kennt nur `mock-backup`.
+- **Gating:** Tab nur mit Backup-Capability sichtbar; Snapshot-Funktionen offen. **Stub-Hinweis:** der Katalog kennt nur `mock-backup` (seit #249 mit Server-Seite, die lediglich den Zeitpunkt der letzten Anforderung merkt).
 - **UC:** Vor der Tour: Snapshot ziehen und auf den USB-Stick kopieren.
 
 #### 7.7 Nachbericht (`PostShowReport`)
@@ -508,7 +529,9 @@ Alles einmalig einzustellen, pro Gerät:
 | `useActiveProfileStore` | aktives Profil je Band (`''` = „ohne Profil") | `localStorage` |
 | `useRosterSetupStore` | Roster-Einrichtung abgeschlossen (je Band, pro Gerät) | `localStorage` |
 | `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Anker, Tempo-Marker, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (Tracks als Attachments) |
-| `useShowStateStore` | geteilter Live-Zustand: Master-Token, aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
+| `useShowStateStore` | geteilter Live-Zustand: Master-Token (`claimMaster`, `releaseMaster`), aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
+| `useChordOffsetStore` | Transpose-/Capo-Versatz dieses Geräts (#59), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
+| `useLoopTrainerStore` | Loop-Punkte, Tempo und Speed-Trainer-Einstellungen sowie „läuft" (#61), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
 | `usePracticeStateStore` | lokales Echo des Zustands für **Solo Üben** (je Band) | `localStorage` `stageboard-practice-state` |
 | `useAppModeStore` | Gig ↔ Solo (pro Gerät, nicht pro Band) | `localStorage` `stageboard-app-mode` |
 | `useShowLogStore` | Show-Log-Ereignisse; „aktuelle Show" wird daraus abgeleitet | PouchDB→CouchDB |
@@ -540,13 +563,13 @@ Alles einmalig einzustellen, pro Gerät:
 ### 10. Ehrlicher Stand: Stubs, Lücken, Vorsichtspunkte
 
 - **Rollen und private Dashboards sind kein Zugriffsschutz** (nur Anzeigefilter; Dokumente replizieren zu allen). Bewusst dokumentiert im Code.
-- **Master-Token „Übernehmen" ist ungeschützt** (kein Force-Override/Heartbeat, #32 offen). Jeder im Band kann die Show übernehmen.
+- **Master-Token:** Heartbeat, Auto-Freigabe nach 15 s, Force Takeover für `admin`/`showmaster` und „Master abgeben" sind seit #32 da, aber nur als UI-Gate. Ein abgekoppelter alter Master schreibt bis zum Reconnect weiter, und jeder mit Zugriff auf das Band kann sich als `admin`/`showmaster`-Profil ausgeben.
 - **Edit-Lock und Gerät-Entfernen sind kooperativ**, keine Sicherheitsgrenze (Geräte-Sperre entzieht keine Credentials).
-- **Plugin-Katalog ist ein fest eingebauter Katalog** ohne Repository; mehrere Einträge (`mock-mixer`, `mock-lighting`, `mock-backup`, `mock-playback`, `mock-click`) sind Mock-Implementierungen. Echte Hardware-Plugins im Katalog: Kemper, Boss RC-500, NUX MG-30, CQ-18T, Soundcraft Ui24R, Generic WebMIDI (Reifegrad pro Plugin nicht geprüft).
-- **Audioübergänge (#232):** nahtlos nur mit lokaler Audio-Ausgabe (Server-Plugin-Audio nicht vorgeladen); Live-Test auf Tablets steht aus; `delayed` im Gig-Modus: Einzähler nicht verifiziert; **Crossfade fehlt** (#244); Übergangsziel „Transition-Item" (#29) existiert noch nicht.
+- **Plugin-Katalog ist ein fest eingebauter Katalog** ohne Repository; mehrere Einträge (`mock-mixer`, `mock-lighting`, `mock-backup`, `mock-playback`, `mock-click`) sind Mock-Implementierungen (alle fünf haben seit #249 eine Server-Seite). Echte Hardware-Plugins im Katalog: Kemper, Boss RC-500, NUX MG-30, CQ-18T, Soundcraft Ui24R, Generic WebMIDI (Reifegrad pro Plugin nicht geprüft).
+- **Audioübergänge (#232):** nahtlos nur mit lokaler Audio-Ausgabe (Server-Plugin-Audio nicht vorgeladen); Live-Test auf Tablets steht aus; `delayed` im Gig-Modus: Einzähler nicht verifiziert; **Crossfade fehlt** (#244); ein Übergang kann seit #29 auch auf einen Ansage-/Abschnitts-Eintrag folgen.
 - **Auto-Stopp/Übergang** (#231/#232) funktioniert auf dem Gerät, das zugleich Master (`canControl`) **und** lokale Audio-Ausgabe ist; ist beides auf zwei Tablets verteilt, greift die Automatik nicht (im Code als Limitation dokumentiert).
 - **Bekannte Build-Warnungen** (Vite): `practiceQueue.ts` und `useAppModeStore.ts` werden statisch **und** dynamisch importiert (kein Chunk-Splitting) – harmlos, Dynamic-Imports existieren wegen Test-Isolation.
-- **Offene, zugehörige Issues** (Auswahl): #213 (Container/Group-Widgets Nesting), #183/#182 (Setlist/Song-Erstellungs-Flows), #149 (Multi-Instance-Hardware-Routing), #85/#84 (Master-Token-Modus, abweichender Stage-Server je Band), #70 (Break-Glass-CLI), #57/#16 (Rollenbasierter Zugriff, Read-only-Dashboards), #29/#28/#27/#26 (Show-Flow, Festival-Clock, Foot Switch, Stage Messenger).
+- **Offene, zugehörige Issues** (Auswahl): #213 (Container/Group-Widgets Nesting), #183/#182 (Setlist/Song-Erstellungs-Flows), #149 (Multi-Instance-Hardware-Routing), #85/#84 (Master-Token-Modus, abweichender Stage-Server je Band), #70 (Break-Glass-CLI), #57/#16 (Rollenbasierter Zugriff, Read-only-Dashboards), #27/#26 (Foot Switch, Stage Messenger).
 - **Nicht in diesem Survey geprüft:** die konkreten Widgets, Server-Endpunkte/Plugins im Backend, die Wirksamkeit der serverseitigen Rechteprüfungen, Verhalten auf iOS/Capacitor.
 
 ---
@@ -662,8 +685,8 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 
 #### 3.4 Plugin-Sync & Registry (`plugins/pluginSync.ts`, `registry.ts`, `catalog.ts`, `healthStore.ts`, `pluginBundleStore.ts`) **[fertig für Mocks, teilweise insgesamt]**
 - **Was:** Liest `plugins:*`-Dokumente des aktiven Bands aus CouchDB, vergleicht mit der Registry (`reconcile`) und registriert/deregistriert Server-Plugins. Hört auf den CouchDB-`_changes`-Feed (Long-Poll 30 s, Retry nach 5 s). Schreibt alle ~5 s (`HEALTH_TIMEOUT_MS/3` = 15 s/3) einen „online“-Herzschlag pro Plugin in den Health-Store. Lädt `clientSource`-Bundles einmal auf die Platte (`data/plugins/<id>/client.js`) und liefert sie als LAN-Mirror aus.
-- **Wie:** Der Server kennt nur Implementierungen aus `PLUGIN_CATALOG` (`mock-mixer`, `mock-lighting`, `mock-playback`). Ein installiertes Plugin ohne Implementierung wird geloggt und als „unavailable“ ignoriert. Plugins mit `runtime: 'client'` werden serverseitig übersprungen.
-- **Grenzen / ehrlich:** Die Server-Plugins sind **nur Mocks** (`mock-mixer` merkt sich Lautstärken, `mock-lighting` merkt sich den letzten Cue-Typ, `mock-playback` hält Play/Pause-Zustand – es wird *kein Ton* erzeugt). `mock-backup` und `mock-click` stehen im PWA-Katalog, haben aber **keine** Server-Implementierung → auf dem Server „unavailable“. Echter Server-Plugin-Code aus `source` nachladen (#17) ist **nicht gebaut**. Es gibt keinen echten Mixer-/DMX-Server-Adapter.
+- **Wie:** Der Server kennt nur Implementierungen aus `PLUGIN_CATALOG` (`mock-mixer`, `mock-lighting`, `mock-playback`, seit #249 auch `mock-backup` und `mock-click`). Ein installiertes Plugin ohne Implementierung wird geloggt und als „unavailable“ ignoriert. Plugins mit `runtime: 'client'` werden serverseitig übersprungen.
+- **Grenzen / ehrlich:** Die Server-Plugins sind **nur Mocks** (`mock-mixer` merkt sich Lautstärken, `mock-lighting` merkt sich den letzten Cue-Typ, `mock-playback` hält Play/Pause-Zustand – es wird *kein Ton* erzeugt). `mock-backup` (merkt sich den Zeitpunkt der letzten Backup-Anforderung) und `mock-click` (an/aus) haben seit #249 eine Mock-Server-Seite und bleiben nicht mehr „unavailable“. Echter Server-Plugin-Code aus `source` nachladen (#17) ist **nicht gebaut**. Es gibt keinen echten Mixer-/DMX-Server-Adapter.
 - **Use Cases:** (1) Ein Admin installiert im PWA das Plugin „Mock Playback“ – dank CouchDB-Replikation erscheint es binnen Sekunden im Server, ohne dass jemand den Server anfasst. (2) Fällt das Plugin aus (Herzschlag > 15 s alt), werden IEM-/Licht-Widgets grau statt zu verschwinden (Graceful Degradation).
 
 #### 3.4b Audio-Speicher (`audioStore.ts`) **[fertig]**
@@ -686,6 +709,7 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 
 #### 3.7 Präsenz, Geräte-Info, Ping-Schleife (`presenceStore.ts`, `deviceInfoStore.ts`, `pingLoop.ts`) **[fertig]**
 - **Was:** Präsenz = „welches Profil ist auf welchem Gerät gerade online“. Geräte-Info = IP, OS, Umgebung (`browser`/`pwa`/`native`), Sync-Status, Ping-Erreichbarkeit, Reverse-DNS-Hostname. Die Ping-Schleife pingt alle bekannten Geräte alle 20 s (`ping -c 1 -W 1`) und löst Hostnamen per `dns.reverse` auf.
+- **Master-Heartbeat (#32):** Der Präsenz-Snapshot trägt zusätzlich `masterHeartbeat` (Geräte-ID des Masters + serverseitiger Zeitstempel), geschrieben über `POST /workspaces/:id/master-heartbeat`; ebenfalls nur RAM.
 - **Grenzen:** Alles nur RAM. `ping` wird als Systemkommando ausgeführt (setzt Linux mit `ping` voraus). Ohne Client-Report kein Eintrag.
 - **Use Case:** „Device Ledger“: Der Techniker sieht, welches der vier Tablets seit 2 Minuten nicht mehr antwortet, bevor die Show startet.
 
@@ -716,7 +740,7 @@ Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Ser
 | **BeatAnchor** | Exakter Beat-Zeitpunkt (+ `beatInBar`) – Phasenkorrektur, *kein* Tempo. **TempoMarker** = echter Tempowechsel ab `timeMs`. |
 | **ShowCue** | Hardware-Kommando am Song-Zeitpunkt, adressiert an ein **Logical Device**, nicht an eine Capability (#99). Gleiche Form wie ein `ShowControlEvent`. |
 | **Setlist / SetlistEntry** | Eintrag hat eigene `id` (dasselbe Lied darf zweimal vorkommen, z. B. Voll- und Kurzfassung), `variantId`, `trackId`, **neu (#232)** `transitionType` (`manual` / `next-ready` / `seamless` / `delayed`) und `transitionDelayMs`. Beides optional → Altbestände laufen als `manual`. |
-| **ShowState** | Singleton pro Band: aktive Setlist/Entry, **Master-Token** (`masterHolderId`), Transport (`playbackStatus`, `playbackStartedAt`, `playbackAccumulatedMs`), sowie for-tonight-Overrides: `trackOverride`, `liveTempoAdjustPercent`, `clickTrackOverride`, `clickExtendMs`, plus `currentShowId/lastActivityAt` fürs Log. |
+| **ShowState** | Singleton pro Band: aktive Setlist/Entry, **Master-Token** (`masterHolderId`, seit #32 mit Heartbeat auf dem Präsenz-Stream und `releaseMaster`), Transport (`playbackStatus`, `playbackStartedAt`, `playbackAccumulatedMs`), sowie for-tonight-Overrides: `trackOverride`, `liveTempoAdjustPercent`, `clickTrackOverride`, `clickExtendMs`, plus `currentShowId/lastActivityAt` fürs Log. |
 | **ShowLogEvent** | `show-started`, `song-played` (mit `activeMs`), `capability-changed`, `note` – Ereignisse sind die „Show“, es gibt kein Summary-Dokument. |
 | **Dashboard / WidgetInstance / LayoutItem** | Freies Raster pro Breakpoint (`sm/md/lg/xl`), Widget-Config je Instanz, `visibility`, `ownerProfileId/ownerRole` („Station“). |
 | **Profile** | `name`, `stageRoles` (`performer`, `lighttech`, `soundtech`, `crew`, `admin`). |
@@ -746,10 +770,10 @@ Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Ser
 | `boss-rc500` | client | `rc500-control` | `usb-midi` | **ja** (Speicher wählen) | – |
 | `soundcraft-ui24r` | client | `ui24r-control` | `network-ws` (WebSocket) | **ja** (Level, Mute) | – |
 | `mock-lighting` | both | `lighting`, `show-control` | – | Mock | ja |
-| `mock-backup` | server | `backup` | – | Mock | **nein** |
+| `mock-backup` | server | `backup` | – | Mock | ja (seit #249) |
 | `mock-playback` | server | `audio-playback` | – | Mock | ja |
 | `music-tempo-beat-detection` | client | `audio-analysis` | – | **ja** (BPM/Beat-Erkennung, optional) | – |
-| `mock-click` | server | `click-track` | – | Mock | **nein** |
+| `mock-click` | server | `click-track` | – | Mock | ja (seit #249) |
 
 Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `cq18tTranslator` (`cq18t.setLevel/setMute`), `mg30Translator` (`mg30.selectPatch/setKnob`), `rc500Translator` (`rc500.selectMemory`), `ui24rTranslator` (`ui24r.setLevel/setMute`, eigene Socket.IO-0.9-Textklammer in `ui24rSocket.ts` und Fader-Kurve `ui24rCurves.ts`); jeder kennt zusätzlich ein `test`-Event. `clickTrack`-Translator kennt `click.extend` (#231, Takte verlängern). Mixer-/Lighting-Translatoren sind lokale Mock-Stores (`useLocalMixerStore`, `useLocalLightingStore`).
 
@@ -783,7 +807,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Was:** Setlist-Reihenfolge (oder ganzer Katalog, wenn keine Setlist aktiv ist), aktuelles/nächstes/vorheriges Lied, Play/Pause/Stop/Reset, Weiter/Zurück, Track-Override, Live-Tempo-Nudge (±15 %, nur Klick), Klick-Override, Takte verlängern.
 - **Wie:** Der Transport ist reiner Wert (`status`, `startedAt`, `accumulatedMs`); Zeit = `accumulated + (jetzt − startedAt)` solange „playing“. Nur der **Master-Token-Halter** schreibt ShowState (`isMaster` wird in jeder Aktion geprüft); Übernahme = einfaches Schreiben von `masterHolderId` (CouchDB-Konflikte reichen als „nur ein Gewinner“). Variantenauflösung: Eintrag-Variante → Default-Variante; Track: Override → Eintrag-`trackId` → `band-mix` → erster Track. `useShowMode()` liefert dieselbe Schnittstelle für **Gig** (geteilter ShowState) und **Solo Üben** (lokaler `usePracticeStateStore`, nie geteilt).
 - **Neu in dieser Session:** #233 (Solo→Gig setzt Übungswiedergabe zurück statt zu blockieren; Gig→Solo bleibt blockiert), #234 (Queue-Widget modusbewusst, Setlist-Wähler für Solo), #232 (Übergangstypen, siehe 6.6).
-- **Grenzen:** **Kein Master-Heartbeat/Force-Override (#32 offen)** – fällt das Master-Tablet aus, muss jemand manuell „Master übernehmen“ drücken. `playbackStartedAt` wird mit dem *lokalen* `Date.now()` des Masters geschrieben, während Leser die Zeit mit `getServerTime()` (Server-Zeit) rechnen (`queue.ts:122` vs. `usePlaybackElapsedMs.ts:33`); das stimmt exakt nur, wenn die Master-Systemuhr ≈ Server-Uhr ist (Code-Lesart, **nicht live geprüft**). Master-Modus pro Gerät/Konto nicht wählbar (#85).
+- **Grenzen:** Master-Heartbeat/Force Takeover/„Master abgeben“ sind seit #32 gebaut (siehe „Master-Token (Gig-Modus)“ in Teil B), aber nur ein UI-Gate und nicht auf Tablets geprüft. `playbackStartedAt` wird mit dem *lokalen* `Date.now()` des Masters geschrieben, während Leser die Zeit mit `getServerTime()` (Server-Zeit) rechnen (`queue.ts:122` vs. `usePlaybackElapsedMs.ts:33`); das stimmt exakt nur, wenn die Master-Systemuhr ≈ Server-Uhr ist (Code-Lesart, **nicht live geprüft**). Master-Modus pro Gerät/Konto nicht wählbar (#85).
 - **Use Cases:** (1) Der Sänger drückt „Nächster Song“; alle Tablets wechseln synchron. (2) Ein Zuschauerwunsch: Der Bandleiter zieht „Wonderwall“ per „Als nächstes spielen“ direkt hinter den laufenden Titel.
 
 #### 6.3 Show-Log / Nachbericht (`showLogTracking.ts`, `useShowLogTracker.ts`, `store/…ShowLog`) **[fertig]**
@@ -819,7 +843,8 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 #### 6.7 ChordPro, Prompter-Logik, Tap-to-Sync (`chordpro.ts`, `useMidiTrigger.ts`) **[fertig]**
 - **Was:** Parser für `[G]Text`, Zeit-Tags `[mm:ss.xx]`, Part-Direktiven (`{part: Chorus}` plus Standard-Aliasse `{soc}/{sov}/{sob}` und `{start_of_…}`), Kommentar-Direktiven (`{c:}`, `{comment:}`, `{cc:}`, `{cc4all:}`, **adressiert** `{cc4marco,jamie: …}` – nur für genannte Profilnamen sichtbar, unauflösbare Namen zeigen den Kommentar allen). Seiteneinteilung für die geblätterte Ansicht (eine Seite pro Part, sonst 6er-Blöcke), aktuelle Zeile/Seite aus der Uhr, `nextSectionIndex` für den manuellen Umblätter-Modus per Fußtaster (WebMIDI Note-On/Program-Change).
-- **Grenzen:** **Keine Transposition/Kapo-Engine im Code** (kein einziger Treffer für „transpos“ in `stage-pwa/src`) – #59 **[geplant]**. `{key}`/`{capo}` stehen nur als Variantenfelder, ohne Umrechnung der Akkorde.
+- **Transposition/Capo (#59, neu, `transposeChord.ts`, `useChordOffsets.ts`):** reine Funktionen `transposeChord`/`transposeKey`/`transposeLines` (Wurzel und Slash-Bass, Vorzeichen je Zieltonart, Nicht-Akkorde unverändert, Versatz 0 gibt dasselbe Array zurück - Zeilenindizes bleiben stabil); Details und Grenzen bei Widget 1 (Prompter).
+- **Grenzen:** Nur der Prompter transponiert; Song-Vorschau und Editor zeigen weiter die notierten Akkorde. `{key}`/`{capo}` stehen weiter nur als Variantenfelder.
 - **Use Cases:** (1) Der Gitarrist bekommt „{cc4jamie: Solo eine Oktave höher}“ nur auf seinem Bildschirm. (2) Ohne Timecodes blättert der Fußtaster (MIDI) zum nächsten Part.
 
 #### 6.8 Tuner (`pitchDetection.ts`, `noteFromFrequency.ts`) **[fertig]**
@@ -841,13 +866,13 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 34)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 29)
 
 | Bereich | Issues |
 |---|---|
-| **Live-Show-Automatik** | #6 Cue-Recorder, #7 Auto-Cue-Erkennung, #8 Live-Cue-Firing + Post-Show-Persistenz, #32 Master-Heartbeat/Force-Override |
-| **Setlist/Fluss** | #28 Festival-Uhr, #29 Übergangsnotizen/Show-Flow-Items, #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
-| **Musiker-Werkzeuge** | #59 Transposition/Kapo, #61 Loop/Speed-Trainer, #24 Akkord-Lookup + Quintenzirkel, #60 Ready-Check, #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
+| **Live-Show-Automatik** | #6 Cue-Recorder, #7 Auto-Cue-Erkennung, #8 Live-Cue-Firing + Post-Show-Persistenz |
+| **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
+| **Musiker-Werkzeuge** | #24 Akkord-Lookup + Quintenzirkel, #60 Ready-Check, #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
 | **Audio-Pipeline** | #5 Async-Jobs/YouTube-Extraktion, #9 Stem-Trennung, #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
 | **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
 | **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
@@ -863,9 +888,9 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 2. **Uhr-Basis beim Transportstart** – Master schreibt lokale `Date.now()`, Leser rechnen mit Server-Zeit (6.2). Bei stark abweichender Master-Uhr entstünde ein konstanter Versatz. Nicht live gemessen.
 3. **Unauthentifizierte Routen:** `PUT/GET/DELETE /audio/*`, `POST /plugins/:name/trigger`, `POST …/devices/:id/trigger`, alle Discovery-POSTs, Präsenz/Health/Device-Info-Reports. Modell = „Wer im Band-WLAN ist, vertraut sich“. Ein Fremder im selben Netz könnte Audio überschreiben/löschen. Für Touring mit fremdem Venue-WLAN relevant.
 4. **CouchDB-Default `admin/admin`** im Code, wenn keine Umgebungsvariablen gesetzt sind.
-5. **Server-Plugin-Katalog ≠ PWA-Katalog:** `mock-backup` und `mock-click` sind im PWA installierbar, laufen serverseitig aber ins Leere („unavailable“, nur ein Log-Eintrag).
+5. *(erledigt mit #249)* Server-Plugin-Katalog = PWA-Katalog: `mock-backup` und `mock-click` haben jetzt eine Mock-Server-Seite.
 6. **Flüchtiger Serverzustand:** Präsenz, Geräte-Info, Plugin-Health, Discovery-Session, PIN-Sperre und Geräte-Relay-Abonnements sind nach Neustart leer; Clients füllen sie durch zyklische Reports wieder auf.
-7. **`docs/05` teilweise veraltet:** Einige dort noch als offen geführte Issues (z. B. #18/#22/#23/#35, #106) sind laut GitHub geschlossen bzw. gelten als ausgeliefert.
+7. *(erledigt mit #250)* `docs/05` ist mit dem Issue-Stand abgeglichen.
 8. **Build-Warnung:** `practiceQueue.ts` und `useAppModeStore.ts` sind in `clientTranslator.ts` dynamisch, sonst statisch importiert → Rolldown meldet `INEFFECTIVE_DYNAMIC_IMPORT` (harmlos; die dynamischen Imports existieren, um PouchDB im Test nicht laden zu müssen).
 9. **Ultimate-Guitar-Scraper braucht Chrome/Chromium auf dem Server** und ist von der UG-Seitenstruktur abhängig (#15).
 10. **Native MIDI im Server:** `midiWatcher` nutzt `@julusian/midi` (natives Modul); scheitert das Auflisten der Ports, wird nur „Failed to enumerate native MIDI ports“ geloggt (Code-Lesart; Verhalten auf einem System ohne MIDI-Zugriff nicht getestet).
