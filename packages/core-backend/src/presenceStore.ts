@@ -1,4 +1,4 @@
-import type { MasterHeartbeat, Presence, PresenceEntry } from 'shared-types'
+import type { MasterHeartbeat, Presence, PresenceEntry, ReadyCheck } from 'shared-types'
 
 type Subscriber = (snapshot: Presence) => void
 
@@ -14,13 +14,21 @@ type Subscriber = (snapshot: Presence) => void
  */
 const stateByWorkspace = new Map<string, Map<string, PresenceEntry>>()
 const masterHeartbeatByWorkspace = new Map<string, MasterHeartbeat>()
+/** The open Ready Check's answers (#60), one slot per workspace. Kept as a Set while running. */
+const readyCheckByWorkspace = new Map<string, { checkId: string; readyProfileIds: Set<string> }>()
 const subscribersByWorkspace = new Map<string, Set<Subscriber>>()
+
+function readyCheckSnapshot(workspaceId: string): ReadyCheck | undefined {
+  const check = readyCheckByWorkspace.get(workspaceId)
+  return check ? { checkId: check.checkId, readyProfileIds: [...check.readyProfileIds] } : undefined
+}
 
 function snapshotFor(workspaceId: string): Presence {
   const devices = stateByWorkspace.get(workspaceId)
   return {
     devices: devices ? Object.fromEntries(devices) : {},
     masterHeartbeat: masterHeartbeatByWorkspace.get(workspaceId),
+    readyCheck: readyCheckSnapshot(workspaceId),
   }
 }
 
@@ -53,6 +61,21 @@ export function setMasterHeartbeat(workspaceId: string, deviceId: string): void 
   }
 }
 
+/** Records that `profileId` is ready for Ready Check `checkId` (#60) and pushes the snapshot. A
+ * report for a different id than the stored one starts a fresh check - the previous check's
+ * answers must never count towards a new one. */
+export function setReady(workspaceId: string, checkId: string, profileId: string): void {
+  const existing = readyCheckByWorkspace.get(workspaceId)
+  const check = existing?.checkId === checkId ? existing : { checkId, readyProfileIds: new Set<string>() }
+  check.readyProfileIds.add(profileId)
+  readyCheckByWorkspace.set(workspaceId, check)
+
+  const snapshot = snapshotFor(workspaceId)
+  for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {
+    subscriber(snapshot)
+  }
+}
+
 /**
  * Calls `subscriber` immediately with the current snapshot - this is what makes a
  * reconnecting tablet catch up right away instead of waiting for the next change - then
@@ -74,5 +97,6 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
 export function __resetPresenceStoreForTests(): void {
   stateByWorkspace.clear()
   masterHeartbeatByWorkspace.clear()
+  readyCheckByWorkspace.clear()
   subscribersByWorkspace.clear()
 }

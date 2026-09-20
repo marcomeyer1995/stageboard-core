@@ -32,8 +32,21 @@ export type MasterHeartbeatReport = z.infer<typeof MasterHeartbeatReportSchema>
  * couldn't represent. Same pattern as PluginHealth (pluginHealth.ts) - a heartbeat has no
  * offline/multi-master value, so it doesn't belong in synced CouchDB docs either.
  */
+/** Who has answered the currently open Ready Check (#60). `checkId` is ShowState.readyCheckId at the
+ * time - readers ignore a snapshot whose id is not the one ShowState currently names. */
+export const ReadyCheckSchema = z.object({
+  checkId: z.string().min(1),
+  readyProfileIds: z.array(z.string()),
+})
+export type ReadyCheck = z.infer<typeof ReadyCheckSchema>
+
+/** Body a tablet POSTs to say "this profile is ready" for a Ready Check. */
+export const ReadyReportSchema = z.object({ checkId: z.string().min(1), profileId: z.string().min(1) })
+export type ReadyReport = z.infer<typeof ReadyReportSchema>
+
 export const PresenceSchema = z.object({
   devices: z.record(z.string(), PresenceEntrySchema).default({}),
+  readyCheck: ReadyCheckSchema.nullable().optional(),
   /** The Master-Token holder's liveness (#32) - rides on this same SSE snapshot instead of a
    * stream of its own, since this app already sits near Chrome's per-origin connection cap. */
   masterHeartbeat: MasterHeartbeatSchema.nullable().optional(),

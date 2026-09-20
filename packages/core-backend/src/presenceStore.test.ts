@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetPresenceStoreForTests, getSnapshot, setEntry, setMasterHeartbeat, subscribe } from './presenceStore.js'
+import { __resetPresenceStoreForTests, getSnapshot, setEntry, setMasterHeartbeat, setReady, subscribe } from './presenceStore.js'
 
 beforeEach(() => {
   __resetPresenceStoreForTests()
@@ -107,5 +107,34 @@ describe('setMasterHeartbeat', () => {
 
     expect(subscriber).toHaveBeenCalledTimes(2)
     expect(getSnapshot('band-a').masterHeartbeat?.deviceId).toBe('device-2')
+  })
+})
+
+describe('setReady', () => {
+  it('collects each profile once for the open check', () => {
+    setReady('band-a', 'c1', 'anna')
+    setReady('band-a', 'c1', 'ben')
+    setReady('band-a', 'c1', 'anna')
+
+    expect(getSnapshot('band-a').readyCheck).toEqual({ checkId: 'c1', readyProfileIds: ['anna', 'ben'] })
+    expect(getSnapshot('band-b').readyCheck).toBeUndefined()
+  })
+
+  it('starts fresh for a new check id, so old answers never count', () => {
+    setReady('band-a', 'c1', 'anna')
+    setReady('band-a', 'c2', 'ben')
+
+    expect(getSnapshot('band-a').readyCheck).toEqual({ checkId: 'c2', readyProfileIds: ['ben'] })
+  })
+
+  it('notifies subscribers with the full snapshot', () => {
+    const subscriber = vi.fn()
+    subscribe('band-a', subscriber)
+    subscriber.mockClear()
+
+    setReady('band-a', 'c1', 'anna')
+
+    expect(subscriber).toHaveBeenCalledOnce()
+    expect(subscriber.mock.calls[0][0].readyCheck.readyProfileIds).toEqual(['anna'])
   })
 })

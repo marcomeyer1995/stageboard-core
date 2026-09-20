@@ -42,6 +42,7 @@ const emptyShowState: ShowState = {
   activeEntryStartedAt: null,
   masterHolderId: null,
   masterClaimedAt: null,
+  readyCheckId: null,
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,

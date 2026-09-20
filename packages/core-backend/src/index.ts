@@ -23,6 +23,7 @@ import {
   JoinAsMemberRequestSchema,
   MasterHeartbeatReportSchema,
   PresenceReportSchema,
+  ReadyReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
   ResetMemberPasswordRequestSchema,
@@ -468,6 +469,19 @@ export async function buildApp() {
     }
 
     presenceStore.setMasterHeartbeat(workspaceId, parsed.data.deviceId)
+    return reply.status(204).send()
+  })
+
+  // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
+  // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
+  app.post('/workspaces/:workspaceId/ready-check/report', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = ReadyReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    presenceStore.setReady(workspaceId, parsed.data.checkId, parsed.data.profileId)
     return reply.status(204).send()
   })
 

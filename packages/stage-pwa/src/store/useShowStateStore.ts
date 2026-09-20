@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
+import { randomId } from '../lib/id'
 import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
 
 interface ShowStateStore {
@@ -18,6 +19,10 @@ interface ShowStateStore {
    * wait out the 15 s heartbeat timeout or need a Force Takeover - leaves it vacant for anyone to
    * claim. No-op for a device that isn't the master. */
   releaseMaster: () => Promise<void>
+  /** Opens a fresh Ready Check (#60) for the whole band, or closes the open one. Master-gated: the
+   * check is an instruction from whoever runs the show. */
+  startReadyCheck: () => Promise<void>
+  endReadyCheck: () => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
   /** Master-gated raw ShowState patch - the one write path queue.ts's transport/queue-advance
    * actions go through, so "only the current master ever writes ShowState" (claimMaster's
@@ -58,6 +63,14 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     await putShowState({ masterHolderId: null, masterClaimedAt: null })
     const fresh = await getShowState()
     set({ state: fresh, isMaster: fresh.masterHolderId === deviceId })
+  },
+  startReadyCheck: async () => {
+    if (!get().isMaster) return
+    await putShowState({ readyCheckId: randomId() })
+  },
+  endReadyCheck: async () => {
+    if (!get().isMaster) return
+    await putShowState({ readyCheckId: null })
   },
   setActiveSetlist: async (setlistId) => {
     if (!get().isMaster) return
