@@ -13,6 +13,10 @@ import { useShowStateStore } from '../store/useShowStateStore'
 // Same explicit-factory reasoning as useAudioOutputDriver.test.ts (which now owns the reactive
 // local-engine-driving behavior this widget used to run itself - see its own doc comment).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+// Its own claim rules (masterTakeover.test.ts) pull in the real PouchDB-backed stores.
+vi.mock('../components/MasterTakeoverButton', () => {
+  return { MasterTakeoverButton: () => <button type="button">Master übernehmen</button> }
+})
 vi.mock('../lib/showControlClient', () => ({ triggerShowControl: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))

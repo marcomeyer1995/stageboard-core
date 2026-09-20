@@ -1,5 +1,6 @@
 import { useQueue } from '../lib/queue'
 import { useDeviceName } from '../store/useDevicesStore'
+import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
@@ -12,7 +13,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
  */
 export function MasterControl() {
   const { isMaster, activeSetlist } = useQueue()
-  const claimMaster = useShowStateStore((state) => state.claimMaster)
+  const { status, canClaim, isForce, claim } = useMasterTakeover()
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
   const masterName = useDeviceName(masterHolderId)
 
@@ -26,14 +27,22 @@ export function MasterControl() {
       ) : (
         <button
           type="button"
-          onClick={claimMaster}
-          title="Dieses Gerät hat aktuell keine Kontrolle über die Queue"
-          className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
+          onClick={claim}
+          disabled={!canClaim}
+          title={
+            isForce
+              ? canClaim
+                ? 'Ein anderes Gerät ist aktiv Master - Force Takeover'
+                : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
+              : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
+          }
+          className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
           Master-Kontrolle
           <span className="flex items-center gap-2">
             {masterHolderId && <span className="text-sm text-ink-faint">{masterName ?? 'Anderes Gerät'}</span>}
-            <span className="font-medium text-accent">Übernehmen</span>
+            {status === 'stale' && <span className="text-sm text-amber-500">antwortet nicht</span>}
+            <span className="font-medium text-accent">{isForce ? 'Force Takeover' : 'Übernehmen'}</span>
           </span>
         </button>
       )}

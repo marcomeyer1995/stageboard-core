@@ -7,6 +7,23 @@ export const PresenceEntrySchema = z.object({
 })
 export type PresenceEntry = z.infer<typeof PresenceEntrySchema>
 
+/** Last beat seen from whichever device holds the Master-Token (#32). `at` is stamped
+ * server-side on receipt, so readers compare it against `getServerTime()` rather than their
+ * own clock. */
+export const MasterHeartbeatSchema = z.object({
+  deviceId: z.string().min(1),
+  at: z.number().int().nonnegative(),
+})
+export type MasterHeartbeat = z.infer<typeof MasterHeartbeatSchema>
+
+/** The Master-Token holder beats this often (#32)... */
+export const MASTER_HEARTBEAT_INTERVAL_MS = 5_000
+/** ...and counts as gone (token treated as released) after this long without one. */
+export const MASTER_HEARTBEAT_TIMEOUT_MS = 15_000
+
+export const MasterHeartbeatReportSchema = z.object({ deviceId: z.string().min(1) })
+export type MasterHeartbeatReport = z.infer<typeof MasterHeartbeatReportSchema>
+
 /**
  * Runtime "who's currently logged in, from how many devices" for one workspace - written by
  * every tablet that has an active profile, read by every tablet's BandManagementView.tsx.
@@ -17,6 +34,9 @@ export type PresenceEntry = z.infer<typeof PresenceEntrySchema>
  */
 export const PresenceSchema = z.object({
   devices: z.record(z.string(), PresenceEntrySchema).default({}),
+  /** The Master-Token holder's liveness (#32) - rides on this same SSE snapshot instead of a
+   * stream of its own, since this app already sits near Chrome's per-origin connection cap. */
+  masterHeartbeat: MasterHeartbeatSchema.nullable().optional(),
 })
 export type Presence = z.infer<typeof PresenceSchema>
 

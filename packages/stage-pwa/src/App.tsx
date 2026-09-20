@@ -25,6 +25,7 @@ import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
+import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
 import { useWakeLock } from './lib/useWakeLock'
@@ -146,6 +147,8 @@ function App() {
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
   // decided yet" nor "explicitly no profile" should show this device as anyone in particular.
   usePresenceReporter(activeWorkspaceId, activeProfileId || undefined)
+  // Master-Token liveness (#32): beats only while this device holds the token.
+  useMasterHeartbeatReporter(activeWorkspaceId, useShowStateStore((state) => state.isMaster))
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not

@@ -5,6 +5,9 @@ import { z } from 'zod'
  * something fixed to actually declare against - a profile can hold more than one (e.g. a
  * roadie who also runs sound).
  *
+ * `showmaster` (#32) is the other role (besides `admin`) allowed to force-take the Master-Token
+ * from a live master - a UI-level gate against accidents, not security, same as every role here.
+ *
  * `admin` (roster-admin follow-up) lives in this same list, not a separate field - by request,
  * simplicity over precision: it's edited through the exact same "Stage-Rollen anpassen"
  * checkbox dialog as everything else here, not a bespoke credential-handoff flow. It's a
@@ -15,7 +18,7 @@ import { z } from 'zod'
  * happens the way it always has (the founding device has it; anyone else needs it shared with
  * them manually, e.g. via JoinBandView's "Passwort direkt eingeben").
  */
-export const STAGE_ROLES = ['performer', 'lighttech', 'soundtech', 'crew', 'admin'] as const
+export const STAGE_ROLES = ['performer', 'lighttech', 'soundtech', 'crew', 'admin', 'showmaster'] as const
 export const StageRoleSchema = z.enum(STAGE_ROLES)
 export type StageRole = z.infer<typeof StageRoleSchema>
 

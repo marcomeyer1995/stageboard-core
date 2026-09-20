@@ -9,4 +9,5 @@ export const STAGE_ROLE_LABELS: Record<StageRole, string> = {
   soundtech: 'Tontechnik',
   crew: 'Crew',
   admin: 'Admin',
+  showmaster: 'Showmaster',
 }

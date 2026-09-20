@@ -1,4 +1,4 @@
-import type { Presence, PresenceEntry } from 'shared-types'
+import type { MasterHeartbeat, Presence, PresenceEntry } from 'shared-types'
 
 type Subscriber = (snapshot: Presence) => void
 
@@ -13,11 +13,15 @@ type Subscriber = (snapshot: Presence) => void
  * online until it hears otherwise again - same behavior as before, just not backed by disk.
  */
 const stateByWorkspace = new Map<string, Map<string, PresenceEntry>>()
+const masterHeartbeatByWorkspace = new Map<string, MasterHeartbeat>()
 const subscribersByWorkspace = new Map<string, Set<Subscriber>>()
 
 function snapshotFor(workspaceId: string): Presence {
   const devices = stateByWorkspace.get(workspaceId)
-  return { devices: devices ? Object.fromEntries(devices) : {} }
+  return {
+    devices: devices ? Object.fromEntries(devices) : {},
+    masterHeartbeat: masterHeartbeatByWorkspace.get(workspaceId),
+  }
 }
 
 export function getSnapshot(workspaceId: string): Presence {
@@ -31,6 +35,17 @@ export function setEntry(workspaceId: string, deviceId: string, entry: PresenceE
   const devices = stateByWorkspace.get(workspaceId) ?? new Map<string, PresenceEntry>()
   devices.set(deviceId, entry)
   stateByWorkspace.set(workspaceId, devices)
+
+  const snapshot = snapshotFor(workspaceId)
+  for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {
+    subscriber(snapshot)
+  }
+}
+
+/** Records the Master-Token holder's latest beat (#32) - one slot per workspace, since only
+ * one device is master at a time - and pushes the snapshot like setEntry does. */
+export function setMasterHeartbeat(workspaceId: string, deviceId: string): void {
+  masterHeartbeatByWorkspace.set(workspaceId, { deviceId, at: Date.now() })
 
   const snapshot = snapshotFor(workspaceId)
   for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {
@@ -58,5 +73,6 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
  * many workspaces) - tests need a way to reset it between runs. */
 export function __resetPresenceStoreForTests(): void {
   stateByWorkspace.clear()
+  masterHeartbeatByWorkspace.clear()
   subscribersByWorkspace.clear()
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetPresenceStoreForTests, getSnapshot, setEntry, subscribe } from './presenceStore.js'
+import { __resetPresenceStoreForTests, getSnapshot, setEntry, setMasterHeartbeat, subscribe } from './presenceStore.js'
 
 beforeEach(() => {
   __resetPresenceStoreForTests()
@@ -83,5 +83,29 @@ describe('subscribe', () => {
     setEntry('band-a', 'device-1', { profileId: 'p1', lastSeenAt: 100 })
 
     expect(subscriber).not.toHaveBeenCalled()
+  })
+})
+
+describe('setMasterHeartbeat', () => {
+  it('stamps the beat with server time and exposes it on the snapshot', () => {
+    const before = Date.now()
+    setMasterHeartbeat('band-a', 'device-1')
+
+    const beat = getSnapshot('band-a').masterHeartbeat
+    expect(beat?.deviceId).toBe('device-1')
+    expect(beat?.at).toBeGreaterThanOrEqual(before)
+    expect(getSnapshot('band-b').masterHeartbeat).toBeUndefined()
+  })
+
+  it('keeps only the latest master and notifies subscribers', () => {
+    const subscriber = vi.fn()
+    subscribe('band-a', subscriber)
+    subscriber.mockClear()
+
+    setMasterHeartbeat('band-a', 'device-1')
+    setMasterHeartbeat('band-a', 'device-2')
+
+    expect(subscriber).toHaveBeenCalledTimes(2)
+    expect(getSnapshot('band-a').masterHeartbeat?.deviceId).toBe('device-2')
   })
 })

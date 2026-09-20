@@ -15,6 +15,10 @@ import { ShowTransportWidget } from '../widgets/ShowTransportWidget'
 // to live in, before #13's local-engine-driving logic moved out into this always-mounted hook -
 // found live, 2026-09-10: switching away from the Live tab used to unmount ShowTransportWidget
 // and silently stop a live show's backing track mid-song).
+// Its own claim rules (masterTakeover.test.ts) pull in the real PouchDB-backed stores.
+vi.mock('../components/MasterTakeoverButton', () => {
+  return { MasterTakeoverButton: () => null }
+})
 vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
