@@ -347,3 +347,44 @@ describe('startClick/stopClick', () => {
     expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
   })
 })
+
+describe('Rehearsal Loop support (#61)', () => {
+  const base = { bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }
+  const startTimes = () =>
+    fakeCtx.createOscillator.mock.results.map((result) => (result.value as FakeOscillator).start.mock.calls[0][0] as number)
+
+  it('stretches the wall-clock delay of a beat by the playback rate', () => {
+    // Half speed: the beat at 500 ms of song time is (500 - 430) / 0.5 = 140 ms of wall time away.
+    startClick(() => ({ ...base, elapsedMs: 430, playbackRate: 0.5 }))
+    vi.advanceTimersByTime(50)
+    expect(startTimes()).toHaveLength(1)
+    expect(startTimes()[0]).toBeCloseTo(1000.14, 3)
+  })
+
+  it('narrows the lookahead in song time at a lower rate, so no beat is queued too early', () => {
+    // 150 ms of wall time is only 75 ms of song time at 0.5x: beat 1 (500 ms) is still out of reach.
+    startClick(() => ({ ...base, elapsedMs: 360, playbackRate: 0.5 }))
+    vi.advanceTimersByTime(50)
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+  })
+
+  it('never schedules a beat at or beyond the loop end', () => {
+    // Loop 0-500 ms: the beat at exactly 500 ms belongs to the next pass, not this one.
+    startClick(() => ({ ...base, elapsedMs: 400, loop: { startMs: 0, endMs: 500 } }))
+    vi.advanceTimersByTime(50)
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+  })
+
+  it('re-anchors on a backwards jump so a beat on the loop start still sounds', () => {
+    let elapsedMs = 480
+    startClick(() => ({ ...base, elapsedMs, loop: { startMs: 0, endMs: 500 } }))
+    vi.advanceTimersByTime(50) // anchored near the loop end, nothing due
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+
+    elapsedMs = 20 // the loop wrapped
+    vi.advanceTimersByTime(50)
+    // Beat 0 of the new pass (at song time 0, i.e. 20 ms ago) plays immediately rather than being lost.
+    expect(fakeCtx.createOscillator).toHaveBeenCalled()
+    expect(startTimes()[0]).toBeLessThan(1000)
+  })
+})

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
+import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowMode } from './showMode'
+import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -30,6 +32,12 @@ function subscribeToVisibility(callback: () => void): () => void {
 
 function isPageVisibleSnapshot(): boolean {
   return document.visibilityState !== 'hidden' && document.hasFocus()
+}
+
+/** The slice of ClickEngineState a running Rehearsal Loop (#61) contributes - nothing otherwise. */
+function loopClickState(loopActive: boolean): Pick<ClickEngineState, 'playbackRate' | 'loop'> {
+  const loop = loopActive ? getLoopPlaybackState() : null
+  return loop ? { playbackRate: loop.rate, loop: { startMs: loop.startMs, endMs: loop.endMs } } : { playbackRate: 1, loop: null }
 }
 
 /**
@@ -64,6 +72,7 @@ function isPageVisibleSnapshot(): boolean {
 export function useClickOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride } = useShowMode()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
+  const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
 
   const song = queue.currentVariant ?? queue.currentSong
@@ -97,6 +106,9 @@ export function useClickOutputDriver(): void {
       // tempoMarkers (#141) - same "no variant means none" shape as beatAnchors above; also not
       // affected by the live tempo nudge (a marker's own bpm is used as authored).
       tempoMarkers: queue.currentVariant?.tempoMarkers ?? [],
+      // Rehearsal Looper (#61): the click follows the trainer's current pass speed and stays inside
+      // the looped section. Read at render time - elapsedMs re-renders this every animation frame.
+      ...loopClickState(loopActive),
     }
   })
 
