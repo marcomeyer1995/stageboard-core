@@ -1,4 +1,6 @@
 import type { IShowControlPlugin } from 'shared-types'
+import { createMockBackupPlugin } from './mockBackupPlugin.js'
+import { createMockClickPlugin } from './mockClickPlugin.js'
 import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
 import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
@@ -13,4 +15,6 @@ export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-mixer': createMockMixerPlugin,
   'mock-lighting': createMockLightingPlugin,
   'mock-playback': createMockPlaybackPlugin,
+  'mock-backup': createMockBackupPlugin,
+  'mock-click': createMockClickPlugin,
 }

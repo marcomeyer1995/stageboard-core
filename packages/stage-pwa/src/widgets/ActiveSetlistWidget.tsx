@@ -1,5 +1,5 @@
 import { isSongEntry } from 'shared-types'
-import { useQueue } from '../lib/queue'
+import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ActiveSetlistConfig } from './activeSetlistConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -11,7 +11,10 @@ import { SizeRatioSlider } from './SizeRatioSlider'
  *
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig }) {
-  const { activeSetlist } = useQueue()
+  // Mode-aware (#247): Gig = shared ShowState setlist, Solo Üben = the practice setlist.
+  const {
+    queue: { activeSetlist },
+  } = useShowMode()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
