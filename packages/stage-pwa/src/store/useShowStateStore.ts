@@ -14,6 +14,10 @@ interface ShowStateStore {
   init: (workspaceId: string) => Promise<void>
   /** Claims (or re-claims, e.g. "Take Over" after a crashed master) the token for this tablet. */
   claimMaster: () => Promise<void>
+  /** Hands the token back on purpose ("Master abgeben") so a planned handover doesn't have to
+   * wait out the 15 s heartbeat timeout or need a Force Takeover - leaves it vacant for anyone to
+   * claim. No-op for a device that isn't the master. */
+  releaseMaster: () => Promise<void>
   setActiveSetlist: (setlistId: string | null) => Promise<void>
   /** Master-gated raw ShowState patch - the one write path queue.ts's transport/queue-advance
    * actions go through, so "only the current master ever writes ShowState" (claimMaster's
@@ -45,6 +49,13 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   claimMaster: async () => {
     const { deviceId } = get()
     await putShowState({ masterHolderId: deviceId, masterClaimedAt: Date.now() })
+    const fresh = await getShowState()
+    set({ state: fresh, isMaster: fresh.masterHolderId === deviceId })
+  },
+  releaseMaster: async () => {
+    const { deviceId, isMaster } = get()
+    if (!isMaster) return
+    await putShowState({ masterHolderId: null, masterClaimedAt: null })
     const fresh = await getShowState()
     set({ state: fresh, isMaster: fresh.masterHolderId === deviceId })
   },
