@@ -40,6 +40,8 @@ import { ShowTransportConfigSchema } from './showTransportConfig'
 import { SyncCheckConfigPanel, SyncCheckWidget } from './SyncCheckWidget'
 import { SyncCheckConfigSchema } from './syncCheckConfig'
 import { SystemHealthWidget } from './SystemHealthWidget'
+import { LoopTrainerConfigPanel, LoopTrainerWidget } from './LoopTrainerWidget'
+import { LoopTrainerConfigSchema } from './loopTrainerConfig'
 import { TempoNudgeConfigPanel, TempoNudgeWidget } from './TempoNudgeWidget'
 import { TempoNudgeConfigSchema } from './tempoNudgeConfig'
 import { TrackOverrideConfigPanel, TrackOverrideWidget } from './TrackOverrideWidget'
@@ -222,6 +224,16 @@ const DEFINITIONS: WidgetDefinition[] = [
     Component: VisualMetronomeWidget,
     ConfigPanel: MetronomeConfigPanel,
     Preview: VisualMetronomeWidgetPreview,
+  }),
+  defineWidget({
+    type: 'loop-trainer',
+    title: 'Loop-Trainer',
+    description: 'Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
+    category: 'performance',
+    defaultLayout: { w: 4, h: 6, minW: 3, minH: 4, maxW: 8, maxH: 10 },
+    configSchema: LoopTrainerConfigSchema,
+    Component: LoopTrainerWidget,
+    ConfigPanel: LoopTrainerConfigPanel,
   }),
   defineWidget({
     type: 'tempo-nudge',

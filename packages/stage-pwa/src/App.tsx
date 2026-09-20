@@ -25,6 +25,7 @@ import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
+import { useLoopTrainerDriver } from './lib/loopTrainer'
 import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
@@ -139,6 +140,7 @@ function App() {
   useAudioOutputDriver()
   useClickOutputDriver()
   useAutoStopDriver()
+  useLoopTrainerDriver()
   useTrackDurationBackfill()
   useHardwareDetection()
   useDiscoveryTrigger()

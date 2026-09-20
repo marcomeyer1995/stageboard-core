@@ -1,5 +1,5 @@
 import { isTransitionEntry } from 'shared-types'
-import { computeQueue, type Queue } from './computeQueue'
+import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
 import { barMsAt, countInLeadMs } from './metronome'
 import {
@@ -119,6 +119,30 @@ export async function practicePauseSong(): Promise<void> {
   clearScheduledAudioStart()
   patch(transportPatch(pauseTransport(currentTransport(currentPracticeState()), Date.now())))
   pauseLocalTrack()
+}
+
+/** What the Rehearsal Looper (#61) needs to know about the current practice entry: which track
+ * would play (honouring this device's own track override) and the entry to tie its settings to. */
+export function practiceLoopContext(): { entryId: string; variantId: string; trackId: string } | null {
+  const { currentEntry, currentVariant } = snapshot()
+  const track = resolveTrackForEntry(currentEntry, currentVariant, currentPracticeState().trackOverride)
+  if (!currentEntry || !currentVariant || !track) return null
+  return { entryId: currentEntry.id, variantId: currentVariant.id, trackId: track.id }
+}
+
+/** Marks practice as playing from `startMs` for a loop: the transport (Prompter, click, transport
+ * buttons) then reads "playing" while the loop engine, not this transport's own wall clock,
+ * supplies the position (usePracticeElapsedMs.ts). The `<audio>` element is silenced so the
+ * two never sound together. */
+export function practiceBeginLoop(startMs: number): void {
+  clearScheduledAudioStart()
+  pauseLocalTrack()
+  patch(transportPatch(playTransport({ ...ARMED_TRANSPORT, accumulatedMs: startMs }, Date.now())))
+}
+
+/** Leaves a loop paused at `positionMs`, so the normal Play button resumes the song from there. */
+export function practiceEndLoop(positionMs: number): void {
+  patch(transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs }))
 }
 
 export async function practiceStopSong(): Promise<void> {

@@ -33,6 +33,12 @@ export interface ClickEngineState {
    * active. Empty reproduces today's single-tempo behavior exactly. A live tempo nudge (#140)
    * only ever affects `bpm` above (segment 0) - a marker's own bpm is used as-is, not nudged. */
   tempoMarkers: readonly TempoMarkerLike[]
+  /** How fast `elapsedMs` advances relative to wall time (#61's Speed Trainer: 0.8 = an 80 % pass).
+   * Absent means 1. Beat spacing stays in song time; only the wall-clock conversion below uses it. */
+  playbackRate?: number
+  /** The song-time section a Rehearsal Loop (#61) repeats. Beats are never scheduled past its end -
+   * the loop wraps there, so a beat queued beyond it would sound in the wrong place. */
+  loop?: { startMs: number; endMs: number } | null
 }
 
 let audioContext: AudioContext | null = null
@@ -109,10 +115,12 @@ function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void
  * segment 0 that's the live-nudged (#140) value, since `resolveBeatGrid` uses whatever `bpm` it
  * was called with for segment 0 verbatim; a tempo-marker (#141) segment's own bpm is fixed and
  * not nudge-able). */
-function anchorSchedule(elapsedMs: number, grid: BeatGridSegment): void {
+function anchorSchedule(elapsedMs: number, grid: BeatGridSegment, includeBeatAtPosition = false): void {
   const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
-  const beatIndex = Math.floor(effectiveMs / msPerBeat) + 1
+  // Normally the next beat strictly AFTER `elapsedMs`; a loop restart (#61) wants a beat sitting
+  // exactly on the loop start included, since that is where the new pass begins.
+  const beatIndex = includeBeatAtPosition ? Math.ceil(effectiveMs / msPerBeat) : Math.floor(effectiveMs / msPerBeat) + 1
   nextBeatOnsetMs = grid.originMs + beatIndex * msPerBeat
   nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
   activeCorrectionRatio = grid.correctionRatio
@@ -134,7 +142,7 @@ function anchorSchedule(elapsedMs: number, grid: BeatGridSegment): void {
  * crossing into a new tempo segment IS crossing into a new anchor, as far as this function
  * can tell. */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars, tempoMarkers } = getState()
+  const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars, tempoMarkers, playbackRate = 1, loop = null } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
     lastTickElapsedMs = null
@@ -150,16 +158,23 @@ function tick(getState: () => ClickEngineState): void {
   }
 
   const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
-  if (nextBeatOnsetMs === null || stalled || grid.originMs !== activeOriginMs) {
-    anchorSchedule(elapsedMs, grid)
+  // A backwards jump is a loop wrapping (or a seek): the cursor is still out near the old position,
+  // so re-anchor - at the loop start, inclusive, so a beat sitting exactly there still sounds.
+  const wrapped = lastTickElapsedMs !== null && elapsedMs < lastTickElapsedMs
+  if (nextBeatOnsetMs === null || stalled || wrapped || grid.originMs !== activeOriginMs) {
+    if (wrapped && loop) anchorSchedule(Math.max(grid.originMs, loop.startMs), grid, true)
+    else anchorSchedule(elapsedMs, grid)
     activeOriginMs = grid.originMs
   }
   lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
   const beatCount = beatsPerBar(grid.timeSignature)
-  while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + LOOKAHEAD_MS) {
-    playClickAt(ctx, ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000, nextBeatInBar === 0)
+  // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
+  const lookaheadSongMs = LOOKAHEAD_MS * playbackRate
+  while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + lookaheadSongMs) {
+    if (loop && nextBeatOnsetMs >= loop.endMs) break
+    playClickAt(ctx, ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate, nextBeatInBar === 0)
     nextBeatOnsetMs += (60000 / grid.bpm) * activeCorrectionRatio
     nextBeatInBar = (nextBeatInBar + 1) % beatCount
   }

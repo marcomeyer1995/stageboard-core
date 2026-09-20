@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { getLoopPlaybackState } from './loopTrainerEngine'
 import { computeActiveMs } from './playbackTransport'
+import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -10,6 +12,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 export function usePracticeElapsedMs(): number | null {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const state = usePracticeStateStore((s) => s.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
+  const loopActive = useLoopTrainerStore((s) => s.active)
   const [, forceTick] = useState(0)
 
   useEffect(() => {
@@ -24,6 +27,12 @@ export function usePracticeElapsedMs(): number | null {
   }, [state.playbackStatus])
 
   if (state.playbackStatus === 'stopped') return null
+  // While the Rehearsal Looper (#61) runs, its engine - not the wall-clock transport - knows where
+  // playback is: it loops and changes speed per pass, which a start-time/accumulated pair can't say.
+  if (loopActive) {
+    const loop = getLoopPlaybackState()
+    if (loop) return loop.positionMs
+  }
   return computeActiveMs(
     { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs },
     Date.now(),
