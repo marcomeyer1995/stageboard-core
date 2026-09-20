@@ -1,6 +1,6 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-09-20, `main` @ `5324037` (nach #255-#260). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61) und die Bugfixes #247-#249. 29 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-Prüfungen von #32, #59 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
+Stand: 2026-09-21, `main` @ `1746474` (nach #255-#262). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60) und die Bugfixes #247-#249. 28 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-Prüfungen von #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
 ## 1. Kurzfassung
 
@@ -13,6 +13,7 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 | Bands, Beitritt, Roster, PINs, Geräte-Ledger | fertig |
 | Bibliothek, Song-Editor, ChordPro, Tap-to-Sync, Tab-Import | fertig (UG-Scraper fragil) |
 | Setlists, Queue, Master-Token, Solo/Gig | fertig (Master-Heartbeat und Force Takeover seit #32, noch nicht auf Tablets geprüft) |
+| Ready-Check (Master-Abfrage, Vollbild-Overlay, Live-Zähler) | fertig (#60), noch nicht auf Tablets geprüft |
 | Prompter (inkl. Transposition/Capo), Metronom, Klick, Beat-Erkennung | fertig |
 | Loop-Trainer (Solo Üben), Festival-Uhr, Übergangs-/Abschnitts-Einträge | fertig (Loop-Trainer noch nicht auf Tablets geprüft) |
 | Backing-Tracks, Offline-Cache, Audio-Resume | fertig (Übergänge noch nicht auf Tablet geprüft) |
@@ -26,7 +27,7 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 2. **Master-Token (#32, neu, ungetestet auf Tablets):** Der Master sendet alle 5 s einen Heartbeat; nach 15 s ohne Beat gilt er als weg und jeder kann übernehmen. Ein *lebender* Master lässt sich nur per Force Takeover (Rolle `admin` oder `showmaster`) verdrängen - das ist ein reines UI-Gate, keine Sicherheitsgrenze. Offen: kein Schutz davor, dass ein abgekoppelter alter Master bis zur Reconnect-Replikation weiter schreibt.
 3. **Uhr-Basis beim Transportstart:** Der Master schreibt `Date.now()` seiner eigenen Uhr, Leser rechnen mit Serverzeit. Stimmt nur, wenn die Master-Systemuhr nahe an der Server-Uhr liegt (Code-Lesart, nicht live gemessen).
 4. **Übergänge (#232) ungetestet auf Hardware:** Nahtlos hängt an lokaler Audio-Ausgabe und daran, dass Master und Audio-Tablet dasselbe Gerät sind. Ob ein Gig-Modus-`delayed`-Start einen Einzähler bekommt, ist offen.
-5. **Loop-Trainer (#61) und Transposition (#59) ungetestet auf Hardware:** Lückenlosigkeit des Loops, Tonhöhe bei 70 %, Ausrichtung von Prompter/Klick zum Audio und der erste Loop ohne Netz (Service-Worker-Cache des SoundTouch-Worklets) sind nur durch Unit-Tests und den Build abgedeckt.
+5. **Ready-Check (#60), Loop-Trainer (#61) und Transposition (#59) ungetestet auf Hardware:** Beim Ready-Check fehlen der Test mit echten Tablets (Zähler, Overlay, ein stilles Tablet blockiert nach ca. 30 s nicht mehr) und der Fall „Stage-Server nicht erreichbar". Beim Rest: Lückenlosigkeit des Loops, Tonhöhe bei 70 %, Ausrichtung von Prompter/Klick zum Audio und der erste Loop ohne Netz (Service-Worker-Cache des SoundTouch-Worklets) sind nur durch Unit-Tests und den Build abgedeckt.
 
 ### Kleine Unstimmigkeiten (nur beobachtet)
 
@@ -36,7 +37,7 @@ Die drei am 2026-09-19 hier gelisteten Punkte (Aktive Setlist in Solo Üben, feh
 
 ## Teil A - Widgets (25 Typen)
 
-Stand: Code auf `main` (nach #260). Quelle für Registrierung: `widgets/registry.tsx` (25 Widget-Typen). Die Beschreibungen 1-23 stammen vom 2026-09-19 (soweit nicht im Text als geändert markiert); neu sind die Festival-Uhr (24) und der Loop-Trainer (25) am Ende von Kategorie `performance`.
+Stand: Code auf `main` (nach #262). Quelle für Registrierung: `widgets/registry.tsx` (25 Widget-Typen). Die Beschreibungen 1-23 stammen vom 2026-09-19 (soweit nicht im Text als geändert markiert); neu sind die Festival-Uhr (24) und der Loop-Trainer (25) am Ende von Kategorie `performance`.
 
 ### Gemeinsame Mechanik
 
@@ -71,10 +72,10 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Use Cases:** (1) Bassist sieht im Blick, dass nach dem aktuellen Song noch fünf folgen, und scrollt zurück, um zu sehen, was schon lief. (2) Bandleader zieht per Drag einen Song hoch, weil das Publikum gerade steil geht – „Als nächstes spielen" macht das in einem Tipp; (3) Solo-Üben: Gitarrist wählt „Setlist zum Üben" und trainiert das ganze Set der Reihe nach, ohne die Show-Setlist der Band anzufassen.
 
 #### 3. Next Song (`next-song`)
-- **Was:** Eine Zeile: „Aktuell: <Titel> (Variante) | Next: <Titel> (BPM) (Variante)". Buttons „‹ Zurück" und „Weiter ›" (deaktiviert ohne Vorgänger/Nachfolger). Ohne Kontrolle statt der Buttons „Master übernehmen".
+- **Was:** Eine Zeile: „Aktuell: <Titel> (Variante) | Next: <Titel> (BPM) (Variante)". Buttons „‹ Zurück" und „Weiter ›" (deaktiviert ohne Vorgänger/Nachfolger). Ohne Kontrolle statt der Buttons „Master übernehmen". Nur auf dem Master-Tablet zusätzlich (#60, neu) der **Ready-Check**: „Ready-Check" öffnet eine Abfrage an alle Tablets, danach zeigt das Widget live „x/y bereit" (Tooltip: „Warten auf: …"; grün mit ✓, sobald alle bereit sind) und einen „Ende"-Knopf.
 - **Config:** `sizeRatio` (Default 1,5).
 - **Gig vs. Practice:** beide (`next`/`previous` aus `useShowMode()`); Gig nur mit Master-Token, Practice immer.
-- **Disabled/Degradation:** Ohne Songs „Keine Songs vorhanden". Ohne Kontrolle nur der Master-Übernehmen-Button.
+- **Disabled/Degradation:** Ohne Songs „Keine Songs vorhanden". Ohne Kontrolle nur der Master-Übernehmen-Button (kein Ready-Check-Knopf).
 - **Capability:** keine.
 - **Use Cases:** (1) Drummer sieht, welcher Song mit welchem Tempo als Nächstes kommt, und stellt sich vor dem Zählen ein. (2) Bandleader (Master) schaltet per „Weiter ›" durch die Setlist; der Keyboarder, dessen Tablet gerade nicht Master ist, sieht dieselbe Anzeige, kann aber nur „Master übernehmen".
 
@@ -313,7 +314,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 3. `RosterSetupView` – nur für das **gründende** Admin-Gerät (`Workspace.ownProfileId` gesetzt), solange die Roster-Einrichtung nicht abgeschlossen ist.
 4. `ProfileRolePickerView` – wenn für die aktive Band noch nie ein Profil gewählt wurde (`undefined`; „ohne Profil" ist ein eigener Zustand `''`).
 
-**Globale Overlays** (immer eingehängt, unabhängig vom Tab): `DialogHost` (ersetzt `window.prompt/confirm/alert`), `DiscoveryBanner`, `AudioResumeOverlay`.
+**Globale Overlays** (immer eingehängt, unabhängig vom Tab): `DialogHost` (ersetzt `window.prompt/confirm/alert`), `DiscoveryBanner`, `AudioResumeOverlay`, `ReadyCheckOverlay` (#60).
 
 **Immer laufende Treiber** (Hooks in `App.tsx`, unabhängig vom sichtbaren Tab): Audio-Ausgabe, Click-Ausgabe, Auto-Stopp/Übergänge, Clock-Sync, Cue-Scheduler, Hardware-Erkennung, Discovery-Trigger, Präsenz-Meldung, Geräteinfo-Meldung, Show-Log-Tracker, Wake-Lock, Vollbild beim Start, Audio-Sync-Abgleich.
 
@@ -342,6 +343,15 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Heartbeat (#32, neu):** Der Master meldet sich alle 5 s beim Stage-Server (`POST /workspaces/:id/master-heartbeat`); der Beat reist im Snapshot des bestehenden Präsenz-SSE-Streams (`Presence.masterHeartbeat`, kein zusätzlicher Stream). Jedes Tablet leitet daraus selbst den Zustand ab (`masterTakeover.ts`): `self`, `vacant`, `alive`, oder `stale` (kein Beat seit 15 s bzw. Beat eines Geräts, das nicht mehr Halter ist). Es wird nichts in den ShowState geschrieben - „automatisch freigegeben" heißt nur, dass Übernehmen wieder frei ist. Nach einem Server-Neustart gilt der Halter bis zu 5 s als `stale`.
 - **Übernehmen (Regeln):** Bei `vacant`/`stale` darf jedes Profil („Master übernehmen"). Ist der Master `alive`, wird der Knopf zu **Force Takeover** (Bestätigungsdialog), nutzbar nur mit Rolle `admin` oder `showmaster`; alle anderen sehen ihn deaktiviert. Das ist ein reines UI-Gate im Client (das aktive Profil ist eine lokale Wahl, keine Authentifizierung).
 - **„Master abgeben":** Der Master kann das Token bewusst zurückgeben (`releaseMaster` schreibt `masterHolderId: null`), mit Bestätigung, solange ein Song läuft - für einen geplanten Wechsel ohne 15 s Wartezeit. Der einzige Weg, wie das Token je wieder `null` wird.
+
+#### Ready-Check (#60, neu, Gig-Modus)
+- **Ablauf:** Der Master öffnet eine Abfrage (`ShowState.readyCheckId` = neue ID; Master-gesteuert wie alles im ShowState). Jedes andere Tablet im **Gig-Modus** blendet das Vollbild-Overlay `ReadyCheckOverlay` ein (dunkel, ein riesiger Knopf „Ich bin bereit"). Solo Üben und der Master selbst sehen es nie.
+- **Antworten liegen nicht im ShowState**, sondern im Speicher des Stage-Servers (`POST /workspaces/:id/ready-check/report`, `presenceStore.setReady`), gesendet als `Presence.readyCheck` (`checkId` + `readyProfileIds`) auf dem bestehenden Präsenz-SSE-Stream - so schreiben nicht alle Tablets dasselbe PouchDB-Dokument, und „nur der Master schreibt ShowState" bleibt wahr. Eine Antwort für eine andere `checkId` beginnt eine frische Abfrage; Antworten einer früheren zählen nie mit.
+- **Wer antworten muss:** jedes Profil mit einem Gerät, das innerhalb von `PRESENCE_TIMEOUT_MS` (30 s) zuletzt gemeldet wurde - **pro Profil, nicht pro Gerät** (zwei Tablets derselben Person zählen einmal, ein Tipp von einem genügt). Stille Geräte blockieren nicht; ein leeres Band gilt nie als „alle bereit" (`computeReadyStatus`). Das Profil des Masters antwortet automatisch.
+- **Overlay-Verhalten:** verschwindet, sobald dieses Profil geantwortet hat (auch von einem anderen Gerät), der Master die Abfrage beendet (eine neu gestartete Abfrage zeigt es erneut), oder per „Schließen" auf einem Gerät ohne Profil (das nicht antworten kann). Schlägt die Antwort fehl (Server nicht erreichbar), bleibt es mit Hinweis stehen. Nach einem Reload bei offener Abfrage erscheint es erneut.
+- **Abschluss:** Sind alle bereit, schließt das Master-Tablet die Abfrage nach 3 s selbst (`useReadyCheckResponder`).
+- **Nur Information:** Play wird **nie** gesperrt (bewusste Entscheidung, weicht vom optionalen Lock im Issue ab).
+- **Grenzen:** Ein Server-Neustart leert die Antworten (der Master sieht 0/n und kann die Abfrage neu starten); der Master-seitige Hook (Auto-Antwort/Auto-Abschluss) hat keinen eigenen Test; nicht auf Tablets geprüft.
 
 ---
 
@@ -513,6 +523,7 @@ Alles einmalig einzustellen, pro Gerät:
 - **`DialogHost` + `useDialogStore`:** In-App-`promptText`, `promptFields`, `confirm`, `alert` (Promise-basiert). **Ersetzt native Browser-Dialoge** (Capacitor/PWA-Risiko, blockierendes JS, Optik).
 - **`OverflowMenu` / `RowActionsMenu`:** wiederverwendbare ⋯-Menüs; destruktive Aktionen rot und abgesetzt (Distanz statt zweiter Bestätigung, Aufrufer bestätigen selbst); deaktivierte statt entfernte Einträge („warum nicht", nicht verschwinden lassen).
 - **`AudioResumeOverlay`:** blockierendes Vollbild „Wiedergabe unterbrochen – Antippen zum Fortsetzen", wenn die Browser-Autoplay-Policy die automatische Wiedergabe nach Reload ablehnt (höchster z-Index der App).
+- **`ReadyCheckOverlay` (#60, neu):** Vollbild „Ich bin bereit" bei offener Ready-Check-Abfrage (nur Gig-Modus, nie auf dem Master), z-Index unter dem `AudioResumeOverlay`; abonniert bewusst nur wenige Stores (kein `useShowMode`), damit ein 60-fps-Re-Render nicht den Tipp verschluckt.
 - **`DiscoveryBanner`:** siehe 7.4.
 - **`ChordProLyrics`:** Renderer (Abschnitts-Highlighting, Paginierung, Schriftgröße von Widgets steuerbar).
 
@@ -529,7 +540,8 @@ Alles einmalig einzustellen, pro Gerät:
 | `useActiveProfileStore` | aktives Profil je Band (`''` = „ohne Profil") | `localStorage` |
 | `useRosterSetupStore` | Roster-Einrichtung abgeschlossen (je Band, pro Gerät) | `localStorage` |
 | `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Anker, Tempo-Marker, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (Tracks als Attachments) |
-| `useShowStateStore` | geteilter Live-Zustand: Master-Token (`claimMaster`, `releaseMaster`), aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
+| `useShowStateStore` | geteilter Live-Zustand: Master-Token (`claimMaster`, `releaseMaster`), Ready-Check auf/zu (`startReadyCheck`/`endReadyCheck`), aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
+| `useReadyCheckStore` | welche Ready-Check-Abfrage dieses Gerät schon erledigt hat (#60) | **flüchtig** (bewusst) |
 | `useChordOffsetStore` | Transpose-/Capo-Versatz dieses Geräts (#59), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
 | `useLoopTrainerStore` | Loop-Punkte, Tempo und Speed-Trainer-Einstellungen sowie „läuft" (#61), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
 | `usePracticeStateStore` | lokales Echo des Zustands für **Solo Üben** (je Band) | `localStorage` `stageboard-practice-state` |
@@ -543,7 +555,7 @@ Alles einmalig einzustellen, pro Gerät:
 | `useDeviceTransportConfigStore` | Transportverdrahtung je Gerät × Logical Device (`deviceId:logicalId`) | PouchDB→CouchDB |
 | `useDevicesStore` | DeviceRegistry (Selbstregistrierung, Umbenennen, `revoked`) | PouchDB→CouchDB + Server-Aufruf für `revoke` |
 | `useDeviceInfoStore` | Diagnose fürs Ledger (OS, IP, App offen, Ping) | Server-**Polling**, nur solange der Ledger offen ist |
-| `usePresenceStore` | „Wer ist online, auf wie vielen Geräten" | Server-Stream (SSE) |
+| `usePresenceStore` | „Wer ist online, auf wie vielen Geräten"; trägt außerdem Master-Heartbeat und Ready-Check-Antworten | Server-Stream (SSE) |
 | `useDeviceTriggerListenerStore` | Trigger-Relay-Stream dieses Geräts → lokale Mock-Engines | Server-Stream (SSE) |
 | `useDiscoverySessionStore` | Live-Discovery-Session der Band | Server-Stream (SSE) |
 | `useHardwareSetupWizardStore` | Befehlskanal „Wizard vorbefüllt öffnen" | flüchtig |
@@ -710,6 +722,7 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 #### 3.7 Präsenz, Geräte-Info, Ping-Schleife (`presenceStore.ts`, `deviceInfoStore.ts`, `pingLoop.ts`) **[fertig]**
 - **Was:** Präsenz = „welches Profil ist auf welchem Gerät gerade online“. Geräte-Info = IP, OS, Umgebung (`browser`/`pwa`/`native`), Sync-Status, Ping-Erreichbarkeit, Reverse-DNS-Hostname. Die Ping-Schleife pingt alle bekannten Geräte alle 20 s (`ping -c 1 -W 1`) und löst Hostnamen per `dns.reverse` auf.
 - **Master-Heartbeat (#32):** Der Präsenz-Snapshot trägt zusätzlich `masterHeartbeat` (Geräte-ID des Masters + serverseitiger Zeitstempel), geschrieben über `POST /workspaces/:id/master-heartbeat`; ebenfalls nur RAM.
+- **Ready-Check (#60):** Ebenso trägt der Snapshot `readyCheck` (`checkId` + Profil-IDs, die geantwortet haben), geschrieben über `POST /workspaces/:id/ready-check/report`; nur RAM.
 - **Grenzen:** Alles nur RAM. `ping` wird als Systemkommando ausgeführt (setzt Linux mit `ping` voraus). Ohne Client-Report kein Eintrag.
 - **Use Case:** „Device Ledger“: Der Techniker sieht, welches der vier Tablets seit 2 Minuten nicht mehr antwortet, bevor die Show startet.
 
@@ -740,7 +753,7 @@ Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Ser
 | **BeatAnchor** | Exakter Beat-Zeitpunkt (+ `beatInBar`) – Phasenkorrektur, *kein* Tempo. **TempoMarker** = echter Tempowechsel ab `timeMs`. |
 | **ShowCue** | Hardware-Kommando am Song-Zeitpunkt, adressiert an ein **Logical Device**, nicht an eine Capability (#99). Gleiche Form wie ein `ShowControlEvent`. |
 | **Setlist / SetlistEntry** | Eintrag hat eigene `id` (dasselbe Lied darf zweimal vorkommen, z. B. Voll- und Kurzfassung), `variantId`, `trackId`, **neu (#232)** `transitionType` (`manual` / `next-ready` / `seamless` / `delayed`) und `transitionDelayMs`. Beides optional → Altbestände laufen als `manual`. |
-| **ShowState** | Singleton pro Band: aktive Setlist/Entry, **Master-Token** (`masterHolderId`, seit #32 mit Heartbeat auf dem Präsenz-Stream und `releaseMaster`), Transport (`playbackStatus`, `playbackStartedAt`, `playbackAccumulatedMs`), sowie for-tonight-Overrides: `trackOverride`, `liveTempoAdjustPercent`, `clickTrackOverride`, `clickExtendMs`, plus `currentShowId/lastActivityAt` fürs Log. |
+| **ShowState** | Singleton pro Band: aktive Setlist/Entry, **Master-Token** (`masterHolderId`, seit #32 mit Heartbeat auf dem Präsenz-Stream und `releaseMaster`), `readyCheckId` (offene Ready-Check-Abfrage, #60), Transport (`playbackStatus`, `playbackStartedAt`, `playbackAccumulatedMs`), sowie for-tonight-Overrides: `trackOverride`, `liveTempoAdjustPercent`, `clickTrackOverride`, `clickExtendMs`, plus `currentShowId/lastActivityAt` fürs Log. |
 | **ShowLogEvent** | `show-started`, `song-played` (mit `activeMs`), `capability-changed`, `note` – Ereignisse sind die „Show“, es gibt kein Summary-Dokument. |
 | **Dashboard / WidgetInstance / LayoutItem** | Freies Raster pro Breakpoint (`sm/md/lg/xl`), Widget-Config je Instanz, `visibility`, `ownerProfileId/ownerRole` („Station“). |
 | **Profile** | `name`, `stageRoles` (`performer`, `lighttech`, `soundtech`, `crew`, `admin`). |
@@ -813,7 +826,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 #### 6.3 Show-Log / Nachbericht (`showLogTracking.ts`, `useShowLogTracker.ts`, `store/…ShowLog`) **[fertig]**
 - **Was:** Protokolliert Songs (`song-played` mit aktiver Dauer ohne Pausen), Show-Start, Capability-Wechsel („IEM ausgefallen“) und Notizen.
 - **Wie:** Song zählt erst ab 20 s aktiver Spielzeit (`MIN_SONG_DURATION_MS`, verhindert Fehltipp-Einträge). Neue „Show“ nach 45 min Pause (`SHOW_GAP_THRESHOLD_MS`). Erfassung passiert direkt in den Transport-Aktionen des Masters; Capability-Änderungen beobachtet `useShowLogTracker` reaktiv (nur beim Master).
-- **Grenzen:** Telemetrie/Analysen über mehrere Gigs (#64) und Ready-Check (#60) fehlen.
+- **Grenzen:** Telemetrie/Analysen über mehrere Gigs (#64) fehlen; Ready-Check-Antworten werden nicht ins Show-Log geschrieben.
 - **Use Case:** Nach dem Gig zeigt der Nachbericht: 14 Songs, 1:32 h, 20:47 Uhr „Mischpult offline“ – für die Gagenabrechnung/GEMA-Meldung.
 
 #### 6.4 Klick, Metronom, Beat-Grid (`metronome.ts`, `clickEngine.ts`, `useClickOutputDriver.ts`) **[fertig]**
@@ -866,13 +879,13 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 29)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 28)
 
 | Bereich | Issues |
 |---|---|
 | **Live-Show-Automatik** | #6 Cue-Recorder, #7 Auto-Cue-Erkennung, #8 Live-Cue-Firing + Post-Show-Persistenz |
 | **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
-| **Musiker-Werkzeuge** | #24 Akkord-Lookup + Quintenzirkel, #60 Ready-Check, #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
+| **Musiker-Werkzeuge** | #24 Akkord-Lookup + Quintenzirkel, #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
 | **Audio-Pipeline** | #5 Async-Jobs/YouTube-Extraktion, #9 Stem-Trennung, #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
 | **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
 | **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
