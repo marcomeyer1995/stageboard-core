@@ -28,7 +28,12 @@ export function useShowLogTracker(): void {
   const previousCapabilitiesRef = useRef<Map<string, CapabilityStatus> | null>(null)
 
   useEffect(() => {
-    if (!isMaster) return
+    if (!isMaster) {
+      // Dropped out (or was force-taken over): a later re-claim must not diff against a stale
+      // snapshot from before and log capability changes that happened while someone else led (#32).
+      previousCapabilitiesRef.current = null
+      return
+    }
     const previous = previousCapabilitiesRef.current
     if (previous && currentShowId) {
       for (const transition of diffCapabilities(previous, capabilities)) {

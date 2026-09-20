@@ -5,7 +5,6 @@ import { triggerShowControl } from '../lib/showControlClient'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
 import { useShowMode } from '../lib/showMode'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
-import { useShowStateStore } from '../store/useShowStateStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import {
   DEFAULT_BUTTONS_SIZE_RATIO,
@@ -13,6 +12,7 @@ import {
   type ShowTransportConfig,
 } from './showTransportConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 
 /** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
  * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
@@ -57,7 +57,6 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
     useShowMode()
   const { currentSong, currentVariant } = queue
-  const claimMaster = useShowStateStore((state) => state.claimMaster)
   const driverError = useLocalAudioOutputStore((state) => state.error)
 
   // resolveExecutionEngine's Practice branch plays locally regardless of any Gig-mode binding -
@@ -96,13 +95,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
         <span className="text-center text-sm">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>
-        <button
-          type="button"
-          onClick={claimMaster}
+        <MasterTakeoverButton
           className="rounded-sb-sm bg-control-strong px-3 py-1 text-sm font-medium text-accent hover:bg-control-strong-hover"
-        >
-          Master übernehmen
-        </button>
+        />
       </div>
     )
   }

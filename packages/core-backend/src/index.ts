@@ -21,6 +21,7 @@ import {
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
+  MasterHeartbeatReportSchema,
   PresenceReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
@@ -454,6 +455,19 @@ export async function buildApp() {
       profileId: parsed.data.profileId,
       lastSeenAt: Date.now(),
     })
+    return reply.status(204).send()
+  })
+
+  // Master-Token heartbeat (#32): the current master beats every 5 s, readers treat it as gone
+  // after 15 s. Broadcast on the presence stream above instead of a stream of its own.
+  app.post('/workspaces/:workspaceId/master-heartbeat', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = MasterHeartbeatReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+
+    presenceStore.setMasterHeartbeat(workspaceId, parsed.data.deviceId)
     return reply.status(204).send()
   })
 

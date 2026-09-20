@@ -10,8 +10,8 @@ import type { QueueItem } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useSetlistsStore } from '../store/useSetlistsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
+import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 
 type RowStatus = 'past' | 'current' | 'upcoming'
 
@@ -145,7 +145,6 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     queue: { activeSetlist, orderedItems, currentEntry },
   } = useShowMode()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
-  const claimMaster = useShowStateStore((state) => state.claimMaster)
   const fontSize = useContentFontSize(config)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const currentRowEl = useRef<HTMLDivElement | null>(null)
@@ -192,14 +191,9 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
         {mode === 'gig' && !canControl && (
-          <button
-            type="button"
-            onClick={claimMaster}
-            title="Dieses Gerät hat aktuell keine Kontrolle über die Queue"
+          <MasterTakeoverButton
             className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs font-medium text-accent hover:bg-control-strong-hover"
-          >
-            Master übernehmen
-          </button>
+          />
         )}
       </div>
 
