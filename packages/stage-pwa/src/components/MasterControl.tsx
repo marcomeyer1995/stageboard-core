@@ -1,5 +1,6 @@
 import { useQueue } from '../lib/queue'
 import { useDeviceName } from '../store/useDevicesStore'
+import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -14,6 +15,15 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function MasterControl() {
   const { isMaster, activeSetlist } = useQueue()
   const { status, canClaim, isForce, claim } = useMasterTakeover()
+  const releaseMaster = useShowStateStore((state) => state.releaseMaster)
+  const isPlaying = useShowStateStore((state) => state.state.playbackStatus === 'playing')
+  const confirm = useDialogStore((state) => state.confirm)
+
+  const release = async () => {
+    // Handing over mid-song leaves the show without a driver until someone claims it.
+    if (isPlaying && !(await confirm('Der Song läuft gerade. Master trotzdem abgeben?', { title: 'Master abgeben', confirmLabel: 'Abgeben', danger: true }))) return
+    await releaseMaster()
+  }
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
   const masterName = useDeviceName(masterHolderId)
 
@@ -22,7 +32,17 @@ export function MasterControl() {
       {isMaster ? (
         <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
           Master-Kontrolle
-          <span className="text-sm text-accent">Dieses Gerät</span>
+          <span className="flex items-center gap-3">
+            <span className="text-sm text-accent">Dieses Gerät</span>
+            <button
+              type="button"
+              onClick={release}
+              title="Kontrolle abgeben, damit ein anderes Gerät übernehmen kann"
+              className="rounded-sb-sm bg-control-strong px-3 py-1 text-sm font-medium text-ink hover:bg-control-strong-hover"
+            >
+              Master abgeben
+            </button>
+          </span>
         </div>
       ) : (
         <button
