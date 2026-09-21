@@ -157,6 +157,73 @@ export function detectFirstOnset(envelope: SpectralFluxEnvelope): OnsetDetection
   return null
 }
 
+export interface DetectedOnset {
+  timeMs: number
+  /** How far this peak stands above the flux around it (peak / local mean) - 1 is "no more than
+   * its surroundings", larger is a sharper, more clearly audible attack. */
+  strength: number
+}
+
+export interface OnsetPeakOptions {
+  /** A peak must exceed the local mean flux by this factor. Default 1.8. */
+  ratio?: number
+  /** Width of the window the local mean is taken over, either side. Default 600 ms. */
+  localWindowMs?: number
+  /** Peaks closer than this are one onset (the stronger wins). Default 60 ms. */
+  minSeparationMs?: number
+  /** Peaks below this fraction of the track's loudest peak are noise. Default 0.05. */
+  minPeakFraction?: number
+}
+
+/**
+ * Every onset-like peak in the envelope, in time order (#7) - not just the first one
+ * (`detectFirstOnset`) or one per beat (`detectBeatAnchors`), but the full set a cue can be
+ * snapped to. A frame counts when it is a local maximum, clearly above the flux around it (an
+ * *adaptive* threshold, so a quiet verse's soft attacks still register next to a loud chorus),
+ * and above a small fraction of the track's loudest peak (so pure noise never does). Peaks
+ * closer together than `minSeparationMs` collapse to the stronger one - a single strum smears
+ * across a few frames.
+ *
+ * Deliberately generous: it returns candidates, and whoever snaps to them decides how far to
+ * trust one (`strength`). Times use the same `frame * hopMs` convention as `detectFirstOnset`.
+ */
+export function detectOnsets(envelope: SpectralFluxEnvelope, options: OnsetPeakOptions = {}): DetectedOnset[] {
+  const { flux, hopMs } = envelope
+  const ratio = options.ratio ?? 1.8
+  const halfWindow = Math.max(1, Math.round((options.localWindowMs ?? 600) / hopMs))
+  const minSeparationFrames = Math.max(1, Math.round((options.minSeparationMs ?? 60) / hopMs))
+  // Frame 0 has no previous frame to differ from, so its "flux" is just the whole first spectrum -
+  // an artifact, never an onset, and it must not set the noise floor either.
+  let peak = 0
+  for (let i = 1; i < flux.length; i++) peak = Math.max(peak, flux[i]!)
+  if (peak <= 0) return []
+  const floor = peak * (options.minPeakFraction ?? 0.05)
+
+  // Prefix sums make each local mean O(1).
+  const prefix = new Float64Array(flux.length + 1)
+  for (let i = 0; i < flux.length; i++) prefix[i + 1] = prefix[i]! + flux[i]!
+
+  const onsets: (DetectedOnset & { frame: number })[] = []
+  for (let i = 1; i < flux.length; i++) {
+    const value = flux[i]!
+    if (value < floor) continue
+    if (value < flux[i - 1]!) continue
+    if (i < flux.length - 1 && value <= flux[i + 1]!) continue
+    const from = Math.max(0, i - halfWindow)
+    const to = Math.min(flux.length, i + halfWindow + 1)
+    const localMean = (prefix[to]! - prefix[from]!) / (to - from)
+    if (value <= localMean * ratio) continue
+    const candidate = { timeMs: i * hopMs, strength: value / Math.max(localMean, 1e-12), frame: i }
+    const previous = onsets[onsets.length - 1]
+    if (previous && candidate.frame - previous.frame < minSeparationFrames) {
+      if (candidate.strength > previous.strength) onsets[onsets.length - 1] = candidate
+    } else {
+      onsets.push(candidate)
+    }
+  }
+  return onsets.map(({ timeMs, strength }) => ({ timeMs, strength }))
+}
+
 export interface TempoDetectionResult {
   bpm: number
   confidence: number

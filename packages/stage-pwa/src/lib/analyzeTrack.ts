@@ -1,5 +1,5 @@
-import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectTempo } from './audioAnalysis'
-import type { TempoMapResult } from './audioAnalysis'
+import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectOnsets, detectTempo } from './audioAnalysis'
+import type { DetectedOnset, TempoMapResult } from './audioAnalysis'
 import type { MusicTempoWorkerRequest, MusicTempoWorkerResponse } from './musicTempoWorker'
 import type { TempoMapWorkerRequest, TempoMapWorkerResponse } from './tempoMapWorker'
 
@@ -154,6 +154,28 @@ export async function analyzeTempoMapBlob(blob: Blob): Promise<TempoMapResult | 
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
     const mono = mixToMono(audioBuffer)
     return await runTempoMapInWorker(mono, audioBuffer.sampleRate)
+  } finally {
+    void ctx.close()
+  }
+}
+
+export interface TrackOnsets {
+  onsets: DetectedOnset[]
+  durationMs: number
+}
+
+/**
+ * Every onset in a track (#7), for the Cue Recorder's snapping: the same decode and spectral-flux
+ * envelope as analyzeTrackBlob's hand-rolled path, with `detectOnsets` picking the peaks instead
+ * of the tempo/beat logic. Runs on the main thread like that path does (computing the flux of a
+ * full song is cheap next to the beat-tracking it shares the envelope with).
+ */
+export async function analyzeOnsetsBlob(blob: Blob): Promise<TrackOnsets> {
+  const ctx = new AudioContext()
+  try {
+    const audioBuffer = await ctx.decodeAudioData(await blob.arrayBuffer())
+    const envelope = computeSpectralFlux(mixToMono(audioBuffer), audioBuffer.sampleRate)
+    return { onsets: detectOnsets(envelope), durationMs: audioBuffer.duration * 1000 }
   } finally {
     void ctx.close()
   }
