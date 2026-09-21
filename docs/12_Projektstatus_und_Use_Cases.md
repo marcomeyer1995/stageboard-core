@@ -1,6 +1,6 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-09-21, `main` @ `1746474` (nach #255-#262). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60) und die Bugfixes #247-#249. 28 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-Prüfungen von #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
+Stand: 2026-09-21, `main` @ `5a335ac` (nach #255-#264). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) und die Bugfixes #247-#249. 27 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-Prüfungen von #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
 ## 1. Kurzfassung
 
@@ -35,14 +35,14 @@ Die drei am 2026-09-19 hier gelisteten Punkte (Aktive Setlist in Solo Üben, feh
 
 ---
 
-## Teil A - Widgets (25 Typen)
+## Teil A - Widgets (27 Typen)
 
-Stand: Code auf `main` (nach #262). Quelle für Registrierung: `widgets/registry.tsx` (25 Widget-Typen). Die Beschreibungen 1-23 stammen vom 2026-09-19 (soweit nicht im Text als geändert markiert); neu sind die Festival-Uhr (24) und der Loop-Trainer (25) am Ende von Kategorie `performance`.
+Stand: Code auf `main` (nach #264). Quelle für Registrierung: `widgets/registry.tsx` (27 Widget-Typen). Die Beschreibungen 1-23 stammen vom 2026-09-19 (soweit nicht im Text als geändert markiert); neu sind die Festival-Uhr (24) und der Loop-Trainer (25) am Ende von Kategorie `performance` sowie Akkord-Nachschlagen (26) und Quintenzirkel (27) in der neuen Kategorie `reference`.
 
 ### Gemeinsame Mechanik
 
 - **Registry (`registry.tsx`):** Jedes Widget wird per `defineWidget` mit Typ, Titel, Beschreibung, `requires` (Capabilities), `category`, `relevantRoles`, `defaultLayout` (Grid-Größe mit min/max), `configSchema` (Zod), `Component`, `ConfigPanel` und optional `Preview` (statische Galerie-Vorschau) registriert. Die Config wird einmal geparst; bei ungültiger/älterer/neuerer Config fällt sie auf die Schema-Defaults zurück (ein Dashboard-Dokument kann die Live-Ansicht nie zum Absturz bringen).
-- **Kategorien:** `performance`, `monitoring`, `show-control`, `system-crew`, `utility`, `post-show` (aktuell hat kein Widget `post-show`).
+- **Kategorien:** `performance`, `monitoring`, `show-control`, `system-crew`, `utility`, `reference` (neu, #24, in der Bibliothek „Nachschlagen"), `post-show` (aktuell hat kein Widget `post-show`).
 - **Graceful Degradation (`components/WidgetFrame.tsx`):** Ist der Status einer Capability `degraded` (Plugin installiert, aber nicht erreichbar), bleibt das Widget an seinem Platz, wird zu 50 % transparent, inert (`pointer-events-none`) und zeigt ein „⃠ Offline"-Badge. Im Edit-Modus ist jedes Widget inert und wird zum Drag-Handle; das „⋯"-Menü (oder Doppelklick) öffnet Config-Panel, „Entfernen" und – wenn vom Dashboard angeboten – den Rahmen-los-Schalter.
 - **Größen:** Praktisch alle Widgets nutzen `SizeRatioSlider` (25 %–400 % des geräteweiten Standards „Textgröße", `useContentFontSizeStore.baseFontSize`) – kein Auto-Fit mehr (siehe Memory „Widget font auto-fit"). Listen-Widgets nutzen `ContentFontSizeConfigSchema` (`sizeRatio`, Default 1).
 - **Modus-Weiche `useShowMode()`:** Alle Queue-/Transport-Widgets lesen Queue, Uhr und Aktionen über `useShowMode()`. Gig: synchronisierter `ShowState`, Steuerung nur mit Master-Token (`canControl`). Practice (Solo Üben): rein lokaler Zustand (`usePracticeStateStore`), `canControl` immer `true`, Audio immer über das eigene Gerät.
@@ -257,7 +257,9 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Capability:** keine fest; abhängig vom gewählten Gerät (bezieht `midi-input`-Status clientseitig).
 - **Use Cases:** (1) Techniker hat je ein Widget für „Mischpult links" und „Mischpult rechts". (2) Bandleader sieht per Punkt, ob der Licht-Controller verbunden ist.
 
-### Neu seit 2026-09-19 (Kategorie `performance`)
+### Neu seit 2026-09-19
+
+Widgets 24 und 25 gehören zur Kategorie `performance`, 26 und 27 zur neuen Kategorie `reference`.
 
 #### 24. Festival-Uhr (`festival-clock`) (#28)
 - **Was:** „Voraussichtliches Ende" der restlichen Setlist als Uhrzeit, gerechnet aus der Restdauer aller Einträge (Songlänge aus der Variante oder dem gemessenen Track, Einzähler, Pausen/Übergänge, `clickExtendMs`), gegen die **Zielzeit der Setlist** (`Setlist.targetEndTime`, in den Setlist-Einstellungen gesetzt). Wird rot mit „n min Überzug", sonst grün mit „n min Puffer"; ohne Zielzeit ein Hinweis, sie in den Setlist-Einstellungen zu setzen.
@@ -274,6 +276,24 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Disabled/Degradation:** Ohne Track „Kein Track angehängt"; „Loop starten" ist erst mit A und B aktiv; Fehler (z. B. Loop zu kurz, Track nicht dekodierbar) erscheinen als Text.
 - **Grenzen:** Nicht auf Tablets geprüft (Lückenlosigkeit, Tonhöhe, Versatz durch die SoundTouch-Verzögerung von einigen 10 ms, erster Loop offline). Das Dekodieren des ganzen Tracks belastet kleine Tablets kurz.
 - **Use Cases:** (1) Gitarristin loopt ein 15-Sekunden-Solo, startet bei 80 % und hört es jeden Durchgang um 5 % schneller wiederholt, bis das Originaltempo erreicht ist. (2) Sänger übt die Bridge („Bis Ende von: Bridge") langsam mit mitlaufendem Klick.
+
+#### 26. Akkord-Nachschlagen (`chord-reference`) (#24)
+- **Was:** Grundton (zwölf Knöpfe) und Akkordart (Dur, Moll, 7, maj7, m7, sus2, sus4, dim, aug, 6, 5) wählen; das Widget zeigt Akkordsymbol, Notennamen, Intervalle (`1 b3 5 b7`), ein **Gitarren-Griffbild** und eine zweioktavige **Klaviatur** mit den Akkordtönen (Grundton in der Akzentfarbe).
+- **Wie:** Akkordnamen und Noten kommen aus `@tonaljs/chord` (MIT, der modulare Teil von tonal; neue Abhängigkeit, ca. 27 kB im Bundle); die Schreibweise (F# oder Gb) richtet sich nach der Config. Die **Griffbilder** stammen aus einer kuratierten Tabelle (`guitarShapes.ts`): offene Formen für C, D und G, sonst E-Form- bzw. A-Form-Barrégriffe, jeweils an der tiefsten Position. Jede der 12 Grundtöne × 11 Akkordarten ist gegen die von tonal berechneten Akkordtöne getestet (keine falsche Note, nur eine reine Quinte darf fehlen, Grundton im Bass) - das beweist korrekte Akkorde, nicht, dass es der Griff ist, den jeder Gitarrist wählen würde. Die Auswahl ist flüchtiger Widget-Zustand (kein PouchDB-Schreibvorgang).
+- **Config:** `noteNaming` (`sharp`|`flat`), `showGuitar`, `showPiano` (beide Default an), `sizeRatio` (1,6, für den Akkordnamen).
+- **Gig vs. Practice:** modusunabhängig; komplett lokal, funktioniert offline.
+- **Disabled/Degradation:** keine Capability nötig, kann nie ausgegraut werden. Gäbe es zu einer Kombination keinen Griff, erscheint „Kein Griffbild".
+- **Grenzen:** Nicht auf einem Tablet angesehen (Layout, Größe der Diagramme, Tippflächen). Nur die elf Akkordarten oben, keine 9er/11er/13er; die Gitarrengriffe gelten für Standardstimmung.
+- **Use Cases:** (1) Bei einer spontanen Jam-Session fragt jemand nach „Bbm7" - ein Blick auf das Widget zeigt Noten und Griff. (2) Der Keyboarder prüft, welche Tasten ein Fsus2 braucht.
+
+#### 27. Quintenzirkel (`circle-of-fifths`) (#24)
+- **Was:** Interaktives SVG-Rad, außen die zwölf Dur-, innen die zwölf Moll-Tonarten. Tippt man eine Scheibe an, leuchten sie selbst, ihre **Paralleltonart** (Dur ↔ Moll auf derselben Scheibe, gleiche Vorzeichen) sowie **Dominante** und **Subdominante** (die Nachbarn im Uhrzeigersinn bzw. dagegen) auf. Darunter steht der Klartext, z. B. „G-Dur · Paralleltonart E-Moll · Dominante D · Subdominante C · 1 ♯". Von C-Dur aus ergibt sich a-Moll, G und F. Auch per Tastatur bedienbar.
+- **Wie:** reine Funktionen in `circleOfFifths.ts` (Beziehungen, Beschriftung, Vorzeichenzahl, Kreisgeometrie), ohne Bibliothek. Die doppelt lesbaren Scheiben (F#/Gb und ihre Nachbarn) folgen der Config; die Vorzeichenzahl passt sich an (F# = 6 ♯, Gb = 6 ♭; C# = 7 ♯, Db = 5 ♭).
+- **Config:** `noteNaming` (`sharp`|`flat`), `sizeRatio` (1, für die Beschreibung unter dem Rad).
+- **Gig vs. Practice:** modusunabhängig; lokal, offline; die Auswahl ist flüchtiger Widget-Zustand.
+- **Disabled/Degradation:** keine Capability nötig.
+- **Grenzen:** Nicht auf einem Tablet angesehen (Rad-Größe, Tippflächen der 24 Scheiben). Bezeichnung „B" statt deutschem „H", wie im Rest der App.
+- **Use Cases:** (1) Sängerin will einen Song eine Quarte höher singen und sieht am Rad, welche Tonarten und Vorzeichen dabei herauskommen. (2) Bassist sucht die Paralleltonart von E-Dur, um über den Refrain zu improvisieren.
 
 ---
 
@@ -399,7 +419,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **UC:** Ein Trenner-Widget wird rahmenlos, damit das Dashboard aufgeräumt wirkt.
 
 #### 4.5 Widget-Bibliothek (`WidgetLibrary`)
-- **Was:** Overlay „+ Widget": Suche (Titel/Beschreibung) + Kategorien *Performance, Monitoring, Show Control, System & Crew, Utility, Nach der Show*. Angeboten wird nur, was zu den **installierten Plugins/Capabilities** und zu den **Stage-Rollen** des aktiven Profils passt (`availableWidgets`); fehlende Hardware blendet Widgets nicht aus, sondern graut sie im Dashboard aus. Mini-Live-Vorschau je Kachel mit Fehlergrenze (`WidgetPreviewErrorBoundary`).
+- **Was:** Overlay „+ Widget": Suche (Titel/Beschreibung) + Kategorien *Performance, Monitoring, Show Control, System & Crew, Utility, Nachschlagen, Nach der Show*. Angeboten wird nur, was zu den **installierten Plugins/Capabilities** und zu den **Stage-Rollen** des aktiven Profils passt (`availableWidgets`); fehlende Hardware blendet Widgets nicht aus, sondern graut sie im Dashboard aus. Mini-Live-Vorschau je Kachel mit Fehlergrenze (`WidgetPreviewErrorBoundary`).
 - **Gating:** Edit-Modus.
 - **UC:** Eine Band ohne Lichtplugin sieht keine Licht-Widgets – die Bibliothek bleibt übersichtlich.
 
@@ -879,13 +899,13 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 28)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 27)
 
 | Bereich | Issues |
 |---|---|
 | **Live-Show-Automatik** | #6 Cue-Recorder, #7 Auto-Cue-Erkennung, #8 Live-Cue-Firing + Post-Show-Persistenz |
 | **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
-| **Musiker-Werkzeuge** | #24 Akkord-Lookup + Quintenzirkel, #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
+| **Musiker-Werkzeuge** | #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
 | **Audio-Pipeline** | #5 Async-Jobs/YouTube-Extraktion, #9 Stem-Trennung, #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
 | **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
 | **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
