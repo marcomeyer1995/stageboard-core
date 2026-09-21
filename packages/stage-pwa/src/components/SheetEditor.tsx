@@ -669,6 +669,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const cuesContent = isRecordingCues ? (
     <CueRecorder
       trackSrc={tapTrackSrc}
+      chordProContent={draft.chordProContent}
       onComplete={(recorded) => {
         setDraft({ ...draft, cues: [...draft.cues, ...recorded].sort((a, b) => a.timeMs - b.timeMs) })
         setIsRecordingCues(false)

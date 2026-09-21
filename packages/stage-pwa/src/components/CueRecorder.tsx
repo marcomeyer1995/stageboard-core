@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ShowCue } from 'shared-types'
+import { analyzeOnsetsBlob, type TrackOnsets } from '../lib/analyzeTrack'
+import { parseChordPro } from '../lib/chordpro'
 import { createCueRecording, type CueRecording } from '../lib/cueRecording'
 import { getDeviceId } from '../lib/deviceId'
+import { loopSections } from '../lib/loopSections'
 import { canDecodeCapability, createMidiDecoder } from '../lib/midiCueDecoders'
+import { MAX_SNAP_WINDOW_MS, snapCues, snapToOnset } from '../lib/onsetSnap'
 import { formatTrackClockTime, useTrackClock } from '../lib/useTrackClock'
 import { listenToMidiInputById, listMidiInputs, type MidiInputInfo } from '../lib/webMidi'
 import { useClockStore } from '../store/useClockStore'
@@ -13,6 +17,8 @@ interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
    * track's own playback position, so without one there is nothing to record against. */
   trackSrc: string | null
+  /** The variant's ChordPro text - its timestamped parts are shown against the detected onsets. */
+  chordProContent?: string
   onComplete: (cues: ShowCue[]) => void
   onCancel: () => void
 }
@@ -38,7 +44,10 @@ function describe(type: string, payload: Record<string, unknown> | undefined): s
  * Nothing is saved until "Übernehmen": the cues are handed to the caller to merge into the
  * variant's draft, like every other recording tool in the editor.
  */
-export function CueRecorder({ trackSrc, onComplete, onCancel }: CueRecorderProps) {
+/** Snapping windows offered (ms either side of a cue). */
+const SNAP_WINDOWS_MS = [30, 60, 100, 150] as const
+
+export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }: CueRecorderProps) {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const configs = useDeviceTransportConfigStore((state) => state.configs)
   const recordable = logicalDevices.filter((device) => canDecodeCapability(device.capability))
@@ -48,6 +57,11 @@ export function CueRecorder({ trackSrc, onComplete, onCancel }: CueRecorderProps
   const [inputId, setInputId] = useState('')
   const [rows, setRows] = useState<LiveRow[]>([])
   const [ignored, setIgnored] = useState(0)
+  const [onsets, setOnsets] = useState<TrackOnsets | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [snapEnabled, setSnapEnabled] = useState(false)
+  const [snapWindowMs, setSnapWindowMs] = useState<number>(60)
   const { elapsedMs, isPlaying, duration, position, togglePlay, audioProps } = useTrackClock(trackSrc)
   const recordingRef = useRef<CueRecording | null>(null)
   const isPlayingRef = useRef(false)
@@ -104,10 +118,43 @@ export function CueRecorder({ trackSrc, onComplete, onCancel }: CueRecorderProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, inputId, device?.capability, channel])
 
+  // The onsets belong to one track: a different track means a stale analysis.
+  useEffect(() => {
+    setOnsets(null)
+    setSnapEnabled(false)
+    setAnalysisError(null)
+  }, [trackSrc])
+
+  async function analyzeOnsets() {
+    if (!trackSrc) return
+    setAnalyzing(true)
+    setAnalysisError(null)
+    try {
+      const result = await analyzeOnsetsBlob(await (await fetch(trackSrc)).blob())
+      setOnsets(result)
+      setSnapEnabled(true)
+    } catch {
+      setAnalysisError('Onset-Analyse fehlgeschlagen (Track nicht dekodierbar?).')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const snapOnsets = snapEnabled && onsets ? onsets.onsets : null
+  function snappedTime(timeMs: number): { timeMs: number; shiftMs: number } {
+    const onset = snapOnsets ? snapToOnset(timeMs, snapOnsets, snapWindowMs) : null
+    return onset ? { timeMs: Math.round(onset.timeMs), shiftMs: Math.round(onset.timeMs) - timeMs } : { timeMs, shiftMs: 0 }
+  }
+
+  // Timestamped `{part:}` sections against the nearest detected onset - shows at a glance whether
+  // this song's section starts land on attacks the snapping can use.
+  const partStarts = onsets ? loopSections(parseChordPro(chordProContent ?? ''), null) : []
+
   function accept() {
     const recording = recordingRef.current
     if (!recording || !device) return
-    onComplete(recording.toShowCues(device.id))
+    const cues = recording.toShowCues(device.id)
+    onComplete(snapOnsets ? snapCues(cues, snapOnsets, snapWindowMs).map((snapped) => snapped.cue) : cues)
   }
 
   const inputProblem = inputs === null ? 'WebMIDI ist nicht verfügbar (Browser oder Berechtigung).' : inputs?.length === 0 ? 'Kein MIDI-Eingang gefunden.' : null
@@ -172,12 +219,67 @@ export function CueRecorder({ trackSrc, onComplete, onCancel }: CueRecorderProps
         ) : (
           rows.map((row) => (
             <p key={row.key} className="text-ink">
-              <span className="text-ink-faint">{(row.timeMs / 1000).toFixed(2)}s</span> {row.label}
+              <span className="text-ink-faint">{(snappedTime(row.timeMs).timeMs / 1000).toFixed(2)}s</span> {row.label}
+              {snappedTime(row.timeMs).shiftMs !== 0 && (
+                <span className="ml-2 text-xs text-accent">eingerastet {snappedTime(row.timeMs).shiftMs > 0 ? '+' : ''}{snappedTime(row.timeMs).shiftMs} ms</span>
+              )}
             </p>
           ))
         )}
       </div>
       {ignored > 0 && <p className="text-xs text-ink-faint">{ignored} Nachricht(en) ohne passendes Ereignis übersprungen.</p>}
+
+      <div className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void analyzeOnsets()}
+            disabled={!trackSrc || analyzing}
+            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {analyzing ? 'Analysiere…' : 'Onsets analysieren'}
+          </button>
+          {onsets && <span className="text-xs text-ink-faint">{onsets.onsets.length} Onsets gefunden</span>}
+          {onsets && (
+            <>
+              <label className="ml-auto flex items-center gap-1 text-ink">
+                <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
+                Cues einrasten
+              </label>
+              <select
+                aria-label="Einrast-Fenster"
+                value={snapWindowMs}
+                onChange={(e) => setSnapWindowMs(Number(e.target.value))}
+                disabled={!snapEnabled}
+                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink disabled:opacity-40"
+              >
+                {SNAP_WINDOWS_MS.map((windowMs) => (
+                  <option key={windowMs} value={windowMs}>
+                    ±{windowMs} ms
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+        {analysisError && <p className="text-xs text-red-500">{analysisError}</p>}
+        {partStarts.length > 0 && (
+          <div className="flex flex-col gap-0.5 text-xs text-ink-muted">
+            <span>Abschnittsstarts zum nächsten Onset:</span>
+            {partStarts.map((section) => {
+              const nearest = snapToOnset(section.startMs, onsets?.onsets ?? [], MAX_SNAP_WINDOW_MS)
+              const offsetMs = nearest ? Math.round(nearest.timeMs - section.startMs) : null
+              return (
+                <span key={section.startMs} className="font-sb-mono">
+                  {section.label} · {(section.startMs / 1000).toFixed(1)}s ·{' '}
+                  {offsetMs === null ? `kein Onset innerhalb ±${MAX_SNAP_WINDOW_MS} ms` : `${offsetMs >= 0 ? '+' : ''}${offsetMs} ms`}
+                </span>
+              )
+            })}
+          </div>
+        )}
+        <p className="text-xs text-ink-faint">Einrasten verschiebt Cues auf den nächsten erkannten Anschlag - ohne Zusage, dass jeder Abschnittswechsel einen hat.</p>
+      </div>
 
       <div className="flex gap-2">
         <button
