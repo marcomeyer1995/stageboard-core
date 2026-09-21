@@ -5,6 +5,7 @@ import { isWebMidiSupported } from './webMidi'
 import { getMidiOutputById, sendSysEx } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { MG30_CAPABILITY, MG30_KNOB_CC_RANGE } from './midiDeviceProtocols'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock - own dedicated capability,
@@ -12,7 +13,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
  * doesn't fit any of them) - same reasoning kemperTranslator.ts's `KEMPER_CAPABILITY` and
  * cq18tTranslator.ts's `CQ18T_CAPABILITY` already document.
  */
-export const MG30_CAPABILITY = 'mg30-control'
+export { MG30_CAPABILITY }
 
 /** `43 58` device-signature prefix (not a registered MIDI Manufacturer ID) every NUX MG-30
  * SysEx message starts with - reverse-engineered from `mg30-controller`, hardware-verified on
@@ -32,7 +33,7 @@ const FN_IDENTITY_RESPONSE = 0x10
  * guessed value risks putting the unit in an unintended state, worse than not offering the
  * action at all.
  */
-const KNOB_CC_RANGE = { min: 11, max: 74 }
+const KNOB_CC_RANGE = MG30_KNOB_CC_RANGE
 
 interface Mg30Output {
   output: MIDIOutput
