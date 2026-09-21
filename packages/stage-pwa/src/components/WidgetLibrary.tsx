@@ -12,6 +12,7 @@ const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   'show-control': 'Show Control',
   'system-crew': 'System & Crew',
   utility: 'Utility',
+  reference: 'Nachschlagen',
   'post-show': 'Nach der Show',
 }
 
@@ -21,6 +22,7 @@ const CATEGORY_ORDER: WidgetCategory[] = [
   'show-control',
   'system-crew',
   'utility',
+  'reference',
   'post-show',
 ]
 
