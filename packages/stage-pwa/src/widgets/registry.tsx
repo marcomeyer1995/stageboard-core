@@ -40,6 +40,10 @@ import { ShowTransportConfigSchema } from './showTransportConfig'
 import { SyncCheckConfigPanel, SyncCheckWidget } from './SyncCheckWidget'
 import { SyncCheckConfigSchema } from './syncCheckConfig'
 import { SystemHealthWidget } from './SystemHealthWidget'
+import { ChordReferenceConfigPanel, ChordReferenceWidget } from './ChordReferenceWidget'
+import { ChordReferenceConfigSchema } from './chordReferenceConfig'
+import { CircleOfFifthsConfigPanel, CircleOfFifthsWidget } from './CircleOfFifthsWidget'
+import { CircleOfFifthsConfigSchema } from './circleOfFifthsConfig'
 import { LoopTrainerConfigPanel, LoopTrainerWidget } from './LoopTrainerWidget'
 import { LoopTrainerConfigSchema } from './loopTrainerConfig'
 import { TempoNudgeConfigPanel, TempoNudgeWidget } from './TempoNudgeWidget'
@@ -73,6 +77,7 @@ export type WidgetCategory =
   | 'show-control'
   | 'system-crew'
   | 'utility'
+  | 'reference'
   | 'post-show'
 
 /** A widget as the dashboard grid sees it: config already parsed, type parameter erased. */
@@ -427,6 +432,26 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: CustomTriggerConfigSchema,
     Component: CustomTriggerWidget,
     ConfigPanel: CustomTriggerConfigPanel,
+  }),
+  defineWidget({
+    type: 'chord-reference',
+    title: 'Akkord-Nachschlagen',
+    description: 'Grundton und Akkordart wählen: Noten, Intervalle, Gitarren-Griffbild und Klaviatur.',
+    category: 'reference',
+    defaultLayout: { w: 5, h: 7, minW: 3, minH: 4, maxW: 10, maxH: 12 },
+    configSchema: ChordReferenceConfigSchema,
+    Component: ChordReferenceWidget,
+    ConfigPanel: ChordReferenceConfigPanel,
+  }),
+  defineWidget({
+    type: 'circle-of-fifths',
+    title: 'Quintenzirkel',
+    description: 'Tonart antippen: Paralleltonart, Dominante, Subdominante und Vorzeichen auf einen Blick.',
+    category: 'reference',
+    defaultLayout: { w: 4, h: 7, minW: 3, minH: 5, maxW: 8, maxH: 12 },
+    configSchema: CircleOfFifthsConfigSchema,
+    Component: CircleOfFifthsWidget,
+    ConfigPanel: CircleOfFifthsConfigPanel,
   }),
 ]
 
