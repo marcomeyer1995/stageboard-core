@@ -24,6 +24,7 @@ import { BeatAnchorListEditor } from './BeatAnchorListEditor'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CommentListEditor } from './CommentListEditor'
 import { CueListEditor } from './CueListEditor'
+import { CueRecorder } from './CueRecorder'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapBeatAnchors } from './TapBeatAnchors'
 import { TapTempoMarker } from './TapTempoMarker'
@@ -145,6 +146,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [isTapping, setIsTapping] = useState(false)
   const [isTappingAnchors, setIsTappingAnchors] = useState(false)
   const [isTappingTempoMarker, setIsTappingTempoMarker] = useState(false)
+  const [isRecordingCues, setIsRecordingCues] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -172,7 +174,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker) || !tapTrack) return
+    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker && !isRecordingCues) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -187,7 +189,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, isTappingTempoMarker, draft?.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -664,7 +666,30 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     </div>
   )
 
-  const cuesContent = <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+  const cuesContent = isRecordingCues ? (
+    <CueRecorder
+      trackSrc={tapTrackSrc}
+      onComplete={(recorded) => {
+        setDraft({ ...draft, cues: [...draft.cues, ...recorded].sort((a, b) => a.timeMs - b.timeMs) })
+        setIsRecordingCues(false)
+      }}
+      onCancel={() => setIsRecordingCues(false)}
+    />
+  ) : (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+        <span>Cues live einspielen: Track abspielen und am Gerät bedienen.</span>
+        <button
+          type="button"
+          onClick={() => setIsRecordingCues(true)}
+          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
+        >
+          Cues aufnehmen
+        </button>
+      </div>
+      <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
+    </div>
+  )
   const commentsContent = (
     <CommentListEditor
       content={draft.chordProContent}

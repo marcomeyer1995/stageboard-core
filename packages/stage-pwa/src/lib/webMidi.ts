@@ -118,3 +118,41 @@ export async function listenToPortByHardwareKey(hardwareKey: string, onMessage: 
   target.addEventListener('midimessage', handler)
   return () => target.removeEventListener('midimessage', handler)
 }
+
+export interface MidiInputInfo {
+  id: string
+  name: string
+}
+
+/** The MIDI inputs connected right now, or null when WebMIDI is unsupported/denied (both normal,
+ * expected states - Graceful Degradation - not errors). The Cue Recorder (#6) lists these so the
+ * technician can pick the port their device is on. */
+export async function listMidiInputs(): Promise<MidiInputInfo[] | null> {
+  if (!isWebMidiSupported()) return null
+  try {
+    const access = await navigator.requestMIDIAccess()
+    return Array.from(access.inputs.values()).map((input) => ({ id: input.id, name: input.name ?? input.id }))
+  } catch {
+    return null
+  }
+}
+
+/** Raw `midimessage` feed for one connected input by its `MIDIPort.id` (the Cue Recorder's port
+ * picker hands that over) - null when WebMIDI is unavailable or the id no longer names an input,
+ * so the caller can say "port gone" instead of silently recording nothing. */
+export async function listenToMidiInputById(inputId: string, onMessage: (data: number[]) => void): Promise<(() => void) | null> {
+  if (!isWebMidiSupported()) return null
+  let access: MIDIAccess
+  try {
+    access = await navigator.requestMIDIAccess()
+  } catch {
+    return null
+  }
+  const input = access.inputs.get(inputId)
+  if (!input) return null
+  const handler = (event: MIDIMessageEvent) => {
+    if (event.data) onMessage(Array.from(event.data))
+  }
+  input.addEventListener('midimessage', handler)
+  return () => input.removeEventListener('midimessage', handler)
+}

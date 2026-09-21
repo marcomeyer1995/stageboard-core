@@ -1,6 +1,7 @@
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
+import { KEMPER_CAPABILITY, KEMPER_CC, KEMPER_STOMP_CC as STOMP_CC, KEMPER_STOMP_CC_WITH_TAIL as STOMP_CC_WITH_TAIL } from './midiDeviceProtocols'
 import { getMidiOutputById, sendControlChange } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -11,19 +12,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
  * StageBoard's own built-in vocabulary; a device-specific plugin is exactly the "community
  * plugin brings its own" case its doc comment describes) and not reused across device families.
  */
-export const KEMPER_CAPABILITY = 'kemper-control'
-
-/** The Kemper Profiler's "Table 1" plain MIDI CC layer (kemper-profiler-midi-parameter-
- * documentation.pdf, also `~/Device Emulators/Kemper Emulator/kemper_emulator/cc_map.py`) - the
- * NRPN/SysEx layers (continuous parameters, rig renaming) aren't implemented yet. */
-const KEMPER_CC = {
-  performancePreselect: 47,
-  slot: [50, 51, 52, 53, 54], // index 0 = slot 1 ... index 4 = slot 5
-  tuner: 31,
-} as const
-
-const STOMP_CC: Record<string, number> = { A: 17, B: 18, C: 19, D: 20, X: 22, MOD: 24, DELAY: 26, REVERB: 28, ALL: 16 }
-const STOMP_CC_WITH_TAIL: Record<string, number> = { DELAY: 27, REVERB: 29 }
+export { KEMPER_CAPABILITY }
 
 interface KemperOutput {
   output: MIDIOutput

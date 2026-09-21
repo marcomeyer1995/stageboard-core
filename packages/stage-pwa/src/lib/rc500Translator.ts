@@ -1,6 +1,7 @@
 import type { ShowControlResult } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
+import { RC500_CAPABILITY } from './midiDeviceProtocols'
 import { getMidiOutputById } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -10,7 +11,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
  * not one of `capability.ts`'s core `CAPABILITIES` (a looper's memory/track vocabulary doesn't
  * fit any of them) - same reasoning kemperTranslator.ts's `KEMPER_CAPABILITY` documents.
  */
-export const RC500_CAPABILITY = 'rc500-control'
+export { RC500_CAPABILITY }
 
 interface Rc500Output {
   output: MIDIOutput
