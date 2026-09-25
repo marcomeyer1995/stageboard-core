@@ -203,10 +203,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setSavedAt(null)
   }
 
+  // Also re-runs once the song shows up in the store: LibraryView's "+ Neu" saves a brand-new
+  // song and opens this editor right away, but the songs store only picks it up a moment later
+  // (PouchDB change feed -> refreshSongs). Without `songLoaded` here the first run found no
+  // song, and nothing ever ran it again - the editor sat on "Lade…" for good.
+  const songLoaded = songs.some((s) => s.id === songId)
   useEffect(() => {
-    void selectSong(songId, variantId)
+    if (songLoaded) void selectSong(songId, variantId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songId, variantId])
+  }, [songId, variantId, songLoaded])
 
   useEffect(() => {
     // The open song was deleted - here, or on another device mid-sync. There's nothing left
