@@ -125,7 +125,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Use Cases:** (1) Für einen Song ohne Klick-Vorgabe schaltet der Drummer den Klick spontan „An" (für seine IEM). (2) Solo-Üben: Gitarrist trainiert mit fest eingeschaltetem Klick, unabhängig von der Song-Einstellung.
 
 #### 9. Track-Wahl (`track-override`)
-- **Was:** Dropdown, um kurzfristig einen anderen Backing-Track der aktuellen Variante zu wählen („Standard (Setlist)" oder ein konkreter Track), ohne die Setlist zu ändern.
+- **Was:** Dropdown, um kurzfristig einen anderen Backing-Track der aktuellen Variante zu wählen, ohne die Setlist zu ändern. Die Standard-Option heißt „Automatisch (<Track>)" und nennt den Track, der ohne Auswahl läuft: der erste *band-mix*, sonst der erste Track. (Früher „Standard (Setlist)" - irreführend, denn keine Setlist-Oberfläche setzt `SetlistEntry.trackId`; das Feld existiert nur im Datenmodell.)
 - **Config:** `sizeRatio` (1).
 - **Gig vs. Practice:** beide. Gig: Master-gesteuert, geteilt (alle hören denselben Feed). Practice: rein lokal.
 - **Disabled/Degradation:** Ohne Tracks „Kein Track angehängt"; bei nur einem Track „Nur ein Track vorhanden – kein Wechsel nötig"; Dropdown deaktiviert ohne Kontrolle.
