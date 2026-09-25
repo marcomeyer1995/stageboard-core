@@ -1,6 +1,6 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-09-21, `main` @ `8c259da` (nach #255-#268). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) der Cue-Recorder (#6), das Einrasten auf Onsets (#7, erste Scheibe) und die Bugfixes #247-#249. 27 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-/Geräte-Prüfungen von #6, #7, #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
+Stand: 2026-09-25, `main` @ `79179b6` (nach #255-#271). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) der Cue-Recorder (#6), das Einrasten auf Onsets (#7, erste Scheibe), die Bugfixes #247-#249 und die YouTube-Referenzspur über Async-Jobs (#5). **Seit 2026-09-25 ist StageBoard produktiv im Einsatz** (Betrieb: docs/03 §0b). 26 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-/Geräte-Prüfungen von #5, #6, #7, #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
 ## 1. Kurzfassung
 
@@ -20,7 +20,8 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 | Hardware-Erkennung/-Bindung, Cue-Timeline | fertig, aber Polling (~60 fps), nicht sample-genau |
 | Cue-Recorder (MIDI live einspielen, #6), Einrasten auf Onsets (#7, erste Scheibe) | fertig, noch nie mit echter Hardware/auf Tablet gelaufen; Zuverlässigkeit der Onset-Ausrichtung **nicht belegt** (#267) |
 | Server-Plugins (Mixer/Licht/Playback/Backup/Click) | nur Mocks (`mock-backup`/`mock-click` haben seit #249 eine Server-Seite) |
-| Stems, YouTube-Extraktion, Crossfade | geplant, nicht gebaut |
+| YouTube-Referenzspur über Async-Jobs (#5) | fertig, Server-Seite live gegen YouTube geprüft; Editor-Ablauf und Wiedergabe auf dem Tablet noch nicht geprüft |
+| Stems, Crossfade | geplant, nicht gebaut |
 
 ### Wichtigste Lücken und Risiken
 
@@ -30,6 +31,8 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 4. **Übergänge (#232) ungetestet auf Hardware:** Nahtlos hängt an lokaler Audio-Ausgabe und daran, dass Master und Audio-Tablet dasselbe Gerät sind. Ob ein Gig-Modus-`delayed`-Start einen Einzähler bekommt, ist offen.
 5. **Cue-Recorder (#6) und Onset-Einrasten (#7) ungetestet:** Der Recorder hat noch nie echte MIDI-Daten gesehen (nur Tests mit Attrappen); die Kemper-Nachrichtenfolge ist aus dem abgeleitet, was der Translator sendet, nicht an einem echten Kemper beobachtet. Die Onset-Ausrichtung ist nur an einem Song mit handgetippten Zeilen-Zeitmarken gemessen (55 % innerhalb ±100 ms gegenüber 44 % bei Zufallszeiten) - das belegt *keinen* Abschnittsbezug, die echte Validierung steht als #267 aus.
 6. **Ready-Check (#60), Loop-Trainer (#61) und Transposition (#59) ungetestet auf Hardware:** Beim Ready-Check fehlen der Test mit echten Tablets (Zähler, Overlay, ein stilles Tablet blockiert nach ca. 30 s nicht mehr) und der Fall „Stage-Server nicht erreichbar". Beim Rest: Lückenlosigkeit des Loops, Tonhöhe bei 70 %, Ausrichtung von Prompter/Klick zum Audio und der erste Loop ohne Netz (Service-Worker-Cache des SoundTouch-Worklets) sind nur durch Unit-Tests und den Build abgedeckt.
+7. **Kein automatisches Backup, obwohl produktiv:** CouchDB-Volume, `~/stageboard-data` (Audio, aktive Band) und `certs/` liegen auf *einer* Platte des Stage-Servers. Der manuelle Snapshot in der App enthält weder die Backing-Tracks noch die Hardware-Einrichtung (`logical-devices`, `devices`, `device-transport-config`), siehe C 6.9.
+8. **YouTube-Extraktion (#5) hängt an yt-dlp:** YouTube ändert regelmäßig etwas, dann scheitern Jobs mit einer yt-dlp-Fehlermeldung, bis jemand `yt-dlp -U` ausführt. Das Ergebnis ist meist WebM/Opus - in Chrome/Android problemlos, ältere iPads spielen es womöglich nicht ab.
 
 ### Kleine Unstimmigkeiten (nur beobachtet)
 
@@ -479,7 +482,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Abschnitte** (alle initial eingeklappt; Phone = Tabs, Tablet-Hochkant = Bottom-Sheet, breit = Akkordeon neben dem Text):
   - **Text:** ChordPro-Textfeld mit Part-Buttons (**+ Verse/Chorus/Bridge …**, `PART_LABELS`) und **+ Kommentar**; **Song importieren**; **Tap-to-Sync starten**; Live-Vorschau (`ChordProLyrics`).
   - **Tempo & Klick:** BPM, Takt, „Klick standardmäßig an (per Show überstimmbar)", **Count-in** (aktiv + Takte), darunter das **Klick-Sync-Werkzeug:** Anker per Tippen setzen (`TapBeatAnchors`), **Track analysieren** (Plugin *music-tempo* falls installiert, sonst eingebauter Detektor; überschreibt vorhandene Anker nur nach Bestätigung), **Tempo-Wechsel** markieren (`TapTempoMarker`) und **erkennen**, Listeneditoren für **Klick-Anker** (Zeit, Beat-in-Bar) und **Tempo-Wechsel** (Zeit, BPM). Automatisch Erkanntes ist immer nur ein **Vorschlag zum Prüfen**.
-  - **Audio:** `TrackManagerField` – benannte Tracks (*reference / band-mix / stem*) hochladen/entfernen; erst nach Speichern der Variante möglich („Erst speichern, dann Tracks anhängen.").
+  - **Audio:** `TrackManagerField` – benannte Tracks (*reference / band-mix / stem*) hochladen/entfernen; erst nach Speichern der Variante möglich („Erst speichern, dann Tracks anhängen."). **Neu (#5):** Feld „YouTube-Link für eine Referenzaufnahme" + „Von YouTube laden" legt einen Async-Job an; darunter der Job-Status („wartet…" / „42 %" / „abgeschlossen" / Fehlertext, „Ausblenden"). Das Ergebnis erscheint als Track „YouTube Referenz" (*reference*) auf allen Geräten, siehe C 3.11.
   - **Cues:** `CueListEditor` – Cue hinzufügen mit Zeit (s), Capability, Typ, **Ziel-Gerät** (nur Logical Devices mit dieser Capability), Payload als JSON; kein pluginspezifisches Autoren-Panel (später). Darüber **„Cues aufnehmen"** (#6, neu): der `CueRecorder`, siehe 5.5.
   - **Kommentare:** `CommentListEditor` – listet `{comment:}/{c:}/{cc:}`-Direktiven; **„Sichtbar für"** pro Kommentar (an bestimmte Mitglieder), Text ändern, entfernen. Die Position bleibt die Zeile im Text.
 - **Song importieren** (`TabImportOverlay`): Suche → Vorschau → Übernahme von Akkorden/BPM/Key/Tuning/Capo/Band; „Original ansehen ↗" öffnet die Quelle in einem Popup (iframe scheitert an `frame-ancestors`). MusicBrainz-Treffer dienen nur der Identität, importierbar sind nur Treffer mit ChordPro-Inhalt. Nutzt Lookup-Plugins am Stage-Server (nicht verifiziert, ob ohne Server nutzbar).
@@ -561,8 +564,9 @@ Alles einmalig einzustellen, pro Gerät:
 | `useProfilesStore` | Roster (Profil = id, Name, `stageRoles`); Anlegen/Umbenennen/Rollen/Löschen/`connectToServer` | PouchDB→CouchDB |
 | `useActiveProfileStore` | aktives Profil je Band (`''` = „ohne Profil") | `localStorage` |
 | `useRosterSetupStore` | Roster-Einrichtung abgeschlossen (je Band, pro Gerät) | `localStorage` |
-| `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Anker, Tempo-Marker, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (Tracks als Attachments) |
+| `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Anker, Tempo-Marker, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (nur Track-*Metadaten*; das Audio liegt seit #30 auf der Server-Platte, C 3.4b) |
 | `useShowStateStore` | geteilter Live-Zustand: Master-Token (`claimMaster`, `releaseMaster`), Ready-Check auf/zu (`startReadyCheck`/`endReadyCheck`), aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
+| `useAsyncJobsStore` (#5) | alle Async-Jobs der Band (YouTube-Extraktion); `TrackManagerField` filtert auf die aktuelle Variante | PouchDB→CouchDB |
 | `useReadyCheckStore` | welche Ready-Check-Abfrage dieses Gerät schon erledigt hat (#60) | **flüchtig** (bewusst) |
 | `useChordOffsetStore` | Transpose-/Capo-Versatz dieses Geräts (#59), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
 | `useLoopTrainerStore` | Loop-Punkte, Tempo und Speed-Trainer-Einstellungen sowie „läuft" (#61), gebunden an den aktuellen Queue-Eintrag | **flüchtig** (bewusst) |
@@ -622,7 +626,7 @@ Nicht enthalten: Widgets/Screens (`stage-pwa/src/widgets`, `components`) – das
 | Baustein | Was es ist | Zustand |
 |---|---|---|
 | **Stage-Server** (`core-backend`) | Ein Fastify-Prozess (HTTP/2 + TLS, wenn `certs/dev-cert.pem` existiert, sonst HTTP/1.1). Liefert die gebaute PWA aus, proxyt CouchDB unter `/db`, hält flüchtige Live-Stores (Presence, Health, Discovery, Relay), speichert Audio-Dateien, hostet Server-Plugins, provisioniert Bands/Konten. | läuft produktiv auf Marcos Rechner (`node dist/index.js`, Port 443) |
-| **CouchDB** | Eine Datenbank pro Band (`stageboard-<workspaceId>`), alle Dokumentarten per `_id`-Präfix (`songs:`, `setlists:`, `profiles:`, `plugins:`, `logical-devices:`, `devices:` …). | fertig |
+| **CouchDB** | Eine Datenbank pro Band (`stageboard-<workspaceId>`), alle Dokumentarten per `_id`-Präfix (`songs:`, `setlists:`, `profiles:`, `plugins:`, `logical-devices:`, `devices:`, `async-jobs:` …). | fertig |
 | **Tablet-Client** (`stage-pwa`) | React-PWA mit lokaler PouchDB pro Band, Live-Sync gegen CouchDB (über den `/db`-Proxy des Stage-Servers). Rechnet Uhr, Queue, Click, Cues **lokal**. | fertig |
 | **shared-types** | Zod-Schemas + TypeScript-Typen für alles, was zwischen Server und Client fließt. | fertig |
 
@@ -654,7 +658,7 @@ Alle Routen aus `index.ts`. **Auth** = Prüfung im Handler (nicht per Fastify-Ho
 | `GET /audio/:variantId/:trackId` | Track laden (`application/octet-stream`; Mime-Typ steckt in `TrackMeta`) | **keine** |
 | `DELETE /audio/:variantId/:trackId` | Track löschen | **keine** |
 
-IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./data/audio/<variantId>/<trackId>`.
+IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `<AUDIO_STORAGE_DIR>/<variantId>/<trackId>` (Default `./data/audio`, auf dem produktiven Server `~/stageboard-data/audio`). YouTube-Extraktionen (#5) landen ohne eigene Route direkt dort, siehe 3.11.
 
 #### 2.3 Plugins & Lookup
 | Methode/Pfad | Zweck | Auth |
@@ -712,7 +716,7 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 - **Use Case:** Ein Fremder im Venue-WLAN rät den 4-stelligen PIN des Bandleiters – nach fünf Fehlversuchen ist Schluss, im Server-Log steht seine IP.
 
 #### 3.3 Hardware-Controller / „welches Band bedient dieser Server“ (`workspaceHardwareController.ts`, `activeWorkspaceStateStore.ts`) **[fertig]**
-- **Was:** Hält genau *ein* aktives Band. `activate(ws)` beendet zuerst das vorherige (Plugins deregistrieren, Sync und MIDI-Watcher stoppen) und startet dann Plugin-Sync + MIDI-Watcher für das neue. Die Wahl wird in `data/active-workspace.json` gespeichert und beim Start wiederhergestellt (Vorrang vor `STAGEBOARD_WORKSPACE`).
+- **Was:** Hält genau *ein* aktives Band. `activate(ws)` beendet zuerst das vorherige (Plugins deregistrieren, Sync, MIDI-Watcher und Async-Job-Watcher stoppen) und startet dann Plugin-Sync + MIDI-Watcher + Async-Job-Watcher (#5) für das neue. Die Wahl wird in `active-workspace.json` unter `STAGEBOARD_STATE_DIR` gespeichert (Default `./data`, produktiv `~/stageboard-data`) und beim Start wiederhergestellt (Vorrang vor `STAGEBOARD_WORKSPACE`).
 - **Wie:** Der Wechsel erfordert zwei Beweise (Admin des Ziels + Admin des laufenden Bands), damit niemand eine fremde Live-Show abwürgen kann.
 - **Grenzen:** Ohne aktives Band ist `GET /plugins` leer (kein Fehler – das war der Vorfall vom 2026-09-10). Nur ein Band gleichzeitig (bewusst: „zwei Bands an unterschiedlichen Tagen“).
 - **Use Case:** Marco spielt Samstag mit Band A, Sonntag mit Band B auf demselben Mini-PC: Er wechselt im Einstellungs-Wizard die aktive Band, die USB-MIDI-Geräte und Plugins folgen.
@@ -725,7 +729,7 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 
 #### 3.4b Audio-Speicher (`audioStore.ts`) **[fertig]**
 - **Was:** Backing-Track-Dateien liegen auf der Server-Platte, nicht in CouchDB (sonst müsste jedes Tablet den ganzen Audio-Katalog replizieren).
-- **Wie:** `writeAudioFile/readAudioFile/deleteAudioFile` unter `AUDIO_STORAGE_DIR` (Default `./data/audio`); Client-Seite: `audioClient.ts`.
+- **Wie:** `writeAudioFile/readAudioFile/deleteAudioFile` unter `AUDIO_STORAGE_DIR` (Default `./data/audio` - git-ignoriert *im Repo*, deshalb zeigt der produktive Server seit 2026-09-25 auf `~/stageboard-data/audio`); Client-Seite: `audioClient.ts`. Schreiber sind der Upload-Endpunkt und der Async-Job-Watcher (3.11).
 - **Grenzen:** Keine Authentifizierung, keine Prüfsumme, keine Streaming-/Range-Requests (ganze Datei per GET), kein Quota-Management serverseitig.
 - **Use Case:** Der Drummer lädt den Backing-Track „Wonderwall (ohne Schlagzeug)“ einmal im Proberaum hoch; alle Tablets ziehen ihn bei Bedarf.
 
@@ -762,6 +766,13 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `./d
 #### 3.10 Clock-Sync-Gegenstelle (`GET /time`) **[fertig]**
 - Ein Timestamp pro Anfrage, kein Zustand. Die eigentliche Intelligenz liegt im Client (`clockSync.ts`, siehe 6.1).
 
+#### 3.11 Async-Jobs und YouTube-Referenzspur (`asyncJobWatcher.ts`, `ytDlp.ts`, `shared-types/asyncJob.ts`; Client: `asyncJobsDb.ts`, `useAsyncJobsStore.ts`, `TrackManagerField.tsx`) **[fertig, Server-Seite live geprüft, auf dem Tablet ungeprüft]** (#5)
+- **Was:** Ein Tablet legt ein `AsyncJob`-Dokument an (`async-jobs:`-Präfix, repliziert wie alles andere); der Stage-Server erledigt die schwere Arbeit und meldet Fortschritt und Ergebnis über dasselbe Dokument zurück - kein eigener HTTP-Endpunkt. Einziger Job-Typ heute: `youtube-extract` - Audio eines YouTube-Videos als **Referenzspur** (`kind: 'reference'`, `source: 'youtube-extract'`) an eine Song-Variante hängen. Das `type`-Feld ist dafür da, dass spätere Arten (z. B. Stem-Trennung, #9) dieselbe Warteschlange nutzen.
+- **Wie:** Der Watcher hört - wie der Plugin-Sync - auf den `_changes`-Feed der **aktiven** Band (Long-Poll 30 s) und arbeitet **einen Job nach dem anderen** ab, ältester zuerst (`queued → running → done | error`, Fortschritt 0-1 höchstens alle 1,5 s geschrieben). Er ruft `yt-dlp` mit `bestaudio` auf (kein ffmpeg nötig, das Format bleibt wie von YouTube geliefert, meist WebM/Opus), nutzt das Node des Servers als JS-Runtime und legt die Datei im normalen Audio-Speicher ab (3.4b). Danach hängt er einen `TrackMeta` an die Variante; die Dauer ergänzt später der vorhandene `useTrackDurationBackfill`. Die Wiedergabe bevorzugt weiterhin einen *band-mix*-Track und nimmt die Referenz nur, wenn es keinen gibt.
+- **Schutz (weil produktiv):** URL (nur `https://` youtube.com/youtu.be) und Varianten-ID (sicheres Pfadsegment) werden serverseitig erneut geprüft, bevor irgendetwas ausgeführt oder geschrieben wird; die URL steht hinter `--`. Der Track wird an das **rohe** `tracks`-Array angehängt, nie an eine neu geparste Kopie (eine Variante, die das Schema nicht erfüllt, verliert so keine vorhandenen Tracks). Eine während des Downloads gelöschte Variante lässt den Job scheitern, statt sie als Stumpf neu anzulegen; schon geschriebenes Audio wird wieder gelöscht. Limits: Größe wie beim Upload (`MAX_AUDIO_UPLOAD_BYTES`, 200 MB), 15 min Zeitlimit (danach `SIGKILL`). Ein beim Serverstart noch `running` stehender Job wird als „Durch einen Neustart des Stage-Servers unterbrochen" markiert. In der Fehlermeldung stehen nur yt-dlps `ERROR:`-Zeilen.
+- **Grenzen:** Nur für die Band, deren Hardware der Server gerade bedient (3.3) - Jobs anderer Bands warten, bis diese aktiv ist. `yt-dlp` muss auf dem Server installiert sein (produktiv: offizielles Standalone-Release unter `~/.local/bin`, `YT_DLP_PATH` in der systemd-Unit, docs/03 §0b) und bei YouTube-Änderungen per `yt-dlp -U` aktualisiert werden. Ein laufender Download lässt sich nicht abbrechen. Keine Zugriffskontrolle über das hinaus, was CouchDB für Band-Mitglieder ohnehin erlaubt. Live geprüft (2026-09-25) nur mit einer Wegwerf-Datenbank: ein 19-s-Video → `done` in ~5 s, ein nicht verfügbares Video → `error`; der Ablauf im Editor, die Wiedergabe auf dem Tablet und der Fortschritt bei einem langen Download sind ungeprüft.
+- **Use Cases:** (1) Die Sängerin will einen neuen Song üben, für den es noch keinen Backing-Track gibt: Sie fügt im Song-Editor den YouTube-Link des Originals ein, kurz darauf liegt die Referenzspur auf allen Tablets und läuft im Loop-Trainer (ohne *band-mix* ist sie automatisch der gespielte Track, sonst per Widget „Track-Wahl"). (2) Der Bassist hängt an die Variante „Live 2019" die passende Konzertaufnahme als Referenz, ohne die Datei erst herunterzuladen und hochzuladen.
+
 ---
 
 ### 4. Datenmodell (`packages/shared-types`)
@@ -776,6 +787,7 @@ Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Ser
 | **ShowCue** | Hardware-Kommando am Song-Zeitpunkt, adressiert an ein **Logical Device**, nicht an eine Capability (#99). Gleiche Form wie ein `ShowControlEvent`. |
 | **Setlist / SetlistEntry** | Eintrag hat eigene `id` (dasselbe Lied darf zweimal vorkommen, z. B. Voll- und Kurzfassung), `variantId`, `trackId`, **neu (#232)** `transitionType` (`manual` / `next-ready` / `seamless` / `delayed`) und `transitionDelayMs`. Beides optional → Altbestände laufen als `manual`. |
 | **ShowState** | Singleton pro Band: aktive Setlist/Entry, **Master-Token** (`masterHolderId`, seit #32 mit Heartbeat auf dem Präsenz-Stream und `releaseMaster`), `readyCheckId` (offene Ready-Check-Abfrage, #60), Transport (`playbackStatus`, `playbackStartedAt`, `playbackAccumulatedMs`), sowie for-tonight-Overrides: `trackOverride`, `liveTempoAdjustPercent`, `clickTrackOverride`, `clickExtendMs`, plus `currentShowId/lastActivityAt` fürs Log. |
+| **AsyncJob** (#5) | `type` (heute nur `youtube-extract`), `status` (`queued`/`running`/`done`/`error`), `progress` 0-1, `variantId`, `url`, `label`, nach Abschluss `trackId` bzw. `error`. Plus `isYoutubeUrl`, die gemeinsame URL-Prüfung für Client und Server. |
 | **ShowLogEvent** | `show-started`, `song-played` (mit `activeMs`), `capability-changed`, `note` – Ereignisse sind die „Show“, es gibt kein Summary-Dokument. |
 | **Dashboard / WidgetInstance / LayoutItem** | Freies Raster pro Breakpoint (`sm/md/lg/xl`), Widget-Config je Instanz, `visibility`, `ownerProfileId/ownerRole` („Station“). |
 | **Profile** | `name`, `stageRoles` (`performer`, `lighttech`, `soundtech`, `crew`, `admin`). |
@@ -880,7 +892,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Grenzen:** Erkennung ist Assistenz, keine Wahrheit (Marcos Regel: gegen Ground-Truth prüfen). Echte Tempowechsel werden bewusst *nie* automatisch gesetzt (Marker sind manuell), nur die Tempo-Map liefert einen Vorschlag.
 - **Use Cases:** (1) „Track analysieren“ liefert BPM 118 und ein Beat-Raster, der Klick liegt sofort auf dem Backing-Track. (2) Für den Schlussteil mit Ritardando setzt der Drummer per Hand einen Tempomarker.
 
-**Stems / YouTube-Extraktion / Async-Jobs (#9, #5, #66)** sind **[geplant]** – `TrackMeta.source` kennt bereits `youtube-extract`/`stem-separation`, aber es gibt keine Pipeline dazu.
+**YouTube-Extraktion / Async-Jobs (#5)** sind seit 2026-09-25 **[fertig]**, siehe 3.11. **Stems (#9) und Tone-Match (#66)** bleiben **[geplant]** – `TrackMeta.source` kennt `stem-separation` schon, und die Async-Job-Warteschlange ist der vorgesehene Einstieg dafür.
 
 #### 6.6 Übergangstypen (#232, neu, `trackEndTransition.ts`, `useAutoStopDriver.ts`) **[fertig – nicht auf echtem Tablet geprüft]**
 - **Was:** Pro Setlist-Eintrag legt man fest, was am *Ende des Backing-Tracks* passiert: `manual` (Stopp – bisheriges Verhalten), `next-ready` (Stopp, nächster Song wird bereitgestellt), `seamless` (nächster Song startet sofort, ohne Einzähler, Klick wechselt in das Raster des nächsten Songs), `delayed` (nächster Song startet nach `transitionDelayMs`, mit seinem normalen Einzähler). Ohne Nachfolger → Stopp.
@@ -901,7 +913,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 #### 6.9 Workspace-Daten, Sync, Snapshots (`workspaceDb.ts`, `workspaceCollection.ts`, `trackedSync.ts`, `useWorkspaceResource.ts`, `workspaceAccessDoc.ts`, `workspaceSnapshot.ts`) **[fertig]**
 - **Was:** Eine lokale PouchDB pro Band, alle Sammlungen als Dokumente mit `<kind>:<id>`-Präfix in *einer* Datenbank/*einem* Live-Sync (löst das 6-Verbindungen-Limit von HTTP/1.1). `trackedSync` reiht Syncs ein und meldet Status. `WorkspaceAccessDoc` (schreibgeschützt für Clients) trägt Band-Code und Anzeigename. Snapshot-Export/-Import als Backup (nicht Show-Zustand/Health).
-- **Grenzen:** Snapshot ist manuell (das Backup-Plugin ist Mock, Server-Auto-Backup **[geplant]**). Clients sind für den Sync auf den Stage-Server-Proxy angewiesen (`remoteDbUrl`), es gibt kein P2P zwischen Tablets ohne Server.
+- **Grenzen:** Snapshot ist manuell (das Backup-Plugin ist Mock, Server-Auto-Backup **[geplant]**) und **unvollständig**: Er enthält weder das Track-Audio (liegt auf der Server-Platte) noch `logical-devices`, `devices`, `device-transport-config` und `async-jobs` - ein Restore nur aus der Datei verliert Backing-Tracks und Hardware-Einrichtung. Clients sind für den Sync auf den Stage-Server-Proxy angewiesen (`remoteDbUrl`), es gibt kein P2P zwischen Tablets ohne Server.
 - **Use Case:** Zuhause im Zug Setlist umbauen – im Proberaum verschmilzt PouchDB die Änderungen automatisch mit der CouchDB.
 
 #### 6.10 Sonstiges (kleine, aber reale Bausteine)
@@ -913,14 +925,14 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 27)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 26)
 
 | Bereich | Issues |
 |---|---|
 | **Live-Show-Automatik** | #7 Auto-Cue-Erkennung (erste Scheibe gebaut: Einrasten; offen: Validierung mit echten Abschnittszeiten in #267, Vorschlags-Zuweisung), #8 Live-Cue-Firing + Post-Show-Persistenz |
 | **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
 | **Musiker-Werkzeuge** | #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
-| **Audio-Pipeline** | #5 Async-Jobs/YouTube-Extraktion, #9 Stem-Trennung, #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
+| **Audio-Pipeline** | #9 Stem-Trennung (kann auf der Async-Job-Warteschlange aus #5 aufsetzen), #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
 | **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
 | **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
 | **Sonstiges** | #14 Live-Debug-Konsole, #15 Robustheit UG/MusicBrainz, #25 Visual-Metronome/Click (Feature-Kern läuft, Issue offen), #64 Post-Gig-Telemetrie, #65 Publikums-QR-Jukebox, #213 Container-Widgets |
