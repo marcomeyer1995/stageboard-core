@@ -1,11 +1,11 @@
+import { resolveTrackForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 
 /**
- * Swaps which track of the current variant plays, on top of the setlist's own lasting default
- * (SetlistEntry.trackId) - not solo-practice-only, despite living next to ShowTransportWidget's
+ * Swaps which track of the current variant plays - not solo-practice-only, despite living next to ShowTransportWidget's
  * Practice-mode audio: e.g. tonight's second guitarist couldn't make it, so the shared PA feed
  * needs the "1 guitar" mix instead of the setlist's usual "no guitar" one, and this is the
  * fastest way to swap it for just this show without editing the setlist itself. In Gig mode
@@ -13,11 +13,16 @@ import { SizeRatioSlider } from './SizeRatioSlider'
  * feed); in Practice mode it's a purely personal, local choice (only this device's speakers
  * are affected) - see useShowMode.ts.
  *
+ * The empty option is labelled with the track that plays without an override ("Automatisch
+ * (Mix komplett)"), resolved by the same `resolveTrackForEntry` playback uses - not "Standard
+ * (Setlist)": no setlist UI sets `SetlistEntry.trackId`, so the default is the variant's first
+ * band-mix (else its first track), not a setlist choice (Marco, 2026-09-25).
+ *
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14).
  */
 export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
   const { queue, trackOverride, canControl, setTrackOverride } = useShowMode()
-  const { currentVariant } = queue
+  const { currentEntry, currentVariant } = queue
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
@@ -37,6 +42,8 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
     )
   }
 
+  const defaultTrack = resolveTrackForEntry(currentEntry, currentVariant, null)
+
   return (
     <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
       <div className="w-full overflow-hidden">
@@ -51,7 +58,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
         style={{ fontSize }}
         className="rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
       >
-        <option value="">Standard (Setlist)</option>
+        <option value="">Automatisch ({defaultTrack?.label})</option>
         {currentVariant.tracks.map((track) => (
           <option key={track.id} value={track.id}>
             {track.label}
