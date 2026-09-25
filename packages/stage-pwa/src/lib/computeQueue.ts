@@ -46,7 +46,7 @@ export interface Queue {
  * isDefault variant. Per-entry (not per-songId) is what lets the same song appear twice in a
  * setlist with two different variants selected.
  */
-function resolveVariantForEntry(entry: SongEntry, variants: SongVariant[]): SongVariant | null {
+export function resolveVariantForEntry(entry: SongEntry, variants: SongVariant[]): SongVariant | null {
   const selected = entry.variantId
     ? variants.find((v) => v.id === entry.variantId && v.songId === entry.songId)
     : undefined
@@ -79,6 +79,9 @@ export function computeQueue(
   setlists: Setlist[],
   showState: Pick<ShowState, 'activeSetlistId' | 'activeEntryId'>,
   variants: SongVariant[] = [],
+  /** Practice mode's `variantOverride`: swaps the *current* entry's variant (and only that one)
+   * when it is a variant of the current song - a stale id from another song is ignored. */
+  currentVariantOverride: string | null = null,
 ): Queue {
   const activeSetlist = setlists.find((setlist) => setlist.id === showState.activeSetlistId) ?? null
 
@@ -117,8 +120,17 @@ export function computeQueue(
     orderedItems.findIndex((item) => item.entry.id === showState.activeEntryId),
   )
   const previous = orderedItems[index - 1] ?? null
-  const current = orderedItems[index] ?? orderedItems[0]
+  let current = orderedItems[index] ?? orderedItems[0]
   const next = orderedItems[index + 1] ?? null
+  const overrideVariant = currentVariantOverride && current.song
+    ? variants.find((v) => v.id === currentVariantOverride && v.songId === current.song?.id)
+    : undefined
+  if (overrideVariant) {
+    // `index` is always a valid position here (Math.max(0, ...) on a non-empty list), and the
+    // list itself carries the swap too, so e.g. a setlist view shows the variant actually played.
+    current = { ...current, variant: overrideVariant }
+    orderedItems[index] = current
+  }
   return {
     activeSetlist,
     orderedItems,
