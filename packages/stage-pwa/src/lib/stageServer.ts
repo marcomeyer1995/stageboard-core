@@ -13,8 +13,34 @@ import { useStageServerStore } from '../store/useStageServerStore'
  * non-React modules alike, same as the per-file `stageServerUrl()` helpers this replaces.
  */
 export function getStageServerUrl(): string | undefined {
-  const override = useStageServerStore.getState().url
-  if (override) return override
+  return useStageServerStore.getState().url || getAutomaticStageServerUrl()
+}
+
+/** What `getStageServerUrl()` falls back to when this device has no manual override - the
+ * address the app was loaded from (or `VITE_STAGE_SERVER_URL` under the Vite dev server). For a
+ * tablet that opened the app from the Stage-Server itself this is always right, which is why the
+ * Settings field is an *override* behind "Erweitert", not something to fill in. */
+export function getAutomaticStageServerUrl(): string | undefined {
   if (!import.meta.env.DEV) return window.location.origin
   return import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
+}
+
+/** Trimmed, without a trailing slash - so `https://stageboard.local/` and the origin
+ * `https://stageboard.local` compare equal. */
+export function normalizeStageServerUrl(url: string): string {
+  return url.trim().replace(/\/+$/, '')
+}
+
+/**
+ * What a typed-in address should do to the stored override: `null` (= automatic) when it is
+ * empty or just the automatic address anyway. Saving the automatic address *as* an override
+ * would pin today's address on this device - after an IP change or when the app is opened via
+ * `stageboard.local` instead of the IP, every server call would go to the stale, cross-origin
+ * address and fail with nothing pointing back to this setting.
+ */
+export function overrideForTypedUrl(typed: string): string | null {
+  const normalized = normalizeStageServerUrl(typed)
+  if (normalized === '') return null
+  const automatic = getAutomaticStageServerUrl()
+  return automatic !== undefined && normalized === normalizeStageServerUrl(automatic) ? null : normalized
 }
