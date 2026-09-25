@@ -39,22 +39,57 @@ Zwei einmalige, pro Maschine auszuführende Setup-Schritte bleiben auf der Stage
    ```
    sudo setcap 'cap_net_bind_service=+ep' "$(readlink -f "$(which node)")"
    ```
-   Danach `core-backend` mit `PORT=443` und `LAN_IP=<Stage-Server-IP>` starten - `packages/stage-pwa/.env`s `VITE_STAGE_SERVER_URL` entsprechend auf `https://stageboard.local` (ohne Port) setzen und `stage-pwa` neu bauen, da Vite Umgebungsvariablen zur Build-Zeit fest einbackt, nicht zur Laufzeit liest. **Welche Band der Server bedient** (Plugin-Sync, Discovery Modes Server-Teilnehmer) wird zur Laufzeit gewählt: Einstellungen -> "Aktive Band (Hardware)" -> "Band wechseln…" (Wizard: PIN des aktuellen Admins, Bandliste, ggf. Band-Code, Admin + PIN der Ziel-Band; jeder Schritt abbrechbar). Die Wahl steht in `packages/core-backend/data/active-workspace.json` (Ordner per `STAGEBOARD_STATE_DIR` änderbar) und überlebt Neustarts - ein neu gestarteter Server ist sofort wieder auf derselben Band. `STAGEBOARD_WORKSPACE=<Workspace-ID>` ist nur noch der Fallback für den allerersten Start ohne gespeicherte Wahl (die Datei hat Vorrang). Ohne aktive Band läuft weder Plugin-Sync noch Discovery Modes Server-Teilnehmer: der Server startet, sieht gesund aus, aber `GET /plugins` bleibt `[]` und jeder `/plugins/:name/trigger`-Aufruf schlägt mit "Unknown plugin" fehl - `GET /server/active-workspace` zeigt, ob eine Band aktiv ist. Live gefunden, 2026-09-10: ein Neustart ohne gesetzte Band lief tagelang unauffällig, bis der erste Plugin-Trigger fehlschlug. Die Workspace-IDs stehen unter `GET /workspaces`.
+   Danach `core-backend` mit `PORT=443` und `LAN_IP=<Stage-Server-IP>` starten - `packages/stage-pwa/.env`s `VITE_STAGE_SERVER_URL` entsprechend auf `https://stageboard.local` (ohne Port) setzen und `stage-pwa` neu bauen, da Vite Umgebungsvariablen zur Build-Zeit fest einbackt, nicht zur Laufzeit liest. **Welche Band der Server bedient** (Plugin-Sync, Discovery Modes Server-Teilnehmer) wird zur Laufzeit gewählt: Einstellungen -> "Aktive Band (Hardware)" -> "Band wechseln…" (Wizard: PIN des aktuellen Admins, Bandliste, ggf. Band-Code, Admin + PIN der Ziel-Band; jeder Schritt abbrechbar). Die Wahl steht in `active-workspace.json` im Ordner `STAGEBOARD_STATE_DIR` (Default `packages/core-backend/data`, auf dem produktiven Server `~/stageboard-data`, siehe 0b) und überlebt Neustarts - ein neu gestarteter Server ist sofort wieder auf derselben Band. `STAGEBOARD_WORKSPACE=<Workspace-ID>` ist nur noch der Fallback für den allerersten Start ohne gespeicherte Wahl (die Datei hat Vorrang). Ohne aktive Band läuft weder Plugin-Sync noch Discovery Modes Server-Teilnehmer: der Server startet, sieht gesund aus, aber `GET /plugins` bleibt `[]` und jeder `/plugins/:name/trigger`-Aufruf schlägt mit "Unknown plugin" fehl - `GET /server/active-workspace` zeigt, ob eine Band aktiv ist. Live gefunden, 2026-09-10: ein Neustart ohne gesetzte Band lief tagelang unauffällig, bis der erste Plugin-Trigger fehlschlug. Die Workspace-IDs stehen unter `GET /workspaces`.
 2. **SAN im Zertifikat** - bereits erledigt: `scripts/generate-dev-certs.sh` nimmt `stageboard.local` automatisch als zusätzlichen SAN mit auf, das gemeinsame Zertifikat deckt den Namen also schon ab, ohne einen zweiten Zertifikats-Tap zu erzwingen.
 
 Ein Gerät, das die nackte Domain ohne Schema eintippt (`stageboard.local` statt `https://stageboard.local`), bekommt vom Browser oft `http://` geraten - dafür lauscht `core-backend` zusätzlich auf Port 80 und leitet direkt auf `https://` um (derselbe Server, dieselbe `LAN_IP`/Port-443-Grundlage, kein weiterer Setup-Schritt).
 
-## 0b. Testen direkt auf dem echten Stage-Server, kein separater Dev-Server (Marcos ausdrücklicher Wunsch, 2026-09-16)
+## 0b. Der produktive Stage-Server (seit 2026-09-25)
 
-Solange StageBoard noch nicht produktiv im Einsatz ist, gibt es keinen Grund, Änderungen erst gegen einen separaten `npm run dev`/Vite-Dev-Server zu testen und erst später auf den echten, dauerhaft laufenden Stage-Server (`node dist/index.js`, siehe oben) zu bringen - der echte Server *ist* der Testserver. Zwei parallele, unterschiedlich konfigurierte Server (unterschiedlicher Port, unterschiedliche `FRONTEND_ORIGIN`/CORS-Origin) waren bereits einmal die eigentliche Ursache eines "Stage-Server nicht erreichbar"-Bugs, der wie ein App-Fehler aussah, aber nur eine CORS-Origin-Diskrepanz zwischen einem abweichend gestarteten Vite-Port (5174 statt 5173) und dem Server-Default war.
+Seit 2026-09-25 ist StageBoard bei Marco **produktiv im Einsatz** - alles, was ab jetzt angelegt wird (Songs, Setlists, Backing-Tracks, Dashboards, ...), darf durch keine künftige Iteration mehr verloren gehen. Deshalb sind Code, Daten und Prozess des echten Stage-Servers vom Entwicklungs-Checkout getrennt:
 
-**Der aktuelle Workflow:** Nach jeder Änderung, die getestet werden soll:
-1. `git checkout main && git pull` (nach dem Mergen eines PRs).
-2. `npm run build` in `packages/shared-types` und `packages/core-backend` (nur falls Backend-Code sich geändert hat) sowie `packages/stage-pwa`.
-3. Reine Frontend-Änderungen brauchen keinen Neustart - `@fastify/static` liefert `packages/stage-pwa/dist` frisch pro Request aus.
-4. Backend-Änderungen brauchen einen Neustart des laufenden `node dist/index.js`-Prozesses mit denselben Env-Variablen (`PORT=443 LAN_IP=<Stage-Server-IP>`) - die aktive Band kommt aus `data/active-workspace.json`, `STAGEBOARD_WORKSPACE` ist dafür nicht mehr nötig.
+| Was | Wo | Warum |
+|---|---|---|
+| **Code** | eigener Git-Worktree `~/stageboard-deploy` (losgelöster HEAD auf `origin/main`, eigene `node_modules`); `certs` darin ist ein Symlink auf `~/stageboard-core/certs` | Der Entwicklungs-Checkout `~/stageboard-core` darf WIP-Branches und uncommittete Änderungen haben, ohne dass sie versehentlich auf dem Server landen. |
+| **Daten** | `~/stageboard-data/` - `audio/` (Backing-Tracks), `active-workspace.json` (aktive Band), `plugins/` (Plugin-Bundles); gesetzt über `AUDIO_STORAGE_DIR`, `STAGEBOARD_STATE_DIR`, `PLUGIN_BUNDLE_DIR` | Die Defaults (`./data` in `packages/core-backend`) liegen in einem git-ignorierten Ordner im Repo - ein `git clean -fdx`, ein neuer Clone oder ein Worktree-Wechsel hätte die Backing-Tracks gelöscht. |
+| **Songs, Setlists, Dashboards, Konten, ...** | CouchDB, Docker-Volume `stageboard-core_couchdb-data` (`restart: unless-stopped`) | unverändert |
+| **Prozess** | systemd-**User**-Unit `~/.config/systemd/user/stageboard.service`, `Restart=always`, Linger aktiv (`loginctl enable-linger`) | Startet beim Booten ohne Login und nach einem Absturz neu - vorher lief der Server per Hand-`nohup` und kam nach einem Reboot nicht zurück. |
 
-Details und die genauen Befehle dazu, siehe [[real-server-deployment]]. Weder `vite --host` noch `tsx watch` (core-backend) laufen aktuell als eigene, dauerhafte Prozesse - beide wurden am 2026-09-16 bewusst gestoppt. Die Dev-Server-Infrastruktur selbst (Vite-Config, `scripts/generate-dev-certs.sh`) bleibt im Repo bestehen, falls sie später wieder gebraucht wird (z.B. für sehr schnelle UI-Iteration ohne Redeploy) - sie ist nur nicht mehr der Standard-Testweg.
+Die Unit (`%h` = Home-Verzeichnis):
+
+```ini
+[Unit]
+Description=StageBoard Stage-Server (compiled main build in ~/stageboard-deploy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/stageboard-deploy/packages/core-backend
+Environment=PORT=443
+Environment=LAN_IP=192.168.178.158
+Environment=AUDIO_STORAGE_DIR=%h/stageboard-data/audio
+Environment=STAGEBOARD_STATE_DIR=%h/stageboard-data
+Environment=PLUGIN_BUNDLE_DIR=%h/stageboard-data/plugins
+ExecStart=%h/.nvm/versions/node/v24.19.0/bin/node dist/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Port 443 ohne root geht, weil das nvm-Node-Binary `cap_net_bind_service` hat. **Bei einem Node-Update** (neue Version in `.nvmrc`) muss `ExecStart` angepasst und die Capability auf das neue Binary gesetzt werden: `sudo setcap cap_net_bind_service=ep ~/.nvm/versions/node/<version>/bin/node`, dann `systemctl --user daemon-reload && systemctl --user restart stageboard`. Logs: `journalctl --user -u stageboard` (ersetzt das frühere `real-server.log`).
+
+**Redeploy nach dem Mergen eines PRs:**
+1. `cd ~/stageboard-deploy && git fetch && git checkout --detach origin/main`
+2. `npm ci`, falls sich Abhängigkeiten geändert haben; dann `npm run build -w shared-types`, `npm run build -w core-backend` (nur falls Backend-Code sich geändert hat) und `npm run build -w stage-pwa`.
+3. Reine Frontend-Änderungen brauchen keinen Neustart - `@fastify/static` liefert `packages/stage-pwa/dist` frisch pro Request aus. Prüfen: der Hash aus `curl -sk https://stageboard.local/ | grep -o 'assets/index-[a-zA-Z0-9_-]*\.js'` muss zum neuen Build passen.
+4. Backend-Änderungen: `systemctl --user restart stageboard`. Danach `GET /server/active-workspace` prüfen (darf nicht `null` sein, siehe oben).
+
+**Kein zweiter Server gegen dieselben Daten.** Zwei parallele, unterschiedlich konfigurierte Server (unterschiedlicher Port, unterschiedliche `FRONTEND_ORIGIN`/CORS-Origin) waren bereits einmal die eigentliche Ursache eines "Stage-Server nicht erreichbar"-Bugs, der wie ein App-Fehler aussah, aber nur eine CORS-Origin-Diskrepanz zwischen einem abweichend gestarteten Vite-Port (5174 statt 5173) und dem Server-Default war. Seit dem Produktivbetrieb kommt hinzu: ein `npm run dev` im Entwicklungs-Checkout verbindet sich mit **derselben** CouchDB und schreibt damit in die echten Bands (Audio und aktive Band kämen dagegen aus dem leeren lokalen `./data`). Weder `vite --host` noch `tsx watch` (core-backend) laufen deshalb als eigene, dauerhafte Prozesse (bewusst gestoppt am 2026-09-16); die Dev-Server-Infrastruktur (Vite-Config, `scripts/generate-dev-certs.sh`) bleibt im Repo, ist aber nicht der Standard-Testweg. Wer sie wieder nutzt, braucht vorher eine eigene CouchDB-Instanz bzw. eigene Datenbanken.
+
+**Noch offen:** Es gibt noch kein automatisches Backup auf ein zweites Medium - CouchDB-Volume, `~/stageboard-data` und `certs/` liegen auf einer einzigen Platte. Der manuelle Snapshot in der App (System → Backup, `workspaceSnapshot.ts`) enthält weder die Backing-Tracks noch `logical-devices`/`devices`/`device-transport-config`.
 
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
