@@ -71,6 +71,7 @@ Environment=LAN_IP=192.168.178.158
 Environment=AUDIO_STORAGE_DIR=%h/stageboard-data/audio
 Environment=STAGEBOARD_STATE_DIR=%h/stageboard-data
 Environment=PLUGIN_BUNDLE_DIR=%h/stageboard-data/plugins
+Environment=YT_DLP_PATH=%h/.local/bin/yt-dlp
 ExecStart=%h/.nvm/versions/node/v24.19.0/bin/node dist/index.js
 Restart=always
 RestartSec=5
@@ -79,7 +80,7 @@ RestartSec=5
 WantedBy=default.target
 ```
 
-Port 443 ohne root geht, weil das nvm-Node-Binary `cap_net_bind_service` hat. **Bei einem Node-Update** (neue Version in `.nvmrc`) muss `ExecStart` angepasst und die Capability auf das neue Binary gesetzt werden: `sudo setcap cap_net_bind_service=ep ~/.nvm/versions/node/<version>/bin/node`, dann `systemctl --user daemon-reload && systemctl --user restart stageboard`. Logs: `journalctl --user -u stageboard` (ersetzt das frühere `real-server.log`).
+`YT_DLP_PATH` zeigt auf das offizielle Standalone-Release von yt-dlp (für die YouTube-Extraktion, #5; Checksumme gegen `SHA2-256SUMS` des Releases geprüft) - kein ffmpeg nötig, als JS-Runtime nutzt yt-dlp das Node des Servers. Aktualisieren: `~/.local/bin/yt-dlp -U`. Port 443 ohne root geht, weil das nvm-Node-Binary `cap_net_bind_service` hat. **Bei einem Node-Update** (neue Version in `.nvmrc`) muss `ExecStart` angepasst und die Capability auf das neue Binary gesetzt werden: `sudo setcap cap_net_bind_service=ep ~/.nvm/versions/node/<version>/bin/node`, dann `systemctl --user daemon-reload && systemctl --user restart stageboard`. Logs: `journalctl --user -u stageboard` (ersetzt das frühere `real-server.log`).
 
 **Redeploy nach dem Mergen eines PRs:**
 1. `cd ~/stageboard-deploy && git fetch && git checkout --detach origin/main`
