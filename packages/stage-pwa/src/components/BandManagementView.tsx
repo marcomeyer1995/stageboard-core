@@ -6,6 +6,7 @@ import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useNow } from '../lib/useNow'
+import { getAutomaticStageServerUrl, normalizeStageServerUrl, overrideForTypedUrl } from '../lib/stageServer'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePresenceStore } from '../store/usePresenceStore'
@@ -411,12 +412,17 @@ export function BandManagementView() {
               <button
                 type="button"
                 onClick={async () => {
+                  // Pre-filled with the address this app was loaded from - on a tablet that opened
+                  // the app from the Stage-Server that is already the right one, just confirm.
                   const serverUrl = await promptText('Mit Stage-Server verbinden', {
-                    label: 'Server-Adresse (z.B. https://192.168.1.50:3001)',
+                    label: 'Server-Adresse (z.B. https://stageboard.local)',
+                    defaultValue: getAutomaticStageServerUrl() ?? '',
                   })
                   if (!serverUrl?.trim()) return
-                  setStageServerUrl(serverUrl.trim())
-                  await connectToServer(serverUrl.trim())
+                  // Only a *different* address becomes a manual override (stageServer.ts's
+                  // overrideForTypedUrl) - confirming the automatic one must not pin it.
+                  setStageServerUrl(overrideForTypedUrl(serverUrl))
+                  await connectToServer(normalizeStageServerUrl(serverUrl))
                 }}
                 className="rounded-sb border border-line bg-control px-4 py-2 font-semibold hover:bg-control-hover"
               >

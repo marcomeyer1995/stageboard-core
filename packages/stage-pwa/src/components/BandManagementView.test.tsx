@@ -15,6 +15,7 @@ const { useActiveProfileStore } = await import('../store/useActiveProfileStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { usePresenceStore } = await import('../store/usePresenceStore')
 const { useProfilesStore } = await import('../store/useProfilesStore')
+const { useStageServerStore } = await import('../store/useStageServerStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { BandManagementView } = await import('./BandManagementView')
 
@@ -699,18 +700,39 @@ describe('BandManagementView', () => {
       expect(screen.getByText('Verbinden')).toBeInTheDocument()
     })
 
-    it('"Verbinden" asks for a server address, persists it, and calls connectToServer - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
+    it('"Verbinden" asks for a server address, persists a different one as override, and calls connectToServer - no per-member follow-up anymore (2026-09-01 redesign)', async () => {
+      vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stageboard.local')
+      useStageServerStore.setState({ url: null })
       const connectToServer = vi.fn().mockResolvedValue(true)
+      const promptText = vi.fn().mockResolvedValue('https://stage-server:3001/')
       useProfilesStore.setState({ connectToServer })
-      useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stage-server:3001') })
+      useDialogStore.setState({ promptText })
 
       render(<BandManagementView />)
       fireEvent.click(screen.getByText('Verbinden'))
 
       await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stage-server:3001'))
+      // Pre-filled with the automatic address, so on a tablet served by the Stage-Server it's
+      // just a confirmation.
+      expect(promptText).toHaveBeenCalledWith('Mit Stage-Server verbinden', expect.objectContaining({ defaultValue: 'https://stageboard.local' }))
+      expect(useStageServerStore.getState().url).toBe('https://stage-server:3001')
       // No "Verbunden. Jetzt die restlichen Mitglieder..." list anymore - self-service join
       // (the band-level "Einladen" code) covers every already-typed-in member instead.
       expect(screen.queryByText(/Jetzt die restlichen Mitglieder/)).not.toBeInTheDocument()
+    })
+
+    it('"Verbinden" with the pre-filled automatic address connects without pinning it as an override', async () => {
+      vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stageboard.local')
+      useStageServerStore.setState({ url: 'https://stale-override' })
+      const connectToServer = vi.fn().mockResolvedValue(true)
+      useProfilesStore.setState({ connectToServer })
+      useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('https://stageboard.local') })
+
+      render(<BandManagementView />)
+      fireEvent.click(screen.getByText('Verbinden'))
+
+      await waitFor(() => expect(connectToServer).toHaveBeenCalledWith('https://stageboard.local'))
+      expect(useStageServerStore.getState().url).toBeNull()
     })
 
     it('"+ Neues Mitglied" still works while local-only - just a name, same as connected', async () => {
