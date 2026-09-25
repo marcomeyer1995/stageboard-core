@@ -47,6 +47,7 @@ import { usePresenceStore } from './store/usePresenceStore'
 import { useProfilesStore } from './store/useProfilesStore'
 import { useRosterSetupStore } from './store/useRosterSetupStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
+import { useAsyncJobsStore } from './store/useAsyncJobsStore'
 import { useShowLogStore } from './store/useShowLogStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
@@ -125,6 +126,7 @@ function App() {
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
   // usePresenceStore just above, it's opened only while DeviceLedgerView.tsx is actually

@@ -1,4 +1,5 @@
 export * from './song.js'
+export * from './asyncJob.js'
 export * from './plugin.js'
 export * from './capability.js'
 export * from './device.js'

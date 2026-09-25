@@ -1,3 +1,4 @@
+import { createAsyncJobWatcher, type AsyncJobWatcherHandle } from './asyncJobWatcher.js'
 import type { CouchConfig } from './couch.js'
 import { createMidiWatcher, type MidiWatcherHandle } from './midiWatcher.js'
 import { createPluginSync, type PluginSyncHandle } from './plugins/pluginSync.js'
@@ -35,7 +36,7 @@ export function createWorkspaceHardwareController(
 ): WorkspaceHardwareController {
   const { couch, registry, log } = options
 
-  let current: { workspaceId: string; sync: PluginSyncHandle; midiWatcher: MidiWatcherHandle } | null = null
+  let current: { workspaceId: string; sync: PluginSyncHandle; midiWatcher: MidiWatcherHandle; asyncJobs: AsyncJobWatcherHandle } | null = null
 
   async function deactivate(): Promise<void> {
     if (!current) return
@@ -49,6 +50,7 @@ export function createWorkspaceHardwareController(
 
     current.sync.stop()
     current.midiWatcher.stop()
+    current.asyncJobs.stop()
     log.info('Deactivated workspace hardware', { workspaceId: current.workspaceId })
     current = null
   }
@@ -58,7 +60,10 @@ export function createWorkspaceHardwareController(
 
     const sync = createPluginSync({ couch, workspaceId, registry, log })
     const midiWatcher = createMidiWatcher({ couch, workspaceId, log })
-    current = { workspaceId, sync, midiWatcher }
+    // #5: practice-track extraction only ever runs for whichever band's hardware is currently
+    // active on this box - same one-workspace-at-a-time model everything else here already uses.
+    const asyncJobs = createAsyncJobWatcher({ couch, workspaceId, log })
+    current = { workspaceId, sync, midiWatcher, asyncJobs }
 
     writePersistedActiveWorkspace(workspaceId)
     log.info('Activated workspace hardware', { workspaceId })

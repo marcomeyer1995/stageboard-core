@@ -6,6 +6,7 @@ import type { IShowControlPlugin, PluginContext } from 'shared-types'
 
 const pluginSyncStop = vi.fn()
 const midiWatcherStop = vi.fn()
+const asyncJobWatcherStop = vi.fn()
 
 vi.mock('./plugins/pluginSync.js', () => ({
   createPluginSync: vi.fn(() => ({
@@ -19,8 +20,13 @@ vi.mock('./midiWatcher.js', () => ({
   createMidiWatcher: vi.fn(() => ({ stop: midiWatcherStop })),
 }))
 
+vi.mock('./asyncJobWatcher.js', () => ({
+  createAsyncJobWatcher: vi.fn(() => ({ stop: asyncJobWatcherStop, syncOnce: vi.fn() })),
+}))
+
 import { createPluginSync } from './plugins/pluginSync.js'
 import { createMidiWatcher } from './midiWatcher.js'
+import { createAsyncJobWatcher } from './asyncJobWatcher.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import { PluginRegistry } from './plugins/registry.js'
 
@@ -76,10 +82,12 @@ describe('workspaceHardwareController', () => {
     await controller.activate('abadschendaler')
     expect(createPluginSync).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'abadschendaler' }))
     expect(createMidiWatcher).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'abadschendaler' }))
+    expect(createAsyncJobWatcher).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'abadschendaler' }))
 
     await controller.activate('soat')
     expect(pluginSyncStop).toHaveBeenCalledTimes(1)
     expect(midiWatcherStop).toHaveBeenCalledTimes(1)
+    expect(asyncJobWatcherStop).toHaveBeenCalledTimes(1)
     expect(createPluginSync).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: 'soat' }))
     expect(controller.getActiveWorkspaceId()).toBe('soat')
   })
@@ -110,5 +118,6 @@ describe('workspaceHardwareController', () => {
     await expect(controller.deactivate()).resolves.toBeUndefined()
     expect(pluginSyncStop).not.toHaveBeenCalled()
     expect(midiWatcherStop).not.toHaveBeenCalled()
+    expect(asyncJobWatcherStop).not.toHaveBeenCalled()
   })
 })
