@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Song, SongVariant } from 'shared-types'
 
@@ -261,5 +261,21 @@ describe('SheetEditor - song switching moved to LibraryView', () => {
     expect(screen.queryByRole('button', { name: '+ Neuer Song' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Song löschen' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '← Bibliothek' })).toBeInTheDocument()
+  })
+})
+
+describe('SheetEditor - song not in the store yet when the editor opens', () => {
+  // LibraryView's "+ Neu" saves the song to PouchDB and opens the editor right away; the songs
+  // store only picks the new song up a moment later (change feed -> refreshSongs). The editor
+  // must load it once it arrives instead of staying on "Lade…" forever.
+  it('loads the song as soon as it reaches the store', async () => {
+    stubViewport({ orientation: 'portrait' })
+    useSongsStore.setState({ songs: [] })
+    render(<SheetEditor songId={song.id} variantId={null} onBack={vi.fn()} />)
+    expect(screen.getByText('Lade…')).toBeInTheDocument()
+
+    act(() => useSongsStore.setState({ songs: [song] }))
+
+    expect(await screen.findByLabelText('Titel')).toBeInTheDocument()
   })
 })

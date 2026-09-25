@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Song, SongVariant } from 'shared-types'
 
@@ -137,5 +137,18 @@ describe('SongPreview', () => {
     render(<SongPreview songId="missing" variantId={null} onEdit={vi.fn()} />)
 
     expect(screen.getByText('Lade…')).toBeInTheDocument()
+  })
+})
+
+describe('SongPreview - song not in the store yet when it mounts', () => {
+  it('loads the song as soon as it reaches the store instead of staying on "Lade…"', async () => {
+    resolvedVariant = variant
+    useSongsStore.setState({ songs: [] })
+    render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
+    expect(screen.getByText('Lade…')).toBeInTheDocument()
+
+    act(() => useSongsStore.setState({ songs: [song] }))
+
+    expect(await screen.findByText('Sweet Child O’ Mine')).toBeInTheDocument()
   })
 })

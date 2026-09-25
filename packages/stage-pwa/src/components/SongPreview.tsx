@@ -40,9 +40,10 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     }
     // Only the ids matter here - re-running on every songs/variants array reference change (a
     // new array each render, since both are derived) would refetch on every unrelated store
-    // update.
+    // update. `!!song` is the one exception: a song that reaches the store only after this
+    // mounted (just created, or still syncing in) must still load instead of staying "Lade…".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songId, variantId])
+  }, [songId, variantId, !!song])
 
   if (!song || !variant) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
