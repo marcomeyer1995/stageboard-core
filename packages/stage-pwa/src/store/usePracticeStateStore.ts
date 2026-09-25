@@ -13,6 +13,12 @@ export interface PracticeState {
    * personal choice here (only this device's speakers are ever affected), unlike
    * ShowState.trackOverride's Master-gated, shared equivalent for Gig mode. */
   trackOverride: string | null
+  /** Which variant of the current song to practice, overriding the entry's own pick (or the
+   * song's default variant) - the only way to reach a non-default variant without an active
+   * setlist, whose catalog entries all carry `variantId: null`. Personal and local, like
+   * `trackOverride`; reset together with it whenever the current entry changes. Gig mode has no
+   * equivalent: there the variant is the setlist's, a band-wide choice. */
+  variantOverride: string | null
   /** Force-on/off for the Click Generator (#25) during this practice session, overriding the
    * song's own `clickTrackEnabled` default - purely a personal choice here, unlike
    * ShowState.clickTrackOverride's Master-gated, shared equivalent for Gig mode. Training with
@@ -32,6 +38,7 @@ export const DEFAULT_PRACTICE_STATE: PracticeState = {
   activeSetlistId: null,
   activeEntryId: null,
   trackOverride: null,
+  variantOverride: null,
   clickTrackOverride: null,
   clickExtendMs: 0,
   playbackStatus: 'stopped',
@@ -60,8 +67,9 @@ export const usePracticeStateStore = create<PracticeStateStore>()(
     }),
     {
       name: 'stageboard-practice-state',
-      version: 2,
-      // v0 -> v1 (#25): clickTrackOverride is new. v1 -> v2 (#231): clickExtendMs is new. Every
+      version: 3,
+      // v0 -> v1 (#25): clickTrackOverride is new. v1 -> v2 (#231): clickExtendMs is new. v2 -> v3:
+      // variantOverride is new (Practice-mode variant picker). Every
       // read site trusts a byWorkspace entry to be a complete PracticeState (falling back to
       // DEFAULT_PRACTICE_STATE only when the whole entry is missing, not per-field) - without
       // this, a device with older persisted practice state would rehydrate `clickExtendMs:

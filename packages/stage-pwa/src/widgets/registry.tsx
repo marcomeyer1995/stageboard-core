@@ -262,8 +262,9 @@ const DEFINITIONS: WidgetDefinition[] = [
   }),
   defineWidget({
     type: 'track-override',
-    title: 'Track-Wahl',
-    description: 'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre").',
+    title: 'Variante & Track',
+    description:
+      'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre"); in Solo Üben auch die Variante.',
     category: 'performance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: TrackOverrideConfigSchema,

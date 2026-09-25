@@ -28,7 +28,7 @@ export function usePracticeQueue(): Queue {
   const setlists = useSetlistsStore((state) => state.setlists)
   const variants = useSongVariantsStore((state) => state.variants)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
-  return computeQueue(songs, setlists, practiceState, variants)
+  return computeQueue(songs, setlists, practiceState, variants, practiceState.variantOverride)
 }
 
 function activeWorkspaceId(): string {
@@ -49,6 +49,7 @@ function snapshot(): Queue {
     useSetlistsStore.getState().setlists,
     currentPracticeState(),
     useSongVariantsStore.getState().variants,
+    currentPracticeState().variantOverride,
   )
 }
 
@@ -166,6 +167,7 @@ export function practiceSetActiveSetlist(setlistId: string | null): void {
     activeSetlistId: setlistId,
     activeEntryId: null,
     trackOverride: null,
+    variantOverride: null,
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
@@ -180,6 +182,7 @@ export async function practiceAdvanceNext(): Promise<void> {
   patch({
     activeEntryId: nextEntry.id,
     trackOverride: null,
+    variantOverride: null,
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
@@ -194,6 +197,7 @@ export async function practiceAdvancePrevious(): Promise<void> {
   patch({
     activeEntryId: previousEntry.id,
     trackOverride: null,
+    variantOverride: null,
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
@@ -203,6 +207,22 @@ export async function practiceAdvancePrevious(): Promise<void> {
 
 export function practiceSetTrackOverride(trackId: string | null): void {
   patch({ trackOverride: trackId })
+}
+
+/** Switches which variant of the current song is practiced (`null` = the entry's own variant).
+ * Another variant means other tracks, timing and cues, so this stops playback and drops the
+ * track override (its id belongs to the old variant's tracks) - the same reset as moving to
+ * another entry, just without moving. */
+export function practiceSetVariantOverride(variantId: string | null): void {
+  if (currentPracticeState().variantOverride === variantId) return
+  clearScheduledAudioStart()
+  patch({
+    variantOverride: variantId,
+    trackOverride: null,
+    clickExtendMs: 0,
+    ...transportPatch(ARMED_TRANSPORT),
+  })
+  stopLocalTrack()
 }
 
 export function practiceSetClickTrackOverride(override: 'on' | 'off' | null): void {

@@ -109,6 +109,8 @@ function mockShowMode(overrides: {
     next: vi.fn(),
     previous: vi.fn(),
     setTrackOverride: vi.fn(),
+    variantOverride: null,
+    setVariantOverride: null,
   })
 }
 

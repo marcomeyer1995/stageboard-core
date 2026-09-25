@@ -22,6 +22,7 @@ import {
   practiceResetSong,
   practiceSetClickTrackOverride,
   practiceSetTrackOverride,
+  practiceSetVariantOverride,
   practiceStopSong,
   usePracticeQueue,
 } from './practiceQueue'
@@ -66,6 +67,11 @@ export interface ShowModeApi {
   next: () => Promise<void>
   previous: () => Promise<void>
   setTrackOverride: (trackId: string | null) => void
+  /** Practice mode's variant picker (`null` = the entry's own variant). Gig mode has none - the
+   * variant there is the setlist's, a band-wide choice - so `setVariantOverride` is `null` in
+   * Gig mode, which is also how TrackOverrideWidget decides whether to offer the picker. */
+  variantOverride: string | null
+  setVariantOverride: ((variantId: string | null) => void) | null
 }
 
 /**
@@ -111,6 +117,8 @@ export function useShowMode(): ShowModeApi {
       next: practiceAdvanceNext,
       previous: practiceAdvancePrevious,
       setTrackOverride: practiceSetTrackOverride,
+      variantOverride: practiceState.variantOverride,
+      setVariantOverride: practiceSetVariantOverride,
     }
   }
 
@@ -134,5 +142,7 @@ export function useShowMode(): ShowModeApi {
     next: advanceToNextSong,
     previous: advanceToPreviousSong,
     setTrackOverride: (trackId) => void setTrackOverride(trackId),
+    variantOverride: null,
+    setVariantOverride: null,
   }
 }

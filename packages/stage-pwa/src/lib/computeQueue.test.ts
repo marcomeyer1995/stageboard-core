@@ -192,6 +192,33 @@ describe('computeQueue variant resolution', () => {
   })
 })
 
+describe('computeQueue - Practice-mode variant override', () => {
+  const variants = [
+    variant({ id: 'v-a', songId: 'a', isDefault: true }),
+    variant({ id: 'v-a-acoustic', songId: 'a', isDefault: false, label: 'Akustik' }),
+    variant({ id: 'v-b', songId: 'b', isDefault: true }),
+  ]
+
+  it('swaps the current variant without an active setlist, only for the current entry', () => {
+    const queue = computeQueue(songs, [], emptyShowState, variants, 'v-a-acoustic')
+    expect(queue.currentVariant?.id).toBe('v-a-acoustic')
+    expect(queue.orderedItems[0]?.variant?.id).toBe('v-a-acoustic')
+    expect(queue.nextVariant?.id).toBe('v-b')
+  })
+
+  it('also wins over a setlist entry\'s own variant pick', () => {
+    const sl = setlist('sl-1', [entry('e1', 'a', 'v-a'), entry('e2', 'b')])
+    const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' }, variants, 'v-a-acoustic')
+    expect(queue.currentVariant?.id).toBe('v-a-acoustic')
+  })
+
+  it('ignores an override that belongs to another song', () => {
+    const queue = computeQueue(songs, [], emptyShowState, variants, 'v-b')
+    expect(queue.currentVariant?.id).toBe('v-a')
+    expect(queue.nextVariant?.id).toBe('v-b')
+  })
+})
+
 describe('resolveTrackForEntry', () => {
   function track(id: string, kind: TrackMeta['kind']): TrackMeta {
     return { id, kind, label: id, source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }

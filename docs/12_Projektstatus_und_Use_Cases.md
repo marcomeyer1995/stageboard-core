@@ -124,13 +124,13 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Capability:** `click-track` per Routing (nicht im `requires`).
 - **Use Cases:** (1) Für einen Song ohne Klick-Vorgabe schaltet der Drummer den Klick spontan „An" (für seine IEM). (2) Solo-Üben: Gitarrist trainiert mit fest eingeschaltetem Klick, unabhängig von der Song-Einstellung.
 
-#### 9. Track-Wahl (`track-override`)
-- **Was:** Dropdown, um kurzfristig einen anderen Backing-Track der aktuellen Variante zu wählen, ohne die Setlist zu ändern. Die Standard-Option heißt „Automatisch (<Track>)" und nennt den Track, der ohne Auswahl läuft: der erste *band-mix*, sonst der erste Track. (Früher „Standard (Setlist)" - irreführend, denn keine Setlist-Oberfläche setzt `SetlistEntry.trackId`; das Feld existiert nur im Datenmodell.)
+#### 9. Variante & Track (`track-override`, früher „Track-Wahl")
+- **Was:** Dropdown, um kurzfristig einen anderen Backing-Track der aktuellen Variante zu wählen, ohne die Setlist zu ändern. **In Solo Üben zusätzlich eine Varianten-Auswahl** (nur wenn der Song mehr als eine Variante hat): „Automatisch (<Variante>)" = die des Setlist-Eintrags bzw. die Standard-Variante, sonst eine bestimmte. Ohne aktive Setlist ist das der einzige Weg, eine andere als die Standard-Variante zu üben. Die Wahl ist lokal (`usePracticeStateStore.variantOverride`), stoppt die Wiedergabe, setzt die Track-Wahl zurück und gilt bis zum nächsten Song; alle Widgets (Prompter, Klick, Loop-Trainer, Transport) folgen ihr. Im Gig-Modus gibt es sie bewusst nicht - dort bestimmt die Setlist die Variante für die ganze Band. Die Standard-Option heißt „Automatisch (<Track>)" und nennt den Track, der ohne Auswahl läuft: der erste *band-mix*, sonst der erste Track. (Früher „Standard (Setlist)" - irreführend, denn keine Setlist-Oberfläche setzt `SetlistEntry.trackId`; das Feld existiert nur im Datenmodell.)
 - **Config:** `sizeRatio` (1).
 - **Gig vs. Practice:** beide. Gig: Master-gesteuert, geteilt (alle hören denselben Feed). Practice: rein lokal.
 - **Disabled/Degradation:** Ohne Tracks „Kein Track angehängt"; bei nur einem Track „Nur ein Track vorhanden – kein Wechsel nötig"; Dropdown deaktiviert ohne Kontrolle.
 - **Capability:** keine.
-- **Use Cases:** (1) Heute fehlt der zweite Gitarrist – der Techniker/Master schaltet auf den Track „1 Gitarre" statt „keine Gitarre". (2) Solo-Üben: Bassist wählt den Track „ohne Bass", um zum Rest der Band zu spielen.
+- **Use Cases:** (1) Heute fehlt der zweite Gitarrist – der Techniker/Master schaltet auf den Track „1 Gitarre" statt „keine Gitarre". (2) Solo-Üben: Bassist wählt den Track „ohne Bass", um zum Rest der Band zu spielen. (3) Solo-Üben ohne aktive Setlist: Die Sängerin wählt die Variante „Akustik" statt „Original" und übt dazu mit Prompter, Klick und Loop-Trainer der Akustik-Fassung.
 
 #### 10. Fußtaster (`midi-status`)
 - **Was:** Zeigt den WebMIDI-Status („Kein WebMIDI" / „Kein Fußtaster" / „Fußtaster verbunden") und einen Button „Fußtaster simulieren", der `jumpToNextSection` auslöst (Sprung zum nächsten Song-Part). 

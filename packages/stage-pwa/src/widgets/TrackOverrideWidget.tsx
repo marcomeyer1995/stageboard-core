@@ -1,6 +1,8 @@
-import { resolveTrackForEntry } from '../lib/computeQueue'
+import { isSongEntry } from 'shared-types'
+import { resolveTrackForEntry, resolveVariantForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 
@@ -18,53 +20,85 @@ import { SizeRatioSlider } from './SizeRatioSlider'
  * (Setlist)": no setlist UI sets `SetlistEntry.trackId`, so the default is the variant's first
  * band-mix (else its first track), not a setlist choice (Marco, 2026-09-25).
  *
+ * In Practice mode it also picks the *variant* (Marco, 2026-09-25): without an active setlist
+ * every catalog entry carries `variantId: null`, so this is the only way to practice a
+ * non-default variant. Personal and local (usePracticeStateStore.variantOverride); Gig mode
+ * doesn't offer it - the variant there is the setlist's, a band-wide choice.
+ *
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14).
  */
 export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
-  const { queue, trackOverride, canControl, setTrackOverride } = useShowMode()
-  const { currentEntry, currentVariant } = queue
+  const { queue, trackOverride, canControl, setTrackOverride, variantOverride, setVariantOverride } = useShowMode()
+  const { currentEntry, currentSong, currentVariant } = queue
+  const variants = useSongVariantsStore((state) => state.variants)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
 
-  if (!currentVariant || currentVariant.tracks.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Kein Track angehängt
-      </div>
-    )
-  }
+  // Practice mode only (setVariantOverride is null in Gig mode) and only when there is actually
+  // something to choose. The default option names the variant the entry itself resolves to -
+  // the setlist's pick, else the song's default variant.
+  const songVariants = currentSong ? variants.filter((v) => v.songId === currentSong.id) : []
+  const entryVariant = currentEntry && isSongEntry(currentEntry) ? resolveVariantForEntry(currentEntry, variants) : null
+  const showVariantPicker = setVariantOverride !== null && songVariants.length > 1
 
-  if (currentVariant.tracks.length < 2) {
-    return (
-      <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Nur ein Track vorhanden - kein Wechsel nötig
-      </div>
-    )
-  }
-
+  const tracks = currentVariant?.tracks ?? []
   const defaultTrack = resolveTrackForEntry(currentEntry, currentVariant, null)
+  const trackMessage =
+    tracks.length === 0 ? 'Kein Track angehängt' : tracks.length < 2 ? 'Nur ein Track vorhanden - kein Wechsel nötig' : null
+
+  if (!showVariantPicker && trackMessage) {
+    return <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">{trackMessage}</div>
+  }
 
   return (
     <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
+      {showVariantPicker && (
+        <>
+          <div className="w-full overflow-hidden">
+            <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
+              Variante
+            </span>
+          </div>
+          <select
+            aria-label="Variante"
+            value={variantOverride ?? ''}
+            onChange={(e) => setVariantOverride(e.target.value || null)}
+            style={{ fontSize }}
+            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+          >
+            <option value="">Automatisch ({entryVariant?.label})</option>
+            {songVariants.map((variant) => (
+              <option key={variant.id} value={variant.id}>
+                {variant.label}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <div className="w-full overflow-hidden">
         <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
-          Track für „{currentVariant.label}"
+          Track für „{currentVariant?.label}"
         </span>
       </div>
-      <select
-        value={trackOverride ?? ''}
-        disabled={!canControl}
-        onChange={(e) => setTrackOverride(e.target.value || null)}
-        style={{ fontSize }}
-        className="rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
-      >
-        <option value="">Automatisch ({defaultTrack?.label})</option>
-        {currentVariant.tracks.map((track) => (
-          <option key={track.id} value={track.id}>
-            {track.label}
-          </option>
-        ))}
-      </select>
+      {trackMessage ? (
+        <span className="text-sm text-ink-faint">{trackMessage}</span>
+      ) : (
+        <select
+          aria-label="Track"
+          value={trackOverride ?? ''}
+          disabled={!canControl}
+          onChange={(e) => setTrackOverride(e.target.value || null)}
+          style={{ fontSize }}
+          className="rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+        >
+          <option value="">Automatisch ({defaultTrack?.label})</option>
+          {tracks.map((track) => (
+            <option key={track.id} value={track.id}>
+              {track.label}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   )
 }
