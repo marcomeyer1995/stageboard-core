@@ -103,9 +103,32 @@ describe('ChordProLyrics comment lines (#215)', () => {
     )
     const segments = [...container.querySelectorAll('p[data-line-index] > span')]
     expect(segments).toHaveLength(2)
-    // jsdom does no layout - what matters is that the empty segment is no longer empty.
-    expect(segments[1].textContent).toBe('F\u200B')
+    // jsdom does no layout - what matters is that the empty segment is no longer empty: a
+    // zero-width space for the line height, plus an invisible copy of the chord for its width.
+    expect(segments[1].textContent).toBe('F\u200BF')
+    const spacer = segments[1].querySelector('[aria-hidden="true"]')
+    expect(spacer?.className).toContain('invisible')
     expect(segments[0].textContent).toBe('GAll the small things')
+  })
+
+  it('gives every line-end chord its own width, so "D#5 C#m7 B" stand side by side', () => {
+    const { container } = render(<ChordProLyrics lines={parseChordPro("[E]We're not gonna take it anymore[D#5][C#m7][B]")} />)
+    const spacers = [...container.querySelectorAll('[aria-hidden="true"]')].map((s) => s.textContent)
+    expect(spacers).toEqual(['D#5', 'C#m7', 'B'])
+  })
+
+  it('keeps chords inside the line box: chords above via bottom-full, room reserved on top of the line', () => {
+    const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello')} />)
+    const line = container.querySelector('p[data-line-index]') as HTMLElement
+    expect(line.style.paddingTop).toBe('0.85em')
+    expect(line.querySelector('span.absolute')?.className).toContain('bottom-full')
+  })
+
+  it('sizes the reserved room from the prompter\'s own chord size, and none for a line without chords', () => {
+    const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello\nno chords here')} chordFontSize={20} />)
+    const [withChords, without] = [...container.querySelectorAll('p[data-line-index]')] as HTMLElement[]
+    expect(withChords.style.paddingTop).toBe('24px')
+    expect(without.style.paddingTop).toBe('')
   })
 
   describe('instrumental chord rows render inline, lyric lines keep chords above', () => {
