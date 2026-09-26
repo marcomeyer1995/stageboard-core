@@ -80,6 +80,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const clockFontSize = Math.max(READOUT_MIN, titleFontSize)
   const [boxRef, box] = useElementSize()
   const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize))
+  const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
+  const infoClockFontSize = layout.compactInfo ? READOUT_MIN : clockFontSize
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -112,22 +114,26 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   }
 
   return (
-    <div ref={boxRef} className="flex h-full flex-col gap-2 text-ink-soft">
-      <div className="flex w-full flex-none items-baseline gap-3">
-        <span style={{ fontSize: titleFontSize }} className="min-w-0 flex-1 truncate">
+    <div ref={boxRef} className={`flex h-full gap-2 text-ink-soft ${layout.row ? 'items-stretch' : 'flex-col'}`}>
+      <div className={`flex items-baseline gap-3 ${layout.row ? 'min-w-0 flex-1 self-center' : 'w-full flex-none'}`}>
+        <span style={{ fontSize: infoTitleFontSize }} className="min-w-0 flex-1 truncate">
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
           )}
         </span>
-        <span style={{ fontSize: clockFontSize }} className="flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink">
+        <span style={{ fontSize: infoClockFontSize }} className="flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink">
           {formatClock(elapsedMs ?? 0)}
           {transitionItem?.estimatedDurationMs ? (
             <span className="ml-1 font-normal text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
           ) : null}
         </span>
       </div>
-      <div className={`grid min-h-0 flex-1 gap-2 ${layout.columns === 4 ? 'grid-cols-4' : 'grid-cols-2 grid-rows-2'}`}>
+      <div
+        className={`grid gap-2 ${layout.row ? 'w-[60%] flex-none' : 'min-h-0 flex-1'} ${
+          layout.columns === 4 ? 'grid-cols-4' : 'grid-cols-2 grid-rows-2'
+        }`}
+      >
         <button
           type="button"
           onClick={() => {

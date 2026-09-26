@@ -30,24 +30,41 @@ export function lineHeightFor(fontSize: number): number {
 }
 
 export interface TransportLayout {
+  /** Info (title + time) left, buttons right at full height - for flat, wide widgets, where
+   * stacking the info above would squeeze the buttons below touch height. */
+  row: boolean
   /** 4 = Play/Pause/Stop/Reset in one row, 2 = a 2 x 2 grid. */
   columns: 2 | 4
   /** The "Audio läuft über ein anderes Gerät" style helper lines (errors always show). */
   showHelper: boolean
+  /** Title and time at the 24px readout minimum instead of the configured size - the one
+   * discrete step taken when a flat widget is too narrow for `row` and a full-size info line
+   * would squeeze the buttons below touch height. */
+  compactInfo: boolean
 }
 
-/** Show-Transport: one row of four buttons when each can be at least 80px wide, else 2 x 2 -
- * unless the height can't take two rows of real buttons, then one narrow row after all. Helper
- * lines only while the buttons keep their touch height. */
+/** Show-Transport: in a flat, wide widget (found live on the tablet, 2026-09-27: a 631 x 106
+ * landscape tile left 16px for the buttons under a 49px info line) info and buttons sit side by
+ * side. Otherwise stacked: one row of four buttons when each can be at least 80px wide, else
+ * 2 x 2 - unless the height can't take two rows of real buttons, then one narrow row after all.
+ * Helper lines only while the buttons keep their touch height. */
 export function transportLayout(width: number, height: number, infoHeight: number): TransportLayout {
-  if (unmeasured(width, height)) return { columns: 4, showHelper: true }
-  const buttonsArea = height - infoHeight - GAP
+  if (unmeasured(width, height)) return { row: false, columns: 4, showHelper: true, compactInfo: false }
+  let buttonsArea = height - infoHeight - GAP
+  if (buttonsArea < TOUCH && width >= TRANSPORT_ROW_MIN_WIDTH) {
+    return { row: true, columns: 4, showHelper: false, compactInfo: false }
+  }
+  const compactInfo = buttonsArea < TOUCH && infoHeight > lineHeightFor(READOUT_MIN)
+  if (compactInfo) buttonsArea = height - lineHeightFor(READOUT_MIN) - GAP
   let columns: 2 | 4 = width >= 4 * 80 + 3 * GAP ? 4 : 2
   if (columns === 2 && buttonsArea < 2 * 48 + GAP && width >= 4 * TOUCH + 3 * GAP) columns = 4
   const rows = columns === 4 ? 1 : 2
   const perRowWithHelper = (buttonsArea - LINE - GAP - (rows - 1) * GAP) / rows
-  return { columns, showHelper: perRowWithHelper >= TOUCH }
+  return { row: false, columns, showHelper: perRowWithHelper >= TOUCH, compactInfo }
 }
+
+/** Room for a useful piece of the info (~200px) plus four 72px buttons, px. */
+const TRANSPORT_ROW_MIN_WIDTH = 200 + 4 * TOUCH_PRIMARY + 4 * GAP
 
 export interface NextSongLayout {
   /** Info above, buttons in a full-width row below (narrow but tall widgets). */

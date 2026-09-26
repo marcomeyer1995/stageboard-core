@@ -152,6 +152,17 @@ describe('ShowTransportWidget', () => {
       expect(screen.getByText('Play').closest('div')?.className).toContain('grid-cols-4')
     })
 
+    it('puts info and buttons side by side when stacking would squeeze the buttons', () => {
+      mockSize.width = 599
+      mockSize.height = 73
+      mockShowMode({ currentSong: song('s1', 'Song'), currentEntry: entry('e1', 's1'), elapsedMs: 5_000 })
+      render(<ShowTransportWidget config={{ titleSizeRatio: 2 }} />)
+      const grid = screen.getByText('Play').closest('div') as HTMLElement
+      expect(grid.parentElement?.className).toContain('items-stretch')
+      expect(grid.parentElement?.className).not.toContain('flex-col')
+      expect(screen.getByText('00:05')).toBeInTheDocument()
+    })
+
     it('switches to a 2 x 2 button grid when too narrow for four in a row', () => {
       mockSize.width = 300
       mockSize.height = 220

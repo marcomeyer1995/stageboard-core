@@ -7,7 +7,7 @@ describe('transportLayout (Show-Transport)', () => {
   const info = lineHeightFor(24)
 
   it('puts all four buttons in one row at the new default size, in both orientations', () => {
-    expect(transportLayout(350, 163, info)).toEqual({ columns: 4, showHelper: true }) // portrait 6 x 4
+    expect(transportLayout(350, 163, info)).toEqual({ row: false, columns: 4, showHelper: true, compactInfo: false }) // portrait 6 x 4
     expect(transportLayout(600, 100, info).columns).toBe(4) // landscape 6 x 4
   })
 
@@ -15,12 +15,24 @@ describe('transportLayout (Show-Transport)', () => {
     expect(transportLayout(600, 100, info).showHelper).toBe(false)
   })
 
+  it('puts info and buttons side by side in a flat, wide tile instead of squeezing the buttons', () => {
+    // Measured on the tablet (landscape 6 x 4, larger configured title): 599 x 73 with a 49px
+    // info line left 16px for stacked buttons.
+    expect(transportLayout(599, 73, 49)).toEqual({ row: true, columns: 4, showHelper: false, compactInfo: false })
+    expect(transportLayout(400, 73, 49).row).toBe(false) // too narrow for the row: stays stacked
+  })
+
+  it('shrinks the info line to the 24px minimum when a flat widget is too narrow for the row', () => {
+    const layout = transportLayout(400, 100, 49)
+    expect(layout).toMatchObject({ row: false, compactInfo: true, columns: 4 })
+  })
+
   it('uses a 2 x 2 grid when too narrow for four readable buttons in a row', () => {
     expect(transportLayout(300, 200, info).columns).toBe(2)
   })
 
   it('renders the roomy layout while unmeasured', () => {
-    expect(transportLayout(0, 0, info)).toEqual({ columns: 4, showHelper: true })
+    expect(transportLayout(0, 0, info)).toEqual({ row: false, columns: 4, showHelper: true, compactInfo: false })
   })
 })
 
