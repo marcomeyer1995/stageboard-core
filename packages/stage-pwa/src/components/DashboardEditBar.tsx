@@ -30,7 +30,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       <button
         type="button"
         onClick={() => setShowLibrary(true)}
-        className="rounded-sb-sm bg-accent-2 px-3 py-1 font-bold text-accent-ink hover:bg-accent-2-hover"
+        className="rounded-sb-sm bg-accent-2 h-touch px-4 font-bold text-accent-ink hover:bg-accent-2-hover"
       >
         + Widget
       </button>
@@ -38,7 +38,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       <button
         type="button"
         onClick={() => setShowManager(true)}
-        className="rounded-sb-sm bg-control-strong px-2 py-1 text-ink hover:bg-control-strong-hover"
+        className="rounded-sb-sm bg-control-strong h-touch px-4 text-ink hover:bg-control-strong-hover"
       >
         Dashboards verwalten
       </button>
@@ -51,7 +51,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
             void resetToDefaults()
           }
         }}
-        className="rounded-sb-sm bg-control-strong px-2 py-1 text-ink hover:bg-control-strong-hover"
+        className="rounded-sb-sm bg-control-strong h-touch px-4 text-ink hover:bg-control-strong-hover"
       >
         Zurücksetzen
       </button>
@@ -59,7 +59,7 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       <button
         type="button"
         onClick={() => setEditing(false)}
-        className="ml-auto rounded-sb-sm bg-control px-3 py-1 text-ink-soft hover:bg-control-hover"
+        className="ml-auto rounded-sb-sm bg-control h-touch px-4 text-ink-soft hover:bg-control-hover"
       >
         🔒 Fertig
       </button>

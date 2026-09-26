@@ -4,6 +4,7 @@ import { useClockSyncStore } from '../store/useClockSyncStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type SyncCheckConfig } from './syncCheckConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /**
  * Re-renders every animation frame so the displayed server time and flash edge are as smooth
@@ -50,7 +51,7 @@ export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
   // 2026-09-14).
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div

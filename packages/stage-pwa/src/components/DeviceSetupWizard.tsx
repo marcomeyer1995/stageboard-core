@@ -43,7 +43,7 @@ interface MidiEvent {
 
 function FeedLine({ events }: { events: MidiEvent[] | undefined }) {
   if (!events || events.length === 0) return <span className="text-ink-faint/60 italic">wartet auf Daten…</span>
-  return <span className="font-mono text-[11px] text-accent">{events.map((e) => `CC${e.cc}=${e.value}`).join(' · ')}</span>
+  return <span className="font-mono text-xs text-accent">{events.map((e) => `CC${e.cc}=${e.value}`).join(' · ')}</span>
 }
 
 /** Step 1 - name the device, with the existing roster shown for context (so a name that
@@ -298,7 +298,7 @@ function ConnectionStep({
                     type="button"
                     onClick={() => void sendTrigger(c.hardwareKey)}
                     disabled={sendingKey === c.hardwareKey}
-                    className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-[11px] font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                    className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
                   >
                     {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
                   </button>
@@ -326,7 +326,7 @@ function ConnectionStep({
                 type="button"
                 onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
                 disabled={assigningKey === c.hardwareKey}
-                className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-[11px] font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
               >
                 {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
               </button>

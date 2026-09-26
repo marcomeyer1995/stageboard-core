@@ -13,6 +13,7 @@ import {
 } from './showTransportConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
+import { stageFontSize } from '../lib/stageSize'
 
 /** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
  * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
@@ -69,8 +70,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
 
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const titleFontSize = baseFontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO)
-  const buttonFontSize = baseFontSize * (config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO)
+  const titleFontSize = stageFontSize(baseFontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO))
+  const buttonFontSize = stageFontSize(baseFontSize * (config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO))
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -108,7 +109,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
         <span style={{ fontSize: titleFontSize }} className="whitespace-nowrap">
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
-            <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
+            <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
           )}
           <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
           {transitionItem?.estimatedDurationMs ? (

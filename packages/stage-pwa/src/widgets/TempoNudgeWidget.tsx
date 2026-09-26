@@ -3,6 +3,7 @@ import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type TempoNudgeConfig } from './tempoNudgeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /** Step size per tap - fine enough to correct real drift without overshooting, coarse enough
  * that reaching the +/-15% limit doesn't take a dozen taps. */
@@ -22,7 +23,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
     useShowMode()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (mode !== 'gig') {
     return (

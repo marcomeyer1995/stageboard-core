@@ -2,6 +2,7 @@ import { useNow } from '../lib/useNow'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ClockConfig } from './clockConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /** A prominent wall-clock readout for stage timing (#23) - unlike SyncCheckWidget's
  * server-synced flash, this is plain local time, the same clock the venue's own wall
@@ -11,7 +12,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 export function ClockWidget({ config }: { config: ClockConfig }) {
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden text-center">

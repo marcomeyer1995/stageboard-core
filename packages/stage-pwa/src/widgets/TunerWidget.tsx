@@ -13,6 +13,7 @@ import {
   type TunerConfig,
 } from './tunerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -46,8 +47,8 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
   // instead of only after the mic is stopped and restarted.
   const configRef = useRef(config)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const noteFontSize = baseFontSize * (config.noteSizeRatio ?? DEFAULT_NOTE_SIZE_RATIO)
-  const meterFontSize = baseFontSize * (config.meterSizeRatio ?? DEFAULT_METER_SIZE_RATIO)
+  const noteFontSize = stageFontSize(baseFontSize * (config.noteSizeRatio ?? DEFAULT_NOTE_SIZE_RATIO))
+  const meterFontSize = stageFontSize(baseFontSize * (config.meterSizeRatio ?? DEFAULT_METER_SIZE_RATIO))
 
   useEffect(() => {
     configRef.current = config
@@ -181,7 +182,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             </div>
           </div>
           <div className="flex w-full flex-[2] items-center justify-center">
-            <p style={{ fontSize: meterFontSize * 0.6 }} className="font-medium text-ink-faint">
+            <p style={{ fontSize: stageFontSize(meterFontSize * 0.6) }} className="font-medium text-ink-faint">
               {note.cents > 0 ? '+' : ''}
               {note.cents} Cent · {frequency?.toFixed(1)} Hz
             </p>
@@ -242,7 +243,7 @@ export function TunerWidgetPreview() {
         <div className="absolute left-1/2 top-1/2 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
         <div className="absolute top-1/2 left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500" />
       </div>
-      <p className="text-[10px] text-ink-faint">440.0 Hz</p>
+      <p className="text-xs text-ink-faint">440.0 Hz</p>
     </div>
   )
 }
@@ -270,7 +271,7 @@ export function TunerConfigPanel({
           onChange={(e) => onChange({ ...config, minRms: sliderToMinRms(Number(e.target.value)) })}
           className="w-full accent-accent"
         />
-        <div className="flex justify-between text-[10px] text-ink-faint">
+        <div className="flex justify-between text-xs text-ink-faint">
           <span>Unempfindlich</span>
           <span>Empfindlich</span>
         </div>
@@ -289,7 +290,7 @@ export function TunerConfigPanel({
           onChange={(e) => onChange({ ...config, smoothingWindow: Number(e.target.value) })}
           className="w-full accent-accent"
         />
-        <div className="flex justify-between text-[10px] text-ink-faint">
+        <div className="flex justify-between text-xs text-ink-faint">
           <span>Schnell</span>
           <span>Stabil</span>
         </div>
@@ -308,7 +309,7 @@ export function TunerConfigPanel({
           onChange={(e) => onChange({ ...config, referenceFrequency: Number(e.target.value) })}
           className="w-full accent-accent"
         />
-        <div className="flex justify-between text-[10px] text-ink-faint">
+        <div className="flex justify-between text-xs text-ink-faint">
           <span>400 Hz</span>
           <span>440 Hz (Standard)</span>
           <span>480 Hz</span>

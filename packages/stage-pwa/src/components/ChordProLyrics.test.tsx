@@ -120,8 +120,17 @@ describe('ChordProLyrics comment lines (#215)', () => {
   it('keeps chords inside the line box: chords above via bottom-full, room reserved on top of the line', () => {
     const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello')} />)
     const line = container.querySelector('p[data-line-index]') as HTMLElement
-    expect(line.style.paddingTop).toBe('0.85em')
+    // One chord height (never below the stage text floor, lib/stageSize.ts), times 1.2.
+    expect(line.className).toContain('pt-[calc(max(var(--sb-text-min),0.7em)*1.2)]')
+    expect(line.querySelector('span.absolute')?.className).toContain('text-[length:max(var(--sb-text-min),0.7em)]')
     expect(line.querySelector('span.absolute')?.className).toContain('bottom-full')
+  })
+
+  it('never renders chords below the 16px stage floor, even when the prompter sets a smaller chord size', () => {
+    const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello')} chordFontSize={11} />)
+    const line = container.querySelector('p[data-line-index]') as HTMLElement
+    expect((line.querySelector('span.absolute') as HTMLElement).style.fontSize).toBe('16px')
+    expect(line.style.paddingTop).toBe(`${16 * 1.2}px`)
   })
 
   it('sizes the reserved room from the prompter\'s own chord size, and none for a line without chords', () => {

@@ -120,7 +120,7 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         />
 
         <span
-          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide ${
             dashboard.visibility === 'private'
               ? 'bg-accent-2 text-accent-ink'
               : 'bg-control-strong text-ink-soft'

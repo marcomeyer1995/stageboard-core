@@ -6,6 +6,7 @@ import { guitarShapeFor } from '../lib/guitarShapes'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ChordReferenceConfig } from './chordReferenceConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const chip = (selected: boolean) =>
   `rounded-sb-sm px-2 py-1 text-sm font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'}`
@@ -21,7 +22,7 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
   const [root, setRoot] = useState(0)
   const [qualityId, setQualityId] = useState<ChordQualityId>('maj')
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   const chord = lookUpChord(root, qualityId, naming)
   const shape = guitarShapeFor(root, qualityId)
@@ -49,10 +50,10 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
         <span data-testid="chord-symbol" style={{ fontSize }} className="font-bold leading-none text-ink">
           {chord.symbol}
         </span>
-        <span className="font-sb-mono text-ink" style={{ fontSize: fontSize * 0.6 }}>
+        <span className="font-sb-mono text-ink" style={{ fontSize: stageFontSize(fontSize * 0.6) }}>
           {chord.notes.join('  ')}
         </span>
-        <span className="font-sb-mono text-ink-faint" style={{ fontSize: fontSize * 0.45 }}>
+        <span className="font-sb-mono text-ink-faint" style={{ fontSize: stageFontSize(fontSize * 0.45) }}>
           {chord.intervals.join('  ')}
         </span>
       </div>

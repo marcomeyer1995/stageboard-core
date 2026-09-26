@@ -10,6 +10,7 @@ import { usePracticeStateStore, DEFAULT_PRACTICE_STATE } from '../store/usePract
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DEFAULT_SIZE_RATIO, type LoopTrainerWidgetConfig } from './loopTrainerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const stepperButton =
   'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
@@ -59,7 +60,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const trackOverride = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).trackOverride)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const stored = useLoopTrainerStore((state) => state)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (mode !== 'practice') {
     return (

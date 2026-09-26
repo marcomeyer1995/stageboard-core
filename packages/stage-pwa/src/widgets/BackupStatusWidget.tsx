@@ -4,6 +4,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { DEFAULT_SIZE_RATIO, type BackupStatusConfig } from './backupStatusConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
   available: 'Backup online',
@@ -26,7 +27,7 @@ export function BackupStatusWidget({ config }: { config: BackupStatusConfig }) {
   const capabilities = useCapabilities()
   const status = capabilities.get(CAPABILITIES.backup) ?? 'missing'
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div className="flex h-full items-center overflow-hidden text-ink-soft">

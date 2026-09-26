@@ -14,7 +14,7 @@ import { create } from 'zustand'
  * again" device preference as useThemeStore.ts, same localStorage pattern.
  */
 export const DEFAULT_CONTENT_FONT_SIZE = 18
-export const MIN_CONTENT_FONT_SIZE = 12
+export const MIN_CONTENT_FONT_SIZE = 16
 export const MAX_CONTENT_FONT_SIZE = 48
 
 const STORAGE_KEY = 'stageboard-content-font-size'

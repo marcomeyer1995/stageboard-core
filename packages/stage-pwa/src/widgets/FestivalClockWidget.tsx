@@ -4,6 +4,7 @@ import { useNow } from '../lib/useNow'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type FestivalClockConfig } from './festivalClockConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 function formatTime(ms: number): string {
   return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
@@ -23,7 +24,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
   const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (queue.orderedItems.length === 0) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Keine Songs vorhanden</div>

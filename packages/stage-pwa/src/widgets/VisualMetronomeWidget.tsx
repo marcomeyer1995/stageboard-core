@@ -3,6 +3,7 @@ import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MetronomeConfig } from './metronomeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /** How long each beat's flash stays visible, in ms - short enough to read as a pulse rather
  * than a slow color swap, comfortably visible even at fast tempos (at 200 BPM a beat is only
@@ -46,7 +47,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   // number) is sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
   // 2026-09-14).
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (!song) {
     return (

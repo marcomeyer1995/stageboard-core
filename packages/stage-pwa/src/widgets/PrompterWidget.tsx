@@ -22,18 +22,19 @@ import {
   DEFAULT_TITLE_SIZE_RATIO,
   type PrompterConfig,
 } from './prompterConfig'
+import { stageFontSize } from '../lib/stageSize'
 
 export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // The one anchor size - every other element below is a ratio of this, not its own
   // absolute px value (Marco, 2026-09-14), so changing this (globally in Settings, or just
   // for this instance via the shared "Text" control below) rescales everything else with it.
   const fontSize = useContentFontSize(config)
-  const titleFontSize = fontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO)
-  const artistFontSize = fontSize * (config.artistSizeRatio ?? DEFAULT_ARTIST_SIZE_RATIO)
-  const sectionLabelFontSize = fontSize * (config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO)
-  const chordFontSize = fontSize * (config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO)
-  const arrangementInfoFontSize = fontSize * (config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO)
-  const commentFontSize = fontSize * (config.commentSizeRatio ?? DEFAULT_COMMENT_SIZE_RATIO)
+  const titleFontSize = stageFontSize(fontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO))
+  const artistFontSize = stageFontSize(fontSize * (config.artistSizeRatio ?? DEFAULT_ARTIST_SIZE_RATIO))
+  const sectionLabelFontSize = stageFontSize(fontSize * (config.sectionLabelSizeRatio ?? DEFAULT_SECTION_LABEL_SIZE_RATIO))
+  const chordFontSize = stageFontSize(fontSize * (config.chordSizeRatio ?? DEFAULT_CHORD_SIZE_RATIO))
+  const arrangementInfoFontSize = stageFontSize(fontSize * (config.arrangementInfoSizeRatio ?? DEFAULT_ARRANGEMENT_INFO_SIZE_RATIO))
+  const commentFontSize = stageFontSize(fontSize * (config.commentSizeRatio ?? DEFAULT_COMMENT_SIZE_RATIO))
   // What the widget actually renders, every time `config` prop changes - the ground truth to
   // correlate against the write-pipeline logs above (Marco, 2026-09-14).
   useEffect(() => {
