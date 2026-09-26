@@ -78,4 +78,30 @@ describe('WidgetLibrary', () => {
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
     expect(screen.queryByText('Keine Setlist aktiv.')).not.toBeInTheDocument()
   })
+
+  describe('stage tiers (2026-09-27)', () => {
+    function card(title: string): HTMLElement {
+      // The title in the card's info area - previews render their own bold text too.
+      return [...document.querySelectorAll<HTMLElement>('div[role=button][title]')].find(
+        (c) => c.querySelector('.px-3 .font-semibold')?.textContent === title,
+      )!
+    }
+
+    it('badges every widget with its tier (layout-only widgets get none)', () => {
+      render(<WidgetLibrary dashboard={dashboard()} capabilities={new Map()} onAdd={vi.fn()} onClose={vi.fn()} />)
+      expect(card('Prompter').textContent).toContain('Gig')
+      expect(card('Show-Notizen').textContent).toContain('Gig-Blick')
+      expect(card('Quintenzirkel').textContent).toContain('Probe')
+    })
+
+    it('notes a rehearsal widget on a dashboard also offered in Gig mode, but not on a Solo-only one', () => {
+      const { unmount } = render(<WidgetLibrary dashboard={dashboard()} capabilities={new Map()} onAdd={vi.fn()} onClose={vi.fn()} />)
+      expect(card('Quintenzirkel').textContent).toContain('auch im Gig verfügbar')
+      expect(card('Prompter').textContent).not.toContain('auch im Gig verfügbar')
+      unmount()
+
+      render(<WidgetLibrary dashboard={{ ...dashboard(), modes: ['practice'] }} capabilities={new Map()} onAdd={vi.fn()} onClose={vi.fn()} />)
+      expect(card('Quintenzirkel').textContent).not.toContain('auch im Gig verfügbar')
+    })
+  })
 })

@@ -3,14 +3,12 @@ import { EditLock } from './EditLock'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
-import { isDashboardVisible } from '../lib/dashboardLayout'
-import { useActiveProfile } from '../lib/useActiveProfile'
 import { useFullscreen } from '../lib/useFullscreen'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
-import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
+import { useModeDashboards } from '../lib/useModeDashboards'
 
 interface AppMenuProps {
   mode: Mode
@@ -52,18 +50,17 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
 
-  const dashboards = useDashboardsStore((state) => state.dashboards)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const byWorkspace = useActiveDashboardStore((state) => state.byWorkspace)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
-  const activeProfile = useActiveProfile()
   // Same visibility rule DashboardSwitcherWidget.tsx uses - a private Station never appears
   // as a switch target for anyone but its owner. Hidden entirely with only one (or zero)
   // dashboard to switch to - nothing to pick from, so the section would just be clutter
   // (#35: "screen navigation... what's actually touched during a show", same paring-down
   // this menu already went through once).
-  const switchableDashboards = dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile))
-  const activeDashboardId = byWorkspace[workspaceId] ?? switchableDashboards[0]?.id
+  // ... and, since 2026-09-27, only the dashboards offered in the current session mode (Gig /
+  // Solo Üben), via the same hook Dashboard.tsx resolves its active dashboard with.
+  const { candidates: switchableDashboards, active: activeDashboard } = useModeDashboards()
+  const activeDashboardId = activeDashboard?.id
 
   function selectDashboard(dashboardId: string) {
     setActiveDashboard(workspaceId, dashboardId)

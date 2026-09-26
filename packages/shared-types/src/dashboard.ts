@@ -37,6 +37,10 @@ export const WidgetInstanceSchema = z.object({
 })
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>
 
+/** The session modes a dashboard can be offered in - same values as the app's SessionMode. */
+export const DashboardModeSchema = z.enum(['gig', 'practice'])
+export type DashboardMode = z.infer<typeof DashboardModeSchema>
+
 /**
  * A named, freely configurable screen ("Prompter", "Monitoring", "Light"). Dashboards
  * replicate band-wide like setlists; which one a given tablet currently shows is a
@@ -63,5 +67,11 @@ export const DashboardSchema = z.object({
   ownerProfileId: z.string().min(1).optional(),
   ownerRole: z.string().min(1).optional(),
   visibility: z.enum(['private', 'public']).default('public'),
+  /** In which session mode(s) this dashboard is offered: `gig`, `practice` (Solo Üben), or
+   * both. Unset means both - every dashboard written before this field existed stays
+   * available everywhere. Lets a band keep the gig menu down to the lean stage dashboards
+   * while rehearsal-only ones (Loop-Trainer, Quintenzirkel ...) live in Solo Üben
+   * (Marco, 2026-09-27). */
+  modes: z.array(DashboardModeSchema).min(1).optional(),
 })
 export type Dashboard = z.infer<typeof DashboardSchema>
