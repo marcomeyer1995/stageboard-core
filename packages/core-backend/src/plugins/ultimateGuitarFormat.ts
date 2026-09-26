@@ -130,6 +130,46 @@ function chordLineToInline(stripped: string, tokens: ChordLineToken[]): string {
   return result + stripped.slice(cursor)
 }
 
+/** One string of a guitar tab staff: a string name (`e`, `B`, `Gb`, ...), a `|`, then frets and
+ * dashes (`e|---5-2---|`, `D|---0-0---| x2`). */
+function isStaffLine(line: string): boolean {
+  return !line.includes('[ch]') && /^\s*[A-Ga-g][#b]?\s?\|.*-{2,}/.test(line)
+}
+
+/** The beat-count line UG puts under a riff (`   3 + 4 + 1 + 2 +`). */
+function isCountingLine(line: string): boolean {
+  return /\d/.test(line) && /^[\s\d+&.|]+$/.test(line)
+}
+
+/**
+ * A guitar tab block starting at `start`: an optional chord line naming the chords above the
+ * fret columns, two or more staff lines, and an optional counting line below. Returns the
+ * block's lines - verbatim, only UG's chord tags stripped so the names keep their columns - and
+ * the index after it; null when `start` doesn't open one. Found on 9 of 29 real repertoire tabs
+ * (2026-09-26): before, the chord line was spliced *into* the first staff line as if it were a
+ * lyric, garbling the riff.
+ */
+function tabBlockAt(lines: readonly string[], start: number): { block: string[]; next: number } | null {
+  let i = start
+  const block: string[] = []
+  if (!isStaffLine(lines[i] ?? '') && parseChordLine(lines[i] ?? '') !== null) {
+    block.push(stripChordTags(lines[i]).stripped.trimEnd())
+    i += 1
+  }
+  let staffLines = 0
+  while (i < lines.length && isStaffLine(lines[i])) {
+    block.push(lines[i].trimEnd())
+    staffLines += 1
+    i += 1
+  }
+  if (staffLines < 2) return null
+  if (i < lines.length && isCountingLine(lines[i])) {
+    block.push(lines[i].trimEnd())
+    i += 1
+  }
+  return { block, next: i }
+}
+
 /** `[Verse 1]`, `[Intro]`, `[Chorus]` - a bracketed token starting the line that isn't one of
  * UG's own markup tags - plus whatever note follows it on the same line (`[Chorus] (x4)`,
  * `[Intro] (G in riff is really G5)`, `[Spoken]   [Ike singing]`; found on 5 of 29 real tabs,
@@ -155,7 +195,8 @@ function sectionLabel(line: string): { label: string; note: string } | null {
  *
  * Chord lines are more than bare tags in practice (found on real tabs, 2026-09-26): bar lines
  * (`| C | F |`), chords in parentheses, repeat marks (`x4`), comments (`(Cesura)`) and chord
- * names UG left untagged - see `parseChordLine`. Whatever still carries a `[ch]` tag at the end
+ * names UG left untagged - see `parseChordLine`. Guitar tab riffs become ChordPro tab blocks
+ * (`{start_of_tab}` ... `{end_of_tab}`, for everyone) - see `tabBlockAt`. Whatever still carries a `[ch]` tag at the end
  * (a chord embedded in real text) is reduced to `[X]`, so raw UG markup never reaches a song.
  */
 export function convertUltimateGuitarContent(raw: string): string {
@@ -171,6 +212,14 @@ export function convertUltimateGuitarContent(raw: string): string {
       output.push(`{part: ${section.label}}`)
       if (section.note !== '') output.push(`{c: ${section.note}}`)
       i += 1
+      continue
+    }
+
+    // Before chord lines: a chord line directly above a riff belongs to the tab block.
+    const tab = tabBlockAt(rawLines, i)
+    if (tab) {
+      output.push('{start_of_tab}', ...tab.block, '{end_of_tab}')
+      i = tab.next
       continue
     }
 

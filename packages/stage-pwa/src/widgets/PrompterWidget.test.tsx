@@ -99,6 +99,21 @@ describe('PrompterWidget - targeted comment filtering (issue #215 follow-up)', (
     expect(screen.getByText('Lyric line')).toBeInTheDocument()
   })
 
+  it('shows a tab block for everyone by default, and a {sot4marco} one only to Marco', () => {
+    const content = '{start_of_tab}\ne|---5---|\nB|---3---|\n{end_of_tab}\n{sot4marco}\ne|---7---|\nB|---8---|\n{eot}\nLyric line'
+    mockShowMode(song(content))
+    mockRoster([profile('p1', 'Marco'), profile('p2', 'Jamie')])
+
+    vi.mocked(useActiveProfile).mockReturnValue(profile('p2', 'Jamie'))
+    const { container, unmount } = render(<PrompterWidget config={config} />)
+    expect([...container.querySelectorAll('pre')].map((pre) => pre.textContent)).toEqual(['e|---5---|\nB|---3---|'])
+    unmount()
+
+    vi.mocked(useActiveProfile).mockReturnValue(profile('p1', 'Marco'))
+    const marco = render(<PrompterWidget config={config} />)
+    expect(marco.container.querySelectorAll('pre')).toHaveLength(2)
+  })
+
   it('shows every comment when no profile is active on this device - same as before this feature existed', () => {
     mockShowMode(song('{cc4marco: Start solo fret 7}\nLyric line'))
     mockRoster([profile('p1', 'Marco'), profile('p2', 'Jamie')])

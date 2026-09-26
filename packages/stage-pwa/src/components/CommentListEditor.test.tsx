@@ -91,4 +91,16 @@ describe('CommentListEditor (issue #215 follow-up)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
     expect(onChange).toHaveBeenCalledWith('Intro\nOutro')
   })
+
+  it('lists tab blocks and narrows one to a member - only its opening directive changes', () => {
+    const onChange = vi.fn()
+    const content = ['{start_of_tab}', 'e|---5---|', 'B|---3---|', '{end_of_tab}'].join('\n')
+    render(<CommentListEditor content={content} onChange={onChange} />)
+
+    expect(screen.getByText('Tab 1')).toBeInTheDocument()
+    expect(screen.getByText('(2 Zeilen)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Marco' })[0])
+    expect(onChange).toHaveBeenCalledWith(['{sot4Marco}', 'e|---5---|', 'B|---3---|', '{end_of_tab}'].join('\n'))
+  })
 })

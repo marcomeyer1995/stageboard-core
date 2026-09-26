@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { parsePartDirective, setLineTimeTag } from '../lib/chordpro'
+import { setLineTimeTag, tappableLines } from '../lib/chordpro'
 import { formatTrackClockTime as formatTime, useTrackClock } from '../lib/useTrackClock'
 import { useClockStore } from '../store/useClockStore'
 
-/** Blank lines and part directives (`{part: Chorus}`) carry no lyrics, so they get no timecode. */
-function isTappable(line: string): boolean {
-  return line.trim().length > 0 && parsePartDirective(line) === null
+/** First tappable line after `after` (-1 for "from the start"), or -1 when there's none left.
+ * Only lyric lines get a timecode - see `tappableLines` for what's skipped and why. */
+function nextTappableIndex(lines: string[], after: number): number {
+  const tappable = tappableLines(lines)
+  return tappable.findIndex((isTappable, i) => i > after && isTappable)
 }
 
 interface TapToSyncProps {
@@ -27,7 +29,7 @@ interface TapToSyncProps {
  */
 export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSyncProps) {
   const [lines, setLines] = useState<string[]>(() => content.split('\n'))
-  const [tapIndex, setTapIndex] = useState(() => lines.findIndex(isTappable))
+  const [tapIndex, setTapIndex] = useState(() => nextTappableIndex(lines, -1))
   const { elapsedMs, isPlaying, duration, position, togglePlay, audioProps } = useTrackClock(trackSrc)
 
   function tap() {
@@ -35,7 +37,7 @@ export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSync
     const ms = useClockStore.getState().getElapsedMs()
     const updated = [...lines]
     updated[tapIndex] = setLineTimeTag(updated[tapIndex], ms)
-    const nextIndex = updated.findIndex((line, i) => i > tapIndex && isTappable(line))
+    const nextIndex = nextTappableIndex(updated, tapIndex)
     setLines(updated)
     if (nextIndex === -1) {
       onComplete(updated.join('\n'))
