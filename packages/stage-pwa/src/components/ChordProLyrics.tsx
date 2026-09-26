@@ -120,42 +120,85 @@ export function ChordProLyrics({
                 {line.comment}
               </p>
             ) : (
-              <p
-                data-line-index={lineIndex}
-                className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
-                  // A chord sits absolutely -top-4 above its line's text. Normally the previous
-                  // line's own leading-loose height absorbs that overlap, but the part label
-                  // above it (small font-sans text, no leading-loose) doesn't - without this,
-                  // the first line's chords render on top of the label text. mt-6 (not just
-                  // enough to clear -top-4) leaves a few px of breathing room, since sibling
-                  // margins collapse to the larger of the two rather than summing.
-                  !hidePartLabels && startsPart ? 'mt-6' : ''
-                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
-              >
-                {line.segments.map((segment, segmentIndex) => (
-                  <span key={segmentIndex} className="relative inline-block">
-                    {segment.chord && (
-                      <span
-                        style={chordFontSize === undefined ? { fontSize: '0.7em' } : { fontSize: chordFontSize }}
-                        className="absolute -top-4 left-0 font-bold text-accent"
-                      >
-                        {segment.chord}
-                      </span>
-                    )}
-                    {/* A segment with no text - a chord at the end of a line, or two chords back
-                        to back - would collapse to a zero-height inline-block sitting on the
-                        baseline, so its chord (positioned from the segment's top) landed at lyric
-                        height instead of above it. A zero-width space keeps the full line height
-                        without taking any room (measured on a Fire tablet, 2026-09-26: +8px vs
-                        -16px for every other chord). */}
-                    {segment.text === '' ? '\u200B' : segment.text}
-                  </span>
-                ))}
-              </p>
+              <LyricLine
+                line={line}
+                lineIndex={lineIndex}
+                active={lineIndex === activeIndex}
+                startsPart={!hidePartLabels && startsPart}
+                chordFontSize={chordFontSize}
+              />
             )}
           </div>
         )
       })}
     </div>
+  )
+}
+
+/**
+ * A lyric line with its chords *inside* the line's own box: the line reserves room on top
+ * (`paddingTop`, about one chord height) and each chord sits in it, directly above its segment
+ * (`bottom-full`). Before, chords were pushed 16px up out of the box into the gap above, so the
+ * current-line highlight - the box's background - cut them off (Marco, 2026-09-26, measured on
+ * a Fire tablet: box 596-632px, chords from 580px). A tighter line height offsets the extra
+ * padding, so a line takes about as much room as before. The padding follows the prompter's own
+ * chord size when one is set.
+ */
+function LyricLine({
+  line,
+  lineIndex,
+  active,
+  startsPart,
+  chordFontSize,
+}: {
+  line: ChordProLine
+  lineIndex: number
+  active: boolean
+  startsPart: boolean
+  chordFontSize: number | undefined
+}) {
+  const hasChords = line.segments.some((segment) => segment.chord !== null)
+  const chordStyle = chordFontSize === undefined ? { fontSize: '0.7em' } : { fontSize: chordFontSize }
+  const lineStyle = hasChords
+    ? { lineHeight: 1.375, paddingTop: chordFontSize === undefined ? '0.85em' : `${chordFontSize * 1.2}px` }
+    : undefined
+
+  return (
+    <p
+      data-line-index={lineIndex}
+      style={lineStyle}
+      className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+        // Keeps a little air between a part label and its first line.
+        startsPart ? 'mt-6' : ''
+      } ${active ? 'bg-accent-2/20' : ''}`}
+    >
+      {line.segments.map((segment, segmentIndex) => (
+        <span key={segmentIndex} className="relative inline-block">
+          {segment.chord && (
+            <span style={{ ...chordStyle, lineHeight: 1.15 }} className="absolute bottom-full left-0 font-bold text-accent">
+              {segment.chord}
+            </span>
+          )}
+          {segment.text === '' ? (
+            // No text under this chord - a chord at the end of a line, or two chords back to
+            // back. The zero-width space keeps the full line height (else the segment collapses
+            // onto the baseline and its chord drops to lyric height - +8px vs -16px, measured on
+            // the tablet); the invisible copy of the chord gives the segment the chord's width,
+            // so several line-end chords stand side by side instead of printing over each other
+            // ("D#5 C#m7 B" rendered as "B#m57").
+            <>
+              {'\u200B'}
+              {segment.chord && (
+                <span aria-hidden="true" style={chordStyle} className="invisible pr-[0.6em] font-bold">
+                  {segment.chord}
+                </span>
+              )}
+            </>
+          ) : (
+            segment.text
+          )}
+        </span>
+      ))}
+    </p>
   )
 }
