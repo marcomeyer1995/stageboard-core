@@ -40,6 +40,25 @@ export default {
         sb: 'var(--sb-font-body)',
         'sb-mono': 'var(--sb-font-mono)',
       },
+      // Stage sizes (src/index.css): h-touch / min-h-touch / w-touch etc. for tappable controls.
+      spacing: {
+        touch: 'var(--sb-touch)',
+        'touch-primary': 'var(--sb-touch-primary)',
+      },
+      minHeight: {
+        touch: 'var(--sb-touch)',
+        'touch-primary': 'var(--sb-touch-primary)',
+      },
+      minWidth: {
+        touch: 'var(--sb-touch)',
+        'touch-primary': 'var(--sb-touch-primary)',
+      },
+      // Text floor: nothing on screen below 16px. xs and sm were 12/14px - the most common
+      // "too small for the stage" finding in the GUI audit - so both now start at the floor.
+      fontSize: {
+        xs: ['var(--sb-text-min)', { lineHeight: '1.35' }],
+        sm: ['var(--sb-text-min)', { lineHeight: '1.45' }],
+      },
     },
   },
   plugins: [],

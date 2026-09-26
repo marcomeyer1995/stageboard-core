@@ -13,6 +13,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { CueGrid, type CueAction } from './CueGrid'
 import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
+import { stageFontSize } from '../lib/stageSize'
 
 const ACTIONS: CueAction[] = [
   { label: 'Strobo', type: 'strobe' },
@@ -44,7 +45,7 @@ export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
   const engine = resolveHardwareEngine(binding, deviceId, pluginId, supportsLocalExecution(installed, CAPABILITIES.lighting))
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   async function fire(type: string) {
     if (engine === 'local-mine') {

@@ -14,6 +14,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DEFAULT_SIZE_RATIO, type IemConfig } from './iemConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /**
  * "More Me" from docs/07: only the musician's own channels plus a band group fader. #3:
@@ -70,7 +71,7 @@ export function IemWidget({ config }: { config: IemConfig }) {
   // default rather than auto-fit to the tile (Marco, 2026-09-14). The fader itself already
   // fills its column (h-full/flex-1), no text sizing involved.
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div className="flex h-full w-full flex-col gap-2">

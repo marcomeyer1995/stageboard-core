@@ -2,6 +2,7 @@ import { useMidiTrigger, type MidiStatus } from '../lib/useMidiTrigger'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MidiStatusConfig } from './midiStatusConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const STATUS_LABEL: Record<MidiStatus, string> = {
   unsupported: 'Kein WebMIDI',
@@ -21,7 +22,7 @@ const STATUS_DOT: Record<MidiStatus, string> = {
 export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
   const { status, jumpToNextSection } = useMidiTrigger()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div className="flex h-full items-center gap-3 text-ink-soft">

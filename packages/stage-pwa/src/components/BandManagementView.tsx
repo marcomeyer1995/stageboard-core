@@ -145,7 +145,7 @@ function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onli
           {profile.stageRoles.map((role) => (
             <span
               key={role}
-              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft"
+              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink-soft"
             >
               {STAGE_ROLE_LABELS[role]}
             </span>

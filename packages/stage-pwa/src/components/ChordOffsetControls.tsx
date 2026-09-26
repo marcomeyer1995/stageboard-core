@@ -15,9 +15,9 @@ function Stepper({
   onStep: (delta: number) => void
 }) {
   const buttonClass =
-    'flex h-9 w-9 items-center justify-center rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+    'flex h-touch w-touch items-center justify-center rounded-sb-sm bg-control-strong text-2xl font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <span className="text-ink-faint">{label}</span>
       <button type="button" aria-label={`${label} verringern`} disabled={!canDecrease} onClick={() => onStep(-1)} className={buttonClass}>
         −
@@ -51,7 +51,7 @@ export function ChordOffsetControls({ offsets, authoredCapo }: { offsets: ChordO
         onStep={offsets.stepCapo}
       />
       {dirty && (
-        <button type="button" onClick={offsets.reset} className="rounded-sb-sm px-2 py-1 text-ink-faint underline hover:text-ink">
+        <button type="button" onClick={offsets.reset} className="min-h-touch rounded-sb-sm px-3 text-ink-faint underline hover:text-ink">
           Zurücksetzen
         </button>
       )}

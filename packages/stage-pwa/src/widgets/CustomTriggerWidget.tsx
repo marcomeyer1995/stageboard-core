@@ -14,6 +14,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type CustomTriggerConfig } from './customTriggerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
+import { stageFontSize } from '../lib/stageSize'
 
 const INACTIVE_CLASS = 'bg-control-strong text-ink hover:bg-control-strong-hover'
 
@@ -48,7 +49,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
   // 2026-09-14).
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   const device = resolveHardwareBindingById(devices, config.targetLogicalDeviceId ?? '')
 

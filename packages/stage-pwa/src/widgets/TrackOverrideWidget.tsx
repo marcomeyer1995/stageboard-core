@@ -5,6 +5,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /**
  * Swaps which track of the current variant plays - not solo-practice-only, despite living next to ShowTransportWidget's
@@ -32,7 +33,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const { currentEntry, currentSong, currentVariant } = queue
   const variants = useSongVariantsStore((state) => state.variants)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   // Practice mode only (setVariantOverride is null in Gig mode) and only when there is actually
   // something to choose. The default option names the variant the entry itself resolves to -

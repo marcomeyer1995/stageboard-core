@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
+import { stageFontSize } from '../lib/stageSize'
+
+/** Chords and comments default to 0.7em of the lyric size, but never below the stage text
+ * floor (lib/stageSize.ts) - at the default 18px lyric size 0.7em was 12.6px. As classes, not
+ * inline styles: the same values, but jsdom drops `max()` from inline styles. */
+const STAGE_SMALL_TEXT = 'text-[length:max(var(--sb-text-min),0.7em)]'
+const STAGE_CHORD_ROOM = 'pt-[calc(max(var(--sb-text-min),0.7em)*1.2)]'
 
 /** Repeat marks (`x4`, `2x`) are the only letters/digits an instrumental chord row may carry. */
 const REPEAT_MARK_RE = /\b(?:x\s?\d+|\d+\s?x)\b/gi
@@ -87,7 +94,7 @@ export function ChordProLyrics({
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
                 {line.tab.label && <p className="font-sans text-xs italic text-ink-faint">{line.tab.label}</p>}
-                <pre className="font-sb-mono leading-snug text-ink-soft" style={{ fontSize: '0.8em' }}>
+                <pre className="font-sb-mono leading-snug text-ink-soft" style={{ fontSize: 'max(var(--sb-text-min), 0.8em)' }}>
                   {line.tab.lines.join('\n')}
                 </pre>
               </div>
@@ -112,8 +119,8 @@ export function ChordProLyrics({
               // sets it apart from the lyric's own font-sb-mono, same way a part label does.
               <p
                 data-line-index={lineIndex}
-                style={commentFontSize === undefined ? { fontSize: '0.7em' } : { fontSize: commentFontSize }}
-                className={`-mx-2 rounded-sb-sm px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
+                style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
+                className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-sb-sm px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
@@ -158,16 +165,17 @@ function LyricLine({
   chordFontSize: number | undefined
 }) {
   const hasChords = line.segments.some((segment) => segment.chord !== null)
-  const chordStyle = chordFontSize === undefined ? { fontSize: '0.7em' } : { fontSize: chordFontSize }
+  const chordStyle = chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }
+  const chordSizeClass = chordFontSize === undefined ? STAGE_SMALL_TEXT : ''
   const lineStyle = hasChords
-    ? { lineHeight: 1.375, paddingTop: chordFontSize === undefined ? '0.85em' : `${chordFontSize * 1.2}px` }
+    ? { lineHeight: 1.375, ...(chordFontSize === undefined ? {} : { paddingTop: `${stageFontSize(chordFontSize) * 1.2}px` }) }
     : undefined
 
   return (
     <p
       data-line-index={lineIndex}
       style={lineStyle}
-      className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+      className={`${hasChords && chordFontSize === undefined ? STAGE_CHORD_ROOM : ''} -mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
         // Keeps a little air between a part label and its first line.
         startsPart ? 'mt-6' : ''
       } ${active ? 'bg-accent-2/20' : ''}`}
@@ -175,7 +183,7 @@ function LyricLine({
       {line.segments.map((segment, segmentIndex) => (
         <span key={segmentIndex} className="relative inline-block">
           {segment.chord && (
-            <span style={{ ...chordStyle, lineHeight: 1.15 }} className="absolute bottom-full left-0 font-bold text-accent">
+            <span style={{ ...chordStyle, lineHeight: 1.15 }} className={`${chordSizeClass} absolute bottom-full left-0 font-bold text-accent`}>
               {segment.chord}
             </span>
           )}
@@ -189,7 +197,7 @@ function LyricLine({
             <>
               {'\u200B'}
               {segment.chord && (
-                <span aria-hidden="true" style={chordStyle} className="invisible pr-[0.6em] font-bold">
+                <span aria-hidden="true" style={chordStyle} className={`${chordSizeClass} invisible pr-[0.6em] font-bold`}>
                   {segment.chord}
                 </span>
               )}

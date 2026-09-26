@@ -14,6 +14,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { CueGrid, type CueAction } from './CueGrid'
 import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
+import { stageFontSize } from '../lib/stageSize'
 
 const ACTIONS: CueAction[] = [
   { label: 'Voll', type: 'full' },
@@ -41,7 +42,7 @@ export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
   const lastCue = useLocalLightingStore((state) => state.lastCue)
   const [error, setError] = useState<string | null>(null)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   async function fire(type: string) {
     if (engine === 'local-mine') {

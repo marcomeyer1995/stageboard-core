@@ -5,6 +5,7 @@ import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 import { ReadyCheckControl } from '../components/ReadyCheckControl'
+import { stageFontSize } from '../lib/stageSize'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -18,7 +19,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const currentItem = currentEntry && !isSongEntry(currentEntry) ? currentEntry : null
   const nextItem = nextEntry && !isSongEntry(nextEntry) ? nextEntry : null
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
@@ -32,7 +33,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
             <>
               Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
               {currentVariant && !currentVariant.isDefault && (
-                <span className="ml-1 text-[0.6em] text-accent">({currentVariant.label})</span>
+                <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
               )}
             </>
           ) : (
@@ -50,7 +51,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
               Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
               ({(nextVariant ?? nextSong).bpm} BPM)
               {nextVariant && !nextVariant.isDefault && (
-                <span className="ml-1 text-[0.6em] text-accent">({nextVariant.label})</span>
+                <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({nextVariant.label})</span>
               )}
             </>
           )}

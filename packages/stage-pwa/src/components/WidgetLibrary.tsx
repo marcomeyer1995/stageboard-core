@@ -115,7 +115,7 @@ export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd, onC
 
         {grouped.map(([category, definitions]) => (
           <div key={category} className="flex flex-col gap-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-ink-faint">
+            <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">
               {CATEGORY_LABEL[category]}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -147,7 +147,7 @@ export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd, onC
                   >
                     <WidgetPreviewErrorBoundary
                       fallback={
-                        <div className="flex h-full items-center justify-center text-center text-[10px] text-ink-faint">
+                        <div className="flex h-full items-center justify-center text-center text-xs text-ink-faint">
                           Keine Vorschau
                         </div>
                       }
@@ -157,7 +157,7 @@ export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd, onC
                   </div>
                   <div className="px-3 py-2">
                     <span className="block font-semibold">{definition.title}</span>
-                    <span className="block text-[10px] text-ink-muted">{definition.description}</span>
+                    <span className="block text-xs text-ink-muted">{definition.description}</span>
                   </div>
                 </div>
               ))}

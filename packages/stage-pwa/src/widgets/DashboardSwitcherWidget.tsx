@@ -6,6 +6,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 /**
  * Switching between dashboards is itself a widget, so each screen decides where the
@@ -32,7 +33,7 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
   // 2026-09-14) - every button now shares this same fixed size directly, so the previous
   // "fit to whichever button has the longest name" measurement is gone too.
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   return (
     <div

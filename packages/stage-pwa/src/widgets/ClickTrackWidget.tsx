@@ -5,6 +5,7 @@ import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ClickTrackConfig } from './clickTrackConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
   { value: null, label: 'Standard' },
@@ -41,7 +42,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (engine === 'none') {
     return (

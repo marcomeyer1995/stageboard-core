@@ -139,7 +139,7 @@ function PromptFields({
               pattern={field.type === 'pin' ? '[0-9]*' : undefined}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="h-12 w-full rounded-sb bg-control px-3 text-ink-soft"
+              className="h-touch w-full rounded-sb bg-control px-3 text-lg text-ink-soft"
             />
           </label>
         ),
@@ -148,11 +148,11 @@ function PromptFields({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover"
+          className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover"
         >
           Abbrechen
         </button>
-        <button type="submit" className="rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink">
+        <button type="submit" className="h-touch rounded-sb bg-accent px-5 font-semibold text-accent-ink">
           {submitLabel}
         </button>
       </div>
@@ -168,7 +168,7 @@ function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge
         <button
           type="button"
           onClick={onAcknowledge}
-          className="rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink"
+          className="h-touch rounded-sb bg-accent px-5 font-semibold text-accent-ink"
         >
           OK
         </button>
@@ -197,7 +197,7 @@ function ConfirmBody({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover"
+          className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover"
         >
           Abbrechen
         </button>

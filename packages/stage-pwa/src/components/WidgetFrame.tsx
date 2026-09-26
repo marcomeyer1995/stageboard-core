@@ -85,7 +85,7 @@ export function WidgetFrame({
             type="button"
             onClick={() => setMenuOpen(true)}
             title="Widget-Menü"
-            className="widget-menu pointer-events-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sb-sm bg-stage/70 text-lg leading-none text-ink-soft hover:bg-control-hover"
+            className="widget-menu pointer-events-auto flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-sb-sm bg-stage/70 text-lg leading-none text-ink-soft hover:bg-control-hover"
           >
             ⋯
           </button>
@@ -144,7 +144,7 @@ export function WidgetFrame({
                 <button
                   type="button"
                   onClick={onToggleFrameless}
-                  className="h-11 w-full rounded-sb bg-control text-sm text-ink-soft hover:bg-control-hover"
+                  className="h-touch w-full rounded-sb bg-control text-base text-ink-soft hover:bg-control-hover"
                 >
                   {frameless ? 'Rahmen einblenden' : 'Rahmen ausblenden'}
                 </button>
@@ -161,7 +161,7 @@ export function WidgetFrame({
                     setMenuOpen(false)
                     onRemove()
                   }}
-                  className="h-11 w-full rounded-sb bg-control text-base text-red-400 hover:bg-control-hover hover:text-red-300"
+                  className="h-touch w-full rounded-sb bg-control text-base text-red-400 hover:bg-control-hover hover:text-red-300"
                 >
                   Entfernen
                 </button>

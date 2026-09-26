@@ -47,7 +47,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
         {notes.map((note) => (
           <div key={note.id} className="rounded-sb-sm bg-control px-2 py-1">
             <p className="text-ink">{note.text}</p>
-            <p className="text-[10px] text-ink-faint">{authorName(note.authorProfileId)}</p>
+            <p className="text-xs text-ink-faint">{authorName(note.authorProfileId)}</p>
           </div>
         ))}
       </div>

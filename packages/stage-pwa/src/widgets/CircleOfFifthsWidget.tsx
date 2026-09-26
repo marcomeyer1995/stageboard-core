@@ -11,6 +11,7 @@ import {
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type CircleOfFifthsConfig } from './circleOfFifthsConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
+import { stageFontSize } from '../lib/stageSize'
 
 const CENTRE = 100
 const RING_RADII = { major: { inner: 66, outer: 96 }, minor: { inner: 38, outer: 64 } } as const
@@ -34,7 +35,7 @@ export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig 
   const naming = config.noteNaming ?? 'sharp'
   const [selected, setSelected] = useState<CircleKey>({ ring: 'major', index: 0 })
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
-  const fontSize = baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO)
+  const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
   const relations = keyRelations(selected)
 
   const roleOf = (key: CircleKey): Role => {
@@ -72,15 +73,15 @@ export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig 
 
       <div style={{ fontSize }} className="flex flex-col items-center gap-0.5 text-center">
         <span className="font-bold text-ink">{keyName(relations.selected, naming)}</span>
-        <span className="text-[0.7em] text-ink-muted">
+        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
           Paralleltonart: <span className="font-semibold text-ink">{keyName(relations.relative, naming)}</span>
         </span>
-        <span className="text-[0.7em] text-ink-muted">
+        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
           Dominante: <span className="font-semibold text-ink">{circleLabel(relations.dominant, naming)}</span>
           {' · '}
           Subdominante: <span className="font-semibold text-ink">{circleLabel(relations.subdominant, naming)}</span>
         </span>
-        <span className="text-[0.7em] text-ink-faint">{describeSignature(relations.selected.index, naming)}</span>
+        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-faint">{describeSignature(relations.selected.index, naming)}</span>
       </div>
     </div>
   )
