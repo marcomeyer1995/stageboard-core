@@ -23,6 +23,10 @@ function toDashboard(doc: DashboardDoc): Dashboard {
     ownerProfileId: doc.ownerProfileId,
     ownerRole: doc.ownerRole,
     visibility: doc.visibility ?? 'public',
+    // Must be copied too: this function lists fields explicitly, and a dropped field is not
+    // just invisible - the next save from the store would erase it from the document
+    // (found live 2026-09-27: the Gig/Solo chips saved, then snapped back).
+    modes: doc.modes,
   }
 }
 
