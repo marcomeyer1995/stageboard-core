@@ -48,7 +48,7 @@ Stand: Code auf `main` (nach #264). Quelle für Registrierung: `widgets/registry
 
 ### Gemeinsame Mechanik
 
-- **Registry (`registry.tsx`):** Jedes Widget wird per `defineWidget` mit Typ, Titel, Beschreibung, `requires` (Capabilities), `category`, `relevantRoles`, `defaultLayout` (Grid-Größe mit min/max), `configSchema` (Zod), `Component`, `ConfigPanel` und optional `Preview` (statische Galerie-Vorschau) registriert. Die Config wird einmal geparst; bei ungültiger/älterer/neuerer Config fällt sie auf die Schema-Defaults zurück (ein Dashboard-Dokument kann die Live-Ansicht nie zum Absturz bringen).
+- **Registry (`registry.tsx`):** Jedes Widget wird per `defineWidget` mit Typ, Titel, Beschreibung, `requires` (Capabilities), `category`, `stageTier` (Bühnen-Stufe *gig* / *glance* / *rehearsal* / *layout*, seit 2026-09-27, docs/07 §3), `relevantRoles`, `defaultLayout` (Grid-Größe mit min/max), `configSchema` (Zod), `Component`, `ConfigPanel` und optional `Preview` (statische Galerie-Vorschau) registriert. Die Config wird einmal geparst; bei ungültiger/älterer/neuerer Config fällt sie auf die Schema-Defaults zurück (ein Dashboard-Dokument kann die Live-Ansicht nie zum Absturz bringen).
 - **Kategorien:** `performance`, `monitoring`, `show-control`, `system-crew`, `utility`, `reference` (neu, #24, in der Bibliothek „Nachschlagen"), `post-show` (aktuell hat kein Widget `post-show`).
 - **Graceful Degradation (`components/WidgetFrame.tsx`):** Ist der Status einer Capability `degraded` (Plugin installiert, aber nicht erreichbar), bleibt das Widget an seinem Platz, wird zu 50 % transparent, inert (`pointer-events-none`) und zeigt ein „⃠ Offline"-Badge. Im Edit-Modus ist jedes Widget inert und wird zum Drag-Handle; das „⋯"-Menü (oder Doppelklick) öffnet Config-Panel, „Entfernen" und – wenn vom Dashboard angeboten – den Rahmen-los-Schalter.
 - **Größen:** Praktisch alle Widgets nutzen `SizeRatioSlider` (25 %–400 % des geräteweiten Standards „Textgröße", `useContentFontSizeStore.baseFontSize`) – kein Auto-Fit mehr (siehe Memory „Widget font auto-fit"). Listen-Widgets nutzen `ContentFontSizeConfigSchema` (`sizeRatio`, Default 1).
@@ -428,15 +428,16 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 #### 4.5 Widget-Bibliothek (`WidgetLibrary`)
 - **Was:** Overlay „+ Widget": Suche (Titel/Beschreibung) + Kategorien *Performance, Monitoring, Show Control, System & Crew, Utility, Nachschlagen, Nach der Show*. Angeboten wird nur, was zu den **installierten Plugins/Capabilities** und zu den **Stage-Rollen** des aktiven Profils passt (`availableWidgets`); fehlende Hardware blendet Widgets nicht aus, sondern graut sie im Dashboard aus. Mini-Live-Vorschau je Kachel mit Fehlergrenze (`WidgetPreviewErrorBoundary`).
 - **Gating:** Edit-Modus.
+- **Bühnen-Stufe (2026-09-27):** Jede Karte trägt ein Badge *Gig*, *Gig-Blick* oder *Probe* (`stageTier`, siehe docs/07 §3); ein Probe-Widget auf einem auch im Gig verfügbaren Dashboard bekommt den Hinweis „Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar" (kein Verbot).
 - **UC:** Eine Band ohne Lichtplugin sieht keine Licht-Widgets – die Bibliothek bleibt übersichtlich.
 
 #### 4.6 Dashboards verwalten (`DashboardManager`)
-- **Was:** Liste „Meine Stations" + „Geteilt": ▲/▼ umordnen, Inline-Umbenennen, **Anzeigen**, **Duplizieren** (`<Name> Kopie`), **Löschen** (das **letzte öffentliche** Dashboard ist gesperrt); **+ Neu** mit Besitzer: *Geteilt*, *<Profil> (privat)* oder *Rolle: <Rolle> (privat)*.
+- **Was:** Liste „Meine Stations" + „Geteilt": ▲/▼ umordnen, Inline-Umbenennen, **Anzeigen**, **Duplizieren** (`<Name> Kopie`), **Löschen** (das **letzte öffentliche** Dashboard ist gesperrt), und **seit 2026-09-27 die Chips „Gig" / „Solo"**: in welchem Modus das Dashboard angeboten wird (`Dashboard.modes`, fehlt = beide; der letzte Chip eines Modus ist gesperrt); **+ Neu** mit Besitzer: *Geteilt*, *<Profil> (privat)* oder *Rolle: <Rolle> (privat)*.
 - **Gating:** Edit-Modus; Privatheit ist **nur Anzeigefilter** (Dokument repliziert trotzdem zu jedem Gerät).
-- **UC:** Der Tontechniker legt ein privates „FOH"-Dashboard für die Rolle *soundtech* an, das sonst niemand sieht.
+- **UC:** Der Tontechniker legt ein privates „FOH"-Dashboard für die Rolle *soundtech* an, das sonst niemand sieht. Der Gitarrist stellt sein Probe-Dashboard (Loop-Trainer, Quintenzirkel) auf „nur Solo" - im Gig taucht es im Menü gar nicht auf.
 
 #### 4.7 Dashboard-Auswahl im Menü
-- `AppMenu` zeigt den Abschnitt **Dashboards** nur bei >1 sichtbarem Dashboard; Wahl wechselt direkt nach Live (`useActiveDashboardStore`, pro Gerät+Band gemerkt).
+- `AppMenu` zeigt den Abschnitt **Dashboards** nur bei >1 sichtbarem Dashboard; Wahl wechselt direkt nach Live (`useActiveDashboardStore`, pro Gerät+Band gemerkt). Seit 2026-09-27 zählen nur die Dashboards des **aktuellen Modus** (`useModeDashboards`), und gemerkt wird **je Modus**: Gig → das zuletzt im Gig gezeigte Dashboard, Solo Üben → das zuletzt beim Üben gezeigte; ist das aktuelle in beiden Modi verfügbar, bleibt es stehen. Gleiches gilt für den Dashboard-Umschalter.
 
 ---
 

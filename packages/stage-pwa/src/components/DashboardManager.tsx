@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { STAGE_ROLES, type Dashboard, type Profile, type StageRole } from 'shared-types'
-import { isDashboardVisible } from '../lib/dashboardLayout'
+import { canRemoveMode, isDashboardAvailableInMode, isDashboardVisible, toggleDashboardMode } from '../lib/dashboardLayout'
 import { STAGE_ROLE_LABELS } from '../lib/stageRoleLabels'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
@@ -29,6 +29,9 @@ function ownerLabel(dashboard: Dashboard, profiles: Profile[]): string {
  * create a new one - including, unlike the old flow, actually choosing an owner and
  * visibility instead of every dashboard defaulting to public/unowned.
  */
+const DASHBOARD_MODES = ['gig', 'practice'] as const
+const MODE_LABEL: Record<(typeof DASHBOARD_MODES)[number], string> = { gig: 'Gig', practice: 'Solo' }
+
 export function DashboardManager({ onClose }: DashboardManagerProps) {
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const save = useDashboardsStore((state) => state.save)
@@ -128,6 +131,30 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         >
           {dashboard.visibility === 'private' ? ownerLabel(dashboard, profiles) : 'Geteilt'}
         </span>
+
+        {/* In which session mode(s) this dashboard is offered (2026-09-27) - pressed = offered.
+            The chip that would leave a mode without any dashboard is locked on. */}
+        <div className="flex gap-1" role="group" aria-label="Verfügbar in">
+          {DASHBOARD_MODES.map((mode) => {
+            const on = isDashboardAvailableInMode(dashboard, mode)
+            const lockedOn = on && !canRemoveMode(dashboards, dashboard, mode)
+            return (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={on}
+                disabled={lockedOn}
+                title={lockedOn ? `Einziges Dashboard für ${MODE_LABEL[mode]} - bleibt dort verfügbar` : `Im Modus ${MODE_LABEL[mode]} anbieten`}
+                onClick={() => void save({ ...dashboard, modes: toggleDashboardMode(dashboard, mode) })}
+                className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed ${
+                  on ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
+                }`}
+              >
+                {MODE_LABEL[mode]}
+              </button>
+            )
+          })}
+        </div>
 
         <button
           type="button"

@@ -1,4 +1,4 @@
-import { BREAKPOINTS, type Breakpoint, type Dashboard, type LayoutItem } from 'shared-types'
+import { BREAKPOINTS, type Breakpoint, type Dashboard, type DashboardMode, type LayoutItem } from 'shared-types'
 import type { CapabilityId, Profile, StageRole } from 'shared-types'
 import { capabilityStatusFor, type CapabilityStatus } from './capabilities'
 import { fmtItems, gridLog } from './gridDebug'
@@ -359,6 +359,56 @@ export function isDashboardVisible(dashboard: Dashboard, activeProfile: Profile 
   if (dashboard.ownerProfileId) return dashboard.ownerProfileId === activeProfile.id
   if (dashboard.ownerRole) return activeProfile.stageRoles.includes(dashboard.ownerRole as StageRole)
   return true
+}
+
+/** Whether a dashboard is offered in the given session mode - unset `modes` means both. */
+export function isDashboardAvailableInMode(dashboard: Dashboard, mode: DashboardMode): boolean {
+  return !dashboard.modes || dashboard.modes.includes(mode)
+}
+
+/**
+ * The dashboards this device may pick from right now: visible to the active profile (private
+ * Stations) and offered in the current session mode. Falls back to every visible dashboard when
+ * the mode filter would leave none (e.g. the only Gig dashboard is someone else's private
+ * Station) - a stage tablet must never end up with an empty screen over a menu setting.
+ */
+export function dashboardsForMode(dashboards: Dashboard[], activeProfile: Profile | undefined, mode: DashboardMode): Dashboard[] {
+  const visible = dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile))
+  const inMode = visible.filter((dashboard) => isDashboardAvailableInMode(dashboard, mode))
+  return inMode.length > 0 ? inMode : visible
+}
+
+/**
+ * Which of `candidates` (already filtered by dashboardsForMode) this device shows: the one it
+ * last used in this mode, else the one it showed last in any mode if that is also offered here
+ * (switching modes on a dashboard available in both keeps it), else the first. So Gig -> the
+ * gig dashboard and Solo Üben -> the rehearsal dashboard, automatically.
+ */
+export function resolveActiveDashboard(
+  candidates: Dashboard[],
+  rememberedForMode: string | undefined,
+  lastShown: string | undefined,
+): Dashboard | undefined {
+  return (
+    candidates.find((dashboard) => dashboard.id === rememberedForMode) ??
+    candidates.find((dashboard) => dashboard.id === lastShown) ??
+    candidates[0]
+  )
+}
+
+/** Whether `mode` may be switched off for `dashboard`: only if another dashboard is still offered
+ * in that mode - so no mode is ever left without a dashboard. */
+export function canRemoveMode(dashboards: Dashboard[], dashboard: Dashboard, mode: DashboardMode): boolean {
+  return dashboards.some((other) => other.id !== dashboard.id && isDashboardAvailableInMode(other, mode))
+}
+
+/** The dashboard's `modes` after toggling one - `undefined` again once both are on, so a
+ * dashboard offered everywhere stays indistinguishable from one written before the field. */
+export function toggleDashboardMode(dashboard: Dashboard, mode: DashboardMode): DashboardMode[] | undefined {
+  const current: DashboardMode[] = dashboard.modes ?? ['gig', 'practice']
+  const next = current.includes(mode) ? current.filter((m) => m !== mode) : [...current, mode]
+  if (next.length === 0) return current
+  return next.length === 2 ? undefined : next
 }
 
 /**

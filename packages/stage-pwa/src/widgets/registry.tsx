@@ -81,6 +81,21 @@ export type WidgetCategory =
   | 'post-show'
 
 /** A widget as the dashboard grid sees it: config already parsed, type parameter erased. */
+/**
+ * How a widget is used, which sets the size requirements it has to meet (GUI audit 2026-09-26,
+ * tiers agreed with Marco 2026-09-27):
+ * - `gig`: operated or read mid-song, at arm's length, under stress - show actions >= 72px
+ *   (--sb-touch-primary), other targets >= 56px (--sb-touch), text >= 16px, key readouts
+ *   (time, BPM, state) >= 24px.
+ * - `glance`: on stage, but only glanced at or used between songs - text >= 16px, targets >= 48px.
+ * - `rehearsal`: rehearsal / practice / preparation only - normal tablet ergonomics (text floor
+ *   16px from lib/stageSize.ts, targets >= 44px), density allowed.
+ * - `layout`: structure only (Trenner), no content.
+ * The widget library shows it as a badge, and hints when a rehearsal widget lands on a
+ * dashboard that is also offered in Gig mode.
+ */
+export type StageTier = 'gig' | 'glance' | 'rehearsal' | 'layout'
+
 export interface WidgetDefinition {
   type: string
   title: string
@@ -88,6 +103,8 @@ export interface WidgetDefinition {
   /** Capabilities this widget needs. Empty means core - it can never grey out. */
   requires: CapabilityId[]
   category: WidgetCategory
+  /** How much stage usability this widget owes - see StageTier. */
+  stageTier: StageTier
   /** Roles this widget is relevant to. Unset means relevant to everyone. */
   relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
@@ -110,6 +127,7 @@ interface WidgetSpec<C> {
   description: string
   requires?: CapabilityId[]
   category: WidgetCategory
+  stageTier: StageTier
   relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
   configSchema?: z.ZodType<C>
@@ -139,6 +157,7 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
     description: spec.description,
     requires: spec.requires ?? [],
     category: spec.category,
+    stageTier: spec.stageTier,
     relevantRoles: spec.relevantRoles,
     defaultLayout: spec.defaultLayout,
     // `parse()` (Zod's safeParse) allocates a new object on every call, even for the exact
@@ -173,6 +192,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Prompter',
     description: 'Text und Akkorde, wahlweise Smooth Scroll oder Paginated View.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 12, h: 16, minW: 3, minH: 6 },
     configSchema: PrompterConfigSchema,
     Component: PrompterWidget,
@@ -183,6 +203,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Live-Queue',
     description: 'Die nächsten Songs der Setlist, mit "Als nächstes spielen".',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 4, h: 12, minW: 3, minH: 4 },
     configSchema: ContentFontSizeConfigSchema,
     Component: LiveQueueWidget,
@@ -194,6 +215,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Next Song',
     description: 'Vorheriger, aktueller und nächster Song, Master-Token, Vor/Zurück.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 7, h: 2, minW: 3, minH: 2, maxH: 6 },
     configSchema: NextSongConfigSchema,
     Component: NextSongWidget,
@@ -204,6 +226,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Aktive Setlist',
     description: 'Zeigt, welche Setlist gerade aktiv ist - auch ohne Live-Queue/Next Song.',
     category: 'performance',
+    stageTier: 'glance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: ActiveSetlistConfigSchema,
     Component: ActiveSetlistWidget,
@@ -214,6 +237,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Show-Transport',
     description: 'Play/Pause/Stop/Reset für den aktuellen Song - Gig oder Solo Üben, mit oder ohne Backing-Track-Plugin.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 4, h: 3, minW: 3, minH: 2, maxW: 8, maxH: 6 },
     configSchema: ShowTransportConfigSchema,
     Component: ShowTransportWidget,
@@ -224,6 +248,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Visueller Metronom',
     description: 'Blitzt im Takt des aktiven Songs (BPM/Taktart), Downbeat farblich abgesetzt.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: MetronomeConfigSchema,
     Component: VisualMetronomeWidget,
@@ -235,6 +260,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Loop-Trainer',
     description: 'Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).',
     category: 'performance',
+    stageTier: 'rehearsal',
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 4, maxW: 8, maxH: 10 },
     configSchema: LoopTrainerConfigSchema,
     Component: LoopTrainerWidget,
@@ -245,6 +271,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Tempo-Korrektur',
     description: 'Live +/- Anpassung des Klick-/Metronom-Tempos, ohne den Song-BPM zu ändern.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: TempoNudgeConfigSchema,
     Component: TempoNudgeWidget,
@@ -255,6 +282,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Klick',
     description: 'Synthetisierter Klick/Metronom-Ton, an/aus - läuft auf dem als Klick-Ausgabe eingerichteten Gerät.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: ClickTrackConfigSchema,
     Component: ClickTrackWidget,
@@ -266,6 +294,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description:
       'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre"); in Solo Üben auch die Variante.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: TrackOverrideConfigSchema,
     Component: TrackOverrideWidget,
@@ -277,6 +306,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Status des MIDI-Fußtasters, Sprung zum nächsten Song-Part.',
     requires: [CAPABILITIES.midiInput],
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
     configSchema: MidiStatusConfigSchema,
     Component: MidiStatusWidget,
@@ -287,6 +317,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Dashboard-Umschalter',
     description: 'Große Buttons, um zwischen den Dashboards zu wechseln.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 12, h: 2, minW: 2, minH: 2, maxH: 4 },
     configSchema: DashboardSwitcherConfigSchema,
     Component: DashboardSwitcherView,
@@ -298,6 +329,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Eigene Fader für den In-Ear-Mix.',
     requires: [CAPABILITIES.mixer],
     category: 'monitoring',
+    stageTier: 'gig',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 5 },
     configSchema: IemConfigSchema,
     Component: IemWidget,
@@ -309,6 +341,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Große Buttons für Ad-Hoc Show Cues.',
     requires: [CAPABILITIES.showControl],
     category: 'show-control',
+    stageTier: 'gig',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     configSchema: CueGridConfigSchema,
     Component: QuickActionsWidget,
@@ -320,6 +353,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Große Buttons für Licht-Cues am DMX-Pult.',
     requires: [CAPABILITIES.lighting],
     category: 'show-control',
+    stageTier: 'gig',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
     configSchema: CueGridConfigSchema,
     Component: LightingCuesWidget,
@@ -330,6 +364,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'System-Status',
     description: 'Ampel-Übersicht aller Plugin-Capabilities, für Setup/Soundcheck.',
     category: 'system-crew',
+    stageTier: 'glance',
     relevantRoles: ['crew'],
     defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
     configSchema: ContentFontSizeConfigSchema,
@@ -341,6 +376,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Sync-Check',
     description: 'Blitzt im Takt der Server-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.',
     category: 'system-crew',
+    stageTier: 'glance',
     relevantRoles: ['crew'],
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: SyncCheckConfigSchema,
@@ -352,6 +388,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Stimmgerät',
     description: 'Chromatisches Stimmgerät über das Mikrofon des Tablets.',
     category: 'utility',
+    stageTier: 'gig',
     // A tuner that's been squeezed down to something like 4x4 grid units is illegible on
     // stage - there's no useful "small" size for this widget the way there is for, say, a
     // status light. minW/minH are set high enough that even the smallest allowed size
@@ -367,6 +404,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Show-Notizen',
     description: 'Live-Notizen von Band und Crew, zum Nachbericht sichtbar.',
     category: 'system-crew',
+    stageTier: 'glance',
     defaultLayout: { w: 4, h: 8, minW: 3, minH: 4 },
     configSchema: ContentFontSizeConfigSchema,
     Component: ShowNoteWidget,
@@ -378,6 +416,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     description: 'Glanceable Indikator, ob das Backup-Plugin erreichbar ist.',
     requires: [CAPABILITIES.backup],
     category: 'system-crew',
+    stageTier: 'glance',
     defaultLayout: { w: 3, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4 },
     configSchema: BackupStatusConfigSchema,
     Component: BackupStatusWidget,
@@ -388,6 +427,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Festival-Uhr',
     description: 'Voraussichtliches Ende der restlichen Setlist - wird rot, wenn das Ende nach der Zielzeit (Curfew) liegt.',
     category: 'performance',
+    stageTier: 'gig',
     defaultLayout: { w: 4, h: 3, minW: 3, minH: 2 },
     configSchema: FestivalClockConfigSchema,
     Component: FestivalClockWidget,
@@ -399,6 +439,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Uhr',
     description: 'Große, gut lesbare Digitaluhr für die Bühne.',
     category: 'utility',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     configSchema: ClockConfigSchema,
     Component: ClockWidget,
@@ -409,6 +450,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Trenner',
     description: 'Eine einfache Linie, um Dashboard-Bereiche optisch abzugrenzen.',
     category: 'utility',
+    stageTier: 'layout',
     defaultLayout: { w: 12, h: 1, minW: 1, minH: 1 },
     configSchema: SeparatorConfigSchema,
     Component: SeparatorWidget,
@@ -419,6 +461,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Geräte-Status',
     description: 'Live-Verbindungsstatus eines einzelnen, konkret ausgewählten Geräts.',
     category: 'utility',
+    stageTier: 'glance',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     configSchema: DeviceStatusConfigSchema,
     Component: DeviceStatusWidget,
@@ -429,6 +472,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Trigger-Button',
     description: 'Frei konfigurierbarer Button (latching oder momentary) für ein Zielgerät.',
     category: 'show-control',
+    stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
     configSchema: CustomTriggerConfigSchema,
     Component: CustomTriggerWidget,
@@ -439,6 +483,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Akkord-Nachschlagen',
     description: 'Grundton und Akkordart wählen: Noten, Intervalle, Gitarren-Griffbild und Klaviatur.',
     category: 'reference',
+    stageTier: 'rehearsal',
     defaultLayout: { w: 5, h: 7, minW: 3, minH: 4, maxW: 10, maxH: 12 },
     configSchema: ChordReferenceConfigSchema,
     Component: ChordReferenceWidget,
@@ -449,6 +494,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     title: 'Quintenzirkel',
     description: 'Tonart antippen: Paralleltonart, Dominante, Subdominante und Vorzeichen auf einen Blick.',
     category: 'reference',
+    stageTier: 'rehearsal',
     defaultLayout: { w: 4, h: 7, minW: 3, minH: 5, maxW: 8, maxH: 12 },
     configSchema: CircleOfFifthsConfigSchema,
     Component: CircleOfFifthsWidget,

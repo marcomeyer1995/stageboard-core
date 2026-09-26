@@ -3,14 +3,19 @@ import { BREAKPOINTS, DashboardSchema, type Dashboard, type Profile } from 'shar
 import {
   availableWidgets,
   breakpointFor,
+  canRemoveMode,
+  dashboardsForMode,
   GRID_COLUMNS,
   GRID_ROWS,
   gridHeight,
   gridMetrics,
   hasOverlap,
+  isDashboardAvailableInMode,
   isDashboardVisible,
   normalizeLayout,
+  resolveActiveDashboard,
   resolveInteraction,
+  toggleDashboardMode,
   withWidgetAppended,
   withWidgetRemoved,
 } from './dashboardLayout'
@@ -568,5 +573,56 @@ describe('isDashboardVisible', () => {
     expect(parsed.visibility).toBe('public')
     expect(parsed.ownerProfileId).toBeUndefined()
     expect(parsed.ownerRole).toBeUndefined()
+  })
+})
+
+describe('dashboards per session mode (Gig / Solo Üben)', () => {
+  const both = { ...emptyDashboard(), id: 'both', name: 'Beide' }
+  const gig = { ...emptyDashboard(), id: 'gig', name: 'Bühne', modes: ['gig' as const] }
+  const practice = { ...emptyDashboard(), id: 'practice', name: 'Probe', modes: ['practice' as const] }
+  const all: Dashboard[] = [both, gig, practice]
+
+  it('treats a dashboard without modes as offered in both - every older dashboard stays available', () => {
+    expect(isDashboardAvailableInMode(both, 'gig')).toBe(true)
+    expect(isDashboardAvailableInMode(both, 'practice')).toBe(true)
+    expect(isDashboardAvailableInMode(gig, 'practice')).toBe(false)
+  })
+
+  it('offers only the dashboards of the current mode', () => {
+    expect(dashboardsForMode(all, undefined, 'gig').map((d) => d.id)).toEqual(['both', 'gig'])
+    expect(dashboardsForMode(all, undefined, 'practice').map((d) => d.id)).toEqual(['both', 'practice'])
+  })
+
+  it('never leaves a mode empty: falls back to every visible dashboard', () => {
+    expect(dashboardsForMode([practice], undefined, 'gig').map((d) => d.id)).toEqual(['practice'])
+  })
+
+  it('still hides private Stations of other members', () => {
+    const privateGig = { ...gig, id: 'private-gig', visibility: 'private' as const, ownerProfileId: 'someone-else' }
+    expect(dashboardsForMode([privateGig, both], undefined, 'gig').map((d) => d.id)).toEqual(['both'])
+  })
+
+  it('resolves the dashboard remembered for this mode, else the last shown one if offered, else the first', () => {
+    const inGig = dashboardsForMode(all, undefined, 'gig')
+    expect(resolveActiveDashboard(inGig, 'gig', 'both')?.id).toBe('gig')
+    expect(resolveActiveDashboard(inGig, undefined, 'both')?.id).toBe('both')
+    expect(resolveActiveDashboard(inGig, 'deleted', 'practice')?.id).toBe('both')
+  })
+
+  it('locks the last dashboard of a mode in that mode', () => {
+    expect(canRemoveMode(all, gig, 'gig')).toBe(true) // "Beide" is still offered in Gig
+    expect(canRemoveMode([gig, practice], gig, 'gig')).toBe(false)
+  })
+
+  it('toggles modes, writing undefined again once both are on and never an empty list', () => {
+    expect(toggleDashboardMode(both, 'gig')).toEqual(['practice'])
+    expect(toggleDashboardMode(practice, 'gig')).toBeUndefined()
+    expect(toggleDashboardMode(practice, 'practice')).toEqual(['practice'])
+  })
+
+  it('parses dashboards with and without modes', () => {
+    expect(DashboardSchema.parse({ id: 'x', name: 'X', order: 0 }).modes).toBeUndefined()
+    expect(DashboardSchema.parse({ id: 'x', name: 'X', order: 0, modes: ['gig'] }).modes).toEqual(['gig'])
+    expect(DashboardSchema.safeParse({ id: 'x', name: 'X', order: 0, modes: [] }).success).toBe(false)
   })
 })

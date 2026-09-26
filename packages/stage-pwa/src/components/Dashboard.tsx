@@ -12,19 +12,16 @@ import {
   GRID_COLUMNS,
   GRID_ROWS,
   gridMetrics,
-  isDashboardVisible,
   normalizeLayout,
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
 import { fmtItems, gridLog } from '../lib/gridDebug'
-import { useActiveProfile } from '../lib/useActiveProfile'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
-import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
+import { useModeDashboards } from '../lib/useModeDashboards'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
-import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
@@ -76,14 +73,11 @@ function toItems(layout: Layout): LayoutItem[] {
 }
 
 export function Dashboard() {
-  const dashboards = useDashboardsStore((state) => state.dashboards)
   const loaded = useDashboardsStore((state) => state.loaded)
   const resetNonce = useDashboardsStore((state) => state.resetNonce)
   const setLayout = useDashboardsStore((state) => state.setLayout)
   const save = useDashboardsStore((state) => state.save)
   const updateWidget = useDashboardsStore((state) => state.updateWidget)
-  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const byWorkspace = useActiveDashboardStore((state) => state.byWorkspace)
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
   const [containerRef, { width, height }] = useElementSize()
@@ -196,20 +190,11 @@ export function Dashboard() {
     [],
   )
 
-  // Private Stations are filtered out before anything else picks an active dashboard, so
-  // a device never lands on - or falls back to - a dashboard it has no business showing.
-  const activeProfile = useActiveProfile()
-  const visibleDashboards = useMemo(
-    () => dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile)),
-    [dashboards, activeProfile],
-  )
-
-  // A dashboard the device remembers may have been deleted on another tablet, or turned
-  // private by someone else since - either way, it's the same "fall back to the first one
-  // that's actually usable" case.
-  const active =
-    visibleDashboards.find((dashboard) => dashboard.id === byWorkspace[workspaceId]) ??
-    visibleDashboards[0]
+  // Private Stations and dashboards not offered in the current session mode are filtered out
+  // before anything picks an active dashboard, so a device never lands on one it has no
+  // business showing. A remembered dashboard that was deleted, turned private or taken out of
+  // this mode since falls back the same way (useModeDashboards / resolveActiveDashboard).
+  const { active } = useModeDashboards()
 
   // A baseline belongs to one specific dashboard's widgets and must never outlive it - e.g.
   // switching away mid-drag, or the active dashboard being rewritten out from under the grid

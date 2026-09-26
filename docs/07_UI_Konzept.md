@@ -15,10 +15,17 @@ Ein Bildschirm reicht nicht: der Prompter, das Monitoring-Cockpit und die Lichts
 
 * **Ein Dashboard ist eine Seite mit eigenem Raster.** Anlegen, umbenennen, duplizieren, löschen und sortieren passiert im Edit-Modus (Abschnitt 5). Das letzte Dashboard lässt sich nicht löschen — ein Gerät ohne Dashboard hätte nichts anzuzeigen.
 * **Ein Dashboard bedient alle Gerätegrößen.** Statt pro Gerät zu existieren, hält es je Bildschirmklasse (`sm`/`md`/`lg`/`xl`, siehe die Szenarien in Abschnitt 4) ein eigenes Raster. Wer das Layout am Bühnen-Monitor umbaut, zerstört damit nicht die Tablet-Ansicht.
+* **Dashboards je Modus:** Jedes Dashboard ist im Modus **Gig**, in **Solo Üben** oder in beiden verfügbar (Dashboard verwalten: Chips „Gig" / „Solo", Standard: beide). Menü und Dashboard-Umschalter zeigen nur die Dashboards des aktuellen Modus; beim Moduswechsel springt das Gerät auf das Dashboard, das es in diesem Modus zuletzt gezeigt hat. So bleibt die Gig-Auswahl schlank, während Probe-Dashboards (Loop-Trainer, Quintenzirkel …) nur in Solo Üben auftauchen. Jeder Modus behält mindestens ein Dashboard - der letzte Chip eines Modus ist gesperrt; bliebe über private Stations dennoch keines übrig, zeigt das Gerät alle sichtbaren Dashboards statt eines leeren Bildschirms (Marco, 2026-09-27).
 * **Umgeschaltet wird über ein Widget**, nicht über eine feste Leiste: das "Dashboard-Umschalter"-Widget rendert große Buttons (horizontal als Leiste oder vertikal als Spalte, pro Instanz einstellbar) und liegt selbst im Raster. So entscheidet jeder Bildschirm, wo seine Navigation sitzt — oder ob er überhaupt eine braucht.
 * **Geteilt, aber lokal ausgewählt:** Dashboards replizieren band-weit wie Setlisten. Der Bandleader baut "Light" einmal, der Lichtmensch wählt es auf seinem Tablet aus. *Welches* Dashboard offen ist, bleibt eine reine Geräte-Einstellung und überlebt den Reload.
 
 ## 3. Die UI-Bausteine (Widgets)
+
+**Bühnen-Stufen (Stage Tier):** Jedes Widget trägt eine Stufe, die festlegt, wie groß es sein muss (GUI-Audit 2026-09-26, mit Marco festgelegt 2026-09-27; Größen-Tokens in `index.css`, Textuntergrenze in `lib/stageSize.ts`):
+* **Gig** - wird mitten im Song bedient oder gelesen: Show-Aktionen ≥ 72 px, übrige Ziele ≥ 56 px, Text ≥ 16 px, Kernwerte (Zeit, BPM, Zustand) ≥ 24 px. Prompter, Show-Transport, Next Song, Live-Queue, Klick, Visueller Metronom, Tempo-Korrektur, Dashboard-Umschalter, Trigger-Button, Quick Actions, More Me, Lighting Cues, Festival-Uhr, Uhr, Variante & Track, Fußtaster, Stimmgerät.
+* **Gig-Blick** - auf der Bühne, aber nur angeschaut oder zwischen Songs bedient: Text ≥ 16 px, Ziele ≥ 48 px. Show-Notizen, Aktive Setlist, System-Status, Geräte-Status, Backup-Status, Sync-Check.
+* **Probe** - nur Probe, Üben, Vorbereitung: normale Tablet-Ergonomie (Text ≥ 16 px, Ziele ≥ 44 px), Dichte erlaubt. Loop-Trainer, Quintenzirkel, Akkord-Nachschlagen.
+* Die Widget-Bibliothek zeigt die Stufe als Badge und weist bei einem Probe-Widget auf einem auch im Gig verfügbaren Dashboard darauf hin - ohne es zu verbieten.
 
 Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 

@@ -7,27 +7,26 @@ import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { useModeDashboards } from '../lib/useModeDashboards'
 
 /**
  * Switching between dashboards is itself a widget, so each screen decides where the
  * navigation sits. Fat buttons per docs/07 - hit-able mid-song, without looking.
  */
 export function DashboardSwitcherView({ config }: { config: DashboardSwitcherConfig }) {
-  const dashboards = useDashboardsStore((state) => state.dashboards)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
-  const byWorkspace = useActiveDashboardStore((state) => state.byWorkspace)
   const setActive = useActiveDashboardStore((state) => state.setActive)
-  const activeProfile = useActiveProfile()
 
   // A private Station never appears as a switch target for anyone but its owner, whether
-  // it was picked explicitly in this instance's config or just fell out of "show all."
-  const selectable = dashboards.filter((dashboard) => isDashboardVisible(dashboard, activeProfile))
+  // it was picked explicitly in this instance's config or just fell out of "show all" - and
+  // neither does a dashboard not offered in the current session mode (Gig / Solo Üben).
+  const { candidates: selectable, active } = useModeDashboards()
   const visible = config.dashboardIds
     ? config.dashboardIds
         .map((id) => selectable.find((dashboard) => dashboard.id === id))
         .filter((dashboard) => dashboard !== undefined)
     : selectable
-  const activeId = byWorkspace[workspaceId] ?? selectable[0]?.id
+  const activeId = active?.id
 
   // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
   // 2026-09-14) - every button now shares this same fixed size directly, so the previous

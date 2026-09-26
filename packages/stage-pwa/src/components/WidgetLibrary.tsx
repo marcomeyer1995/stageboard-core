@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { randomId } from '../lib/id'
 import type { CapabilityId, Dashboard, StageRole } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
-import { availableWidgets, GRID_COLUMNS, withWidgetAppended } from '../lib/dashboardLayout'
-import { ALL_WIDGETS, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
+import { availableWidgets, GRID_COLUMNS, isDashboardAvailableInMode, withWidgetAppended } from '../lib/dashboardLayout'
+import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
@@ -44,7 +44,13 @@ interface WidgetLibraryProps {
  * closes, inner panel stops propagation) - so opening it no longer pushes the grid below
  * out of the way.
  */
+/** Badge per stage tier (registry.tsx StageTier); layout-only widgets get none. */
+const TIER_BADGE: Record<StageTier, string | null> = { gig: 'Gig', glance: 'Gig-Blick', rehearsal: 'Probe', layout: null }
+
 export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd, onClose }: WidgetLibraryProps) {
+  // A rehearsal widget is fine anywhere; on a dashboard that is also offered in Gig mode it
+  // just gets a note, never a block (Marco, 2026-09-27: keep the gig dashboards lean by choice).
+  const offeredInGig = isDashboardAvailableInMode(dashboard, 'gig')
   const [search, setSearch] = useState('')
 
   const available = useMemo(
@@ -155,9 +161,21 @@ export function WidgetLibrary({ dashboard, capabilities, activeRoles, onAdd, onC
                       {definition.Preview ? <definition.Preview /> : <definition.Component config={undefined} />}
                     </WidgetPreviewErrorBoundary>
                   </div>
-                  <div className="px-3 py-2">
-                    <span className="block font-semibold">{definition.title}</span>
+                  <div className="flex flex-col gap-1 px-3 py-2">
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="font-semibold">{definition.title}</span>
+                      {TIER_BADGE[definition.stageTier] && (
+                        <span className="whitespace-nowrap rounded-sb-sm bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
+                          {TIER_BADGE[definition.stageTier]}
+                        </span>
+                      )}
+                    </span>
                     <span className="block text-xs text-ink-muted">{definition.description}</span>
+                    {definition.stageTier === 'rehearsal' && offeredInGig && (
+                      <span className="block text-xs text-accent">
+                        Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar.
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
