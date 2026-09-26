@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { ShowTransportWidget } from './ShowTransportWidget'
@@ -13,6 +13,9 @@ import { useShowStateStore } from '../store/useShowStateStore'
 // Same explicit-factory reasoning as useAudioOutputDriver.test.ts (which now owns the reactive
 // local-engine-driving behavior this widget used to run itself - see its own doc comment).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+// The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
+const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
+vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))
 // Its own claim rules (masterTakeover.test.ts) pull in the real PouchDB-backed stores.
 vi.mock('../components/MasterTakeoverButton', () => {
   return { MasterTakeoverButton: () => <button type="button">Master übernehmen</button> }
@@ -130,6 +133,34 @@ beforeEach(() => {
 })
 
 describe('ShowTransportWidget', () => {
+  describe('size-dependent layout (PR B, stage GUI audit)', () => {
+    afterEach(() => {
+      mockSize.width = 0
+      mockSize.height = 0
+    })
+
+    it('keeps the running time in a flat landscape tile and drops the helper line instead', () => {
+      mockSize.width = 600
+      mockSize.height = 100
+      mockShowMode({ currentSong: song('s1', 'A very long song title that cannot fit'), currentEntry: entry('e1', 's1'), elapsedMs: 83_000 })
+      render(<ShowTransportWidget config={{}} />)
+
+      const clock = screen.getByText('01:23')
+      expect(clock.className).toContain('tabular-nums')
+      expect(parseFloat(clock.style.fontSize)).toBeGreaterThanOrEqual(24)
+      expect(screen.getByText('A very long song title that cannot fit').parentElement?.className).toContain('truncate')
+      expect(screen.getByText('Play').closest('div')?.className).toContain('grid-cols-4')
+    })
+
+    it('switches to a 2 x 2 button grid when too narrow for four in a row', () => {
+      mockSize.width = 300
+      mockSize.height = 220
+      mockShowMode({ currentSong: song('s1', 'Song'), currentEntry: entry('e1', 's1') })
+      render(<ShowTransportWidget config={{}} />)
+      expect(screen.getByText('Play').closest('div')?.className).toContain('grid-cols-2')
+    })
+  })
+
   it('shows "Kein Song aktiv" when there is no current entry', () => {
     mockShowMode({ currentSong: null })
     render(<ShowTransportWidget config={{}} />)

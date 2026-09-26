@@ -4,6 +4,8 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type TempoNudgeConfig } from './tempoNudgeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { READOUT_MIN, tempoLayout } from '../lib/gigWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 
 /** Step size per tap - fine enough to correct real drift without overshooting, coarse enough
  * that reaching the +/-15% limit doesn't take a dozen taps. */
@@ -25,6 +27,9 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
+  // Before any early return - hooks must run in the same order on every render.
+  const [boxRef, box] = useElementSize()
+
   if (mode !== 'gig') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
@@ -36,39 +41,64 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   const atMin = liveTempoAdjustPercent <= -LIVE_TEMPO_ADJUST_LIMIT_PERCENT
   const atMax = liveTempoAdjustPercent >= LIVE_TEMPO_ADJUST_LIMIT_PERCENT
 
+  const valueFontSize = Math.max(READOUT_MIN, fontSize)
+  const layout = tempoLayout(box.height)
+  const value = `${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%`
+  // Buttons as tall as the row allows and 30% of the width each (at least the touch size,
+  // at most 96px wide), so a bigger widget means bigger - / + targets without squeezing the
+  // value out of a narrow one (lib/gigWidgetLayout.ts).
+  const stepClass =
+    'h-full min-h-touch w-[30%] min-w-touch max-w-[96px] flex-none rounded-sb bg-control-strong text-3xl font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+
   return (
-    <div className="flex h-full flex-col items-center gap-2 text-ink-soft">
-      <span className="text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>
-      <div className="flex w-full flex-1 items-center justify-center gap-3">
+    <div ref={boxRef} className="flex h-full flex-col items-center gap-2 text-ink-soft">
+      {layout.showLabel && <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>}
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center gap-3">
         <button
           type="button"
+          aria-label="Tempo verringern"
           disabled={!canControl || atMin}
           onClick={() => nudgeLiveTempoAdjustPercent(-STEP_PERCENT)}
-          className="h-9 w-9 flex-shrink-0 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className={stepClass}
         >
           −
         </button>
-        <div className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">
-          <span style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums">
-            {liveTempoAdjustPercent > 0 ? '+' : ''}
-            {liveTempoAdjustPercent}%
-          </span>
-        </div>
+        {/* Without room for a separate reset button, the value itself resets (with a hint). */}
+        {!layout.resetAsButton && liveTempoAdjustPercent !== 0 ? (
+          <button
+            type="button"
+            title="Auf 0 % zurücksetzen"
+            disabled={!canControl}
+            onClick={() => setLiveTempoAdjustPercent(0)}
+            style={{ fontSize: valueFontSize }}
+            className="flex h-full min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden whitespace-nowrap font-bold tabular-nums text-accent disabled:cursor-not-allowed"
+          >
+            {value}
+            <span className="text-[length:max(var(--sb-text-min),0.5em)]">↺</span>
+          </button>
+        ) : (
+          <div className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">
+            <span style={{ fontSize: valueFontSize }} className="whitespace-nowrap font-bold tabular-nums">
+              {value}
+            </span>
+          </div>
+        )}
         <button
           type="button"
+          aria-label="Tempo erhöhen"
           disabled={!canControl || atMax}
           onClick={() => nudgeLiveTempoAdjustPercent(STEP_PERCENT)}
-          className="h-9 w-9 flex-shrink-0 rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className={stepClass}
         >
           +
         </button>
       </div>
-      {liveTempoAdjustPercent !== 0 && (
+      {layout.resetAsButton && liveTempoAdjustPercent !== 0 && (
         <button
           type="button"
           disabled={!canControl}
           onClick={() => setLiveTempoAdjustPercent(0)}
-          className="text-xs text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-12 flex-none rounded-sb bg-control-strong px-4 font-bold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Zurücksetzen
         </button>

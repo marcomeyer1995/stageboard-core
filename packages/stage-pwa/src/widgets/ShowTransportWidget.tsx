@@ -14,6 +14,8 @@ import {
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 import { stageFontSize } from '../lib/stageSize'
+import { lineHeightFor, READOUT_MIN, transportLayout } from '../lib/gigWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 
 /** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
  * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
@@ -72,6 +74,12 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const titleFontSize = stageFontSize(baseFontSize * (config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO))
   const buttonFontSize = stageFontSize(baseFontSize * (config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO))
+  // The running time is the readout musicians glance at mid-song - never below 24px, and it
+  // never gives way: the title truncates first, helper lines disappear before the buttons
+  // shrink (lib/gigWidgetLayout.ts).
+  const clockFontSize = Math.max(READOUT_MIN, titleFontSize)
+  const [boxRef, box] = useElementSize()
+  const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize))
 
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
@@ -104,27 +112,29 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 text-ink-soft">
-      <div className="flex w-full flex-1 items-center overflow-hidden">
-        <span style={{ fontSize: titleFontSize }} className="whitespace-nowrap">
+    <div ref={boxRef} className="flex h-full flex-col gap-2 text-ink-soft">
+      <div className="flex w-full flex-none items-baseline gap-3">
+        <span style={{ fontSize: titleFontSize }} className="min-w-0 flex-1 truncate">
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
           )}
-          <span className="ml-2 font-sb-mono text-ink">{formatClock(elapsedMs ?? 0)}</span>
+        </span>
+        <span style={{ fontSize: clockFontSize }} className="flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink">
+          {formatClock(elapsedMs ?? 0)}
           {transitionItem?.estimatedDurationMs ? (
-            <span className="ml-1 font-sb-mono text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
+            <span className="ml-1 font-normal text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
           ) : null}
         </span>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className={`grid min-h-0 flex-1 gap-2 ${layout.columns === 4 ? 'grid-cols-4' : 'grid-cols-2 grid-rows-2'}`}>
         <button
           type="button"
           onClick={() => {
             void play()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'play' })
           }}
-          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
+          className={`h-full min-h-0 rounded-sb px-1 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'playing'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
@@ -138,7 +148,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void pause()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'pause' })
           }}
-          className={`rounded-sb py-2 font-bold uppercase tracking-wide transition-colors ${
+          className={`h-full min-h-0 rounded-sb px-1 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'paused'
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
@@ -152,25 +162,25 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void stop()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'stop' })
           }}
-          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
           <span style={{ fontSize: buttonFontSize }}>Stop</span>
         </button>
         <button
           type="button"
           onClick={() => void reset()}
-          className="rounded-sb bg-control-strong py-2 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
           <span style={{ fontSize: buttonFontSize }}>Reset</span>
         </button>
       </div>
-      {remoteDeviceOutput && <p className="text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
-      {noLocalTrack && !transitionItem && <p className="text-xs text-ink-faint">Kein Track angehängt</p>}
+      {layout.showHelper && remoteDeviceOutput && <p className="flex-none text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
+      {layout.showHelper && noLocalTrack && !transitionItem && <p className="flex-none text-xs text-ink-faint">Kein Track angehängt</p>}
       {/* #231: the song is running past its originally authored end, via the live bar-extend
           trigger - shown whenever any extension is active, playing or not (a pause mid-extension
           shouldn't make the indicator flicker off). */}
-      {clickExtendMs > 0 && <p className="text-xs text-accent">Verlängert - läuft über die reguläre Länge hinaus</p>}
-      {(error ?? driverError) && <p className="text-xs text-red-500">{error ?? driverError}</p>}
+      {layout.showHelper && clickExtendMs > 0 && <p className="flex-none text-xs text-accent">Verlängert - läuft über die reguläre Länge hinaus</p>}
+      {(error ?? driverError) && <p className="flex-none text-xs text-red-500">{error ?? driverError}</p>}
     </div>
   )
 }
