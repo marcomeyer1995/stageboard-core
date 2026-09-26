@@ -163,6 +163,16 @@ describe('ShowTransportWidget', () => {
       expect(screen.getByText('00:05')).toBeInTheDocument()
     })
 
+    it('keeps only the time beside the buttons in a narrow flat tile - the title gives way first', () => {
+      mockSize.width = 387
+      mockSize.height = 46
+      mockShowMode({ currentSong: song('s1', 'Were not gonna take it'), currentEntry: entry('e1', 's1'), elapsedMs: 12_000 })
+      render(<ShowTransportWidget config={{}} />)
+      expect(screen.getByText('00:12')).toBeInTheDocument()
+      expect(screen.getByText('Were not gonna take it').parentElement?.className).toContain('hidden')
+      expect((screen.getByText('Play').closest('div') as HTMLElement).parentElement?.className).toContain('items-stretch')
+    })
+
     it('switches to a 2 x 2 button grid when too narrow for four in a row', () => {
       mockSize.width = 300
       mockSize.height = 220

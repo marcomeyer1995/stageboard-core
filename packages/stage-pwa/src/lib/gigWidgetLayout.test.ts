@@ -6,33 +6,34 @@ import { clickLayout, lineHeightFor, nextSongLayout, tempoLayout, transportLayou
 describe('transportLayout (Show-Transport)', () => {
   const info = lineHeightFor(24)
 
-  it('puts all four buttons in one row at the new default size, in both orientations', () => {
-    expect(transportLayout(350, 163, info)).toEqual({ row: false, columns: 4, showHelper: true, compactInfo: false }) // portrait 6 x 4
-    expect(transportLayout(600, 100, info).columns).toBe(4) // landscape 6 x 4
-  })
-
-  it('drops helper lines before the buttons fall below touch height - the time stays regardless', () => {
-    expect(transportLayout(600, 100, info).showHelper).toBe(false)
-  })
-
-  it('puts info and buttons side by side in a flat, wide tile instead of squeezing the buttons', () => {
-    // Measured on the tablet (landscape 6 x 4, larger configured title): 599 x 73 with a 49px
-    // info line left 16px for stacked buttons.
-    expect(transportLayout(599, 73, 49)).toEqual({ row: true, columns: 4, showHelper: false, compactInfo: false })
-    expect(transportLayout(400, 73, 49).row).toBe(false) // too narrow for the row: stays stacked
-  })
-
-  it('shrinks the info line to the 24px minimum when a flat widget is too narrow for the row', () => {
-    const layout = transportLayout(400, 100, 49)
-    expect(layout).toMatchObject({ row: false, compactInfo: true, columns: 4 })
+  it('stacks info over four buttons in a row at the new portrait default (6 x 4)', () => {
+    expect(transportLayout(350, 163, info)).toEqual({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
   })
 
   it('uses a 2 x 2 grid when too narrow for four readable buttons in a row', () => {
-    expect(transportLayout(300, 200, info).columns).toBe(2)
+    expect(transportLayout(300, 200, info)).toMatchObject({ row: false, columns: 2 })
+  })
+
+  it('puts info and buttons side by side in a flat, wide tile (measured: landscape 6 x 4, 49px info)', () => {
+    // Stacked, the buttons were 16px tall on the tablet; side by side they get the full 73px.
+    expect(transportLayout(599, 73, 49)).toEqual({ row: true, columns: 4, showTitle: true, showHelper: false, compactInfo: false })
+  })
+
+  it('keeps only the running time beside the buttons when a flat tile is narrow (measured: 387 x 46)', () => {
+    // "Prompter Kopie" in landscape: stacked buttons came out 1px tall.
+    expect(transportLayout(387, 46, info)).toMatchObject({ row: true, showTitle: false })
+  })
+
+  it('prefers side by side whenever that gives the buttons a larger smallest side (measured: 281 x 74)', () => {
+    expect(transportLayout(281, 74, info)).toMatchObject({ row: true, showTitle: false })
+  })
+
+  it('drops helper lines before stacked buttons fall below touch height', () => {
+    expect(transportLayout(350, 110, info).showHelper).toBe(false)
   })
 
   it('renders the roomy layout while unmeasured', () => {
-    expect(transportLayout(0, 0, info)).toEqual({ row: false, columns: 4, showHelper: true, compactInfo: false })
+    expect(transportLayout(0, 0, info)).toEqual({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
   })
 })
 

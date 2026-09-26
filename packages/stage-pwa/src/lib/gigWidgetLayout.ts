@@ -30,41 +30,62 @@ export function lineHeightFor(fontSize: number): number {
 }
 
 export interface TransportLayout {
-  /** Info (title + time) left, buttons right at full height - for flat, wide widgets, where
-   * stacking the info above would squeeze the buttons below touch height. */
+  /** Info left, buttons right at full height - for flat widgets, where stacking the info
+   * above would squeeze the buttons. */
   row: boolean
-  /** 4 = Play/Pause/Stop/Reset in one row, 2 = a 2 x 2 grid. */
+  /** 4 = Play/Pause/Stop/Reset in one row, 2 = a 2 x 2 grid (stacked layout only). */
   columns: 2 | 4
+  /** The song title next to the time. Gives way first: in a narrow side-by-side layout only
+   * the running time stays. */
+  showTitle: boolean
   /** The "Audio läuft über ein anderes Gerät" style helper lines (errors always show). */
   showHelper: boolean
-  /** Title and time at the 24px readout minimum instead of the configured size - the one
-   * discrete step taken when a flat widget is too narrow for `row` and a full-size info line
-   * would squeeze the buttons below touch height. */
+  /** Title and time at the 24px readout minimum instead of the configured size - one discrete
+   * step when a full-size info line would squeeze stacked buttons. */
   compactInfo: boolean
 }
 
-/** Show-Transport: in a flat, wide widget (found live on the tablet, 2026-09-27: a 631 x 106
- * landscape tile left 16px for the buttons under a 49px info line) info and buttons sit side by
- * side. Otherwise stacked: one row of four buttons when each can be at least 80px wide, else
- * 2 x 2 - unless the height can't take two rows of real buttons, then one narrow row after all.
- * Helper lines only while the buttons keep their touch height. */
+/** Width of the info block beside the buttons: with the title / time only, px. */
+const TRANSPORT_INFO_WITH_TITLE = 200
+const TRANSPORT_INFO_TIME_ONLY = 96
+
+/**
+ * Show-Transport. Scores the candidate layouts by their buttons' smallest side and takes the
+ * best, instead of fixed thresholds (found live on the tablet, 2026-09-27: flat widgets of
+ * 599 x 73 and 387 x 46 left stacked buttons 16px and 1px tall under the info line):
+ * - stacked: info above, four buttons in a row, or 2 x 2 when too narrow for 80px buttons;
+ *   the info drops to the 24px readout minimum if its configured size would squeeze them;
+ * - side by side: info left (title and time, or the time alone when narrow - the title gives
+ *   way first), four buttons right at the full widget height.
+ * Ties go to stacked. Helper lines only while stacked buttons keep their touch height.
+ */
 export function transportLayout(width: number, height: number, infoHeight: number): TransportLayout {
-  if (unmeasured(width, height)) return { row: false, columns: 4, showHelper: true, compactInfo: false }
-  let buttonsArea = height - infoHeight - GAP
-  if (buttonsArea < TOUCH && width >= TRANSPORT_ROW_MIN_WIDTH) {
-    return { row: true, columns: 4, showHelper: false, compactInfo: false }
+  if (unmeasured(width, height)) {
+    return { row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false }
   }
-  const compactInfo = buttonsArea < TOUCH && infoHeight > lineHeightFor(READOUT_MIN)
-  if (compactInfo) buttonsArea = height - lineHeightFor(READOUT_MIN) - GAP
+  const compactHeight = lineHeightFor(READOUT_MIN)
+  const fullArea = height - infoHeight - GAP
+  const compactInfo = fullArea < TOUCH && infoHeight > compactHeight
+  const buttonsArea = compactInfo ? height - compactHeight - GAP : fullArea
+
   let columns: 2 | 4 = width >= 4 * 80 + 3 * GAP ? 4 : 2
   if (columns === 2 && buttonsArea < 2 * 48 + GAP && width >= 4 * TOUCH + 3 * GAP) columns = 4
+  const stackedSide =
+    columns === 4
+      ? Math.min((width - 3 * GAP) / 4, buttonsArea)
+      : Math.min((width - GAP) / 2, (buttonsArea - GAP) / 2)
+
+  const showTitle = width - TRANSPORT_INFO_WITH_TITLE - GAP >= 4 * TOUCH_PRIMARY + 3 * GAP
+  const rowButtonsWidth = width - (showTitle ? TRANSPORT_INFO_WITH_TITLE : TRANSPORT_INFO_TIME_ONLY) - GAP
+  const rowSide = Math.min((rowButtonsWidth - 3 * GAP) / 4, height)
+
+  if (rowSide > stackedSide) {
+    return { row: true, columns: 4, showTitle, showHelper: false, compactInfo: false }
+  }
   const rows = columns === 4 ? 1 : 2
   const perRowWithHelper = (buttonsArea - LINE - GAP - (rows - 1) * GAP) / rows
-  return { row: false, columns, showHelper: perRowWithHelper >= TOUCH, compactInfo }
+  return { row: false, columns, showTitle: true, showHelper: perRowWithHelper >= TOUCH, compactInfo }
 }
-
-/** Room for a useful piece of the info (~200px) plus four 72px buttons, px. */
-const TRANSPORT_ROW_MIN_WIDTH = 200 + 4 * TOUCH_PRIMARY + 4 * GAP
 
 export interface NextSongLayout {
   /** Info above, buttons in a full-width row below (narrow but tall widgets). */
