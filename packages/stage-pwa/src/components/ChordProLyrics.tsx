@@ -59,7 +59,22 @@ export function ChordProLyrics({
                 {line.partLabel}
               </p>
             )}
-            {line.comment !== null ? (
+            {line.tab !== null ? (
+              // Guitar tab block: verbatim, monospace, never wrapped - a wrapped staff line
+              // breaks the column alignment between the strings, so a too-wide riff scrolls
+              // sideways instead. Tighter leading than lyrics: the strings belong together.
+              <div
+                data-line-index={lineIndex}
+                className={`-mx-2 overflow-x-auto rounded-sb-sm px-2 transition-colors duration-300 ${
+                  !hidePartLabels && startsPart ? 'mt-6' : ''
+                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
+              >
+                {line.tab.label && <p className="font-sans text-xs italic text-ink-faint">{line.tab.label}</p>}
+                <pre className="font-sb-mono leading-snug text-ink-soft" style={{ fontSize: '0.8em' }}>
+                  {line.tab.lines.join('\n')}
+                </pre>
+              </div>
+            ) : line.comment !== null ? (
               // Musician-facing note (issue #215), not part of the lyric - font-sans italic
               // sets it apart from the lyric's own font-sb-mono, same way a part label does.
               <p

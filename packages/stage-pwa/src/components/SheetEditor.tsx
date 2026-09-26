@@ -361,6 +361,27 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     })
   }
 
+  /** Inserts an empty tab block (`{start_of_tab}` ... `{end_of_tab}`) at the caret's line and
+   * puts the caret on the blank line inside it, ready to paste a riff. For everyone by default;
+   * narrow it to specific members afterward in the Kommentare tab's "Tab-Blöcke" list. */
+  const insertTabBlock = () => {
+    const textarea = textareaRef.current
+    const content = draft.chordProContent
+    const caret = textarea?.selectionStart ?? content.length
+    const lineStart = content.lastIndexOf('\n', caret - 1) + 1
+    const opening = '{start_of_tab}\n'
+    const block = `${opening}\n{end_of_tab}\n`
+    setDraft({
+      ...draft,
+      chordProContent: content.slice(0, lineStart) + block + content.slice(lineStart),
+    })
+    requestAnimationFrame(() => {
+      const caretAfter = lineStart + opening.length
+      textarea?.focus()
+      textarea?.setSelectionRange(caretAfter, caretAfter)
+    })
+  }
+
   /** Ultimate Guitar's own bpm/key/tuning/capo only ever come in on top of whatever the
    * import found - a missing field there must not silently overwrite a value already in the
    * editor (e.g. a capo the previous variant had that this particular tab just doesn't list). */
@@ -796,6 +817,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
             >
               + Kommentar
+            </button>
+            <button
+              type="button"
+              onClick={insertTabBlock}
+              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
+            >
+              + Tab
             </button>
           </div>
           <textarea

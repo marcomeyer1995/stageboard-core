@@ -39,9 +39,37 @@ describe('convertUltimateGuitarContent', () => {
     expect(convertUltimateGuitarContent(raw)).toBe('[D]  [A]\n{part: Chorus}\nsome line')
   })
 
-  it('passes an ASCII tab diagram through unchanged, just losing the [tab] wrapper', () => {
+  it('wraps an ASCII tab diagram in a ChordPro tab block, staff lines verbatim', () => {
     const raw = '[tab]e|-------5-2-------|\nB|-3-2-3-----------|[/tab]'
-    expect(convertUltimateGuitarContent(raw)).toBe('e|-------5-2-------|\nB|-3-2-3-----------|')
+    expect(convertUltimateGuitarContent(raw)).toBe('{start_of_tab}\ne|-------5-2-------|\nB|-3-2-3-----------|\n{end_of_tab}')
+  })
+
+  it('takes the chord line above a riff and the counting line below into the tab block', () => {
+    // Real (AC/DC "Highway To Hell"): the chord line used to be spliced *into* the e-string.
+    const raw = [
+      '[tab]     [ch]A[/ch]              [ch]D/F#[/ch] [ch]G[/ch]',
+      'e|-----------------------------|',
+      'B|---2-2-2-----------3-3-3-----|',
+      'D|---2-2-2-----------0-0-0-----| x2',
+      '   3 + 4 + 1 + 2 + 3 + 4 + 1 +[/tab]',
+      'Livin\' easy',
+    ].join('\r\n')
+    expect(convertUltimateGuitarContent(raw)).toBe(
+      [
+        '{start_of_tab}',
+        '     A              D/F# G',
+        'e|-----------------------------|',
+        'B|---2-2-2-----------3-3-3-----|',
+        'D|---2-2-2-----------0-0-0-----| x2',
+        '   3 + 4 + 1 + 2 + 3 + 4 + 1 +',
+        '{end_of_tab}',
+        "Livin' easy",
+      ].join('\n'),
+    )
+  })
+
+  it('does not make a tab block out of a single staff-looking line', () => {
+    expect(convertUltimateGuitarContent('e|-------5-2-------|\nsome lyric')).toBe('e|-------5-2-------|\nsome lyric')
   })
 
   it('leaves a plain lyric-only line untouched', () => {

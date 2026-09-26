@@ -1,5 +1,10 @@
 import type { Profile } from 'shared-types'
-import { formatCommentDirective, listCommentDirectives, type CommentDirectiveOccurrence } from '../lib/chordpro'
+import {
+  formatCommentDirective,
+  formatTabStartDirective,
+  listCommentDirectives,
+  listTabBlocks,
+} from '../lib/chordpro'
 import { useProfilesStore } from '../store/useProfilesStore'
 
 interface CommentListEditorProps {
@@ -25,6 +30,7 @@ interface CommentListEditorProps {
 export function CommentListEditor({ content, onChange }: CommentListEditorProps) {
   const profiles = useProfilesStore((state) => state.profiles)
   const occurrences = listCommentDirectives(content)
+  const tabBlocks = listTabBlocks(content)
 
   function patchLine(lineNumber: number, text: string, targets: string[] | null) {
     const lines = content.split('\n')
@@ -38,14 +44,12 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
     onChange(lines.join('\n'))
   }
 
-  function toggleTarget(occurrence: CommentDirectiveOccurrence, profile: Profile) {
-    const key = profile.name.trim().toLowerCase()
-    const current = occurrence.targets ?? []
-    const next = current.includes(key) ? current.filter((target) => target !== key) : [...current, key]
-    // Written back out using the roster's own display-case names, not the lowercased tokens
-    // `listCommentDirectives`/`parseCommentDirective` use for matching.
-    const displayNames = profiles.filter((p) => next.includes(p.name.trim().toLowerCase())).map((p) => p.name)
-    patchLine(occurrence.lineNumber, occurrence.text, displayNames.length > 0 ? displayNames : null)
+  /** A tab block's visibility lives on its opening directive line only - the riff itself is
+   * never touched. */
+  function patchTabTargets(lineNumber: number, label: string | null, targets: string[] | null) {
+    const lines = content.split('\n')
+    lines[lineNumber] = formatTabStartDirective(label, targets)
+    onChange(lines.join('\n'))
   }
 
   return (
@@ -78,36 +82,89 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                   Entfernen
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-1 text-xs">
-                <span className="text-ink-faint">Sichtbar für:</span>
-                {profiles.length === 0 ? (
-                  <span className="text-ink-faint">alle (keine Bandmitglieder angelegt)</span>
-                ) : (
-                  <>
-                    {profiles.map((profile) => {
-                      const checked = occurrence.targets?.includes(profile.name.trim().toLowerCase()) ?? false
-                      return (
-                        <button
-                          key={profile.id}
-                          type="button"
-                          onClick={() => toggleTarget(occurrence, profile)}
-                          className={`rounded-sb-sm px-2 py-0.5 ${
-                            checked
-                              ? 'bg-accent text-accent-ink'
-                              : 'bg-control-strong text-ink-soft hover:bg-control-strong-hover'
-                          }`}
-                        >
-                          {profile.name}
-                        </button>
-                      )
-                    })}
-                    {occurrence.targets === null && <span className="text-ink-faint">(alle, da niemand ausgewählt)</span>}
-                  </>
-                )}
-              </div>
+              <TargetPicker
+                profiles={profiles}
+                targets={occurrence.targets}
+                onChange={(targets) => patchLine(occurrence.lineNumber, occurrence.text, targets)}
+              />
             </div>
           ))}
         </div>
+      )}
+      <p className="mt-2 text-sm text-ink-muted">Tab-Blöcke</p>
+      {tabBlocks.length === 0 ? (
+        <p className="text-xs text-ink-faint">
+          Noch keine Tab-Blöcke - "+ Tab" im ChordPro-Text fügt einen an der Cursorposition ein (Import aus Ultimate
+          Guitar legt sie automatisch an).
+        </p>
+      ) : (
+        <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+          {tabBlocks.map((block, index) => (
+            <div
+              key={block.lineNumber}
+              className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+            >
+              <span>
+                {block.label ?? `Tab ${index + 1}`}{' '}
+                <span className="text-xs text-ink-faint">({block.lineCount} Zeilen)</span>
+              </span>
+              <TargetPicker
+                profiles={profiles}
+                targets={block.targets}
+                onChange={(targets) => patchTabTargets(block.lineNumber, block.label, targets)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** "Sichtbar für:" member toggles, shared by comments and tab blocks. `onChange` gets the
+ * roster's own display-case names (what gets written back into the text), or null for
+ * "everyone" - `targets` in are the lowercased matching tokens the parser produces. */
+function TargetPicker({
+  profiles,
+  targets,
+  onChange,
+}: {
+  profiles: Profile[]
+  targets: string[] | null
+  onChange: (targets: string[] | null) => void
+}) {
+  function toggle(profile: Profile) {
+    const key = profile.name.trim().toLowerCase()
+    const current = targets ?? []
+    const next = current.includes(key) ? current.filter((target) => target !== key) : [...current, key]
+    const displayNames = profiles.filter((p) => next.includes(p.name.trim().toLowerCase())).map((p) => p.name)
+    onChange(displayNames.length > 0 ? displayNames : null)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-xs">
+      <span className="text-ink-faint">Sichtbar für:</span>
+      {profiles.length === 0 ? (
+        <span className="text-ink-faint">alle (keine Bandmitglieder angelegt)</span>
+      ) : (
+        <>
+          {profiles.map((profile) => {
+            const checked = targets?.includes(profile.name.trim().toLowerCase()) ?? false
+            return (
+              <button
+                key={profile.id}
+                type="button"
+                onClick={() => toggle(profile)}
+                className={`rounded-sb-sm px-2 py-0.5 ${
+                  checked ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink-soft hover:bg-control-strong-hover'
+                }`}
+              >
+                {profile.name}
+              </button>
+            )
+          })}
+          {targets === null && <span className="text-ink-faint">(alle, da niemand ausgewählt)</span>}
+        </>
       )}
     </div>
   )

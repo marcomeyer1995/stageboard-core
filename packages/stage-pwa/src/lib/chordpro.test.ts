@@ -5,6 +5,9 @@ import {
   currentLineIndex,
   currentPageIndex,
   formatCommentDirective,
+  formatTabStartDirective,
+  listTabBlocks,
+  tappableLines,
   formatTimeTag,
   listCommentDirectives,
   nextSectionIndex,
@@ -366,5 +369,60 @@ describe('nextSectionIndex', () => {
   it('returns null when no later line carries a timecode', () => {
     const lines = parseChordPro('[00:00.00] One\nUntimed')
     expect(nextSectionIndex(lines, 0)).toBeNull()
+  })
+})
+
+describe('tab blocks ({start_of_tab} ... {end_of_tab})', () => {
+  const riff = ['e|---5-2---|', 'B|-3-----3-|']
+
+  it('parses a block as one verbatim line: no chords, no time, for everyone', () => {
+    const lines = parseChordPro(['{part: Intro}', '{start_of_tab}', ...riff, '{end_of_tab}', '[G]Hello'].join('\n'))
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toMatchObject({ timeMs: null, segments: [], comment: null, commentTargets: null, partLabel: 'Intro' })
+    expect(lines[0].tab).toEqual({ label: null, lines: riff })
+    expect(lines[1].tab).toBeNull()
+    expect(lines[1].segments[0]).toEqual({ chord: 'G', text: 'Hello' })
+  })
+
+  it('never reads brackets inside a tab block as chords', () => {
+    const [line] = parseChordPro('{sot}\ne|---[A]---|\nB|---2---|\n{eot}')
+    expect(line.tab?.lines).toEqual(['e|---[A]---|', 'B|---2---|'])
+    expect(line.segments).toEqual([])
+  })
+
+  it('reads a label and member targets from {sot4marco,jamie: Riff}', () => {
+    const [line] = parseChordPro('{sot4Marco,Jamie: Riff}\ne|---|\n{eot}')
+    expect(line.tab?.label).toBe('Riff')
+    expect(line.commentTargets).toEqual(['marco', 'jamie'])
+  })
+
+  it('ends a block without {eot} at the next part directive, not at the end of the song', () => {
+    const lines = parseChordPro(['{sot}', ...riff, '{part: Verse}', 'la la'].join('\n'))
+    expect(lines).toHaveLength(2)
+    expect(lines[0].tab?.lines).toEqual(riff)
+    expect(lines[1]).toMatchObject({ partLabel: 'Verse', tab: null })
+  })
+
+  it('lists blocks with their line count, and writes the opening directive back', () => {
+    expect(listTabBlocks(['x', '{sot4Marco}', ...riff, '{eot}'].join('\n'))).toEqual([
+      { label: null, targets: ['marco'], lineNumber: 1, lineCount: 2 },
+    ])
+    expect(formatTabStartDirective(null, null)).toBe('{start_of_tab}')
+    expect(formatTabStartDirective('Riff', ['Marco', 'Jamie'])).toBe('{sot4Marco,Jamie: Riff}')
+  })
+})
+
+describe('tappableLines (Tap-to-Sync)', () => {
+  it('only offers lyric lines - never directives, comments or anything inside a tab block', () => {
+    const raw = ['{part: Verse}', 'first line', '{c: softer}', '{start_of_tab}', 'e|---5---|', 'B|---3---|', '{end_of_tab}', '', 'second line']
+    expect(tappableLines(raw)).toEqual([false, true, false, false, false, false, false, false, true])
+  })
+})
+
+describe('comment lines stamped by an older Tap-to-Sync', () => {
+  it('still parse as comments, not as lyric text', () => {
+    const [line] = parseChordPro('[00:12.00] {c: play softer}')
+    expect(line.comment).toBe('play softer')
+    expect(line.segments).toEqual([])
   })
 })

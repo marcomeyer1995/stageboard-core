@@ -19,6 +19,11 @@ export interface ChordProLine {
    * follow-up) - null means "everyone," the case for a plain `{comment:}`/`{c:}`/`{cc:}`/
    * `{cc4all:}` line, and for every ordinary lyric line. See `commentVisibleTo`. */
   commentTargets: string[] | null
+  /** A guitar-tab block (`{start_of_tab}` ... `{end_of_tab}`), kept verbatim as one line of the
+   * song: fret numbers are not chords, so nothing inside is parsed, transposed or timed. Its
+   * visibility (`{sot4marco}`) lives in `commentTargets`, so every place that already filters
+   * comments by member filters tab blocks the same way. Null for every other line. */
+  tab: { label: string | null; lines: string[] } | null
 }
 
 /** A block of consecutive lines the Paginated View shows as one "page" (docs/07). */
@@ -50,6 +55,23 @@ const PLAIN_COMMENT_NAME_RE = /^(comment|c)$/i
  * commas) for specific band members, matched by `Profile.name` - readable text, not an opaque
  * id, since Marco reads/writes these directives by hand same as any other. */
 const CUSTOM_COMMENT_NAME_RE = /^cc(?:4(.+))?$/i
+/** ChordPro's standard tab block, `{start_of_tab}` / `{sot}` (optionally `: label`), plus
+ * StageBoard's member-targeted `{sot4marco}` / `{start_of_tab4marco,jamie}` - the same `4`
+ * convention as `{cc4...}` comments, for a riff only the guitarist needs on screen. */
+const TAB_START_NAME_RE = /^(?:start_of_tab|sot)(?:4(.+))?$/i
+const TAB_END_NAME_RE = /^(?:end_of_tab|eot)$/i
+
+/** Comma-separated target names after a `4` (`marco,jamie`) -> lowercased tokens, or null for
+ * "everyone" (nothing, or `all`). Shared by comments and tab blocks. */
+function parseTargets(raw: string | undefined): string[] | null {
+  const trimmed = raw?.trim() ?? ''
+  if (trimmed.length === 0 || trimmed.toLowerCase() === 'all') return null
+  const targets = trimmed
+    .split(',')
+    .map((target) => target.trim().toLowerCase())
+    .filter((target) => target.length > 0)
+  return targets.length > 0 ? targets : null
+}
 
 /**
  * Recognises the directive lines that open or close a song part - StageBoard's own
@@ -96,15 +118,101 @@ export function parseCommentDirective(line: string): ParsedComment | null {
 
   const customMatch = name.match(CUSTOM_COMMENT_NAME_RE)
   if (!customMatch) return null
+  return { text, targets: parseTargets(customMatch[1]) }
+}
 
-  const rawTargets = customMatch[1]?.trim() ?? ''
-  if (rawTargets.length === 0 || rawTargets.toLowerCase() === 'all') return { text, targets: null }
+export interface ParsedTabStart {
+  label: string | null
+  /** Lowercased target-name tokens, or null for "everyone" - same as `ParsedComment.targets`. */
+  targets: string[] | null
+}
 
-  const targets = rawTargets
-    .split(',')
-    .map((target) => target.trim().toLowerCase())
-    .filter((target) => target.length > 0)
-  return { text, targets: targets.length > 0 ? targets : null }
+/** Recognises a tab block's opening directive (see `TAB_START_NAME_RE`); null for anything else. */
+export function parseTabStartDirective(line: string): ParsedTabStart | null {
+  const match = line.trim().match(DIRECTIVE_RE)
+  if (!match) return null
+  const nameMatch = match[1].trim().match(TAB_START_NAME_RE)
+  if (!nameMatch) return null
+  const label = match[2]?.trim() ?? ''
+  return { label: label.length > 0 ? label : null, targets: parseTargets(nameMatch[1]) }
+}
+
+/** `{end_of_tab}` / `{eot}`. */
+export function isTabEndDirective(line: string): boolean {
+  const match = line.trim().match(DIRECTIVE_RE)
+  return match !== null && TAB_END_NAME_RE.test(match[1].trim())
+}
+
+/** Writes a tab block's opening directive - the inverse of `parseTabStartDirective`, used by the
+ * editor's "Sichtbar für" so nobody hand-writes `sot4marco,jamie`. Display-case target names. */
+export function formatTabStartDirective(label: string | null, targets: string[] | null): string {
+  const name = targets === null || targets.length === 0 ? 'start_of_tab' : `sot4${targets.join(',')}`
+  return label ? `{${name}: ${label}}` : `{${name}}`
+}
+
+/**
+ * Where a tab block ends, given the index of its opening directive in `rawLines`: the index of
+ * its `{end_of_tab}`, or - when that's missing - of the next part directive or the end of the
+ * song, so one forgotten `{eot}` can't swallow every verse after it. `closed` says which.
+ */
+function tabBlockEnd(rawLines: readonly string[], startIndex: number): { endIndex: number; closed: boolean } {
+  for (let i = startIndex + 1; i < rawLines.length; i++) {
+    if (isTabEndDirective(rawLines[i])) return { endIndex: i, closed: true }
+    if (parsePartDirective(rawLines[i]) !== null) return { endIndex: i, closed: false }
+  }
+  return { endIndex: rawLines.length, closed: false }
+}
+
+/** The block's content lines, verbatim - only the blank lines around it are dropped. */
+function tabBlockLines(rawLines: readonly string[], startIndex: number, endIndex: number): string[] {
+  const inner = rawLines.slice(startIndex + 1, endIndex)
+  while (inner.length > 0 && inner[0].trim() === '') inner.shift()
+  while (inner.length > 0 && inner[inner.length - 1].trim() === '') inner.pop()
+  return inner
+}
+
+export interface TabBlockOccurrence extends ParsedTabStart {
+  /** 0-based line number of the opening directive - what the editor patches, same
+   * recompute-on-every-edit contract as `CommentDirectiveOccurrence.lineNumber`. */
+  lineNumber: number
+  lineCount: number
+}
+
+/** Every tab block currently in `content`, in order - what the editor's "Tab-Blöcke" list edits. */
+export function listTabBlocks(content: string): TabBlockOccurrence[] {
+  const rawLines = content.split('\n')
+  const blocks: TabBlockOccurrence[] = []
+  for (let i = 0; i < rawLines.length; i++) {
+    const start = parseTabStartDirective(rawLines[i])
+    if (!start) continue
+    const { endIndex } = tabBlockEnd(rawLines, i)
+    blocks.push({ ...start, lineNumber: i, lineCount: tabBlockLines(rawLines, i, endIndex).length })
+    i = endIndex - 1
+  }
+  return blocks
+}
+
+/**
+ * Which raw lines Tap-to-Sync may put a timestamp on: lyric lines only. Blank lines, part and
+ * comment directives, and everything belonging to a tab block are skipped - a time tag in front
+ * of a directive turns it into plain lyric text, and inside a tab block it corrupts the staff.
+ */
+export function tappableLines(rawLines: readonly string[]): boolean[] {
+  const tappable = rawLines.map(() => false)
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    if (parseTabStartDirective(line)) {
+      const { endIndex, closed } = tabBlockEnd(rawLines, i)
+      i = closed ? endIndex : endIndex - 1
+      continue
+    }
+    tappable[i] =
+      line.trim().length > 0 &&
+      parsePartDirective(line) === null &&
+      parseCommentDirective(line) === null &&
+      !isTabEndDirective(line)
+  }
+  return tappable
 }
 
 /** Writes a `{cc...}` directive line from a comment's text and targets - the inverse of
@@ -198,8 +306,30 @@ export function parseChordPro(content: string): ChordProLine[] {
   let partLabel: string | null = null
   let partStarted = false
 
-  for (const raw of content.split('\n')) {
+  const rawLines = content.split('\n')
+  for (let rawIndex = 0; rawIndex < rawLines.length; rawIndex++) {
+    const raw = rawLines[rawIndex]
     if (raw.trim().length === 0) continue
+
+    const tabStart = parseTabStartDirective(raw)
+    if (tabStart) {
+      const { endIndex, closed } = tabBlockEnd(rawLines, rawIndex)
+      lines.push({
+        timeMs: null,
+        segments: [],
+        partIndex,
+        partLabel,
+        comment: null,
+        commentTargets: tabStart.targets,
+        tab: { label: tabStart.label, lines: tabBlockLines(rawLines, rawIndex, endIndex) },
+      })
+      partStarted = true
+      // Past the `{eot}`; without one, stop right before the part directive that ended it so
+      // the loop still processes that directive.
+      rawIndex = closed ? endIndex : endIndex - 1
+      continue
+    }
+    if (isTabEndDirective(raw)) continue
 
     const directive = parsePartDirective(raw)
     if (directive) {
@@ -211,7 +341,9 @@ export function parseChordPro(content: string): ChordProLine[] {
       continue
     }
 
-    const comment = parseCommentDirective(raw)
+    // Checked after stripping a time tag too: Tap-to-Sync used to stamp comment lines
+    // (`[00:12.00] {c: ...}`), which then rendered as literal lyric text.
+    const comment = parseCommentDirective(raw) ?? parseCommentDirective(parseTimeTag(raw).rest)
     if (comment !== null) {
       lines.push({
         timeMs: null,
@@ -220,6 +352,7 @@ export function parseChordPro(content: string): ChordProLine[] {
         partLabel,
         comment: comment.text,
         commentTargets: comment.targets,
+        tab: null,
       })
       partStarted = true
       continue
@@ -233,6 +366,7 @@ export function parseChordPro(content: string): ChordProLine[] {
       partLabel,
       comment: null,
       commentTargets: null,
+      tab: null,
     })
     partStarted = true
   }

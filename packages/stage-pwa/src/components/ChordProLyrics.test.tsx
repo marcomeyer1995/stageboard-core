@@ -4,9 +4,9 @@ import type { ChordProLine } from '../lib/chordpro'
 import { ChordProLyrics } from './ChordProLyrics'
 
 const lines: ChordProLine[] = [
-  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null },
-  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null },
-  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus', comment: null, commentTargets: null },
+  { timeMs: null, segments: [{ chord: 'G', text: 'Hello ' }, { chord: 'C', text: 'world' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null, tab: null },
+  { timeMs: null, segments: [{ chord: null, text: 'no chords on this line' }], partIndex: 0, partLabel: 'Verse 1', comment: null, commentTargets: null, tab: null },
+  { timeMs: null, segments: [{ chord: 'Am', text: 'Chorus line' }], partIndex: 1, partLabel: 'Chorus', comment: null, commentTargets: null, tab: null },
 ]
 
 describe('ChordProLyrics', () => {
@@ -61,8 +61,8 @@ describe('ChordProLyrics', () => {
 
 describe('ChordProLyrics comment lines (#215)', () => {
   const commentLines: ChordProLine[] = [
-    { timeMs: null, segments: [{ chord: null, text: 'Regular lyric' }], partIndex: 0, partLabel: null, comment: null, commentTargets: null },
-    { timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: 'Play softer here', commentTargets: null },
+    { timeMs: null, segments: [{ chord: null, text: 'Regular lyric' }], partIndex: 0, partLabel: null, comment: null, commentTargets: null, tab: null },
+    { timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: 'Play softer here', commentTargets: null, tab: null },
   ]
 
   it('renders a comment line by its text, distinct from a lyric line', () => {
@@ -81,5 +81,17 @@ describe('ChordProLyrics comment lines (#215)', () => {
   it('sizes a comment line from commentFontSize, independent of chordFontSize', () => {
     render(<ChordProLyrics lines={commentLines} chordFontSize={99} commentFontSize={42} />)
     expect(screen.getByText('Play softer here')).toHaveStyle({ fontSize: '42px' })
+  })
+
+  it('renders a tab block verbatim in a non-wrapping, scrollable monospace block', () => {
+    const { container } = render(
+      <ChordProLyrics
+        lines={[{ timeMs: null, segments: [], partIndex: 0, partLabel: null, comment: null, commentTargets: null, tab: { label: 'Riff', lines: ['e|---5-2---|', 'B|-3-----3-|'] } }]}
+      />,
+    )
+    const pre = container.querySelector('pre')
+    expect(pre?.textContent).toBe('e|---5-2---|\nB|-3-----3-|')
+    expect(pre?.parentElement?.className).toContain('overflow-x-auto')
+    expect(screen.getByText('Riff')).toBeInTheDocument()
   })
 })
