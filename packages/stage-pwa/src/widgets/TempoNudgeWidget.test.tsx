@@ -1,10 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionMode } from '../store/useAppModeStore'
 import { TempoNudgeWidget } from './TempoNudgeWidget'
 import { useShowMode } from '../lib/showMode'
 
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+// The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
+const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
+vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))
+afterEach(() => {
+  mockSize.width = 0
+  mockSize.height = 0
+})
 
 function mockShowMode(overrides: {
   mode?: SessionMode
@@ -67,5 +74,27 @@ describe('TempoNudgeWidget', () => {
     expect(screen.getByText('+')).toBeDisabled()
     expect(screen.getByText('−')).toBeDisabled()
     expect(screen.getByText('Zurücksetzen')).toBeDisabled()
+  })
+
+  describe('size-dependent layout (PR B, stage GUI audit)', () => {
+    it('resets by tapping the value in a flat tile, where no separate reset button fits', () => {
+      mockSize.width = 278
+      mockSize.height = 67
+      const setLiveTempoAdjustPercent = vi.fn()
+      mockShowMode({ liveTempoAdjustPercent: 4, setLiveTempoAdjustPercent })
+      render(<TempoNudgeWidget config={{}} />)
+
+      expect(screen.queryByText('Zurücksetzen')).not.toBeInTheDocument()
+      expect(screen.queryByText('Tempo-Korrektur')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByTitle('Auf 0 % zurücksetzen'))
+      expect(setLiveTempoAdjustPercent).toHaveBeenCalledWith(0)
+    })
+
+    it('gives - / + buttons at least the touch size', () => {
+      mockShowMode({ liveTempoAdjustPercent: 0 })
+      render(<TempoNudgeWidget config={{}} />)
+      expect(screen.getByLabelText('Tempo verringern').className).toContain('min-h-touch')
+      expect(screen.getByLabelText('Tempo erhöhen').className).toContain('min-w-touch')
+    })
   })
 })

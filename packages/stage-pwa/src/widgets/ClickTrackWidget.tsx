@@ -6,6 +6,8 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ClickTrackConfig } from './clickTrackConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { clickLayout, READOUT_MIN } from '../lib/gigWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 
 const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
   { value: null, label: 'Standard' },
@@ -44,6 +46,9 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
+  // Before any early return - hooks must run in the same order on every render.
+  const [boxRef, box] = useElementSize()
+
   if (engine === 'none') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
@@ -52,30 +57,39 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
     )
   }
 
+  const stateFontSize = Math.max(READOUT_MIN, fontSize)
+  const layout = clickLayout(box.width, box.height, stateFontSize)
+
   return (
-    <div className="flex h-full flex-col items-center gap-1 text-ink-soft">
-      <span className="text-xs uppercase tracking-widest text-ink-faint">
-        Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
-      </span>
-      <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
-        <span style={{ fontSize }} className="whitespace-nowrap font-bold">
+    <div
+      ref={boxRef}
+      className={`flex h-full gap-2 text-ink-soft ${layout.row ? 'items-stretch' : 'flex-col items-center'}`}
+    >
+      {layout.showLabel && (
+        <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">
+          Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
+        </span>
+      )}
+      <div className={`flex items-center justify-center overflow-hidden ${layout.row ? 'flex-none px-2' : 'w-full flex-1'}`}>
+        {/* The click state is the readout here - never below 24px, in every layout. */}
+        <span style={{ fontSize: stateFontSize }} className="whitespace-nowrap font-bold leading-none">
           {enabled ? 'An' : 'Aus'}
         </span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : 'w-full flex-none'}`}>
         {OVERRIDE_OPTIONS.map((option) => (
           <button
             key={option.label}
             type="button"
             disabled={!canControl}
             onClick={() => setClickTrackOverride(option.value)}
-            className={`rounded-sb-sm px-3 py-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`h-full min-h-touch rounded-sb px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
               clickTrackOverride === option.value
                 ? 'bg-accent text-accent-ink'
                 : 'bg-control-strong text-ink hover:bg-control-strong-hover'
             }`}
           >
-            {option.label}
+            {layout.shortLabels && option.label === 'Standard' ? 'Std.' : option.label}
           </button>
         ))}
       </div>

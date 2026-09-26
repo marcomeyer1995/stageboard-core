@@ -14,6 +14,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // which owns that behavior now (found live, 2026-09-10: switching away from the Live tab used to
 // unmount this widget and silently stop the click mid-show).
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+// The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
+const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
+vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
@@ -98,6 +101,21 @@ describe('ClickTrackWidget', () => {
     expect(container.querySelector('span.font-bold')).toHaveTextContent('An')
     expect(screen.getByText('Klick · dieses Gerät')).toBeInTheDocument()
   })
+  it('puts state and buttons side by side in a flat tile, with "Std." and touch-sized buttons', () => {
+    mockSize.width = 278
+    mockSize.height = 67
+    mockLogicalDevices([
+      { id: CLICK_LOGICAL_DEVICE_ID, name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget: DEVICE_ID },
+    ])
+    mockShowMode({ currentSong: song(true) })
+    const { container } = render(<ClickTrackWidget config={{}} />)
+    expect(screen.getByText('Std.').className).toContain('min-h-touch')
+    expect(screen.queryByText(/dieses Gerät/)).not.toBeInTheDocument()
+    expect(parseFloat((container.querySelector('span.font-bold') as HTMLElement).style.fontSize)).toBeGreaterThanOrEqual(24)
+    mockSize.width = 0
+    mockSize.height = 0
+  })
+
 
   it('reflects the song default of off when there is no override', () => {
     mockLogicalDevices([

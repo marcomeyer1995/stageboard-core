@@ -6,6 +6,8 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 import { ReadyCheckControl } from '../components/ReadyCheckControl'
 import { stageFontSize } from '../lib/stageSize'
+import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -21,68 +23,69 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
+  const [boxRef, box] = useElementSize()
+  const layout = nextSongLayout(box.width, box.height, lineHeightFor(fontSize))
+  // Buttons fill the widget's height (or the row under the info when stacked), at least the
+  // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
+  const buttonClass = `h-full min-h-touch min-w-touch rounded-sb bg-control-strong px-4 font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
+
+  const current = currentItem ? (
+    <>
+      {itemLabel(currentItem)}: <span className="font-semibold text-ink">{currentItem.title}</span>
+    </>
+  ) : currentSong ? (
+    <>
+      Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
+      {currentVariant && !currentVariant.isDefault && (
+        <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
+      )}
+    </>
+  ) : (
+    'Keine Songs vorhanden'
+  )
+  const upcoming = nextItem ? (
+    <>
+      Next: <span className="font-semibold text-ink">{nextItem.title}</span> ({itemLabel(nextItem)})
+    </>
+  ) : nextSong ? (
+    <>
+      Next: <span className="font-semibold text-ink">{nextSong.title}</span> ({(nextVariant ?? nextSong).bpm} BPM)
+      {nextVariant && !nextVariant.isDefault && (
+        <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({nextVariant.label})</span>
+      )}
+    </>
+  ) : null
+
   return (
-    <div className="flex h-full items-center justify-between gap-2 text-ink-soft">
-      <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
-        <span style={{ fontSize }} className="whitespace-nowrap">
-          {currentItem ? (
-            <>
-              {itemLabel(currentItem)}: <span className="font-semibold text-ink">{currentItem.title}</span>
-            </>
-          ) : currentSong ? (
-            <>
-              Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
-              {currentVariant && !currentVariant.isDefault && (
-                <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
-              )}
-            </>
-          ) : (
-            'Keine Songs vorhanden'
-          )}
-          {nextItem && (
-            <>
-              {' | '}
-              Next: <span className="font-semibold text-ink">{nextItem.title}</span> ({itemLabel(nextItem)})
-            </>
-          )}
-          {nextSong && (
-            <>
-              {' | '}
-              Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
-              ({(nextVariant ?? nextSong).bpm} BPM)
-              {nextVariant && !nextVariant.isDefault && (
-                <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({nextVariant.label})</span>
-              )}
-            </>
-          )}
-        </span>
+    <div
+      ref={boxRef}
+      className={`flex h-full gap-2 text-ink-soft ${layout.stacked ? 'flex-col' : 'items-stretch justify-between'}`}
+    >
+      <div style={{ fontSize }} className={`flex min-w-0 flex-col justify-center ${layout.stacked ? '' : 'flex-1'}`}>
+        {layout.twoLines ? (
+          <>
+            <span className="truncate">{current}</span>
+            {upcoming && <span className="truncate">{upcoming}</span>}
+          </>
+        ) : (
+          <span className="truncate">
+            {current}
+            {upcoming && <>{' | '}{upcoming}</>}
+          </span>
+        )}
       </div>
       {canControl ? (
-        <div className="flex items-center gap-2">
-          <ReadyCheckControl />
-          <button
-            type="button"
-            onClick={previous}
-            disabled={!previousEntry}
-            title="Vorheriger Song"
-            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ‹ Zurück
+        <div className={`flex gap-2 ${layout.stacked ? 'min-h-0 flex-1' : ''}`}>
+          <ReadyCheckControl compact={layout.shortLabels} buttonClassName={buttonClass} />
+          <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
+            {layout.shortLabels ? <span className="text-4xl leading-none">‹</span> : '‹ Zurück'}
           </button>
-          <button
-            type="button"
-            onClick={next}
-            disabled={!nextEntry}
-            title="Nächster Song"
-            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Weiter ›
+          <button type="button" onClick={next} disabled={!nextEntry} title="Nächster Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
+            {layout.shortLabels ? <span className="text-4xl leading-none">›</span> : 'Weiter ›'}
           </button>
         </div>
       ) : (
-        <MasterTakeoverButton
-          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
-        />
+        <MasterTakeoverButton className="min-h-touch rounded-sb bg-control-strong px-4 font-bold text-accent hover:bg-control-strong-hover" />
       )}
     </div>
   )
