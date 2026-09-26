@@ -1,6 +1,23 @@
 import type { ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 
+/** Repeat marks (`x4`, `2x`) are the only letters/digits an instrumental chord row may carry. */
+const REPEAT_MARK_RE = /\b(?:x\s?\d+|\d+\s?x)\b/gi
+
+/**
+ * A chord row without lyrics - bar notation for an intro or bridge (`| C   | F   |`), a plain
+ * `[Em] [C] [G]  x4`, a single chord on its own line. At least one chord, and apart from the
+ * chords no letter (any script, so umlauts count) and no digit - one sung letter ("[G]I")
+ * keeps a line a lyric line. Rendered inline (chords *in* the row, between the bars) instead
+ * of floating above an otherwise empty row (Marco, 2026-09-26: looked strange on the tablet).
+ * Also truer to the source: in UG's text the chord names occupy columns, which the bars were
+ * aligned around.
+ */
+function isChordOnlyLine(line: ChordProLine): boolean {
+  if (!line.segments.some((segment) => segment.chord !== null)) return false
+  return line.segments.every((segment) => !/[\p{L}\d]/u.test(segment.text.replace(REPEAT_MARK_RE, '')))
+}
+
 interface ChordProLyricsProps {
   lines: ChordProLine[]
   /** Index of the line to visually highlight (Section Highlighting), if any. */
@@ -74,6 +91,22 @@ export function ChordProLyrics({
                   {line.tab.lines.join('\n')}
                 </pre>
               </div>
+            ) : isChordOnlyLine(line) ? (
+              // Instrumental chord row: chords inline at lyric size, in the accent colour - they
+              // are the content of this row, not an annotation above it.
+              <p
+                data-line-index={lineIndex}
+                className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+                  !hidePartLabels && startsPart ? 'mt-6' : ''
+                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
+              >
+                {line.segments.map((segment, segmentIndex) => (
+                  <span key={segmentIndex}>
+                    {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
+                    <span className="text-ink-faint">{segment.text}</span>
+                  </span>
+                ))}
+              </p>
             ) : line.comment !== null ? (
               // Musician-facing note (issue #215), not part of the lyric - font-sans italic
               // sets it apart from the lyric's own font-sb-mono, same way a part label does.
@@ -109,7 +142,13 @@ export function ChordProLyrics({
                         {segment.chord}
                       </span>
                     )}
-                    {segment.text}
+                    {/* A segment with no text - a chord at the end of a line, or two chords back
+                        to back - would collapse to a zero-height inline-block sitting on the
+                        baseline, so its chord (positioned from the segment's top) landed at lyric
+                        height instead of above it. A zero-width space keeps the full line height
+                        without taking any room (measured on a Fire tablet, 2026-09-26: +8px vs
+                        -16px for every other chord). */}
+                    {segment.text === '' ? '\u200B' : segment.text}
                   </span>
                 ))}
               </p>

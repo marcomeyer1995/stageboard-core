@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import type { ChordProLine } from '../lib/chordpro'
+import { parseChordPro, type ChordProLine } from '../lib/chordpro'
 import { ChordProLyrics } from './ChordProLyrics'
 
 const lines: ChordProLine[] = [
@@ -93,5 +93,58 @@ describe('ChordProLyrics comment lines (#215)', () => {
     expect(pre?.textContent).toBe('e|---5-2---|\nB|-3-----3-|')
     expect(pre?.parentElement?.className).toContain('overflow-x-auto')
     expect(screen.getByText('Riff')).toBeInTheDocument()
+  })
+
+  it('gives a line-end chord a line-height segment (zero-width space), so it sits above the lyric like the others', () => {
+    const { container } = render(
+      <ChordProLyrics
+        lines={[{ timeMs: null, segments: [{ chord: 'G', text: 'All the small things' }, { chord: 'F', text: '' }], partIndex: 0, partLabel: null, comment: null, commentTargets: null, tab: null }]}
+      />,
+    )
+    const segments = [...container.querySelectorAll('p[data-line-index] > span')]
+    expect(segments).toHaveLength(2)
+    // jsdom does no layout - what matters is that the empty segment is no longer empty.
+    expect(segments[1].textContent).toBe('F\u200B')
+    expect(segments[0].textContent).toBe('GAll the small things')
+  })
+
+  describe('instrumental chord rows render inline, lyric lines keep chords above', () => {
+    /** Renders one line parsed from ChordPro and reports whether its chords sit inline. */
+    function chordsInline(source: string): boolean {
+      const { container, unmount } = render(<ChordProLyrics lines={parseChordPro(source)} />)
+      const line = container.querySelector('p[data-line-index]')!
+      const floating = line.querySelectorAll('span.absolute').length
+      unmount()
+      return floating === 0
+    }
+
+    it.each([
+      ['| [C]   | [F]   | [G]   | [G]   |', 'bar notation'],
+      ['[Em] [C] [G] [D/F#]  x4', 'chord row with a repeat mark'],
+      ['[G]', 'a single chord on its own line'],
+      ['[C]...[G]...', 'punctuation only (accepted borderline case)'],
+    ])('inline: %s (%s)', (source) => {
+      expect(chordsInline(source)).toBe(true)
+    })
+
+    it.each([
+      ['[G]I', 'one sung letter'],
+      ['[C]Oh [G]yeah', 'ordinary lyric'],
+      ['[C]Ärger', 'non-ASCII letter'],
+      ['[C]1 2 3 4', 'counting (digits count as text)'],
+    ])('chords above: %s (%s)', (source) => {
+      expect(chordsInline(source)).toBe(false)
+    })
+
+    it('leaves a bar line without any chord as plain text', () => {
+      const { container } = render(<ChordProLyrics lines={parseChordPro('|    |    |')} />)
+      expect(container.querySelector('p[data-line-index]')?.textContent).toBe('|    |    |')
+      expect(container.querySelectorAll('.text-accent')).toHaveLength(0)
+    })
+
+    it('keeps the original columns: chord names occupy width between the bars', () => {
+      const { container } = render(<ChordProLyrics lines={parseChordPro('| [C]   | [F]   |')} />)
+      expect(container.querySelector('p[data-line-index]')?.textContent).toBe('| C   | F   |')
+    })
   })
 })
