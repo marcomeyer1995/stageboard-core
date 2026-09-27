@@ -87,7 +87,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
         onClick={() => setEditing(false)}
         className="ml-auto rounded-sb-sm bg-control h-touch px-4 text-ink-soft hover:bg-control-hover"
       >
-        🔒 Fertig
+        🔒 Bearbeiten beenden
       </button>
 
       {showLibrary && (

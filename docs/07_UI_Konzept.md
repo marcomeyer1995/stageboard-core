@@ -33,7 +33,7 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 
 * **Das "Prompter" Widget:** Der Hauptbereich. Zeigt den Text/Akkorde (wahlweise als Scroll oder Paginated).
 * **Das "Next Song" Widget (Minimalist):** Eine kleine, flache Leiste (z.B. am oberen Rand). Zeigt nur: `Aktuell: Song A | Next: Song B (120 BPM)`.
-* **Das "Live-Queue" Widget (Detail):** Eine Seitenleiste. Zeigt die nächsten 5-10 Songs. Der Master-User hat hier Wisch-Gesten oder Kontext-Menüs ("Als nächstes spielen"), um die Reihenfolge spontan zu ändern.
+* **Das "Live-Queue" Widget (Detail):** Eine Seitenleiste mit der ganzen Setlist. Im Normalfall nur Titel (zum Lesen, was als Nächstes kommt). Der Master-User öffnet per Langdruck auf eine Zeile ein Kontext-Menü ("Als nächstes spielen") und mit "Sortieren" einen Sortier-Modus mit Drag-Handles, der mit "Fertig" oder beim Start der Wiedergabe wieder schließt - so bleiben Bedienelemente nicht auf der Bühne stehen.
 * **Das "More Me" IEM Widget:** Eine kleine Kachel mit 2-3 großen Fadern (z.B. "Mein Gesang", "Meine Gitarre", "Band").
 * **Das "Show-Transport" Widget (Für Master/Drummer):** Play/Pause/Stop/Reset für den aktuellen Song, mit oder ohne Backing-Track-Plugin - siehe `packages/stage-pwa/src/widgets/ShowTransportWidget.tsx`. Treibt `ShowState.playbackStatus` direkt, damit jedes Tablet dieselbe Uhrzeit und denselben Pause/Stop-Zustand sieht.
 * **Das "Quick Action" Grid:** Große Buttons für Ad-Hoc Cues (z.B. "Strobo", "Kaltfunken", "Talkback-Mic").

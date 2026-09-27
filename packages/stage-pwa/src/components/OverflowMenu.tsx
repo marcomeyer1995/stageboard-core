@@ -31,6 +31,12 @@ interface OverflowMenuProps {
    * trigger, #178) can open this exact same menu instead of a second, hand-rolled one. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** The trigger's symbol - the Live-Queue uses "⋮" so its row menu can't be mistaken for the
+   * widget's own "⋯" menu beside it in edit mode (GUI audit 2026-09-26). */
+  glyph?: string
+  /** No visible trigger - the menu opens only through `open` (the Live-Queue's long press on a
+   * row outside sort mode). */
+  hideTrigger?: boolean
 }
 
 /**
@@ -47,6 +53,8 @@ export function OverflowMenu({
   variant = 'boxed',
   open: controlledOpen,
   onOpenChange,
+  glyph = '⋯',
+  hideTrigger = false,
 }: OverflowMenuProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
@@ -56,18 +64,20 @@ export function OverflowMenu({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title="Menü öffnen"
-        className={
-          variant === 'flat'
-            ? 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink'
-            : 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover'
-        }
-      >
-        ⋯
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Menü öffnen"
+          className={
+            variant === 'flat'
+              ? 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink'
+              : 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover'
+          }
+        >
+          {glyph}
+        </button>
+      )}
       {open &&
         createPortal(
           <div

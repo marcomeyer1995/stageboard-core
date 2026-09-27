@@ -156,7 +156,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           onClick={onClose}
           className="h-12 rounded-sb bg-control-strong text-base font-medium text-ink hover:bg-control-strong-hover"
         >
-          Fertig
+          Schließen
         </button>
       </div>
     </div>
