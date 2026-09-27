@@ -65,16 +65,54 @@ export const STATUS_BAR_CLASS: Record<StatusBarKind, string> = {
   fault: 'bg-red-600 text-white',
 }
 
-/** The count-in flash: the bar lights up on each count-in beat, so the band locks onto the
- * song's tempo before it starts (Marco, 2026-09-27). */
-export const COUNT_IN_FLASH_CLASS = 'bg-sky-300 text-black'
-/** How long each count-in flash stays lit, ms - clearly visible, still a pulse at fast tempos. */
+/** How long the count block stays lit on each count-in beat, ms - clearly visible, still a
+ * pulse at fast tempos. Only the count block flashes, not the whole bar: a whole bar flipping
+ * dark/light (and its text white/black) on every beat looked wrong on the tablet (Marco,
+ * 2026-09-27), and it made the title, time and clock flicker along. */
 export const COUNT_IN_FLASH_MS = 120
 
-/** "3:07", "-0:02" during the count-in (the song's own clock runs negative before beat one). */
+export interface CountInPosition {
+  /** 1-based count-in bar, e.g. 1 of 2. */
+  bar: number
+  bars: number
+  /** 1-based beat in the bar - the number the band counts. */
+  beat: number
+  beatsPerBar: number
+}
+
+/**
+ * Where in the count-in a beat falls: which count-in bar, which beat. `firstBeatMs` is the
+ * song's first beat (its first beat anchor, else 0) - the count-in is the `countInBars` bars
+ * before it. The beat counted is measured from the start of the current beat (`msIntoBeat`
+ * back), rounded, so float jitter at a beat edge can't skip or repeat a bar.
+ */
+export function countInPosition(
+  elapsedMs: number,
+  msIntoBeat: number,
+  effectiveBpm: number,
+  firstBeatMs: number,
+  countInBars: number,
+  beatInBar: number,
+  beatsPerBar: number,
+): CountInPosition {
+  const msPerBeat = 60000 / effectiveBpm
+  const total = Math.max(1, countInBars) * beatsPerBar
+  const remaining = Math.round((firstBeatMs - (elapsedMs - msIntoBeat)) / msPerBeat)
+  const index = Math.min(total - 1, Math.max(0, total - remaining))
+  return {
+    bar: Math.floor(index / beatsPerBar) + 1,
+    bars: Math.max(1, countInBars),
+    beat: beatInBar + 1,
+    beatsPerBar,
+  }
+}
+
+/** "3:07"; before beat one (the count-in runs the song clock negative) a countdown "-0:02",
+ * "-0:01", "0:00" - rounded up, so it never shows "-0:00". */
 export function formatSongTime(ms: number): string {
   const negative = ms < 0
-  const total = Math.floor(Math.abs(ms) / 1000)
+  const abs = Math.abs(ms) / 1000
+  const total = negative ? Math.ceil(abs) : Math.floor(abs)
   const text = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-  return negative ? `-${text}` : text
+  return negative && total > 0 ? `-${text}` : text
 }

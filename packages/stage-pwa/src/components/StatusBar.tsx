@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
-import { adjustedBpm, beatAt } from '../lib/metronome'
+import { adjustedBpm, beatAt, beatsPerBar } from '../lib/metronome'
 import { MODE_LABEL, type Mode } from '../lib/modes'
 import { useShowMode } from '../lib/showMode'
 import {
-  COUNT_IN_FLASH_CLASS,
   COUNT_IN_FLASH_MS,
+  countInPosition,
+  type CountInPosition,
   finishedAfterRun,
   formatSongTime,
   STATUS_BAR_CLASS,
@@ -35,10 +36,39 @@ const SYNC_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
  * widgets and list content on every screen. A dashboard can hide it (`Dashboard.statusBar`); the
  * floating button comes back there.
  *
- * The whole bar takes the state's colour (Marco: "let's try the full bar") and during the
- * count-in flashes on each count-in beat, from the same synced clock as the Prompter and the
- * Visual Metronome, so every tablet flashes together in the song's tempo.
+ * The whole bar takes the state's colour (Marco: "let's try the full bar"). During the count-in
+ * the bar stays calm blue and only the count block on the left flashes on each beat - big count
+ * number, beat dots, count-in bar "1/2" - from the same synced clock as the Prompter and the
+ * Visual Metronome, so every tablet flashes together in the song's tempo. (A first version
+ * flashed the whole bar; on the tablet that "looked weird", Marco 2026-09-27.)
  */
+function CountBlock({ position, flash }: { position: CountInPosition; flash: boolean }) {
+  const { bar, bars, beat, beatsPerBar: beatsInBar } = position
+  return (
+    <span
+      role="status"
+      aria-label={`Einzählen, Takt ${bar} von ${bars}, Schlag ${beat}`}
+      data-flash={flash}
+      className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-sb px-3 ${flash ? 'bg-white text-blue-800' : 'bg-black/25 text-white'}`}
+    >
+      <span className="w-8 text-center text-4xl font-black leading-none tabular-nums">{beat}</span>
+      <span className="flex flex-col gap-1">
+        <span className="flex gap-1" aria-hidden>
+          {Array.from({ length: beatsInBar }, (_, i) => (
+            <span
+              key={i}
+              className={`h-3 w-3 rounded-full ${i < beat ? (flash ? 'bg-blue-800' : 'bg-white') : flash ? 'bg-blue-800/25' : 'bg-white/30'}`}
+            />
+          ))}
+        </span>
+        <span className="text-xs font-bold uppercase leading-none tracking-wide">
+          {bars > 1 ? `Takt ${bar}/${bars}` : 'Einzählen'}
+        </span>
+      </span>
+    </span>
+  )
+}
+
 export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: () => void }) {
   const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
@@ -98,6 +128,16 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
     audioError,
   })
   const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
+  // The song's first beat: its first beat anchor, else song time 0 (the count-in leads with
+  // negative time then).
+  const firstBeatMs = currentVariant?.beatAnchors?.length
+    ? Math.min(...currentVariant.beatAnchors.map((anchor) => anchor.timeMs))
+    : 0
+  const perBar = song ? beatsPerBar(song.timeSignature) : 4
+  const position =
+    state.kind === 'count-in' && countInBeat && elapsedMs !== null
+      ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
+      : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
   const variantLabel = currentVariant && !currentVariant.isDefault ? currentVariant.label : null
   const sync = SYNC_TEXT[syncStatus]
@@ -105,7 +145,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   return (
     <header
       data-status={state.kind}
-      className={`flex h-14 flex-shrink-0 items-center gap-3 px-2 ${flash ? COUNT_IN_FLASH_CLASS : STATUS_BAR_CLASS[state.kind]} ${
+      className={`flex h-14 flex-shrink-0 items-center gap-3 px-2 ${STATUS_BAR_CLASS[state.kind]} ${
         state.kind === 'ready' ? 'border-b border-line' : ''
       }`}
     >
@@ -119,10 +159,11 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         <span className="hidden text-base md:inline">{MODE_LABEL[screen]}</span>
       </button>
 
-      <span className="flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide">
-        {state.label}
-        {state.kind === 'count-in' && countInBeat ? ` ${countInBeat.beatInBar + 1}` : ''}
-      </span>
+      {position ? (
+        <CountBlock position={position} flash={flash} />
+      ) : (
+        <span className="flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide">{state.label}</span>
+      )}
 
       <span className="min-w-0 flex-1 truncate text-lg font-semibold">
         {title}

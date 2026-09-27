@@ -73,17 +73,23 @@ describe('StatusBar (PR F2)', () => {
     expect(screen.getByLabelText('Synchron')).toBeInTheDocument()
   })
 
-  it('flashes on each count-in beat and counts along, dark between beats', () => {
+  it('keeps the bar calm blue and flashes only the count block on each count-in beat', () => {
     // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms.
     mockShow('playing', -1_450)
     const { rerender } = render(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('count-in')
-    expect(bar().textContent).toContain('Einzählen 2')
-    expect(bar().className).toContain('bg-sky-300')
+    expect(bar().className).toContain('bg-blue-700')
+    const block = screen.getByRole('status')
+    expect(block).toHaveAccessibleName('Einzählen, Takt 1 von 1, Schlag 2')
+    expect(block.dataset.flash).toBe('true')
+    expect(block.className).toContain('bg-white')
 
     mockShow('playing', -1_200)
     rerender(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
     expect(bar().className).toContain('bg-blue-700')
+    expect(screen.getByRole('status').dataset.flash).toBe('false')
+    // Time counts down cleanly, never "-0:00".
+    expect(bar().textContent).toContain('-0:02 / 3:00')
   })
 
   it('turns "Beendet" (magenta) when a run stops at the song\'s end, not after a false start', () => {
