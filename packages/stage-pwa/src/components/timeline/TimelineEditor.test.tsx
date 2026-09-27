@@ -9,7 +9,8 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, { width: 1000, height: 206 }] }))
+const box = vi.hoisted(() => ({ width: 1000, height: 206 }))
+vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, box] }))
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
 
@@ -91,3 +92,37 @@ describe('TimelineEditor (docs/14, phase 1)', () => {
     expect(patch.tempoMarkers).toEqual([expect.objectContaining({ timeMs: 5000, bpm: 120 })])
   })
 })
+
+describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
+  it('runs time downwards: a tap is placed by its height, the lanes are columns', () => {
+    box.width = 800
+    box.height = 1100
+    const onChange = vi.fn()
+    render(
+      <TimelineEditor
+        variantId="v"
+        trackId={null}
+        trackSrc={null}
+        anchors={anchors}
+        tempoMarkers={[]}
+        bpm={120}
+        timeSignature="4/4"
+        countInEnabled={false}
+        countInBars={1}
+        onChange={onChange}
+        onAdoptBpm={vi.fn()}
+        fill
+      />,
+    )
+    // The song (0-20.5 s) fits the 1100 px time axis: 20.5 s / 1100 px. The grid column starts
+    // after the audio (45 % of 800 - 26 px) and the section strip.
+    const lanes = screen.getByTestId('timeline-lanes')
+    const y = 3000 / (20500 / 1100)
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: 600, clientY: y })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: 600, clientY: y })
+    expect(screen.getByText(/Takt 2, Schlag 1/)).toBeInTheDocument()
+    box.width = 1000
+    box.height = 206
+  })
+})
+
