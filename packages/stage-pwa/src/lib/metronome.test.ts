@@ -336,10 +336,14 @@ describe('beatAt with anchors', () => {
   })
 
   it('effectiveBpm reflects the corrected ratio, not the authored bpm, inside an uneven anchor gap', () => {
-    // Same 0/2100ms 1.05x-ratio fixture used throughout this file - the real tempo is 126, not
-    // the authored 120.
+    // Same 0/2100ms 1.05x-ratio fixture used throughout this file: 4 beats of 525 ms, so the
+    // real tempo is 60000 / 525 = 114.3 - slower than the authored 120. (This test used to expect
+    // 126, the inverted correction.)
     const anchors: BeatAnchorLike[] = [{ timeMs: 0 }, { timeMs: 2100 }]
-    expect(mustBeatAt(1000, 120, '4/4', anchors).effectiveBpm).toBeCloseTo(126)
+    const beat = mustBeatAt(1000, 120, '4/4', anchors)
+    expect(beat.effectiveBpm).toBeCloseTo(114.29, 1)
+    // Consistent with the actual beat spacing: the next beat starts 525 ms after this one.
+    expect(60000 / beat.effectiveBpm).toBeCloseTo(525)
   })
 
   it('is exactly the downbeat at the anchor itself', () => {
