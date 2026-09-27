@@ -10,13 +10,14 @@ Entscheidungen (Marco, 2026-09-27):
 - **Geräte:** PC (Maus/Tastatur) und Tablet quer (Touch) gleichwertig. **Hochkant läuft die Zeit nach unten** (Spuren als Spalten, liest sich wie ein Liedblatt) – bearbeitbar wie quer.
 - **Ort:** eine eigene **Vollbild-Ansicht** des Song-Editors, umschaltbar „Text | Timeline“ (beide auf demselben Entwurf; ursprünglich als Abschnitt in der Detail-Spalte gebaut – zu schmal, Marco 2026-09-27). Die bisherigen Listen (Anker, Tempo-Wechsel, Cues) bleiben für exakte Zahleneingabe. Ein geführter Assistent für neue Songs könnte die Timeline später für seine Zeit-Schritte nutzen – noch nicht entschieden.
 - **Reihenfolge:** Phase 1 Raster, Phase 2 Text & Parts, Phase 3 Cues & Kommentare/Tabs – je ein PR mit Tablet-Prüfung.
+- **Raster-Modell (Marco, 2026-09-27 abends):** Die Anker-/Glättungs-Bearbeitung aus Phase 1 ist „viel zu kompliziert, nicht intuitiv“. Ersetzt durch ein **starres Raster mit Ausrichtungspunkten** (Abschnitt 5a). Bestehende Songs werden **nicht umgewandelt** – Marco baut sie neu auf.
 
 ## 2. Was auf der Zeitachse liegt
 
 | Spur | Inhalt | Gespeichert in | Bearbeiten in der Timeline |
 |---|---|---|---|
 | Audio | Wellenform des Tracks (Band-Mix, sonst Referenz) | Variante `tracks` | ansehen, ab hier abspielen |
-| Raster | Takte/Schläge der berechneten Tempo-Karte, Qualitätsfarbe je Takt, Tempo-Abschnitte, Einzählen vor 0:00 | `beatAnchors`, `tempoMarkers`, `countInEnabled/Bars` | Eins setzen, Taktstrich ziehen, Abschnitte setzen/verschieben, Strecke neu tippen |
+| Raster | Takte/Schläge des starren Rasters, Ausrichtungspunkte, Tempo je Strecke, Qualitätsfarbe je Takt, Taktart-Wechsel, Einzählen vor 0:00 | `beatGrid` (neu, 5a), `countInEnabled/Bars`; alt: `beatAnchors`, `tempoMarkers` | Takt 1 setzen, Tempo tippen, Taktstrich auf den Hit ziehen (= Ausrichtungspunkt) |
 | Parts | Verse/Chorus/… als Blöcke | ChordPro (Part-Direktiven) + Zeit-Tags | ansehen (ergibt sich aus den Zeilen) |
 | Text | jede Liedzeile als Marker | Zeit-Tags `[mm:ss.xx]` am Zeilenanfang im ChordPro | ziehen, einrasten, Strecke neu tippen |
 | Kommentare & Tabs | `{c:}`/`{cc4…}`, `{sot}…{eot}` | ChordPro, an Zeilen gebunden | zwischen Zeilen verschieben, Text/„Sichtbar für“ ändern |
@@ -24,7 +25,7 @@ Entscheidungen (Marco, 2026-09-27):
 
 Grundsätze:
 - **Kommentare und Tab-Blöcke hängen an Liedzeilen**, nicht an einer freien Zeit – so arbeitet auch der Prompter. In der Timeline stehen sie auf der Zeit ihrer Zeile; Verschieben heißt, sie an eine andere Zeile zu hängen.
-- **Das Raster ist berechnet** (docs/13): Anker bleiben Beobachtungen; was man in der Raster-Spur korrigiert, wird als zusätzliche, verbindliche Beobachtung gespeichert (Abschnitt 5).
+- **Das Raster ist ein starres Lineal** (Abschnitt 5a): Tempo konstant zwischen zwei Ausrichtungspunkten; was man in der Raster-Spur zieht, ist genau das, was der Klick spielt – keine unsichtbare Glättung. (Vorher, Phase 1: Anker als Beobachtungen, per Regression geglättet, docs/13.)
 - Das Feld `timecodes` der Variante wird heute nur mitgeführt; die Zeilen-Zeiten stehen im ChordPro.
 
 ## 3. Aufbau
@@ -95,6 +96,68 @@ Grundsätze:
 Zum Neuanfang gibt es **„Alle Anker löschen“** in der Timeline (rückgängig machbar) und im Text-Modus unter „Tempo & Klick“ (nur der Entwurf, erst „Speichern“ übernimmt es).
 
 **Fehler aus der Tablet-Prüfung (2026-09-27, „Whats up“):** ein Tempo-Abschnitt ab 0:00 mit 23,8 BPM – „Abschnitt ab hier“ nahm das Tempo aus der einen Lücke nach dem ersten Schlag (die Stille vor dem ersten Hit) –, und ein fester Anker genau auf 0:00, weil ein Schlag vor den Songanfang geschoben und dort auf 0 geklemmt wurde. Mit dem Abschnitt wertete `fitTempoMap` 499 von 579 Ankern als doppelt, das Raster lief mit 16,8 statt 134,7 BPM. Behoben: Abschnittstempo aus dem Median der folgenden Schläge (`sectionBpmAt`); Verschieben vor 0:00 wird abgelehnt statt geklemmt (`pinBeat`, `nudgeAnchor`); ist ein Abschnittstempo viel langsamer als die eigenen Anker (Median-Abstand < 0,4 Schlag), nimmt der Fit deren Abstand und die Qualitätszeile meldet „Abschnitts-BPM prüfen“ (`tempoMismatches`, Urteil „unzuverlässig“).
+
+## 5a. Raster-Modell neu: starres Lineal mit Ausrichtungspunkten
+
+Stand 2026-09-27, Konzept – mit Marco abgestimmt, noch nicht gebaut. Ersetzt die Raster-Bearbeitung aus Phase 1 (Abschnitt 5).
+
+**Warum.** Beim ersten echten Einsatz war die Phase-1-Bearbeitung nicht verständlich: Hunderte Anker, eine unsichtbare Glättung über ±6 Schläge, feste Anker, ±1 Schlag, „Hier ist die Eins“, Tempo-Abschnitte – was ein Zug an einem Taktstrich bewirkt, war nicht vorhersehbar, und ein Fehlgriff (Abschnitt mit 23,8 BPM, fester Anker auf 0:00) machte den Song unbrauchbar, ohne dass man es sah. Marcos Vorschlag: einmal tippen → festes Raster → visuell an die Wellenform anlegen.
+
+**Warum nicht ein einziges festes Tempo.** Die Tracks der Band driften innerhalb eines Songs um 1–3 % (docs/13 §1); ein einziges festes Tempo läge am Songende 75–280 ms daneben – hörbar. Deshalb: festes Tempo **zwischen** wenigen Punkten, die man selbst setzt (Prinzip der Warp-Marker in Ableton Live / Logic).
+
+### Modell
+
+- **Ausrichtungspunkt** = „Takt *n* beginnt genau bei Zeit *t*“. Nur ganze Takte (Zählzeit 1), keine einzelnen Schläge.
+- **Zwischen zwei Punkten** ist das Tempo konstant: die Takte dazwischen werden gleichmäßig aufgeteilt. Vor dem ersten und nach dem letzten Punkt läuft das Tempo der angrenzenden Strecke weiter.
+- **Nur ein Punkt** (Takt 1): das ganze Lineal läuft im Grundtempo der Variante (`bpm`).
+- **Tempowechsel** braucht kein eigenes Element: ein Punkt am Wechsel und einer ein paar Takte später – die Strecken davor und danach haben dann ihr eigenes Tempo. Die Anzeige zeigt das Tempo je Strecke.
+- **Taktart-Wechsel** (z. B. ein 2/4-Takt) als eigener Eintrag „ab Takt *n*: 2/4“, weil er die Schlagzählung ändert.
+- **Takt 1** ist der Takt, mit dem der Klick nach dem Einzählen beginnt; das Einzählen läuft davor im Tempo der ersten Strecke.
+
+Gespeichert als neues Feld der Variante (shared-types), z. B.
+
+```ts
+beatGrid?: {
+  points: { id: string; bar: number; timeMs: number }[]      // sortiert, bar ≥ 1, mind. 1 Punkt
+  meters?: { bar: number; timeSignature: string }[]          // Taktart ab Takt n (sonst die der Variante)
+}
+```
+
+Die Wiedergabe liest weiterhin `playbackAnchors(variant)`: mit `beatGrid` liefert sie die Schläge dieses Lineals (reine Rechnung, keine Glättung), ohne `beatGrid` wie bisher die geglättete Tempo-Karte aus den alten Ankern. Klick, Einzählen, Visueller Metronom, Statusleiste und Songlänge müssen dafür nicht angefasst werden.
+
+### Ablauf für einen Song
+
+1. **Takt 1 setzen:** in der Wellenform auf den ersten Hit tippen → „Takt 1 hier“ (oder den Taktstrich 1 dorthin ziehen). Mit Einrasten landet er auf dem Drum-Hit.
+2. **Tempo:** „Tempo tippen“ – beim Abspielen 8–16 Schläge irgendwo im Song mittippen; das Tempo ist die Steigung einer Ausgleichsgeraden durch die Tipps. Die Tipp-Latenz des Geräts (Fire 136–260 ms) spielt keine Rolle, weil sie nur verschiebt, nicht streckt, und die Lage aus Schritt 1 kommt. Alternativ Zahl eingeben oder „Track analysieren“.
+3. **Ans Ende springen**, letzten gut hörbaren Takt auf seinen Hit ziehen → zweiter Punkt, das Tempo dazwischen wird neu berechnet. Bei zum Klick aufgenommenen Tracks ist man hier fertig.
+4. **Qualitätsband** prüfen, „Nächste Problemstelle“: dort den Taktstrich auf den Hit ziehen → weiterer Punkt. Erwartung: 2 Punkte bei Studio-Tracks, 3–6 bei driftenden.
+5. **Speichern.**
+
+### Bedienung in der Raster-Spur
+
+- **Nur Taktstriche** sind anfassbar (Schlaglinien nur Anzeige) – groß genug zum Treffen, auch herausgezoomt.
+- **Taktstrich ziehen** setzt dort einen Punkt (oder verschiebt ihn, wenn schon einer da ist). Es bewegen sich nur die Takte zwischen dem vorherigen und dem nächsten Punkt, gleichmäßig; alles außerhalb bleibt stehen. Ist es der einzige Punkt, verschiebt sich das ganze Lineal. Ein Taktstrich kann nicht über einen Nachbarpunkt hinaus gezogen werden.
+- **Einrasten** auf einen Drum-Hit innerhalb von 40 ms (wie heute), Feinschritte ±10 ms in der Auswahl-Leiste.
+- **Punkt antippen:** Takt, Zeit, Tempo davor/danach; „Punkt entfernen“ (die Nachbarstrecken verschmelzen), „Taktart ab hier“.
+- **Anzeige:** Punkte als Rauten auf dem Taktstrich, Tempo je Strecke in der Abschnittsleiste („133,2 BPM“), Qualitätsfarbe je Takt wie heute. Kurze Hilfezeile beim ersten Öffnen: „Taktstrich auf den Schlag in der Wellenform ziehen“.
+- **Qualitätszeile** statt der Anker-Diagnose: „134,2 BPM · 3 Punkte · 91 % der Takte auf den Hits“.
+- **Entfällt:** rohe Anker, feste Anker, „Hier ist die Eins“, ±1 Schlag, „Abschnitt ab hier“ (Tempo), „Alle Anker löschen“ (→ „Raster neu aufbauen“), die Anker-Diagnose. Im Text-Modus ersetzt eine Punkteliste (Takt, Zeit, Tempo) die Anker- und Tempo-Wechsel-Listen für exakte Zahleneingabe.
+
+### Bestehende Songs
+
+Keine automatische Umwandlung (Marco baut sie neu auf). Solange eine Variante kein `beatGrid` hat, spielt sie wie heute aus den alten Ankern; die Timeline zeigt dann „Altes Raster – neu aufbauen“. Beim Aufbau werden `beatAnchors` und `tempoMarkers` der Variante geleert (mit Rückfrage, rückgängig bis zum Speichern). Wenn alle Songs neu aufgebaut sind, fallen Anker-Code und -Listen weg (eigenes Issue).
+
+„Track analysieren“ liefert künftig ebenfalls dieses Modell: aus den erkannten Schlägen ein Lineal mit so wenigen Punkten wie möglich (neuer Punkt nur, wo das Lineal mehr als ~30 ms von den erkannten Schlägen abweicht).
+
+### Umsetzung in drei PRs
+
+1. **Modell + Wiedergabe:** `beatGrid` in shared-types, `lib/beatGrid.ts` (Schläge aus Punkten, Tempo je Strecke, Punkt setzen/verschieben/entfernen mit den Grenzen oben, Tempo aus Tipps), `playbackAnchors` nutzt es. Tests inkl. Einzählen und Taktart-Wechsel.
+2. **Timeline:** neue Raster-Spur und Knöpfe (Takt 1 hier, Tempo tippen, Punkt-Auswahl), „Nächste Problemstelle“ bleibt, alte Bedienelemente raus; hochkant gleich. Tablet-Prüfung.
+3. **Text-Modus + Analyse:** Punkteliste, „Track analysieren“ → Lineal mit Punkten.
+
+**Abnahme:** Marco baut einen Song mit Studio-Track und einen driftenden (What's Up) in je unter 5 Minuten auf, ohne Erklärung; Messung gegen die Drum-Hits (docs/13 §6) mindestens so nah wie die Tempo-Karte; Fire: Ziehen ohne Ruckeln.
+
+**Offen:** Auftakt vor Takt 1 (Songs, die mit einem unvollständigen Takt beginnen) – als Takt 0 mit weniger Schlägen oder über das Einzählen? Wird beim ersten solchen Song entschieden.
 
 ## 6. Phase 2: Text & Parts
 
