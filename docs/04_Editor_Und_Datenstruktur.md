@@ -29,6 +29,8 @@ Perfekt für die schnelle, intuitive Erstellung - nicht nur für den Text, sonde
 * **Die Magie:** Die App setzt im Hintergrund automatisch die exakten Timecode-Stempel für Text, MIDI- und OSC-Cues (z. B. `[01:15.22] MIDI: PC5`). Ein 4-Minuten-Song ist so in exakt 4 Minuten komplett als vollautomatisierte Show programmiert.
 
 ### Workflow B: "Die Timeline" (Drag & Drop)
+*Konkretes Konzept (Spuren, Bedienung Touch/Maus, Phasen): [docs/14](14_Timeline_Editor.md).*
+
 Perfekt für das visuelle Feintuning und manuelle Anpassungen. Dieser Bereich sieht aus wie eine abgerüstete DAW (z.B. Ableton Live).
 
 * **Der Zeitstrahl:** Gibt es ein Backing-Track/Audio-Playback, wird hier die Audio-Wellenform angezeigt.
