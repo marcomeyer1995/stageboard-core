@@ -1,5 +1,7 @@
 import { computeFestivalClock } from '../lib/festivalClock'
 import { useShowMode } from '../lib/showMode'
+import { festivalClockLayout } from '../lib/stageWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 import { useNow } from '../lib/useNow'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type FestivalClockConfig } from './festivalClockConfig'
@@ -19,12 +21,17 @@ function formatMinutes(ms: number): string {
  * target end time (set in the setlist detail). Turns red once the prediction runs past it.
  * Works in Gig and Solo Üben alike through useShowMode - the setlist is whichever is active in
  * the current mode.
+ *
+ * The time never shrinks; when the tile is short the caption and then the estimate note give
+ * way (stageWidgetLayout.ts), and the remaining lines are single-line.
  */
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
   const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
+  const [boxRef, box] = useElementSize()
+  const { showCaption, showEstimate } = festivalClockLayout(box.height, fontSize)
 
   if (queue.orderedItems.length === 0) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Keine Songs vorhanden</div>
@@ -43,8 +50,12 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
   const overtime = result.overrunMs !== null && result.overrunMs > 0
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden text-center">
-      <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">Voraussichtliches Ende</span>
+    <div ref={boxRef} className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden text-center">
+      {showCaption && (
+        <span className="max-w-full truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
+          Voraussichtliches Ende
+        </span>
+      )}
       <span
         style={{ fontSize }}
         className={`whitespace-nowrap font-bold tabular-nums ${overtime ? 'text-red-500' : 'text-ink'}`}
@@ -52,15 +63,15 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
         {formatTime(result.predictedEnd)}
       </span>
       {result.targetEnd !== null && result.overrunMs !== null ? (
-        <span className={`text-sm font-semibold ${overtime ? 'text-red-500' : 'text-green-500'}`}>
+        <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-red-500' : 'text-green-500'}`}>
           Ziel {formatTime(result.targetEnd)} ·{' '}
           {overtime ? `${formatMinutes(result.overrunMs)} Überzug` : `${formatMinutes(result.overrunMs)} Puffer`}
         </span>
       ) : (
-        <span className="text-xs text-ink-faint">Kein Endzeitpunkt - in den Setlist-Einstellungen setzen</span>
+        <span className="max-w-full truncate text-xs text-ink-faint">Ziel-Ende in der Setlist setzen</span>
       )}
-      {result.estimatedSongs > 0 && (
-        <span className="text-xs text-ink-faint">
+      {showEstimate && result.estimatedSongs > 0 && (
+        <span className="max-w-full truncate text-xs text-ink-faint">
           {result.estimatedSongs} {result.estimatedSongs === 1 ? 'Song' : 'Songs'} geschätzt (Länge unbekannt)
         </span>
       )}

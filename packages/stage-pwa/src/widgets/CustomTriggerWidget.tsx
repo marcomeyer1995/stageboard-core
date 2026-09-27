@@ -112,7 +112,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   }
 
   return (
-    <div className="flex h-full flex-col gap-2">
+    <div className="flex h-full flex-col gap-2 overflow-hidden">
       <button
         type="button"
         disabled={disabled}
@@ -120,7 +120,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
         onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
         onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        className={`flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
@@ -128,8 +128,9 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
           {config.label}
         </span>
       </button>
-      {disabled && <p className="text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {/* One line each: the button keeps its touch height, the hint gives way. */}
+      {disabled && <p className="flex-shrink-0 truncate text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
+      {error && <p className="flex-shrink-0 truncate text-xs text-red-500">{error}</p>}
     </div>
   )
 }

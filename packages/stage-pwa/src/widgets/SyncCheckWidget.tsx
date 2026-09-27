@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
+import { syncCheckLayout, type SyncClockFormat } from '../lib/stageWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 import { useClockSyncStore } from '../store/useClockSyncStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type SyncCheckConfig } from './syncCheckConfig'
@@ -26,10 +28,13 @@ function useServerTimeTick(): number {
   return getServerTime()
 }
 
-function formatClock(ms: number): string {
+function formatClock(ms: number, format: SyncClockFormat = 'full'): string {
   const d = new Date(ms)
   const pad = (n: number, len = 2) => n.toString().padStart(len, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+  const seconds = `${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+  if (format === 'seconds') return seconds
+  if (format === 'minutes') return `${pad(d.getMinutes())}:${seconds}`
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${seconds}`
 }
 
 /**
@@ -43,6 +48,10 @@ function formatClock(ms: number): string {
  * form, for comparing over a video call or a photo instead of live side by side. Also surfaces
  * this device's own offset/driftMs (useClockSyncStore.ts) so the "why" is right there without
  * switching to the System-Status widget.
+ *
+ * In a small tile the digits keep their size and drop the hours, then the minutes (seconds and
+ * milliseconds are what gets compared); the offset line and then the caption give way below
+ * that (stageWidgetLayout.ts).
  */
 export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   const serverTime = useServerTimeTick()
@@ -52,21 +61,28 @@ export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   // 2026-09-14).
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
+  const [boxRef, box] = useElementSize()
+  const layout = syncCheckLayout(box.width, box.height, fontSize)
 
   return (
     <div
+      ref={boxRef}
       className={`flex h-full flex-col items-center gap-1 rounded-sb transition-colors duration-75 ${
         flashOn ? 'bg-ink text-surface' : 'bg-surface text-ink'
       }`}
     >
       <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
         <span style={{ fontSize }} className="whitespace-nowrap font-mono tabular-nums">
-          {formatClock(serverTime)}
+          {formatClock(serverTime, layout.clock)}
         </span>
       </div>
-      <span className="text-xs uppercase tracking-widest opacity-70">Sync-Blitz - Geräte nebeneinander vergleichen</span>
-      {lastSyncedAt !== null && (
-        <span className="text-xs opacity-70">
+      {layout.showCaption && (
+        <span className="max-w-full truncate px-2 text-xs uppercase tracking-widest opacity-70">
+          Sync-Blitz - Geräte vergleichen
+        </span>
+      )}
+      {layout.showOffset && lastSyncedAt !== null && (
+        <span className="max-w-full truncate px-2 text-xs opacity-70">
           {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms`}
         </span>
       )}

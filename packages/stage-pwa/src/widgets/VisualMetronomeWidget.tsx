@@ -10,6 +10,10 @@ import { stageFontSize } from '../lib/stageSize'
  * 300ms long). */
 const PULSE_WINDOW_MS = 90
 
+/** Status words shown instead of the beat: the 24px readout minimum (gigWidgetLayout.ts),
+ * wrapping onto a second line rather than being cut off. */
+const STATUS_TEXT = 'px-2 text-center text-2xl font-semibold leading-tight'
+
 function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
   const flashOn = beat.msIntoBeat < PULSE_WINDOW_MS
   return (
@@ -43,9 +47,10 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   const song = queue.currentVariant ?? queue.currentSong
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
 
-  // The primary label (song-less placeholder, "Wartet auf Play"/"Einzählen…", or the big beat
-  // number) is sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
-  // 2026-09-14).
+  // The big beat number is sized as a ratio of the device-wide default, not auto-fit to the tile
+  // (Marco, 2026-09-14). The status words ("Kein Song aktiv", "Wartet auf Play", "Einzählen…")
+  // used to share that size - sized for one digit, they ran out of a default 3 x 3 tile ("et auf",
+  // GUI audit 2026-09-27) - and now use STATUS_TEXT, a fixed readout size that wraps instead.
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
@@ -53,9 +58,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-sb bg-surface text-ink-soft">
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
-          <span style={{ fontSize }} className="whitespace-nowrap">
-            Kein Song aktiv
-          </span>
+          <span className={STATUS_TEXT}>Kein Song aktiv</span>
         </div>
       </div>
     )
@@ -95,11 +98,9 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
         {/* Not playing at all, vs. playing but still before the first beat anchor (a count-in) -
             both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
-          <span style={{ fontSize }} className="whitespace-nowrap font-semibold">
-            {playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}
-          </span>
+          <span className={STATUS_TEXT}>{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
         </div>
-        <span className="text-xs opacity-70 tabular-nums">
+        <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
           {bpmLabel} · {song.timeSignature}
         </span>
       </div>
@@ -135,7 +136,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
           </span>
         </div>
       )}
-      <span className="text-xs opacity-70 tabular-nums">
+      <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
         {bpmLabel} · {song.timeSignature}
       </span>
     </div>
