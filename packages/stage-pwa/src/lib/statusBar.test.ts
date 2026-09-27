@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { beatAt } from './metronome'
 import { countInPosition, finishedAfterRun, formatSongTime, statusBarState, type StatusBarInput } from './statusBar'
 
 const base: StatusBarInput = {
@@ -79,5 +80,23 @@ describe('countInPosition', () => {
   it('stays in the right bar late in a beat', () => {
     expect(at(3, 370).bar).toBe(1)
     expect(at(4, 0).bar).toBe(2)
+  })
+})
+
+describe('countInPosition with a corrected tempo (real beatAt)', () => {
+  it('changes bar exactly on beat 1 when the beats run faster than the authored tempo', () => {
+    // Measured on the tablet: "Wie ein schützender Engel", 3 count-in bars at an authored
+    // 114.3 BPM (525 ms), but the first anchors 480 ms apart - the count-in runs at 480 ms per
+    // beat. With the inverted effectiveBpm, "Takt 2" started on beat 3 and "Takt 3" on beat 4.
+    const anchors = [{ timeMs: 460, beatInBar: 0 }, { timeMs: 940 }]
+    const origin = 460 - 12 * 480
+    const seen: string[] = []
+    for (let i = 0; i < 12; i++) {
+      const t = origin + i * 480 + 60
+      const beat = beatAt(t, 114.3, '4/4', anchors, 3)!
+      const p = countInPosition(t, beat.msIntoBeat, beat.effectiveBpm, 460, 3, beat.beatInBar, 4)
+      seen.push(`${p.bar}.${p.beat}`)
+    }
+    expect(seen).toEqual(['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '2.3', '2.4', '3.1', '3.2', '3.3', '3.4'])
   })
 })

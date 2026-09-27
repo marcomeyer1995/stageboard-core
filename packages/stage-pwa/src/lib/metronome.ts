@@ -40,7 +40,11 @@ export interface Beat {
    * false with no anchors, or once elapsedMs reaches the first anchor. */
   isCountIn: boolean
   /** The tempo actually governing this beat's spacing right now - the `bpm` passed in (already
-   * live-nudged, #140) times whichever segment's `correctionRatio` is active (#25 follow-up).
+   * live-nudged, #140) *divided* by whichever segment's `correctionRatio` is active (#25
+   * follow-up): the ratio scales the ms per beat, so a ratio above 1 means longer beats, a slower
+   * tempo. (It used to multiply, which reported the correction inverted - 104 BPM for beats
+   * measured 480 ms apart on the tablet, really 125; found 2026-09-27 via the status bar's
+   * count-in bar counter.)
    * Equal to the plain `bpm` whenever there's no anchor correction in effect (no anchors, or an
    * anchor-to-anchor/tail gap that already divides evenly). VisualMetronomeWidget shows this
    * instead of the song's authored bpm, so what's displayed always matches what's audible. */
@@ -401,7 +405,7 @@ export function beatAt(
     isDownbeat: beatInBar === 0,
     msIntoBeat: effectiveMs - beatIndex * msPerBeat,
     isCountIn: first !== null && elapsedMs < first,
-    effectiveBpm: grid.bpm * grid.correctionRatio,
+    effectiveBpm: grid.bpm / grid.correctionRatio,
   }
 }
 

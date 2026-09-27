@@ -104,7 +104,8 @@ describe('VisualMetronomeWidget', () => {
 
   it('shows the anchor-corrected effective tempo, not the plain authored bpm (#25 follow-up)', () => {
     // 120 BPM = 500ms/beat nominal; anchors 0/2100 correct to a 1.05x ratio (525ms/beat) - the
-    // actually-audible tempo is 120*1.05 = 126 BPM, not the authored 120.
+    // actually-audible tempo is 60000/525 = 114.3 BPM, not the authored 120. (Expected 126
+    // before 2026-09-27 - the correction reported inverted.)
     const variant: SongVariant = {
       id: 'variant-1',
       songId: 'song-1',
@@ -127,7 +128,7 @@ describe('VisualMetronomeWidget', () => {
     }
     mockShowMode({ currentSong: song(120, '4/4'), currentVariant: variant, elapsedMs: 1000, playbackStatus: 'playing' })
     render(<VisualMetronomeWidget config={{ style: 'number' }} />)
-    expect(screen.getByText('126.0 BPM · 4/4')).toBeInTheDocument()
+    expect(screen.getByText('114.3 BPM · 4/4')).toBeInTheDocument()
   })
 
   it('renders a dot per beat of the bar in beat-dots style, one lit', () => {
