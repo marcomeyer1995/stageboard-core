@@ -51,8 +51,12 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const trackMessage =
     tracks.length === 0 ? 'Kein Track angehängt' : tracks.length < 2 ? 'Nur ein Track vorhanden - kein Wechsel nötig' : null
 
+  const compactTrackMessage = tracks.length === 0 ? 'keiner angehängt' : 'nur einer vorhanden'
   const [boxRef, box] = useElementSize()
-  const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker && !trackMessage ? 2 : 1)
+  // With the variant picker, the track part below it (select or message) counts as the second
+  // slot too - the message wraps over up to three lines otherwise and pushed the picker out of
+  // a 3 x 3 tile (tablet, 2026-09-27).
+  const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker ? 2 : 1)
   const variantPrefix = showLabels ? '' : 'Variante: '
   const trackPrefix = showLabels ? '' : 'Track: '
   const selectClass = 'min-h-touch w-full rounded-sb-sm bg-control px-2 py-1 text-ink'
@@ -99,7 +103,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
         </div>
       )}
       {trackMessage ? (
-        <span className="text-sm text-ink-faint">{trackMessage}</span>
+        <span className="truncate text-sm text-ink-faint">{showLabels ? trackMessage : `${trackPrefix}${compactTrackMessage}`}</span>
       ) : (
         <select
           aria-label="Track"
