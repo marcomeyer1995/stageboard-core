@@ -70,7 +70,9 @@ function VariantPicker({
         type="button"
         onClick={() => setOpen(true)}
         title="Variante wählen"
-        className="h-10 w-32 min-w-0 flex-shrink-0 truncate rounded-sb-sm bg-control-strong px-2 text-left text-sm text-ink hover:bg-control-strong-hover"
+        // The whole name, wrapping onto more lines - it used to be cut to "Auto: music-tem…",
+        // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
+        className="min-h-12 w-36 min-w-0 flex-shrink-0 whitespace-normal break-words rounded-sb-sm bg-control-strong px-2 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
       >
         {selectedLabel}
       </button>

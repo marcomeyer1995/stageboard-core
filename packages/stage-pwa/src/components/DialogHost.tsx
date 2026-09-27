@@ -72,14 +72,14 @@ function PromptFields({
             <legend className="mb-1 text-ink-muted">{field.label}</legend>
             <div className="flex flex-col gap-1">
               {(field.options ?? []).map((option, optionIndex) => (
-                <label key={option.value} className="flex items-center gap-2 text-ink-soft">
+                <label key={option.value} className="flex min-h-12 items-center gap-3 text-base text-ink-soft">
                   <input
                     autoFocus={index === 0 && optionIndex === 0}
                     type="radio"
                     name={field.key}
                     checked={values[field.key] === option.value}
                     onChange={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
-                    className="h-5 w-5"
+                    className="h-6 w-6 flex-shrink-0"
                   />
                   {option.label}
                 </label>
@@ -94,7 +94,7 @@ function PromptFields({
                 const selected = values[field.key].split(',').filter(Boolean)
                 const checked = selected.includes(option.value)
                 return (
-                  <label key={option.value} className="flex items-center gap-2 text-ink-soft">
+                  <label key={option.value} className="flex min-h-12 items-center gap-3 text-base text-ink-soft">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -107,7 +107,7 @@ function PromptFields({
                           return { ...prev, [field.key]: next.join(',') }
                         })
                       }
-                      className="h-5 w-5"
+                      className="h-6 w-6 flex-shrink-0"
                     />
                     {option.label}
                   </label>

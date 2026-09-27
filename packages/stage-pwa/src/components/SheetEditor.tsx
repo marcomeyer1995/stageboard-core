@@ -815,7 +815,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 key={label}
                 type="button"
                 onClick={() => insertPart(label)}
-                className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
               >
                 + {label}
               </button>
