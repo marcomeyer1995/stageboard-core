@@ -60,6 +60,8 @@ Anker entstehen durch Tippen **und** durch automatische Erkennung; beide liefern
 
 **Validierung gegen die Drum-Hits (10 Varianten):** Das Holpern (Änderung des Schlagabstands von Schlag zu Schlag) sinkt von 9–1048 ms auf ~1–13 ms; der Abstand zu den Drum-Hits bleibt innerhalb der Messgenauigkeit gleich (±2 ms), bei „Were not gonna take it“ steigt die Trefferquote von 62 auf 71 % (fehlende Schläge ergänzt). Urteile: gut – 7, prüfen – Highway to Hell (88 doppelte Anker), unzuverlässig – beide What's-Up-Varianten (Tempo ~5 % daneben, unklare Lücken, 164 widersprüchliche Taktpositionen).
 
+**Nachmessung auf dem Fire nach #300/#301** („All the small things“, Gig, 30 s): Einzählen exakt 389 ms, Stop nach 101 ms; im Song folgten die Klicks dem berechneten Raster, zeigten aber (a) einen Knick im Raster selbst (339/461 ms) – im Intro liegt nur alle 8 Schläge ein Anker, und das Anpassungsfenster wuchs in Sprüngen (±6 → ±12 → ±24 Schläge) – und (b) ±25 ms Streuung in den ersten Sekunden, weil der Scheduler an jedem neuen Rasterpunkt die Audio-Uhr neu ablas. Behoben: das Fenster wächst stetig bis zum 4.-nächsten Anker; beim Übergang zum nächsten Rasterpunkt rechnet der Scheduler vom zuletzt geplanten Klick weiter (neue Uhr-Ablesung nur bei Start, Stillstand oder Sprung).
+
 ## 5. Offen
 
 - Visueller Editor (Abschnitt 3.4).

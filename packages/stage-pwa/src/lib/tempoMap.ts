@@ -170,14 +170,28 @@ function fitBeats(indices: number[], times: number[]): { beatTimes: number[]; re
     return lo
   }
   const evaluate = (at: number): number => {
-    let half = FIT_HALF_WIDTH
-    let from = lowerBound(at - half)
-    let to = lowerBound(at + half + 1)
-    while (to - from < MIN_WINDOW_OBSERVATIONS && half < MAX_HALF_WIDTH) {
-      half *= 2
-      from = lowerBound(at - half)
-      to = lowerBound(at + half + 1)
+    // Window: at least FIT_HALF_WIDTH beats, widened to the MIN_WINDOW_OBSERVATIONS-th nearest
+    // observation. Continuous in `at` - doubling it in steps made sparse stretches (one anchor per
+    // 8 beats) jump between window sizes from one beat to the next, a kink in the grid (a 339/461 ms
+    // pair in "All the small things", measured 2026-09-27).
+    const pos = lowerBound(at)
+    let left = pos - 1
+    let right = pos
+    let kth = 0
+    for (let n = 0; n < MIN_WINDOW_OBSERVATIONS && (left >= 0 || right < indices.length); n++) {
+      const dl = left >= 0 ? at - indices[left]! : Infinity
+      const dr = right < indices.length ? indices[right]! - at : Infinity
+      if (dl <= dr) {
+        kth = dl
+        left--
+      } else {
+        kth = dr
+        right++
+      }
     }
+    const half = Math.min(MAX_HALF_WIDTH, Math.max(FIT_HALF_WIDTH, kth))
+    const from = lowerBound(at - half)
+    const to = lowerBound(at + half + 1)
     const xs = indices.slice(from, to)
     const ts = times.slice(from, to)
     const ws = xs.map((x, i) => tricube(Math.abs(x - at) / (half + 1)) * robust[from + i]!)
