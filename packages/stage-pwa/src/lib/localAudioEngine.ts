@@ -135,6 +135,8 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
 export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   if (pendingLoad) await pendingLoad.catch(() => {})
   const audio = getAudioEl()
+  // A Play right after Stop/Pause must not be cut off by that fade's closing pause().
+  cancelFade(audio)
   audio.currentTime = atMs / 1000
   try {
     await audio.play()
@@ -145,8 +147,41 @@ export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   }
 }
 
+/** Length of the fade before a pause/stop, ms - a hard `pause()` mid-waveform is an audible
+ * crack; this is short enough to still feel instant. */
+const FADE_OUT_MS = 60
+const FADE_STEP_MS = 5
+
+let fade: { audio: HTMLAudioElement; timer: ReturnType<typeof setInterval>; volume: number } | null = null
+
+/** Stops a running fade and puts the element's volume back - it is only ever lowered for a fade. */
+function cancelFade(audio: HTMLAudioElement): void {
+  if (!fade || fade.audio !== audio) return
+  clearInterval(fade.timer)
+  audio.volume = fade.volume
+  fade = null
+}
+
+/** Fades the element out over FADE_OUT_MS, then pauses it and restores its volume. Nothing to
+ * fade on an element that isn't playing. */
+function fadeOutAndPause(audio: HTMLAudioElement): void {
+  if (audio.paused) return
+  if (fade?.audio === audio) return // already fading out
+  cancelFade(audio)
+  const volume = audio.volume
+  const started = performance.now()
+  const timer = setInterval(() => {
+    const progress = Math.min(1, (performance.now() - started) / FADE_OUT_MS)
+    audio.volume = volume * (1 - progress)
+    if (progress < 1) return
+    audio.pause()
+    cancelFade(audio)
+  }, FADE_STEP_MS)
+  fade = { audio, timer, volume }
+}
+
 export function pauseLocalTrack(): void {
-  getAudioEl().pause()
+  fadeOutAndPause(getAudioEl())
 }
 
 /** How far `audio.currentTime` may drift from the synced position before we forcibly correct
@@ -182,10 +217,11 @@ export function getLocalTrackDurationMs(): number | null {
   return Number.isFinite(duration) ? duration * 1000 : null
 }
 
+/** Stops playback with a short fade. No seek back to 0: the next `playLocalTrack` sets the
+ * position anyway, and seeking right after pausing made the tablet emit a short burst of noise
+ * on Stop (measured 2026-09-27: pause, then a seek to 0 within 1 ms). */
 export function stopLocalTrack(): void {
-  const audio = getAudioEl()
-  audio.pause()
-  audio.currentTime = 0
+  fadeOutAndPause(getAudioEl())
 }
 
 /** Clears whatever is currently loaded, if anything - unlike stopLocalTrack (pause + rewind,
@@ -197,6 +233,7 @@ export function stopLocalTrack(): void {
 export function unloadLocalTrack(): void {
   const audio = getAudioEl()
   if (!audio.src) return
+  cancelFade(audio)
   audio.pause()
   audio.removeAttribute('src')
   audio.load()
@@ -210,6 +247,14 @@ export function unloadLocalTrack(): void {
 /** Test-only escape hatch - this module deliberately never exposes its module-level `<audio>`
  * singleton otherwise (every real caller goes through the functions above instead), but a test
  * asserting on `currentTime`/`paused` needs some way to read it back. */
+/** Test-only: puts the shared element back to paused at 0 with no fade running. */
+export function __resetLocalAudioForTests(): void {
+  const audio = getAudioEl()
+  cancelFade(audio)
+  audio.pause()
+  audio.currentTime = 0
+}
+
 export function __getAudioElForTests(): HTMLAudioElement {
   return getAudioEl()
 }

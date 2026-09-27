@@ -69,6 +69,17 @@ let activeOriginMs: number | null = null
  * still takes effect instantly within a segment; only the *ratio* is fixed per-segment, not an
  * absolute ms value. */
 let activeCorrectionRatio = 1
+/** The AudioContext time `nextBeatOnsetMs` is scheduled at. Converted from song time only when
+ * the schedule (re)anchors; every following beat is placed exactly one beat length later in
+ * audio time. Converting each beat on its own - `currentTime + (onset - elapsed)` sampled per
+ * tick - scattered clicks by up to ±25 ms on the band's tablet, whose audio clock only advances
+ * in ~20 ms steps (measured 2026-09-27: 438-513 ms between count-in clicks meant to be 480 ms
+ * apart, heard as a stumbling click). Null = convert at the next beat. */
+let nextBeatAudioTime: number | null = null
+/** How far the incrementally advanced audio time may disagree with a fresh conversion before it
+ * is re-derived - above the audio clock's step jitter, below anything audible as a "late" click.
+ * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
+const AUDIO_TIME_TOLERANCE_S = 0.05
 
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
@@ -123,6 +134,7 @@ function anchorSchedule(elapsedMs: number, grid: BeatGridSegment, includeBeatAtP
   const beatIndex = includeBeatAtPosition ? Math.ceil(effectiveMs / msPerBeat) : Math.floor(effectiveMs / msPerBeat) + 1
   nextBeatOnsetMs = grid.originMs + beatIndex * msPerBeat
   nextBeatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
+  nextBeatAudioTime = null
   activeCorrectionRatio = grid.correctionRatio
 }
 
@@ -145,6 +157,7 @@ function tick(getState: () => ClickEngineState): void {
   const { elapsedMs, bpm, timeSignature, beatAnchors, countInBars, tempoMarkers, playbackRate = 1, loop = null } = getState()
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
+    nextBeatAudioTime = null
     lastTickElapsedMs = null
     activeOriginMs = null
     activeCorrectionRatio = 1
@@ -174,8 +187,14 @@ function tick(getState: () => ClickEngineState): void {
   const lookaheadSongMs = LOOKAHEAD_MS * playbackRate
   while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + lookaheadSongMs) {
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    playClickAt(ctx, ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate, nextBeatInBar === 0)
-    nextBeatOnsetMs += (60000 / grid.bpm) * activeCorrectionRatio
+    const converted = ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate
+    if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
+      nextBeatAudioTime = converted
+    }
+    playClickAt(ctx, nextBeatAudioTime, nextBeatInBar === 0)
+    const beatMs = (60000 / grid.bpm) * activeCorrectionRatio
+    nextBeatOnsetMs += beatMs
+    nextBeatAudioTime += beatMs / 1000 / playbackRate
     nextBeatInBar = (nextBeatInBar + 1) % beatCount
   }
 }
@@ -202,6 +221,7 @@ export function stopClick(): void {
   if (intervalId !== null) clearInterval(intervalId)
   intervalId = null
   nextBeatOnsetMs = null
+  nextBeatAudioTime = null
   lastTickElapsedMs = null
   activeOriginMs = null
   activeCorrectionRatio = 1

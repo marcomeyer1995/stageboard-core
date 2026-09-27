@@ -6,6 +6,7 @@ import {
   loadLocalTrack,
   playLocalTrack,
   stopLocalTrack,
+  __resetLocalAudioForTests,
   syncLocalTrackPosition,
 } from './localAudioEngine'
 
@@ -20,7 +21,7 @@ afterEach(() => {
   // These tests share the module-level <audio> singleton (localAudioEngine.ts's own design -
   // one element reused across calls) - always end each test paused/rewound so the next one
   // starts from a clean, deterministic state.
-  stopLocalTrack()
+  __resetLocalAudioForTests()
 })
 
 function currentTimeMs(): number {
@@ -81,7 +82,7 @@ describe('getLocalTrackDurationMs (#231)', () => {
 
 describe('syncLocalTrackPosition', () => {
   it('does nothing while paused - only an actively playing element should ever be re-seeked', () => {
-    stopLocalTrack() // ensures paused, position 0
+    __resetLocalAudioForTests() // paused, position 0
     syncLocalTrackPosition(50_000)
     expect(currentTimeMs()).toBe(0)
   })
@@ -96,5 +97,53 @@ describe('syncLocalTrackPosition', () => {
     playLocalTrack(10_000)
     syncLocalTrackPosition(15_000) // 5s drift, well past the threshold
     expect(currentTimeMs()).toBe(15_000)
+  })
+})
+
+describe('stopping cleanly (2026-09-27)', () => {
+  // happy-dom's <audio> has no real playback; `paused` is what these tests drive.
+  function playing(): HTMLAudioElement {
+    const audio = __getAudioElForTests()
+    Object.defineProperty(audio, 'paused', { configurable: true, value: false })
+    audio.volume = 0.8
+    return audio
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+    delete (__getAudioElForTests() as unknown as Record<string, unknown>).paused
+  })
+
+  it('fades out, then pauses - without seeking back to 0 (that made the tablet emit noise)', () => {
+    vi.useFakeTimers()
+    const audio = playing()
+    audio.currentTime = 42
+    const pause = vi.spyOn(audio, 'pause')
+    stopLocalTrack()
+    vi.advanceTimersByTime(30)
+    expect(audio.volume).toBeGreaterThan(0)
+    expect(audio.volume).toBeLessThan(0.8)
+    expect(pause).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(40)
+    expect(pause).toHaveBeenCalledTimes(1)
+    expect(audio.volume).toBeCloseTo(0.8) // restored for the next play
+    expect(audio.currentTime).toBe(42)
+  })
+
+  it('a Play during the fade cancels it, so the new playback is not paused a moment later', async () => {
+    vi.useFakeTimers()
+    const audio = playing()
+    const pause = vi.spyOn(audio, 'pause')
+    vi.spyOn(audio, 'play').mockResolvedValue(undefined)
+    stopLocalTrack()
+    vi.advanceTimersByTime(20)
+    await playLocalTrack(1_000)
+    // Only pauses after the Play count (a load still in flight from an earlier test may swap the
+    // element's source, which pauses it on its own).
+    const pausesBefore = pause.mock.calls.length
+    vi.advanceTimersByTime(100)
+    expect(pause.mock.calls.length).toBe(pausesBefore)
+    expect(audio.volume).toBeCloseTo(0.8)
   })
 })

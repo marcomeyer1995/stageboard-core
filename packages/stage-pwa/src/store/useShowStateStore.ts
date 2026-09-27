@@ -79,6 +79,11 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   },
   applyPatch: async (patch) => {
     if (!get().isMaster) return
+    // This device's own state first, the database second: waiting for the write to come back
+    // through the local changes feed delayed Stop by 0.87 s on the band's tablet (measured
+    // 2026-09-27 - the backing track and click kept going after the tap). Every other tablet
+    // still learns it through replication; the feed's echo then just re-sets the same values.
+    set({ state: { ...get().state, ...patch } })
     await putShowState(patch)
   },
 }))
