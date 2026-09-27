@@ -92,8 +92,6 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
-      beatAnchors: [],
-      tempoMarkers: [],
       countInEnabled: false,
       countInBars: 1,
     }
@@ -102,10 +100,9 @@ describe('VisualMetronomeWidget', () => {
     expect(screen.getByText('90.0 BPM · 6/8')).toBeInTheDocument()
   })
 
-  it('shows the anchor-corrected effective tempo, not the plain authored bpm (#25 follow-up)', () => {
-    // 120 BPM = 500ms/beat nominal; anchors 0/2100 correct to a 1.05x ratio (525ms/beat) - the
-    // actually-audible tempo is 60000/525 = 114.3 BPM, not the authored 120. (Expected 126
-    // before 2026-09-27 - the correction reported inverted.)
+  it('shows the tempo of the grid stretch playing, not the plain authored bpm', () => {
+    // Bar 1 at 0, bar 2 at 2100 ms: 525 ms beats - the audible tempo is 60000/525 = 114.3 BPM,
+    // not the authored 120.
     const variant: SongVariant = {
       id: 'variant-1',
       songId: 'song-1',
@@ -118,11 +115,7 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
-      beatAnchors: [
-        { id: 'a1', timeMs: 0 },
-        { id: 'a2', timeMs: 2100 },
-      ],
-      tempoMarkers: [],
+      beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 2, timeMs: 2100 }], meters: [] },
       countInEnabled: false,
       countInBars: 1,
     }
@@ -164,7 +157,7 @@ describe('VisualMetronomeWidget', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
   })
 
-  it('shows a count-in state while playing but still before the first beat anchor (#25 follow-up), distinct from "not playing at all"', () => {
+  it('shows a count-in state while playing but still before bar 1 (#25 follow-up), distinct from "not playing at all"', () => {
     const variant: SongVariant = {
       id: 'variant-1',
       songId: 'song-1',
@@ -177,8 +170,7 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
-      beatAnchors: [{ id: 'a1', timeMs: 5000 }],
-      tempoMarkers: [],
+      beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 5000 }], meters: [] },
       countInEnabled: false,
       countInBars: 1,
     }
@@ -189,7 +181,7 @@ describe('VisualMetronomeWidget', () => {
   })
 
   it('plays and visually distinguishes a configured count-in, showing real beat numbers with a muted "Einzählen…" badge instead of the placeholder', () => {
-    // 120 BPM = 500ms/beat nominal; anchors at 2100/4200 correct to 525ms/beat (same as the
+    // 120 BPM = 500ms/beat nominal; bar 1 at 2100, bar 2 at 4200: 525ms/beat (same as the
     // clickEngine.test.ts count-in test) - a 1-bar count-in starts exactly at elapsedMs 0.
     const variant: SongVariant = {
       id: 'variant-1',
@@ -203,8 +195,7 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
-      beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
-      tempoMarkers: [],
+      beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 2100 }, { id: 'p2', bar: 2, timeMs: 4200 }], meters: [] },
       countInEnabled: true,
       countInBars: 1,
     }
@@ -217,7 +208,7 @@ describe('VisualMetronomeWidget', () => {
     expect(screen.queryByText('Wartet auf Play')).not.toBeInTheDocument()
   })
 
-  it('does not show the count-in badge once elapsedMs reaches the real first anchor', () => {
+  it('does not show the count-in badge once elapsedMs reaches bar 1', () => {
     const variant: SongVariant = {
       id: 'variant-1',
       songId: 'song-1',
@@ -230,8 +221,7 @@ describe('VisualMetronomeWidget', () => {
       timecodes: [],
       tracks: [],
       cues: [],
-      beatAnchors: [{ id: 'a1', timeMs: 2100 }, { id: 'a2', timeMs: 4200 }],
-      tempoMarkers: [],
+      beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 2100 }, { id: 'p2', bar: 2, timeMs: 4200 }], meters: [] },
       countInEnabled: true,
       countInBars: 1,
     }

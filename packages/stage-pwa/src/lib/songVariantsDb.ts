@@ -36,8 +36,6 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
       timeSignature: existing.timeSignature ?? '4/4',
       clickTrackEnabled: existing.clickTrackEnabled ?? false,
       cues: existing.cues ?? [],
-      beatAnchors: existing.beatAnchors ?? [],
-      tempoMarkers: existing.tempoMarkers ?? [],
       countInEnabled: existing.countInEnabled ?? false,
       countInBars: existing.countInBars ?? 1,
     }
@@ -55,8 +53,6 @@ export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
     timecodes: song.timecodes,
     tracks: [],
     cues: [],
-    beatAnchors: [],
-    tempoMarkers: [],
     countInEnabled: false,
     countInBars: 1,
   }
@@ -126,7 +122,7 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
 
 /**
  * Copies a song's own doc and every one of its variants (#178's desktop context menu) - the
- * chart, tempo, cues, beat anchors and tempo markers all come along, since those are what make
+ * chart, tempo, cues and click grid all come along, since those are what make
  * a duplicate a genuinely useful starting point (e.g. an "Akustik" arrangement branched off the
  * original). Tracks deliberately don't: audio lives on the Stage-Server's own disk (#30), and
  * copying it would mean re-uploading every byte through this tablet rather than a cheap

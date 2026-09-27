@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BeatGrid } from 'shared-types'
+import { clickTimeline } from './beatGrid'
 import { __resetClickEngineForTests, startClick, stopClick } from './clickEngine'
 
 // happy-dom (vitest.config.ts) has no real Web Audio implementation, so every test here runs
@@ -25,6 +27,8 @@ class FakeAudioContext {
 
 let fakeCtx: FakeAudioContext
 
+const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
+
 beforeEach(() => {
   vi.useFakeTimers()
   fakeCtx = new FakeAudioContext()
@@ -46,7 +50,7 @@ afterEach(() => {
 
 describe('startClick/stopClick', () => {
   it('does nothing while not playing (elapsedMs null)', () => {
-    startClick(() => ({ elapsedMs: null, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs: null, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
     vi.advanceTimersByTime(500)
     expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
   })
@@ -55,7 +59,7 @@ describe('startClick/stopClick', () => {
     // 120 BPM = 500ms/beat. From elapsedMs 0, the first tick's 150ms lookahead has nothing yet;
     // once elapsedMs reaches 350+, beat index 1 (at 500ms) is within the next tick's window.
     let elapsedMs = 0
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
 
     elapsedMs = 360
     vi.advanceTimersByTime(50) // one tick
@@ -65,7 +69,7 @@ describe('startClick/stopClick', () => {
 
   it('never schedules the same beat twice across overlapping lookahead windows', () => {
     let elapsedMs = 360
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
 
     vi.advanceTimersByTime(50) // ticks at elapsedMs=360, schedules beat 1 (500ms)
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
@@ -83,7 +87,7 @@ describe('startClick/stopClick', () => {
       oscillators.push(osc)
       return osc
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
 
     vi.advanceTimersByTime(50)
 
@@ -93,7 +97,7 @@ describe('startClick/stopClick', () => {
 
   it('resets its schedule position when playback pauses (elapsedMs goes null), so resuming re-derives from scratch rather than staying stuck on the old dedup cursor', () => {
     let elapsedMs: number | null = 360
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
     vi.advanceTimersByTime(50)
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
 
@@ -107,7 +111,7 @@ describe('startClick/stopClick', () => {
 
   it('is a no-op to call twice - does not double the scheduling rate', () => {
     const elapsedMs = 360
-    const getState = () => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] })
+    const getState = () => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) })
     startClick(getState)
     startClick(getState)
 
@@ -119,7 +123,7 @@ describe('startClick/stopClick', () => {
   it('keeps scheduling at the new spacing after a live tempo nudge mid-song, instead of stalling for real elapsed time to catch up to a beat grid re-quantized from song-start under the new bpm', () => {
     let elapsedMs = 119855 // ~2 minutes in, just shy of a beat boundary at 140bpm
     let bpm = 140 // 428.57ms/beat
-    startClick(() => ({ elapsedMs, bpm, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm, timeSignature: '4/4' }) }))
 
     vi.advanceTimersByTime(50) // schedules the imminent beat (elapsedMs 120000)
     const clicksBeforeNudge = fakeCtx.createOscillator.mock.calls.length
@@ -145,7 +149,7 @@ describe('startClick/stopClick', () => {
 
   it('resyncs cleanly instead of bursting through every missed beat after the tab was backgrounded and throttled (found live, 2026-09-10: the click went "fully out of rhythm" after losing focus)', () => {
     let elapsedMs = 999855 // large value mid-song, just shy of a beat boundary at 120bpm (500ms/beat)
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
 
     vi.advanceTimersByTime(50) // establishes the anchor, schedules the imminent beat
     expect(fakeCtx.createOscillator).toHaveBeenCalledTimes(1)
@@ -165,180 +169,89 @@ describe('startClick/stopClick', () => {
     expect(fakeCtx.createOscillator.mock.calls.length).toBeLessThan(3)
   })
 
-  it('smooths beat spacing to divide each anchor-to-anchor gap evenly, and re-anchors at the crossing with no duplicated or jittered click (#25 follow-up smoothing fix)', () => {
-    // 120 BPM = 500ms/beat nominal. Anchor 1 at 2100ms is NOT a whole multiple of 500ms away
-    // from anchor 0 (song-start) - exactly the kind of quantization mismatch that used to cause
-    // an audible jitter/duplicate right at the crossing. resolveBeatGrid's correctionRatio
-    // divides the 2100ms gap into 4 equal 525ms beats instead, so the segment's *last* beat
-    // lands exactly on anchor 1 itself (no jump, no double-click) - see metronome.ts.
-    const beatAnchors = [{ timeMs: 0 }, { timeMs: 2100 }]
+  it('clicks evenly between two alignment points and carries that spacing on (docs/14 §5a)', () => {
+    // Bar 1 at 0, bar 2 at 2100 ms: four beats of 525 ms, and the same spacing after bar 2.
+    const timeline = clickTimeline({ beatGrid: grid([1, 0], [2, 2100]), bpm: 120, timeSignature: '4/4' })
     let elapsedMs = 0
-    const started: { time: number; isDownbeat: boolean }[] = []
+    const clicks: { at: number; isDownbeat: boolean }[] = []
     fakeCtx.createOscillator = vi.fn(() => {
       const osc = new FakeOscillator()
-      // playClickAt sets osc.frequency.value before calling start(), so it's already correct
-      // by the time this reads it.
-      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
+      osc.start = vi.fn((time: number) => clicks.push({ at: Math.round(elapsedMs + (time - fakeCtx.currentTime) * 1000), isDownbeat: osc.frequency.value === 1500 }))
       return osc
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 0, tempoMarkers: [] }))
-
-    // Advance continuously in real TICK_INTERVAL_MS-sized steps, the same way real elapsed time
-    // progresses - unlike a synthetic instantaneous jump, this always passes through the
-    // lookahead window around anchor 1 before the origin itself flips over to it.
+    startClick(() => ({ elapsedMs, timeline }))
     for (let t = 50; t <= 3200; t += 50) {
       elapsedMs = t
       vi.advanceTimersByTime(50)
     }
-
-    // 6 clicks, ALL evenly spaced at the corrected 525ms (not the nominal 500ms) - 4 inside the
-    // anchor-to-anchor segment, then 2 more past anchor 1 into the open-ended tail, which reuses
-    // that same segment's corrected ratio rather than reverting to the plain nominal bpm. No
-    // duplicate at the 2100ms crossing itself.
-    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1, 1000.125, 1000.1])
-    // The 4th click - the one landing exactly on anchor 1 (2100ms) - is correctly the downbeat;
-    // re-anchoring to the new segment right after it doesn't re-trigger or shift it.
-    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false])
+    // Scheduling starts after the first tick, so bar 1's own beat at 0 has passed already.
+    expect(clicks.map((c) => c.at)).toEqual([525, 1050, 1575, 2100, 2625, 3150])
+    expect(clicks.map((c) => c.isDownbeat)).toEqual([false, false, false, true, false, false])
   })
 
-  it('cycles the downbeat accent 1-2-3-4 through a dense, one-per-beat anchor list instead of re-announcing "beat 1" at every anchor (the exact regression this fix addresses)', () => {
-    // Before this fix, every anchor - regardless of its actual position in the bar - reset the
-    // beat-in-bar counter to 0, so a dense automatic-detection result (one anchor per beat) made
-    // every single click sound like the downbeat (1500Hz) instead of cycling through the accent
-    // pattern. Each anchor here carries its own correct, continuously-counted beatInBar.
-    const beatAnchors = [
-      { timeMs: 0, beatInBar: 0 },
-      { timeMs: 500, beatInBar: 1 },
-      { timeMs: 1000, beatInBar: 2 },
-      { timeMs: 1500, beatInBar: 3 },
-    ]
-    let elapsedMs = 0
-    const isDownbeats: boolean[] = []
-    fakeCtx.createOscillator = vi.fn(() => {
-      const osc = new FakeOscillator()
-      osc.start = vi.fn(() => isDownbeats.push(osc.frequency.value === 1500))
-      return osc
-    })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 0, tempoMarkers: [] }))
-
-    for (let t = 50; t <= 2100; t += 50) {
-      elapsedMs = t
-      vi.advanceTimersByTime(50)
-    }
-
-    // 4 beats sound (500, 1000, 1500, 2000ms - elapsedMs starts at 0, so the anchor already
-    // sitting there is "now," never "upcoming"). Each of the first three lands on a different
-    // anchor's own beatInBar (1, 2, 3) - none of them is ever misreported as a downbeat just for
-    // being an anchor - and only the 4th, wrapping back to beatInBar 0, is a real downbeat.
-    expect(isDownbeats).toEqual([false, false, false, true])
-  })
-
-  it('actually changes the scheduled click cadence at a tempo-marker boundary (#141), with no phantom doubled beat right after it', () => {
-    // 150 BPM (400ms/beat) until a tempo marker at 1200ms drops to 100 BPM (600ms/beat) - the
-    // exact 2/3 ratio that used to make segmentRatio infer "2 beats" for the real 600ms gap
-    // against the stale 400ms nominal (see metronome.test.ts's own regression test for the
-    // underlying math). No beatAnchors at all - the tempo marker alone must be enough to
-    // reschedule correctly.
+  it('changes the click spacing between stretches of different tempo, with no phantom beat', () => {
+    // Bar 1 at 0 (150 BPM, 400 ms), bar 2 at 1600 (then 100 BPM, 600 ms), bar 3 at 4000.
+    const timeline = clickTimeline({ beatGrid: grid([1, 0], [2, 1600], [3, 4000]), bpm: 150, timeSignature: '4/4' })
     let elapsedMs = 0
     const clickTimes: number[] = []
     fakeCtx.createOscillator = vi.fn(() => {
       const osc = new FakeOscillator()
-      // `time` is Web-Audio-clock-relative (ctx.currentTime + offset), not elapsedMs-relative -
-      // reconstruct each click's real elapsedMs position from the offset instead of using `time`
-      // directly, since with TICK_INTERVAL_MS/LOOKAHEAD_MS both exact multiples of these nice
-      // round beat lengths, every beat happens to get caught at the identical phase within its
-      // lookahead window, so raw `time` values alone don't reveal the gap between beats here.
       osc.start = vi.fn((time: number) => clickTimes.push(elapsedMs + (time - fakeCtx.currentTime) * 1000))
       return osc
     })
-    startClick(() => ({
-      elapsedMs,
-      bpm: 150,
-      timeSignature: '4/4',
-      beatAnchors: [],
-      countInBars: 0,
-      tempoMarkers: [{ timeMs: 1200, bpm: 100 }],
-    }))
-
-    for (let t = 50; t <= 3000; t += 50) {
+    startClick(() => ({ elapsedMs, timeline }))
+    for (let t = 50; t <= 4000; t += 50) {
       elapsedMs = t
       vi.advanceTimersByTime(50)
     }
-
-    expect(clickTimes.length).toBeGreaterThan(0)
-    const gaps = clickTimes.slice(1).map((t, i) => t - clickTimes[i]!)
-    // Every gap must be either ~400ms (still in the 150 BPM segment) or ~600ms (past the
-    // marker) - never a value near 300ms, which is what a phantom-doubled beat from the old
-    // segmentRatio bug would have produced.
-    for (const gap of gaps) {
-      expect(Math.abs(gap - 400) < 5 || Math.abs(gap - 600) < 5).toBe(true)
-    }
-    // And it must actually have switched - not every gap is the old 400ms tempo.
-    expect(gaps.some((gap) => Math.abs(gap - 600) < 5)).toBe(true)
+    // (Bar 1's own beat at 0 has passed by the first tick.)
+    expect(clickTimes.map((t) => Math.round(t))).toEqual([400, 800, 1200, 1600, 2200, 2800, 3400, 4000])
   })
 
-  it('plays a count-in before the first anchor, at the corrected tempo of the first real segment', () => {
-    // Same 0/2100ms anchors and 525ms-corrected tempo as above, but with a 1-bar (4-beat)
-    // count-in configured - the count-in should start playing 4*525=2100ms before anchor 0
-    // (i.e. at elapsedMs -2100+2100=... concretely: 4 clicks before elapsedMs 0, then the real
-    // song's own beats continue exactly as the un-count-in test above).
-    const beatAnchors = [{ timeMs: 2100 }, { timeMs: 4200 }]
+  it('plays the count-in before bar 1 at the first stretch spacing, straight into bar 1', () => {
+    // Bar 1 at 2100, bar 2 at 4200 (525 ms beats), one bar of count-in: 0, 525, 1050, 1575.
+    const timeline = clickTimeline({ beatGrid: grid([1, 2100], [2, 4200]), bpm: 120, timeSignature: '4/4', countInBars: 1 })
     let elapsedMs = 0
-    const started: { time: number; isDownbeat: boolean }[] = []
+    const clickTimes: { at: number; isDownbeat: boolean }[] = []
     fakeCtx.createOscillator = vi.fn(() => {
       const osc = new FakeOscillator()
-      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
+      osc.start = vi.fn((time: number) => clickTimes.push({ at: Math.round(elapsedMs + (time - fakeCtx.currentTime) * 1000), isDownbeat: osc.frequency.value === 1500 }))
       return osc
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 1, tempoMarkers: [] }))
-
-    // Nothing before elapsedMs 0 exists to simulate - the count-in window (4 beats * 525ms =
-    // 2100ms before anchor 0 at 2100ms) starts exactly at elapsedMs 0, so clicks should be
-    // audible from the very start of playback, not silence until 2100ms.
-    for (let t = 50; t <= 2200; t += 50) {
+    startClick(() => ({ elapsedMs, timeline }))
+    for (let t = 20; t <= 2200; t += 50) {
       elapsedMs = t
       vi.advanceTimersByTime(50)
     }
-
-    // 4 count-in clicks (one per bar-beat, since it's a single 4/4 bar) landing at 525ms
-    // intervals from elapsedMs 0, ending exactly on anchor 0 (2100ms) as its own downbeat -
-    // count-in and real song share an unbroken 525ms grid, no gap or duplicate at the join.
-    expect(started.map((s) => s.time)).toEqual([1000.125, 1000.1, 1000.125, 1000.1])
-    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true])
+    // The count-in's first beat at 0 has passed by the first tick (20 ms) - unchanged from the
+    // anchor-based engine; the start of the count-in is #302's topic.
+    expect(clickTimes.map((c) => c.at)).toEqual([525, 1050, 1575, 2100])
+    expect(clickTimes.map((c) => c.isDownbeat)).toEqual([false, false, false, true])
   })
 
-  it('plays a full count-in from a genuinely negative elapsedMs when it does not fit before the first anchor (#25 follow-up: negative-clock count-in)', () => {
-    // Marco's real "Wie ein schützender Engel" numbers: first anchor at 346ms, corrected beat
-    // length 521.75ms (ratio 1.0435), a 2-bar (8-beat) count-in configured - far more than the
-    // 346ms of real lead-in fits. The master clock itself starts at the count-in's own origin,
-    // -3828ms (metronome.ts's countInLeadMs), not at 0 - elapsedMs is genuinely negative here,
-    // simulating queue.ts/practiceQueue.ts seeding the transport that way.
-    const beatAnchors = [{ timeMs: 346 }, { timeMs: 4520 }]
-    let elapsedMs = -3828
-    const started: { time: number; isDownbeat: boolean }[] = []
+  it('plays a full count-in from a genuinely negative elapsedMs (the clock starts before 0:00)', () => {
+    // Bar 1 at 346 ms, 2 bars of count-in at 521.75 ms: the clock starts at 346 - 8 x 521.75.
+    const timeline = clickTimeline({ beatGrid: grid([1, 346], [2, 2433]), bpm: 120, timeSignature: '4/4', countInBars: 2 })
+    const origin = timeline.timeOfBeat(timeline.firstBeat)
+    expect(origin).toBeCloseTo(-3828, 0)
+    let elapsedMs = origin
+    let clicks = 0
     fakeCtx.createOscillator = vi.fn(() => {
-      const osc = new FakeOscillator()
-      osc.start = vi.fn((time: number) => started.push({ time, isDownbeat: osc.frequency.value === 1500 }))
-      return osc
+      clicks++
+      return new FakeOscillator()
     })
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors, countInBars: 2, tempoMarkers: [] }))
-
-    for (let t = -3828 + 50; t <= 900; t += 50) {
+    startClick(() => ({ elapsedMs, timeline }))
+    for (let t = origin + 10; t <= 900; t += 50) {
       elapsedMs = t
       vi.advanceTimersByTime(50)
     }
-
-    // 8 count-in beats (2 full bars) evenly spaced at 521.75ms, phase-continuous straight into
-    // the real first anchor at 346ms (also a downbeat, no gap/duplicate at the join), then the
-    // next real beat continues at the same corrected spacing.
-    expect(started).toHaveLength(9)
-    expect(started.map((s) => s.isDownbeat)).toEqual([false, false, false, true, false, false, false, true, false])
-    for (const { time } of started) expect(time).toBeCloseTo(1000.12, 1) // all land within ~25ms of ctx.currentTime + ~0.12s
+    // 7 count-in beats after the start, bar 1 at 346, the beat after it - as with anchors before.
+    expect(clicks).toBe(9)
   })
 
   it('stops scheduling further clicks once stopped', () => {
     let elapsedMs = 0
-    startClick(() => ({ elapsedMs, bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }))
+    startClick(() => ({ elapsedMs, timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }) }))
     stopClick()
 
     elapsedMs = 360
@@ -349,7 +262,7 @@ describe('startClick/stopClick', () => {
 })
 
 describe('Rehearsal Loop support (#61)', () => {
-  const base = { bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [] }
+  const base = { timeline: clickTimeline({ bpm: 120, timeSignature: '4/4' }) }
   const startTimes = () =>
     fakeCtx.createOscillator.mock.results.map((result) => (result.value as FakeOscillator).start.mock.calls[0][0] as number)
 
@@ -398,7 +311,7 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     // apart, because each click was converted from song time with a coarse currentTime sample.
     let wallMs = 0
     const step = 0.021
-    startClick(() => ({ bpm: 125, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    startClick(() => ({ timeline: clickTimeline({ bpm: 125, timeSignature: '4/4', countInBars: 0 }), elapsedMs: wallMs }))
     for (let i = 0; i < 200; i++) {
       wallMs += 50
       // Real timers fire a little irregularly too.
@@ -413,7 +326,7 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
 
   it('re-derives the audio time after a real jump, not on step jitter', () => {
     let elapsedMs = 0
-    startClick(() => ({ bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs }))
+    startClick(() => ({ timeline: clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 }), elapsedMs }))
     for (let i = 0; i < 20; i++) {
       elapsedMs += 50
       fakeCtx.currentTime += 0.05
@@ -439,7 +352,7 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     let wallMs = 0
     const start = Date.now()
     let audio = 1000
-    startClick(() => ({ bpm: 154.2, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    startClick(() => ({ timeline: clickTimeline({ bpm: 154.2, timeSignature: '4/4', countInBars: 0 }), elapsedMs: wallMs }))
     for (let i = 0; i < 400; i++) {
       wallMs += 50
       vi.setSystemTime(start + wallMs)
@@ -456,16 +369,15 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     expect(new Set(gaps)).toEqual(new Set([389]))
   })
 
-  it('follows a per-beat grid exactly from the first click on, even with the Fire tablet\'s 64 ms clock', () => {
-    // A fitted grid has an anchor on every beat, so the schedule crosses into a new anchor on
-    // every click. Reading the coarse clock again at each crossing scattered the first seconds
-    // by ±25 ms on the tablet (2026-09-27); the audio-time chain now continues from the last click.
-    const gaps = Array.from({ length: 40 }, (_, i) => 400 + (i % 5) * 3)
-    const anchors = gaps.reduce<number[]>((acc, g) => [...acc, acc[acc.length - 1]! + g], [500]).map((timeMs, i) => ({ timeMs, beatInBar: i % 4 }))
+  it('follows a grid with changing stretches exactly from the first click on, even with the Fire tablet\'s 64 ms clock', () => {
+    // Three stretches of 400, 412 and 406 ms beats: every click comes from the grid, and the audio
+    // time chain continues from the last click instead of reading the coarse clock again - that
+    // scattered the first seconds by ±25 ms on the tablet (2026-09-27).
+    const timeline = clickTimeline({ beatGrid: grid([1, 500], [3, 500 + 8 * 400], [5, 500 + 8 * 400 + 8 * 412], [7, 500 + 8 * 400 + 8 * 412 + 8 * 406]), bpm: 150, timeSignature: '4/4' })
     let wallMs = 0
     const start = Date.now()
     let audio = 1000
-    startClick(() => ({ bpm: 150, timeSignature: '4/4', beatAnchors: anchors, countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    startClick(() => ({ timeline, elapsedMs: wallMs }))
     for (let i = 0; i < 300; i++) {
       wallMs += 50
       vi.setSystemTime(start + wallMs)
@@ -476,10 +388,8 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     }
     const times = startTimes()
     const measured = times.slice(1).map((t, i) => Math.round((t - times[i]) * 1000))
-    // The first click is the beat after the first anchor (scheduling starts once it is reached).
-    const expected = anchors.slice(2).map((a, i) => a.timeMs - anchors[i + 1]!.timeMs).slice(0, measured.length)
-    expect(measured.length).toBeGreaterThan(20)
-    expect(measured).toEqual(expected)
+    const expected = [...Array(8).fill(400), ...Array(8).fill(412), ...Array(8).fill(406)]
+    expect(measured.slice(0, 24)).toEqual(expected.slice(times.length > 24 ? 0 : 0, 24))
   })
 })
 

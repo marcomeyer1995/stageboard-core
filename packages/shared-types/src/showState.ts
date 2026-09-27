@@ -60,7 +60,7 @@ export const ShowStateSchema = z.object({
   /** How far (ms) the current entry's auto-stop point (#231) has been pushed forward by the
    * live bar-extend trigger, on top of the backing track's own natural end - each press adds
    * however many ms the configured bar count is worth at whatever tempo is active *right now*
-   * (live-nudged bpm, #140; the tempo segment a `TempoMarker`, #141, may have introduced),
+   * (live-nudged bpm, #140; the grid stretch playing, docs/14 §5a),
    * stacking across repeated presses within the same play-through. Master-gated and cleared on
    * song change (activateEntry below), same for-tonight-only pattern as `trackOverride`/
    * `liveTempoAdjustPercent`/`clickTrackOverride` above. */

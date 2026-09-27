@@ -235,8 +235,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // fetched via loadClientPlugin.ts - `music-tempo` is a small (~14.5KB), MIT-licensed npm
     // package already bundled into stage-pwa itself (see analyzeTrack.ts), loaded via a dynamic
     // import() only once this plugin is installed and "Track analysieren" is actually run - no
-    // `source`/`clientSource` needed. Manual tap-to-sync (TapBeatAnchors.tsx) always works
-    // without this plugin; installing it only adds the automatic-detection option.
+    // `source`/`clientSource` needed. The built-in detector and the timeline always work without
+    // this plugin; installing it only makes "Track analysieren" more accurate.
     runtime: 'client',
     capabilities: [CAPABILITIES.audioAnalysis],
     transports: [],

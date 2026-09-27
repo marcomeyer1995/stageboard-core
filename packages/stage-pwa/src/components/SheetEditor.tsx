@@ -3,14 +3,15 @@ import {
   SongSchema,
   SongVariantSchema,
   CAPABILITIES,
-  type BeatAnchor,
+  type BeatGrid,
   type Song,
   type ShowCue,
   type SongVariant,
-  type TempoMarker,
   type TimecodeMarker,
 } from 'shared-types'
-import { analyzeTempoMapBlob, analyzeTrackBlob } from '../lib/analyzeTrack'
+import { analyzeTrackBlob } from '../lib/analyzeTrack'
+import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
+import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
@@ -20,19 +21,13 @@ import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
-import { BeatAnchorListEditor } from './BeatAnchorListEditor'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CommentListEditor } from './CommentListEditor'
 import { CueListEditor } from './CueListEditor'
 import { CueRecorder } from './CueRecorder'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
-import { TapBeatAnchors } from './TapBeatAnchors'
-import { TapTempoMarker } from './TapTempoMarker'
 import { TapToSync } from './TapToSync'
-import { TempoMarkerListEditor } from './TempoMarkerListEditor'
 import { TrackManagerField } from './TrackManagerField'
-import { mergeTappedAnchors } from '../lib/tempoMap'
-import { TempoMapQualityNote } from './TempoMapQualityNote'
 import { TimelineEditor } from './timeline/TimelineEditor'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -55,8 +50,8 @@ interface EditorDraft {
   chordProContent: string
   timecodes: TimecodeMarker[]
   cues: ShowCue[]
-  beatAnchors: BeatAnchor[]
-  tempoMarkers: TempoMarker[]
+  /** The rigid click grid (docs/14 §5a) - carried through unchanged until the timeline edits it. */
+  beatGrid?: BeatGrid
   countInEnabled: boolean
   countInBars: number
   /** Hand-entered playing length in ms (Festival Clock, #28). */
@@ -80,8 +75,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     chordProContent: variant.chordProContent,
     timecodes: variant.timecodes,
     cues: variant.cues,
-    beatAnchors: variant.beatAnchors,
-    tempoMarkers: variant.tempoMarkers,
+    beatGrid: variant.beatGrid,
     countInEnabled: variant.countInEnabled,
     countInBars: variant.countInBars,
     durationMs: variant.durationMs,
@@ -147,14 +141,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
-  const [isTappingAnchors, setIsTappingAnchors] = useState(false)
-  const [isTappingTempoMarker, setIsTappingTempoMarker] = useState(false)
   const [isRecordingCues, setIsRecordingCues] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
-  const [isAnalyzingTempoMap, setIsAnalyzingTempoMap] = useState(false)
-  const [tempoMapError, setTempoMapError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
@@ -181,7 +171,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   useEffect(() => {
     setTapTrackSrc(null)
     const timelineOpen = editorView === 'timeline'
-    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker && !isRecordingCues && !timelineOpen) || !tapTrack) return
+    if (!draft || (!isTapping && !isRecordingCues && !timelineOpen) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -196,7 +186,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
+  }, [isTapping, isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -249,8 +239,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       chordProContent: variant.chordProContent,
       timecodes: variant.timecodes,
       cues: variant.cues,
-      beatAnchors: variant.beatAnchors,
-      tempoMarkers: variant.tempoMarkers,
+      beatGrid: variant.beatGrid,
       countInEnabled: variant.countInEnabled,
       countInBars: variant.countInBars,
       durationMs: variant.durationMs,
@@ -285,8 +274,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
       cues: draft.cues,
-      beatAnchors: draft.beatAnchors,
-      tempoMarkers: draft.tempoMarkers,
+      ...(draft.beatGrid ? { beatGrid: draft.beatGrid } : {}),
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,
       durationMs: draft.durationMs,
@@ -404,53 +392,39 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     })
   }
 
-  /** Automatic BPM + beat-anchor detection (#25 follow-up) - runs the DSP pipeline
-   * (audioAnalysis.ts/analyzeTrack.ts) against `tapTrack`'s own audio, the same track the manual
-   * tap tools already work against. Replaces the whole anchor list rather than merging into it
-   * (same "auto-fill-then-editable" convention `handleImport` above already uses for Ultimate
-   * Guitar's bpm/key/tuning) - guarded by a confirmation when anchors already exist, since a
-   * stray click shouldn't silently wipe out anchors someone already hand-tapped (manual
-   * correction always wins - installing/uninstalling a detection plugin never overrides that).
-   * Detection is inherently imperfect on real mixes (no single unambiguous transient at every
-   * beat) - the list editor and tap tool right below this button are the correction mechanism,
-   * not an afterthought.
-   *
-   * Uses the `music-tempo-beat-detection` plugin (far more accurate, see musicTempoAnalysis.ts's
-   * own doc comment) if a band has installed+enabled it (CAPABILITIES.audioAnalysis); otherwise
-   * falls back to the always-available hand-rolled detector - no plugin required at all, same as
-   * manual tap-to-sync. */
-  /** The detection itself, shared with the timeline's "Track analysieren" (which applies the
-   * result as an undoable step of its own). Null: track missing on this device. */
-  const detectAnchors = async (): Promise<{ bpm: number | null; beatAnchors: BeatAnchor[] } | null> => {
+  /** "Track analysieren": automatic beat detection on `tapTrack`'s audio, turned into a click grid
+   * with as few alignment points as the detected downbeats need (beatGrid.ts `gridFromBeats`,
+   * docs/14 §5a) - reviewed and corrected in the timeline, never trusted blindly. Uses the
+   * `music-tempo-beat-detection` plugin (far more accurate, see musicTempoAnalysis.ts) if the band
+   * has installed and enabled it (CAPABILITIES.audioAnalysis), else the built-in detector. Shared
+   * with the timeline, which applies the result as an undoable step. Null: track missing on this
+   * device or nothing detected. The variant's bpm follows the grid's first stretch, so the
+   * count-in and every tempo display agree with what the click plays. */
+  const detectGrid = async (): Promise<{ bpm: number; beatGrid: BeatGrid } | null> => {
     if (!tapTrack) return null
     const blob = await getTrack(draft.variantId, tapTrack.id)
     if (!blob) return null
     const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
     const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)
-    return { bpm: result.bpm, beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })) }
+    if (result.bpm === null) return null
+    const beatGrid = gridFromBeats(result.beats, result.bpm, draft.timeSignature)
+    if (!beatGrid) return null
+    const first = gridStretches(beatGrid, result.bpm, draft.timeSignature)[0]!
+    return { bpm: Math.round(first.bpm * 10) / 10, beatGrid }
   }
 
   const handleAnalyzeTrack = async () => {
     if (!tapTrack) return
-    if (draft.beatAnchors.length > 0) {
-      const confirmed = await confirm('Vorhandene Anker durch die automatische Erkennung ersetzen?', {
-        confirmLabel: 'Ersetzen',
-      })
-      if (!confirmed) return
-    }
+    if (draft.beatGrid && !(await confirm('Vorhandenes Klick-Raster durch die automatische Erkennung ersetzen?', { confirmLabel: 'Ersetzen' }))) return
     setIsAnalyzing(true)
     setAnalyzeError(null)
     try {
-      const result = await detectAnchors()
+      const result = await detectGrid()
       if (!result) {
-        setAnalyzeError('Track nicht verfügbar.')
+        setAnalyzeError('Keine Schläge erkannt - bitte in der Timeline setzen.')
         return
       }
-      if (result.bpm === null && result.beatAnchors.length === 0) {
-        setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
-        return
-      }
-      setDraft((d) => (d ? { ...d, bpm: result.bpm ?? d.bpm, beatAnchors: result.beatAnchors } : d))
+      setDraft((d) => (d ? { ...d, bpm: result.bpm, beatGrid: result.beatGrid } : d))
     } catch {
       setAnalyzeError('Analyse fehlgeschlagen.')
     } finally {
@@ -458,74 +432,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     }
   }
 
-  /** "Alle Anker löschen" - a clean start for a song whose anchors are beyond repair (e.g. before
-   * re-analysing or re-tapping). Only the draft; nothing is lost until the song is saved. */
-  const handleClearAnchors = async () => {
-    const confirmed = await confirm(
-      `Alle ${draft.beatAnchors.length} Anker löschen? Der Klick hat danach kein Raster mehr, bis du neu analysierst oder tippst. Erst „Speichern“ übernimmt es.`,
-      { confirmLabel: 'Alle löschen', danger: true },
-    )
-    if (confirmed) setDraft((d) => (d ? { ...d, beatAnchors: [] } : d))
-  }
-
-  /** "Tempo-Wechsel erkennen" - unlike handleAnalyzeTrack above (one global bpm), suggests a
-   * whole tempo-map: a base bpm plus every later place the tempo genuinely seems to change.
-   * Always a suggestion to review, never applied silently - see analyzeTempoMapBlob's own doc
-   * comment for why (it can still return an exact octave-doubled/halved tempo on
-   * metrically-ambiguous material like a slow ballad with a strong 2-beat feel). */
-  const handleAnalyzeTempoMap = async () => {
-    if (!tapTrack) return
-    if (draft.tempoMarkers.length > 0) {
-      const confirmed = await confirm('Vorhandene Tempo-Wechsel durch die automatische Erkennung ersetzen?', {
-        confirmLabel: 'Ersetzen',
-      })
-      if (!confirmed) return
-    }
-    setIsAnalyzingTempoMap(true)
-    setTempoMapError(null)
-    try {
-      const blob = await getTrack(draft.variantId, tapTrack.id)
-      if (!blob) {
-        setTempoMapError('Track nicht verfügbar.')
-        return
-      }
-      const result = await analyzeTempoMapBlob(blob)
-      if (result === null) {
-        setTempoMapError('Keine Analyse möglich - bitte manuell setzen.')
-        return
-      }
-      if (result.tempoMarkers.length === 0) {
-        setTempoMapError('Kein Tempo-Wechsel erkannt - BPM übernommen.')
-      }
-      setDraft((d) =>
-        d
-          ? {
-              ...d,
-              bpm: result.baseBpm,
-              tempoMarkers: result.tempoMarkers.map((m) => ({ id: randomId(), timeMs: m.timeMs, bpm: m.bpm })),
-            }
-          : d,
-      )
-    } catch {
-      setTempoMapError('Analyse fehlgeschlagen.')
-    } finally {
-      setIsAnalyzingTempoMap(false)
+  /** "Raster löschen" - back to bar 1 at 0:00 at the entered bpm. Only the draft; "Speichern"
+   * makes it stick. */
+  const handleClearGrid = async () => {
+    if (await confirm('Klick-Raster löschen? Der Klick läuft danach ab 0:00 im eingetragenen Tempo. Erst „Speichern“ übernimmt es.', { confirmLabel: 'Löschen', danger: true })) {
+      setDraft((d) => (d ? { ...d, beatGrid: undefined } : d))
     }
   }
 
   const preview = parseChordPro(draft.chordProContent)
 
-  // Split three ways (#180, following #177's own Text/Details split): Tempo & Takt is plain
-  // fields, set once and rarely revisited; Klick-Sync is the tool-heavy piece (tap tools,
-  // analysis, the anchor/marker list editors) - by far the bulkiest part of the old, single
-  // Details tab; Audio & Cues is external resources attached to the song. Identical content on
-  // every layout; only how each is framed (tab, bottom sheet, collapsible section) differs.
-  // One topic, not two (#180 follow-up): BPM/Takt/click/count-in are the "set it and glance at
-  // it" basics, and the click-sync tooling below the divider is the same topic gone deeper -
-  // splitting them into separate tabs grouped by field complexity rather than by subject put
-  // Klick-Sync in a different tab from the tempo settings it exists to serve. Count-in moved
-  // in from what used to be the sync-only tab, for the same reason: it's a basic click setting,
-  // not an analysis tool, so it belongs with click-enabled rather than the tap/analyze tools.
+  // One topic (#180 follow-up): BPM/Takt/click/count-in are the "set it and glance at it"
+  // basics, and the click grid below the divider is the same topic gone deeper - its editing
+  // happens in the timeline (docs/14 §5a), this shows its state and the grid-wide actions.
+  // Identical content on every layout; only the framing (tab, sheet, section) differs.
+  const stretches = draft.beatGrid ? gridStretches(draft.beatGrid, draft.bpm, draft.timeSignature) : []
+  const gridSummary = draft.beatGrid
+    ? `${draft.beatGrid.points.length} ${draft.beatGrid.points.length === 1 ? 'Ausrichtungspunkt' : 'Ausrichtungspunkte'}, Takt 1 bei ${formatTimelineTime(clickTimeline(draft).bar1Ms)} · ${
+        stretches.length > 1
+          ? `${Math.min(...stretches.map((s) => s.bpm)).toFixed(1)}-${Math.max(...stretches.map((s) => s.bpm)).toFixed(1)} BPM`
+          : `${stretches[0]!.bpm.toFixed(1)} BPM`
+      }`
+    : 'Kein Raster: der Klick läuft ab 0:00 im eingetragenen Tempo.'
   const tempoContent = (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
@@ -580,99 +508,36 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </label>
       </div>
 
-      {isTappingAnchors ? (
-        <TapBeatAnchors
-          trackSrc={tapTrackSrc}
-          timeSignature={draft.timeSignature}
-          onComplete={(anchors) => {
-            setDraft({ ...draft, beatAnchors: mergeTappedAnchors(draft.beatAnchors, anchors, draft.bpm) })
-            setIsTappingAnchors(false)
-          }}
-          onCancel={() => setIsTappingAnchors(false)}
-        />
-      ) : isTappingTempoMarker ? (
-        <TapTempoMarker
-          trackSrc={tapTrackSrc}
-          onComplete={(timeMs) => {
-            const marker: TempoMarker = { id: randomId(), timeMs, bpm: draft.bpm }
-            setDraft({ ...draft, tempoMarkers: [...draft.tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
-            setIsTappingTempoMarker(false)
-          }}
-          onCancel={() => setIsTappingTempoMarker(false)}
-        />
-      ) : (
-        <div className="flex flex-col gap-2 border-t border-line pt-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleAnalyzeTrack()}
-                disabled={!tapTrack || isAnalyzing}
-                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsTappingAnchors(true)}
-                disabled={!tapTrack}
-                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Anker tappen
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsTappingTempoMarker(true)}
-                disabled={!tapTrack}
-                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Tempo-Wechsel markieren
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleAnalyzeTempoMap()}
-                disabled={!tapTrack || isAnalyzingTempoMap}
-                title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
-                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleClearAnchors()}
-                disabled={draft.beatAnchors.length === 0}
-                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-red-500 hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Alle Anker löschen
-              </button>
-            </div>
-          </div>
-          {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
-          {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
-          <TempoMapQualityNote
-            anchors={draft.beatAnchors}
-            bpm={draft.bpm}
-            timeSignature={draft.timeSignature}
-            tempoMarkers={draft.tempoMarkers}
-            onAdoptBpm={(bpm) => setDraft({ ...draft, bpm })}
-          />
-          <BeatAnchorListEditor
-            anchors={draft.beatAnchors}
-            timeSignature={draft.timeSignature}
-            onChange={(beatAnchors) => setDraft({ ...draft, beatAnchors })}
-          />
-          <p className="text-xs text-ink-faint">Automatisch erkannte Anker bitte prüfen.</p>
-          <TempoMarkerListEditor
-            tempoMarkers={draft.tempoMarkers}
-            onChange={(tempoMarkers) => setDraft({ ...draft, tempoMarkers })}
-          />
-          <p className="text-xs text-ink-faint">
-            Automatisch erkannte Tempo-Wechsel bitte prüfen - bei mehrdeutigem Metrum (z.B. einer Ballade) kann die
-            BPM-Oktave falsch sein.
-          </p>
+      <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <span className="text-sm text-ink-muted">Klick-Raster</span>
+        <p className="text-sm text-ink-soft">{gridSummary}</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setEditorView('timeline')}
+            className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover"
+          >
+            In der Timeline bearbeiten
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleAnalyzeTrack()}
+            disabled={!tapTrack || isAnalyzing}
+            className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
+          >
+            {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleClearGrid()}
+            disabled={!draft.beatGrid}
+            className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-red-500 hover:bg-control-strong-hover disabled:opacity-40"
+          >
+            Raster löschen
+          </button>
         </div>
-      )}
+        {analyzeError && <p className="text-sm text-red-500">{analyzeError}</p>}
+      </div>
     </div>
   )
 
@@ -765,15 +630,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       variantId={draft.variantId}
       trackId={tapTrack?.id ?? null}
       trackSrc={tapTrackSrc}
-      anchors={draft.beatAnchors}
-      tempoMarkers={draft.tempoMarkers}
+      beatGrid={draft.beatGrid}
       bpm={draft.bpm}
       timeSignature={draft.timeSignature}
       countInEnabled={draft.countInEnabled}
       countInBars={draft.countInBars}
       onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
-      onAdoptBpm={(bpm) => setDraft((d) => (d ? { ...d, bpm } : d))}
-      onDetectAnchors={detectAnchors}
+      onDetectGrid={detectGrid}
       fill
     />
   )

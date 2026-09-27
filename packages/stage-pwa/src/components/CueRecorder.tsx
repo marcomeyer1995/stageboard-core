@@ -35,7 +35,7 @@ function describe(type: string, payload: Record<string, unknown> | undefined): s
 }
 
 /**
- * Cue recording for #6, in the spirit of TapToSync/TapBeatAnchors: play the backing track and
+ * Cue recording for #6, in the spirit of TapToSync: play the backing track and
  * perform on the connected device - every message it sends while the track plays becomes a cue at
  * the track's own playback position (the same Master-Clock TapToSync reads), decoded into the
  * device's plugin event (`kemper.selectRig`, `rc500.selectMemory`, ...) so it replays through the

@@ -26,9 +26,9 @@ export interface TrackClock {
 
 /**
  * Drives a Master-Clock (`useClockStore.ts`) from a `<audio>` element's own playback position -
- * extracted out of TapToSync.tsx, which originally had this inlined (#25 follow-up: TapBeatAnchors.tsx
- * needs the exact same "tap in time with a real track's actual position" mechanics, and this is
- * a pure extraction of TapToSync's own logic, no behavior change there). Without a track
+ * extracted out of TapToSync.tsx, which originally had this inlined, so the other tools that tap
+ * or record against a real track's position (Cue Recorder, the timeline) share the exact same
+ * mechanics. Without a track
  * (`trackSrc === null`), falls back to a hand-started stopwatch so tapping still works with
  * nothing to sync against - callers that have no audio-less fallback of their own (unlike
  * TapToSync's line-tapping, which does) should simply require a track before rendering this.

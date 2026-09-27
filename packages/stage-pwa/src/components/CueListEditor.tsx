@@ -73,8 +73,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
       {cues.length === 0 ? (
         <p className="text-xs text-ink-faint">Noch keine Cues für diese Variante.</p>
       ) : (
-        // Capped height, not open-ended - same reasoning as BeatAnchorListEditor.tsx: a
-        // cue-heavy show shouldn't push "Cue hinzufügen" further down with every addition.
+        // Capped height, not open-ended: a cue-heavy show shouldn't push "Cue hinzufügen" further down with every addition.
         <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
           {cues.map((cue) => (
             <div

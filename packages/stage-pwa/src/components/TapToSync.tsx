@@ -52,7 +52,7 @@ export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSync
         e.preventDefault()
         // Holding the key briefly fires repeated keydown events (e.repeat) at the OS's
         // key-repeat rate - without this guard each repeat rapid-fires through several lines
-        // at once, tens of ms apart (see the identical fix in TapBeatAnchors.tsx).
+        // at once, tens of ms apart.
         if (e.repeat) return
         tap()
       }

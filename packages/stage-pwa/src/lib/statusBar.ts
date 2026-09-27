@@ -82,7 +82,7 @@ export interface CountInPosition {
 
 /**
  * Where in the count-in a beat falls: which count-in bar, which beat. `firstBeatMs` is the
- * song's first beat (its first beat anchor, else 0) - the count-in is the `countInBars` bars
+ * song's first beat (bar 1 of the click grid, else 0) - the count-in is the `countInBars` bars
  * before it. The beat counted is measured from the start of the current beat (`msIntoBeat`
  * back), rounded, so float jitter at a beat edge can't skip or repeat a bar.
  */

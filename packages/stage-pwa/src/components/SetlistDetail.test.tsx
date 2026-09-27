@@ -48,8 +48,6 @@ function variant(id: string, songId: string, label: string, isDefault: boolean):
     timecodes: [],
     tracks: [],
     cues: [],
-    beatAnchors: [],
-    tempoMarkers: [],
     countInEnabled: false,
     countInBars: 1,
   }

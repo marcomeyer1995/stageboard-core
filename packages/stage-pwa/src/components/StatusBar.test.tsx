@@ -34,8 +34,6 @@ const variant = {
   countInBars: 1,
   durationMs: 180_000,
   tracks: [],
-  beatAnchors: [],
-  tempoMarkers: [],
 } as unknown as SongVariant
 
 function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: number | null, canControl = true) {

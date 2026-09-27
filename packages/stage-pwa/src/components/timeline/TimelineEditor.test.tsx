@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BeatAnchor } from 'shared-types'
+import type { BeatGrid } from 'shared-types'
 
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -15,134 +15,71 @@ vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () =>
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
 // The in-app confirm dialog answers "yes" right away.
 vi.mock('../../store/useDialogStore', () => ({
-  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: async () => null }),
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true }),
 }))
 
 const { TimelineEditor } = await import('./TimelineEditor')
 
-// 32 beats at 120 BPM from 1 s; the stored beat numbers start on "beat 1" at 1 s.
-const anchors: BeatAnchor[] = Array.from({ length: 32 }, (_, i) => ({ id: `a${i}`, timeMs: 1000 + i * 500, beatInBar: i % 4 }))
+const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
-function setup(extra: { onDetectAnchors?: () => Promise<{ bpm: number | null; beatAnchors: BeatAnchor[] } | null>; onAdoptBpm?: (bpm: number) => void; trackSrc?: string } = {}) {
+function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
       variantId="v"
       trackId={null}
       trackSrc={extra.trackSrc ?? null}
-      anchors={anchors}
-      tempoMarkers={[]}
+      beatGrid={extra.beatGrid}
       bpm={120}
       timeSignature="4/4"
       countInEnabled={false}
       countInBars={1}
       onChange={onChange}
-      onAdoptBpm={extra.onAdoptBpm ?? vi.fn()}
-      onDetectAnchors={extra.onDetectAnchors}
+      onDetectGrid={extra.onDetectGrid}
+      fill={extra.fill}
     />,
   )
   return { onChange, ...utils }
 }
 
-/** Taps the grid lane at song time `ms` (the view fits the song: 20.5 ms per px). */
-function tapGridAt(ms: number) {
-  const lanes = screen.getByTestId('timeline-lanes')
-  const x = ms / 20.5
-  fireEvent.pointerDown(lanes, { pointerId: 1, clientX: x, clientY: 150 })
-  fireEvent.pointerUp(lanes, { pointerId: 1, clientX: x, clientY: 150 })
-}
-
-describe('TimelineEditor (docs/14, phase 1)', () => {
-  it('selects a beat on tap and makes it beat 1 as a fixed anchor', () => {
-    const { onChange } = setup()
-    tapGridAt(3000) // 1000 + 4 x 500 ms: the downbeat of bar 2
-    expect(screen.getByText(/Takt 2, Schlag 1/)).toBeInTheDocument()
-    tapGridAt(2000) // beat 3 of bar 1
-    expect(screen.getByText(/Takt 1, Schlag 3/)).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Hier ist die Eins'))
-    const patch = onChange.mock.calls[0]![0] as { beatAnchors: BeatAnchor[] }
-    expect(patch.beatAnchors.find((a) => a.pinned)).toEqual(expect.objectContaining({ timeMs: 2000, beatInBar: 0, pinned: true }))
-  })
-
-  it('nudges the selected beat by 10 ms and can undo it', () => {
-    const { onChange, rerender } = setup()
-    tapGridAt(3000)
-    fireEvent.click(screen.getByText('+10 ms'))
-    const nudged = (onChange.mock.calls[0]![0] as { beatAnchors: BeatAnchor[] }).beatAnchors
-    expect(nudged.find((a) => a.pinned)).toEqual(expect.objectContaining({ timeMs: 3010 }))
-    rerender(
-      <TimelineEditor
-        variantId="v"
-        trackId={null}
-        trackSrc={null}
-        anchors={nudged}
-        tempoMarkers={[]}
-        bpm={120}
-        timeSignature="4/4"
-        countInEnabled={false}
-        countInBars={1}
-        onChange={onChange}
-        onAdoptBpm={vi.fn()}
-      />,
-    )
+describe('TimelineEditor (docs/14 §5a)', () => {
+  it('clears the grid after confirming, and can undo it', async () => {
+    const { onChange } = setup({ beatGrid })
+    fireEvent.click(screen.getByText('Raster löschen'))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120 }))
     fireEvent.click(screen.getByLabelText('Rückgängig'))
-    expect(onChange).toHaveBeenLastCalledWith({ beatAnchors: anchors, tempoMarkers: [] })
+    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120 })
   })
 
-  it('starts a tempo section at the selected beat', () => {
-    const { onChange } = setup()
-    tapGridAt(5000)
-    fireEvent.click(screen.getByText('Abschnitt ab hier'))
-    const patch = onChange.mock.calls[0]![0] as { tempoMarkers: { timeMs: number; bpm: number }[] }
-    expect(patch.tempoMarkers).toEqual([expect.objectContaining({ timeMs: 5000, bpm: 120 })])
+  it('has nothing to clear without a grid', () => {
+    setup()
+    expect(screen.getByText('Raster löschen')).toBeDisabled()
   })
 
-  it('deletes all anchors after confirming', async () => {
-    const { onChange } = setup()
-    fireEvent.click(screen.getByText('Alle Anker löschen'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatAnchors: [], tempoMarkers: [] }))
-  })
-
-  it('replaces the anchors with a detection run and adopts its tempo', async () => {
-    const detected: BeatAnchor[] = [{ id: 'd0', timeMs: 800, beatInBar: 0 }]
-    const onAdoptBpm = vi.fn()
-    const { onChange } = setup({ onDetectAnchors: async () => ({ bpm: 121, beatAnchors: detected }), onAdoptBpm, trackSrc: 'blob:track' })
+  it('replaces the grid with a detection run, bpm included', async () => {
+    const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
+    const { onChange } = setup({ beatGrid, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
     fireEvent.click(screen.getByText('Track analysieren'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatAnchors: detected, tempoMarkers: [] }))
-    expect(onAdoptBpm).toHaveBeenCalledWith(121)
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected }))
+  })
+
+  it('offers no problem jump without a track to compare against', () => {
+    setup({ beatGrid })
+    expect(screen.getByText('Nächste Problemstelle')).toBeDisabled()
   })
 })
 
 describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
-  it('runs time downwards: a tap is placed by its height, the lanes are columns', () => {
+  it('runs time downwards: the lanes become columns along the full height', () => {
     box.width = 800
     box.height = 1100
-    const onChange = vi.fn()
-    render(
-      <TimelineEditor
-        variantId="v"
-        trackId={null}
-        trackSrc={null}
-        anchors={anchors}
-        tempoMarkers={[]}
-        bpm={120}
-        timeSignature="4/4"
-        countInEnabled={false}
-        countInBars={1}
-        onChange={onChange}
-        onAdoptBpm={vi.fn()}
-        fill
-      />,
-    )
-    // The song (0-20.5 s) fits the 1100 px time axis: 20.5 s / 1100 px. The grid column starts
-    // after the audio (45 % of 800 - 26 px) and the section strip.
-    const lanes = screen.getByTestId('timeline-lanes')
-    const y = 3000 / (20500 / 1100)
-    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: 600, clientY: y })
-    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: 600, clientY: y })
-    expect(screen.getByText(/Takt 2, Schlag 1/)).toBeInTheDocument()
+    const { container } = setup({ beatGrid, fill: true })
+    const [audio, gridLane] = [...container.querySelectorAll('canvas')]
+    // Audio column: 45 % of (800 - 26) px wide, as tall as the time axis.
+    expect(audio!.style.width).toBe('348px')
+    expect(audio!.style.height).toBe('1100px')
+    expect(gridLane!.style.left).toBe('348px')
     box.width = 1000
     box.height = 206
   })
 })
-

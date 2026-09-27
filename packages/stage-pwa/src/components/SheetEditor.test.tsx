@@ -43,8 +43,6 @@ const variant: SongVariant = {
   chordProContent: song.chordProContent,
   timecodes: [],
   cues: [],
-  beatAnchors: [],
-  tempoMarkers: [],
   countInEnabled: false,
   countInBars: 1,
   tracks: [],
@@ -288,6 +286,19 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
     expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Text-Ansicht' }))
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
+  })
+
+  it('keeps the rigid click grid when saving (docs/14 §5a)', async () => {
+    stubViewport({ orientation: 'landscape' })
+    const beatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1200 }], meters: [] }
+    const { ensureDefaultVariant } = await import('../lib/songVariantsDb')
+    vi.mocked(ensureDefaultVariant).mockResolvedValueOnce({ ...variant, beatGrid })
+    const saveVariant = vi.fn(async () => {})
+    const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
+    useSongVariantsStore.setState({ saveVariant })
+    await renderLoaded()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' })))
+    expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ beatGrid }))
   })
 })
 
