@@ -12,8 +12,20 @@ Alles auf dem Fire-Tablet der Band (CDP über adb, siehe docs/09–11) und gegen
 |---|---|---|
 | Standbild bei jedem Schreibvorgang | ~1,1 s bei Play, wachsend mit Laufzeit (gefilterte PouchDB-Feeds, 118 KB Revisionsverlauf von `show-state`) | #297: ein gemeinsamer ungefilterter Feed (`lib/localChanges.ts`) |
 | Gig-Songzeit 2,1 s verspätet | Tablet-Uhr 2126 ms vor dem Server; Master stempelte `Date.now()` | #298: `getServerTime()` in `queue.ts` |
-| Klick ungleichmäßig bei konstantem Tempo | Einzähl-Klicks 438–513 ms statt 480 ms (grobe Audio-Uhr, ~20-ms-Schritte) | #299: Umrechnung nur beim Verankern, danach exakt eine Schlaglänge weiter |
+| Klick ungleichmäßig bei konstantem Tempo | Einzähl-Klicks 438–513 ms statt 480 ms. Die Audio-Uhr des Tablets (`currentTime`) springt in 64-ms-Schritten, teils 128/192 ms (Ausgabelatenz 260 ms) | #299: Umrechnung nur beim Verankern, danach exakt eine Schlaglänge weiter. Nach dem Deploy noch Sprünge alle paar Schläge (340/450 statt 389 ms): eine Rohablesung lag bis ~130 ms daneben, über der 50-ms-Toleranz → Nachfolge-PR: geglättete Audio-Uhr (obere Hüllkurve von `currentTime − Wanduhr` über ~2 s) |
 | Stop erst nach 0,87 s, dann harter Schnitt + Rücksprung | Umweg über die Datenbank; `pause()` + Seek auf 0 innerhalb 1 ms | #299: Zustand sofort lokal, 60-ms-Ausblendung, kein Seek beim Stop |
+
+**Audio-Uhr verschiedener Geräte** (Messseite im Band-WLAN, 5 s je Gerät, eingebauter Lautsprecher, 2026-09-27). Maßgeblich ist „veraltet im 50-ms-Takt“ – so oft liest der Klick-Scheduler die Uhr:
+
+| Gerät | Browser | Uhr-Schritt | veraltet im 50-ms-Takt (Median / max) | Ablesungen > 50 ms veraltet | Ausgabelatenz |
+|---|---|---|---|---|---|
+| Fire HD 10 (Bühnen-Tablet) | Silk 138, Android 9 | 64 ms | 30 / 61 ms | 20 % | 136 ms (vorher 260) |
+| Xiaomi Tablet | Chrome 153, Android | 16 ms | 3 / 5 ms | 0 % | 40 ms |
+| Xiaomi Handy | Chrome 154, Android | 16 ms | 3 / 5 ms | 0 % | 40 ms |
+| Samsung Handy | Chrome 154, Android | 16 ms | 2 / 5 ms | 0 % | 24 ms |
+| Laptop (Stage-Server-PC) | Chrome 154, Linux | 10,7 ms | 6 / 11 ms | 0 % | 32 ms |
+
+Das Fire-Tablet ist der Ausreißer (4–6× gröbere Uhr, 3–6× höhere Ausgabelatenz); die geglättete Audio-Uhr ist dort nötig, auf den anderen Geräten unschädlich. Kurze Uhr-Stillstände gibt es auch anderswo (Xiaomi Tablet einmal 228 ms, Xiaomi Handy 162 ms in der Bild-für-Bild-Messung). Für Tablets, die Klick oder Backing-Track selbst ausgeben, ist das Fire wegen der Latenz die schlechteste Wahl.
 
 **Die Anker selbst (Hauptproblem):** 10 Varianten mit Beat-Ankern, jeweils gegen die perkussiven Onsets des Tracks gemessen (nächster Onset in ±70 ms als Referenz; diese Referenz ist selbst nur auf ±20–30 ms genau).
 
@@ -59,5 +71,6 @@ Anker entstehen durch Tippen **und** durch automatische Erkennung; beide liefern
 ## 6. Methode (wiederverwendbar)
 
 - **Klick-Timing:** `OscillatorNode.prototype.start` per CDP umschreiben und `when`/`currentTime` mitschreiben; Abstände in Audio-Zeit auswerten.
+- **Audio-Uhr des Geräts:** `new AudioContext()`, `currentTime` pro Frame gegen `performance.now()` mitschreiben → Schrittweite (Fire: 64 ms) und Streuung der Zuordnung (126 ms); `baseLatency`/`outputLatency` mit ausgeben.
 - **Audio-Element:** `play`/`pause`/`currentTime`-Setter wrappen und Ereignisse (`seeking`, `waiting`, …) protokollieren.
 - **Anker gegen Audio:** Anker aus der Tablet-IndexedDB exportieren (`by-sequence`, `_doc_id_rev`), Track von `~/stageboard-data/audio/<variante>/<track>` mit `av` dekodieren, perkussive Onsets mit `librosa` (HPSS + `onset_detect`, Hop 128, parabolische Verfeinerung), je Anker nächster Onset in ±70 ms; Kennzahlen: Trefferquote, robuste Streuung, p90, Schlag-zu-Schlag-Jitter (Std. der zweiten Differenz), aufgeteilt nach Songvierteln. Die Referenz ist selbst ungenau (dichte Achtel-Onsets) – nur Unterschiede deutlich über ±2 ms zählen.

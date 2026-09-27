@@ -431,5 +431,29 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     // One gap shortened by the jump, all others exactly one beat.
     expect(gaps.filter((g) => g !== 500)).toEqual([380])
   })
+
+  it('stays exactly on the beat with the Fire tablet\'s 64 ms clock steps (sometimes 128/192 ms)', () => {
+    // Measured 2026-09-27: currentTime moved in 64 ms steps, now and then a doubled or tripled
+    // step. Converting a raw reading was up to ~130 ms off, beyond the 50 ms tolerance, so the
+    // schedule re-derived every few beats - heard as a 340/450 ms gap in a steady 389 ms click.
+    let wallMs = 0
+    const start = Date.now()
+    let audio = 1000
+    startClick(() => ({ bpm: 154.2, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    for (let i = 0; i < 400; i++) {
+      wallMs += 50
+      vi.setSystemTime(start + wallMs)
+      // The audio clock catches up in whole 64 ms buffers; every 7th time it skips one.
+      const target = 1000 + wallMs / 1000
+      const step = i % 7 === 3 ? 0.128 : 0.064
+      while (audio + step <= target) audio += step
+      fakeCtx.currentTime = audio
+      vi.advanceTimersByTime(50)
+    }
+    const times = startTimes()
+    const gaps = times.slice(1).map((t, i) => Math.round((t - times[i]) * 1000))
+    expect(gaps.length).toBeGreaterThan(40)
+    expect(new Set(gaps)).toEqual(new Set([389]))
+  })
 })
 
