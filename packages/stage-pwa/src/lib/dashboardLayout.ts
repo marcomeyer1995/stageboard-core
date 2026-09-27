@@ -310,12 +310,23 @@ export function withWidgetAppended(
 ): Dashboard {
   const layouts = Object.fromEntries(
     BREAKPOINTS.map((breakpoint) => {
-      const items = dashboard.layouts[breakpoint] ?? []
+      const items = normalizeLayout(dashboard.layouts[breakpoint] ?? [])
+      // Below the existing widgets at full size when it fits there (a deliberate gap between
+      // widgets stays untouched), else the first free spot of full size anywhere, and only
+      // when neither exists shrunk into what is left. It used to always go below and shrink
+      // to the remaining rows (down to one) - how a widget added in portrait became a 25px
+      // strip in the landscape layout (GUI audit, 2026-09-26); displayLayout() now also shows
+      // a derived layout instead of such a squeezed one.
       const bottom = items.reduce((max, item) => Math.max(max, item.y + item.h), 0)
-      // Shrink rather than overflow: a new widget that would not fit below the existing
-      // ones takes whatever height is left, down to the last row.
-      const h = Math.min(size.h, Math.max(1, GRID_ROWS - bottom))
-      const placed: LayoutItem = { ...size, h, i: instanceId, x: 0, y: Math.min(bottom, GRID_ROWS - h) }
+      const fullWidth = Math.min(size.w, GRID_COLUMNS)
+      let placed: LayoutItem
+      if (bottom + size.h <= GRID_ROWS) {
+        placed = { ...size, w: fullWidth, i: instanceId, x: 0, y: bottom }
+      } else {
+        const grid = createOccupancyGrid(GRID_COLUMNS, GRID_ROWS)
+        for (const item of items) grid.occupy(item.x, item.y, item.w, item.h)
+        placed = placeInGrid(grid, { ...size, w: fullWidth, i: instanceId, x: 0, y: 0 }, GRID_COLUMNS, GRID_ROWS)
+      }
       return [breakpoint, normalizeLayout([...items, placed])]
     }),
   )
@@ -325,6 +336,143 @@ export function withWidgetAppended(
     widgets: [...dashboard.widgets, { i: instanceId, type, frameless: false }],
     layouts,
   }
+}
+
+/** A widget's minimum and default size in grid cells (from the widget registry). */
+export interface MinSize {
+  minW?: number
+  minH?: number
+  /** Default size - what a collapsed widget is re-placed at when there is room. */
+  w?: number
+  h?: number
+}
+
+/** Items collapsed to at most half their widget's minimum size - what a full grid does to a
+ * widget it has to squeeze in (see withWidgetAppended: one row, 25px in landscape). A widget
+ * just below a minimum that was raised since it was placed, or one deliberately made small, is
+ * the user's arrangement and does not count. */
+export function squeezedItems(items: LayoutItem[], minFor: (instanceId: string) => MinSize | undefined): LayoutItem[] {
+  return items.filter((item) => {
+    const min = minFor(item.i)
+    return (
+      !!min &&
+      ((min.minH !== undefined && min.minH > 1 && item.h <= min.minH / 2) ||
+        (min.minW !== undefined && min.minW > 1 && item.w <= min.minW / 2))
+    )
+  })
+}
+
+/** Nominal canvas per breakpoint, CSS px - only used to convert a layout between breakpoints by
+ * pixel size (a landscape tablet column is ~1.6x wider, its rows ~0.6x as tall as in portrait). */
+const BREAKPOINT_CANVAS: Record<Breakpoint, { w: number; h: number }> = {
+  sm: { w: 400, h: 760 },
+  md: { w: 800, h: 1220 },
+  lg: { w: 1280, h: 740 },
+  xl: { w: 1920, h: 1040 },
+}
+
+/**
+ * The layout for `to`, derived from an arranged `source` layout of breakpoint `from`: every
+ * widget keeps roughly its pixel size (columns and rows converted by the breakpoints' canvas),
+ * in the source's reading order, packed into the 12 x 24 grid. If that doesn't fit, heights
+ * are scaled down step by step - never below the widget's minimum - until nothing is squeezed.
+ * A starting point for a breakpoint nobody arranged, not a finished design.
+ */
+export function deriveLayout(
+  source: LayoutItem[],
+  from: Breakpoint,
+  to: Breakpoint,
+  minFor: (instanceId: string) => MinSize | undefined,
+): LayoutItem[] {
+  const colRatio = BREAKPOINT_CANVAS[from].w / BREAKPOINT_CANVAS[to].w
+  const rowRatio = BREAKPOINT_CANVAS[from].h / BREAKPOINT_CANVAS[to].h
+  const ordered = [...source].sort((a, b) => a.y - b.y || a.x - b.x)
+  let placed: LayoutItem[] = []
+  for (let scale = 1; scale >= 0.3; scale -= 0.1) {
+    const grid = createOccupancyGrid(GRID_COLUMNS, GRID_ROWS)
+    placed = ordered.map((item) => {
+      const min = minFor(item.i)
+      const w = Math.min(GRID_COLUMNS, Math.max(min?.minW ?? 1, Math.round(item.w * colRatio)))
+      const h = Math.min(GRID_ROWS, Math.max(min?.minH ?? 1, Math.round(item.h * rowRatio * scale)))
+      const x = Math.min(Math.round(item.x * colRatio), GRID_COLUMNS - w)
+      return placeInGrid(grid, { ...item, x, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS)
+    })
+    if (squeezedItems(placed, minFor).length === 0) break
+  }
+  return placed
+}
+
+/** Which arranged breakpoint to derive from, nearest first. */
+const DERIVE_FROM: Record<Breakpoint, Breakpoint[]> = {
+  sm: ['md', 'lg', 'xl'],
+  md: ['lg', 'sm', 'xl'],
+  lg: ['md', 'xl', 'sm'],
+  xl: ['lg', 'md', 'sm'],
+}
+
+/**
+ * The stored layout with only its collapsed widgets moved into free space, at their default
+ * size where it fits (at least their minimum) - everything the user arranged stays where it is.
+ */
+export function repairLayout(stored: LayoutItem[], minFor: (instanceId: string) => MinSize | undefined): LayoutItem[] {
+  const collapsed = new Set(squeezedItems(stored, minFor).map((item) => item.i))
+  const grid = createOccupancyGrid(GRID_COLUMNS, GRID_ROWS)
+  for (const item of stored) if (!collapsed.has(item.i)) grid.occupy(item.x, item.y, item.w, item.h)
+  const moved = new Map<string, LayoutItem>()
+  for (const item of stored) {
+    if (!collapsed.has(item.i)) continue
+    const size = minFor(item.i) ?? {}
+    const w = Math.min(GRID_COLUMNS, Math.max(size.minW ?? 1, size.w ?? item.w))
+    const h = Math.min(GRID_ROWS, Math.max(size.minH ?? 1, size.h ?? item.h))
+    moved.set(item.i, placeInGrid(grid, { ...item, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS))
+  }
+  return stored.map((item) => moved.get(item.i) ?? item)
+}
+
+export interface DisplayLayout {
+  items: LayoutItem[]
+  /** `stored` as saved, `repaired` = only the collapsed widgets re-placed, `derived` = the
+   * whole layout derived from `derivedFrom`. */
+  source: 'stored' | 'repaired' | 'derived'
+  /** The breakpoint the items were derived from (source `derived`), else null. */
+  derivedFrom: Breakpoint | null
+  /** Widgets squeezed below their minimum in the *stored* layout of this breakpoint. */
+  squeezed: number
+}
+
+/**
+ * What to show for `breakpoint`: the stored layout, unless it squeezes widgets below their
+ * minimum (a breakpoint nobody arranged - e.g. a portrait dashboard seen in landscape, GUI audit
+ * 2026-09-26: four widgets 25px tall) and another breakpoint is fully arranged; then a layout
+ * derived from that one. Pure and not persisted - Dashboard.tsx only saves what the user drags,
+ * so a derived layout never overwrites anything until "übernehmen" in edit mode.
+ */
+export function displayLayout(
+  layouts: Partial<Record<Breakpoint, LayoutItem[]>>,
+  breakpoint: Breakpoint,
+  minFor: (instanceId: string) => MinSize | undefined,
+): DisplayLayout {
+  const stored = normalizeLayout(layouts[breakpoint] ?? [])
+  const squeezed = squeezedItems(stored, minFor).length
+  if (squeezed === 0) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
+  // Least invasive first: keep the arrangement, only re-place what collapsed.
+  const repaired = repairLayout(stored, minFor)
+  if (squeezedItems(repaired, minFor).length === 0) return { items: repaired, source: 'repaired', derivedFrom: null, squeezed }
+  // The best-arranged other breakpoint: fewest collapsed widgets (nearest wins a tie), and it
+  // has to be better than what is stored here.
+  const ids = new Set(stored.map((item) => item.i))
+  let best: { breakpoint: Breakpoint; source: LayoutItem[]; squeezed: number } | null = null
+  for (const candidate of DERIVE_FROM[breakpoint]) {
+    const source = normalizeLayout(layouts[candidate] ?? [])
+    const coversAll = source.length > 0 && [...ids].every((id) => source.some((item) => item.i === id))
+    if (!coversAll) continue
+    const candidateSqueezed = squeezedItems(source, minFor).length
+    if (candidateSqueezed < squeezed && (!best || candidateSqueezed < best.squeezed)) {
+      best = { breakpoint: candidate, source, squeezed: candidateSqueezed }
+    }
+  }
+  if (!best) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
+  return { items: deriveLayout(best.source, best.breakpoint, breakpoint, minFor), source: 'derived', derivedFrom: best.breakpoint, squeezed }
 }
 
 /** Removes a widget instance from the widget list and from every breakpoint's layout. */
