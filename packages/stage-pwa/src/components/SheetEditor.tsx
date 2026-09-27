@@ -158,7 +158,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
-  const [mobileTab, setMobileTab] = useState<'text' | 'timeline' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
+  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
   // Every section starts collapsed (Marco, explicit request) - opening a song for editing
   // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
   // deliberately expanded, not a screenful of whichever section used to default open.
@@ -167,7 +167,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [cuesExpanded, setCuesExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
-  const [timelineExpanded, setTimelineExpanded] = useState(false)
+  // Two views of the same draft (docs/14): the text editor (what) and the full-screen timeline
+  // (when) - not a section squeezed into the details column.
+  const [editorView, setEditorView] = useState<'text' | 'timeline'>('text')
 
   const variantsForSong = draft ? variants.filter((v) => v.songId === draft.songId) : []
   const currentTracks = draft ? (variants.find((v) => v.id === draft.variantId)?.tracks ?? []) : []
@@ -178,7 +180,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   useEffect(() => {
     setTapTrackSrc(null)
-    const timelineOpen = timelineExpanded || mobileTab === 'timeline'
+    const timelineOpen = editorView === 'timeline'
     if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker && !isRecordingCues && !timelineOpen) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
@@ -194,7 +196,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, timelineExpanded, mobileTab, draft?.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -752,18 +754,30 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       countInBars={draft.countInBars}
       onChange={(patch) => setDraft({ ...draft, ...patch })}
       onAdoptBpm={(bpm) => setDraft({ ...draft, bpm })}
+      fill
     />
   )
 
+  const viewSwitch = (
+    <div className="flex rounded-sb-sm bg-control p-1" role="group" aria-label="Ansicht">
+      {(['text', 'timeline'] as const).map((view) => (
+        <button
+          key={view}
+          type="button"
+          aria-pressed={editorView === view}
+          aria-label={view === 'text' ? 'Text-Ansicht' : 'Timeline-Ansicht'}
+          onClick={() => setEditorView(view)}
+          className={`min-h-12 rounded-sb-sm px-4 font-semibold ${
+            editorView === view ? 'bg-accent text-accent-ink' : 'text-ink-soft hover:bg-control-hover'
+          }`}
+        >
+          {view === 'text' ? 'Text' : 'Timeline'}
+        </button>
+      ))}
+    </div>
+  )
+
   const detailSections = [
-    {
-      key: 'timeline' as const,
-      label: 'Timeline',
-      fullLabel: 'Timeline',
-      content: timelineContent,
-      expanded: timelineExpanded,
-      onToggleExpand: () => setTimelineExpanded((v) => !v),
-    },
     {
       key: 'tempo' as const,
       label: 'Tempo',
@@ -882,6 +896,30 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const showText = layout !== 'phoneTabs' || mobileTab === 'text'
 
+  if (editorView === 'timeline') {
+    return (
+      <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink">
+        <div className="flex flex-wrap items-center gap-3">
+          {viewSwitch}
+          <span className="min-w-0 flex-1 truncate text-lg font-bold">
+            {draft.title}
+            <span className="ml-2 font-normal text-ink-muted">{draft.variantLabel}</span>
+          </span>
+          {error && <span className="text-sm text-red-500">{error}</span>}
+          {savedAt && <span className="text-sm text-ink-faint">Gespeichert.</span>}
+          <button
+            type="button"
+            onClick={handleSave}
+            className="min-h-12 rounded-sb-sm bg-accent-2 px-5 font-semibold text-accent-ink hover:bg-accent-2-hover"
+          >
+            Speichern
+          </button>
+        </div>
+        <div className="min-h-0 flex-1">{timelineContent}</div>
+      </div>
+    )
+  }
+
   return (
     // Grid vs. stacked is driven by `layout`, not a Tailwind breakpoint directly - 'panel'
     // covers both landscape (from md, regardless of exact width) and desktop (xl+), which
@@ -896,13 +934,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         {/* Switching to a different song, creating a new one, and deleting this one all moved
             to LibraryView's own tree (its "+ Neu" and each row's ⋯ menu) - going back there is
             how you pick a different song now, not a dropdown duplicating the same list. */}
-        <button
-          type="button"
-          onClick={onBack}
-          className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm hover:bg-control-strong-hover"
-        >
-          ← Bibliothek
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
+          >
+            ← Bibliothek
+          </button>
+          {viewSwitch}
+        </div>
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Variante
           <div className="flex items-center gap-2">
