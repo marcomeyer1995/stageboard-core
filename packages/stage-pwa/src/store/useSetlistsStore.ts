@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import type { Setlist, SetlistEntry } from 'shared-types'
@@ -38,7 +39,7 @@ interface SetlistsState {
   remove: (id: string) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<Setlist> | null = null
+let changesHandle: LocalChangesHandle<Setlist> | null = null
 
 async function refresh(set: (partial: Partial<SetlistsState>) => void) {
   const docs = await getAllSetlists()
@@ -57,7 +58,7 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = setlistsChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = setlistsChanges()
     changesHandle.on('change', () => refresh(set))
   },
   saveSetlist: async (setlist) => {

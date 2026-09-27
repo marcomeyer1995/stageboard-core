@@ -1,3 +1,4 @@
+import { watchLocalChanges, type LocalChangesHandle } from './localChanges'
 import { getWorkspaceDb } from './workspaceDb'
 import { configLog } from './configDebug'
 
@@ -23,11 +24,12 @@ export interface WorkspaceCollection<T extends { id: string }> {
   update: (id: string, patch: (current: T) => T) => Promise<void>
   /** Deleting a missing document is a no-op, so callers don't have to check first. */
   remove: (id: string) => Promise<void>
-  /** Local-only, filtered to this collection's own docs - the shared workspace db holds
-   * every kind, so an unfiltered `.changes()` would fire on every other collection's writes
-   * too. Costs nothing over the network: this queries the local PouchDB directly, it isn't
-   * the remote sync (see workspaceDb.ts's startWorkspaceSync for that). */
-  changes: (options: PouchDB.Core.ChangesOptions) => PouchDB.Core.Changes<T>
+  /** Live local changes to this collection's own docs, from now on. The shared workspace db
+   * holds every kind; one shared, unfiltered feed per db hands each change to the collection
+   * whose prefix it has (localChanges.ts - a filtered feed per collection re-read a growing
+   * window on every write). Costs nothing over the network: it's the local PouchDB, not the
+   * remote sync (see workspaceDb.ts's startWorkspaceSync for that). */
+  changes: () => LocalChangesHandle<T>
   /** The CouchDB `_id` a given application-level id maps to in the shared db - for the rare
    * call site that needs to reach the raw db directly (an attachment op, a doc patch) rather
    * than going through get/put/remove above. */
@@ -188,10 +190,6 @@ export function createWorkspaceCollection<T extends { id: string }>(
       await db.remove(existing)
     },
 
-    changes: (options) =>
-      db.changes({
-        ...options,
-        filter: (doc) => doc._id.startsWith(prefix),
-      }),
+    changes: () => watchLocalChanges<T>(db as PouchDB.Database<object>, (id) => id.startsWith(prefix)),
   }
 }

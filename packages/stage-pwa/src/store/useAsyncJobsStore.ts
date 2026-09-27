@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { AsyncJobSchema, type AsyncJob } from 'shared-types'
 import { getAllAsyncJobs, switchAsyncJobsWorkspace, asyncJobsChanges, type AsyncJobDoc } from '../lib/asyncJobsDb'
@@ -16,7 +17,7 @@ interface AsyncJobsState {
   init: (workspaceId: string) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<AsyncJob> | null = null
+let changesHandle: LocalChangesHandle<AsyncJob> | null = null
 
 async function refresh(set: (partial: Partial<AsyncJobsState>) => void) {
   const docs = await getAllAsyncJobs()
@@ -39,7 +40,7 @@ export const useAsyncJobsStore = create<AsyncJobsState>((set) => ({
 
     await refresh(set)
 
-    changesHandle = asyncJobsChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = asyncJobsChanges()
     changesHandle.on('change', () => refresh(set))
   },
 }))

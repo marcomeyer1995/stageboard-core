@@ -57,13 +57,23 @@ vi.mock('pouchdb-browser', () => ({
       return { rows, total_rows: rows.length, offset: 0 }
     }
 
-    changes(options: { filter?: (doc: { _id: string }) => boolean } = {}) {
-      const seen = [...this.store.values()].filter((doc) => options.filter?.(doc) ?? true)
-      return {
-        seen,
-        on: () => this,
-        cancel: () => {},
+    // One live feed at a time, like the shared feed in localChanges.ts opens; emit() plays a
+    // change through it.
+    private listener: ((change: { id: string; seq: number }) => void) | null = null
+    changes() {
+      const feed = {
+        on: (event: string, listener: (change: { id: string; seq: number }) => void) => {
+          if (event === 'change') this.listener = listener
+          return feed
+        },
+        cancel: () => {
+          this.listener = null
+        },
       }
+      return feed
+    }
+    emit(id: string) {
+      this.listener?.({ id, seq: 1 })
     }
   },
 }))
@@ -238,17 +248,18 @@ describe('createWorkspaceCollection', () => {
     expect(widgets.docId('w1')).toBe('widgets:w1')
   })
 
-  it("changes() filters to just this collection's docs, ignoring other kinds in the same db", async () => {
+  it("changes() hands on only this collection's docs, ignoring other kinds in the same db", () => {
     const workspaceId = freshWorkspaceId()
     const widgets = createWorkspaceCollection<Widget>('widgets')
-    const gadgets = createWorkspaceCollection<Widget>('gadgets')
     widgets.switchWorkspace(workspaceId)
-    gadgets.switchWorkspace(workspaceId)
-    await widgets.put({ id: 'w1', name: 'Fader' })
-    await gadgets.put({ id: 'g1', name: 'Knob' })
+    const seen: string[] = []
+    const handle = widgets.changes().on('change', (change) => seen.push(change.id))
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = widgets.changes({ since: 'now' }) as any
-    expect(result.seen.map((doc: { _id: string }) => doc._id)).toEqual(['widgets:w1'])
+    const db = widgets.getDb() as unknown as { emit: (id: string) => void }
+    db.emit('gadgets:g1')
+    db.emit('widgets:w1')
+    handle.cancel()
+    db.emit('widgets:w2')
+    expect(seen).toEqual(['widgets:w1'])
   })
 })

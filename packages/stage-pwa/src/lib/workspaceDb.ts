@@ -72,8 +72,9 @@ export function getWorkspaceDb<T extends object = Record<string, unknown>>(
   if (workspaceId !== currentWorkspaceId) {
     currentWorkspaceId = workspaceId
     db = new PouchDB(localDbName(workspaceId))
-    // One local `.changes()` listener per collection is expected and correct now that they
-    // all share this one db (7+ collections, plus show-state) - past Node's default
+    // Local change listeners all share this one db (7+ collections, plus show-state) - since
+    // 2026-09-27 through one shared feed (localChanges.ts), but PouchDB's own sync and
+    // per-feed plumbing can still pass Node's default
     // EventEmitter cap of 10. Raises the ceiling on this db instance's own emitter; PouchDB's
     // IndexedDB adapter also fans local changes out through its own internal per-db-name
     // emitter, which still logs the same advisory warning and isn't reachable from here -

@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { ShowLogEventSchema, type ShowLogEvent } from 'shared-types'
@@ -53,7 +54,7 @@ interface ShowLogState {
   append: (event: ShowLogEvent) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<ShowLogEvent> | null = null
+let changesHandle: LocalChangesHandle<ShowLogEvent> | null = null
 
 async function refresh(set: (partial: Partial<ShowLogState>) => void) {
   const docs = await getAllShowLogEvents()
@@ -76,7 +77,7 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = showLogChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = showLogChanges()
     changesHandle.on('change', () => refresh(set))
   },
   addNote: async (text, authorProfileId) => {

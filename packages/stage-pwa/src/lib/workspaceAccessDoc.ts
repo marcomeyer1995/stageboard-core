@@ -1,3 +1,4 @@
+import { watchLocalChanges, type LocalChangesHandle } from './localChanges'
 import { getWorkspaceDb } from './workspaceDb'
 
 /** The one `workspace:access` doc living in a workspace's shared CouchDB database (see
@@ -33,10 +34,8 @@ export async function getWorkspaceAccessDoc(workspaceId: string): Promise<Worksp
 export function watchWorkspaceAccessDoc(
   workspaceId: string,
   onChange: (doc: WorkspaceAccessDoc) => void,
-): PouchDB.Core.Changes<WorkspaceAccessDoc> {
-  return getWorkspaceDb<WorkspaceAccessDoc>(workspaceId)
-    .changes({ since: 'now', live: true, include_docs: true, doc_ids: [ACCESS_DOC_ID] })
-    .on('change', (change) => {
-      if (change.doc) onChange({ code: change.doc.code, name: change.doc.name })
-    })
+): LocalChangesHandle<WorkspaceAccessDoc> {
+  return watchLocalChanges<WorkspaceAccessDoc>(getWorkspaceDb(workspaceId), (id) => id === ACCESS_DOC_ID).on('change', (change) => {
+    if (change.doc) onChange({ code: change.doc.code, name: change.doc.name })
+  })
 }

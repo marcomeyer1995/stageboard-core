@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import type { Profile, StageRole } from 'shared-types'
@@ -49,7 +50,7 @@ interface ProfilesState {
   connectToServer: (serverUrl: string) => Promise<boolean>
 }
 
-let changesHandle: PouchDB.Core.Changes<Profile> | null = null
+let changesHandle: LocalChangesHandle<Profile> | null = null
 
 async function refresh(set: (partial: Partial<ProfilesState>) => void) {
   const docs = await getAllProfiles()
@@ -82,7 +83,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = profilesChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = profilesChanges()
     changesHandle.on('change', () => refresh(set))
   },
   // Per-person-accounts follow-up: the very first profile a band ever gets reuses the

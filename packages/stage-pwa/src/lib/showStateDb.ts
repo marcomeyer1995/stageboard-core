@@ -1,4 +1,5 @@
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
+import { watchLocalChanges, type LocalChangesHandle } from './localChanges'
 import { getWorkspaceDb } from './workspaceDb'
 
 /** A bare, unprefixed id - a reserved singleton, not a plural "kind" of many documents, so
@@ -36,10 +37,8 @@ export async function putShowState(patch: Partial<ShowState>): Promise<void> {
   await db.put(doc)
 }
 
-/** Local-only, filtered to just the show-state doc - the shared workspace db holds every
- * other collection's docs too (see workspaceCollection.ts's `changes` for the same reasoning). */
-export function showStateChanges(
-  options: PouchDB.Core.ChangesOptions,
-): PouchDB.Core.Changes<ShowState> {
-  return db.changes({ ...options, filter: (doc) => doc._id === SHOW_STATE_DOC_ID })
+/** Live local changes to just the show-state doc, from now on - through the shared feed
+ * (localChanges.ts), not a filtered feed of its own. */
+export function showStateChanges(): LocalChangesHandle<ShowState> {
+  return watchLocalChanges<ShowState>(db as PouchDB.Database<object>, (id) => id === SHOW_STATE_DOC_ID)
 }
