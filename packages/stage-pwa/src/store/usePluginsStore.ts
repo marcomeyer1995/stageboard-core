@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth, type PluginInstallation } from 'shared-types'
 import {
@@ -38,7 +39,7 @@ interface PluginsState {
   uninstall: (id: string) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<PluginInstallation> | null = null
+let changesHandle: LocalChangesHandle<PluginInstallation> | null = null
 let unsubscribeHealth: (() => void) | null = null
 
 async function refresh(set: (partial: Partial<PluginsState>) => void) {
@@ -61,7 +62,7 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = pluginsChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = pluginsChanges()
     changesHandle.on('change', () => refresh(set))
 
     unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health }))

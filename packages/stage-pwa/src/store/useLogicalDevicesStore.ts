@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { LogicalDevice } from 'shared-types'
 import {
@@ -16,7 +17,7 @@ interface LogicalDevicesState {
   remove: (id: string) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<LogicalDevice> | null = null
+let changesHandle: LocalChangesHandle<LogicalDevice> | null = null
 
 async function refresh(set: (partial: Partial<LogicalDevicesState>) => void) {
   const docs = await getAllLogicalDevices()
@@ -41,7 +42,7 @@ export const useLogicalDevicesStore = create<LogicalDevicesState>((set) => ({
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = logicalDevicesChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = logicalDevicesChanges()
     changesHandle.on('change', () => refresh(set))
   },
   save: async (device) => {

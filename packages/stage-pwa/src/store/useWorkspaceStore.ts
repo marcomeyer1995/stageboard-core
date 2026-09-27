@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
@@ -229,7 +230,7 @@ interface WorkspaceState {
  * the box, or fresh from a Stage-Server it's never talked to, genuinely knows nothing yet;
  * `JoinBandView.tsx` is what it sees first, offering both "join" and "start a new band" equally.
  */
-let nameChangesHandle: PouchDB.Core.Changes<{ code: string; name: string }> | null = null
+let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null = null
 
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(

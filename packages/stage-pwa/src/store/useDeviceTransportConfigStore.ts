@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { DeviceTransportConfig } from 'shared-types'
 import {
@@ -14,7 +15,7 @@ interface DeviceTransportConfigState {
   save: (config: DeviceTransportConfig) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<DeviceTransportConfig> | null = null
+let changesHandle: LocalChangesHandle<DeviceTransportConfig> | null = null
 
 async function refresh(set: (partial: Partial<DeviceTransportConfigState>) => void) {
   const docs = await getAllDeviceTransportConfigs()
@@ -41,7 +42,7 @@ export const useDeviceTransportConfigStore = create<DeviceTransportConfigState>(
     await refresh(set)
     set({ loaded: true })
 
-    changesHandle = deviceTransportConfigChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = deviceTransportConfigChanges()
     changesHandle.on('change', () => refresh(set))
   },
   save: async (config) => {

@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { Song } from 'shared-types'
 import {
@@ -43,7 +44,7 @@ interface SongsState {
   remove: (id: string) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<Song> | null = null
+let changesHandle: LocalChangesHandle<Song> | null = null
 
 async function refreshSongs(set: (partial: Partial<SongsState>) => void) {
   const docs = await getAllSongs()
@@ -64,7 +65,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     await refreshSongs(set)
     set({ loaded: true })
 
-    changesHandle = songsChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = songsChanges()
     changesHandle.on('change', () => refreshSongs(set))
   },
   saveSong: async (song) => {

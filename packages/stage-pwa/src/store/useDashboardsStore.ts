@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import type { Dashboard, LayoutItem, Breakpoint, WidgetInstance } from 'shared-types'
@@ -78,7 +79,7 @@ interface DashboardsState {
   setLayout: (id: string, breakpoint: Breakpoint, layout: LayoutItem[]) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<Dashboard> | null = null
+let changesHandle: LocalChangesHandle<Dashboard> | null = null
 
 async function refresh(set: (partial: Partial<DashboardsState>) => void) {
   const docs = await getAllDashboards()
@@ -111,7 +112,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     }
     set({ loaded: true })
 
-    changesHandle = dashboardsChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = dashboardsChanges()
     changesHandle.on('change', () => refresh(set))
   },
   save: async (dashboard) => {

@@ -1,3 +1,4 @@
+import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
@@ -30,7 +31,7 @@ interface ShowStateStore {
   applyPatch: (patch: Partial<ShowState>) => Promise<void>
 }
 
-let changesHandle: PouchDB.Core.Changes<ShowState> | null = null
+let changesHandle: LocalChangesHandle<ShowState> | null = null
 
 export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   state: DEFAULT_SHOW_STATE,
@@ -45,7 +46,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     const state = await getShowState()
     set({ state, isMaster: state.masterHolderId === get().deviceId })
 
-    changesHandle = showStateChanges({ since: 'now', live: true, include_docs: true })
+    changesHandle = showStateChanges()
     changesHandle.on('change', async () => {
       const fresh = await getShowState()
       set({ state: fresh, isMaster: fresh.masterHolderId === get().deviceId })
