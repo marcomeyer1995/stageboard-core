@@ -81,6 +81,34 @@ let nextBeatAudioTime: number | null = null
  * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
 const AUDIO_TIME_TOLERANCE_S = 0.05
 
+/** Recent readings of `currentTime - wall clock`, s. The band's Fire tablet advances
+ * `currentTime` in 64 ms steps (sometimes 128/192 ms - measured 2026-09-27, output latency
+ * 260 ms), so a single reading can be up to ~130 ms behind the real audio clock: converting with
+ * it tripped AUDIO_TIME_TOLERANCE_S every few beats, and each re-derivation was an audible jump.
+ * Right after a step the reading is exact, so the upper edge of the recent readings tracks the
+ * true clock; the window keeps the edge current if the clock pauses or drifts. */
+const clockOffsets: number[] = []
+const CLOCK_WINDOW = 40 // ticks, ~2 s
+/** The previous reading and whether the clock moved within the window - a clock that isn't
+ * running (a context not resumed yet) is read as-is, not extrapolated along the wall clock. */
+let lastClockReading: number | null = null
+let ticksSinceClockMoved = Infinity
+
+/** The audio clock's current time, smoothed over its step size (see `clockOffsets`). */
+function smoothedAudioNow(ctx: AudioContext): number {
+  const now = ctx.currentTime
+  ticksSinceClockMoved = lastClockReading !== null && now > lastClockReading ? 0 : ticksSinceClockMoved + 1
+  lastClockReading = now
+  if (ticksSinceClockMoved > CLOCK_WINDOW) {
+    clockOffsets.length = 0
+    return now
+  }
+  const wall = Date.now() / 1000
+  clockOffsets.push(now - wall)
+  if (clockOffsets.length > CLOCK_WINDOW) clockOffsets.shift()
+  return Math.max(now, wall + Math.max(...clockOffsets))
+}
+
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
  * healthy tick sees, comfortably below the length of a real beat at any reasonable tempo (so a
@@ -182,12 +210,13 @@ function tick(getState: () => ClickEngineState): void {
   lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
+  const audioNow = smoothedAudioNow(ctx)
   const beatCount = beatsPerBar(grid.timeSignature)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
   const lookaheadSongMs = LOOKAHEAD_MS * playbackRate
   while (nextBeatOnsetMs !== null && nextBeatOnsetMs < elapsedMs + lookaheadSongMs) {
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    const converted = ctx.currentTime + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate
+    const converted = audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
     }
@@ -222,6 +251,9 @@ export function stopClick(): void {
   intervalId = null
   nextBeatOnsetMs = null
   nextBeatAudioTime = null
+  clockOffsets.length = 0
+  lastClockReading = null
+  ticksSinceClockMoved = Infinity
   lastTickElapsedMs = null
   activeOriginMs = null
   activeCorrectionRatio = 1
