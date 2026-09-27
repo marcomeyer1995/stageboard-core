@@ -171,12 +171,14 @@ export function WidgetLibrary({
           </button>
         </div>
 
+        {/* flex-shrink-0: the panel is a scrolling flex column, which shrank the field to 19px on
+            the tablet despite h-touch. */}
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Widget suchen…"
-          className="h-touch rounded-sb-sm bg-control px-3 text-ink placeholder:text-ink-faint"
+          className="h-touch flex-shrink-0 rounded-sb-sm bg-control px-3 text-ink placeholder:text-ink-faint"
         />
 
         {noRoom && (
