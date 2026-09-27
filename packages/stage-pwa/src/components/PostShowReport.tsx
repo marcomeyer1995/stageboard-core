@@ -35,6 +35,70 @@ function groupByShow(events: ShowLogEvent[]): ShowGroup[] {
   return groups.sort((a, b) => b.startedAt - a.startedAt)
 }
 
+type SongPlayed = Extract<ShowLogEvent, { type: 'song-played' }>
+type CapabilityChanged = Extract<ShowLogEvent, { type: 'capability-changed' }>
+type Note = Extract<ShowLogEvent, { type: 'note' }>
+
+/**
+ * One show: what was played first, then the notes, and the technical events folded into a single
+ * "Technik (n)" line - they used to sit between the songs, dozens of "click-track: degraded →
+ * available" lines burying the setlist that was actually played (GUI audit 2026-09-26).
+ */
+function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: string | null) => string }) {
+  const byTime = [...show.events].sort((a, b) => a.at - b.at)
+  const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
+  const notes = byTime.filter((event): event is Note => event.type === 'note')
+  const technical = byTime.filter((event): event is CapabilityChanged => event.type === 'capability-changed')
+  const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
+
+  return (
+    <>
+      <h2 className="font-semibold">{fmtTime(show.startedAt)}</h2>
+      <p className="mb-3 text-sm text-ink-muted">
+        {songs.length} {songs.length === 1 ? 'Song' : 'Songs'} · {fmtDuration(playedMs)} gespielt
+      </p>
+      <div className="space-y-1 text-base">
+        {songs.map((event, index) => (
+          <div key={event.id} className="flex items-center justify-between gap-2">
+            <span>
+              <span className="mr-2 text-ink-faint">{index + 1}.</span>
+              {event.songTitle}
+            </span>
+            <span className="whitespace-nowrap text-sm text-ink-faint">
+              {new Date(event.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {fmtDuration(event.activeMs)}
+            </span>
+          </div>
+        ))}
+        {songs.length === 0 && <p className="text-sm text-ink-faint">Kein Song lange genug gespielt.</p>}
+      </div>
+      {notes.length > 0 && (
+        <div className="mt-4 space-y-1">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Notizen ({notes.length})</h3>
+          {notes.map((event) => (
+            <p key={event.id} className="text-ink-soft">
+              📝 {event.text} — {authorName(event.authorProfileId)} ({fmtTime(event.at)})
+            </p>
+          ))}
+        </div>
+      )}
+      {technical.length > 0 && (
+        <details className="mt-4">
+          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-amber-500">
+            Technik ({technical.length})
+          </summary>
+          <div className="space-y-1 text-sm text-amber-500">
+            {technical.map((event) => (
+              <div key={event.id}>
+                ⚠ {event.capability}: {event.from} → {event.to} ({fmtTime(event.at)})
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </>
+  )
+}
+
 export function PostShowReport() {
   const events = useShowLogStore((state) => state.events)
   const profiles = useProfilesStore((state) => state.profiles)
@@ -62,36 +126,7 @@ export function PostShowReport() {
             key={show.showId}
             className="rounded-sb border border-line bg-surface p-4 shadow-sb"
           >
-            <h2 className="mb-3 font-semibold">{fmtTime(show.startedAt)}</h2>
-            <div className="space-y-1 text-sm">
-              {show.events
-                .filter((event) => event.type !== 'show-started')
-                .sort((a, b) => a.at - b.at)
-                .map((event) => {
-                  if (event.type === 'song-played') {
-                    return (
-                      <div key={event.id} className="flex items-center justify-between gap-2">
-                        <span>{event.songTitle}</span>
-                        <span className="text-ink-faint">
-                          {fmtTime(event.at)} · {fmtDuration(event.activeMs)}
-                        </span>
-                      </div>
-                    )
-                  }
-                  if (event.type === 'capability-changed') {
-                    return (
-                      <div key={event.id} className="text-amber-500">
-                        ⚠ {event.capability}: {event.from} → {event.to} ({fmtTime(event.at)})
-                      </div>
-                    )
-                  }
-                  return (
-                    <div key={event.id} className="text-ink-soft">
-                      📝 {event.text} — {authorName(event.authorProfileId)} ({fmtTime(event.at)})
-                    </div>
-                  )
-                })}
-            </div>
+            <ShowSections show={show} authorName={authorName} />
           </div>
         ))}
       </div>

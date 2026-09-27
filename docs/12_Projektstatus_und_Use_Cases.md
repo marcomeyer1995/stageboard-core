@@ -4,7 +4,7 @@ Stand: 2026-09-26, `main` @ `05b8301` (nach #255-#278). Grundlage ist der gelese
 
 ## 1. Kurzfassung
 
-StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Server (Fastify + CouchDB, Linux, nativ) und React-PWAs auf den Tablets, verbunden über ein lokales Netz. Der **Kern läuft und ist im Einsatz**: mehrere Bands mit Konten/Rollen, Song-Bibliothek mit ChordPro-Editor, Setlists, ein synchroner Prompter, Backing-Tracks mit Offline-Cache, ein synthetisierter Klick samt Beat-Grid, NTP-artige Uhr-Synchronisation, Zeitleisten-Cues, Hardware-Erkennung und -Bindung (Kemper, Boss RC-500, NUX MG-30, A&H CQ-18T, Soundcraft Ui24R, generisches WebMIDI), ein anpassbares Dashboard mit 23 Widgets sowie Nachbericht und Backups. **Solo Üben** und **Gig** sind zwei getrennte Modi; seit dieser Woche gibt es zusätzlich pro Setlist-Eintrag einen **Übergangstyp** (manuell / nächster bereit / nahtlos / mit Pause).
+StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Server (Fastify + CouchDB, Linux, nativ) und React-PWAs auf den Tablets, verbunden über ein lokales Netz. Der **Kern läuft und ist im Einsatz**: mehrere Bands mit Konten/Rollen, Song-Bibliothek mit ChordPro-Editor, Setlists, ein synchroner Prompter, Backing-Tracks mit Offline-Cache, ein synthetisierter Klick samt Beat-Grid, NTP-artige Uhr-Synchronisation, Zeitleisten-Cues, Hardware-Erkennung und -Bindung (Kemper, Boss RC-500, NUX MG-30, A&H CQ-18T, Soundcraft Ui24R, generisches WebMIDI), ein anpassbares Dashboard mit 27 Widget-Typen sowie Nachbericht und Backups. **Solo Üben** und **Gig** sind zwei getrennte Modi; seit dieser Woche gibt es zusätzlich pro Setlist-Eintrag einen **Übergangstyp** (manuell / nächster bereit / nahtlos / mit Pause).
 
 ### Reifegrad auf einen Blick
 
@@ -148,9 +148,9 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Hinweis:** Der Button ist ein Test-/Simulationshilfsmittel; ob der echte Tastendruck weitere Aktionen auslöst, hängt an `useMidiTrigger` außerhalb der Widgets (hier nicht vertieft).
 
 #### 11. Dashboard-Umschalter (`dashboard-switcher`)
-- **Was:** Große Buttons zum Wechsel zwischen Dashboards (Stationen), aktives hervorgehoben. Private Stationen erscheinen nur für ihren Besitzer (`isDashboardVisible`).
+- **Was:** Große Buttons zum Wechsel zwischen Dashboards (Stationen), aktives hervorgehoben. Private Stationen erscheinen nur für ihren Besitzer (`isDashboardVisible`), und seit 2026-09-27 nur die Dashboards des aktuellen Modus (Gig / Solo Üben). Jeder Button ist mindestens so breit wie sein Name (vorher abgeschnitten zu „Monitori…“); passt nicht alles in eine Reihe, brechen die Buttons bei genug Höhe um, sonst scrollt die Leiste seitlich (PR D).
 - **Config:** `orientation` (`horizontal`|`vertical`), `sizeRatio` (1,3). Dazu `dashboardIds` (Liste oder `null` = alle); seit #248 hat das Config-Panel dafür „Alle anzeigen" (schreibt `null`, damit später angelegte Dashboards automatisch erscheinen) und eine Checkbox-Liste der für das aktive Profil sichtbaren Dashboards - die Buttons erscheinen in der Reihenfolge, in der man sie ankreuzt.
-- **Gig vs. Practice:** modusunabhängig.
+- **Gig vs. Practice:** zeigt nur die im aktuellen Modus angebotenen Dashboards (`useModeDashboards`).
 - **Disabled/Degradation:** keine Capability; leere Liste, wenn keine sichtbaren Dashboards.
 - **Capability:** keine.
 - **Use Cases:** (1) Sänger wechselt mitten im Set von seiner „Lyrics"-Station zur „Ansagen"-Station. (2) Techniker hat unten eine vertikale Leiste, um zwischen Mix-, Licht- und Status-Dashboard zu springen.
@@ -537,7 +537,7 @@ Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbe
 - **UC:** Vor der Tour: Snapshot ziehen und auf den USB-Stick kopieren.
 
 #### 7.7 Nachbericht (`PostShowReport`)
-- **Was:** Shows aus dem replizierten Show-Log (gruppiert nach `showId`, neueste zuerst): gespielte Songs (mit Uhrzeit und aktiver Dauer, Zählung ab **20 s** aktiv), technische Ereignisse (`capability-changed`, Warnungen orange) und **Notizen** von Band/Crew (mit Autor). Rein lesend.
+- **Was:** Shows aus dem replizierten Show-Log (gruppiert nach `showId`, neueste zuerst). Je Show seit 2026-09-27: Kopfzeile mit Anzahl Songs und gespielter Zeit, dann die gespielten Songs nummeriert (Uhrzeit, aktive Dauer, Zählung ab **20 s** aktiv), dann die **Notizen** von Band/Crew (mit Autor), und die technischen Ereignisse (`capability-changed`, orange) zusammengeklappt in einer Zeile „Technik (n)“ - vorher standen Dutzende solcher Zeilen zwischen den Songs (GUI-Audit). Rein lesend.
 - **UC:** Am Tag danach: welche Songs liefen wirklich, wann fiel das Licht-Gerät aus.
 
 #### 7.8 Einstellungen (`SystemSettings`)

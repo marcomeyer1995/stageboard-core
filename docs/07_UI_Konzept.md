@@ -5,8 +5,8 @@ Um alle Geräte vom 6-Zoll-Smartphone bis zum 24-Zoll-Monitor zu bedienen, nutzt
 ## 1. Die Grundphilosophie
 
 * **Dark Mode & Light Mode Toggle:** Auf der Bühne ist der Dark Mode (reines OLED-Schwarz, `#000000` kombiniert mit hochkontrastigen Farben) der unverrückbare Standard, damit nichts blendet und die Augen nicht ermüden. Für die Vorbereitung unterwegs (z.B. im Zug, bei Tageslicht oder auf der Terrasse) gibt es einen gestochen scharfen Light Mode (schwarze Schrift auf reinweißem oder leicht mattem Hintergrund), um Reflexionen auf dem Display zu kontern.
-* **Touch-First & "Fat Finger" Design:** Keine winzigen Dropdowns im Live-Modus. Alle aktiven Schaltflächen (Next Song, More Me, Panic Button) sind riesig, damit man sie notfalls auch schweißgebadet oder aus dem Augenwinkel trifft.
-* **Intelligente & gerätespezifische Profile ("Stations"):** Um Musiker nicht zu überfordern, ordnet ein intelligentes Raster die Widgets standardmäßig anhand der Bildschirmgröße und Drehung automatisch an (Responsive Default). Profis können jedoch gerätespezifische Setups ("Stations") in ihrem Profil speichern. So hat der Sänger am vorderen Mikrofon-Tablet (Hochformat) nur Text, während er am Keyboard-Tablet (Querformat) sein "More Me"-Widget sieht. Die App merkt sich pro Endgerät, welche Station zuletzt geladen war.
+* **Touch-First & "Fat Finger" Design:** Keine winzigen Dropdowns im Live-Modus. Alle aktiven Schaltflächen (Next Song, More Me, Panic Button) sind riesig, damit man sie notfalls auch schweißgebadet oder aus dem Augenwinkel trifft. Konkret (seit dem Bühnen-Audit 2026-09-26/27): Show-Aktionen ≥ 72 px, alle übrigen Bedienelemente auf der Bühne ≥ 56 px, Text ≥ 16 px - je Widget festgelegt über die Bühnen-Stufe (Abschnitt 3).
+* **Intelligente & gerätespezifische Profile ("Stations"):** Um Musiker nicht zu überfordern, hat jedes Dashboard je Bildschirmklasse (Handy, Tablet hoch, Tablet quer, großer Bildschirm) ein eigenes Raster; wer nur eine davon anordnet, bekommt die anderen automatisch abgeleitet (siehe "Drehen ohne Einrichten" in Abschnitt 2), gespeichert wird nur, was jemand selbst anordnet. Profis können jedoch gerätespezifische Setups ("Stations") in ihrem Profil speichern. So hat der Sänger am vorderen Mikrofon-Tablet (Hochformat) nur Text, während er am Keyboard-Tablet (Querformat) sein "More Me"-Widget sieht. Die App merkt sich pro Endgerät, welche Station zuletzt geladen war.
  * **Umsetzungsstand:** Der geteilte Teil ist als **Dashboards** umgesetzt (siehe Abschnitt 2) — jedes Dashboard bringt pro Bildschirmklasse ein eigenes Raster mit, und jedes Endgerät merkt sich, welches Dashboard es zuletzt zeigte. Vollständig *persönliche* Dashboard-Sets pro Gerät ("Stations" im engeren Sinn) bauen darauf auf und sind noch offen.
 
 ## 2. Dashboards & Navigation
@@ -52,7 +52,7 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 
 ### Szenario B: Das Tablet (10-12 Zoll, Hochformat / Portrait)
 * **Layout:** Gestapelt (Stacked).
-* **Umsetzung:** Oben (10 %): Das minimalistische Next Song Widget. Mitte (80 %): Das Prompter Widget. Unten (10 %): Eine kompakte Leiste mit dem Quick Action Grid und einem Button, der das More Me Fenster als Overlay öffnet.
+* **Umsetzung:** Oben (10 %): Das minimalistische Next Song Widget. Mitte (80 %): Das Prompter Widget. Unten (10 %): Eine kompakte Leiste mit dem Quick Action Grid und einem Button, der das More Me Fenster als Overlay öffnet. *(Idee, nicht gebaut: More Me ist heute ein normales Widget im Raster, ein Overlay-Modus existiert nicht.)*
 * **Wer nutzt das:** Gitarristen, Sänger (klassische Notenständer-Ansicht).
 
 ### Szenario C: Das Tablet (10-12 Zoll, Querformat / Landscape)
@@ -71,8 +71,8 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 
 Um die Live-Ansicht maximal sicher zu machen, ist das UI während der Show strikt "Read-Only" (kein Verschieben von Elementen möglich).
 
-* **Der "Edit-Lock":** Um Dashboards anzupassen, muss ein versteckter Schalter (oder "Long Press" auf ein Settings-Icon) betätigt werden. Erst dann tauchen Raster, Begrenzungsrahmen und ein "Plus"-Button auf (vergleichbar mit Home Assistant).
- * **Umsetzung:** Long Press (600 ms) auf das Schloss-Icon. Der Edit-Modus wird bewusst **nicht** gespeichert — nach jedem Reload ist das UI wieder gesperrt, damit eine vergessene Edit-Session nicht auf der Bühne zur Fehlbedienung wird. Im Edit-Modus bekommt jedes Widget eine Titelleiste (Griff zum Verschieben, Zahnrad für die Widget-Einstellungen, ✕ zum Entfernen) und eine Anfasser-Ecke zum Skalieren.
+* **Der "Edit-Lock":** Um Dashboards anzupassen, muss ein bewusst gesicherter Schalter betätigt werden (Long Press). Erst dann tauchen Raster, Begrenzungsrahmen und ein "Plus"-Button auf (vergleichbar mit Home Assistant).
+ * **Umsetzung:** Long Press (600 ms) auf „Bearbeiten 🔒“ im Menü (☰ in der Statusleiste); der Knopf füllt sich während des Drückens, ein zu kurzer Tipp zeigt „Zum Bearbeiten gedrückt halten“. Der Edit-Modus wird bewusst **nicht** gespeichert — nach jedem Reload ist das UI wieder gesperrt, damit eine vergessene Edit-Session nicht auf der Bühne zur Fehlbedienung wird. Im Edit-Modus ist der ganze Widget-Körper der Griff zum Verschieben, alle acht Ränder skalieren, und jedes Widget trägt ein Namensschild und ein „⋯“-Menü (Einstellungen, Rahmen ein/aus, Entfernen); Widgets unter ihrer Mindestgröße sind rot umrandet („zu klein“). Beenden mit „🔒 Bearbeiten beenden“ in der Edit-Leiste.
 * **Dynamische Widget-Bibliothek (Plugin-Aware):** Das Hinzufügen-Menü zeigt nur die Widgets an, für die die Band auch die passenden Plugins installiert hat.
  * Beispiel: Nutzt die Band keinen digitalen Mixer (Plugin nicht installiert oder deaktiviert), taucht das "IEM / More Me"-Widget in der UI-Bibliothek gar nicht erst auf. Das hält die App für simple Setups extrem schlank und übersichtlich.
  * **Nicht** aus der Bibliothek fliegt ein Widget, dessen Plugin zwar installiert, dessen Hardware aber gerade nicht erreichbar ist — der Unterschied ist genau der aus Abschnitt 7.
