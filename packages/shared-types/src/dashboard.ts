@@ -73,5 +73,9 @@ export const DashboardSchema = z.object({
    * while rehearsal-only ones (Loop-Trainer, Quintenzirkel ...) live in Solo Üben
    * (Marco, 2026-09-27). */
   modes: z.array(DashboardModeSchema).min(1).optional(),
+  /** Whether the status bar (state, song, time, mode, musician, sync) shows above this
+   * dashboard. Unset means shown; `false` hides it - e.g. a pure prompter screen that needs every
+   * row - and brings back the floating menu button instead (Marco, 2026-09-27). */
+  statusBar: z.boolean().optional(),
 })
 export type Dashboard = z.infer<typeof DashboardSchema>

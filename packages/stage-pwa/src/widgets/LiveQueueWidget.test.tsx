@@ -54,6 +54,8 @@ describe('LiveQueueWidget - sort mode and long-press menu (PR F1, stage GUI audi
     fireEvent.click(screen.getByText('⇅ Sortieren'))
     expect(screen.getAllByLabelText('Ziehen zum Sortieren')).toHaveLength(2)
     expect(screen.getAllByTitle('Menü öffnen')[0]).toHaveTextContent('⋮')
+    // 56px Gig-tier target (it was 40px, tablet check after #293).
+    expect(screen.getAllByTitle('Menü öffnen')[0].className).toContain('h-touch w-touch')
     fireEvent.click(screen.getByText('Fertig'))
     expect(screen.queryByLabelText('Ziehen zum Sortieren')).not.toBeInTheDocument()
   })

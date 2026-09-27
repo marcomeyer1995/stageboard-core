@@ -156,6 +156,19 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           })}
         </div>
 
+        {/* Status bar on/off for this dashboard (unset = on). */}
+        <button
+          type="button"
+          aria-pressed={dashboard.statusBar !== false}
+          title={dashboard.statusBar === false ? 'Statusleiste auf diesem Dashboard anzeigen' : 'Statusleiste auf diesem Dashboard ausblenden'}
+          onClick={() => void save({ ...dashboard, statusBar: dashboard.statusBar === false })}
+          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide ${
+            dashboard.statusBar !== false ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
+          }`}
+        >
+          Statusleiste
+        </button>
+
         <button
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}

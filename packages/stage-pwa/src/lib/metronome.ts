@@ -390,7 +390,11 @@ export function beatAt(
   const msPerBeat = (60000 / grid.bpm) * grid.correctionRatio
   const effectiveMs = elapsedMs - grid.originMs
   const beatIndex = Math.floor(effectiveMs / msPerBeat)
-  const beatInBar = (grid.originBeatInBar + beatIndex) % beatsPerBar(grid.timeSignature)
+  // Positive modulo: before the grid origin (a count-in on a song without beat anchors runs on
+  // the negative part of the clock) beatIndex is negative, and `%` would keep the sign - beat
+  // "-2" instead of 2 (found building the status bar's count-in, 2026-09-27).
+  const perBar = beatsPerBar(grid.timeSignature)
+  const beatInBar = (((grid.originBeatInBar + beatIndex) % perBar) + perBar) % perBar
   const first = firstAnchorMs(anchors)
   return {
     beatInBar,

@@ -54,3 +54,23 @@ describe('DashboardManager - availability per session mode', () => {
     expect(chips('Bühne').solo).not.toBeDisabled()
   })
 })
+
+describe('DashboardManager - status bar per dashboard (PR F2)', () => {
+  function statusBarChip(name: string) {
+    const row = screen.getByDisplayValue(name).closest('div.flex-wrap') as HTMLElement
+    return [...row.querySelectorAll('button')].find((b) => b.textContent === 'Statusleiste')!
+  }
+
+  it('shows the bar by default and saves statusBar: false when switched off, true when back on', () => {
+    useDashboardsStore.setState({ dashboards: [dashboard('Bühne'), dashboard('Prompter', { order: 1, statusBar: false })] })
+    render(<DashboardManager onClose={vi.fn()} />)
+
+    expect(statusBarChip('Bühne')).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(statusBarChip('Bühne'))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Bühne', statusBar: false }))
+
+    expect(statusBarChip('Prompter')).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(statusBarChip('Prompter'))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Prompter', statusBar: true }))
+  })
+})

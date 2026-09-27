@@ -37,6 +37,9 @@ interface OverflowMenuProps {
   /** No visible trigger - the menu opens only through `open` (the Live-Queue's long press on a
    * row outside sort mode). */
   hideTrigger?: boolean
+  /** 'touch' = the 56px Gig-tier target (the Live-Queue's row trigger in sort mode); the default
+   * 40px suits the off-stage lists. */
+  triggerSize?: 'default' | 'touch'
 }
 
 /**
@@ -55,7 +58,9 @@ export function OverflowMenu({
   onOpenChange,
   glyph = '⋯',
   hideTrigger = false,
+  triggerSize = 'default',
 }: OverflowMenuProps) {
+  const size = triggerSize === 'touch' ? 'h-touch w-touch' : 'h-10 w-10'
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
@@ -71,8 +76,8 @@ export function OverflowMenu({
           title="Menü öffnen"
           className={
             variant === 'flat'
-              ? 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink'
-              : 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover'
+              ? `flex ${size} flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink`
+              : `flex ${size} flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover`
           }
         >
           {glyph}

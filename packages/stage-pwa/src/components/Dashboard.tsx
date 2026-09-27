@@ -277,7 +277,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="flex h-dvh flex-col sb-app-bg">
+    <div className="flex h-full flex-col sb-app-bg">
       {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
       {isEditing && current && current.squeezed > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">

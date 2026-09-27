@@ -130,6 +130,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
           title={queueItemTitle(item)}
           variant="flat"
           glyph="⋮"
+          triggerSize="touch"
           hideTrigger={!sorting}
           open={menuOpen}
           onOpenChange={setMenuOpen}

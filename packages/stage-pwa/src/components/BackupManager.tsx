@@ -71,7 +71,7 @@ export function BackupManager() {
   }
 
   return (
-    <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Backup</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Automatische Backups laufen über ein installiertes Backup-Plugin, nicht über

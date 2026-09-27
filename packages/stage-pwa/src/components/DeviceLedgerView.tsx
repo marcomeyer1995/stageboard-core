@@ -78,7 +78,7 @@ export function DeviceLedgerView() {
   const sorted = [...devices].sort((a, b) => b.lastSeenAt - a.lastSeenAt)
 
   return (
-    <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Geräte</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Jedes Gerät, das dieser Band jemals beigetreten ist. „App offen“ und „Netzwerk erreichbar“
