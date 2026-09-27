@@ -90,7 +90,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
   return (
     <div className="flex flex-col gap-1 text-sm text-ink-muted">
       Tracks
-      {/* Capped height, not open-ended - same reasoning as BeatAnchorListEditor.tsx, applied
+      {/* Capped height, not open-ended - same reasoning as CueListEditor.tsx, applied
           consistently even though this list is usually short (Marco: every dynamically-sized
           list should get this, not just the ones that obviously need it today). */}
       <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">

@@ -1,11 +1,10 @@
-import { computeSpectralFlux, detectBeatAnchors, detectFirstOnset, detectOnsets, detectTempo } from './audioAnalysis'
-import type { DetectedOnset, TempoMapResult } from './audioAnalysis'
+import { computeSpectralFlux, detectBeats, detectFirstOnset, detectOnsets, detectTempo } from './audioAnalysis'
+import type { DetectedOnset } from './audioAnalysis'
 import type { MusicTempoWorkerRequest, MusicTempoWorkerResponse } from './musicTempoWorker'
-import type { TempoMapWorkerRequest, TempoMapWorkerResponse } from './tempoMapWorker'
 
 export interface TrackAnalysisResult {
   bpm: number | null
-  beatAnchors: { timeMs: number; beatInBar: number }[]
+  beats: { timeMs: number; beatInBar: number }[]
   tempoConfidence: number
 }
 
@@ -60,7 +59,7 @@ function runMusicTempoInWorker(mono: Float32Array, sampleRate: number, timeSigna
  * only the scheduling surface) - needs live verification against real tracks instead.
  *
  * One spectral-flux envelope serves every step below (found live, 2026-09-10: an earlier
- * RMS-loudness-based approach needed a low-pass-filtered *second* envelope just to keep anchor
+ * RMS-loudness-based approach needed a low-pass-filtered *second* envelope just to keep beat
  * placement from being fooled by hi-hats/vocals/strums, at the cost of nearly breaking tempo
  * detection the same way - isolating just the bassline exposed its own sparser sub-pattern
  * instead of the true beat, 75.5 vs. the correct ~114 BPM. Spectral flux - comparing *which
@@ -69,11 +68,9 @@ function runMusicTempoInWorker(mono: Float32Array, sampleRate: number, timeSigna
  * same full-spectrum signal now serves tempo detection AND precise per-beat placement, with no
  * separate filtered copy needed at all).
  *
- * `bpm: null` (with an empty `beatAnchors`) means the track was too quiet/silent throughout to
- * find even a first onset - nothing to suggest at all, SheetEditor leaves the existing bpm/
- * anchors untouched. A detected first onset but no confident tempo still returns that one anchor
- * alone (the lead-in point is still useful even without a bpm suggestion) - `bpm: null` in that
- * case too, so the caller knows not to overwrite the authored bpm.
+ * `bpm: null` means no usable tempo: the track was too quiet throughout to find even a first
+ * onset (empty `beats`), or only that first onset was found - the song editor then leaves the
+ * grid and bpm as they are.
  */
 export async function analyzeTrackBlob(
   blob: Blob,
@@ -95,65 +92,24 @@ export async function analyzeTrackBlob(
     const envelope = computeSpectralFlux(mono, audioBuffer.sampleRate)
 
     const firstOnset = detectFirstOnset(envelope)
-    if (firstOnset === null) return { bpm: null, beatAnchors: [], tempoConfidence: 0 }
+    if (firstOnset === null) return { bpm: null, beats: [], tempoConfidence: 0 }
 
     const tempo = detectTempo(envelope.flux, envelope.hopMs)
     if (tempo === null) {
       return {
         bpm: null,
-        beatAnchors: [{ timeMs: Math.round(firstOnset.onsetMs), beatInBar: 0 }],
+        beats: [{ timeMs: Math.round(firstOnset.onsetMs), beatInBar: 0 }],
         tempoConfidence: 0,
       }
     }
 
     const bpm = Math.round(tempo.bpm * 10) / 10 // 1 decimal - matches VisualMetronomeWidget's display precision
-    const beatAnchors = detectBeatAnchors(envelope.flux, envelope.hopMs, bpm, timeSignature, firstOnset.onsetMs)
+    const beats = detectBeats(envelope.flux, envelope.hopMs, bpm, timeSignature, firstOnset.onsetMs)
     return {
       bpm,
-      beatAnchors: beatAnchors.map((a) => ({ timeMs: Math.round(a.timeMs), beatInBar: a.beatInBar })),
+      beats: beats.map((a) => ({ timeMs: Math.round(a.timeMs), beatInBar: a.beatInBar })),
       tempoConfidence: tempo.confidence,
     }
-  } finally {
-    void ctx.close()
-  }
-}
-
-/** Runs detectTempoMap in its own Web Worker - same "never block the main thread with a
- * real-song-length analysis" reasoning as runMusicTempoInWorker above, applied to a
- * computation that doesn't need an external library but still isn't cheap for a full track. */
-function runTempoMapInWorker(mono: Float32Array, sampleRate: number): Promise<TempoMapResult | null> {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./tempoMapWorker.ts', import.meta.url), { type: 'module' })
-    worker.onmessage = (event: MessageEvent<TempoMapWorkerResponse>) => {
-      worker.terminate()
-      if (event.data.ok) resolve(event.data.result)
-      else reject(new Error(event.data.error))
-    }
-    worker.onerror = (event) => {
-      worker.terminate()
-      reject(new Error(event.message))
-    }
-    const request: TempoMapWorkerRequest = { mono, sampleRate }
-    worker.postMessage(request, [mono.buffer])
-  })
-}
-
-/**
- * SheetEditor.tsx's "Tempo-Wechsel erkennen" button (#141 follow-up) - suggests a whole
- * tempo-map (a base bpm plus every later place the tempo genuinely settles onto something
- * different) instead of analyzeTrackBlob's single global bpm. See detectTempoMap's own doc
- * comment for why this is only ever a *reviewable suggestion*: it can still return an exact
- * octave-doubled/halved tempo on metrically-ambiguous material (verified live against a real
- * commercial ballad), so SheetEditor must let the musician check and correct every suggested
- * marker before saving, never apply this silently.
- */
-export async function analyzeTempoMapBlob(blob: Blob): Promise<TempoMapResult | null> {
-  const arrayBuffer = await blob.arrayBuffer()
-  const ctx = new AudioContext()
-  try {
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
-    const mono = mixToMono(audioBuffer)
-    return await runTempoMapInWorker(mono, audioBuffer.sampleRate)
   } finally {
     void ctx.close()
   }

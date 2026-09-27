@@ -22,8 +22,6 @@ function variantWith(songId: string, durationMs: number | undefined): SongVarian
     timecodes: [],
     tracks: [{ id: 't', kind: 'band-mix', label: 'Mix', source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0, durationMs }],
     cues: [],
-    beatAnchors: [],
-    tempoMarkers: [],
     countInEnabled: false,
     countInBars: 1,
   } as SongVariant
@@ -166,7 +164,7 @@ describe('computeFestivalClock - count-in', () => {
     const item = songItem(id, 4 * MIN, over as never)
     return {
       ...item,
-      variant: { ...item.variant!, countInEnabled: true, countInBars: 2, beatAnchors: [{ id: 'a1', timeMs: 350, beatInBar: 0 }] } as SongVariant,
+      variant: { ...item.variant!, countInEnabled: true, countInBars: 2, beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 350 }], meters: [] } } as SongVariant,
     }
   }
   const countInMs = 4000 - 350

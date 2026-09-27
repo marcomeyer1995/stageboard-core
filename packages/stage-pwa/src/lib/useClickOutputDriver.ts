@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
 import { getLoopPlaybackState } from './loopTrainerEngine'
@@ -6,7 +6,7 @@ import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowMode } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
-import { playbackAnchors } from './tempoMap'
+import { clickTimeline } from './beatGrid'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -83,30 +83,20 @@ export function useClickOutputDriver(): void {
 
   // Kept fresh every render (elapsedMs ticks every animation frame while playing) rather than
   // closed over once - clickEngine.ts's scheduler polls this on every tick.
-  const stateRef = useRef<ClickEngineState>({
-    elapsedMs,
-    bpm: 120,
-    timeSignature: '4/4',
-    beatAnchors: [],
-    countInBars: 0,
-    tempoMarkers: [],
-  })
+  const bpm = song ? adjustedBpm(song.bpm, liveTempoAdjustPercent) : 120
+  const timeSignature = song?.timeSignature ?? '4/4'
+  // countInEnabled gates countInBars - unchecked means no count-in regardless of the authored bar
+  // count, same "checkbox is the real toggle" contract SheetEditor.tsx exposes.
+  const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
+  const beatGrid = queue.currentVariant?.beatGrid
+  // The live tempo nudge (#140) only changes a grid without fixed tempo (a single point, or none)
+  // - on a grid aligned at several bars the track dictates the tempo.
+  const timeline = useMemo(() => clickTimeline({ beatGrid, bpm, timeSignature, countInBars }), [beatGrid, bpm, timeSignature, countInBars])
+  const stateRef = useRef<ClickEngineState>({ elapsedMs, timeline })
   useEffect(() => {
     stateRef.current = {
       elapsedMs,
-      bpm: song ? adjustedBpm(song.bpm, liveTempoAdjustPercent) : 120,
-      timeSignature: song?.timeSignature ?? '4/4',
-      // beatAnchors (#25 follow-up) only exists on SongVariant, not the bare Song fallback -
-      // same "no variant means no anchors" shape as `cues`. Not scaled/affected by the live
-      // tempo nudge above - a nudge is a virtual grid-spacing correction, unrelated to where
-      // real downbeats sit in the anchors' fixed timestamps.
-      beatAnchors: playbackAnchors(queue.currentVariant),
-      // countInEnabled gates countInBars - unchecked means no count-in regardless of the
-      // authored bar count, same "checkbox is the real toggle" contract SheetEditor.tsx exposes.
-      countInBars: queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0,
-      // tempoMarkers (#141) - same "no variant means none" shape as beatAnchors above; also not
-      // affected by the live tempo nudge (a marker's own bpm is used as authored).
-      tempoMarkers: queue.currentVariant?.tempoMarkers ?? [],
+      timeline,
       // Rehearsal Looper (#61): the click follows the trainer's current pass speed and stays inside
       // the looped section. Read at render time - elapsedMs re-renders this every animation frame.
       ...loopClickState(loopActive),

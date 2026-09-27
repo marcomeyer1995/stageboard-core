@@ -4,7 +4,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MetronomeConfig } from './metronomeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
-import { playbackAnchors } from '../lib/tempoMap'
+import { clickTimeline } from '../lib/beatGrid'
 
 /** How long each beat's flash stays visible, in ms - short enough to read as a pulse rather
  * than a slow color swap, comfortably visible even at fast tempos (at 200 BPM a beat is only
@@ -67,25 +67,16 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
 
   const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
 
-  // beatAnchors (#25 follow-up) and tempoMarkers (#141) only live on SongVariant, not the bare
-  // Song fallback `song` itself might be - same "no variant means none" shape
-  // useClickOutputDriver.ts uses.
+  // The grid only lives on SongVariant, not the bare Song fallback `song` might be - same "no
+  // variant means none" shape useClickOutputDriver.ts uses.
   const beat =
     playbackStatus === 'playing' && elapsedMs !== null
-      ? beatAt(
-          elapsedMs,
-          bpm,
-          song.timeSignature,
-          playbackAnchors(queue.currentVariant),
-          countInBars,
-          queue.currentVariant?.tempoMarkers ?? [],
-        )
+      ? beatAt(elapsedMs, clickTimeline({ beatGrid: queue.currentVariant?.beatGrid, bpm, timeSignature: song.timeSignature, countInBars }))
       : null
 
-  // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm`
-  // (metronome.ts, #25 follow-up) already bakes in whatever anchor-segment correction is active;
-  // with no active beat (not playing yet, or still before the count-in window) there's no grid
-  // to correct against, so this just falls back to the plain (live-nudged) bpm. Always shown to
+  // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm` is the
+  // spacing of the grid stretch playing; with no active beat (not playing yet, or before the
+  // count-in) this falls back to the plain (live-nudged) bpm. Always shown to
   // one decimal - a rounded integer hid the whole point of the correction (Marco, 2026-09-10).
   const displayBpm = beat === null ? bpm : beat.effectiveBpm
   const bpmLabel =
@@ -96,7 +87,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   if (beat === null) {
     return (
       <div className="flex h-full flex-col items-center gap-1 rounded-sb bg-surface text-ink-soft">
-        {/* Not playing at all, vs. playing but still before the first beat anchor (a count-in) -
+        {/* Not playing at all, vs. playing but still before bar 1 (a count-in) -
             both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
           <span className={STATUS_TEXT}>{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>

@@ -1,12 +1,14 @@
-import type { BeatAnchor } from 'shared-types'
-import { beatsPerBar, type BeatAnchorLike } from './metronome'
-import { randomId } from './id'
-
 /**
  * Pure logic behind the timeline editor (docs/14): the view (which stretch of the song is on
- * screen, how zoomed), snapping, hit-testing and the grid edits that turn "drag this bar line" or
- * "this is beat 1" into fixed (pinned) anchors for lib/tempoMap.ts. No DOM here, so it is testable.
+ * screen, how zoomed), the quality colour per bar and formatting. The grid itself lives in
+ * beatGrid.ts. No DOM here, so it is testable.
  */
+
+/** A beat of the grid as the quality check needs it. */
+export interface TimelineBeat {
+  timeMs: number
+  beatInBar: number
+}
 
 export interface TimelineView {
   /** Song time at the left edge, ms (may be negative: the count-in). */
@@ -37,45 +39,6 @@ export function clampView(view: TimelineView, widthPx: number, minMs: number, ma
   return { ...view, startMs: Math.min(hi, Math.max(lo, view.startMs)) }
 }
 
-export type SnapMode = 'bar' | 'beat' | 'off'
-
-/** The nearest grid line to `ms` - a downbeat in 'bar' mode, any beat in 'beat' mode. */
-export function snapTime(ms: number, beats: readonly BeatAnchorLike[], mode: SnapMode): number {
-  if (mode === 'off' || beats.length === 0) return ms
-  let best = ms
-  let bestDistance = Infinity
-  for (const beat of beats) {
-    if (mode === 'bar' && (beat.beatInBar ?? 0) !== 0) continue
-    const distance = Math.abs(beat.timeMs - ms)
-    if (distance < bestDistance) {
-      best = beat.timeMs
-      bestDistance = distance
-    }
-  }
-  return best
-}
-
-/** Index of the grid beat nearest to screen position `x` within `tolerancePx`, or -1. With
- * `barsOnly`, only downbeats are candidates (zoomed out, single beats are too close to hit). */
-export function hitBeat(x: number, beats: readonly BeatAnchorLike[], view: TimelineView, tolerancePx: number, barsOnly: boolean): number {
-  let best = -1
-  let bestDistance = tolerancePx
-  beats.forEach((beat, i) => {
-    if (barsOnly && (beat.beatInBar ?? 0) !== 0) return
-    const distance = Math.abs(timeToX(beat.timeMs, view) - x)
-    if (distance <= bestDistance) {
-      best = i
-      bestDistance = distance
-    }
-  })
-  return best
-}
-
-/** Whether single beats are far enough apart on screen to be told apart and grabbed. */
-export function beatsAreGrabbable(periodMs: number, view: TimelineView): boolean {
-  return periodMs / view.msPerPx >= 24
-}
-
 export type BarQualityLevel = 'good' | 'ok' | 'poor' | 'quiet'
 
 export interface BarQuality {
@@ -88,7 +51,7 @@ export interface BarQuality {
 
 /** How well each bar's beats sit on the track's onsets - the timeline's quality colour. A bar
  * without any onset near it at all (a quiet passage, a fermata) is 'quiet', not 'poor'. */
-export function barQuality(beats: readonly BeatAnchorLike[], onsetsMs: readonly number[], windowMs = 50): BarQuality[] {
+export function barQuality(beats: readonly TimelineBeat[], onsetsMs: readonly number[], windowMs = 50): BarQuality[] {
   const sorted = [...onsetsMs].sort((a, b) => a - b)
   const nearest = (t: number) => {
     let lo = 0, hi = sorted.length
@@ -113,90 +76,11 @@ export function barQuality(beats: readonly BeatAnchorLike[], onsetsMs: readonly 
     current = []
   }
   beats.forEach((beat, i) => {
-    if ((beat.beatInBar ?? 0) === 0 && current.length) flush(beat.timeMs)
+    if (beat.beatInBar === 0 && current.length) flush(beat.timeMs)
     current.push(beat.timeMs)
     if (i === beats.length - 1) flush(beat.timeMs + (beats.length > 1 ? beat.timeMs - beats[i - 1]!.timeMs : 0))
   })
   return bars
-}
-
-/** Local beat length around `ms` from the grid, ms. */
-export function periodAt(ms: number, beats: readonly BeatAnchorLike[]): number {
-  if (beats.length < 2) return 500
-  let i = beats.findIndex((b) => b.timeMs > ms)
-  if (i <= 0) i = i === 0 ? 1 : beats.length - 1
-  return beats[i]!.timeMs - beats[i - 1]!.timeMs
-}
-
-/**
- * Moves the grid beat at `fromMs` to `toMs`: a fixed anchor there, replacing any anchor (fixed or
- * not) within half a beat of either position - they described the same beat. A move before the
- * song start is refused (anchors unchanged): clamped to 0:00 it left a fixed anchor there that
- * no one meant to set, which then pulled the grid's first beat onto 0:00 ("Whats up", 2026-09-27).
- */
-export function pinBeat(anchors: readonly BeatAnchor[], fromMs: number, toMs: number, beatInBar: number, periodMs: number): BeatAnchor[] {
-  if (toMs < 0) return [...anchors]
-  const half = periodMs / 2
-  const kept = anchors.filter((a) => Math.abs(a.timeMs - fromMs) >= half && Math.abs(a.timeMs - toMs) >= half)
-  const pinned: BeatAnchor = { id: randomId(), timeMs: Math.round(toMs), beatInBar, pinned: true }
-  return [...kept, pinned].sort((a, b) => a.timeMs - b.timeMs)
-}
-
-/**
- * "This is beat 1": a fixed anchor with beat-in-bar 0 on the chosen grid beat, and every other
- * fixed anchor renumbered to agree (by its position in the current grid) - otherwise an older
- * fixed anchor would keep voting for the old downbeat.
- */
-export function setDownbeat(
-  anchors: readonly BeatAnchor[],
-  grid: readonly BeatAnchorLike[],
-  beatIndex: number,
-  timeSignature: string,
-): BeatAnchor[] {
-  const perBar = beatsPerBar(timeSignature)
-  const target = grid[beatIndex]
-  if (!target) return [...anchors]
-  const period = periodAt(target.timeMs, grid)
-  const nearestIndex = (ms: number) => {
-    let best = 0
-    grid.forEach((b, i) => {
-      if (Math.abs(b.timeMs - ms) < Math.abs(grid[best]!.timeMs - ms)) best = i
-    })
-    return best
-  }
-  const renumbered = anchors.map((a) =>
-    a.pinned ? { ...a, beatInBar: (((nearestIndex(a.timeMs) - beatIndex) % perBar) + perBar) % perBar } : a,
-  )
-  return pinBeat(renumbered, target.timeMs, target.timeMs, 0, period)
-}
-
-/** Moves one anchor by `deltaMs` and fixes it - refused before the song start, like `pinBeat`. */
-export function nudgeAnchor(anchors: readonly BeatAnchor[], id: string, deltaMs: number): BeatAnchor[] {
-  const target = anchors.find((a) => a.id === id)
-  if (!target || target.timeMs + deltaMs < 0) return [...anchors]
-  return anchors
-    .map((a) => (a.id === id ? { ...a, timeMs: Math.round(a.timeMs + deltaMs), pinned: true } : a))
-    .sort((a, b) => a.timeMs - b.timeMs)
-}
-
-export function removeAnchor(anchors: readonly BeatAnchor[], id: string): BeatAnchor[] {
-  return anchors.filter((a) => a.id !== id)
-}
-
-/**
- * Tempo for a new section starting at `fromMs`: the median beat spacing of the next `beats` grid
- * beats - not the single gap after it, which at a song start can be the silence before the first
- * hit (that gave a 23.8 BPM section on a 135 BPM song). `fallbackBpm` with too few beats.
- */
-export function sectionBpmAt(fromMs: number, grid: readonly BeatAnchorLike[], fallbackBpm: number, beats = 16): number {
-  const start = grid.findIndex((b) => b.timeMs >= fromMs - 1)
-  if (start < 0) return fallbackBpm
-  const times = grid.slice(start, start + beats + 1).map((b) => b.timeMs)
-  const gaps = times.slice(1).map((t, i) => t - times[i]!).filter((g) => g > 0).sort((a, b) => a - b)
-  if (gaps.length < 2) return fallbackBpm
-  const mid = Math.floor(gaps.length / 2)
-  const median = gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2
-  return Math.round((60000 / median) * 10) / 10
 }
 
 /**

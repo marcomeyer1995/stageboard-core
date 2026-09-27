@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { clickTimeline } from './beatGrid'
 import { beatAt } from './metronome'
 import { countInPosition, finishedAfterRun, formatSongTime, statusBarState, type StatusBarInput } from './statusBar'
 
@@ -86,14 +87,14 @@ describe('countInPosition', () => {
 describe('countInPosition with a corrected tempo (real beatAt)', () => {
   it('changes bar exactly on beat 1 when the beats run faster than the authored tempo', () => {
     // Measured on the tablet: "Wie ein schützender Engel", 3 count-in bars at an authored
-    // 114.3 BPM (525 ms), but the first anchors 480 ms apart - the count-in runs at 480 ms per
+    // 114.3 BPM (525 ms), but the grid's first stretch at 480 ms - the count-in runs at 480 ms per
     // beat. With the inverted effectiveBpm, "Takt 2" started on beat 3 and "Takt 3" on beat 4.
-    const anchors = [{ timeMs: 460, beatInBar: 0 }, { timeMs: 940 }]
+    const timeline = clickTimeline({ beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 460 }, { id: 'p2', bar: 2, timeMs: 460 + 4 * 480 }], meters: [] }, bpm: 114.3, timeSignature: '4/4', countInBars: 3 })
     const origin = 460 - 12 * 480
     const seen: string[] = []
     for (let i = 0; i < 12; i++) {
       const t = origin + i * 480 + 60
-      const beat = beatAt(t, 114.3, '4/4', anchors, 3)!
+      const beat = beatAt(t, timeline)!
       const p = countInPosition(t, beat.msIntoBeat, beat.effectiveBpm, 460, 3, beat.beatInBar, 4)
       seen.push(`${p.bar}.${p.beat}`)
     }

@@ -1,0 +1,167 @@
+import { describe, expect, it } from 'vitest'
+import type { BeatGrid } from 'shared-types'
+import { beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from './beatGrid'
+
+const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
+const times = (g: BeatGrid, from: number, to: number, bpm = 120, ts = '4/4') => beatsBetween(clickTimeline({ beatGrid: g, bpm, timeSignature: ts }), from, to).map((b) => Math.round(b.timeMs))
+
+describe('clickTimeline', () => {
+  it('with one point runs evenly at the variant tempo from bar 1', () => {
+    const t = clickTimeline({ beatGrid: grid([1, 2000]), bpm: 120, timeSignature: '4/4' })
+    expect(beatsBetween(t, 0, 4000)).toEqual([
+      { beat: 0, timeMs: 2000, bar: 1, beatInBar: 0 },
+      { beat: 1, timeMs: 2500, bar: 1, beatInBar: 1 },
+      { beat: 2, timeMs: 3000, bar: 1, beatInBar: 2 },
+      { beat: 3, timeMs: 3500, bar: 1, beatInBar: 3 },
+      { beat: 4, timeMs: 4000, bar: 2, beatInBar: 0 },
+    ])
+    expect(t.rigid).toBe(false)
+  })
+
+  it('without a grid starts bar 1 at 0:00', () => {
+    expect(clickTimeline({ bpm: 120, timeSignature: '4/4' }).bar1Ms).toBe(0)
+  })
+
+  it('splits the bars between two points evenly and carries that tempo on after the last one', () => {
+    // Bar 1 at 1 s, bar 9 at 16.8 s: 32 beats in 15.8 s.
+    const t = clickTimeline({ beatGrid: grid([1, 1000], [9, 16800]), bpm: 120, timeSignature: '4/4' })
+    const period = 15800 / 32
+    expect(t.timeOfBeat(32)).toBe(16800)
+    expect(t.timeOfBeat(16)).toBeCloseTo(1000 + 16 * period)
+    expect(t.timeOfBeat(36)).toBeCloseTo(16800 + 4 * period)
+    expect(t.rigid).toBe(true)
+  })
+
+  it('extrapolates the first stretch before the first point and counts the count-in back from bar 1', () => {
+    const t = clickTimeline({ beatGrid: grid([3, 5000], [5, 9000]), bpm: 120, timeSignature: '4/4', countInBars: 1 })
+    expect(t.bar1Ms).toBe(1000)
+    expect(t.firstBeat).toBe(-4)
+    expect(t.timeOfBeat(-4)).toBe(-1000)
+    expect([-4, -3, -1].map((b) => t.beatInBar(b))).toEqual([0, 1, 3])
+    expect(t.barOf(-1)).toBe(0)
+  })
+
+  it('finds the beat at or before a time exactly on and between beats', () => {
+    const t = clickTimeline({ beatGrid: grid([1, 1000], [2, 3100]), bpm: 120, timeSignature: '4/4' })
+    expect(t.beatAtOrBefore(3100)).toBe(4)
+    expect(t.beatAtOrBefore(3099)).toBe(3)
+    expect(t.beatAtOrBefore(999)).toBe(-1)
+  })
+
+  it('counts a 2/4 bar with two beats and keeps later bars on their points', () => {
+    const g = setMeter(setMeter(grid([1, 0], [6, 9000]), 3, '2/4'), 4, '4/4')
+    const t = clickTimeline({ beatGrid: g, bpm: 120, timeSignature: '4/4' })
+    expect(t.barStartBeat(4)).toBe(10)
+    expect(t.barStartBeat(6)).toBe(18)
+    expect([8, 9, 10].map((b) => t.beatInBar(b))).toEqual([0, 1, 0])
+    expect(t.timeOfBeat(18)).toBe(9000)
+    expect(t.timeSignatureAt(8)).toBe('2/4')
+  })
+
+  it('keeps a meter change after the last point', () => {
+    const t = clickTimeline({ beatGrid: setMeter(grid([1, 0], [3, 4000]), 5, '3/4'), bpm: 120, timeSignature: '4/4' })
+    // Bar 5 at 8 s in 3/4: downbeats every 1.5 s from there.
+    const downbeats = beatsBetween(t, 7900, 13000).filter((b) => b.beatInBar === 0).map((b) => b.timeMs)
+    expect(downbeats).toEqual([8000, 9500, 11000, 12500])
+  })
+})
+
+describe('gridStretches', () => {
+  it('gives the tempo of each stretch', () => {
+    const stretches = gridStretches(grid([1, 0], [5, 9600], [9, 14400]), 100, '4/4')
+    expect(stretches.map((s) => Math.round(s.bpm))).toEqual([100, 200])
+  })
+
+  it('with one point is the variant tempo', () => {
+    expect(gridStretches(grid([1, 500]), 133, '4/4')).toEqual([{ fromBar: 1, toBar: null, fromMs: 500, toMs: null, bpm: 133 }])
+  })
+})
+
+describe('editing points', () => {
+  it('moving a point only moves the bars between its neighbours', () => {
+    const g = grid([1, 1000], [5, 9000], [9, 17000])
+    const before = times(g, 0, 20000)
+    const after = times(setPoint(g, 5, 9200, '4/4')!, 0, 20000)
+    expect(after[0]).toBe(before[0])
+    expect(after[16]).toBe(9200)
+    expect(after[32]).toBe(before[32]) // bar 9 stays
+    expect(after[8]).not.toBe(before[8]) // bar 3, in between, stretched
+  })
+
+  it('refuses a move past a neighbouring point, before 0:00 or to an absurd tempo', () => {
+    const g = grid([1, 1000], [5, 9000], [9, 17000])
+    expect(setPoint(g, 5, 17500, '4/4')).toBeNull()
+    expect(setPoint(g, 1, -100, '4/4')).toBeNull()
+    expect(setPoint(g, 3, 1100, '4/4')).toBeNull() // 8 beats in 0.1 s
+    expect(setPoint(g, 3, 5050, '4/4')?.points.map((p) => p.bar)).toEqual([1, 3, 5, 9])
+  })
+
+  it('with a single point, moving it shifts the whole ruler', () => {
+    expect(times(setPoint(newGrid(1000), 1, 1300, '4/4')!, 0, 1800)).toEqual([1300, 1800])
+  })
+
+  it('never removes the last point', () => {
+    const g = grid([1, 1000])
+    expect(removePoint(g, 'p0')).toBe(g)
+    expect(removePoint(grid([1, 1000], [9, 17000]), 'p1').points).toHaveLength(1)
+  })
+})
+
+describe('tempoFromTaps', () => {
+  it('takes the slope through the taps - scatter and a constant latency do not matter', () => {
+    const taps = Array.from({ length: 16 }, (_, i) => 260 + 5000 + i * 444.4 + (i % 3 === 0 ? 25 : -15))
+    expect(tempoFromTaps(taps)).toBeCloseTo(135, 0)
+  })
+
+  it('counts a missed tap as a two-beat gap', () => {
+    expect(tempoFromTaps([0, 500, 1000, 2000, 2500, 3000, 3500])).toBe(120)
+  })
+
+  it('needs at least four taps', () => {
+    expect(tempoFromTaps([0, 500, 1000])).toBeNull()
+  })
+})
+
+describe('gridFromBeats ("Track analysieren")', () => {
+  const detected = (periods: number[], startMs = 1000, firstBeatInBar = 0) => {
+    const out = [{ timeMs: startMs, beatInBar: firstBeatInBar }]
+    periods.forEach((p, i) => out.push({ timeMs: out[i]!.timeMs + p, beatInBar: (firstBeatInBar + i + 1) % 4 }))
+    return out
+  }
+
+  it('turns a steady track into two points', () => {
+    const g = gridFromBeats(detected(Array(64).fill(444.4)), 135, '4/4')!
+    expect(g.points.map((p) => p.bar)).toEqual([1, 17])
+    expect(g.points[0]!.timeMs).toBe(1000)
+  })
+
+  it('starts bar 1 on the first detected downbeat', () => {
+    const g = gridFromBeats(detected(Array(40).fill(500), 1000, 2), 120, '4/4')!
+    expect(g.points[0]!.timeMs).toBe(2000) // beats 3 and 4 before it are left to the count-in
+  })
+
+  it('adds points only where the grid would drift more than 30 ms from the detected downbeats', () => {
+    // 32 beats at 450 ms, then 32 at 430 ms: a straight line from first to last misses the middle.
+    const g = gridFromBeats(detected([...Array(32).fill(450), ...Array(32).fill(430)]), 136, '4/4')!
+    expect(g.points.map((p) => p.bar)).toEqual([1, 9, 17])
+    const t = clickTimeline({ beatGrid: g, bpm: 135, timeSignature: '4/4' })
+    expect(t.timeOfBeat(32)).toBe(1000 + 32 * 450)
+  })
+
+  it('counts sparse detections (the built-in detector) in beats of the detected tempo', () => {
+    // Beats only at 1, 3.5 and 7 s (beat numbers 0, 5, 12 at 120 BPM) - bars 1, 2.25, 4.
+    const g = gridFromBeats([{ timeMs: 1000, beatInBar: 0 }, { timeMs: 3500, beatInBar: 1 }, { timeMs: 7000, beatInBar: 0 }], 120, '4/4')!
+    expect(g.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 1000], [4, 7000]])
+  })
+
+  it('does not shift the bar count when a beat was missed', () => {
+    const periods = Array(32).fill(500)
+    periods.splice(10, 2, 1000) // beats 11 and 12 merged: one detection missing
+    const g = gridFromBeats(detected(periods), 120, '4/4')!
+    expect(g.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 1000], [9, 1000 + 32 * 500]])
+  })
+
+  it('is null without a downbeat', () => {
+    expect(gridFromBeats([{ timeMs: 100, beatInBar: 1 }], 120, '4/4')).toBeNull()
+  })
+})

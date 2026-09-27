@@ -1,6 +1,7 @@
 import { isTransitionEntry } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
+import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs } from './metronome'
 import {
   ARMED_TRANSPORT,
@@ -15,7 +16,6 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { playbackAnchors } from './tempoMap'
 
 /**
  * Practice mode's counterpart to queue.ts - deliberately never touches the real, synced
@@ -95,10 +95,12 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   const activeSong = currentVariant ?? currentSong
   const seededMs = seedCountIn && activeSong
     ? countInLeadMs(
-        playbackAnchors(currentVariant),
-        activeSong.bpm,
-        activeSong.timeSignature,
-        currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+        clickTimeline({
+          beatGrid: currentVariant?.beatGrid,
+          bpm: activeSong.bpm,
+          timeSignature: activeSong.timeSignature,
+          countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+        }),
       )
     : isFreshStart
       ? 0
@@ -241,11 +243,12 @@ export function practiceExtendClickTrack(bars: number): void {
   const elapsedMs = computeActiveMs(currentTransport(state), Date.now())
   const perBarMs = barMsAt(
     elapsedMs,
-    activeSong.bpm,
-    activeSong.timeSignature,
-    playbackAnchors(currentVariant),
-    currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
-    currentVariant?.tempoMarkers ?? [],
+    clickTimeline({
+      beatGrid: currentVariant?.beatGrid,
+      bpm: activeSong.bpm,
+      timeSignature: activeSong.timeSignature,
+      countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+    }),
   )
   patch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

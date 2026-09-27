@@ -2,6 +2,7 @@ import { isTransitionEntry, type ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
+import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
@@ -10,7 +11,6 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
-import { playbackAnchors } from './tempoMap'
 
 /** Reactive queue for use in components: current/next song, honoring the active setlist's order. */
 export function useQueue(): Queue & { isMaster: boolean } {
@@ -136,10 +136,12 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
       ? {
           ...currentTransport(state),
           accumulatedMs: countInLeadMs(
-            playbackAnchors(currentVariant),
-            activeSong.bpm,
-            activeSong.timeSignature,
-            currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+            clickTimeline({
+              beatGrid: currentVariant?.beatGrid,
+              bpm: activeSong.bpm,
+              timeSignature: activeSong.timeSignature,
+              countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+            }),
           ),
         }
       : currentTransport(state)
@@ -237,11 +239,12 @@ export async function extendClickTrack(bars: number): Promise<void> {
   const elapsedMs = computeActiveMs(currentTransport(state), getServerTime())
   const perBarMs = barMsAt(
     elapsedMs,
-    activeSong.bpm,
-    activeSong.timeSignature,
-    playbackAnchors(currentVariant),
-    currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
-    currentVariant?.tempoMarkers ?? [],
+    clickTimeline({
+      beatGrid: currentVariant?.beatGrid,
+      bpm: activeSong.bpm,
+      timeSignature: activeSong.timeSignature,
+      countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+    }),
   )
   await applyPatch({ clickExtendMs: state.clickExtendMs + bars * perBarMs })
 }

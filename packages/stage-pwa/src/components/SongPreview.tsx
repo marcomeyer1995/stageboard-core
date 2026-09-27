@@ -53,7 +53,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   const contentBadges = [
     { label: 'Cues', count: variant.cues.length },
     { label: 'Audio', count: variant.tracks.length },
-    { label: 'Klick-Anker', count: variant.beatAnchors.length },
+    { label: 'Klick-Punkte', count: variant.beatGrid?.points.length ?? 0 },
   ]
 
   return (

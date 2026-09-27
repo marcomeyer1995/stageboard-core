@@ -28,7 +28,7 @@ function resampleTo44100(mono: Float32Array, sampleRate: number): Float32Array {
 }
 
 /**
- * Automatic BPM + beat-anchor detection via the `music-tempo` npm package (MIT-licensed,
+ * Automatic BPM + beat detection via the `music-tempo` npm package (MIT-licensed,
  * implements the published "Beatroot" algorithm) - the optional `music-tempo-beat-detection`
  * plugin's actual analysis. Always called from musicTempoWorker.ts, never directly from
  * analyzeTrack.ts on the main thread - this is a synchronous, CPU-heavy computation (an
@@ -45,16 +45,13 @@ function resampleTo44100(mono: Float32Array, sampleRate: number): Float32Array {
  * drum-less intros (170-240ms there), a genuinely hard case for any beat tracker, not specific
  * to this library.
  *
- * Unlike audioAnalysis.ts's `detectBeatAnchors` (which only commits sparse *correction* anchors
- * where the nominal-bpm grid actually drifts), this returns a dense, one-per-beat anchor list
- * directly - safe now that every anchor carries its own `beatInBar` (#25 follow-up phase fix),
- * so a dense list still cycles 1-2-3-4 through the bar instead of re-announcing "beat 1" at
- * every anchor, and is strictly more accurate than the sparse-correction compromise.
+ * Unlike audioAnalysis.ts's `detectBeats` (which only reports sparse *corrections* where the
+ * nominal-bpm grid drifts), this returns every beat - beatGrid.ts's `gridFromBeats` turns either
+ * into a click grid with a few alignment points.
  *
- * No way to detect which beat is actually the downbeat from audio alone (see BeatAnchorSchema's
- * own doc comment) - like the hand-rolled detector, this assumes the very first detected beat is
- * beat 1 and stamps every subsequent one by counting forward; the user corrects it via
- * BeatAnchorListEditor's "Beat" selector if that assumption is wrong.
+ * No way to detect which beat is actually the downbeat from audio alone - like the hand-rolled
+ * detector, this assumes the very first detected beat is beat 1 and counts forward; the musician
+ * moves bar 1 in the timeline if that assumption is wrong.
  */
 export async function analyzeWithMusicTempo(
   mono: Float32Array,
@@ -65,12 +62,12 @@ export async function analyzeWithMusicTempo(
   const result = new MusicTempo(resampleTo44100(mono, sampleRate))
   const bpm = Math.round(Number(result.tempo) * 10) / 10 // 1 decimal - matches VisualMetronomeWidget's display precision
   const beatCount = beatsPerBar(timeSignature)
-  const beatAnchors = result.beats.map((seconds, i) => ({
+  const beats = result.beats.map((seconds, i) => ({
     timeMs: Math.round(seconds * 1000),
     beatInBar: i % beatCount,
   }))
   // music-tempo reports no confidence score of its own (unlike audioAnalysis.ts's autocorrelation
   // ratio) - 1 whenever it found any beats at all, matching how a confident result is treated
   // elsewhere (SheetEditor.tsx doesn't currently surface tempoConfidence to the user either way).
-  return { bpm: Number.isFinite(bpm) ? bpm : null, beatAnchors, tempoConfidence: beatAnchors.length > 0 ? 1 : 0 }
+  return { bpm: Number.isFinite(bpm) ? bpm : null, beats, tempoConfidence: beats.length > 0 ? 1 : 0 }
 }

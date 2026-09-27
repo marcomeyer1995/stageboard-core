@@ -43,8 +43,6 @@ const variant: SongVariant = {
   chordProContent: song.chordProContent,
   timecodes: [],
   cues: [],
-  beatAnchors: [],
-  tempoMarkers: [],
   countInEnabled: false,
   countInBars: 1,
   tracks: [],
@@ -68,7 +66,7 @@ const variantWithContent: SongVariant = {
       addedAt: 0,
     },
   ],
-  beatAnchors: [{ id: 'anchor-1', timeMs: 0 }],
+  beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 0 }], meters: [] },
 }
 
 // SongPreview only needs `ensureDefaultVariant` from here - mocked directly so these
@@ -100,7 +98,7 @@ describe('SongPreview', () => {
     expect(screen.getByText(/Take my/)).toBeInTheDocument()
   })
 
-  it('shows Cues/Audio/Klick-Anker as present-but-empty when the variant has none (Marco: "full overview")', async () => {
+  it('shows Cues/Audio/Klick-Punkte as present-but-empty when the variant has none (Marco: "full overview")', async () => {
     resolvedVariant = variant
     useSongsStore.setState({ songs: [song] })
     render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
@@ -109,17 +107,17 @@ describe('SongPreview', () => {
     // overview too, not just what's present.
     expect(await screen.findByText('Cues')).toBeInTheDocument()
     expect(screen.getByText('Audio')).toBeInTheDocument()
-    expect(screen.getByText('Klick-Anker')).toBeInTheDocument()
+    expect(screen.getByText('Klick-Punkte')).toBeInTheDocument()
   })
 
-  it('shows Cues/Audio/Klick-Anker with counts once the variant actually has them', async () => {
+  it('shows Cues/Audio/Klick-Punkte with counts once the variant actually has them', async () => {
     resolvedVariant = variantWithContent
     useSongsStore.setState({ songs: [song] })
     render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
 
     expect(await screen.findByText('Cues (1)')).toBeInTheDocument()
     expect(screen.getByText('Audio (1)')).toBeInTheDocument()
-    expect(screen.getByText('Klick-Anker (1)')).toBeInTheDocument()
+    expect(screen.getByText('Klick-Punkte (1)')).toBeInTheDocument()
   })
 
   it('"Bearbeiten" calls onEdit', async () => {

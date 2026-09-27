@@ -20,7 +20,7 @@ import { useNow } from '../lib/useNow'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
-import { playbackAnchors } from '../lib/tempoMap'
+import { clickTimeline } from '../lib/beatGrid'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
   idle: { icon: '✓', label: 'Synchron' },
@@ -103,20 +103,11 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
 
   const song = currentVariant ?? currentSong
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
-  const beat =
-    playbackStatus === 'playing' && elapsedMs !== null && song
-      ? beatAt(
-          elapsedMs,
-          adjustedBpm(song.bpm, liveTempoAdjustPercent),
-          song.timeSignature,
-          playbackAnchors(currentVariant),
-          countInBars,
-          currentVariant?.tempoMarkers ?? [],
-        )
-      : null
-  // A count-in beat: before the first beat anchor (beatAt's own flag), or - for a song without
-  // anchors - on the negative part of the song clock the count-in bars lead with.
-  const countInBeat = beat !== null && (beat.isCountIn || (elapsedMs ?? 0) < 0) ? beat : null
+  const timeline = song
+    ? clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
+    : null
+  const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
+  const countInBeat = beat !== null && beat.isCountIn ? beat : null
   const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
 
   const state = statusBarState({
@@ -129,10 +120,8 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
     audioError,
   })
   const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
-  // The song's first beat: its first beat anchor, else song time 0 (the count-in leads with
-  // negative time then).
-  const gridAnchors = playbackAnchors(currentVariant)
-  const firstBeatMs = gridAnchors.length ? Math.min(...gridAnchors.map((anchor) => anchor.timeMs)) : 0
+  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
+  const firstBeatMs = timeline?.bar1Ms ?? 0
   const perBar = song ? beatsPerBar(song.timeSignature) : 4
   const position =
     state.kind === 'count-in' && countInBeat && elapsedMs !== null
