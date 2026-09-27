@@ -338,6 +338,26 @@ export function withWidgetAppended(
   }
 }
 
+/**
+ * Whether `size` fits somewhere in `items`' grid at full size - what withWidgetAppended places
+ * without shrinking. False means adding the widget squeezes it into what is left, which the
+ * widget library warns about instead of doing silently (GUI audit 2026-09-26: 22 widgets on one
+ * dashboard ended up 45px tall, with no hint).
+ */
+export function hasRoomFor(items: LayoutItem[], size: { w: number; h: number }): boolean {
+  const normalized = normalizeLayout(items)
+  const w = Math.min(size.w, GRID_COLUMNS)
+  const h = Math.min(size.h, GRID_ROWS)
+  const grid = createOccupancyGrid(GRID_COLUMNS, GRID_ROWS)
+  for (const item of normalized) grid.occupy(item.x, item.y, item.w, item.h)
+  for (let y = 0; y + h <= GRID_ROWS; y++) {
+    for (let x = 0; x + w <= GRID_COLUMNS; x++) {
+      if (grid.isFree(x, y, w, h)) return true
+    }
+  }
+  return false
+}
+
 /** A widget's minimum and default size in grid cells (from the widget registry). */
 export interface MinSize {
   minW?: number
@@ -345,6 +365,16 @@ export interface MinSize {
   /** Default size - what a collapsed widget is re-placed at when there is room. */
   w?: number
   h?: number
+}
+
+/** Items smaller than their widget's current minimum in either direction - outlined in edit
+ * mode, so a widget that cannot show its content is visible while arranging, not only later on
+ * stage. Broader than squeezedItems: a deliberately small widget counts here too. */
+export function belowMinimumItems(items: LayoutItem[], minFor: (instanceId: string) => MinSize | undefined): LayoutItem[] {
+  return items.filter((item) => {
+    const min = minFor(item.i)
+    return !!min && ((min.minW !== undefined && item.w < min.minW) || (min.minH !== undefined && item.h < min.minH))
+  })
 }
 
 /** Items collapsed to at most half their widget's minimum size - what a full grid does to a
@@ -364,7 +394,7 @@ export function squeezedItems(items: LayoutItem[], minFor: (instanceId: string) 
 
 /** Nominal canvas per breakpoint, CSS px - only used to convert a layout between breakpoints by
  * pixel size (a landscape tablet column is ~1.6x wider, its rows ~0.6x as tall as in portrait). */
-const BREAKPOINT_CANVAS: Record<Breakpoint, { w: number; h: number }> = {
+export const BREAKPOINT_CANVAS: Record<Breakpoint, { w: number; h: number }> = {
   sm: { w: 400, h: 760 },
   md: { w: 800, h: 1220 },
   lg: { w: 1280, h: 740 },

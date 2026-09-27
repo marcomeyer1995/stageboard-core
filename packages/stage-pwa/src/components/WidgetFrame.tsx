@@ -18,6 +18,9 @@ interface WidgetFrameProps {
   /** Only rendered in the menu when provided - Dashboard.tsx wires it per instance;
    * WidgetFrame.test.tsx's bare renders simply don't offer the toggle. */
   onToggleFrameless?: () => void
+  /** Edit mode only: the widget is smaller than its minimum size - red outline and a
+   * "zu klein" tag, so it is fixed while arranging, not discovered on stage. */
+  tooSmall?: boolean
 }
 
 /**
@@ -51,6 +54,7 @@ export function WidgetFrame({
   configPanel,
   frameless = false,
   onToggleFrameless,
+  tooSmall = false,
 }: WidgetFrameProps) {
   const isDisabled = status === 'degraded'
   const [menuOpen, setMenuOpen] = useState(false)
@@ -63,7 +67,7 @@ export function WidgetFrame({
     <div
       className={`relative flex h-full w-full flex-col overflow-hidden rounded-sb ${
         hideChrome ? '' : 'border border-line bg-surface shadow-sb'
-      } ${isEditing ? 'widget-drag-handle cursor-move' : ''}`}
+      } ${isEditing ? 'widget-drag-handle cursor-move' : ''} ${isEditing && tooSmall ? 'outline outline-2 -outline-offset-2 outline-red-500' : ''}`}
       onDoubleClick={isEditing ? () => setMenuOpen(true) : undefined}
     >
       <div
@@ -80,6 +84,7 @@ export function WidgetFrame({
         <div className="pointer-events-none absolute inset-x-2 top-5 flex items-center justify-between gap-2">
           <span className="truncate rounded-sb-sm bg-stage/70 px-2 py-0.5 text-xs text-ink-soft">
             {title}
+            {tooSmall && <span className="font-bold text-red-500"> · zu klein</span>}
           </span>
           <button
             type="button"

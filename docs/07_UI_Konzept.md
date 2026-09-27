@@ -27,6 +27,7 @@ Ein Bildschirm reicht nicht: der Prompter, das Monitoring-Cockpit und die Lichts
 * **Gig-Blick** - auf der Bühne, aber nur angeschaut oder zwischen Songs bedient: Text ≥ 16 px, Ziele ≥ 48 px. Show-Notizen, Aktive Setlist, System-Status, Geräte-Status, Backup-Status, Sync-Check.
 * **Probe** - nur Probe, Üben, Vorbereitung: normale Tablet-Ergonomie (Text ≥ 16 px, Ziele ≥ 44 px), Dichte erlaubt. Loop-Trainer, Quintenzirkel, Akkord-Nachschlagen.
 * Die Widget-Bibliothek zeigt die Stufe als Badge und weist bei einem Probe-Widget auf einem auch im Gig verfügbaren Dashboard darauf hin - ohne es zu verbieten.
+* Ein Widget, das kleiner als seine Mindestgröße ist, wird im Edit-Modus rot umrandet ("zu klein"). Findet die Bibliothek auf dem Dashboard keinen Platz in voller Standardgröße, fragt sie nach (neues Dashboard mit diesem Widget / trotzdem hinzufügen) statt das Widget stumm zu stauchen - das Raster bleibt fest eine Bildschirmseite.
 
 Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 

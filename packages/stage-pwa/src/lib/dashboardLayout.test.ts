@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BREAKPOINTS, DashboardSchema, type Dashboard, type Profile } from 'shared-types'
 import {
   availableWidgets,
+  belowMinimumItems,
   breakpointFor,
   canRemoveMode,
   dashboardsForMode,
@@ -10,6 +11,7 @@ import {
   GRID_COLUMNS,
   GRID_ROWS,
   gridHeight,
+  hasRoomFor,
   gridMetrics,
   hasOverlap,
   isDashboardAvailableInMode,
@@ -715,5 +717,39 @@ describe('withWidgetAppended (placement, PR C)', () => {
     }
     const updated = withWidgetAppended(dashboard, 'live-queue', { w: 4, h: 12 }, 'q')
     expect(updated.layouts.lg?.find((item) => item.i === 'q')).toMatchObject({ x: 6, y: 0, w: 4, h: 12 })
+  })
+})
+
+describe('hasRoomFor (widget library no-space warning)', () => {
+  it('finds room below the existing widgets or in a gap', () => {
+    expect(hasRoomFor([], { w: 6, h: 4 })).toBe(true)
+    expect(hasRoomFor([{ i: 'a', x: 0, y: 0, w: 12, h: 20 }], { w: 6, h: 4 })).toBe(true)
+    expect(hasRoomFor([{ i: 'a', x: 0, y: 0, w: 6, h: 24 }], { w: 6, h: 4 })).toBe(true)
+  })
+
+  it('reports no room when the widget only fits shrunk', () => {
+    expect(hasRoomFor([{ i: 'a', x: 0, y: 0, w: 12, h: 21 }], { w: 6, h: 4 })).toBe(false)
+    expect(hasRoomFor([{ i: 'a', x: 0, y: 0, w: 7, h: 24 }], { w: 6, h: 4 })).toBe(false)
+  })
+
+  it('clamps a default wider than the grid to its width', () => {
+    expect(hasRoomFor([], { w: 20, h: 4 })).toBe(true)
+  })
+})
+
+describe('belowMinimumItems (edit-mode outline)', () => {
+  const min = () => ({ minW: 4, minH: 3 })
+
+  it('flags a widget below its minimum in either direction, also a deliberately small one', () => {
+    const items = [
+      { i: 'ok', x: 0, y: 0, w: 4, h: 3 },
+      { i: 'narrow', x: 4, y: 0, w: 3, h: 3 },
+      { i: 'flat', x: 0, y: 3, w: 6, h: 2 },
+    ]
+    expect(belowMinimumItems(items, min).map((item) => item.i)).toEqual(['narrow', 'flat'])
+  })
+
+  it('ignores widgets without a known minimum', () => {
+    expect(belowMinimumItems([{ i: 'x', x: 0, y: 0, w: 1, h: 1 }], () => undefined)).toEqual([])
   })
 })

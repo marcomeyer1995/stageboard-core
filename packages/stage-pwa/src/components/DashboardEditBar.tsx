@@ -1,26 +1,52 @@
 import { useState } from 'react'
-import type { CapabilityId, Dashboard } from 'shared-types'
+import type { Breakpoint, CapabilityId, Dashboard } from 'shared-types'
 import type { CapabilityStatus } from '../lib/capabilities'
+import { withWidgetAppended } from '../lib/dashboardLayout'
+import { randomId } from '../lib/id'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import type { WidgetDefinition } from '../widgets/registry'
+import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DashboardManager } from './DashboardManager'
 import { WidgetLibrary } from './WidgetLibrary'
 
 interface DashboardEditBarProps {
   dashboard: Dashboard
+  breakpoint: Breakpoint
   capabilities: Map<CapabilityId, CapabilityStatus>
 }
 
-export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarProps) {
+export function DashboardEditBar({ dashboard, breakpoint, capabilities }: DashboardEditBarProps) {
   const save = useDashboardsStore((state) => state.save)
+  const create = useDashboardsStore((state) => state.create)
+  const setActive = useActiveDashboardStore((state) => state.setActive)
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const resetToDefaults = useDashboardsStore((state) => state.resetToDefaults)
   const setEditing = useEditModeStore((state) => state.setEditing)
   const confirm = useDialogStore((state) => state.confirm)
   const [showLibrary, setShowLibrary] = useState(false)
   const [showManager, setShowManager] = useState(false)
   const activeProfile = useActiveProfile()
+
+  // The widget library's answer to "no room here": a public dashboard named after the widget,
+  // offered in the same modes as the current one (so it shows up right away), with the widget
+  // at its full default size - then switch to it, still in edit mode.
+  async function addToNewDashboard(definition: WidgetDefinition) {
+    const created = await create(definition.title)
+    await save(
+      withWidgetAppended(
+        { ...created, modes: dashboard.modes },
+        definition.type,
+        definition.defaultLayout,
+        `${definition.type}-${randomId().slice(0, 8)}`,
+      ),
+    )
+    setActive(workspaceId, created.id)
+    setShowLibrary(false)
+  }
 
   return (
     <div className="z-20 flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2 text-xs">
@@ -67,12 +93,14 @@ export function DashboardEditBar({ dashboard, capabilities }: DashboardEditBarPr
       {showLibrary && (
         <WidgetLibrary
           dashboard={dashboard}
+          breakpoint={breakpoint}
           capabilities={capabilities}
           activeRoles={activeProfile?.stageRoles}
           onAdd={(next) => {
             void save(next)
             setShowLibrary(false)
           }}
+          onAddToNewDashboard={(definition) => void addToNewDashboard(definition)}
           onClose={() => setShowLibrary(false)}
         />
       )}

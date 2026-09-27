@@ -8,6 +8,7 @@ import {
 import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-types'
 import { capabilityStatusFor } from '../lib/capabilities'
 import {
+  belowMinimumItems,
   breakpointFor,
   GRID_COLUMNS,
   GRID_ROWS,
@@ -238,6 +239,16 @@ export function Dashboard() {
     () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active)) : null),
     [active, breakpoint],
   )
+  // Outlined in edit mode: widgets smaller than their minimum in the grid being edited.
+  const tooSmall = useMemo(
+    () =>
+      new Set(
+        active && isEditing
+          ? belowMinimumItems(normalizeLayout(active.layouts[breakpoint] ?? []), minSizeFor(active)).map((item) => item.i)
+          : [],
+      ),
+    [active, breakpoint, isEditing],
+  )
 
   if (!loaded) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Lade …</div>
@@ -267,7 +278,7 @@ export function Dashboard() {
 
   return (
     <div className="flex h-dvh flex-col sb-app-bg">
-      {isEditing && <DashboardEditBar dashboard={active} capabilities={capabilities} />}
+      {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
       {isEditing && current && current.squeezed > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">
           <span className="text-amber-500">
@@ -372,6 +383,7 @@ export function Dashboard() {
                     title={definition.title}
                     status={status}
                     isEditing={isEditing}
+                    tooSmall={tooSmall.has(widget.i)}
                     onRemove={() => removeWidget(widget.i)}
                     frameless={widget.frameless}
                     onToggleFrameless={() => toggleFrameless(widget.i)}
