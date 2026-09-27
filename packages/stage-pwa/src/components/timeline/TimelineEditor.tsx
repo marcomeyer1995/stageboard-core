@@ -79,8 +79,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const { variantId, trackId, trackSrc, anchors, tempoMarkers, bpm, timeSignature, countInEnabled, countInBars, onChange, onAdoptBpm, fill = false } = props
   const clock = useTrackClock(trackSrc)
   const [boxRef, box] = useElementSize()
-  const width = Math.max(1, box.width)
-  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H
+  // Portrait (full screen, taller than wide): time runs downwards and the lanes become columns -
+  // more of the song in view, and it reads top to bottom like the Prompter (Marco, 2026-09-27).
+  // All drawing and hit-testing below works in "along the time axis / across the lanes"
+  // coordinates: `width` is the time axis' length, the lane sizes are across it; only the canvas
+  // transform, the pointer coordinates and the playhead swap for the vertical layout.
+  const vertical = fill && box.height > box.width && box.width > 0
+  const width = Math.max(1, vertical ? box.height : box.width)
+  const crossLen = vertical ? box.width : box.height
+  const lanesH = fill && crossLen > 0 ? crossLen : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H
   const audioH = fill ? Math.round((lanesH - SECTION_H) * 0.45) : DEFAULT_AUDIO_H
   const gridH = lanesH - audioH - SECTION_H
   const audioCanvas = useRef<HTMLCanvasElement>(null)
@@ -134,8 +141,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   useEffect(() => {
     if (fitted.current || box.width <= 0 || durationMs <= 0) return
     fitted.current = true
-    setView({ startMs: minMs, msPerPx: Math.max(1, (durationMs - minMs) / box.width) })
-  }, [box.width, durationMs, minMs])
+    setView({ startMs: minMs, msPerPx: Math.max(1, (durationMs - minMs) / width) })
+  }, [box.width, width, durationMs, minMs])
 
   const commit = useCallback(
     (next: { beatAnchors?: BeatAnchor[]; tempoMarkers?: TempoMarker[] }) => {
@@ -231,9 +238,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
     const audio = audioCanvas.current?.getContext('2d')
     if (audio && audioCanvas.current) {
-      audioCanvas.current.width = width * dpr
-      audioCanvas.current.height = audioH * dpr
-      audio.setTransform(dpr, 0, 0, dpr, 0, 0)
+      audioCanvas.current.width = (vertical ? audioH : width) * dpr
+      audioCanvas.current.height = (vertical ? width : audioH) * dpr
+      // Vertical: swap the axes, so the drawing below stays in along/across coordinates.
+      if (vertical) audio.setTransform(0, dpr, dpr, 0, 0, 0)
+      else audio.setTransform(dpr, 0, 0, dpr, 0, 0)
       audio.clearRect(0, 0, width, audioH)
       if (analysis) {
         const { min, max, bucketMs } = analysis.peaks
@@ -260,9 +269,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const g = gridCanvas.current?.getContext('2d')
     if (g && gridCanvas.current) {
       const h = SECTION_H + gridH
-      gridCanvas.current.width = width * dpr
-      gridCanvas.current.height = h * dpr
-      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      gridCanvas.current.width = (vertical ? h : width) * dpr
+      gridCanvas.current.height = (vertical ? width : h) * dpr
+      if (vertical) g.setTransform(0, dpr, dpr, 0, 0, 0)
+      else g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // Text is drawn upright in both layouts: in the swapped (vertical) system it would come out
+      // mirrored, so labels switch to the plain transform at the swapped position.
+      const label = (text: string, along: number, across: number, verticalAlong: number, verticalAcross: number) => {
+        if (!vertical) {
+          g.fillText(text, along, across)
+          return
+        }
+        g.save()
+        g.setTransform(dpr, 0, 0, dpr, 0, 0)
+        g.fillText(text, verticalAcross, verticalAlong)
+        g.restore()
+      }
       g.clearRect(0, 0, width, h)
       // Quality per bar, a band at the bottom of the grid lane.
       for (const bar of quality) {
@@ -294,7 +316,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (isBar && (view.msPerPx < 40 || barNumber % 4 === 1)) {
           g.fillStyle = ink
           g.font = '14px system-ui, sans-serif'
-          g.fillText(String(barNumber), x + 4, SECTION_H + 16)
+          label(String(barNumber), x + 4, SECTION_H + 16, x + 16, SECTION_H + 4)
         }
       })
       // Raw anchors (observations) as small dots; fixed ones as accent diamonds.
@@ -326,11 +348,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         g.fillRect(x, 0, 3, SECTION_H + gridH)
         g.fillStyle = ink
         g.font = 'bold 14px system-ui, sans-serif'
-        g.fillText(`${marker.bpm} BPM${marker.timeSignature ? ` ${marker.timeSignature}` : ''}`, x + 6, 18)
+        // Portrait: the section strip is a narrow column - just the tempo there.
+        const markerText = vertical ? `${marker.bpm}` : `${marker.bpm} BPM${marker.timeSignature ? ` ${marker.timeSignature}` : ''}`
+        label(markerText, x + 6, 18, x + 16, 2)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, audioH, gridH, view, analysis, grid, quality, anchors, tempoMarkers, selection, drag, showRaw, countInMs, firstBeatMs, snap])
+  }, [width, vertical, audioH, gridH, view, analysis, grid, quality, anchors, tempoMarkers, selection, drag, showRaw, countInMs, firstBeatMs, snap])
 
   // --- pointer handling ---
   function laneOf(y: number): 'audio' | 'section' | 'grid' {
@@ -338,10 +362,16 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return y < audioH + SECTION_H ? 'section' : 'grid'
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  /** Pointer position as x = along the time axis, y = across the lanes (swapped when vertical). */
+  function logical(e: { clientX: number; clientY: number; currentTarget: Element }): { x: number; y: number } {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const px = e.clientX - rect.left
+    const py = e.clientY - rect.top
+    return vertical ? { x: py, y: px } : { x: px, y: py }
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const { x, y } = logical(e)
     pointers.current.set(e.pointerId, { x, y })
     e.currentTarget.setPointerCapture?.(e.pointerId)
     if (pointers.current.size === 2) {
@@ -369,9 +399,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x, y: e.clientY - rect.top })
+    const { x, y } = logical(e)
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x, y })
     if (pinch.current && pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()]
       const distance = Math.abs(a!.x - b!.x) || 1
@@ -417,8 +446,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   function onWheel(e: React.WheelEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
+    const { x } = logical(e)
     if (e.ctrlKey || e.metaKey) {
       setView(clampView(zoomAround(view, Math.exp(e.deltaY * 0.002), x), width, minMs, durationMs))
     } else {
@@ -556,10 +584,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
         onWheel={onWheel}
         data-testid="timeline-lanes"
       >
-        <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
-        <canvas ref={gridCanvas} className="absolute left-0" style={{ top: audioH, width, height: SECTION_H + gridH }} />
+        <canvas
+          ref={audioCanvas}
+          className="absolute left-0 top-0"
+          style={vertical ? { width: audioH, height: width } : { width, height: audioH }}
+        />
+        <canvas
+          ref={gridCanvas}
+          className="absolute"
+          style={vertical ? { left: audioH, top: 0, width: SECTION_H + gridH, height: width } : { left: 0, top: audioH, width, height: SECTION_H + gridH }}
+        />
         {playheadX >= 0 && playheadX <= width && (
-          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} />
+          <div
+            className={`pointer-events-none absolute bg-red-500 ${vertical ? 'left-0 h-0.5 w-full' : 'top-0 h-full w-0.5'}`}
+            style={vertical ? { top: playheadX } : { left: playheadX }}
+            data-testid="timeline-playhead"
+          />
         )}
       </div>
 

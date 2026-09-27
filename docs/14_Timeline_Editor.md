@@ -7,8 +7,8 @@ Stand: 2026-09-27, Konzept vor der Umsetzung (mit Marco abgestimmt). Konkretisie
 Ein Song hat viele Dinge mit Zeitbezug – Schläge und Takte, Tempo-Abschnitte, Parts, Liedzeilen, Kommentare, Tab-Blöcke, Cues, das Einzählen. Heute werden sie in getrennten Listen und Tipp-Dialogen bearbeitet, ohne dass man sie gemeinsam gegen die Musik sieht. Der Timeline-Editor zeigt alles auf **einer gemeinsamen Zeitachse** über der Wellenform des Tracks, mit dem berechneten Takt-/Schlagraster als Einrast-Gitter, und macht es dort direkt bearbeitbar.
 
 Entscheidungen (Marco, 2026-09-27):
-- **Geräte:** PC (Maus/Tastatur) und Tablet quer (Touch) gleichwertig; Handy hochkant nur Ansicht.
-- **Ort:** neuer Tab **„Timeline“** im Song-Editor. Die bisherigen Listen (Anker, Tempo-Wechsel, Cues) bleiben für exakte Zahleneingabe.
+- **Geräte:** PC (Maus/Tastatur) und Tablet quer (Touch) gleichwertig. **Hochkant läuft die Zeit nach unten** (Spuren als Spalten, liest sich wie ein Liedblatt) – bearbeitbar wie quer.
+- **Ort:** eine eigene **Vollbild-Ansicht** des Song-Editors, umschaltbar „Text | Timeline“ (beide auf demselben Entwurf; ursprünglich als Abschnitt in der Detail-Spalte gebaut – zu schmal, Marco 2026-09-27). Die bisherigen Listen (Anker, Tempo-Wechsel, Cues) bleiben für exakte Zahleneingabe. Ein geführter Assistent für neue Songs könnte die Timeline später für seine Zeit-Schritte nutzen – noch nicht entschieden.
 - **Reihenfolge:** Phase 1 Raster, Phase 2 Text & Parts, Phase 3 Cues & Kommentare/Tabs – je ein PR mit Tablet-Prüfung.
 
 ## 2. Was auf der Zeitachse liegt
@@ -82,6 +82,8 @@ Grundsätze:
 - Die drei als „prüfen/unzuverlässig“ markierten Songs (Highway to Hell, beide What's Up) lassen sich in der Timeline so korrigieren, dass die Qualitätsanzeige „gut“ zeigt.
 - Messung gegen die Drum-Hits (Methode docs/13 §6): feste Anker verschlechtern die Nähe zu den Hits nicht.
 - Fire-Tablet: Scrollen und Zoomen ohne sichtbares Ruckeln, keine langen Frames > 100 ms beim Öffnen außer dem einmaligen Dekodieren.
+
+**Stand der Umsetzung (2026-09-27):** Phase 1 gebaut (#307) – `components/timeline/TimelineEditor.tsx`, reine Logik in `lib/timeline.ts` (Ansicht, Zoom, Einrasten, Treffer-Test, Qualität je Takt, Raster-Bearbeitung), Analyse in `lib/trackAnalysis.ts` + `trackAnalysisWorker.ts` (Spitzenwerte je 10 ms und Onsets, IndexedDB-Cache `stageboard-timeline-cache`), feste Anker in `fitTempoMap`. Ein gezogener Taktstrich rastet mit Einrasten auf einem Drum-Hit innerhalb von 40 ms ein. Vollbild über den Umschalter „Text | Timeline“ (#308); hochkant vertikal (Zeichnen und Zeiger in Längs-/Quer-Koordinaten, nur Canvas-Transformation, Zeigerkoordinaten und Abspielkopf werden getauscht; Beschriftungen bleiben aufrecht). Tablet-Prüfung und Abnahme stehen aus.
 
 ## 6. Phase 2: Text & Parts
 
