@@ -419,6 +419,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
    * own doc comment) if a band has installed+enabled it (CAPABILITIES.audioAnalysis); otherwise
    * falls back to the always-available hand-rolled detector - no plugin required at all, same as
    * manual tap-to-sync. */
+  /** The detection itself, shared with the timeline's "Track analysieren" (which applies the
+   * result as an undoable step of its own). Null: track missing on this device. */
+  const detectAnchors = async (): Promise<{ bpm: number | null; beatAnchors: BeatAnchor[] } | null> => {
+    if (!tapTrack) return null
+    const blob = await getTrack(draft.variantId, tapTrack.id)
+    if (!blob) return null
+    const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
+    const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)
+    return { bpm: result.bpm, beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })) }
+  }
+
   const handleAnalyzeTrack = async () => {
     if (!tapTrack) return
     if (draft.beatAnchors.length > 0) {
@@ -430,31 +441,31 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setIsAnalyzing(true)
     setAnalyzeError(null)
     try {
-      const blob = await getTrack(draft.variantId, tapTrack.id)
-      if (!blob) {
+      const result = await detectAnchors()
+      if (!result) {
         setAnalyzeError('Track nicht verfügbar.')
         return
       }
-      const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
-      const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)
       if (result.bpm === null && result.beatAnchors.length === 0) {
         setAnalyzeError('Keine Analyse möglich - bitte manuell setzen.')
         return
       }
-      setDraft((d) =>
-        d
-          ? {
-              ...d,
-              bpm: result.bpm ?? d.bpm,
-              beatAnchors: result.beatAnchors.map((a) => ({ id: randomId(), timeMs: a.timeMs, beatInBar: a.beatInBar })),
-            }
-          : d,
-      )
+      setDraft((d) => (d ? { ...d, bpm: result.bpm ?? d.bpm, beatAnchors: result.beatAnchors } : d))
     } catch {
       setAnalyzeError('Analyse fehlgeschlagen.')
     } finally {
       setIsAnalyzing(false)
     }
+  }
+
+  /** "Alle Anker löschen" - a clean start for a song whose anchors are beyond repair (e.g. before
+   * re-analysing or re-tapping). Only the draft; nothing is lost until the song is saved. */
+  const handleClearAnchors = async () => {
+    const confirmed = await confirm(
+      `Alle ${draft.beatAnchors.length} Anker löschen? Der Klick hat danach kein Raster mehr, bis du neu analysierst oder tippst. Erst „Speichern“ übernimmt es.`,
+      { confirmLabel: 'Alle löschen', danger: true },
+    )
+    if (confirmed) setDraft((d) => (d ? { ...d, beatAnchors: [] } : d))
   }
 
   /** "Tempo-Wechsel erkennen" - unlike handleAnalyzeTrack above (one global bpm), suggests a
@@ -591,14 +602,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         />
       ) : (
         <div className="flex flex-col gap-2 border-t border-line pt-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-ink-muted">Klick-Synchronisation</span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void handleAnalyzeTrack()}
                 disabled={!tapTrack || isAnalyzing}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
               >
                 {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
               </button>
@@ -606,7 +617,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 type="button"
                 onClick={() => setIsTappingAnchors(true)}
                 disabled={!tapTrack}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
               >
                 Anker tappen
               </button>
@@ -614,7 +625,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 type="button"
                 onClick={() => setIsTappingTempoMarker(true)}
                 disabled={!tapTrack}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
               >
                 Tempo-Wechsel markieren
               </button>
@@ -623,9 +634,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 onClick={() => void handleAnalyzeTempoMap()}
                 disabled={!tapTrack || isAnalyzingTempoMap}
                 title="Vorschlag - bitte prüfen, kann bei mehrdeutigem Metrum die falsche Oktave treffen (z.B. halbe/doppelte BPM bei einer Ballade)"
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40"
               >
                 {isAnalyzingTempoMap ? 'Erkenne…' : 'Tempo-Wechsel erkennen'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleClearAnchors()}
+                disabled={draft.beatAnchors.length === 0}
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-red-500 hover:bg-control-strong-hover disabled:opacity-40"
+              >
+                Alle Anker löschen
               </button>
             </div>
           </div>
@@ -752,8 +771,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       timeSignature={draft.timeSignature}
       countInEnabled={draft.countInEnabled}
       countInBars={draft.countInBars}
-      onChange={(patch) => setDraft({ ...draft, ...patch })}
-      onAdoptBpm={(bpm) => setDraft({ ...draft, bpm })}
+      onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
+      onAdoptBpm={(bpm) => setDraft((d) => (d ? { ...d, bpm } : d))}
+      onDetectAnchors={detectAnchors}
       fill
     />
   )

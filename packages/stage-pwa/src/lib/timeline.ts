@@ -130,12 +130,15 @@ export function periodAt(ms: number, beats: readonly BeatAnchorLike[]): number {
 
 /**
  * Moves the grid beat at `fromMs` to `toMs`: a fixed anchor there, replacing any anchor (fixed or
- * not) within half a beat of either position - they described the same beat.
+ * not) within half a beat of either position - they described the same beat. A move before the
+ * song start is refused (anchors unchanged): clamped to 0:00 it left a fixed anchor there that
+ * no one meant to set, which then pulled the grid's first beat onto 0:00 ("Whats up", 2026-09-27).
  */
 export function pinBeat(anchors: readonly BeatAnchor[], fromMs: number, toMs: number, beatInBar: number, periodMs: number): BeatAnchor[] {
+  if (toMs < 0) return [...anchors]
   const half = periodMs / 2
   const kept = anchors.filter((a) => Math.abs(a.timeMs - fromMs) >= half && Math.abs(a.timeMs - toMs) >= half)
-  const pinned: BeatAnchor = { id: randomId(), timeMs: Math.max(0, Math.round(toMs)), beatInBar, pinned: true }
+  const pinned: BeatAnchor = { id: randomId(), timeMs: Math.round(toMs), beatInBar, pinned: true }
   return [...kept, pinned].sort((a, b) => a.timeMs - b.timeMs)
 }
 
@@ -167,14 +170,45 @@ export function setDownbeat(
   return pinBeat(renumbered, target.timeMs, target.timeMs, 0, period)
 }
 
+/** Moves one anchor by `deltaMs` and fixes it - refused before the song start, like `pinBeat`. */
 export function nudgeAnchor(anchors: readonly BeatAnchor[], id: string, deltaMs: number): BeatAnchor[] {
+  const target = anchors.find((a) => a.id === id)
+  if (!target || target.timeMs + deltaMs < 0) return [...anchors]
   return anchors
-    .map((a) => (a.id === id ? { ...a, timeMs: Math.max(0, Math.round(a.timeMs + deltaMs)), pinned: true } : a))
+    .map((a) => (a.id === id ? { ...a, timeMs: Math.round(a.timeMs + deltaMs), pinned: true } : a))
     .sort((a, b) => a.timeMs - b.timeMs)
 }
 
 export function removeAnchor(anchors: readonly BeatAnchor[], id: string): BeatAnchor[] {
   return anchors.filter((a) => a.id !== id)
+}
+
+/**
+ * Tempo for a new section starting at `fromMs`: the median beat spacing of the next `beats` grid
+ * beats - not the single gap after it, which at a song start can be the silence before the first
+ * hit (that gave a 23.8 BPM section on a 135 BPM song). `fallbackBpm` with too few beats.
+ */
+export function sectionBpmAt(fromMs: number, grid: readonly BeatAnchorLike[], fallbackBpm: number, beats = 16): number {
+  const start = grid.findIndex((b) => b.timeMs >= fromMs - 1)
+  if (start < 0) return fallbackBpm
+  const times = grid.slice(start, start + beats + 1).map((b) => b.timeMs)
+  const gaps = times.slice(1).map((t, i) => t - times[i]!).filter((g) => g > 0).sort((a, b) => a - b)
+  if (gaps.length < 2) return fallbackBpm
+  const mid = Math.floor(gaps.length / 2)
+  const median = gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2
+  return Math.round((60000 / median) * 10) / 10
+}
+
+/**
+ * The next bar after `afterMs` that needs a look: red ('poor') first; when no bar is red, orange
+ * ('ok'). Wraps around to the song start, so repeated presses cycle through all of them. Null
+ * when every bar is fine or quiet.
+ */
+export function nextProblemBar(bars: readonly BarQuality[], afterMs: number): BarQuality | null {
+  const level: BarQualityLevel | null = bars.some((b) => b.level === 'poor') ? 'poor' : bars.some((b) => b.level === 'ok') ? 'ok' : null
+  if (!level) return null
+  const candidates = bars.filter((b) => b.level === level)
+  return candidates.find((b) => b.startMs > afterMs + 1) ?? candidates[0]!
 }
 
 /** "1:23.4", "-0:02.0" (count-in) - timeline readout with tenths. */

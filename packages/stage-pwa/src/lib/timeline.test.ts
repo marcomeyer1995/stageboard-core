@@ -6,6 +6,8 @@ import {
   clampView,
   barLabelEvery,
   formatTimelineTime,
+  nextProblemBar,
+  sectionBpmAt,
   tokenColor,
   hitBeat,
   nudgeAnchor,
@@ -85,9 +87,35 @@ describe('grid edits', () => {
     expect(next.find((a) => a.pinned && a.timeMs === 2000)?.beatInBar).toBe(0)
   })
 
+  it('refuses to move a beat before the song start instead of fixing it at 0:00', () => {
+    expect(pinBeat(anchors, 1000, -200, 0, 500)).toEqual(anchors)
+    expect(nudgeAnchor(anchors, 'a0', -1500)).toEqual(anchors)
+  })
+
   it('nudging an anchor fixes it in place', () => {
     const next = nudgeAnchor(anchors, 'a3', -10)
     expect(next.find((a) => a.id === 'a3')).toEqual(expect.objectContaining({ timeMs: 2510, pinned: true }))
+  })
+})
+
+describe('sectionBpmAt', () => {
+  it('takes the tempo of the following beats, not the silence before the first hit', () => {
+    const withLeadIn = [{ timeMs: 0, beatInBar: 0 }, ...grid.map((b) => ({ ...b, timeMs: b.timeMs + 1500 }))]
+    expect(sectionBpmAt(0, withLeadIn, 100)).toBe(120) // one 2.5 s gap, then 500 ms beats
+    expect(sectionBpmAt(99_000, grid, 100)).toBe(100) // no beats after it
+  })
+})
+
+describe('nextProblemBar', () => {
+  const bar = (startMs: number, level: 'good' | 'ok' | 'poor' | 'quiet') => ({ startMs, endMs: startMs + 2000, share: 0, level })
+  it('jumps to the next red bar, wrapping around', () => {
+    const bars = [bar(0, 'poor'), bar(2000, 'ok'), bar(4000, 'good'), bar(6000, 'poor')]
+    expect(nextProblemBar(bars, 100)?.startMs).toBe(6000)
+    expect(nextProblemBar(bars, 6000)?.startMs).toBe(0)
+  })
+  it('falls back to orange bars, and to nothing when all is fine', () => {
+    expect(nextProblemBar([bar(0, 'good'), bar(2000, 'ok')], 0)?.startMs).toBe(2000)
+    expect(nextProblemBar([bar(0, 'good'), bar(2000, 'quiet')], 0)).toBeNull()
   })
 })
 

@@ -11,6 +11,8 @@ import {
   formatTimelineTime,
   hitBeat,
   barLabelEvery,
+  nextProblemBar,
+  sectionBpmAt,
   periodAt,
   tokenColor,
   pinBeat,
@@ -43,6 +45,9 @@ export interface TimelineEditorProps {
   onChange: (patch: { beatAnchors: BeatAnchor[]; tempoMarkers: TempoMarker[] }) => void
   /** The quality note's "adopt the measured tempo" - the variant's bpm lives outside the grid. */
   onAdoptBpm: (bpm: number) => void
+  /** Automatic beat detection on the track (the song editor's "Track analysieren") - the result
+   * replaces all anchors here, as one undoable step. Null: nothing usable detected. */
+  onDetectAnchors?: () => Promise<{ bpm: number | null; beatAnchors: BeatAnchor[] } | null>
   /** Full screen (docs/14): the lanes take all the height the parent gives the component. */
   fill?: boolean
 }
@@ -78,7 +83,7 @@ function cssVar(name: string, fallback: string): string {
  * pinch / Ctrl+wheel = zoom; the selection bar gives finger-sized fine steps.
  */
 export function TimelineEditor(props: TimelineEditorProps) {
-  const { variantId, trackId, trackSrc, anchors, tempoMarkers, bpm, timeSignature, countInEnabled, countInBars, onChange, onAdoptBpm, fill = false } = props
+  const { variantId, trackId, trackSrc, anchors, tempoMarkers, bpm, timeSignature, countInEnabled, countInBars, onChange, onAdoptBpm, onDetectAnchors, fill = false } = props
   const clock = useTrackClock(trackSrc)
   const [boxRef, box] = useElementSize()
   // Portrait (full screen, taller than wide): time runs downwards and the lanes become columns -
@@ -95,6 +100,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const promptFields = useDialogStore((state) => state.promptFields)
+  const confirm = useDialogStore((state) => state.confirm)
+  const [detecting, setDetecting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const lastProblemMs = useRef<number | null>(null)
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -488,9 +497,55 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   function addSectionAtSelection() {
     if (!selectedBeat) return
-    const marker: TempoMarker = { id: randomId(), timeMs: selectedBeat.timeMs, bpm: Math.round((60000 / selectedPeriod) * 10) / 10 }
+    const marker: TempoMarker = { id: randomId(), timeMs: selectedBeat.timeMs, bpm: sectionBpmAt(selectedBeat.timeMs, grid, bpm) }
     commit({ tempoMarkers: [...tempoMarkers, marker].sort((a, b) => a.timeMs - b.timeMs) })
     setSelection({ kind: 'marker', id: marker.id })
+  }
+
+  // --- grid-wide actions ---
+  async function detectAnchors() {
+    if (!onDetectAnchors) return
+    if (anchors.length > 0 && !(await confirm('Alle Anker durch die automatische Erkennung ersetzen? (Rückgängig möglich)', { confirmLabel: 'Ersetzen' }))) return
+    setDetecting(true)
+    setNotice(null)
+    try {
+      const result = await onDetectAnchors()
+      if (!result || result.beatAnchors.length === 0) {
+        setNotice('Keine Schläge erkannt - bitte tippen.')
+        return
+      }
+      commit({ beatAnchors: result.beatAnchors })
+      if (result.bpm !== null) onAdoptBpm(result.bpm)
+      setSelection(null)
+    } catch {
+      setNotice('Analyse fehlgeschlagen.')
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  async function clearAnchors() {
+    if (!(await confirm(`Alle ${anchors.length} Anker löschen? Das Raster ist danach leer, bis du neu analysierst oder tippst. (Rückgängig möglich)`, { confirmLabel: 'Alle löschen', danger: true }))) return
+    commit({ beatAnchors: [] })
+    setSelection(null)
+  }
+
+  /** "Nächste Problemstelle": the next red (else orange) bar after the playhead, zoomed so a few
+   * bars fill the view, its bar line selected and the playhead on it - ready to listen. */
+  function jumpToNextProblem() {
+    const from = lastProblemMs.current !== null && Math.abs(playheadMs - lastProblemMs.current) < 1000 ? lastProblemMs.current : playheadMs
+    const bar = nextProblemBar(quality, from)
+    if (!bar) {
+      setNotice('Keine Problemstellen - alle Takte sitzen auf den Drum-Hits.')
+      return
+    }
+    setNotice(null)
+    lastProblemMs.current = bar.startMs
+    const msPerPx = Math.min(view.msPerPx, Math.max(1, ((bar.endMs - bar.startMs) * 4) / width))
+    setView(clampView({ msPerPx, startMs: bar.startMs - width * 0.25 * msPerPx }, width, minMs, durationMs))
+    const index = grid.findIndex((b) => b.timeMs === bar.startMs)
+    setSelection(index >= 0 ? { kind: 'beat', index } : null)
+    seek(bar.startMs)
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -556,6 +611,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={toggle(showRaw)} aria-pressed={showRaw} onClick={() => setShowRaw(!showRaw)}>
           Rohe Anker
         </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {onDetectAnchors && (
+          <button type="button" className={button} disabled={!trackSrc || detecting || tapping} onClick={() => void detectAnchors()}>
+            {detecting ? 'Analysiere…' : 'Track analysieren'}
+          </button>
+        )}
         <button
           type="button"
           className={toggle(tapping)}
@@ -565,13 +627,20 @@ export function TimelineEditor(props: TimelineEditorProps) {
         >
           {tapping ? `Tippen beenden (${tapCount})` : 'Schläge tippen'}
         </button>
-        <button type="button" className={button} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
+        <button type="button" className={button} disabled={quality.length === 0} onClick={jumpToNextProblem}>
+          Nächste Problemstelle
+        </button>
+        <button type="button" className={button} disabled={anchors.length === 0 || tapping} onClick={() => void clearAnchors()}>
+          Alle Anker löschen
+        </button>
+        <button type="button" className={`${button} min-w-12 text-2xl`} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
           ↶
         </button>
-        <button type="button" className={button} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
+        <button type="button" className={`${button} min-w-12 text-2xl`} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
           ↷
         </button>
       </div>
+      {notice && <p className="text-sm text-ink-soft" role="status">{notice}</p>}
 
       {!trackId && <p className="text-sm text-ink-faint">Kein Track angehängt - die Timeline zeigt nur das Raster.</p>}
       {analysisState === 'loading' && <p className="text-sm text-ink-faint">Wellenform wird berechnet…</p>}

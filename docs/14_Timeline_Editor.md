@@ -85,6 +85,17 @@ Grundsätze:
 
 **Stand der Umsetzung (2026-09-27):** Phase 1 gebaut (#307) – `components/timeline/TimelineEditor.tsx`, reine Logik in `lib/timeline.ts` (Ansicht, Zoom, Einrasten, Treffer-Test, Qualität je Takt, Raster-Bearbeitung), Analyse in `lib/trackAnalysis.ts` + `trackAnalysisWorker.ts` (Spitzenwerte je 10 ms und Onsets, IndexedDB-Cache `stageboard-timeline-cache`), feste Anker in `fitTempoMap`. Ein gezogener Taktstrich rastet mit Einrasten auf einem Drum-Hit innerhalb von 40 ms ein. Vollbild über den Umschalter „Text | Timeline“ (#308); hochkant vertikal (Zeichnen und Zeiger in Längs-/Quer-Koordinaten, nur Canvas-Transformation, Zeigerkoordinaten und Abspielkopf werden getauscht; Beschriftungen bleiben aufrecht). Tablet-Prüfung und Abnahme stehen aus.
 
+**Arbeitsablauf für einen neuen Song** (so erklärt am 2026-09-27; alles in der Timeline):
+1. Im Text-Modus Track anhängen, ungefähres Tempo und Taktart eintragen.
+2. Timeline öffnen → **„Track analysieren“** (erste Anker automatisch; ersetzt alle Anker, rückgängig machbar) oder **„Schläge tippen“**. Bietet die Qualitätszeile **„… BPM übernehmen“** an, zuerst das.
+3. Herauszoomen, das farbige Qualitätsband ansehen; **„Nächste Problemstelle“** springt zum nächsten roten Takt (gibt es keinen, zum nächsten gelben), zoomt auf ein paar Takte, wählt den Taktstrich und setzt den Abspielkopf dorthin.
+4. Mit Klick anhören; Taktstrich auf den Drum-Hit ziehen, ±10 ms feinjustieren, „Hier ist die Eins“ bei verschobener Zählzeit, Strecken ohne brauchbare Anker neu tippen. Band wird grün/gelb → nächste Problemstelle.
+5. Nur bei echtem Tempowechsel „Abschnitt ab hier“ (Tempo = Median der folgenden 16 Schläge, danach über „Tempo / Taktart“ prüfen).
+6. „Speichern“. Ein guter Song braucht keine festen Anker, ein schwieriger eine Handvoll.
+Zum Neuanfang gibt es **„Alle Anker löschen“** in der Timeline (rückgängig machbar) und im Text-Modus unter „Tempo & Klick“ (nur der Entwurf, erst „Speichern“ übernimmt es).
+
+**Fehler aus der Tablet-Prüfung (2026-09-27, „Whats up“):** ein Tempo-Abschnitt ab 0:00 mit 23,8 BPM – „Abschnitt ab hier“ nahm das Tempo aus der einen Lücke nach dem ersten Schlag (die Stille vor dem ersten Hit) –, und ein fester Anker genau auf 0:00, weil ein Schlag vor den Songanfang geschoben und dort auf 0 geklemmt wurde. Mit dem Abschnitt wertete `fitTempoMap` 499 von 579 Ankern als doppelt, das Raster lief mit 16,8 statt 134,7 BPM. Behoben: Abschnittstempo aus dem Median der folgenden Schläge (`sectionBpmAt`); Verschieben vor 0:00 wird abgelehnt statt geklemmt (`pinBeat`, `nudgeAnchor`); ist ein Abschnittstempo viel langsamer als die eigenen Anker (Median-Abstand < 0,4 Schlag), nimmt der Fit deren Abstand und die Qualitätszeile meldet „Abschnitts-BPM prüfen“ (`tempoMismatches`, Urteil „unzuverlässig“).
+
 ## 6. Phase 2: Text & Parts
 
 - Text-Spur: jede Liedzeile mit Zeit-Tag als Marker (Anfang der Zeile, Text gekürzt); Zeilen ohne Zeit-Tag gesammelt am Rand mit „noch nicht gesetzt“.
