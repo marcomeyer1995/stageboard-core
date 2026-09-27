@@ -41,6 +41,8 @@ export interface TimelineEditorProps {
   onChange: (patch: { beatAnchors: BeatAnchor[]; tempoMarkers: TempoMarker[] }) => void
   /** The quality note's "adopt the measured tempo" - the variant's bpm lives outside the grid. */
   onAdoptBpm: (bpm: number) => void
+  /** Full screen (docs/14): the lanes take all the height the parent gives the component. */
+  fill?: boolean
 }
 
 type Selection = { kind: 'beat'; index: number } | { kind: 'marker'; id: string } | null
@@ -50,9 +52,10 @@ type Drag =
   | { kind: 'pan'; pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'audio' | 'grid' }
   | null
 
-const AUDIO_H = 96
+/** Lane heights in the compact layout; full screen (`fill`) splits the available height. */
+const DEFAULT_AUDIO_H = 96
 const SECTION_H = 26
-const GRID_H = 84
+const DEFAULT_GRID_H = 84
 const TOLERANCE_PX = 24
 const MOVE_THRESHOLD_PX = 6
 /** A dragged bar line within this distance of a detected onset lands on it (with snapping on). */
@@ -73,10 +76,13 @@ function cssVar(name: string, fallback: string): string {
  * pinch / Ctrl+wheel = zoom; the selection bar gives finger-sized fine steps.
  */
 export function TimelineEditor(props: TimelineEditorProps) {
-  const { variantId, trackId, trackSrc, anchors, tempoMarkers, bpm, timeSignature, countInEnabled, countInBars, onChange, onAdoptBpm } = props
+  const { variantId, trackId, trackSrc, anchors, tempoMarkers, bpm, timeSignature, countInEnabled, countInBars, onChange, onAdoptBpm, fill = false } = props
   const clock = useTrackClock(trackSrc)
   const [boxRef, box] = useElementSize()
   const width = Math.max(1, box.width)
+  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H
+  const audioH = fill ? Math.round((lanesH - SECTION_H) * 0.45) : DEFAULT_AUDIO_H
+  const gridH = lanesH - audioH - SECTION_H
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const promptFields = useDialogStore((state) => state.promptFields)
@@ -226,12 +232,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const audio = audioCanvas.current?.getContext('2d')
     if (audio && audioCanvas.current) {
       audioCanvas.current.width = width * dpr
-      audioCanvas.current.height = AUDIO_H * dpr
+      audioCanvas.current.height = audioH * dpr
       audio.setTransform(dpr, 0, 0, dpr, 0, 0)
-      audio.clearRect(0, 0, width, AUDIO_H)
+      audio.clearRect(0, 0, width, audioH)
       if (analysis) {
         const { min, max, bucketMs } = analysis.peaks
-        const mid = AUDIO_H / 2
+        const mid = audioH / 2
         audio.fillStyle = faint
         for (let x = 0; x < width; x++) {
           const from = Math.floor(xToTime(x, view) / bucketMs)
@@ -247,13 +253,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (countInMs > 0) {
         audio.fillStyle = 'rgba(59,130,246,0.15)'
         const x0 = timeToX(firstBeatMs - countInMs, view)
-        audio.fillRect(x0, 0, timeToX(firstBeatMs, view) - x0, AUDIO_H)
+        audio.fillRect(x0, 0, timeToX(firstBeatMs, view) - x0, audioH)
       }
     }
 
     const g = gridCanvas.current?.getContext('2d')
     if (g && gridCanvas.current) {
-      const h = SECTION_H + GRID_H
+      const h = SECTION_H + gridH
       gridCanvas.current.width = width * dpr
       gridCanvas.current.height = h * dpr
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -282,7 +288,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         g.strokeStyle = selected ? accent : isBar ? ink : faint
         g.lineWidth = selected ? 3 : isBar ? 2 : 1
         g.beginPath()
-        g.moveTo(x + 0.5, SECTION_H + (isBar ? 0 : GRID_H * 0.45))
+        g.moveTo(x + 0.5, SECTION_H + (isBar ? 0 : gridH * 0.45))
         g.lineTo(x + 0.5, h - 12)
         g.stroke()
         if (isBar && (view.msPerPx < 40 || barNumber % 4 === 1)) {
@@ -298,14 +304,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (a.pinned) {
           g.fillStyle = accent
           g.beginPath()
-          g.moveTo(x, SECTION_H + GRID_H - 30)
-          g.lineTo(x + 6, SECTION_H + GRID_H - 24)
-          g.lineTo(x, SECTION_H + GRID_H - 18)
-          g.lineTo(x - 6, SECTION_H + GRID_H - 24)
+          g.moveTo(x, SECTION_H + gridH - 30)
+          g.lineTo(x + 6, SECTION_H + gridH - 24)
+          g.lineTo(x, SECTION_H + gridH - 18)
+          g.lineTo(x - 6, SECTION_H + gridH - 24)
           g.fill()
         } else if (showRaw) {
           g.fillStyle = faint
-          g.fillRect(x - 1.5, SECTION_H + GRID_H - 26, 3, 3)
+          g.fillRect(x - 1.5, SECTION_H + gridH - 26, 3, 3)
         }
       }
       // Tempo sections along the top strip.
@@ -317,19 +323,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (x < -80 || x > width) continue
         const selected = selection?.kind === 'marker' && selection.id === marker.id
         g.fillStyle = selected ? accent : '#3b82f6'
-        g.fillRect(x, 0, 3, SECTION_H + GRID_H)
+        g.fillRect(x, 0, 3, SECTION_H + gridH)
         g.fillStyle = ink
         g.font = 'bold 14px system-ui, sans-serif'
         g.fillText(`${marker.bpm} BPM${marker.timeSignature ? ` ${marker.timeSignature}` : ''}`, x + 6, 18)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, view, analysis, grid, quality, anchors, tempoMarkers, selection, drag, showRaw, countInMs, firstBeatMs, snap])
+  }, [width, audioH, gridH, view, analysis, grid, quality, anchors, tempoMarkers, selection, drag, showRaw, countInMs, firstBeatMs, snap])
 
   // --- pointer handling ---
   function laneOf(y: number): 'audio' | 'section' | 'grid' {
-    if (y < AUDIO_H) return 'audio'
-    return y < AUDIO_H + SECTION_H ? 'section' : 'grid'
+    if (y < audioH) return 'audio'
+    return y < audioH + SECTION_H ? 'section' : 'grid'
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -485,7 +491,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const playheadX = timeToX(playheadMs, view)
 
   return (
-    <div className="flex flex-col gap-3" onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
+    <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <TempoMapQualityNote
         anchors={anchors}
         bpm={bpm}
@@ -541,8 +547,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       <div
         ref={boxRef}
-        className="relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage"
-        style={{ height: AUDIO_H + SECTION_H + GRID_H, touchAction: 'none' }}
+        className={`relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
+        style={{ height: fill ? undefined : audioH + SECTION_H + gridH, touchAction: 'none' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -550,8 +556,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
         onWheel={onWheel}
         data-testid="timeline-lanes"
       >
-        <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: AUDIO_H }} />
-        <canvas ref={gridCanvas} className="absolute left-0" style={{ top: AUDIO_H, width, height: SECTION_H + GRID_H }} />
+        <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
+        <canvas ref={gridCanvas} className="absolute left-0" style={{ top: audioH, width, height: SECTION_H + gridH }} />
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} />
         )}

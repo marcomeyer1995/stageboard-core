@@ -278,4 +278,16 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
 
     expect(await screen.findByLabelText('Titel')).toBeInTheDocument()
   })
+
+  it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {
+    stubViewport({ orientation: 'landscape' })
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline-Ansicht' }))
+    expect(screen.getByLabelText('Timeline')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Titel')).not.toBeInTheDocument() // the text editor is gone
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Text-Ansicht' }))
+    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
+  })
 })
+
