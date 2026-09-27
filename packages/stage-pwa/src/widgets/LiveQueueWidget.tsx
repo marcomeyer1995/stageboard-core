@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -9,6 +9,7 @@ import { queueItemTitle, reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSize } from '../lib/useContentFontSize'
+import { useLongPress } from '../lib/useLongPress'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
@@ -21,7 +22,11 @@ interface QueueRowProps {
    * which aren't numbered. */
   number: number | null
   status: RowStatus
+  /** Master with an active setlist, on an upcoming row: the row has actions. */
   canManage: boolean
+  /** Sort mode: drag handle and a visible "⋮" trigger. Outside it the row is title only and its
+   * actions open on a long press. */
+  sorting: boolean
   /** Omitted for the row already up next - "Als nächstes spielen" on it would be a no-op. */
   onPlayNext: ((entryId: string) => void) | null
   onRemove: (entryId: string) => void
@@ -34,14 +39,21 @@ interface QueueRowProps {
 /** Same grip-handle-carries-the-drag shape as SetlistDetail.tsx's own EntryRow (#18 follow-up
  * to that pattern) - the handle owns `touchAction: none` so it can grab the gesture outright,
  * while the rest of the row keeps the widget's own `overflow-y-auto` scroll working untouched.
- * Row actions live behind the same "⋯" `OverflowMenu` LibraryView/SetlistDetail already use
- * instead of a long-press context menu, so this doesn't compete with the drag gesture above,
- * and instead of the old always-visible "Als nächstes" button, which ate too much row width. */
-function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
+ *
+ * Handle and menu trigger only show in sort mode (GUI audit 2026-09-26: always visible, they
+ * took a third of a 256px widget's width and cut titles after ~9 characters). Outside it a row
+ * is title only, up to two lines, and a long press opens its actions ("Als nächstes spielen" /
+ * "Aus Queue entfernen") - the long press no longer competes with dragging, which is why the
+ * menu was a "⋯" button before (Marco, 2026-09-27). The trigger is "⋮", unlike the widget's own
+ * "⋯" menu beside it in edit mode.
+ */
+function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.entry.id,
-    disabled: !canManage,
+    disabled: !canManage || !sorting,
   })
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [longPress, pressing] = useLongPress(() => setMenuOpen(true), canManage && !sorting)
   const isSection = isHeadingEntry(item.entry)
   const isTransition = isTransitionEntry(item.entry) && !isSection
 
@@ -52,7 +64,8 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
         if (status === 'current') currentRowRef?.(el)
       }}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-1 px-2 py-1 ${isDragging ? 'opacity-50' : ''} ${
+      {...longPress}
+      className={`flex select-none items-center gap-1 px-2 py-1 ${isDragging ? 'opacity-50' : ''} ${pressing ? 'brightness-125' : ''} ${
         isSection
           ? `mt-2 rounded-sb-sm border-b-2 ${
               status === 'current' ? 'border-accent-ink bg-accent text-accent-ink' : 'border-accent bg-transparent'
@@ -66,13 +79,13 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
             }`
       }`}
     >
-      {canManage && (
+      {canManage && sorting && (
         <button
           type="button"
           {...listeners}
           {...attributes}
           style={{ touchAction: 'none' }}
-          className={`flex h-8 w-6 flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${
+          className={`flex h-12 w-10 flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${
             status === 'current' ? 'text-accent-ink' : 'text-ink-faint'
           }`}
           aria-label="Ziehen zum Sortieren"
@@ -90,7 +103,7 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
           ) : null}
         </span>
       ) : isTransition ? (
-        <span className="min-w-0 flex-1 truncate italic">
+        <span className="line-clamp-2 min-w-0 flex-1 break-words italic">
           <span className={`mr-2 text-xs font-bold not-italic uppercase tracking-wider ${status === 'current' ? '' : 'text-accent'}`}>
             Ansage
           </span>
@@ -102,7 +115,7 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
           ) : null}
         </span>
       ) : (
-        <span className="min-w-0 flex-1 truncate">
+        <span className="line-clamp-2 min-w-0 flex-1 break-words">
           <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{number}.</span>
           {queueItemTitle(item)}
           {item.variant && !item.variant.isDefault && (
@@ -116,6 +129,10 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
         <OverflowMenu
           title={queueItemTitle(item)}
           variant="flat"
+          glyph="⋮"
+          hideTrigger={!sorting}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
           actions={[
             ...(onPlayNext
               ? [{ label: 'Als nächstes spielen', onClick: () => onPlayNext(item.entry.id) }]
@@ -132,16 +149,15 @@ function QueueRow({ item, number, status, canManage, onPlayNext, onRemove, curre
  * The sidebar view of the full setlist (docs/07 section 3) - every entry, not just a window of
  * upcoming ones: already-played songs stay visible (grayed out) by scrolling up, the current
  * song is highlighted, and the rest of the setlist is reachable by scrolling down. Reordering
- * (drag, via a grip handle) and per-row actions ("Als nächstes spielen" / "Aus Queue entfernen",
- * via the "⋯" menu) follow the same patterns SetlistDetail.tsx and LibraryView.tsx already use -
- * not the doc's original swipe/long-press-context-menu language, which would compete with the
- * drag gesture above on the same touch input (Marco, explicit call after weighing it against
- * #18's own draft).
+ * (drag, via a grip handle) happens in a sort mode the Master opens with "⇅ Sortieren" and
+ * closes with "Fertig" - or by pressing Play, so forgotten handles never stay up on stage (Marco,
+ * 2026-09-27). Per-row actions open on a long press, in sort mode also from the row's "⋮".
  */
 export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   const {
     mode,
     canControl,
+    playbackStatus,
     queue: { activeSetlist, orderedItems, currentEntry },
   } = useShowMode()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
@@ -157,6 +173,13 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     ? orderedItems.findIndex((item) => item.entry.id === currentEntry.id)
     : -1
   const canManage = canControl && !!activeSetlist
+  const [sortingOpen, setSorting] = useState(false)
+  const sorting = sortingOpen && canManage
+
+  // Play closes sort mode.
+  useEffect(() => {
+    if (playbackStatus === 'playing') setSorting(false)
+  }, [playbackStatus])
 
   useEffect(() => {
     currentRowEl.current?.scrollIntoView({ block: 'center' })
@@ -190,9 +213,21 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
+        {canManage && (
+          <button
+            type="button"
+            aria-pressed={sorting}
+            onClick={() => setSorting(!sorting)}
+            className={`h-touch flex-shrink-0 rounded-sb-sm px-3 text-sm font-semibold ${
+              sorting ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+            }`}
+          >
+            {sorting ? 'Fertig' : '⇅ Sortieren'}
+          </button>
+        )}
         {mode === 'gig' && !canControl && (
           <MasterTakeoverButton
-            className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs font-medium text-accent hover:bg-control-strong-hover"
+            className="h-touch flex-shrink-0 rounded-sb-sm bg-control-strong px-3 text-sm font-medium text-accent hover:bg-control-strong-hover"
           />
         )}
       </div>
@@ -214,6 +249,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
                 number={songNumber}
                 status={status}
                 canManage={canManage && status === 'upcoming'}
+                sorting={sorting}
                 onPlayNext={status === 'upcoming' && !isImmediateNext ? playNext : null}
                 onRemove={removeFromQueue}
                 currentRowRef={(el) => {

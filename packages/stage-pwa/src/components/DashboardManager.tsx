@@ -204,9 +204,9 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-sb-sm bg-control px-3 py-1 text-sm text-ink-soft hover:bg-control-hover"
+            className="h-touch rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover"
           >
-            Fertig
+            Schließen
           </button>
         </div>
 

@@ -229,7 +229,7 @@ function App() {
           at a real touch-target size they don't fit along one edge anyway. Hidden entirely
           while the dashboard is unlocked for editing - it used to sit exactly where a
           bottom-of-grid widget's resize handle needed to be, and the edit toolbar's own
-          "Fertig" button is already the way back out. Also hidden during all three onboarding
+          "Bearbeiten beenden" button is already the way back out. Also hidden during all three onboarding
           gates above: each one is already fully self-sufficient (join, create-a-band, and the
           password fallback on JoinBandView; adding members on RosterSetupView; picking a
           profile on ProfileRolePickerView), and the menu's Band/Profil/Sync sections either

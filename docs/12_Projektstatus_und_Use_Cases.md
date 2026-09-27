@@ -73,7 +73,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Use Cases:** (1) Sängerin liest während des Gigs auf dem Tablet auf dem Notenständer den Text mit Akkorden, der Prompter scrollt synchron zum Backing-Track. (2) Gitarrist stellt auf Paginated um, weil er lieber Abschnittsweise blättern lässt, und sieht „next: Bridge" vorab; ein an ihn gerichteter `{cc4marco:}`-Kommentar („Solo 8 Takte") erscheint nur bei ihm. (3) Das Intro-Riff steht als Tab-Block `{sot4marco}` im Song: Marco sieht es als nicht umbrechenden, seitlich scrollbaren Monospace-Block zwischen den Textzeilen, die Sängerin gar nicht.
 
 #### 2. Live-Queue (`live-queue`)
-- **Was:** Seitenleiste mit der **ganzen** Setlist: bereits gespielte Songs ausgegraut, aktueller hervorgehoben (scrollt in die Mitte), Rest darunter. Pro Zeile „⋯"-Menü („Als nächstes spielen", „Aus Queue entfernen") und Drag-Handle „⠿" zum Umsortieren (dnd-kit) – nur für noch nicht gespielte Zeilen. Änderungen schreiben in das echte Setlist-Dokument (`saveSetlist`).
+- **Was:** Seitenleiste mit der **ganzen** Setlist: bereits gespielte Songs ausgegraut, aktueller hervorgehoben (scrollt in die Mitte), Rest darunter. Zeilen zeigen nur den Titel (bis zu zwei Zeilen statt Abschneiden). Aktionen („Als nächstes spielen", „Aus Queue entfernen") öffnen per **Langdruck** auf eine Zeile (500 ms, Bewegung zählt als Scrollen). Zum Umsortieren öffnet der Master **„⇅ Sortieren"** im Kopf des Widgets: dann erscheinen Drag-Handle „⠿" (48 px) und ein „⋮"-Menü je Zeile (dnd-kit); **„Fertig"** oder **Play** schließt den Modus wieder (PR F1, 2026-09-27 - vorher waren Handle und „⋯" immer sichtbar und kürzten Titel auf ~9 Zeichen). Aktionen nur für noch nicht gespielte Zeilen. Änderungen schreiben in das echte Setlist-Dokument (`saveSetlist`).
 - **Config:** `sizeRatio` (Textgröße, Default 1).
 - **Gig vs. Practice:** seit #234 modusabhängig über `useShowMode()`. Gig: aktive Setlist aus ShowState. Practice: die im Menü „Modus" gewählte Übungs-Setlist, ohne Auswahl der **ganze Katalog** (eine Zeile pro Song). Reorder/Entfernen nur, wenn es ein echtes Setlist-Dokument gibt (`canControl && activeSetlist`) – im synthetischen Katalog-Modus deaktiviert. Beachte: In Practice bearbeiten diese Aktionen das gemeinsame Setlist-Dokument für alle. „Master übernehmen"-Button nur im Gig, wenn das Gerät nicht Master ist.
 - **Disabled/Degradation:** Leere Liste → „Keine Songs in der Setlist." bzw. „Keine Setlist aktiv." Nicht-Master sieht die Liste, kann aber nichts ändern.
@@ -416,12 +416,12 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **UC:** Sängerin hat ein „Prompter"-Dashboard mit Lyrics und Queue; Techniker ein „Monitoring"-Dashboard – beide auf ihrem eigenen Tablet.
 
 #### 4.2 Edit-Lock / Bearbeitungsmodus
-- **Was:** `EditLock` im Menü (nur in Live): 600 ms **Langdruck** auf „Bearbeiten 🔒" entsperrt. Beenden per „🔒 Fertig" in der Edit-Leiste. Zustand wird **nicht persistiert** – nach Reload ist wieder alles gesperrt.
+- **Was:** `EditLock` im Menü (nur in Live): 600 ms **Langdruck** auf „Bearbeiten 🔒" entsperrt; der Knopf füllt sich dabei als Fortschritt, ein zu kurzer Tipp zeigt „Zum Bearbeiten gedrückt halten" (vorher nur ein auf Touch unsichtbarer Tooltip). Beenden per „🔒 Bearbeiten beenden" in der Edit-Leiste (hieß „🔒 Fertig" - wie das „Fertig" des Dashboard-Managers, das nur den Manager schließt; der heißt jetzt „Schließen", ebenso der Knopf unten im App-Menü). Zustand wird **nicht persistiert** – nach Reload ist wieder alles gesperrt.
 - **Gating:** rein UX-Schutz gegen Fehlbedienung, keine Rolle/PIN.
 - **UC:** Bühne, Tablet im Ständer: ein versehentliches Tippen verschiebt nichts; erst der bewusste Langdruck im Menü erlaubt Umbauten.
 
 #### 4.3 Edit-Leiste (`DashboardEditBar`)
-- **+ Widget** öffnet die Widget-Bibliothek. **Dashboards verwalten** öffnet den `DashboardManager`. **Zurücksetzen** (Bestätigung, rot) verwirft **alle** Dashboards und legt die Standard-Layouts neu an. **🔒 Fertig** beendet den Modus.
+- **+ Widget** öffnet die Widget-Bibliothek. **Dashboards verwalten** öffnet den `DashboardManager`. **Zurücksetzen** (Bestätigung, rot) verwirft **alle** Dashboards und legt die Standard-Layouts neu an. **🔒 Bearbeiten beenden** beendet den Modus.
 
 #### 4.4 Widget-Rahmen (`WidgetFrame`)
 - Im Edit-Modus ist der ganze Widget-Körper Ziehgriff, der Inhalt inert. **⋯-Menü** (auch per Doppelklick): Widget-eigene Konfiguration (ConfigPanel), **Rahmen ein-/ausblenden** („frameless", nur in der gesperrten Ansicht wirksam), **Entfernen** (rot, bewusst abgesetzt, ohne zweite Bestätigung).
