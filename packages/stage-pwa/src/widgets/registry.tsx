@@ -295,7 +295,7 @@ const DEFINITIONS: WidgetDefinition[] = [
       'Wechselt kurzfristig den Backing-Track eines Songs (z.B. "1 Gitarre" statt "keine Gitarre"); in Solo Üben auch die Variante.',
     category: 'performance',
     stageTier: 'gig',
-    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    defaultLayout: { w: 4, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
     configSchema: TrackOverrideConfigSchema,
     Component: TrackOverrideWidget,
     ConfigPanel: TrackOverrideConfigPanel,
