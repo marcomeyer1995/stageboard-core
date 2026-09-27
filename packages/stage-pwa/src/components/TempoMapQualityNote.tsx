@@ -20,12 +20,16 @@ export function TempoMapQualityNote({
   timeSignature,
   tempoMarkers,
   onAdoptBpm,
+  compact = false,
 }: {
   anchors: readonly BeatAnchorLike[]
   bpm: number
   timeSignature: string
   tempoMarkers: readonly TempoMarkerLike[]
   onAdoptBpm: (bpm: number) => void
+  /** One line with the details expandable - the full-screen timeline needs the height for its
+   * lanes (the full note took half of a landscape tablet's height). */
+  compact?: boolean
 }) {
   const { beats, quality } = tempoMapFor({ beatAnchors: anchors, bpm, timeSignature, tempoMarkers })
   if (!quality) return null
@@ -38,34 +42,63 @@ export function TempoMapQualityNote({
   if (quality.beatInBarConflicts > 0) issues.push(`${quality.beatInBarConflicts} Anker haben eine abweichende Taktposition - die Mehrheit bestimmt die Eins`)
   const bpmOff = Math.abs(quality.nominalOffPercent) >= 2
 
+  const summary = (
+    <span className="text-ink-soft">
+      {quality.observations} Anker → {beats.length} Schläge, gemessen {number(quality.bpm)} BPM
+      {quality.bpmHigh - quality.bpmLow >= 0.5 ? ` (${number(quality.bpmLow)}-${number(quality.bpmHigh)})` : ''}. Streuung der
+      Anker ±{quality.noiseMs} ms - der Klick folgt dem geglätteten Raster, nicht jedem einzelnen Anker.
+    </span>
+  )
+  const adoptButton = bpmOff && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault() // inside <summary>: adopt, don't toggle the details
+        onAdoptBpm(quality.bpm)
+      }}
+      className="min-h-12 rounded-sb-sm bg-control-strong px-3 font-semibold text-ink hover:bg-control-strong-hover"
+    >
+      {number(quality.bpm)} BPM übernehmen
+    </button>
+  )
+  const issueList = issues.length > 0 && (
+    <ul className="list-disc pl-5 text-ink-soft">
+      {issues.map((issue) => (
+        <li key={issue}>{issue}</li>
+      ))}
+    </ul>
+  )
+
+  if (compact) {
+    return (
+      <details role="status" className={`rounded-sb border-l-4 bg-control px-3 text-sm ${verdict.className}`}>
+        <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 py-1">
+          <span className="font-bold">{verdict.label}</span>
+          <span className="text-ink-soft">
+            {number(quality.bpm)} BPM gemessen{issues.length > 0 ? ` · ${issues.length} ${issues.length === 1 ? 'Hinweis' : 'Hinweise'}` : ''}
+          </span>
+          {adoptButton}
+        </summary>
+        <div className="flex flex-col gap-1 pb-2">
+          {summary}
+          {issueList}
+        </div>
+      </details>
+    )
+  }
+
   return (
     <div role="status" className={`flex flex-col gap-1 rounded-sb border-l-4 bg-control px-3 py-2 text-sm ${verdict.className}`}>
       <span className="font-bold">{verdict.label}</span>
-      <span className="text-ink-soft">
-        {quality.observations} Anker → {beats.length} Schläge, gemessen {number(quality.bpm)} BPM
-        {quality.bpmHigh - quality.bpmLow >= 0.5 ? ` (${number(quality.bpmLow)}-${number(quality.bpmHigh)})` : ''}. Streuung der
-        Anker ±{quality.noiseMs} ms - der Klick folgt dem geglätteten Raster, nicht jedem einzelnen Anker.
-      </span>
+      {summary}
       {bpmOff && (
         <span className="flex flex-wrap items-center gap-2 text-ink-soft">
           Eingetragenes Tempo {number(bpm)} BPM liegt {number(Math.abs(quality.nominalOffPercent))} %{' '}
           {quality.nominalOffPercent < 0 ? 'unter' : 'über'} dem gemessenen.
-          <button
-            type="button"
-            onClick={() => onAdoptBpm(quality.bpm)}
-            className="min-h-12 rounded-sb-sm bg-control-strong px-3 font-semibold text-ink hover:bg-control-strong-hover"
-          >
-            {number(quality.bpm)} BPM übernehmen
-          </button>
+          {adoptButton}
         </span>
       )}
-      {issues.length > 0 && (
-        <ul className="list-disc pl-5 text-ink-soft">
-          {issues.map((issue) => (
-            <li key={issue}>{issue}</li>
-          ))}
-        </ul>
-      )}
+      {issueList}
     </div>
   )
 }

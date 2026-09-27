@@ -10,7 +10,9 @@ import {
   clampView,
   formatTimelineTime,
   hitBeat,
+  barLabelEvery,
   periodAt,
+  tokenColor,
   pinBeat,
   removeAnchor,
   setDownbeat,
@@ -65,7 +67,7 @@ const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: 
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+  return tokenColor(getComputedStyle(document.documentElement).getPropertyValue(name), fallback)
 }
 
 /**
@@ -299,6 +301,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       // Beats and bars.
       const showBeats = beatsAreGrabbable(periodAt(firstBeatMs, grid), view) || view.msPerPx < 12
       let barNumber = 0
+      const labelEvery = barLabelEvery((periodAt(firstBeatMs, grid) * perBar) / view.msPerPx)
       const draggedMs = dragTimeMs(drag)
       grid.forEach((beat, i) => {
         const isBar = (beat.beatInBar ?? 0) === 0
@@ -313,7 +316,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         g.moveTo(x + 0.5, SECTION_H + (isBar ? 0 : gridH * 0.45))
         g.lineTo(x + 0.5, h - 12)
         g.stroke()
-        if (isBar && (view.msPerPx < 40 || barNumber % 4 === 1)) {
+        if (isBar && (barNumber - 1) % labelEvery === 0) {
           g.fillStyle = ink
           g.font = '14px system-ui, sans-serif'
           label(String(barNumber), x + 4, SECTION_H + 16, x + 16, SECTION_H + 4)
@@ -526,6 +529,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         timeSignature={timeSignature}
         tempoMarkers={tempoMarkers}
         onAdoptBpm={onAdoptBpm}
+        compact={fill}
       />
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={button} onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
