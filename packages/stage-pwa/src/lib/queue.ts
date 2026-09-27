@@ -74,7 +74,7 @@ function showBookkeepingPatch(state: ShowState, now: number): Partial<ShowState>
 async function activateEntry(entryId: string): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const now = Date.now()
+  const now = getServerTime()
   finalizeCurrentSong(state, now)
   await applyPatch({
     activeEntryId: entryId,
@@ -120,7 +120,12 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
   // A transition item (#29) plays too - as a silent countdown, so it has a clock but no song.
   if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
-  const now = Date.now()
+  // Server time, not this device's clock: every tablet - this one included - computes the
+  // elapsed time as getServerTime() minus playbackStartedAt (usePlaybackElapsedMs.ts). Stamped
+  // with Date.now(), a Master whose clock ran 2.1 s ahead of the Stage-Server froze every
+  // tablet's song clock for 2.1 s after Play and kept it 2.1 s late (measured 2026-09-27 -
+  // docs/12's "Uhr-Basis beim Transportstart" risk).
+  const now = getServerTime()
 
   const isFreshStart = state.activeEntryStartedAt === null
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
@@ -150,7 +155,7 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
 export async function pauseSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  await applyPatch(transportPatch(pauseTransport(currentTransport(state), Date.now())))
+  await applyPatch(transportPatch(pauseTransport(currentTransport(state), getServerTime())))
 }
 
 /** Ends the current entry's play-through now: logs it if it qualifies, then rearms - unlike
@@ -158,7 +163,7 @@ export async function pauseSong(): Promise<void> {
 export async function stopSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  finalizeCurrentSong(state, Date.now())
+  finalizeCurrentSong(state, getServerTime())
   await applyPatch(REARM_PATCH)
 }
 
