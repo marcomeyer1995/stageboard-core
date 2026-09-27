@@ -110,6 +110,25 @@ describe('fitTempoMap', () => {
     expect(Math.abs(map.beats[32]!.timeMs - markerMs)).toBeLessThan(5)
   })
 
+  it('uses the anchors\' own spacing when a section\'s bpm is far too slow (Whats up: a 23.8 BPM section over ~135 BPM anchors)', () => {
+    const truth = trueBeats(200, 134.7, 134.7, 2430)
+    const anchors = truth.map((t, i) => ({ timeMs: t + 10 * noise(i) }))
+    const map = fitTempoMap(anchors, 127.5, '4/4', [{ timeMs: 0, bpm: 23.8 }])
+    expect(map.beats).toHaveLength(200)
+    expect(map.quality?.duplicates).toBe(0)
+    expect(map.quality?.bpm).toBeCloseTo(134.7, 0)
+    expect(map.quality?.tempoMismatches).toBe(1)
+    expect(map.quality?.verdict).toBe('poor')
+  })
+
+  it('does not take every-beat double taps for a tempo mismatch', () => {
+    const truth = trueBeats(64, 136)
+    const anchors = truth.flatMap((t) => [{ timeMs: t }, { timeMs: t + 263 }])
+    const map = fitTempoMap(anchors, 136, '4/4')
+    // Median gap ~0.5 beat - above the 0.4 threshold, so the entered bpm is not overruled.
+    expect(map.quality?.tempoMismatches).toBe(0)
+  })
+
   it('plays too few anchors as they are', () => {
     const anchors = [{ timeMs: 460, beatInBar: 0 }, { timeMs: 940 }]
     expect(fitTempoMap(anchors, 114, '4/4')).toEqual({ beats: anchors, quality: null })

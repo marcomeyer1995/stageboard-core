@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { BeatAnchor } from 'shared-types'
 
@@ -13,19 +13,23 @@ const box = vi.hoisted(() => ({ width: 1000, height: 206 }))
 vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, box] }))
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
+// The in-app confirm dialog answers "yes" right away.
+vi.mock('../../store/useDialogStore', () => ({
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: async () => null }),
+}))
 
 const { TimelineEditor } = await import('./TimelineEditor')
 
 // 32 beats at 120 BPM from 1 s; the stored beat numbers start on "beat 1" at 1 s.
 const anchors: BeatAnchor[] = Array.from({ length: 32 }, (_, i) => ({ id: `a${i}`, timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
-function setup() {
+function setup(extra: { onDetectAnchors?: () => Promise<{ bpm: number | null; beatAnchors: BeatAnchor[] } | null>; onAdoptBpm?: (bpm: number) => void; trackSrc?: string } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
       variantId="v"
       trackId={null}
-      trackSrc={null}
+      trackSrc={extra.trackSrc ?? null}
       anchors={anchors}
       tempoMarkers={[]}
       bpm={120}
@@ -33,7 +37,8 @@ function setup() {
       countInEnabled={false}
       countInBars={1}
       onChange={onChange}
-      onAdoptBpm={vi.fn()}
+      onAdoptBpm={extra.onAdoptBpm ?? vi.fn()}
+      onDetectAnchors={extra.onDetectAnchors}
     />,
   )
   return { onChange, ...utils }
@@ -90,6 +95,21 @@ describe('TimelineEditor (docs/14, phase 1)', () => {
     fireEvent.click(screen.getByText('Abschnitt ab hier'))
     const patch = onChange.mock.calls[0]![0] as { tempoMarkers: { timeMs: number; bpm: number }[] }
     expect(patch.tempoMarkers).toEqual([expect.objectContaining({ timeMs: 5000, bpm: 120 })])
+  })
+
+  it('deletes all anchors after confirming', async () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByText('Alle Anker löschen'))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatAnchors: [], tempoMarkers: [] }))
+  })
+
+  it('replaces the anchors with a detection run and adopts its tempo', async () => {
+    const detected: BeatAnchor[] = [{ id: 'd0', timeMs: 800, beatInBar: 0 }]
+    const onAdoptBpm = vi.fn()
+    const { onChange } = setup({ onDetectAnchors: async () => ({ bpm: 121, beatAnchors: detected }), onAdoptBpm, trackSrc: 'blob:track' })
+    fireEvent.click(screen.getByText('Track analysieren'))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatAnchors: detected, tempoMarkers: [] }))
+    expect(onAdoptBpm).toHaveBeenCalledWith(121)
   })
 })
 

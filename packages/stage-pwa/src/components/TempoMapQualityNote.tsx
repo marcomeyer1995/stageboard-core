@@ -39,6 +39,7 @@ export function TempoMapQualityNote({
   if (quality.outliers > 0) issues.push(`${quality.outliers} Anker liegen weit neben dem Raster und werden ignoriert`)
   if (quality.ambiguousGaps > 0) issues.push(`${quality.ambiguousGaps} Lücken lassen sich nicht sauber in Schläge teilen - Takt dort prüfen`)
   if (quality.longestGapBeats > 16) issues.push(`Längste Strecke ohne Anker: ${quality.longestGapBeats} Schläge`)
+  if (quality.tempoMismatches > 0) issues.push(`${quality.tempoMismatches === 1 ? 'Ein Tempo-Abschnitt hat' : `${quality.tempoMismatches} Tempo-Abschnitte haben`} ein viel zu langsames Tempo für seine Anker - Abschnitts-BPM prüfen`)
   if (quality.beatInBarConflicts > 0) issues.push(`${quality.beatInBarConflicts} Anker haben eine abweichende Taktposition - die Mehrheit bestimmt die Eins`)
   const bpmOff = Math.abs(quality.nominalOffPercent) >= 2
 

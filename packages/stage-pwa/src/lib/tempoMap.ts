@@ -35,6 +35,8 @@ export interface TempoMapQuality {
   nominalOffPercent: number
   /** Anchors whose stored beat-in-bar disagrees with the voted downbeat. */
   beatInBarConflicts: number
+  /** Tempo sections whose bpm is far slower than their own anchors (their spacing was used). */
+  tempoMismatches: number
   verdict: 'good' | 'check' | 'poor'
 }
 
@@ -75,13 +77,25 @@ function mod(n: number, m: number): number {
   return ((n % m) + m) % m
 }
 
+/** Below this fraction of the nominal beat, the anchors' own median spacing overrules the nominal
+ * bpm: anchors that dense can't be sparse observations of that tempo, the bpm is wrong. Not
+ * higher: a stretch with every beat observed twice (double taps, 263 ms pairs at 440 ms per beat
+ * on What's Up) has a median gap of about half a beat, and must still count as one tempo. */
+const MISMATCH_FRACTION = 0.4
+
 /** Beat period from the observations: the median gap, divided by how many nominal beats it spans
- * (sparse anchors), so a wrong nominal bpm only has to be within ~half a beat per gap. */
-function estimatePeriod(times: number[], nominalMs: number): number {
+ * (sparse anchors), so a wrong nominal bpm only has to be within ~half a beat per gap. A nominal
+ * bpm far *slower* than the anchors (a tempo section saved with 23.8 BPM over anchors at ~135 -
+ * 2026-09-27, "Whats up") would otherwise count 5 of every 6 anchors as duplicates and play the
+ * song at a fraction of its speed; then the anchors' own spacing is used and `mismatch` is set. */
+function estimatePeriod(times: number[], nominalMs: number): { periodMs: number; mismatch: boolean } {
   const gaps = times.slice(1).map((t, i) => t - times[i]!).filter((g) => g > 0)
-  const typical = median(gaps.filter((g) => g >= 0.5 * nominalMs))
-  const span = Math.max(1, Math.round(typical / nominalMs))
-  return typical / span
+  const own = median(gaps)
+  const mismatch = own < MISMATCH_FRACTION * nominalMs
+  const reference = mismatch ? own : nominalMs
+  const typical = median(gaps.filter((g) => g >= 0.5 * reference))
+  const span = Math.max(1, Math.round(typical / reference))
+  return { periodMs: typical / span, mismatch }
 }
 
 interface Observation {
@@ -241,7 +255,7 @@ function fitSection(observations: Observation[], bpm: number, timeSignature: str
   if (observations.length < MIN_OBSERVATIONS) return null
   const perBar = beatsPerBar(timeSignature)
   const sorted = [...observations].sort((a, b) => a.timeMs - b.timeMs)
-  const period = estimatePeriod(sorted.map((o) => o.timeMs), 60000 / bpm)
+  const { periodMs: period, mismatch } = estimatePeriod(sorted.map((o) => o.timeMs), 60000 / bpm)
   const { kept, duplicates } = dropDuplicates(sorted, period)
   if (kept.length < MIN_OBSERVATIONS) return null
   const { indices, ambiguous, longestGap } = assignIndices(kept, period)
@@ -283,6 +297,7 @@ function fitSection(observations: Observation[], bpm: number, timeSignature: str
       residualsMs: residualsMs.filter((_, i) => robustWeights[i]! >= 0.1),
       bpms: periods.filter((p) => p > 0).map((p) => 60000 / p),
       conflicts,
+      tempoMismatch: mismatch,
     },
   }
 }
@@ -296,6 +311,7 @@ interface SectionStats {
   residualsMs: number[]
   bpms: number[]
   conflicts: number
+  tempoMismatch: boolean
 }
 
 /**
@@ -351,8 +367,9 @@ function summarize(stats: SectionStats[], nominalBpm: number): TempoMapQuality {
     bpmHigh: bpms.length ? Math.round(percentile(bpms, 0.95) * 10) / 10 : fitted,
     nominalOffPercent: Math.round(((nominalBpm - fitted) / fitted) * 1000) / 10,
     beatInBarConflicts: stats.reduce((n, s) => n + s.conflicts, 0),
+    tempoMismatches: stats.filter((s) => s.tempoMismatch).length,
   }
-  const serious = quality.ambiguousGaps > 2 || Math.abs(quality.nominalOffPercent) > 5 || quality.longestGapBeats > 16
+  const serious = quality.tempoMismatches > 0 || quality.ambiguousGaps > 2 || Math.abs(quality.nominalOffPercent) > 5 || quality.longestGapBeats > 16
   const minor = quality.duplicates > 0 || quality.outliers > quality.observations * 0.05 || quality.beatInBarConflicts > 0 || quality.noiseMs > 35
   return { ...quality, verdict: serious ? 'poor' : minor ? 'check' : 'good' }
 }
