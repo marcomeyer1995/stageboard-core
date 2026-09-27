@@ -64,6 +64,7 @@ Anker entstehen durch Tippen **und** durch automatische Erkennung; beide liefern
 
 ## 5. Offen
 
+- **Nachtrag 2026-09-27 abends:** Die Bearbeitung über Anker + geglättete Tempo-Karte war im Editor nicht verständlich (Marco). Nachfolger: **starres Raster mit Ausrichtungspunkten** – Tempo konstant zwischen wenigen selbst gesetzten Takt-Punkten, keine Glättung – siehe [docs/14 §5a](14_Timeline_Editor.md#5a-raster-modell-neu-starres-lineal-mit-ausrichtungspunkten). Die Tempo-Karte dieses Dokuments spielt weiter für Varianten ohne das neue Raster, bis alle Songs neu aufgebaut sind.
 - Visueller Editor (Abschnitt 3.4).
 - Automatische Abschnitts-/Bruch-Erkennung (Fermate, ausgelassener Schlag) ohne manuellen Tempo-Marker.
 - Qualitätsanzeige zusätzlich gegen die Onsets des Tracks (heute nur aus den Ankern selbst).
