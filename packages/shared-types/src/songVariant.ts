@@ -71,6 +71,11 @@ export const BeatAnchorSchema = z.object({
    * detection) made the click re-announce "beat 1" on almost every tick instead of cycling
    * 1-2-3-4 through the bar - every anchor used to force the beat-in-bar counter back to 0. */
   beatInBar: z.number().int().nonnegative().optional(),
+  /** A fixed anchor (docs/14): set in the timeline editor by dragging a bar line or choosing
+   * "beat 1". The fitted grid (stage-pwa lib/tempoMap.ts) runs exactly through it and its
+   * beat-in-bar decides the downbeat; ordinary (tapped/detected) anchors are only observations
+   * smoothed between. Absent = an ordinary observation - older clients play fixed anchors that way. */
+  pinned: z.boolean().optional(),
 })
 export type BeatAnchor = z.infer<typeof BeatAnchorSchema>
 

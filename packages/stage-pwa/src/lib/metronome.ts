@@ -57,6 +57,8 @@ export interface BeatAnchorLike {
    * Absent on anchors created before this field existed; every read site below defaults it to
    * 0, reproducing the original "every anchor is beat 1" behavior exactly. */
   beatInBar?: number
+  /** A fixed anchor (docs/14) - only lib/tempoMap.ts's fit treats it differently. */
+  pinned?: boolean
 }
 
 /** Anchors closer together than this collapse into just the earlier one - guards the beat grid

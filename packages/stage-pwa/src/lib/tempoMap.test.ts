@@ -116,6 +116,47 @@ describe('fitTempoMap', () => {
   })
 })
 
+describe('fitTempoMap with fixed (pinned) anchors (docs/14)', () => {
+  it('runs exactly through a fixed anchor and blends smoothly into the observations around it', () => {
+    const truth = trueBeats(80, 120)
+    // The observations sit 30 ms late everywhere; one bar line is dragged onto the true beat.
+    const anchors = truth.map((t, i) => ({ timeMs: t + 30, beatInBar: i % 4 }))
+    anchors[40] = { timeMs: truth[40]!, beatInBar: 0, pinned: true } as never
+    const beats = fitTempoMap(anchors, 120, '4/4').beats.map((b) => b.timeMs)
+    expect(beats[40]).toBe(Math.round(truth[40]!))
+    const gaps = beats.slice(30, 50).map((t, i) => beats[31 + i]! - t)
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(15)
+  })
+
+  it('keeps the fixed anchor when an ordinary observation of the same beat is close by', () => {
+    const truth = trueBeats(40, 120)
+    const anchors = [...truth.map((t, i) => ({ timeMs: t, beatInBar: i % 4 })), { timeMs: truth[20]! + 60, beatInBar: 0, pinned: true }]
+    const map = fitTempoMap(anchors, 120, '4/4')
+    expect(map.beats[20]!.timeMs).toBe(Math.round(truth[20]! + 60))
+  })
+
+  it('lets a fixed anchor\'s beat-in-bar decide the downbeat against the majority', () => {
+    const truth = trueBeats(40, 120)
+    const anchors = [...truth.map((t, i) => ({ timeMs: t, beatInBar: i % 4 }))]
+    // "Beat 1" set on the beat the majority calls beat 3.
+    anchors[10] = { timeMs: truth[10]!, beatInBar: 0, pinned: true } as never
+    const map = fitTempoMap(anchors, 120, '4/4')
+    expect(map.beats[10]!.beatInBar).toBe(0)
+    expect(map.beats[11]!.beatInBar).toBe(1)
+    expect(map.quality?.beatInBarConflicts).toBeGreaterThan(0) // the observations now disagree
+  })
+
+  it('never discards a fixed anchor as an outlier', () => {
+    const truth = trueBeats(40, 120)
+    const anchors = truth.map((t, i) => ({ timeMs: t, beatInBar: i % 4 }))
+    anchors[20] = { timeMs: truth[20]! + 150, beatInBar: 0, pinned: true } as never
+    const map = fitTempoMap(anchors, 120, '4/4')
+    // The grid follows the explicit correction; the observations that now disagree with it may
+    // count as outliers - the fixed anchor itself never does.
+    expect(map.beats[20]!.timeMs).toBe(Math.round(truth[20]! + 150))
+  })
+})
+
 describe('playbackAnchors', () => {
   it('caches the fit per anchors array', () => {
     const variant = { beatAnchors: trueBeats(20, 120).map((t) => ({ timeMs: t })), bpm: 120, timeSignature: '4/4' }
