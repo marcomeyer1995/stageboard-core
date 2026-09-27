@@ -388,3 +388,48 @@ describe('Rehearsal Loop support (#61)', () => {
     expect(startTimes()[0]).toBeLessThan(1000)
   })
 })
+
+describe('click spacing with a coarse audio clock (2026-09-27)', () => {
+  const startTimes = () =>
+    fakeCtx.createOscillator.mock.results.map((result) => (result.value as FakeOscillator).start.mock.calls[0][0] as number)
+
+  it('spaces clicks exactly one beat apart although the audio clock only moves in 21 ms steps', () => {
+    // Measured on the band's tablet: count-in clicks meant to be 480 ms apart came 438-513 ms
+    // apart, because each click was converted from song time with a coarse currentTime sample.
+    let wallMs = 0
+    const step = 0.021
+    startClick(() => ({ bpm: 125, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    for (let i = 0; i < 200; i++) {
+      wallMs += 50
+      // Real timers fire a little irregularly too.
+      const jitter = (i % 3) * 7
+      fakeCtx.currentTime = 1000 + Math.floor((wallMs + jitter) / 1000 / step) * step
+      vi.advanceTimersByTime(50)
+    }
+    const times = startTimes()
+    expect(times.length).toBeGreaterThan(15)
+    for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeCloseTo(0.48, 6)
+  })
+
+  it('re-derives the audio time after a real jump, not on step jitter', () => {
+    let elapsedMs = 0
+    startClick(() => ({ bpm: 120, timeSignature: '4/4', beatAnchors: [], countInBars: 0, tempoMarkers: [], elapsedMs }))
+    for (let i = 0; i < 20; i++) {
+      elapsedMs += 50
+      fakeCtx.currentTime += 0.05
+      vi.advanceTimersByTime(50)
+    }
+    // A clock-sync correction: song time jumps 120 ms ahead of the audio clock.
+    elapsedMs += 120
+    for (let i = 0; i < 20; i++) {
+      elapsedMs += 50
+      fakeCtx.currentTime += 0.05
+      vi.advanceTimersByTime(50)
+    }
+    const times = startTimes()
+    const gaps = times.slice(1).map((t, i) => Math.round((t - times[i]) * 1000))
+    // One gap shortened by the jump, all others exactly one beat.
+    expect(gaps.filter((g) => g !== 500)).toEqual([380])
+  })
+})
+
