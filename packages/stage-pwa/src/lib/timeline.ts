@@ -186,3 +186,22 @@ export function formatTimelineTime(ms: number): string {
   const seconds = (tenths % 600) / 10
   return `${negative ? '-' : ''}${minutes}:${seconds.toFixed(1).padStart(4, '0')}`
 }
+
+/**
+ * A colour token as a canvas colour. The app's tokens hold bare channels ("255 255 255") for
+ * Tailwind's `rgb(var(--sb-ink) / <alpha>)` - a canvas ignores such a string without an error
+ * and keeps its previous colour (on the tablet the waveform and grid lines simply didn't draw).
+ */
+export function tokenColor(value: string, fallback: string): string {
+  const v = value.trim()
+  if (!v) return fallback
+  if (/^\d+(\.\d+)?\s+\d+(\.\d+)?\s+\d+(\.\d+)?$/.test(v)) return `rgb(${v})`
+  return v
+}
+
+/** Label every n-th bar (1, 2, 4, 8 …) so bar numbers never overlap: at least `minPx` apart. */
+export function barLabelEvery(barPx: number, minPx = 36): number {
+  let every = 1
+  while (every * barPx < minPx && every < 1024) every *= 2
+  return every
+}

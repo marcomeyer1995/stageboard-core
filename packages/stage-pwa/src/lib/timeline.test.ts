@@ -4,7 +4,9 @@ import {
   barQuality,
   beatsAreGrabbable,
   clampView,
+  barLabelEvery,
   formatTimelineTime,
+  tokenColor,
   hitBeat,
   nudgeAnchor,
   pinBeat,
@@ -93,5 +95,22 @@ describe('formatTimelineTime', () => {
   it('shows tenths, and the count-in as negative', () => {
     expect(formatTimelineTime(83_450)).toBe('1:23.5')
     expect(formatTimelineTime(-2_000)).toBe('-0:02.0')
+  })
+})
+
+describe('tokenColor', () => {
+  it('turns the app\'s bare channel tokens into canvas colours', () => {
+    // A canvas silently ignores "255 255 255" - on the tablet nothing was drawn.
+    expect(tokenColor(' 255 255 255', '#fff')).toBe('rgb(255 255 255)')
+    expect(tokenColor('#123456', '#fff')).toBe('#123456')
+    expect(tokenColor('', '#fff')).toBe('#fff')
+  })
+})
+
+describe('barLabelEvery', () => {
+  it('labels fewer bars the closer they are on screen', () => {
+    expect(barLabelEvery(80)).toBe(1)
+    expect(barLabelEvery(20)).toBe(2)
+    expect(barLabelEvery(8)).toBe(8)
   })
 })
