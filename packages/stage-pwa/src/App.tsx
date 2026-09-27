@@ -13,6 +13,8 @@ import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
 import { MODE_LABEL, type Mode } from './lib/modes'
+import { useModeDashboards } from './lib/useModeDashboards'
+import { StatusBar } from './components/StatusBar'
 import { type TrackedSync } from './lib/trackedSync'
 import { useAudioOutputDriver } from './lib/useAudioOutputDriver'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
@@ -88,6 +90,7 @@ function App() {
   )
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
+  const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
   useWakeLock()
   useBrowserOnlineStatus()
@@ -203,6 +206,9 @@ function App() {
   const needsRosterSetup = !needsJoin && activeWorkspaceIsAdmin && !rosterSetupDone && foundedHere
   const needsProfile = !needsJoin && !needsRosterSetup && activeProfileId === undefined
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
+  // The status bar is on every screen except onboarding, unless the dashboard shown in Live
+  // switched it off (Dashboard.statusBar === false).
+  const showStatusBar = !inOnboarding && !(mode === 'live' && activeDashboard?.statusBar === false)
 
   // The Device Ledger's admin "kick" (DeviceLedgerView.tsx, Marco's explicit request) - takes
   // priority over even needsJoin/needsRosterSetup/needsProfile above, since a revoked device
@@ -212,56 +218,62 @@ function App() {
   if (myDeviceRevoked) return <DeviceRevokedScreen />
 
   return (
-    <div className="relative h-dvh">
-      {needsJoin && <JoinBandView />}
-      {needsRosterSetup && <RosterSetupView />}
-      {needsProfile && <ProfileRolePickerView />}
-      {!inOnboarding && (
-        <>
-          {mode === 'live' && <Dashboard />}
-          {mode === 'library' && <LibraryView />}
-          {mode === 'system' && <SystemView />}
-        </>
-      )}
+    <div className="flex h-dvh flex-col">
+      {showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />}
+      {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
+      <div className="relative min-h-0 flex-1">
+        {needsJoin && <JoinBandView />}
+        {needsRosterSetup && <RosterSetupView />}
+        {needsProfile && <ProfileRolePickerView />}
+        {!inOnboarding && (
+          <>
+            {mode === 'live' && <Dashboard />}
+            {mode === 'library' && <LibraryView />}
+            {mode === 'system' && <SystemView />}
+          </>
+        )}
 
-      {/* Band, Theme, Fullscreen, Edit-Lock and screen navigation live behind one menu
-          button, not as permanently visible controls: none of them is touched often, and
-          at a real touch-target size they don't fit along one edge anyway. Hidden entirely
-          while the dashboard is unlocked for editing - it used to sit exactly where a
-          bottom-of-grid widget's resize handle needed to be, and the edit toolbar's own
-          "Bearbeiten beenden" button is already the way back out. Also hidden during all three onboarding
-          gates above: each one is already fully self-sufficient (join, create-a-band, and the
-          password fallback on JoinBandView; adding members on RosterSetupView; picking a
-          profile on ProfileRolePickerView), and the menu's Band/Profil/Sync sections either
-          have nothing real to show yet or just duplicate whichever gate is already the entire
-          screen - only confusing, not-yet-functional controls during onboarding. */}
-      {!isEditingDashboard && !inOnboarding && (
-        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="relative flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
-          >
-            <span className="text-xl leading-none">☰</span>
-            {MODE_LABEL[mode]}
-            {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
-                since this button is always on screen; the detailed SyncIndicator with its
-                text/percentage lives in SystemView's Einstellungen tab for when someone
-                actually wants it. */}
-            <span
-              title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
-              className={`absolute right-1 top-1 h-2 w-2 rounded-full ${
-                {
-                  idle: 'bg-green-500',
-                  syncing: 'bg-blue-500 animate-pulse',
-                  offline: 'bg-gray-400',
-                  error: 'bg-red-500',
-                }[syncStatus]
-              }`}
-            />
-          </button>
-        </div>
-      )}
+        {/* Band, Theme, Fullscreen, Edit-Lock and screen navigation live behind one menu
+            button, not as permanently visible controls: none of them is touched often, and
+            at a real touch-target size they don't fit along one edge anyway. Hidden entirely
+            while the dashboard is unlocked for editing - it used to sit exactly where a
+            bottom-of-grid widget's resize handle needed to be, and the edit toolbar's own
+            "Bearbeiten beenden" button is already the way back out. Also hidden during all three onboarding
+            gates above: each one is already fully self-sufficient (join, create-a-band, and the
+            password fallback on JoinBandView; adding members on RosterSetupView; picking a
+            profile on ProfileRolePickerView), and the menu's Band/Profil/Sync sections either
+            have nothing real to show yet or just duplicate whichever gate is already the entire
+            screen - only confusing, not-yet-functional controls during onboarding. */}
+        {/* Only where the status bar is hidden (a dashboard can switch it off) - elsewhere the
+            bar carries the menu button. */}
+        {!showStatusBar && !isEditingDashboard && !inOnboarding && (
+          <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="relative flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
+            >
+              <span className="text-xl leading-none">☰</span>
+              {MODE_LABEL[mode]}
+              {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
+                  since this button is always on screen; the detailed SyncIndicator with its
+                  text/percentage lives in SystemView's Einstellungen tab for when someone
+                  actually wants it. */}
+              <span
+                title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
+                className={`absolute right-1 top-1 h-2 w-2 rounded-full ${
+                  {
+                    idle: 'bg-green-500',
+                    syncing: 'bg-blue-500 animate-pulse',
+                    offline: 'bg-gray-400',
+                    error: 'bg-red-500',
+                  }[syncStatus]
+                }`}
+              />
+            </button>
+          </div>
+        )}
+      </div>
 
       {menuOpen && !inOnboarding && (
         <AppMenu mode={mode} onSelectMode={setMode} onClose={() => setMenuOpen(false)} />

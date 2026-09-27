@@ -27,6 +27,7 @@ function toDashboard(doc: DashboardDoc): Dashboard {
     // just invisible - the next save from the store would erase it from the document
     // (found live 2026-09-27: the Gig/Solo chips saved, then snapped back).
     modes: doc.modes,
+    statusBar: doc.statusBar,
   }
 }
 

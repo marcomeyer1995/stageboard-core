@@ -101,7 +101,7 @@ export function SystemView() {
   // which of these two layouts renders it changes.
   if (showSidebar) {
     return (
-      <div className="flex h-dvh sb-app-bg text-ink">
+      <div className="flex h-full sb-app-bg text-ink">
         <div className="flex w-56 flex-shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-2">
           {tabs.map((candidate) => (
             <button
@@ -125,7 +125,7 @@ export function SystemView() {
 
   // Narrow touch (phone, tablet portrait): unchanged horizontal tab strip.
   return (
-    <div className="h-dvh overflow-y-auto sb-app-bg text-ink">
+    <div className="h-full overflow-y-auto sb-app-bg text-ink">
       <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-line bg-surface p-2">
         {tabs.map((candidate) => (
           <button

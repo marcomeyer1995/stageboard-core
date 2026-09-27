@@ -46,7 +46,7 @@ export function PostShowReport() {
   }
 
   return (
-    <div className="h-dvh overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Nachbericht</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Automatisch erfasst: wann eine Show begann, welche Songs wirklich gespielt wurden

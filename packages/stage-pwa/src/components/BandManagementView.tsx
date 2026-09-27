@@ -270,7 +270,7 @@ export function BandManagementView() {
   }
 
   return (
-    <div className="flex h-dvh flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
 
       {(hardwareStatus !== 'loading' || hardwareSlow) && (

@@ -225,7 +225,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   }, [songs, draft?.songId])
 
   if (!draft) {
-    return <div className="flex h-dvh items-center justify-center text-ink-faint">Lade…</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
   }
 
   const selectVariant = (variantId: string) => {
@@ -851,7 +851,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // isn't expressible as a single Tailwind prefix. In 'phoneTabs'/'tabletPortraitSheet',
     // Text and Details share one column and swap via tabs instead of both being visible.
     <div
-      className={`flex h-dvh gap-3 overflow-y-auto sb-app-bg p-3 text-ink ${
+      className={`flex h-full gap-3 overflow-y-auto sb-app-bg p-3 text-ink ${
         layout === 'panel' ? 'grid grid-cols-2' : 'flex-col'
       }`}
     >

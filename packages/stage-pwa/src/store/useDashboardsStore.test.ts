@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 // The real read path (init -> refresh -> toDashboard) against a stubbed database layer.
 const docs = [
-  { id: 'stage', name: 'Bühne', order: 0, widgets: [], layouts: {}, visibility: 'public', modes: ['gig'] },
+  { id: 'stage', name: 'Bühne', order: 0, widgets: [], layouts: {}, visibility: 'public', modes: ['gig'], statusBar: false },
   { id: 'both', name: 'Beide', order: 1, widgets: [], layouts: {}, visibility: 'public' },
 ]
 vi.mock('../lib/dashboardsDb', () => ({
@@ -24,5 +24,13 @@ describe('useDashboardsStore read path', () => {
     const byId = Object.fromEntries(useDashboardsStore.getState().dashboards.map((d) => [d.id, d]))
     expect(byId.stage.modes).toEqual(['gig'])
     expect(byId.both.modes).toBeUndefined()
+  })
+
+  it('keeps a dashboard\'s status bar setting when reading it from the database', async () => {
+    // Same explicit field list as `modes` above - a dropped `statusBar` would bring the bar back.
+    await useDashboardsStore.getState().init('band')
+    const byId = Object.fromEntries(useDashboardsStore.getState().dashboards.map((d) => [d.id, d]))
+    expect(byId.stage.statusBar).toBe(false)
+    expect(byId.both.statusBar).toBeUndefined()
   })
 })

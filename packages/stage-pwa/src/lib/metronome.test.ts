@@ -540,3 +540,11 @@ describe('barMsAt (#231)', () => {
     expect(barMsAt(0, 120, '4/4', [{ timeMs: 5000 }])).toBeCloseTo(4 * (60_000 / 120))
   })
 })
+
+describe('beatAt before the grid origin (count-in without beat anchors)', () => {
+  it('counts the count-in beats 1-4, never negative', () => {
+    // 120 BPM 4/4, one count-in bar = beats at -2000, -1500, -1000, -500 ms.
+    expect([-2000, -1450, -1000, -499].map((ms) => beatAt(ms, 120, '4/4', [], 1)?.beatInBar)).toEqual([0, 1, 2, 3])
+    expect(beatAt(-1450, 120, '4/4', [], 1)?.msIntoBeat).toBeCloseTo(50)
+  })
+})

@@ -451,7 +451,7 @@ export function LibraryView() {
     }
   }
 
-  // SheetEditor owns its own full-page (`h-dvh`) two-column layout - it can't nest inside
+  // SheetEditor owns its own full-height (`h-full`) two-column layout - it can't nest inside
   // this view's right pane without a double-height conflict, so entering edit mode replaces
   // the whole tree with the editor instead (its own "← Bibliothek" button clears the
   // selection entirely, same as leaving a setlist - "Bearbeiten" is a deliberate deep dive,
@@ -484,7 +484,7 @@ export function LibraryView() {
           panel threshold (desktop-wide, or a landscape tablet already wide enough), both stay
           visible at once - no need to hide either. */}
       <div
-        className={`flex h-dvh gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
+        className={`flex h-full gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
       >
         <div
           className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb ${
