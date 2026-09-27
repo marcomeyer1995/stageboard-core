@@ -10,6 +10,7 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
+import { playbackAnchors } from './tempoMap'
 
 /** Reactive queue for use in components: current/next song, honoring the active setlist's order. */
 export function useQueue(): Queue & { isMaster: boolean } {
@@ -135,7 +136,7 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
       ? {
           ...currentTransport(state),
           accumulatedMs: countInLeadMs(
-            currentVariant?.beatAnchors ?? [],
+            playbackAnchors(currentVariant),
             activeSong.bpm,
             activeSong.timeSignature,
             currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
@@ -238,7 +239,7 @@ export async function extendClickTrack(bars: number): Promise<void> {
     elapsedMs,
     activeSong.bpm,
     activeSong.timeSignature,
-    currentVariant?.beatAnchors ?? [],
+    playbackAnchors(currentVariant),
     currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
     currentVariant?.tempoMarkers ?? [],
   )

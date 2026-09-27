@@ -31,6 +31,8 @@ import { TapTempoMarker } from './TapTempoMarker'
 import { TapToSync } from './TapToSync'
 import { TempoMarkerListEditor } from './TempoMarkerListEditor'
 import { TrackManagerField } from './TrackManagerField'
+import { mergeTappedAnchors } from '../lib/tempoMap'
+import { TempoMapQualityNote } from './TempoMapQualityNote'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -567,7 +569,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           trackSrc={tapTrackSrc}
           timeSignature={draft.timeSignature}
           onComplete={(anchors) => {
-            setDraft({ ...draft, beatAnchors: [...draft.beatAnchors, ...anchors].sort((a, b) => a.timeMs - b.timeMs) })
+            setDraft({ ...draft, beatAnchors: mergeTappedAnchors(draft.beatAnchors, anchors, draft.bpm) })
             setIsTappingAnchors(false)
           }}
           onCancel={() => setIsTappingAnchors(false)}
@@ -624,6 +626,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           </div>
           {analyzeError && <p className="text-xs text-red-500">{analyzeError}</p>}
           {tempoMapError && <p className="text-xs text-red-500">{tempoMapError}</p>}
+          <TempoMapQualityNote
+            anchors={draft.beatAnchors}
+            bpm={draft.bpm}
+            timeSignature={draft.timeSignature}
+            tempoMarkers={draft.tempoMarkers}
+            onAdoptBpm={(bpm) => setDraft({ ...draft, bpm })}
+          />
           <BeatAnchorListEditor
             anchors={draft.beatAnchors}
             timeSignature={draft.timeSignature}

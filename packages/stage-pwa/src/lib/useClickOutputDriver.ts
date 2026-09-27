@@ -6,6 +6,7 @@ import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowMode } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
+import { playbackAnchors } from './tempoMap'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -99,7 +100,7 @@ export function useClickOutputDriver(): void {
       // same "no variant means no anchors" shape as `cues`. Not scaled/affected by the live
       // tempo nudge above - a nudge is a virtual grid-spacing correction, unrelated to where
       // real downbeats sit in the anchors' fixed timestamps.
-      beatAnchors: queue.currentVariant?.beatAnchors ?? [],
+      beatAnchors: playbackAnchors(queue.currentVariant),
       // countInEnabled gates countInBars - unchecked means no count-in regardless of the
       // authored bar count, same "checkbox is the real toggle" contract SheetEditor.tsx exposes.
       countInBars: queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0,

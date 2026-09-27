@@ -1,6 +1,7 @@
 import type { SongEntry, SongVariant } from 'shared-types'
 import { resolveTrackForEntry } from './computeQueue'
 import { countInLeadMs } from './metronome'
+import { playbackAnchors } from './tempoMap'
 
 export type DurationSource = 'track' | 'manual'
 
@@ -27,5 +28,5 @@ export function songDurationMs(
  * count-in, or it fits inside the track's lead-in silence (see countInLeadMs). */
 export function countInDurationMs(variant: SongVariant | null): number {
   if (!variant?.countInEnabled) return 0
-  return Math.max(0, -countInLeadMs(variant.beatAnchors, variant.bpm, variant.timeSignature, variant.countInBars))
+  return Math.max(0, -countInLeadMs(playbackAnchors(variant), variant.bpm, variant.timeSignature, variant.countInBars))
 }
