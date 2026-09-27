@@ -72,6 +72,16 @@ describe('fitTempoMap', () => {
     beats.slice(1).forEach((t, i) => expect(t - beats[i]!).toBeGreaterThan(200))
   })
 
+  it('has no kink where sparse anchors (one per 8 beats) meet dense ones', () => {
+    // "All the small things": a tapped intro with one anchor every 8 beats, then one per beat -
+    // a window that doubled in steps made one beat 61 ms early (a 339/461 ms pair).
+    const truth = trueBeats(120, 150)
+    const anchors = truth.filter((_, i) => (i < 64 ? i % 8 === 0 : true)).map((t, i) => ({ timeMs: t + (i < 8 ? 0 : 15 * noise(i)) }))
+    const beats = fitTempoMap(anchors, 148, '4/4').beats.map((b) => b.timeMs)
+    const gaps = beats.slice(1).map((t, i) => t - beats[i]!)
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(25)
+  })
+
   it('ignores a stray tap far off the beat', () => {
     const truth = trueBeats(80, 120)
     const anchors = truth.map((t, i) => ({ timeMs: i === 40 ? t + 180 : t, beatInBar: i % 4 }))

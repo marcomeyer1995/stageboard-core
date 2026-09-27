@@ -455,5 +455,31 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
     expect(gaps.length).toBeGreaterThan(40)
     expect(new Set(gaps)).toEqual(new Set([389]))
   })
+
+  it('follows a per-beat grid exactly from the first click on, even with the Fire tablet\'s 64 ms clock', () => {
+    // A fitted grid has an anchor on every beat, so the schedule crosses into a new anchor on
+    // every click. Reading the coarse clock again at each crossing scattered the first seconds
+    // by ±25 ms on the tablet (2026-09-27); the audio-time chain now continues from the last click.
+    const gaps = Array.from({ length: 40 }, (_, i) => 400 + (i % 5) * 3)
+    const anchors = gaps.reduce<number[]>((acc, g) => [...acc, acc[acc.length - 1]! + g], [500]).map((timeMs, i) => ({ timeMs, beatInBar: i % 4 }))
+    let wallMs = 0
+    const start = Date.now()
+    let audio = 1000
+    startClick(() => ({ bpm: 150, timeSignature: '4/4', beatAnchors: anchors, countInBars: 0, tempoMarkers: [], elapsedMs: wallMs }))
+    for (let i = 0; i < 300; i++) {
+      wallMs += 50
+      vi.setSystemTime(start + wallMs)
+      const target = 1000 + wallMs / 1000
+      while (audio + 0.064 <= target) audio += 0.064
+      fakeCtx.currentTime = audio
+      vi.advanceTimersByTime(50)
+    }
+    const times = startTimes()
+    const measured = times.slice(1).map((t, i) => Math.round((t - times[i]) * 1000))
+    // The first click is the beat after the first anchor (scheduling starts once it is reached).
+    const expected = anchors.slice(2).map((a, i) => a.timeMs - anchors[i + 1]!.timeMs).slice(0, measured.length)
+    expect(measured.length).toBeGreaterThan(20)
+    expect(measured).toEqual(expected)
+  })
 })
 

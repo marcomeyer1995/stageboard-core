@@ -80,6 +80,11 @@ let nextBeatAudioTime: number | null = null
  * is re-derived - above the audio clock's step jitter, below anything audible as a "late" click.
  * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
 const AUDIO_TIME_TOLERANCE_S = 0.05
+/** The last click actually scheduled: its song time and audio time. Crossing into the next beat
+ * anchor (with a fitted grid, every beat) continues from here by the grid distance instead of
+ * reading the audio clock again - each fresh reading carried the clock's remaining uncertainty,
+ * measured on the Fire tablet as ±25 ms scatter in the first seconds of a song (2026-09-27). */
+let lastScheduled: { onsetMs: number; audioTime: number } | null = null
 
 /** Recent readings of `currentTime - wall clock`, s. The band's Fire tablet advances
  * `currentTime` in 64 ms steps (sometimes 128/192 ms - measured 2026-09-27, output latency
@@ -186,6 +191,7 @@ function tick(getState: () => ClickEngineState): void {
   if (elapsedMs === null) {
     nextBeatOnsetMs = null
     nextBeatAudioTime = null
+    lastScheduled = null
     lastTickElapsedMs = null
     activeOriginMs = null
     activeCorrectionRatio = 1
@@ -203,8 +209,15 @@ function tick(getState: () => ClickEngineState): void {
   // so re-anchor - at the loop start, inclusive, so a beat sitting exactly there still sounds.
   const wrapped = lastTickElapsedMs !== null && elapsedMs < lastTickElapsedMs
   if (nextBeatOnsetMs === null || stalled || wrapped || grid.originMs !== activeOriginMs) {
+    // Only a start, a stall or a jump needs a fresh reading of the audio clock; crossing into the
+    // next anchor keeps the audio-time chain going.
+    const continuous = nextBeatOnsetMs !== null && !stalled && !wrapped
+    if (!continuous) lastScheduled = null
     if (wrapped && loop) anchorSchedule(Math.max(grid.originMs, loop.startMs), grid, true)
     else anchorSchedule(elapsedMs, grid)
+    if (continuous && lastScheduled && nextBeatOnsetMs !== null) {
+      nextBeatAudioTime = lastScheduled.audioTime + (nextBeatOnsetMs - lastScheduled.onsetMs) / 1000 / playbackRate
+    }
     activeOriginMs = grid.originMs
   }
   lastTickElapsedMs = elapsedMs
@@ -221,6 +234,7 @@ function tick(getState: () => ClickEngineState): void {
       nextBeatAudioTime = converted
     }
     playClickAt(ctx, nextBeatAudioTime, nextBeatInBar === 0)
+    lastScheduled = { onsetMs: nextBeatOnsetMs, audioTime: nextBeatAudioTime }
     const beatMs = (60000 / grid.bpm) * activeCorrectionRatio
     nextBeatOnsetMs += beatMs
     nextBeatAudioTime += beatMs / 1000 / playbackRate
@@ -251,6 +265,7 @@ export function stopClick(): void {
   intervalId = null
   nextBeatOnsetMs = null
   nextBeatAudioTime = null
+  lastScheduled = null
   clockOffsets.length = 0
   lastClockReading = null
   ticksSinceClockMoved = Infinity
