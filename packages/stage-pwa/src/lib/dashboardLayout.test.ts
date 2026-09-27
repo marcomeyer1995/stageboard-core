@@ -5,6 +5,8 @@ import {
   breakpointFor,
   canRemoveMode,
   dashboardsForMode,
+  deriveLayout,
+  displayLayout,
   GRID_COLUMNS,
   GRID_ROWS,
   gridHeight,
@@ -13,6 +15,8 @@ import {
   isDashboardAvailableInMode,
   isDashboardVisible,
   normalizeLayout,
+  squeezedItems,
+  repairLayout,
   resolveActiveDashboard,
   resolveInteraction,
   toggleDashboardMode,
@@ -624,5 +628,92 @@ describe('dashboards per session mode (Gig / Solo Üben)', () => {
     expect(DashboardSchema.parse({ id: 'x', name: 'X', order: 0 }).modes).toBeUndefined()
     expect(DashboardSchema.parse({ id: 'x', name: 'X', order: 0, modes: ['gig'] }).modes).toEqual(['gig'])
     expect(DashboardSchema.safeParse({ id: 'x', name: 'X', order: 0, modes: [] }).success).toBe(false)
+  })
+})
+
+describe('landscape fallback (PR C, stage GUI audit)', () => {
+  // The band's real "Prompter Kopie" dashboard (2026-09-27): arranged in portrait (md); in
+  // landscape (lg) four widgets had been squeezed to one row each when they were added.
+  const min: Record<string, { minW: number; minH: number; w: number; h: number }> = {
+    switcher: { minW: 2, minH: 2, w: 12, h: 2 },
+    next: { minW: 4, minH: 3, w: 7, h: 3 },
+    transport: { minW: 4, minH: 3, w: 6, h: 4 },
+    prompter: { minW: 3, minH: 6, w: 12, h: 16 },
+    metronome: { minW: 2, minH: 2, w: 3, h: 3 },
+    festival: { minW: 3, minH: 2, w: 4, h: 3 },
+    click: { minW: 2, minH: 2, w: 3, h: 3 },
+    queue: { minW: 3, minH: 4, w: 4, h: 12 },
+  }
+  const minFor = (i: string) => min[i]
+  const md = [
+    { i: 'switcher', x: 0, y: 0, w: 12, h: 2 },
+    { i: 'next', x: 0, y: 2, w: 12, h: 2 },
+    { i: 'transport', x: 0, y: 4, w: 8, h: 3 },
+    { i: 'prompter', x: 0, y: 7, w: 8, h: 14 },
+    { i: 'metronome', x: 8, y: 4, w: 4, h: 3 },
+    { i: 'festival', x: 6, y: 21, w: 6, h: 3 },
+    { i: 'click', x: 0, y: 21, w: 6, h: 3 },
+    { i: 'queue', x: 8, y: 7, w: 4, h: 14 },
+  ]
+  const lg = [
+    { i: 'switcher', x: 0, y: 0, w: 12, h: 3 },
+    { i: 'next', x: 0, y: 3, w: 5, h: 3 },
+    { i: 'transport', x: 5, y: 3, w: 4, h: 3 },
+    { i: 'prompter', x: 0, y: 6, w: 5, h: 18 },
+    { i: 'metronome', x: 9, y: 3, w: 3, h: 1 },
+    { i: 'festival', x: 9, y: 4, w: 3, h: 1 },
+    { i: 'click', x: 9, y: 5, w: 3, h: 1 },
+    { i: 'queue', x: 5, y: 6, w: 4, h: 1 },
+  ]
+
+  it('counts only widgets collapsed to half their minimum, not ones just below a raised minimum', () => {
+    expect(squeezedItems(lg, minFor).map((item) => item.i)).toEqual(['metronome', 'festival', 'click', 'queue'])
+    // Next Song at 2 rows while its minimum is now 3: the user's arrangement, not collapsed.
+    expect(squeezedItems([{ i: 'next', x: 0, y: 0, w: 7, h: 2 }], minFor)).toEqual([])
+  })
+
+  it('re-places only the collapsed widgets and keeps everything the user arranged', () => {
+    const repaired = repairLayout(lg, minFor)
+    expect(squeezedItems(repaired, minFor)).toEqual([])
+    expect(hasOverlap(repaired)).toBe(false)
+    for (const id of ['switcher', 'next', 'transport', 'prompter']) {
+      expect(repaired.find((item) => item.i === id)).toEqual(lg.find((item) => item.i === id))
+    }
+    expect(repaired.find((item) => item.i === 'queue')).toMatchObject({ w: 4, h: 12 })
+  })
+
+  it('shows the repaired arrangement, and the stored one when nothing collapsed', () => {
+    expect(displayLayout({ md, lg }, 'lg', minFor).source).toBe('repaired')
+    expect(displayLayout({ md, lg }, 'md', minFor)).toMatchObject({ source: 'stored', squeezed: 0 })
+  })
+
+  it('derives the whole layout from an arranged breakpoint when there is no room to repair', () => {
+    // Landscape completely filled by one collapsed-everything layout: nothing free to repair into.
+    const full = [
+      { i: 'prompter', x: 0, y: 0, w: 12, h: 23 },
+      ...['switcher', 'next', 'transport', 'metronome', 'festival', 'click', 'queue'].map((i, n) => ({ i, x: n, y: 23, w: 1, h: 1 })),
+    ]
+    const result = displayLayout({ md, lg: full }, 'lg', minFor)
+    expect(result).toMatchObject({ source: 'derived', derivedFrom: 'md' })
+    expect(squeezedItems(result.items, minFor)).toEqual([])
+    expect(hasOverlap(result.items)).toBe(false)
+  })
+
+  it('derives by pixel size: portrait columns become narrower, rows taller in landscape', () => {
+    const [prompter] = deriveLayout([{ i: 'prompter', x: 0, y: 0, w: 8, h: 14 }], 'md', 'lg', minFor)
+    expect(prompter.w).toBe(5) // 8 x 800/1280
+    expect(prompter.h).toBe(23) // 14 x 1220/740
+  })
+})
+
+describe('withWidgetAppended (placement, PR C)', () => {
+  it('uses free space of full size instead of squeezing the widget below a full column', () => {
+    const dashboard: Dashboard = {
+      ...emptyDashboard(),
+      widgets: [{ i: 'a', type: 'prompter', frameless: false }],
+      layouts: { lg: [{ i: 'a', x: 0, y: 0, w: 6, h: 24 }] },
+    }
+    const updated = withWidgetAppended(dashboard, 'live-queue', { w: 4, h: 12 }, 'q')
+    expect(updated.layouts.lg?.find((item) => item.i === 'q')).toMatchObject({ x: 6, y: 0, w: 4, h: 12 })
   })
 })

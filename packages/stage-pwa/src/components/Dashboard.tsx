@@ -12,7 +12,9 @@ import {
   GRID_COLUMNS,
   GRID_ROWS,
   gridMetrics,
+  displayLayout,
   normalizeLayout,
+  type MinSize,
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
@@ -35,13 +37,25 @@ const COLS: Record<Breakpoint, number> = {
   sm: GRID_COLUMNS,
 }
 
-function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint): LayoutItem[] {
+/** Each widget instance's minimum size from the *current* registry entry (see layoutFor). */
+function minSizeFor(dashboard: DashboardDoc): (instanceId: string) => MinSize | undefined {
+  return (instanceId) => {
+    const widget = dashboard.widgets.find((w) => w.i === instanceId)
+    const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
+    return bounds ? { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h } : undefined
+  }
+}
+
+/** Human name of a breakpoint for the edit-mode banner. */
+const BREAKPOINT_LABEL: Record<Breakpoint, string> = { sm: 'Handy', md: 'Hochformat', lg: 'Querformat', xl: 'großer Bildschirm' }
+
+function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint, items?: LayoutItem[]): LayoutItem[] {
   // Clamped on read, not only on write: a dashboard stored before the grid had bounds - or
   // whose widget's min/max changed since it was placed - must become usable again
   // immediately, without the user first having to fix it. So min/max come from the
   // *current* WIDGET_REGISTRY entry, not whatever happened to be persisted at placement
   // time (#22) - a widget instance's own x/y/w/h stay as placed, only its bounds refresh.
-  const items = (dashboard.layouts[breakpoint] ?? []).map((item) => {
+  const withBounds = (items ?? dashboard.layouts[breakpoint] ?? []).map((item) => {
     const widget = dashboard.widgets.find((w) => w.i === item.i)
     const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
     if (!bounds) return item
@@ -53,7 +67,7 @@ function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint): LayoutItem[
       ...(bounds.maxH === undefined ? {} : { maxH: bounds.maxH }),
     }
   })
-  return normalizeLayout(items)
+  return normalizeLayout(withBounds)
 }
 
 // Only our own LayoutItem fields, not react-grid-layout's interaction bookkeeping (moved,
@@ -206,15 +220,24 @@ export function Dashboard() {
     previousResolved.current = null
   }, [active?.id])
 
+  // Outside edit mode a breakpoint whose stored layout squeezes widgets below their minimum
+  // (nobody arranged it - e.g. a portrait dashboard on a tablet turned to landscape) shows a
+  // layout derived from an arranged breakpoint instead. Never persisted: only drag/resize in
+  // edit mode writes layouts, and edit mode shows the stored layout plus a banner to adopt it.
   const layouts = useMemo(() => {
     if (!active) return {}
+    const minFor = minSizeFor(active)
     return Object.fromEntries(
       (Object.keys(BREAKPOINT_WIDTHS) as Breakpoint[]).map((name) => [
         name,
-        layoutFor(active, name),
+        isEditing ? layoutFor(active, name) : layoutFor(active, name, displayLayout(active.layouts, name, minFor).items),
       ]),
     )
-  }, [active])
+  }, [active, isEditing])
+  const current = useMemo(
+    () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active)) : null),
+    [active, breakpoint],
+  )
 
   if (!loaded) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Lade …</div>
@@ -245,6 +268,26 @@ export function Dashboard() {
   return (
     <div className="flex h-dvh flex-col sb-app-bg">
       {isEditing && <DashboardEditBar dashboard={active} capabilities={capabilities} />}
+      {isEditing && current && current.squeezed > 0 && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">
+          <span className="text-amber-500">
+            {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
+            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : 'eine korrigierte Anordnung'}{' '}
+            gezeigt).
+          </span>
+          {current.source !== 'stored' && (
+            <button
+              type="button"
+              onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}
+              className="h-touch rounded-sb bg-accent px-4 font-bold text-accent-ink hover:bg-accent-hover"
+            >
+              {current.source === 'repaired'
+                ? 'Zu kleine Widgets neu platzieren'
+                : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
+            </button>
+          )}
+        </div>
+      )}
 
       <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
         {mounted && (
