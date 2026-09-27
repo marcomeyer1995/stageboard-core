@@ -20,6 +20,7 @@ import { useNow } from '../lib/useNow'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
+import { playbackAnchors } from '../lib/tempoMap'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
   idle: { icon: '✓', label: 'Synchron' },
@@ -108,7 +109,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
           elapsedMs,
           adjustedBpm(song.bpm, liveTempoAdjustPercent),
           song.timeSignature,
-          currentVariant?.beatAnchors ?? [],
+          playbackAnchors(currentVariant),
           countInBars,
           currentVariant?.tempoMarkers ?? [],
         )
@@ -130,9 +131,8 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
   // The song's first beat: its first beat anchor, else song time 0 (the count-in leads with
   // negative time then).
-  const firstBeatMs = currentVariant?.beatAnchors?.length
-    ? Math.min(...currentVariant.beatAnchors.map((anchor) => anchor.timeMs))
-    : 0
+  const gridAnchors = playbackAnchors(currentVariant)
+  const firstBeatMs = gridAnchors.length ? Math.min(...gridAnchors.map((anchor) => anchor.timeMs)) : 0
   const perBar = song ? beatsPerBar(song.timeSignature) : 4
   const position =
     state.kind === 'count-in' && countInBeat && elapsedMs !== null

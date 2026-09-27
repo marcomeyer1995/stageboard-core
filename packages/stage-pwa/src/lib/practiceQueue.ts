@@ -15,6 +15,7 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { playbackAnchors } from './tempoMap'
 
 /**
  * Practice mode's counterpart to queue.ts - deliberately never touches the real, synced
@@ -94,7 +95,7 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   const activeSong = currentVariant ?? currentSong
   const seededMs = seedCountIn && activeSong
     ? countInLeadMs(
-        currentVariant?.beatAnchors ?? [],
+        playbackAnchors(currentVariant),
         activeSong.bpm,
         activeSong.timeSignature,
         currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
@@ -242,7 +243,7 @@ export function practiceExtendClickTrack(bars: number): void {
     elapsedMs,
     activeSong.bpm,
     activeSong.timeSignature,
-    currentVariant?.beatAnchors ?? [],
+    playbackAnchors(currentVariant),
     currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
     currentVariant?.tempoMarkers ?? [],
   )

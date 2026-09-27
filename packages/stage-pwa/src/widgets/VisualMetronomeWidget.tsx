@@ -4,6 +4,7 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MetronomeConfig } from './metronomeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { playbackAnchors } from '../lib/tempoMap'
 
 /** How long each beat's flash stays visible, in ms - short enough to read as a pulse rather
  * than a slow color swap, comfortably visible even at fast tempos (at 200 BPM a beat is only
@@ -75,7 +76,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
           elapsedMs,
           bpm,
           song.timeSignature,
-          queue.currentVariant?.beatAnchors ?? [],
+          playbackAnchors(queue.currentVariant),
           countInBars,
           queue.currentVariant?.tempoMarkers ?? [],
         )
