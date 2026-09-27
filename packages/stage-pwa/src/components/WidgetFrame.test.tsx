@@ -82,4 +82,22 @@ describe('WidgetFrame', () => {
     fireEvent.click(toggle)
     expect(onToggleFrameless).toHaveBeenCalled()
   })
+
+  it('outlines a too-small widget in edit mode only', () => {
+    const { rerender, container } = render(
+      <WidgetFrame title="Uhr" status="available" isEditing tooSmall onRemove={vi.fn()}>
+        <p>widget content</p>
+      </WidgetFrame>,
+    )
+    expect(container.firstElementChild).toHaveClass('outline-red-500')
+    expect(screen.getByText(/zu klein/)).toBeInTheDocument()
+
+    rerender(
+      <WidgetFrame title="Uhr" status="available" isEditing={false} tooSmall onRemove={vi.fn()}>
+        <p>widget content</p>
+      </WidgetFrame>,
+    )
+    expect(container.firstElementChild).not.toHaveClass('outline-red-500')
+    expect(screen.queryByText(/zu klein/)).not.toBeInTheDocument()
+  })
 })
