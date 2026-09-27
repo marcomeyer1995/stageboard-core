@@ -33,6 +33,7 @@ import { TempoMarkerListEditor } from './TempoMarkerListEditor'
 import { TrackManagerField } from './TrackManagerField'
 import { mergeTappedAnchors } from '../lib/tempoMap'
 import { TempoMapQualityNote } from './TempoMapQualityNote'
+import { TimelineEditor } from './timeline/TimelineEditor'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -157,7 +158,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
-  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
+  const [mobileTab, setMobileTab] = useState<'text' | 'timeline' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
   // Every section starts collapsed (Marco, explicit request) - opening a song for editing
   // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
   // deliberately expanded, not a screenful of whichever section used to default open.
@@ -166,6 +167,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [cuesExpanded, setCuesExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
+  const [timelineExpanded, setTimelineExpanded] = useState(false)
 
   const variantsForSong = draft ? variants.filter((v) => v.songId === draft.songId) : []
   const currentTracks = draft ? (variants.find((v) => v.id === draft.variantId)?.tracks ?? []) : []
@@ -176,7 +178,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   useEffect(() => {
     setTapTrackSrc(null)
-    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker && !isRecordingCues) || !tapTrack) return
+    const timelineOpen = timelineExpanded || mobileTab === 'timeline'
+    if (!draft || (!isTapping && !isTappingAnchors && !isTappingTempoMarker && !isRecordingCues && !timelineOpen) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -191,7 +194,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, draft?.variantId, tapTrack?.id])
+  }, [isTapping, isTappingAnchors, isTappingTempoMarker, isRecordingCues, timelineExpanded, mobileTab, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -735,7 +738,32 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   // `label` for the (space-constrained) phone tab strip, `fullLabel` for the desktop accordion
   // headers, which have the room to spell it out.
+  // Timeline (docs/14, phase 1): the grid over the track's waveform, editable - on the same draft.
+  const timelineContent = (
+    <TimelineEditor
+      variantId={draft.variantId}
+      trackId={tapTrack?.id ?? null}
+      trackSrc={tapTrackSrc}
+      anchors={draft.beatAnchors}
+      tempoMarkers={draft.tempoMarkers}
+      bpm={draft.bpm}
+      timeSignature={draft.timeSignature}
+      countInEnabled={draft.countInEnabled}
+      countInBars={draft.countInBars}
+      onChange={(patch) => setDraft({ ...draft, ...patch })}
+      onAdoptBpm={(bpm) => setDraft({ ...draft, bpm })}
+    />
+  )
+
   const detailSections = [
+    {
+      key: 'timeline' as const,
+      label: 'Timeline',
+      fullLabel: 'Timeline',
+      content: timelineContent,
+      expanded: timelineExpanded,
+      onToggleExpand: () => setTimelineExpanded((v) => !v),
+    },
     {
       key: 'tempo' as const,
       label: 'Tempo',

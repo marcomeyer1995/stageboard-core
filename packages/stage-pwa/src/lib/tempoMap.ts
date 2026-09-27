@@ -87,7 +87,12 @@ function estimatePeriod(times: number[], nominalMs: number): number {
 interface Observation {
   timeMs: number
   beatInBar?: number
+  pinned?: boolean
 }
+
+/** How much more a fixed (pinned) anchor weighs than an ordinary observation - in the local fit
+ * (the grid runs through it; the output is also set to it exactly) and in the downbeat vote. */
+const PIN_WEIGHT = 1000
 
 /** Closer than this fraction of a beat, two observations are one beat observed twice - a real
  * beat gap is ~1.0; 0.5-0.65 were double taps/detections on the measured tracks (What's Up:
@@ -106,6 +111,11 @@ function dropDuplicates(observations: Observation[], periodMs: number): { kept: 
       continue
     }
     duplicates++
+    // A fixed anchor always wins against an ordinary observation of the same beat.
+    if (obs.pinned !== prev.pinned) {
+      if (obs.pinned) kept[kept.length - 1] = obs
+      continue
+    }
     const before = kept[kept.length - 2]
     if (!before) continue // no grid yet - keep the earlier one
     const expected = before.timeMs + periodMs * Math.max(1, Math.round((prev.timeMs - before.timeMs) / periodMs))
@@ -152,7 +162,11 @@ const bisquare = (u: number) => (Math.abs(u) >= 1 ? 0 : (1 - u * u) ** 2)
 
 /** Robust local linear fit (LOESS with bisquare reweighting) of observation time over beat index,
  * evaluated at every integer index - one smooth beat per slot. */
-function fitBeats(indices: number[], times: number[]): { beatTimes: number[]; residualsMs: number[]; robustWeights: number[] } {
+function fitBeats(
+  indices: number[],
+  times: number[],
+  pinned: boolean[],
+): { beatTimes: number[]; residualsMs: number[]; robustWeights: number[] } {
   const first = indices[0]!
   const last = indices[indices.length - 1]!
   let robust = indices.map(() => 1)
@@ -194,7 +208,7 @@ function fitBeats(indices: number[], times: number[]): { beatTimes: number[]; re
     const to = lowerBound(at + half + 1)
     const xs = indices.slice(from, to)
     const ts = times.slice(from, to)
-    const ws = xs.map((x, i) => tricube(Math.abs(x - at) / (half + 1)) * robust[from + i]!)
+    const ws = xs.map((x, i) => tricube(Math.abs(x - at) / (half + 1)) * robust[from + i]! * (pinned[from + i] ? PIN_WEIGHT : 1))
     const line = weightedLine(xs, ts, ws)
     if (line) return line.a + line.b * at
     // Degenerate window (weight on a single index): the nearest observation that wasn't rejected.
@@ -211,11 +225,15 @@ function fitBeats(indices: number[], times: number[]): { beatTimes: number[]; re
     residuals = indices.map((x, i) => times[i]! - evaluate(x))
     if (pass === 2) break
     const scale = Math.max(6 * median(residuals.map((r) => Math.abs(r))), MIN_ROBUST_SCALE_MS)
-    robust = residuals.map((r) => bisquare(r / scale))
+    robust = residuals.map((r, i) => (pinned[i] ? 1 : bisquare(r / scale)))
   }
 
   const beatTimes: number[] = []
-  for (let x = first; x <= last; x++) beatTimes.push(evaluate(x))
+  const pinnedAt = new Map<number, number>()
+  indices.forEach((x, i) => {
+    if (pinned[i]) pinnedAt.set(x, times[i]!)
+  })
+  for (let x = first; x <= last; x++) beatTimes.push(pinnedAt.get(x) ?? evaluate(x))
   return { beatTimes, residualsMs: residuals, robustWeights: robust }
 }
 
@@ -228,7 +246,7 @@ function fitSection(observations: Observation[], bpm: number, timeSignature: str
   if (kept.length < MIN_OBSERVATIONS) return null
   const { indices, ambiguous, longestGap } = assignIndices(kept, period)
   const times = kept.map((o) => o.timeMs)
-  const { beatTimes, residualsMs, robustWeights } = fitBeats(indices, times)
+  const { beatTimes, residualsMs, robustWeights } = fitBeats(indices, times, kept.map((o) => o.pinned === true))
 
   // Downbeat phase by majority vote over the stored beat-in-bar values (each stored value says
   // "beat index i is beat k of the bar"); with none stored, the first observation is beat 1.
@@ -236,12 +254,12 @@ function fitSection(observations: Observation[], bpm: number, timeSignature: str
   kept.forEach((o, i) => {
     if (o.beatInBar === undefined) return
     const phase = mod(o.beatInBar - indices[i]!, perBar)
-    votes.set(phase, (votes.get(phase) ?? 0) + 1)
+    votes.set(phase, (votes.get(phase) ?? 0) + (o.pinned ? PIN_WEIGHT : 1))
   })
   let phase = 0
   let best = -1
   for (const [candidate, count] of votes) if (count > best) [phase, best] = [candidate, count]
-  const conflicts = kept.filter((o, i) => o.beatInBar !== undefined && mod(o.beatInBar - indices[i]!, perBar) !== phase).length
+  const conflicts = kept.filter((o, i) => !o.pinned && o.beatInBar !== undefined && mod(o.beatInBar - indices[i]!, perBar) !== phase).length
 
   const first = indices[0]!
   // Safety net: a beat grid must only move forward, at least half a beat per beat - a messy edge
