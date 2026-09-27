@@ -13,7 +13,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
 const stepperButton =
-  'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+  'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
 
 function Stepper({
   label,
@@ -89,11 +89,11 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>
 
       <div className="flex items-center gap-2">
-        <button type="button" disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })} className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })} className="min-h-12 rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
           A setzen
         </button>
         <span className="font-bold tabular-nums text-ink">{settings.startMs === null ? '–' : formatLoopTime(settings.startMs)}</span>
-        <button type="button" disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto min-h-12 rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
           B setzen
         </button>
         <span className="font-bold tabular-nums text-ink">{settings.endMs === null ? '–' : formatLoopTime(settings.endMs)}</span>
@@ -105,7 +105,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
             Von Abschnitt
             <select
               disabled={stored.active}
-              className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
               value=""
               onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
             >
@@ -121,7 +121,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
             Bis Ende von
             <select
               disabled={stored.active}
-              className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
               value=""
               onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
             >
@@ -139,8 +139,8 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       )}
 
       <Stepper label="Tempo" value={settings.startPercent} min={25} max={150} step={5} disabled={stored.active} onChange={(startPercent) => update({ startPercent })} />
-      <label className="flex items-center gap-2 text-ink">
-        <input type="checkbox" disabled={stored.active} checked={settings.trainerEnabled} onChange={(e) => update({ trainerEnabled: e.target.checked })} />
+      <label className="flex min-h-12 items-center gap-2 text-ink">
+        <input type="checkbox" className="h-6 w-6" disabled={stored.active} checked={settings.trainerEnabled} onChange={(e) => update({ trainerEnabled: e.target.checked })} />
         Speed Trainer
       </label>
       {settings.trainerEnabled && (
@@ -151,11 +151,11 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       )}
 
       {stored.active ? (
-        <button type="button" onClick={stopLoopTrainer} className="rounded-sb-sm bg-control-strong px-3 py-2 font-bold text-accent hover:bg-control-strong-hover">
+        <button type="button" onClick={stopLoopTrainer} className="min-h-12 rounded-sb-sm bg-control-strong px-3 py-2 font-bold text-accent hover:bg-control-strong-hover">
           Loop stoppen
         </button>
       ) : (
-        <button type="button" disabled={!hasLoop} onClick={() => void startLoopTrainer()} className="rounded-sb-sm bg-control-strong px-3 py-2 font-bold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!hasLoop} onClick={() => void startLoopTrainer()} className="min-h-12 rounded-sb-sm bg-control-strong px-3 py-2 font-bold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
           Loop starten
         </button>
       )}

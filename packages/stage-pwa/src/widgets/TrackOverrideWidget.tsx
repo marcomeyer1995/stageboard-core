@@ -1,6 +1,8 @@
 import { isSongEntry } from 'shared-types'
 import { resolveTrackForEntry, resolveVariantForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
+import { trackOverrideLayout } from '../lib/stageWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
@@ -26,7 +28,9 @@ import { stageFontSize } from '../lib/stageSize'
  * non-default variant. Personal and local (usePracticeStateStore.variantOverride); Gig mode
  * doesn't offer it - the variant there is the setlist's, a band-wide choice.
  *
- * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14).
+ * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). The
+ * selects keep their touch height; in a tile too short for the captions above them, each option
+ * carries a "Variante:" / "Track:" prefix instead (stageWidgetLayout.ts).
  */
 export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
   const { queue, trackOverride, canControl, setTrackOverride, variantOverride, setVariantOverride } = useShowMode()
@@ -47,40 +51,53 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const trackMessage =
     tracks.length === 0 ? 'Kein Track angehängt' : tracks.length < 2 ? 'Nur ein Track vorhanden - kein Wechsel nötig' : null
 
+  const [boxRef, box] = useElementSize()
+  const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker && !trackMessage ? 2 : 1)
+  const variantPrefix = showLabels ? '' : 'Variante: '
+  const trackPrefix = showLabels ? '' : 'Track: '
+  const selectClass = 'min-h-touch w-full rounded-sb-sm bg-control px-2 py-1 text-ink'
+
   if (!showVariantPicker && trackMessage) {
     return <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">{trackMessage}</div>
   }
 
   return (
-    <div className="flex h-full flex-col justify-center gap-2 text-ink-soft">
+    <div ref={boxRef} className="flex h-full flex-col justify-center gap-2 overflow-hidden text-ink-soft">
       {showVariantPicker && (
         <>
-          <div className="w-full overflow-hidden">
-            <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
-              Variante
-            </span>
-          </div>
+          {showLabels && (
+            <div className="w-full overflow-hidden">
+              <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
+                Variante
+              </span>
+            </div>
+          )}
           <select
             aria-label="Variante"
             value={variantOverride ?? ''}
             onChange={(e) => setVariantOverride(e.target.value || null)}
             style={{ fontSize }}
-            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+            className={selectClass}
           >
-            <option value="">Automatisch ({entryVariant?.label})</option>
+            <option value="">
+              {variantPrefix}Automatisch ({entryVariant?.label})
+            </option>
             {songVariants.map((variant) => (
               <option key={variant.id} value={variant.id}>
+                {variantPrefix}
                 {variant.label}
               </option>
             ))}
           </select>
         </>
       )}
-      <div className="w-full overflow-hidden">
-        <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
-          Track für „{currentVariant?.label}"
-        </span>
-      </div>
+      {showLabels && (
+        <div className="w-full overflow-hidden">
+          <span style={{ fontSize }} className="block truncate uppercase tracking-widest text-ink-faint">
+            Track für „{currentVariant?.label}"
+          </span>
+        </div>
+      )}
       {trackMessage ? (
         <span className="text-sm text-ink-faint">{trackMessage}</span>
       ) : (
@@ -90,11 +107,14 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
           disabled={!canControl}
           onChange={(e) => setTrackOverride(e.target.value || null)}
           style={{ fontSize }}
-          className="rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+          className={`${selectClass} disabled:opacity-40`}
         >
-          <option value="">Automatisch ({defaultTrack?.label})</option>
+          <option value="">
+            {trackPrefix}Automatisch ({defaultTrack?.label})
+          </option>
           {tracks.map((track) => (
             <option key={track.id} value={track.id}>
+              {trackPrefix}
               {track.label}
             </option>
           ))}

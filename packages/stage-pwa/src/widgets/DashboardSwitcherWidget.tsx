@@ -7,11 +7,18 @@ import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { switcherLayout } from '../lib/stageWidgetLayout'
+import { useElementSize } from '../lib/useElementSize'
 import { useModeDashboards } from '../lib/useModeDashboards'
 
 /**
  * Switching between dashboards is itself a widget, so each screen decides where the
  * navigation sits. Fat buttons per docs/07 - hit-able mid-song, without looking.
+ *
+ * Every button is at least as wide as its name - names were cut to "Monitori" when nine
+ * dashboards shared a 12-column bar (GUI audit 2026-09-27). What doesn't fit wraps onto another
+ * row when the widget is tall enough for two, otherwise the bar scrolls sideways
+ * (stageWidgetLayout.ts); a vertical switcher scrolls down.
  */
 export function DashboardSwitcherView({ config }: { config: DashboardSwitcherConfig }) {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -33,11 +40,15 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
   // "fit to whichever button has the longest name" measurement is gone too.
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
+  const [boxRef, box] = useElementSize()
+  const vertical = config.orientation === 'vertical'
+  const { wrap } = switcherLayout(box.height)
 
   return (
     <div
+      ref={boxRef}
       className={`flex h-full w-full gap-2 ${
-        config.orientation === 'vertical' ? 'flex-col' : 'flex-row'
+        vertical ? 'flex-col overflow-y-auto' : wrap ? 'flex-row flex-wrap overflow-y-auto' : 'flex-row overflow-x-auto'
       }`}
     >
       {visible.map((dashboard) => (
@@ -45,7 +56,7 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
           key={dashboard.id}
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`flex-1 overflow-hidden rounded-sb px-4 font-bold uppercase tracking-wide transition-colors ${
+          className={`min-h-touch min-w-max flex-1 rounded-sb px-4 font-bold uppercase tracking-wide transition-colors ${
             dashboard.id === activeId
               ? 'bg-accent text-accent-ink'
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'

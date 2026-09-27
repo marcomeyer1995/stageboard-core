@@ -60,13 +60,13 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           }}
           placeholder="Notiz hinzufügen…"
           disabled={!showId}
-          className="min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+          className="min-h-touch min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
         />
         <button
           type="button"
           onClick={submit}
           disabled={!showId}
-          className="flex-shrink-0 rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="min-h-touch flex-shrink-0 rounded-sb-sm bg-control-strong px-3 py-1 font-semibold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Hinzufügen
         </button>

@@ -8,13 +8,14 @@ const TOP = 34
 const FRET_GAP = 20
 
 /** A guitar chord box (#24): six strings, five frets, dots where to press, `x`/`o` above the
- * muted/open strings, and the starting fret when the shape sits above the nut. */
+ * muted/open strings, and the starting fret when the shape sits above the nut. Drawn up to 11rem
+ * wide, so the 11-12 unit labels render at about the 16px stage floor (at 9rem they were 12px). */
 export function GuitarChordDiagram({ shape }: { shape: GuitarShape }) {
   const width = LEFT + STRING_GAP * (STRINGS - 1) + 14
   const height = TOP + FRET_GAP * FRETS_SHOWN + 8
   const stringX = (string: number) => LEFT + string * STRING_GAP
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Griffbild" className="h-full w-full max-w-[9rem]">
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Griffbild" className="h-full w-full max-w-[11rem]">
       {Array.from({ length: FRETS_SHOWN + 1 }, (_, line) => (
         <line
           key={`fret-${line}`}

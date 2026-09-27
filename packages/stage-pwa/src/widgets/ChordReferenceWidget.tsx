@@ -8,8 +8,10 @@ import { DEFAULT_SIZE_RATIO, type ChordReferenceConfig } from './chordReferenceC
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
+// 48px targets: the rehearsal-tier minimum (Probe widgets, GUI audit 2026-09-27; the chips were
+// 26 x 31 px).
 const chip = (selected: boolean) =>
-  `rounded-sb-sm px-2 py-1 text-sm font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'}`
+  `min-h-12 min-w-12 rounded-sb-sm px-2 py-1 text-sm font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'}`
 
 /**
  * Chord Cheat Sheet (#24): pick a root and a quality, see the notes, the intervals, a guitar
@@ -31,14 +33,14 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft">
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Grundton">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Grundton">
         {Array.from({ length: 12 }, (_, pitchClass) => (
           <button key={pitchClass} type="button" aria-pressed={root === pitchClass} onClick={() => setRoot(pitchClass)} className={chip(root === pitchClass)}>
             {rootName(pitchClass, naming)}
           </button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Akkordart">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Akkordart">
         {CHORD_QUALITIES.map((quality) => (
           <button key={quality.id} type="button" aria-pressed={qualityId === quality.id} onClick={() => setQualityId(quality.id)} className={chip(qualityId === quality.id)}>
             {quality.label}
