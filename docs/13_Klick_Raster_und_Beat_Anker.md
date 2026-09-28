@@ -73,7 +73,34 @@ Anker entstehen durch Tippen **und** durch automatische Erkennung; beide liefern
 
 ## 6. Methode (wiederverwendbar)
 
+- **Ausgabe-Latenz per Mikrofon (2026-09-28, §7):** jedes Gerät spielt Piep-Paare auf dieselbe Songzeit (Uhr über `GET /time` wie `clockSync.ts`) – einen über Web Audio (Klick-Pfad), einen in einer erzeugten WAV über `<audio>` (Track-Pfad). Jedes Paar und jedes Gerät bekommt eigene Tonhöhen (je 10 Stufen im Abstand von 60 Hz, alle 1,2 s), sonst ist die Zuordnung bei periodischen Pieps mehrdeutig (−174 ms und +326 ms sehen bei 500 ms Takt gleich aus – so ist die erste Messung falsch herum ausgefallen). Aufnahme mit dem Laptop-Mikrofon (`arecord`), Auswertung: Bandpass ±20 Hz je Tonhöhe, Einsatz bei halber Spitzenhöhe. Die WAV muss länger sein als die Messung, sonst „korrigiert“ die Positionsnachführung am Dateiende scheinbar dauernd.
+
 - **Klick-Timing:** `OscillatorNode.prototype.start` per CDP umschreiben und `when`/`currentTime` mitschreiben; Abstände in Audio-Zeit auswerten.
 - **Audio-Uhr des Geräts:** `new AudioContext()`, `currentTime` pro Frame gegen `performance.now()` mitschreiben → Schrittweite (Fire: 64 ms) und Streuung der Zuordnung (126 ms); `baseLatency`/`outputLatency` mit ausgeben.
 - **Audio-Element:** `play`/`pause`/`currentTime`-Setter wrappen und Ereignisse (`seeking`, `waiting`, …) protokollieren.
 - **Anker gegen Audio:** Anker aus der Tablet-IndexedDB exportieren (`by-sequence`, `_doc_id_rev`), Track von `~/stageboard-data/audio/<variante>/<track>` mit `av` dekodieren, perkussive Onsets mit `librosa` (HPSS + `onset_detect`, Hop 128, parabolische Verfeinerung), je Anker nächster Onset in ±70 ms; Kennzahlen: Trefferquote, robuste Streuung, p90, Schlag-zu-Schlag-Jitter (Std. der zweiten Differenz), aufgeteilt nach Songvierteln. Die Referenz ist selbst ungenau (dichte Achtel-Onsets) – nur Unterschiede deutlich über ±2 ms zählen.
+
+## 7. Ausgabe-Latenz je Gerät: Klick- und Track-Pfad (2026-09-28, nur notiert)
+
+**Anlass:** In der Timeline auf dem Fire kam der Klick hörbar nach dem roten Strich, am Linux-Laptop war er auf den Punkt. Das Raster und die Klick-Logik stimmen – die Verzögerung liegt in der Audio-Ausgabe der Geräte.
+
+**Gemessen** (Methode §6; Laptop, Xiaomi-Tablet 24075RP89G, Fire HD 10; Lautsprecher, alle auf dieselbe Songzeit): Jedes Gerät hat zwei getrennte Verzögerungen – Klick (Web Audio) und Backing-Track (`<audio>`-Element) –, bezogen auf einen gemeinsamen Nullpunkt etwa:
+
+| Gerät | Klick | Track | Browser meldet (`outputLatency` + `baseLatency`) |
+|---|---|---|---|
+| Laptop (Chrome) | ~30 ms | ~35 ms | 45–50 ms |
+| Xiaomi (Chrome) | ~45 ms | ~205 ms | 45 ms |
+| Fire HD 10 (Silk) | ~410 ms | ~315 ms | 203 ms |
+
+- Der **Klick-Pfad ist je Gerät konstant** (±3 ms über vier Läufe): mit den gemessenen Werten vorgezogen lagen die Klicks aller drei Geräte innerhalb von 2–5 ms.
+- Der **Track-Pfad** hat je Gerät eine große feste Verzögerung plus **±12–17 ms Streuung von Start zu Start**; vorziehen bringt die Tracks auf etwa ±15–20 ms zusammen, nicht genauer.
+- Der **Browser-Wert taugt nicht als Ersatz:** er erfasst nur den Klick-Pfad und auch den nicht verlässlich (Fire: 203 ms gemeldet, ~410 ms gehört); für den Track-Pfad meldet kein Browser etwas. „Klick um `outputLatency` vorziehen“ (#302, ursprünglicher Vorschlag) hätte auf dem Xiaomi den Abstand vergrößert (Klick dort schon 90 ms vor dem eigenen Track).
+- Ohne Ausgleich: Klick gegen eigenen Track Fire +150 bis +190 ms, Xiaomi −90 ms, Laptop +30 ms; Tracks zwischen den Geräten bis ~280 ms auseinander. Die 200-ms-Nachführung des Tracks (`syncLocalTrackPosition`) hat in keinem Lauf eingegriffen.
+- Noch unbekannt: der absolute Bezug dieses gemeinsamen Nullpunkts zur Songzeit (also zu Bildschirm, Licht, MIDI).
+
+**Entscheidung (Marco, 2026-09-28):** pragmatisch bleiben – notieren, nicht weiter untersuchen. Eine Kalibrierung per Mikrofon ist auf der Bühne kaum praktikabel, und dort spielen die Geräte über den Kopfhörer-/Line-Ausgang (Klinke) statt Lautsprecher, mit womöglich ganz anderer Verzögerung. Zuerst im echten Einsatz prüfen, ob der Versatz überhaupt stört.
+
+**Offen, ebenfalls zu untersuchen** (mit der Frage, ob und wie man kalibriert):
+- Latenz über Klinke/Line-Out, Audio-Interfaces und Bluetooth-Kopfhörer je Gerät.
+- Latenz **zu** externen Zielen: Licht (Stage-Server → DMX/Art-Net), Effektgeräte/Amp-Modeller (MIDI-Befehle an Kemper, MG-30 …).
+- Latenz **von** externen Quellen: MIDI-Fußschalter, Bluetooth-Fußschalter (Tastendruck → Aktion in der App).
