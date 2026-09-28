@@ -7,7 +7,7 @@ Stand: 2026-09-27, Konzept vor der Umsetzung (mit Marco abgestimmt). Konkretisie
 Ein Song hat viele Dinge mit Zeitbezug – Schläge und Takte, Tempo-Abschnitte, Parts, Liedzeilen, Kommentare, Tab-Blöcke, Cues, das Einzählen. Heute werden sie in getrennten Listen und Tipp-Dialogen bearbeitet, ohne dass man sie gemeinsam gegen die Musik sieht. Der Timeline-Editor zeigt alles auf **einer gemeinsamen Zeitachse** über der Wellenform des Tracks, mit dem berechneten Takt-/Schlagraster als Einrast-Gitter, und macht es dort direkt bearbeitbar.
 
 Entscheidungen (Marco, 2026-09-27):
-- **Geräte:** PC (Maus/Tastatur) und Tablet quer (Touch) gleichwertig. **Hochkant läuft die Zeit nach unten** (Spuren als Spalten, liest sich wie ein Liedblatt) – bearbeitbar wie quer.
+- **Geräte:** PC (Maus/Tastatur) und Tablet quer (Touch) gleichwertig. **Die Zeit läuft immer von links nach rechts, auch hochkant** – eine vertikale Hochkant-Ansicht (Zeit nach unten, Spuren als Spalten; #309, 2026-09-27) wurde am 2026-09-28 wieder entfernt: Marco scrollt auf dem Tablet lieber seitwärts.
 - **Ort:** eine eigene **Vollbild-Ansicht** des Song-Editors, umschaltbar „Text | Timeline“ (beide auf demselben Entwurf; ursprünglich als Abschnitt in der Detail-Spalte gebaut – zu schmal, Marco 2026-09-27). Die bisherigen Listen (Anker, Tempo-Wechsel, Cues) bleiben für exakte Zahleneingabe. Ein geführter Assistent für neue Songs könnte die Timeline später für seine Zeit-Schritte nutzen – noch nicht entschieden.
 - **Reihenfolge:** Phase 1 Raster, Phase 2 Text & Parts, Phase 3 Cues & Kommentare/Tabs – je ein PR mit Tablet-Prüfung.
 - **Raster-Modell (Marco, 2026-09-27 abends):** Die Anker-/Glättungs-Bearbeitung aus Phase 1 ist „viel zu kompliziert, nicht intuitiv“. Ersetzt durch ein **starres Raster mit Ausrichtungspunkten** (Abschnitt 5a). Bestehende Songs werden **nicht umgewandelt** – Marco baut sie neu auf.
@@ -84,7 +84,7 @@ Grundsätze:
 - Messung gegen die Drum-Hits (Methode docs/13 §6): feste Anker verschlechtern die Nähe zu den Hits nicht.
 - Fire-Tablet: Scrollen und Zoomen ohne sichtbares Ruckeln, keine langen Frames > 100 ms beim Öffnen außer dem einmaligen Dekodieren.
 
-**Stand der Umsetzung (2026-09-27):** Phase 1 gebaut (#307) – `components/timeline/TimelineEditor.tsx`, reine Logik in `lib/timeline.ts` (Ansicht, Zoom, Einrasten, Treffer-Test, Qualität je Takt, Raster-Bearbeitung), Analyse in `lib/trackAnalysis.ts` + `trackAnalysisWorker.ts` (Spitzenwerte je 10 ms und Onsets, IndexedDB-Cache `stageboard-timeline-cache`), feste Anker in `fitTempoMap`. Ein gezogener Taktstrich rastet mit Einrasten auf einem Drum-Hit innerhalb von 40 ms ein. Vollbild über den Umschalter „Text | Timeline“ (#308); hochkant vertikal (Zeichnen und Zeiger in Längs-/Quer-Koordinaten, nur Canvas-Transformation, Zeigerkoordinaten und Abspielkopf werden getauscht; Beschriftungen bleiben aufrecht). Tablet-Prüfung und Abnahme stehen aus.
+**Stand der Umsetzung (2026-09-27):** Phase 1 gebaut (#307) – `components/timeline/TimelineEditor.tsx`, reine Logik in `lib/timeline.ts` (Ansicht, Zoom, Einrasten, Treffer-Test, Qualität je Takt, Raster-Bearbeitung), Analyse in `lib/trackAnalysis.ts` + `trackAnalysisWorker.ts` (Spitzenwerte je 10 ms und Onsets, IndexedDB-Cache `stageboard-timeline-cache`), feste Anker in `fitTempoMap`. Ein gezogener Taktstrich rastet mit Einrasten auf einem Drum-Hit innerhalb von 40 ms ein. Vollbild über den Umschalter „Text | Timeline“ (#308); eine vertikale Hochkant-Ansicht war kurz gebaut (#309) und ist wieder entfernt (2026-09-28). Tablet-Prüfung und Abnahme stehen aus.
 
 **Arbeitsablauf für einen neuen Song** (so erklärt am 2026-09-27; alles in der Timeline):
 1. Im Text-Modus Track anhängen, ungefähres Tempo und Taktart eintragen.
@@ -152,7 +152,7 @@ Keine automatische Umwandlung (Marco baut sie neu auf). Solange eine Variante ke
 ### Umsetzung in drei PRs
 
 1. **Modell + Wiedergabe:** `beatGrid` in shared-types, `lib/beatGrid.ts` (Schläge aus Punkten, Tempo je Strecke, Punkt setzen/verschieben/entfernen mit den Grenzen oben, Tempo aus Tipps), `playbackAnchors` nutzt es. Tests inkl. Einzählen und Taktart-Wechsel.
-2. **Timeline:** neue Raster-Spur und Knöpfe (Takt 1 hier, Tempo tippen, Punkt-Auswahl), „Nächste Problemstelle“ bleibt, alte Bedienelemente raus; hochkant gleich. Tablet-Prüfung.
+2. **Timeline:** neue Raster-Spur und Knöpfe (Takt 1 hier, Tempo tippen, Punkt-Auswahl), „Nächste Problemstelle“ bleibt, alte Bedienelemente raus. Tablet-Prüfung.
 3. **Text-Modus + Analyse:** Punkteliste, „Track analysieren“ → Lineal mit Punkten.
 
 **Abnahme:** Marco baut einen Song mit Studio-Track und einen driftenden (What's Up) in je unter 5 Minuten auf, ohne Erklärung; Messung gegen die Drum-Hits (docs/13 §6) mindestens so nah wie die Tempo-Karte; Fire: Ziehen ohne Ruckeln.
