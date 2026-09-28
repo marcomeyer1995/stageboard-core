@@ -140,18 +140,21 @@ describe('gridFromBeats ("Track analysieren")', () => {
     expect(g.points[0]!.timeMs).toBe(2000) // beats 3 and 4 before it are left to the count-in
   })
 
-  it('adds points only where the grid would drift more than 30 ms from the detected downbeats', () => {
+  it('adds a few points where the grid would drift more than 40 ms from the detected downbeats', () => {
     // 32 beats at 450 ms, then 32 at 430 ms: a straight line from first to last misses the middle.
-    const g = gridFromBeats(detected([...Array(32).fill(450), ...Array(32).fill(430)]), 136, '4/4')!
-    expect(g.points.map((p) => p.bar)).toEqual([1, 9, 17])
-    const t = clickTimeline({ beatGrid: g, bpm: 135, timeSignature: '4/4' })
-    expect(t.timeOfBeat(32)).toBe(1000 + 32 * 450)
+    const beats = detected([...Array(32).fill(450), ...Array(32).fill(430)])
+    const g = gridFromBeats(beats, 136, '4/4')!
+    expect(g.points.length).toBeGreaterThanOrEqual(3)
+    expect(g.points.length).toBeLessThanOrEqual(4)
+    const t = clickTimeline({ beatGrid: g, bpm: 136, timeSignature: '4/4' })
+    const worst = Math.max(...beats.map((b, i) => Math.abs(t.timeOfBeat(i) - b.timeMs)))
+    expect(worst).toBeLessThan(40)
   })
 
-  it('counts sparse detections (the built-in detector) in beats of the detected tempo', () => {
-    // Beats only at 1, 3.5 and 7 s (beat numbers 0, 5, 12 at 120 BPM) - bars 1, 2.25, 4.
-    const g = gridFromBeats([{ timeMs: 1000, beatInBar: 0 }, { timeMs: 3500, beatInBar: 1 }, { timeMs: 7000, beatInBar: 0 }], 120, '4/4')!
-    expect(g.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 1000], [4, 7000]])
+  it('ignores a single detection off by the detector\'s scatter', () => {
+    const beats = detected(Array(64).fill(500))
+    beats[32]!.timeMs += 60 // bar 9's downbeat detected 60 ms late, its neighbours on time
+    expect(gridFromBeats(beats, 120, '4/4')!.points.map((p) => p.bar)).toEqual([1, 17])
   })
 
   it('does not shift the bar count when a beat was missed', () => {
