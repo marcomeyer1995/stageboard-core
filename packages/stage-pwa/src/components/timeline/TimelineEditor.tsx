@@ -248,6 +248,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const faint = cssVar('--sb-ink-faint', '#a3a3a3')
     const accent = cssVar('--sb-accent', '#f59e0b')
     const viewEndMs = xToTime(width, view)
+    const activeBar = drag?.bar ?? selectedBar
+    const activeBarMs = activeBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(activeBar)) : null
+    const stage = cssVar('--sb-stage', '#000000')
 
     const audio = audioCanvas.current?.getContext('2d')
     if (audio && audioCanvas.current) {
@@ -277,6 +280,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const x0 = timeToX(countInStartMs, view)
         audio.fillRect(x0, 0, timeToX(timeline.bar1Ms, view) - x0, audioH)
       }
+      // The dragged or selected bar line runs on through the waveform, so it can be laid exactly
+      // onto the hit there (Marco, 2026-09-28).
+      if (activeBarMs !== null) {
+        audio.fillStyle = accent
+        audio.fillRect(timeToX(activeBarMs, view) - 1.5, 0, 3, audioH)
+      }
     }
 
     const g = gridCanvas.current?.getContext('2d')
@@ -288,14 +297,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
       else g.setTransform(dpr, 0, 0, dpr, 0, 0)
       // Text is drawn upright in both layouts: in the swapped (vertical) system it would come out
       // mirrored, so labels switch to the plain transform at the swapped position.
+      // Labels sit on a patch of the lane background, so bar lines never run through the digits.
       const label = (text: string, along: number, across: number, verticalAlong: number, verticalAcross: number) => {
-        if (!vertical) {
-          g.fillText(text, along, across)
-          return
-        }
+        const [tx, ty] = vertical ? [verticalAcross, verticalAlong] : [along, across]
         g.save()
-        g.setTransform(dpr, 0, 0, dpr, 0, 0)
-        g.fillText(text, verticalAcross, verticalAlong)
+        if (vertical) g.setTransform(dpr, 0, 0, dpr, 0, 0)
+        const color = g.fillStyle
+        const w = g.measureText(text).width
+        g.fillStyle = stage
+        g.fillRect(tx - 2, ty - 14, w + 4, 18)
+        g.fillStyle = color
+        g.fillText(text, tx, ty)
         g.restore()
       }
       g.clearRect(0, 0, width, h)
@@ -315,19 +327,23 @@ export function TimelineEditor(props: TimelineEditorProps) {
       const barMs = timeline.timeOfBeat(timeline.barStartBeat(timeline.barOf(firstVisible) + 1)) - timeline.timeOfBeat(timeline.barStartBeat(timeline.barOf(firstVisible)))
       const showBeats = period / view.msPerPx >= 12
       const labelEvery = barLabelEvery(barMs / view.msPerPx)
-      const activeBar = drag?.bar ?? selectedBar
+      // Zoomed far out, every bar line merged into a white block (portrait, 2026-09-28): below
+      // 12 px apart, only the numbered bars get a line.
+      const everyBar = barMs / view.msPerPx >= 12
       for (const beat of beatsBetween(timeline, view.startMs, viewEndMs)) {
         const isBar = beat.beatInBar === 0
-        if (!isBar && !showBeats) continue
-        const x = timeToX(beat.timeMs, view)
         const active = isBar && beat.bar === activeBar
+        const numbered = isBar && beat.bar >= 1 && (beat.bar - 1) % labelEvery === 0
+        if (!isBar && !showBeats) continue
+        if (isBar && !everyBar && !numbered && !active) continue
+        const x = timeToX(beat.timeMs, view)
         g.strokeStyle = active ? accent : isBar ? ink : faint
         g.lineWidth = active ? 4 : isBar ? 2 : 1
         g.beginPath()
-        g.moveTo(x + 0.5, SECTION_H + (isBar ? 0 : gridH * 0.45))
-        g.lineTo(x + 0.5, h - 12)
+        g.moveTo(x + 0.5, active ? 0 : SECTION_H + (isBar ? 0 : gridH * 0.45))
+        g.lineTo(x + 0.5, active ? h : h - 12)
         g.stroke()
-        if (isBar && beat.bar >= 1 && ((beat.bar - 1) % labelEvery === 0 || active)) {
+        if (numbered || active) {
           g.fillStyle = active ? accent : ink
           g.font = active ? 'bold 16px system-ui, sans-serif' : '14px system-ui, sans-serif'
           label(String(beat.bar), x + 4, SECTION_H + 16, x + 16, SECTION_H + 4)
