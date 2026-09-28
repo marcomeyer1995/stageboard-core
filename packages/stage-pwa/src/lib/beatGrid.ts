@@ -223,14 +223,18 @@ export function setMeter(grid: BeatGrid, bar: number, timeSignature: string | nu
   return { ...grid, meters: meters.sort((a, b) => a.bar - b.bar) }
 }
 
-/** Largest distance, ms, between the grid and a detected downbeat before `gridFromBeats` adds a
- * point there - below what is audible as a late or early click. */
-const DETECTION_TOLERANCE_MS = 30
+/** How far, ms, the grid may sit from the detected downbeats before `gridFromBeats` adds a point
+ * - measured as the median over ±2 downbeats, so a single detection off by the detector's own
+ * scatter (music-tempo: 17-45 ms, docs/13) doesn't earn a point of its own. Tuned on What's Up
+ * against its drum hits (2026-09-27): 30 ms without the median gave 60 points, this 23, with 85.7
+ * instead of 87.0 % of the beats within 50 ms of a hit and the same 3 red bars. */
+const DETECTION_TOLERANCE_MS = 40
+const DETECTION_SMOOTHING = 2
 
 /**
  * A grid from automatically detected beats ("Track analysieren"): bar 1 on the first detected
- * downbeat, then as few points as keep every detected downbeat within 30 ms of the grid
- * (Douglas-Peucker over bar number and time) - a track recorded to a click comes out with two
+ * downbeat, then as few points as keep the detected downbeats within 40 ms of the grid
+ * (Douglas-Peucker over bar number and time, on the local median deviation) - a track recorded to a click comes out with two
  * points, a drifting one with a handful, each a bar line the musician can see and move. Gaps are
  * counted in beats of the detected tempo, so a missed detection - or the built-in detector's
  * sparse output, which only reports beats where its grid needed correcting - doesn't shift the
@@ -254,14 +258,19 @@ export function gridFromBeats(beats: readonly { timeMs: number; beatInBar?: numb
     if (hi - lo < 2) return
     const a = downbeats[lo]!
     const b = downbeats[hi]!
+    const deviation = (i: number) => downbeats[i]!.timeMs - (a.timeMs + ((downbeats[i]!.bar - a.bar) * (b.timeMs - a.timeMs)) / (b.bar - a.bar))
     let worst = -1
     let worstDistance = DETECTION_TOLERANCE_MS
     for (let i = lo + 1; i < hi; i++) {
-      const d = downbeats[i]!
-      const expected = a.timeMs + ((d.bar - a.bar) * (b.timeMs - a.timeMs)) / (b.bar - a.bar)
-      const distance = Math.abs(d.timeMs - expected)
+      const window: number[] = []
+      for (let k = Math.max(lo + 1, i - DETECTION_SMOOTHING); k <= Math.min(hi - 1, i + DETECTION_SMOOTHING); k++) window.push(deviation(k))
+      window.sort((x, y) => x - y)
+      const distance = Math.abs(window[Math.floor(window.length / 2)]!)
       if (distance > worstDistance) [worst, worstDistance] = [i, distance]
     }
+    // The point goes where the median is worst, not on the single furthest detection: that one is
+    // often just detector scatter (tried on What's Up: 9 red bars instead of 3). At a sharp tempo
+    // change this can land a bar early, with a second point after it - harmless.
     if (worst < 0) return
     keep.add(worst)
     simplify(lo, worst)

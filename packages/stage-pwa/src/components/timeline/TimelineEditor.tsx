@@ -63,6 +63,17 @@ function cssVar(name: string, fallback: string): string {
   return tokenColor(getComputedStyle(document.documentElement).getPropertyValue(name), fallback)
 }
 
+/** Undo arrow as an SVG: the ↶/↷ characters came out tiny on the Fire tablet's font, whatever the
+ * font size. */
+function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  )
+}
+
 type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean }
 type BarDrag = { pointerId: number; bar: number; startX: number; x: number; moved: boolean }
 
@@ -160,13 +171,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }, [variantId, trackId])
 
-  // Fit the whole song into view once its length is known.
-  const fitted = useRef(false)
+  // Fit the whole song into view - first on an estimate, again once the track's real length is
+  // known (the waveform analysis or the audio element arrives later), unless the view has been
+  // zoomed or scrolled by then. On the tablet the estimate showed only the first minute.
+  const lengthKnown = analysis !== null || clock.duration > 0
+  const fitted = useRef<{ view: TimelineView; real: boolean } | null>(null)
   useEffect(() => {
-    if (fitted.current || box.width <= 0 || durationMs <= 0) return
-    fitted.current = true
-    setView({ startMs: minMs, msPerPx: Math.max(1, (durationMs - minMs) / width) })
-  }, [box.width, width, durationMs, minMs])
+    if (box.width <= 0 || durationMs <= 0) return
+    const current = fitted.current
+    if (current && (current.real || !lengthKnown || current.view !== view)) return
+    const next = { startMs: minMs, msPerPx: Math.max(1, (durationMs - minMs) / width) }
+    fitted.current = { view: next, real: lengthKnown }
+    setView(next)
+  }, [box.width, width, durationMs, minMs, lengthKnown, view])
 
   function commit(next: TimelineGridState) {
     setUndoStack((stack) => [...stack.slice(-49), { beatGrid, bpm }])
@@ -333,10 +350,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
       g.fillRect(0, 0, width, SECTION_H)
       g.fillStyle = ink
       g.font = 'bold 14px system-ui, sans-serif'
-      const tempoLabels = stretches.length ? stretches : [{ fromMs: timeline.bar1Ms, bpm }]
+      // A label only where it has room - with points a bar or two apart they overlapped; the
+      // selected bar line shows its tempo in the selection bar anyway.
+      // Stretches starting left of the view share the left edge: only the one still playing there.
+      const allLabels = stretches.length ? stretches : [{ fromMs: timeline.bar1Ms, bpm }]
+      const firstOnScreen = allLabels.findIndex((st) => timeToX(st.fromMs, view) + 6 >= 4)
+      const tempoLabels = allLabels.slice(Math.max(0, (firstOnScreen < 0 ? allLabels.length : firstOnScreen) - 1))
+      const labelRoom = vertical ? 30 : 100
+      let lastLabelX = -Infinity
       for (const stretch of tempoLabels) {
         const x = Math.max(4, timeToX(stretch.fromMs, view) + 6)
-        if (x > width) continue
+        if (x > width || x - lastLabelX < labelRoom) continue
+        lastLabelX = x
         const text = vertical ? stretch.bpm.toFixed(1) : `${stretch.bpm.toFixed(1)} BPM`
         label(text, x, 18, x + 12, 2)
       }
@@ -562,8 +587,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const playheadX = timeToX(playheadMs, view)
   const button = 'min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
-  // `!` - the size must beat `button`'s text-sm; the Fire drew the arrows tiny without it.
-  const iconButton = 'min-h-12 min-w-12 rounded-sb-sm bg-control-strong px-3 !text-2xl font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const hint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
@@ -585,10 +609,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
           Klick
         </button>
         <button type="button" className={iconButton} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
-          ↶
+          <UndoIcon />
         </button>
         <button type="button" className={iconButton} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
-          ↷
+          <UndoIcon mirrored />
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
