@@ -166,6 +166,8 @@ Keine automatische Umwandlung (Marco baut sie neu auf). Solange eine Variante ke
 - Tipp-Ziel „Zeilen“: ersetzt die Zeit-Tags der im Bereich getippten Zeilen (heutiges Tap-to-Sync, aber für eine Strecke statt immer den ganzen Song).
 - Parts-Spur: Blöcke aus den Part-Direktiven, Grenzen an der ersten Zeile des Parts.
 
+**Stand der Umsetzung (2026-09-28):** gebaut – reine Logik in `lib/timelineText.ts` (Liedzeilen mit Roh-Index, Zeit und Part; Zeit setzen/entfernen mit Grenzen der Nachbarzeilen; „Zeilen tippen“; Part-Blöcke), in `TimelineEditor.tsx` zwei neue Spuren unter dem Raster (Parts-Streifen, Text-Spur). Entscheidungen dabei: eine gezogene Zeile rastet auf einen Schlag innerhalb von 60 ms ein, sonst bleibt sie genau dort (gesungene Zeilen beginnen oft kurz vor dem Schlag); Nachbarzeilen mindestens 100 ms auseinander; „Zeilen tippen“ beginnt bei der gewählten Zeile, sonst bei der ersten ohne Zeit, der Tipp-Knopf zeigt die nächste Zeile, eine Tipp-Runde ist ein Rückgängig-Schritt; Zeilen ohne Zeit werden in der Hinweiszeile gezählt statt am Rand gesammelt; Metadaten-Direktiven (`{title: …}`) haben keinen Platz auf der Zeitachse. Die Timeline macht Rückgängig jetzt auch für den Text.
+
 ## 7. Phase 3: Cues & Kommentare/Tabs
 
 - Cue-Spur: Cues als Marker mit Symbol je Zielgerät; hinzufügen (Doppeltipp/Doppelklick), ziehen, bearbeiten (Zielgerät, Befehl – wie `CueListEditor`), einrasten; Tipp-Ziel „Cues“ nutzt den vorhandenen Cue-Recorder.

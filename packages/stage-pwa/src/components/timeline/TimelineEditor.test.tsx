@@ -22,7 +22,7 @@ const { TimelineEditor } = await import('./TimelineEditor')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
-function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean } = {}) {
+function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
@@ -34,6 +34,7 @@ function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm:
       timeSignature="4/4"
       countInEnabled={false}
       countInBars={1}
+      content={extra.content ?? ''}
       onChange={onChange}
       onDetectGrid={extra.onDetectGrid}
       fill={extra.fill}
@@ -46,9 +47,9 @@ describe('TimelineEditor (docs/14 §5a)', () => {
   it('clears the grid after confirming, and can undo it', async () => {
     const { onChange } = setup({ beatGrid })
     fireEvent.click(screen.getByText('Raster löschen'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120 }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120, chordProContent: '' }))
     fireEvent.click(screen.getByLabelText('Rückgängig'))
-    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120 })
+    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '' })
   })
 
   it('has nothing to clear without a grid', () => {
@@ -60,7 +61,7 @@ describe('TimelineEditor (docs/14 §5a)', () => {
     const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
     const { onChange } = setup({ beatGrid, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
     fireEvent.click(screen.getByText('Track analysieren'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected, chordProContent: '' }))
   })
 
   it('offers no problem jump without a track to compare against', () => {
@@ -120,7 +121,7 @@ describe('aligning the grid (docs/14 §5a)', () => {
   it('"Takt 1 hier" starts a grid at the playhead', () => {
     const { onChange } = setup()
     fireEvent.click(screen.getByText('Takt 1 hier'))
-    expect(onChange).toHaveBeenCalledWith({ beatGrid: { points: [expect.objectContaining({ bar: 1 })], meters: [] }, bpm: 120 })
+    expect(onChange).toHaveBeenCalledWith({ beatGrid: { points: [expect.objectContaining({ bar: 1 })], meters: [] }, bpm: 120, chordProContent: '' })
   })
 
   it('swiping outside a bar line scrolls instead of moving the grid', () => {
@@ -140,16 +141,55 @@ describe('aligning the grid (docs/14 §5a)', () => {
   })
 })
 
+describe('song text on the timeline (docs/14 §6)', () => {
+  // No grid, no track: bar 1 at 0:00, the view fits 60 s into 1000 px (60 ms per px). The text
+  // lane starts below waveform (96), tempo strip (26), grid (84) and the parts strip (28): y 234.
+  const content = ['{part: Verse}', '[00:10.00] First line', '[00:14.00] Second line', 'Third line'].join('\n')
+  const textY = 96 + 26 + 84 + 28 + 20
+  function dragText(fromMs: number, toMs: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: fromMs / 60, clientY: textY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: toMs / 60, clientY: textY })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: toMs / 60, clientY: textY })
+  }
+
+  it('dragging a line marker writes its time tag, landing on a beat nearby', () => {
+    const { onChange } = setup({ content })
+    dragText(10000, 12030) // 12 s is a beat at 120 BPM, 30 ms away
+    const next = onChange.mock.calls[0]![0] as { chordProContent: string }
+    expect(next.chordProContent.split('\n')[1]).toBe('[00:12.00] First line')
+  })
+
+  it('a line cannot pass its neighbour', () => {
+    const { onChange } = setup({ content })
+    dragText(10000, 20000)
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:13.90] First line')
+  })
+
+  it('tapping a line marker selects it; "Zeit entfernen" removes the tag', () => {
+    const { onChange } = setup({ content })
+    dragText(14000, 14000)
+    expect(screen.getByText(/„Second line“ · 0:14.0/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Zeit entfernen'))
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[2]).toBe('Second line')
+  })
+
+  it('says how many lines still have no time', () => {
+    setup({ content })
+    expect(screen.getByRole('status')).toHaveTextContent('1 Zeile noch ohne Zeit')
+  })
+})
+
 describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
   it('keeps time running left to right; the lanes are stacked and share the height', () => {
     box.width = 800
     box.height = 1100
     const { container } = setup({ beatGrid, fill: true })
     const [audio, gridLane] = [...container.querySelectorAll('canvas')]
-    // Waveform: full width, 45 % of (1100 - 26) px high; the grid lane below it.
+    // Waveform: full width, 40 % of (1100 - 26 - 28) px high; the grid lane below it.
     expect(audio!.style.width).toBe('800px')
-    expect(audio!.style.height).toBe('483px')
-    expect(gridLane!.style.top).toBe('483px')
+    expect(audio!.style.height).toBe('418px')
+    expect(gridLane!.style.top).toBe('418px')
     box.width = 1000
     box.height = 206
   })
