@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barQuality, clampView, barLabelEvery, formatTimelineTime, nextProblemBar, tokenColor, timeToX, xToTime, zoomAround } from './timeline'
+import { barQuality, clampView, barLabelEvery, formatTimelineTime, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
 
 const grid = Array.from({ length: 16 }, (_, i) => ({ timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
@@ -66,5 +66,22 @@ describe('barLabelEvery', () => {
     expect(barLabelEvery(80)).toBe(1)
     expect(barLabelEvery(20)).toBe(2)
     expect(barLabelEvery(8)).toBe(8)
+  })
+})
+
+describe('wrapText', () => {
+  const measure = (s: string) => s.length * 10 // 10 px per character
+
+  it('wraps a lyric word by word into rows that fit', () => {
+    expect(wrapText('And I say hey what is going on', 120, 5, measure)).toEqual(['And I say', 'hey what is', 'going on'])
+  })
+
+  it('ends the last row in … when the text needs more rows than there are', () => {
+    expect(wrapText('And I say hey what is going on', 120, 2, measure)).toEqual(['And I say', 'hey what is…'])
+  })
+
+  it('cuts a single word wider than a row, and shows nothing without room for one', () => {
+    expect(wrapText('Twenty-five', 60, 3, measure)).toEqual(['Twent…'])
+    expect(wrapText('Hey', 15, 3, measure)).toEqual([])
   })
 })

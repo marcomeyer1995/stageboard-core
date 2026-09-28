@@ -266,7 +266,7 @@ export function commentVisibleTo(
   return targets.includes(activeProfileName.trim().toLowerCase())
 }
 
-function parseTimeTag(line: string): { timeMs: number | null; rest: string } {
+export function parseTimeTag(line: string): { timeMs: number | null; rest: string } {
   const match = line.match(TIME_TAG_RE)
   if (!match) return { timeMs: null, rest: line }
   const minutes = Number(match[1])
@@ -380,6 +380,11 @@ export function formatTimeTag(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds - minutes * 60
   return `[${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}]`
+}
+
+/** Removes the leading time tag of a raw ChordPro line (the timeline's "Zeit entfernen"). */
+export function clearLineTimeTag(line: string): string {
+  return line.replace(TIME_TAG_RE, '')
 }
 
 /** Replaces (or adds) the leading time tag of a raw ChordPro line, used by Tap-to-Sync. */

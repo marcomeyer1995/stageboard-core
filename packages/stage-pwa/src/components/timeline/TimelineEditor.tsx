@@ -10,21 +10,25 @@ import {
   nextProblemBar,
   timeToX,
   tokenColor,
+  wrapText,
   xToTime,
   zoomAround,
   type TimelineView,
 } from '../../lib/timeline'
+import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
 
-/** What the timeline changes on the song: its grid, and its bpm (kept equal to the grid's first
- * stretch, so count-in and tempo displays agree with the click). */
-export interface TimelineGridState {
+/** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
+ * stretch, so count-in and tempo displays agree with the click) and the ChordPro text (the
+ * lines' time tags). */
+export interface TimelineEditState {
   beatGrid: BeatGrid | undefined
   bpm: number
+  chordProContent: string
 }
 
 export interface TimelineEditorProps {
@@ -37,7 +41,9 @@ export interface TimelineEditorProps {
   timeSignature: string
   countInEnabled: boolean
   countInBars: number
-  onChange: (next: TimelineGridState) => void
+  /** The song's ChordPro text - its lines and parts are shown, dragging a line writes its time tag. */
+  content: string
+  onChange: (next: TimelineEditState) => void
   /** Automatic beat detection turned into a grid (the song editor's "Track analysieren") -
    * applied here as one undoable step. Null: nothing usable detected. */
   onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>
@@ -49,14 +55,21 @@ export interface TimelineEditorProps {
 const DEFAULT_AUDIO_H = 96
 const SECTION_H = 26
 const DEFAULT_GRID_H = 84
+const PARTS_H = 28
+const DEFAULT_TEXT_H = 64
 const TOLERANCE_PX = 24
 const MOVE_THRESHOLD_PX = 6
 /** A bar line dropped (or set) within this distance of a detected drum hit lands on it. */
 const ONSET_MAGNET_MS = 40
+/** A dragged lyric line lands on a beat within this distance, else exactly where it is dropped -
+ * sung lines often start just before the beat. */
+const LINE_SNAP_MS = 60
 /** Stand-in for a song without a grid of its own: bar 1 at 0:00 (what playback assumes too). */
 const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters: [] }
 
 const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
+/** Alternating part block fills, so neighbouring parts stay apart. */
+const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
@@ -75,29 +88,42 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
 }
 
 type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean }
-type BarDrag = { pointerId: number; bar: number; startX: number; x: number; moved: boolean }
+type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number })
+type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | null
+type TapMode = 'tempo' | 'lines' | null
+
+/** A lyric shortened to fit `maxPx` at roughly 8 px per character. */
+function fitText(text: string, maxPx: number): string {
+  const chars = Math.floor(maxPx / 8)
+  if (chars < 3) return ''
+  return text.length <= chars ? text : `${text.slice(0, chars - 1)}…`
+}
 
 /**
- * The timeline editor (docs/14 §5a): the track's waveform and the click grid on one time axis -
- * a rigid ruler aligned to the track at a few bars. Set bar 1 on the first hit, tap the tempo,
- * then drag a bar line onto its hit wherever the ruler drifts: that bar becomes an alignment point
- * and only the bars between its neighbouring points move. Works on the song editor's draft;
- * nothing is written until the song editor saves. Touch and mouse alike: drag a bar line = align
- * it, swipe elsewhere = scroll, tap = move the playhead (or select a bar line), pinch /
- * Ctrl+wheel = zoom.
+ * The timeline editor (docs/14): the track's waveform, the click grid (§5a) and the song text
+ * (§6) on one time axis. Grid: set bar 1 on the first hit, tap the tempo, drag a bar line onto its
+ * hit wherever the ruler drifts - it becomes an alignment point. Text: every lyric line is a
+ * marker at its time tag, the song parts are blocks above; drag a line to move its time tag, or
+ * tap along to stamp a stretch of lines. Works on the song editor's draft; nothing is written
+ * until the song editor saves. Touch and mouse alike: drag a bar line or a line marker = move it,
+ * swipe elsewhere = scroll, tap = move the playhead (or select), pinch / Ctrl+wheel = zoom.
  */
 export function TimelineEditor(props: TimelineEditorProps) {
-  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, onChange, onDetectGrid, fill = false } = props
+  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, onChange, onDetectGrid, fill = false } = props
   const clock = useTrackClock(trackSrc)
   const [boxRef, box] = useElementSize()
   // Time always runs left to right, in portrait too: a vertical layout for portrait (2026-09-27)
   // was tried and dropped - Marco preferred scrolling sideways on the tablet (2026-09-28).
   const width = Math.max(1, box.width)
-  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H
-  const audioH = fill ? Math.round((lanesH - SECTION_H) * 0.45) : DEFAULT_AUDIO_H
-  const gridH = lanesH - audioH - SECTION_H
+  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H
+  const rest = lanesH - SECTION_H - PARTS_H
+  const audioH = fill ? Math.round(rest * 0.4) : DEFAULT_AUDIO_H
+  const textH = fill ? Math.round(rest * 0.22) : DEFAULT_TEXT_H
+  const gridH = fill ? rest - audioH - textH : DEFAULT_GRID_H
+  const textTop = audioH + SECTION_H + gridH
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
+  const textCanvas = useRef<HTMLCanvasElement>(null)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
 
@@ -107,19 +133,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [clickOn, setClickOn] = useState(true)
   const [detecting, setDetecting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [selectedBar, setSelectedBar] = useState<number | null>(null)
-  const [drag, setDrag] = useState<BarDrag | null>(null)
-  const [tapping, setTapping] = useState(false)
+  const [selection, setSelection] = useState<Selection>(null)
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
+  const tapFromLine = useRef<number | null>(null)
   const lastProblemMs = useRef<number | null>(null)
   const pan = useRef<Pan | null>(null)
   const pinch = useRef<{ startDistance: number; startView: TimelineView; centerX: number } | null>(null)
   const pointers = useRef(new Map<number, number>())
-  const [undoStack, setUndoStack] = useState<TimelineGridState[]>([])
-  const [redoStack, setRedoStack] = useState<TimelineGridState[]>([])
+  const [undoStack, setUndoStack] = useState<TimelineEditState[]>([])
+  const [redoStack, setRedoStack] = useState<TimelineEditState[]>([])
 
   const editableGrid = beatGrid ?? NO_GRID
+  const selectedBar = selection?.kind === 'bar' ? selection.bar : null
+  const selectedLine = selection?.kind === 'line' ? selection.rawIndex : null
 
   /** A time pulled onto the nearest detected drum hit within ONSET_MAGNET_MS. */
   function magnet(ms: number): number {
@@ -133,21 +162,40 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return best
   }
 
-  // While a bar line is dragged, the grid is shown as it will be when dropped there.
-  const dragMs = drag?.moved ? magnet(xToTime(drag.x, view)) : null
-  const previewGrid = drag && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
+  const baseTimeline = useMemo(
+    () => clickTimeline({ beatGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 }),
+    [beatGrid, bpm, timeSignature, countInEnabled, countInBars],
+  )
+  /** A time pulled onto the nearest beat of the grid within LINE_SNAP_MS. */
+  function snapToBeat(ms: number): number {
+    let best = ms
+    let bestDistance = LINE_SNAP_MS
+    for (const beat of beatsBetween(baseTimeline, ms - LINE_SNAP_MS, ms + LINE_SNAP_MS)) {
+      const distance = Math.abs(beat.timeMs - ms)
+      if (distance <= bestDistance) [best, bestDistance] = [beat.timeMs, distance]
+    }
+    return best
+  }
+
+  // While a bar line or a text line is dragged, it is shown as it will be when dropped there.
+  const dragMs = drag?.moved ? (drag.kind === 'bar' ? magnet : snapToBeat)(xToTime(drag.x, view)) : null
+  const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
   const shownGrid = previewGrid ?? beatGrid
+  const shownContent = drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
 
   const timeline = useMemo(
-    () => clickTimeline({ beatGrid: shownGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 }),
-    [shownGrid, bpm, timeSignature, countInEnabled, countInBars],
+    () => (shownGrid === beatGrid ? baseTimeline : clickTimeline({ beatGrid: shownGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })),
+    [shownGrid, beatGrid, baseTimeline, bpm, timeSignature, countInEnabled, countInBars],
   )
   const stretches = useMemo(() => (shownGrid ? gridStretches(shownGrid, bpm, timeSignature) : []), [shownGrid, bpm, timeSignature])
+  const lines = useMemo(() => timelineLines(shownContent), [shownContent])
   const durationMs = analysis?.durationMs ?? (clock.duration > 0 ? clock.duration * 1000 : timeline.bar1Ms + 60000)
+  const blocks = useMemo(() => partBlocks(lines, durationMs), [lines, durationMs])
   const countInStartMs = timeline.timeOfBeat(timeline.firstBeat)
   const minMs = Math.min(0, countInStartMs)
   const songBeats = useMemo(() => beatsBetween(timeline, 0, durationMs), [timeline, durationMs])
   const quality = useMemo(() => (analysis ? barQuality(songBeats, analysis.onsetsMs) : []), [songBeats, analysis])
+  const untimedLines = lines.filter((l) => l.timeMs === null).length
 
   // Track analysis (waveform + onsets): cached per track, computed once in a worker.
   useEffect(() => {
@@ -180,28 +228,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setView(next)
   }, [box.width, width, durationMs, minMs, lengthKnown, view])
 
-  function commit(next: TimelineGridState) {
-    setUndoStack((stack) => [...stack.slice(-49), { beatGrid, bpm }])
+  const current: TimelineEditState = { beatGrid, bpm, chordProContent: content }
+  function commit(next: TimelineEditState) {
+    setUndoStack((stack) => [...stack.slice(-49), current])
     setRedoStack([])
     onChange(next)
   }
   /** A new grid, with the song's bpm following its first stretch once there are two points. */
   function commitGrid(grid: BeatGrid | undefined, nextBpm = bpm) {
     const first = grid && grid.points.length >= 2 ? gridStretches(grid, nextBpm, timeSignature)[0] : undefined
-    commit({ beatGrid: grid, bpm: first ? Math.round(first.bpm * 10) / 10 : nextBpm })
+    commit({ beatGrid: grid, bpm: first ? Math.round(first.bpm * 10) / 10 : nextBpm, chordProContent: content })
+  }
+  function commitText(nextContent: string) {
+    if (nextContent !== content) commit({ ...current, chordProContent: nextContent })
   }
   function undo() {
     const previous = undoStack[undoStack.length - 1]
     if (!previous) return
     setUndoStack(undoStack.slice(0, -1))
-    setRedoStack([...redoStack, { beatGrid, bpm }])
+    setRedoStack([...redoStack, current])
     onChange(previous)
   }
   function redo() {
     const next = redoStack[redoStack.length - 1]
     if (!next) return
     setRedoStack(redoStack.slice(0, -1))
-    setUndoStack([...undoStack, { beatGrid, bpm }])
+    setUndoStack([...undoStack, current])
     onChange(next)
   }
 
@@ -232,7 +284,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   // Tapping ends when playback stops.
   useEffect(() => {
-    if (tapping && !clock.isPlaying && taps.current.length > 0) void finishTapping()
+    if (tapMode && !clock.isPlaying && taps.current.length > 0) void finishTapping()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock.isPlaying])
 
@@ -242,10 +294,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const ink = cssVar('--sb-ink', '#e5e5e5')
     const faint = cssVar('--sb-ink-faint', '#a3a3a3')
     const accent = cssVar('--sb-accent', '#f59e0b')
-    const viewEndMs = xToTime(width, view)
-    const activeBar = drag?.bar ?? selectedBar
-    const activeBarMs = activeBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(activeBar)) : null
     const stage = cssVar('--sb-stage', '#000000')
+    const viewEndMs = xToTime(width, view)
+    const activeBar = drag?.kind === 'bar' ? drag.bar : selectedBar
+    const activeLine = drag?.kind === 'line' ? drag.rawIndex : selectedLine
+    const activeBarMs = activeBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(activeBar)) : null
+    const activeLineMs = activeLine !== null ? (lines.find((l) => l.rawIndex === activeLine)?.timeMs ?? null) : null
+    const activeMs = activeBarMs ?? activeLineMs
 
     const audio = audioCanvas.current?.getContext('2d')
     if (audio && audioCanvas.current) {
@@ -273,12 +328,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const x0 = timeToX(countInStartMs, view)
         audio.fillRect(x0, 0, timeToX(timeline.bar1Ms, view) - x0, audioH)
       }
-      // The dragged or selected bar line runs on through the waveform, so it can be laid exactly
-      // onto the hit there (Marco, 2026-09-28).
-      if (activeBarMs !== null) {
+      // The dragged or selected bar line (or text line) runs on through the waveform, so it can be
+      // laid exactly onto the hit there (Marco, 2026-09-28).
+      if (activeMs !== null) {
         audio.fillStyle = accent
-        audio.fillRect(timeToX(activeBarMs, view) - 1.5, 0, 3, audioH)
+        audio.fillRect(timeToX(activeMs, view) - 1.5, 0, 3, audioH)
       }
+    }
+
+    // Labels sit on a patch of the lane background, so lines never run through the text.
+    const labeller = (c: CanvasRenderingContext2D) => (text: string, x: number, y: number) => {
+      const color = c.fillStyle
+      const w = c.measureText(text).width
+      c.fillStyle = stage
+      c.fillRect(x - 2, y - 14, w + 4, 18)
+      c.fillStyle = color
+      c.fillText(text, x, y)
     }
 
     const g = gridCanvas.current?.getContext('2d')
@@ -287,15 +352,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       gridCanvas.current.width = width * dpr
       gridCanvas.current.height = h * dpr
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
-      // Labels sit on a patch of the lane background, so bar lines never run through the digits.
-      const label = (text: string, x: number, y: number) => {
-        const color = g.fillStyle
-        const w = g.measureText(text).width
-        g.fillStyle = stage
-        g.fillRect(x - 2, y - 14, w + 4, 18)
-        g.fillStyle = color
-        g.fillText(text, x, y)
-      }
+      const label = labeller(g)
       g.clearRect(0, 0, width, h)
       // Quality per bar, a band at the bottom of the grid lane.
       for (const bar of quality) {
@@ -335,6 +392,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
           label(String(beat.bar), x + 4, SECTION_H + 16)
         }
       }
+      // A selected text line crosses the grid too.
+      if (activeLineMs !== null) {
+        g.fillStyle = accent
+        g.fillRect(timeToX(activeLineMs, view) - 1.5, 0, 3, h)
+      }
       // Alignment points as diamonds on their bar lines.
       g.fillStyle = accent
       for (const point of shownGrid?.points ?? []) {
@@ -358,16 +420,54 @@ export function TimelineEditor(props: TimelineEditorProps) {
       const allLabels = stretches.length ? stretches : [{ fromMs: timeline.bar1Ms, bpm }]
       const firstOnScreen = allLabels.findIndex((st) => timeToX(st.fromMs, view) + 6 >= 4)
       const tempoLabels = allLabels.slice(Math.max(0, (firstOnScreen < 0 ? allLabels.length : firstOnScreen) - 1))
-      const labelRoom = 100
       let lastLabelX = -Infinity
       for (const stretch of tempoLabels) {
         const x = Math.max(4, timeToX(stretch.fromMs, view) + 6)
-        if (x > width || x - lastLabelX < labelRoom) continue
+        if (x > width || x - lastLabelX < 100) continue
         lastLabelX = x
         label(`${stretch.bpm.toFixed(1)} BPM`, x, 18)
       }
     }
-  }, [width, audioH, gridH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar])
+
+    const t = textCanvas.current?.getContext('2d')
+    if (t && textCanvas.current) {
+      const h = PARTS_H + textH
+      textCanvas.current.width = width * dpr
+      textCanvas.current.height = h * dpr
+      t.setTransform(dpr, 0, 0, dpr, 0, 0)
+      t.clearRect(0, 0, width, h)
+      // Parts as coloured blocks with their name.
+      t.font = 'bold 14px system-ui, sans-serif'
+      blocks.forEach((block, i) => {
+        const x0 = Math.max(0, timeToX(block.startMs, view))
+        const x1 = Math.min(width, timeToX(block.endMs, view))
+        if (x1 <= 0 || x0 >= width) return
+        t.fillStyle = PART_FILL[i % 2]!
+        t.fillRect(x0, 2, Math.max(1, x1 - x0 - 2), PARTS_H - 4)
+        const name = fitText(block.label ?? 'Teil', x1 - x0 - 12)
+        if (name) {
+          t.fillStyle = ink
+          t.fillText(name, x0 + 6, PARTS_H - 9)
+        }
+      })
+      // Lines: a marker at each time tag, the lyric beside it up to the next marker - wrapped
+      // over as many rows as the lane holds, so more than a few words are readable.
+      const timed = lines.filter((l) => l.timeMs !== null)
+      t.font = '15px system-ui, sans-serif'
+      const rowH = 19
+      const maxRows = Math.max(1, Math.floor((textH - 8) / rowH))
+      timed.forEach((line, i) => {
+        const x = timeToX(line.timeMs!, view)
+        const nextX = i + 1 < timed.length ? timeToX(timed[i + 1]!.timeMs!, view) : width + 200
+        if (nextX < 0 || x > width) return
+        const active = line.rawIndex === activeLine
+        t.fillStyle = active ? accent : faint
+        t.fillRect(x - (active ? 1.5 : 1), PARTS_H, active ? 3 : 2, textH)
+        t.fillStyle = active ? accent : ink
+        wrapText(line.text, nextX - x - 12, maxRows, (row) => t.measureText(row).width).forEach((row, r) => t.fillText(row, x + 6, PARTS_H + 22 + r * rowH))
+      })
+    }
+  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, lines, blocks])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -395,6 +495,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return best
   }
 
+  /** The timed text line whose marker is within finger reach of `x`. */
+  function lineAt(x: number): number | null {
+    let best: number | null = null
+    let bestDistance = TOLERANCE_PX
+    for (const line of lines) {
+      if (line.timeMs === null) continue
+      const distance = Math.abs(timeToX(line.timeMs, view) - x)
+      if (distance <= bestDistance) [best, bestDistance] = [line.rawIndex, distance]
+    }
+    return best
+  }
+
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const { x, y } = logical(e)
     pointers.current.set(e.pointerId, x)
@@ -406,10 +518,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setDrag(null)
       return
     }
-    const bar = y >= audioH ? barAt(x) : null
-    if (bar !== null) {
-      setDrag({ pointerId: e.pointerId, bar, startX: x, x, moved: false })
-      return
+    const base = { pointerId: e.pointerId, startX: x, x, moved: false }
+    if (y >= textTop + PARTS_H) {
+      const rawIndex = lineAt(x)
+      if (rawIndex !== null) {
+        setDrag({ ...base, kind: 'line', rawIndex })
+        return
+      }
+    } else if (y >= audioH && y < textTop) {
+      const bar = barAt(x)
+      if (bar !== null) {
+        setDrag({ ...base, kind: 'bar', bar })
+        return
+      }
     }
     pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false }
   }
@@ -440,14 +561,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     if (drag && drag.pointerId === e.pointerId) {
-      setSelectedBar(drag.bar)
-      if (drag.moved && dragMs !== null) alignBar(drag.bar, dragMs)
+      if (drag.kind === 'bar') {
+        setSelection({ kind: 'bar', bar: drag.bar })
+        if (drag.moved && dragMs !== null) alignBar(drag.bar, dragMs)
+      } else {
+        setSelection({ kind: 'line', rawIndex: drag.rawIndex })
+        if (drag.moved && dragMs !== null) commitText(setLineTime(content, drag.rawIndex, dragMs))
+      }
       setDrag(null)
       return
     }
     const p = pan.current
     if (p && p.pointerId === e.pointerId && !p.moved) {
-      setSelectedBar(null)
+      setSelection(null)
       seek(xToTime(p.startX, view))
     }
     pan.current = null
@@ -482,33 +608,59 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setNotice(null)
       commitGrid(newGrid(ms))
     } else alignBar(1, ms)
-    setSelectedBar(1)
+    setSelection({ kind: 'bar', bar: 1 })
   }
 
-  /** "Tempo tippen" ends: the tempo is the slope through the taps, for the whole song - a grid
-   * aligned at several bars gives them up (after asking), bar 1 stays. */
-  async function finishTapping() {
-    setTapping(false)
-    const tapped = tempoFromTaps(taps.current)
+  // --- tapping: the tempo, or a stretch of lines ---
+  function startTapping(mode: 'tempo' | 'lines', fromLine: number | null = selectedLine) {
     taps.current = []
     setTapCount(0)
-    if (tapped === null) {
+    tapFromLine.current = mode === 'lines' ? (tapStartLine(lines, fromLine)?.rawIndex ?? null) : null
+    if (mode === 'lines' && tapFromLine.current === null) {
+      setNotice('Der Song hat keine Liedzeilen zum Tippen.')
+      return
+    }
+    setNotice(null)
+    setTapMode(mode)
+  }
+
+  /** Tapping ends: "Tempo tippen" sets the tempo from the slope through the taps, for the whole
+   * song - a grid aligned at several bars gives them up (after asking), bar 1 stays. "Zeilen
+   * tippen" stamps one line per tap from the start line on, as one undoable step. */
+  async function finishTapping() {
+    const mode = tapMode
+    setTapMode(null)
+    const tapped = taps.current
+    taps.current = []
+    setTapCount(0)
+    if (mode === 'lines') {
+      if (tapFromLine.current !== null && tapped.length > 0) {
+        commitText(stampLines(content, tapFromLine.current, tapped))
+        setNotice(`${tapped.length} ${tapped.length === 1 ? 'Zeile' : 'Zeilen'} gesetzt.`)
+      }
+      return
+    }
+    const tempo = tempoFromTaps(tapped)
+    if (tempo === null) {
       setNotice('Mindestens 4 Schläge im Takt tippen.')
       return
     }
     let grid = beatGrid
     if (grid && grid.points.length > 1) {
-      if (!(await confirm(`${tapped.toFixed(1)} BPM für den ganzen Song übernehmen? Die Ausrichtungspunkte nach Takt 1 werden entfernt. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
+      if (!(await confirm(`${tempo.toFixed(1)} BPM für den ganzen Song übernehmen? Die Ausrichtungspunkte nach Takt 1 werden entfernt. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
       const first = [...grid.points].sort((a, b) => a.bar - b.bar)[0]!
       grid = { ...grid, points: [first] }
     }
-    setNotice(`Tempo: ${tapped.toFixed(1)} BPM`)
-    commitGrid(grid, tapped)
+    setNotice(`Tempo: ${tempo.toFixed(1)} BPM`)
+    commitGrid(grid, tempo)
   }
   function tap() {
     taps.current.push(useClockStore.getState().getElapsedMs())
     setTapCount(taps.current.length)
   }
+  // The line the next tap stamps (shown on the tap button).
+  const tapStartIndex = tapFromLine.current !== null ? lines.findIndex((l) => l.rawIndex === tapFromLine.current) : -1
+  const nextTapLine = tapMode === 'lines' && tapStartIndex >= 0 ? lines[tapStartIndex + tapCount] : undefined
 
   async function detectGrid() {
     if (!onDetectGrid) return
@@ -521,7 +673,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         setNotice('Keine Schläge erkannt.')
         return
       }
-      commit(result)
+      commit({ ...result, chordProContent: content })
     } catch {
       setNotice('Analyse fehlgeschlagen.')
     } finally {
@@ -531,13 +683,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   async function clearGrid() {
     if (!(await confirm('Klick-Raster löschen? Der Klick läuft danach ab 0:00 im eingetragenen Tempo. (Rückgängig möglich)', { confirmLabel: 'Löschen', danger: true }))) return
-    setSelectedBar(null)
-    commit({ beatGrid: undefined, bpm })
+    setSelection(null)
+    commit({ ...current, beatGrid: undefined })
   }
 
   async function editMeter(bar: number) {
-    const current = shownGrid?.meters.find((m) => m.bar === bar)?.timeSignature ?? ''
-    const result = await promptFields(`Taktart ab Takt ${bar}`, [{ key: 'ts', label: 'Taktart (leer = wie davor)', defaultValue: current }], 'Übernehmen')
+    const existing = shownGrid?.meters.find((m) => m.bar === bar)?.timeSignature ?? ''
+    const result = await promptFields(`Taktart ab Takt ${bar}`, [{ key: 'ts', label: 'Taktart (leer = wie davor)', defaultValue: existing }], 'Übernehmen')
     if (!result) return
     const ts = (result.ts ?? '').trim()
     if (ts && !/^\d+\/\d+$/.test(ts)) {
@@ -560,8 +712,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
     lastProblemMs.current = bar.startMs
     const msPerPx = Math.min(view.msPerPx, Math.max(1, ((bar.endMs - bar.startMs) * 4) / width))
     setView(clampView({ msPerPx, startMs: bar.startMs - width * 0.25 * msPerPx }, width, minMs, durationMs))
-    setSelectedBar(timeline.barOf(timeline.beatAtOrBefore(bar.startMs + 1)))
+    setSelection({ kind: 'bar', bar: timeline.barOf(timeline.beatAtOrBefore(bar.startMs + 1)) })
     seek(bar.startMs)
+  }
+
+  // The selection: a bar line (where, point or not, tempo) or a text line (where, what).
+  const selectedBarMs = selectedBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(selectedBar)) : null
+  const selectedPoint = selectedBar !== null ? shownGrid?.points.find((p) => p.bar === selectedBar) : undefined
+  const selectedTempo = selectedBar !== null ? 60000 / timeline.periodAfter(timeline.barStartBeat(selectedBar)) : null
+  const selectedLineInfo = selectedLine !== null ? lines.find((l) => l.rawIndex === selectedLine) : undefined
+
+  /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
+  function nudgeLine(deltaMs: number) {
+    if (!selectedLineInfo || selectedLineInfo.timeMs === null) return
+    const { minMs: lo, maxMs: hi } = lineTimeBounds(lines, selectedLineInfo.rawIndex)
+    const ms = Math.min(Math.max(selectedLineInfo.timeMs + deltaMs, lo), hi)
+    commitText(setLineTime(content, selectedLineInfo.rawIndex, ms))
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -572,24 +738,26 @@ export function TimelineEditor(props: TimelineEditorProps) {
     } else if (e.key === ' ' && e.target === e.currentTarget) {
       e.preventDefault()
       clock.togglePlay()
-    } else if (selectedBar !== null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-      e.preventDefault()
-      alignBar(selectedBar, selectedBarMs! + (e.key === 'ArrowLeft' ? -10 : 10))
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const sign = e.key === 'ArrowLeft' ? -1 : 1
+      if (selectedBar !== null) {
+        e.preventDefault()
+        alignBar(selectedBar, selectedBarMs! + sign * 10)
+      } else if (selectedLineInfo) {
+        e.preventDefault()
+        nudgeLine(sign * 50)
+      }
     }
   }
-
-  // The selected bar line: where it is, whether it is a point, the tempo on either side.
-  const selectedBarMs = selectedBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(selectedBar)) : null
-  const selectedPoint = selectedBar !== null ? shownGrid?.points.find((p) => p.bar === selectedBar) : undefined
-  const selectedTempo = selectedBar !== null ? 60000 / timeline.periodAfter(timeline.barStartBeat(selectedBar)) : null
 
   const playheadX = timeToX(playheadMs, view)
   const button = 'min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
   const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
-  const hint = !beatGrid
+  const gridHint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
+  const hint = untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint
 
   return (
     <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
@@ -615,21 +783,24 @@ export function TimelineEditor(props: TimelineEditorProps) {
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={button} onClick={setBar1Here}>
+        <button type="button" className={button} onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
         </button>
-        <button type="button" className={toggle(tapping)} aria-pressed={tapping} disabled={!trackSrc} onClick={() => (tapping ? void finishTapping() : setTapping(true))}>
-          {tapping ? `Tippen beenden (${tapCount})` : 'Tempo tippen'}
+        <button type="button" className={toggle(tapMode === 'tempo')} aria-pressed={tapMode === 'tempo'} disabled={!trackSrc || tapMode === 'lines'} onClick={() => (tapMode === 'tempo' ? void finishTapping() : startTapping('tempo'))}>
+          {tapMode === 'tempo' ? `Tippen beenden (${tapCount})` : 'Tempo tippen'}
+        </button>
+        <button type="button" className={toggle(tapMode === 'lines')} aria-pressed={tapMode === 'lines'} disabled={!trackSrc || tapMode === 'tempo'} onClick={() => (tapMode === 'lines' ? void finishTapping() : startTapping('lines'))}>
+          {tapMode === 'lines' ? `Tippen beenden (${tapCount})` : 'Zeilen tippen'}
         </button>
         {onDetectGrid && (
-          <button type="button" className={button} disabled={!trackSrc || detecting || tapping} onClick={() => void detectGrid()}>
+          <button type="button" className={button} disabled={!trackSrc || detecting || tapMode !== null} onClick={() => void detectGrid()}>
             {detecting ? 'Analysiere…' : 'Track analysieren'}
           </button>
         )}
         <button type="button" className={button} disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
         </button>
-        <button type="button" className={button} disabled={!beatGrid || tapping} onClick={() => void clearGrid()}>
+        <button type="button" className={button} disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
           Raster löschen
         </button>
       </div>
@@ -644,7 +815,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       <div
         ref={boxRef}
         className={`relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
-        style={{ height: fill ? undefined : audioH + SECTION_H + gridH, touchAction: 'none' }}
+        style={{ height: fill ? undefined : lanesH, touchAction: 'none' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -652,28 +823,25 @@ export function TimelineEditor(props: TimelineEditorProps) {
         onWheel={onWheel}
         data-testid="timeline-lanes"
       >
-        <canvas
-          ref={audioCanvas}
-          className="absolute left-0 top-0"
-          style={{ width, height: audioH }}
-        />
-        <canvas
-          ref={gridCanvas}
-          className="absolute"
-          style={{ left: 0, top: audioH, width, height: SECTION_H + gridH }}
-        />
+        <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
+        <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: audioH, width, height: SECTION_H + gridH }} />
+        <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />
         {playheadX >= 0 && playheadX <= width && (
-          <div
-            className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500"
-            style={{ left: playheadX }}
-            data-testid="timeline-playhead"
-          />
+          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
       </div>
 
-      {tapping && (
-        <button type="button" className="h-touch-primary rounded-sb bg-accent text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
-          {clock.isPlaying ? `TIPP (${tapCount})` : 'Abspielen, dann im Takt tippen'}
+      {tapMode && (
+        <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+          {!clock.isPlaying
+            ? tapMode === 'lines'
+              ? 'Abspielen, dann zu jeder Zeile tippen'
+              : 'Abspielen, dann im Takt tippen'
+            : tapMode === 'lines'
+              ? nextTapLine
+                ? `TIPP: „${fitText(nextTapLine.text, 480)}“`
+                : 'Alle Zeilen gesetzt – Tippen beenden'
+              : `TIPP (${tapCount})`}
         </button>
       )}
 
@@ -698,6 +866,26 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Taktart ab hier
             </button>
           )}
+        </div>
+      )}
+
+      {selectedLineInfo && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+          <span className="font-semibold">
+            „{fitText(selectedLineInfo.text, 320)}“ · {selectedLineInfo.timeMs !== null ? formatTimelineTime(selectedLineInfo.timeMs) : 'ohne Zeit'}
+          </span>
+          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(-50)}>
+            −50 ms
+          </button>
+          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(50)}>
+            +50 ms
+          </button>
+          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => commitText(setLineTime(content, selectedLineInfo.rawIndex, null))}>
+            Zeit entfernen
+          </button>
+          <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
+            Zeilen tippen ab hier
+          </button>
         </div>
       )}
 

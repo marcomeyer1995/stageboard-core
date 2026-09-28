@@ -123,3 +123,39 @@ export function barLabelEvery(barPx: number, minPx = 36): number {
   while (every * barPx < minPx && every < 1024) every *= 2
   return every
 }
+
+/**
+ * Text wrapped word by word into rows no wider than `maxPx` (as `measure` reports it), at most
+ * `maxRows` of them - the timeline's text lane shows a lyric over several rows instead of a few
+ * words. When the text doesn't fit, the last row ends in "…"; a single word wider than a row is
+ * cut the same way. Nothing at all when not even a short word fits.
+ */
+export function wrapText(text: string, maxPx: number, maxRows: number, measure: (s: string) => number): string[] {
+  if (maxRows < 1 || measure('W…') > maxPx) return []
+  const cut = (s: string) => {
+    if (measure(s) <= maxPx) return s
+    let t = s
+    while (t.length > 1 && measure(`${t}…`) > maxPx) t = t.slice(0, -1)
+    return `${t}…`
+  }
+  const words = text.split(/\s+/).filter(Boolean)
+  const rows: string[] = []
+  let row = ''
+  let i = 0
+  for (; i < words.length && rows.length < maxRows; i++) {
+    const candidate = row ? `${row} ${words[i]}` : words[i]!
+    if (measure(candidate) <= maxPx) {
+      row = candidate
+    } else if (row) {
+      rows.push(row)
+      row = ''
+      i-- // the word starts the next row
+    } else {
+      rows.push(cut(words[i]!))
+    }
+  }
+  if (row && rows.length < maxRows) rows.push(row)
+  else if (row) i-- // the last word never made it into a row
+  if (i < words.length && rows.length > 0) rows[rows.length - 1] = cut(`${rows[rows.length - 1]!} ${words.slice(i).join(' ')}`)
+  return rows
+}
