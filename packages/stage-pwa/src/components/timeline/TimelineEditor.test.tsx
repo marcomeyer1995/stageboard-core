@@ -141,15 +141,15 @@ describe('aligning the grid (docs/14 §5a)', () => {
 })
 
 describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
-  it('runs time downwards: the lanes become columns along the full height', () => {
+  it('keeps time running left to right; the lanes are stacked and share the height', () => {
     box.width = 800
     box.height = 1100
     const { container } = setup({ beatGrid, fill: true })
     const [audio, gridLane] = [...container.querySelectorAll('canvas')]
-    // Audio column: 45 % of (800 - 26) px wide, as tall as the time axis.
-    expect(audio!.style.width).toBe('348px')
-    expect(audio!.style.height).toBe('1100px')
-    expect(gridLane!.style.left).toBe('348px')
+    // Waveform: full width, 45 % of (1100 - 26) px high; the grid lane below it.
+    expect(audio!.style.width).toBe('800px')
+    expect(audio!.style.height).toBe('483px')
+    expect(gridLane!.style.top).toBe('483px')
     box.width = 1000
     box.height = 206
   })
