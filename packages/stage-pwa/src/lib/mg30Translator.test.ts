@@ -102,10 +102,18 @@ describe('mg30Translator', () => {
       expect(send).toHaveBeenCalledWith([0xb0, 30, 64])
     })
 
-    it('rejects a CC outside 11-74 (the block-toggle range is deliberately not exposed)', async () => {
-      const result = await mg30Translator({ type: 'mg30.setKnob', payload: { cc: 5, value: 1 } })
-      expect(result.status).toBe('error')
+    it('rejects a CC that is no knob (the block-toggle range 0-10 is deliberately not exposed; 16 is unused)', async () => {
+      for (const cc of [5, 16, 75]) {
+        const result = await mg30Translator({ type: 'mg30.setKnob', payload: { cc, value: 1 } })
+        expect(result.status).toBe('error')
+      }
       expect(send).not.toHaveBeenCalled()
+    })
+
+    it('accepts compressor knob 4 on CC 90 (the manual prints it out of sequence)', async () => {
+      const result = await mg30Translator({ type: 'mg30.setKnob', payload: { cc: 90, value: 50 } })
+      expect(result.status).toBe('ok')
+      expect(send).toHaveBeenCalledWith([0xb0, 90, 50])
     })
 
     it('rejects an out-of-range value', async () => {

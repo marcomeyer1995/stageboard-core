@@ -4,7 +4,7 @@ import {
   KEMPER_STOMP_CC,
   KEMPER_STOMP_CC_WITH_TAIL,
   MG30_CAPABILITY,
-  MG30_KNOB_CC_RANGE,
+  MG30_KNOBS,
   RC500_CAPABILITY,
 } from './midiDeviceProtocols'
 
@@ -93,7 +93,7 @@ function mg30Decoder(channel: number | null): MidiDecoder {
       const message = parse(data, channel)
       if (!message) return null
       if (message.command === STATUS_PROGRAM_CHANGE) return { type: 'mg30.selectPatch', payload: { program: message.data1 } }
-      if (message.command === STATUS_CONTROL_CHANGE && message.data1 >= MG30_KNOB_CC_RANGE.min && message.data1 <= MG30_KNOB_CC_RANGE.max) {
+      if (message.command === STATUS_CONTROL_CHANGE && MG30_KNOBS.has(message.data1)) {
         return { type: 'mg30.setKnob', payload: { cc: message.data1, value: message.data2 } }
       }
       return null

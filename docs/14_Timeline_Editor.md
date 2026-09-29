@@ -173,6 +173,8 @@ Keine automatische Umwandlung (Marco baut sie neu auf). Solange eine Variante ke
 - Cue-Spur: Cues als Marker mit Symbol je Zielgerät; hinzufügen (Doppeltipp/Doppelklick), ziehen, bearbeiten (Zielgerät, Befehl – wie `CueListEditor`), einrasten; Tipp-Ziel „Cues“ nutzt den vorhandenen Cue-Recorder.
 - Kommentar-Spur: Kommentare und Tab-Blöcke auf der Zeit ihrer Zeile; Verschieben hängt sie an eine andere Zeile; Text und „Sichtbar für“ im Auswahl-Menü (wie `CommentListEditor`).
 
+**Stand 3a – Cues (2026-09-28):** gebaut. Cue-Spur ganz unten: Marker je Cue in der Farbe seines Geräts, daneben Gerät und Befehl in Worten („NUX MG-30 · Patch 02B“); Doppeltipp fügt einen Cue ein, Ziehen verschiebt (rastet auf einen Schlag innerhalb von 60 ms), Antippen wählt aus (±50 ms, Bearbeiten, Entfernen); „Cues aufnehmen“ öffnet den vorhandenen Cue-Recorder. Das Cue-Fenster (`CueDialog.tsx`, Marco: „Musiker kennen den technischen Hintergrund nicht“) ist ein Fenster mit abhängigen Auswahllisten – Gerät, dann dessen Befehl, dann je Wert eine Liste; jede bleibt ausgegraut, bis die davor gewählt ist. Die Befehle beschreibt jedes Gerätemodul selbst (`lib/deviceCommands/`, neben den Translatoren): Kemper Performance 1–125 wie am Display, MG-30-Patches 01A–32D, MG-30-Regler mit Block und Position (was ein Regler im Block bedeutet, hängt vom Modell im Patch ab – das Handbuch nennt nur die Position), Pegel −60…+10 dB. Geräte ohne Beschreibung bekommen Befehl und JSON-Payload als Freitext. Nebenbei korrigiert: MG-30-Regler 0–100 laut Handbuch, Kompressor-Regler 4 (CC 90) war nicht sendbar, CC 16 ist unbelegt.
+
 ## 8. Später
 
 Loop-Bereiche für den Loop-Trainer aus einer Auswahl; Übergänge/Song-Ende sichtbar machen; Akkorde als Nur-Lese-Spur.

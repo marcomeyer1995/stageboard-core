@@ -5,7 +5,7 @@ import { isWebMidiSupported } from './webMidi'
 import { getMidiOutputById, sendSysEx } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
-import { MG30_CAPABILITY, MG30_KNOB_CC_RANGE } from './midiDeviceProtocols'
+import { MG30_CAPABILITY, MG30_KNOBS } from './midiDeviceProtocols'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock - own dedicated capability,
@@ -33,7 +33,6 @@ const FN_IDENTITY_RESPONSE = 0x10
  * guessed value risks putting the unit in an unintended state, worse than not offering the
  * action at all.
  */
-const KNOB_CC_RANGE = MG30_KNOB_CC_RANGE
 
 interface Mg30Output {
   output: MIDIOutput
@@ -74,8 +73,8 @@ function selectPatch(mg30: Mg30Output, payload: Record<string, unknown> | undefi
 function setKnob(mg30: Mg30Output, payload: Record<string, unknown> | undefined): ShowControlResult {
   const cc = Number(payload?.cc)
   const value = Number(payload?.value)
-  if (!Number.isInteger(cc) || cc < KNOB_CC_RANGE.min || cc > KNOB_CC_RANGE.max) {
-    return { status: 'error', message: `mg30.setKnob: cc muss ${KNOB_CC_RANGE.min}-${KNOB_CC_RANGE.max} sein.` }
+  if (!MG30_KNOBS.has(cc)) {
+    return { status: 'error', message: `mg30.setKnob: cc ${String(payload?.cc)} ist kein Regler des MG-30.` }
   }
   if (!Number.isInteger(value) || value < 0 || value > 127) {
     return { status: 'error', message: 'mg30.setKnob: value muss 0-127 sein.' }
