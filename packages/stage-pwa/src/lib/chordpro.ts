@@ -163,6 +163,13 @@ function tabBlockEnd(rawLines: readonly string[], startIndex: number): { endInde
   return { endIndex: rawLines.length, closed: false }
 }
 
+/** The raw lines a tab block occupies, from its opening directive up to (not including) `end` -
+ * its `{end_of_tab}` included when it has one. What moving a whole block in the text needs. */
+export function tabBlockSpan(rawLines: readonly string[], startIndex: number): { start: number; end: number } {
+  const { endIndex, closed } = tabBlockEnd(rawLines, startIndex)
+  return { start: startIndex, end: closed ? endIndex + 1 : endIndex }
+}
+
 /** The block's content lines, verbatim - only the blank lines around it are dropped. */
 function tabBlockLines(rawLines: readonly string[], startIndex: number, endIndex: number): string[] {
   const inner = rawLines.slice(startIndex + 1, endIndex)

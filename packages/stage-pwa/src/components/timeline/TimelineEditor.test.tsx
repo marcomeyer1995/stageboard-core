@@ -14,8 +14,12 @@ vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, bo
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
 // The in-app confirm dialog answers "yes" right away.
+const dialog = vi.hoisted(() => ({ promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null) }))
 vi.mock('../../store/useDialogStore', () => ({
-  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: async () => null }),
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields }),
+}))
+vi.mock('../../store/useProfilesStore', () => ({
+  useProfilesStore: (select: (state: object) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }] }),
 }))
 vi.mock('../../store/useLogicalDevicesStore', () => ({
   useLogicalDevicesStore: (select: (state: object) => unknown) =>
@@ -186,8 +190,8 @@ describe('song text on the timeline (docs/14 §6)', () => {
 })
 
 describe('cues on the timeline (docs/14 §7)', () => {
-  // The cue lane is the bottom one: y from 96 + 26 + 84 + 28 + 64 = 298, 44 px high.
-  const cueY = 298 + 22
+  // The cue lane is the bottom one: y from 96 + 26 + 84 + 28 + 64 + 44 (notes) = 342, 44 px high.
+  const cueY = 342 + 22
   const cue: ShowCue = { id: 'c1', timeMs: 12000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 1 } }
   function pointer(fromMs: number, toMs: number) {
     const lanes = screen.getByTestId('timeline-lanes')
@@ -235,16 +239,57 @@ describe('cues on the timeline (docs/14 §7)', () => {
   })
 })
 
+describe('comments and tab blocks on the timeline (docs/14 §7)', () => {
+  // The notes lane: y from 96 + 26 + 84 + 28 + 64 = 298, 44 px high.
+  const notesY = 298 + 22
+  const content = ['{c: Solo starts in 8th fret}', '[00:10.00] First line', '[00:14.00] Second line', '[00:20.00] Third line'].join('\n')
+  function pointer(fromMs: number, toMs: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: fromMs / 60, clientY: notesY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: toMs / 60, clientY: notesY })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: toMs / 60, clientY: notesY })
+  }
+
+  it('dragging a comment attaches it to the line playing where it is dropped', () => {
+    const { onChange } = setup({ content })
+    pointer(10000, 15500) // the second line plays from 14 s
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')).toEqual([
+      '[00:10.00] First line',
+      '{c: Solo starts in 8th fret}',
+      '[00:14.00] Second line',
+      '[00:20.00] Third line',
+    ])
+  })
+
+  it('tapping a note selects it: who sees it, and removing it', () => {
+    const { onChange } = setup({ content })
+    pointer(10000, 10000)
+    fireEvent.click(screen.getByText('Marco'))
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[0]).toBe('{cc4Marco: Solo starts in 8th fret}')
+    fireEvent.click(screen.getByText('Entfernen'))
+    expect((onChange.mock.calls[1]![0] as { chordProContent: string }).chordProContent.split('\n')).toHaveLength(3)
+  })
+
+  it('a double tap in the notes lane adds a comment before the line playing there', async () => {
+    dialog.promptFields.mockResolvedValueOnce({ text: 'Switch sound' })
+    const { onChange } = setup({ content })
+    pointer(21000, 21000)
+    pointer(21000, 21000)
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[3]).toBe('{cc: Switch sound}')
+  })
+})
+
 describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
   it('keeps time running left to right; the lanes are stacked and share the height', () => {
     box.width = 800
     box.height = 1100
     const { container } = setup({ beatGrid, fill: true })
     const [audio, gridLane] = [...container.querySelectorAll('canvas')]
-    // Waveform: full width, 40 % of (1100 - 26 - 28 - 44) px high; the grid lane below it.
+    // Waveform: full width, 40 % of (1100 - 26 - 28 - 44 - 44) px high; the grid lane below it.
     expect(audio!.style.width).toBe('800px')
-    expect(audio!.style.height).toBe('401px')
-    expect(gridLane!.style.top).toBe('401px')
+    expect(audio!.style.height).toBe('383px')
+    expect(gridLane!.style.top).toBe('383px')
     box.width = 1000
     box.height = 206
   })

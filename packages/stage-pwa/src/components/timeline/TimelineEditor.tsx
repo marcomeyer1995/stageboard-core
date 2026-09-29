@@ -17,6 +17,7 @@ import {
   type TimelineView,
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
+import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
@@ -25,6 +26,8 @@ import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import { useLogicalDevicesStore } from '../../store/useLogicalDevicesStore'
 import { CueRecorder } from '../CueRecorder'
+import { TargetPicker } from '../CommentListEditor'
+import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
@@ -65,6 +68,7 @@ const SECTION_H = 26
 const DEFAULT_GRID_H = 84
 const PARTS_H = 28
 const DEFAULT_TEXT_H = 64
+const NOTES_H = 44
 const CUE_H = 44
 /** Two taps within this time and distance in the cue lane add a cue (a double click on the PC). */
 const DOUBLE_TAP_MS = 400
@@ -81,6 +85,8 @@ const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters
 const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
 /** Alternating part block fills, so neighbouring parts stay apart. */
 const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
+/** Notes: comments and tab blocks told apart by colour. */
+const NOTE_COLOR = { comment: '#38bdf8', tab: '#4ade80' } as const
 /** One colour per target device, so a lane full of cues shows at a glance which device each is for. */
 const CUE_COLORS = ['#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7', '#14b8a6'] as const
 
@@ -100,9 +106,9 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
   )
 }
 
-type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; inCueLane: boolean }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string })
-type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | null
+type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
+type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number })
+type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | null
 type TapMode = 'tempo' | 'lines' | null
 
 /** A lyric shortened to fit `maxPx` at roughly 8 px per character. */
@@ -128,17 +134,20 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // Time always runs left to right, in portrait too: a vertical layout for portrait (2026-09-27)
   // was tried and dropped - Marco preferred scrolling sideways on the tablet (2026-09-28).
   const width = Math.max(1, box.width)
-  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H + CUE_H
-  const rest = lanesH - SECTION_H - PARTS_H - CUE_H
+  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H + NOTES_H + CUE_H
+  const rest = lanesH - SECTION_H - PARTS_H - NOTES_H - CUE_H
   const audioH = fill ? Math.round(rest * 0.4) : DEFAULT_AUDIO_H
   const textH = fill ? Math.round(rest * 0.22) : DEFAULT_TEXT_H
   const gridH = fill ? rest - audioH - textH : DEFAULT_GRID_H
   const textTop = audioH + SECTION_H + gridH
-  const cueTop = textTop + PARTS_H + textH
+  const notesTop = textTop + PARTS_H + textH
+  const cueTop = notesTop + NOTES_H
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const textCanvas = useRef<HTMLCanvasElement>(null)
   const cueCanvas = useRef<HTMLCanvasElement>(null)
+  const notesCanvas = useRef<HTMLCanvasElement>(null)
+  const profiles = useProfilesStore((state) => state.profiles)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
@@ -162,7 +171,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [recordingCues, setRecordingCues] = useState(false)
   /** The open cue window: a new cue at `timeMs`, or the cue `cueId` being edited. */
   const [cueDialog, setCueDialog] = useState<{ timeMs: number; cueId?: string } | null>(null)
-  const lastCueTap = useRef<{ at: number; x: number } | null>(null)
+  const lastLaneTap = useRef<{ at: number; x: number; lane: 'cue' | 'notes' } | null>(null)
   const [undoStack, setUndoStack] = useState<TimelineEditState[]>([])
   const [redoStack, setRedoStack] = useState<TimelineEditState[]>([])
 
@@ -170,6 +179,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedBar = selection?.kind === 'bar' ? selection.bar : null
   const selectedLine = selection?.kind === 'line' ? selection.rawIndex : null
   const selectedCueId = selection?.kind === 'cue' ? selection.id : null
+  const selectedNoteStart = selection?.kind === 'note' ? selection.start : null
 
   /** A time pulled onto the nearest detected drum hit within ONSET_MAGNET_MS. */
   function magnet(ms: number): number {
@@ -211,6 +221,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   )
   const stretches = useMemo(() => (shownGrid ? gridStretches(shownGrid, bpm, timeSignature) : []), [shownGrid, bpm, timeSignature])
   const lines = useMemo(() => timelineLines(shownContent), [shownContent])
+  const notes = useMemo(() => timelineNotes(content), [content])
   const durationMs = analysis?.durationMs ?? (clock.duration > 0 ? clock.duration * 1000 : timeline.bar1Ms + 60000)
   const blocks = useMemo(() => partBlocks(lines, durationMs), [lines, durationMs])
   const countInStartMs = timeline.timeOfBeat(timeline.firstBeat)
@@ -502,6 +513,46 @@ export function TimelineEditor(props: TimelineEditorProps) {
       }
     }
 
+    // Notes: comments and tab blocks at the time of their line. A dragged one is drawn where it
+    // will land - on the line playing at the finger.
+    const n = notesCanvas.current?.getContext('2d')
+    if (n && notesCanvas.current) {
+      notesCanvas.current.width = width * dpr
+      notesCanvas.current.height = NOTES_H * dpr
+      n.setTransform(dpr, 0, 0, dpr, 0, 0)
+      n.clearRect(0, 0, width, NOTES_H)
+      n.fillStyle = 'rgba(255,255,255,0.02)'
+      n.fillRect(0, 0, width, NOTES_H)
+      n.font = '14px system-ui, sans-serif'
+      const dragTarget = drag?.kind === 'note' && dragMs !== null ? lineAtTime(content, dragMs)?.timeMs ?? null : null
+      const placed = notes
+        .map((note) => ({ note, timeMs: drag?.kind === 'note' && drag.start === note.start && dragTarget !== null ? dragTarget : note.timeMs }))
+        .filter((p): p is { note: typeof p.note; timeMs: number } => p.timeMs !== null)
+        .sort((a, b) => a.timeMs - b.timeMs)
+      const activeNote = drag?.kind === 'note' ? drag.start : selectedNoteStart
+      // Several notes on one line share its time: the later ones step down a row.
+      let lastMs = -Infinity
+      let row = 0
+      placed.forEach(({ note, timeMs }, i) => {
+        row = timeMs === lastMs ? row + 1 : 0
+        lastMs = timeMs
+        const x = timeToX(timeMs, view)
+        const next = placed.slice(i + 1).find((p) => p.timeMs > timeMs)
+        const nextX = next ? timeToX(next.timeMs, view) : width + 200
+        if (nextX < 0 || x > width) return
+        const active = note.start === activeNote
+        n.fillStyle = active ? accent : NOTE_COLOR[note.kind]
+        n.fillRect(x - (active ? 1.5 : 1), 0, active ? 3 : 2, NOTES_H)
+        const who = note.targets ? ` · ${note.targets.join(', ')}` : ''
+        const label = note.kind === 'tab' ? `Tab${note.text ? `: ${note.text}` : ''}${who}` : `${note.text ?? ''}${who}`
+        const [text] = wrapText(label, nextX - x - 12, 1, (t) => n.measureText(t).width)
+        if (text) {
+          n.fillStyle = active ? accent : ink
+          n.fillText(text, x + 6, 17 + row * 18)
+        }
+      })
+    }
+
     // Cues: a marker per cue in its device's colour, with device name and command beside it.
     const q = cueCanvas.current?.getContext('2d')
     if (q && cueCanvas.current) {
@@ -532,7 +583,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         }
       })
     }
-  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, lines, blocks, shownCues, logicalDevices])
+  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -572,6 +623,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return best
   }
 
+  /** The note (comment or tab block) whose marker is within finger reach of `x`. */
+  function noteAt(x: number): number | null {
+    let best: number | null = null
+    let bestDistance = TOLERANCE_PX
+    for (const note of notes) {
+      if (note.timeMs === null) continue
+      const distance = Math.abs(timeToX(note.timeMs, view) - x)
+      if (distance <= bestDistance) [best, bestDistance] = [note.start, distance]
+    }
+    return best
+  }
+
   /** The cue whose marker is within finger reach of `x`. */
   function cueAt(x: number): string | null {
     let best: string | null = null
@@ -601,6 +664,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
         setDrag({ ...base, kind: 'cue', id })
         return
       }
+    } else if (y >= notesTop) {
+      const start = noteAt(x)
+      if (start !== null) {
+        setDrag({ ...base, kind: 'note', start })
+        return
+      }
     } else if (y >= textTop + PARTS_H) {
       const rawIndex = lineAt(x)
       if (rawIndex !== null) {
@@ -614,7 +683,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         return
       }
     }
-    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, inCueLane: y >= cueTop }
+    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -649,23 +718,33 @@ export function TimelineEditor(props: TimelineEditorProps) {
       } else if (drag.kind === 'line') {
         setSelection({ kind: 'line', rawIndex: drag.rawIndex })
         if (drag.moved && dragMs !== null) commitText(setLineTime(content, drag.rawIndex, dragMs))
-      } else {
+      } else if (drag.kind === 'cue') {
         setSelection({ kind: 'cue', id: drag.id })
         if (drag.moved && dragMs !== null) commitCues(moveCue(cues, drag.id, dragMs))
+      } else if (drag.moved && dragMs !== null) {
+        // A moved note lands on another line; its line number in the text changes with it.
+        const moved = moveNote(content, drag.start, dragMs)
+        commitText(moved.content)
+        setSelection({ kind: 'note', start: moved.start })
+      } else {
+        setSelection({ kind: 'note', start: drag.start })
       }
       setDrag(null)
       return
     }
     const p = pan.current
     if (p && p.pointerId === e.pointerId && !p.moved) {
-      // A double tap in the cue lane adds a cue there; a single tap moves the playhead.
+      // A double tap in the cue or notes lane adds a cue or a note there; a single tap moves the
+      // playhead.
       const now = performance.now()
-      const last = lastCueTap.current
-      if (p.inCueLane && last && now - last.at < DOUBLE_TAP_MS && Math.abs(last.x - p.startX) < TOLERANCE_PX) {
-        lastCueTap.current = null
-        openCueDialog(snapToBeat(Math.max(0, xToTime(p.startX, view))))
+      const last = lastLaneTap.current
+      if (p.lane && last && last.lane === p.lane && now - last.at < DOUBLE_TAP_MS && Math.abs(last.x - p.startX) < TOLERANCE_PX) {
+        lastLaneTap.current = null
+        const at = Math.max(0, xToTime(p.startX, view))
+        if (p.lane === 'cue') openCueDialog(snapToBeat(at))
+        else void addNoteAt(at)
       } else {
-        lastCueTap.current = p.inCueLane ? { at: now, x: p.startX } : null
+        lastLaneTap.current = p.lane ? { at: now, x: p.startX, lane: p.lane } : null
         setSelection(null)
         seek(xToTime(p.startX, view))
       }
@@ -815,6 +894,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setCueDialog(null)
   }
 
+  // --- notes ---
+  async function addNoteAt(timeMs: number) {
+    const line = lineAtTime(content, timeMs)
+    if (!line) {
+      setNotice('Notizen hängen an Liedzeilen – erst Zeilen mit Zeit setzen („Zeilen tippen“).')
+      return
+    }
+    const result = await promptFields(`Notiz vor „${fitText(line.text, 200)}“`, [{ key: 'text', label: 'Notiz (z.B. „Solo ab 8. Bund“)' }], 'Übernehmen')
+    const text = result?.text?.trim()
+    if (!text) return
+    const next = insertComment(content, timeMs, text)
+    commitText(next)
+    setSelection({ kind: 'note', start: line.rawIndex })
+  }
+
+  async function editNoteText(start: number, kind: 'comment' | 'tab', current: string | null) {
+    const result = await promptFields(kind === 'tab' ? 'Tab-Name' : 'Notiz', [{ key: 'text', label: kind === 'tab' ? 'Name (leer = ohne)' : 'Text', defaultValue: current ?? '' }], 'Übernehmen')
+    if (!result) return
+    const text = (result.text ?? '').trim()
+    if (kind === 'comment' && !text) return
+    commitText(setNoteText(content, start, text))
+  }
+
   function startRecordingCues() {
     clock.audioProps.ref.current?.pause()
     setRecordingCues(true)
@@ -844,6 +946,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedLineInfo = selectedLine !== null ? lines.find((l) => l.rawIndex === selectedLine) : undefined
   const selectedCue = selectedCueId !== null ? cues.find((c) => c.id === selectedCueId) : undefined
   const selectedCueDevice = selectedCue ? logicalDevices.find((d) => d.id === selectedCue.targetLogicalDeviceId) : undefined
+  const selectedNote = selectedNoteStart !== null ? notes.find((note) => note.start === selectedNoteStart) : undefined
 
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
@@ -883,7 +986,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const gridHint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
-  const cueHint = cues.length === 0 ? ' · Cue: Doppeltipp in die unterste Spur.' : ''
+  const cueHint = cues.length === 0 && notes.length === 0 ? ' · Notiz oder Cue: Doppeltipp in die Notiz- bzw. unterste Spur.' : cues.length === 0 ? ' · Cue: Doppeltipp in die unterste Spur.' : ''
   const hint = (untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint) + cueHint
 
   if (recordingCues) {
@@ -975,6 +1078,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
         <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: audioH, width, height: SECTION_H + gridH }} />
         <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />
+        <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />
         <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
@@ -1063,6 +1167,31 @@ export function TimelineEditor(props: TimelineEditorProps) {
           >
             Entfernen
           </button>
+        </div>
+      )}
+
+      {selectedNote && (
+        <div className="flex flex-col gap-2 rounded-sb bg-control p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">
+              {selectedNote.kind === 'tab' ? `Tab${selectedNote.text ? `: ${selectedNote.text}` : ''}` : `„${selectedNote.text ?? ''}“`}
+              {selectedNote.timeMs !== null ? ` · ${formatTimelineTime(selectedNote.timeMs)}` : ''}
+            </span>
+            <button type="button" className={button} onClick={() => void editNoteText(selectedNote.start, selectedNote.kind, selectedNote.text)}>
+              {selectedNote.kind === 'tab' ? 'Name ändern' : 'Text ändern'}
+            </button>
+            <button
+              type="button"
+              className={button}
+              onClick={() => {
+                commitText(removeNote(content, selectedNote.start))
+                setSelection(null)
+              }}
+            >
+              Entfernen
+            </button>
+          </div>
+          <TargetPicker profiles={profiles} targets={selectedNote.targets} onChange={(targets) => commitText(setNoteTargets(content, selectedNote.start, targets))} />
         </div>
       )}
 
