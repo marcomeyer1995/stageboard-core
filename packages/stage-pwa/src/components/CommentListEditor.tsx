@@ -121,10 +121,11 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
   )
 }
 
-/** "Sichtbar für:" member toggles, shared by comments and tab blocks. `onChange` gets the
- * roster's own display-case names (what gets written back into the text), or null for
- * "everyone" - `targets` in are the lowercased matching tokens the parser produces. */
-function TargetPicker({
+/** "Sichtbar für:" member toggles, shared by comments and tab blocks (here and in the timeline's
+ * notes lane). `onChange` gets the roster's own display-case names (what gets written back into
+ * the text), or null for "everyone" - `targets` in are the lowercased matching tokens the parser
+ * produces. */
+export function TargetPicker({
   profiles,
   targets,
   onChange,
