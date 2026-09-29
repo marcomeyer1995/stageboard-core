@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { BeatGrid } from 'shared-types'
+import type { BeatGrid, ShowCue } from 'shared-types'
 import { beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { startClick, stopClick } from '../../lib/clickEngine'
+import { describeCue } from '../../lib/deviceCommands'
 import {
   barLabelEvery,
   barQuality,
@@ -15,20 +16,25 @@ import {
   zoomAround,
   type TimelineView,
 } from '../../lib/timeline'
+import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
+import { useLogicalDevicesStore } from '../../store/useLogicalDevicesStore'
+import { CueRecorder } from '../CueRecorder'
+import { CueDialog, type CueContent } from './CueDialog'
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
- * stretch, so count-in and tempo displays agree with the click) and the ChordPro text (the
- * lines' time tags). */
+ * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
+ * time tags) and the cues. */
 export interface TimelineEditState {
   beatGrid: BeatGrid | undefined
   bpm: number
   chordProContent: string
+  cues: ShowCue[]
 }
 
 export interface TimelineEditorProps {
@@ -43,6 +49,8 @@ export interface TimelineEditorProps {
   countInBars: number
   /** The song's ChordPro text - its lines and parts are shown, dragging a line writes its time tag. */
   content: string
+  /** The variant's show cues (#99) - a lane of their own, moved and edited here. */
+  cues: ShowCue[]
   onChange: (next: TimelineEditState) => void
   /** Automatic beat detection turned into a grid (the song editor's "Track analysieren") -
    * applied here as one undoable step. Null: nothing usable detected. */
@@ -57,6 +65,9 @@ const SECTION_H = 26
 const DEFAULT_GRID_H = 84
 const PARTS_H = 28
 const DEFAULT_TEXT_H = 64
+const CUE_H = 44
+/** Two taps within this time and distance in the cue lane add a cue (a double click on the PC). */
+const DOUBLE_TAP_MS = 400
 const TOLERANCE_PX = 24
 const MOVE_THRESHOLD_PX = 6
 /** A bar line dropped (or set) within this distance of a detected drum hit lands on it. */
@@ -70,6 +81,8 @@ const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters
 const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
 /** Alternating part block fills, so neighbouring parts stay apart. */
 const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
+/** One colour per target device, so a lane full of cues shows at a glance which device each is for. */
+const CUE_COLORS = ['#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7', '#14b8a6'] as const
 
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
@@ -87,9 +100,9 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
   )
 }
 
-type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number })
-type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | null
+type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; inCueLane: boolean }
+type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string })
+type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | null
 type TapMode = 'tempo' | 'lines' | null
 
 /** A lyric shortened to fit `maxPx` at roughly 8 px per character. */
@@ -109,21 +122,24 @@ function fitText(text: string, maxPx: number): string {
  * swipe elsewhere = scroll, tap = move the playhead (or select), pinch / Ctrl+wheel = zoom.
  */
 export function TimelineEditor(props: TimelineEditorProps) {
-  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, onChange, onDetectGrid, fill = false } = props
+  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, cues, onChange, onDetectGrid, fill = false } = props
   const clock = useTrackClock(trackSrc)
   const [boxRef, box] = useElementSize()
   // Time always runs left to right, in portrait too: a vertical layout for portrait (2026-09-27)
   // was tried and dropped - Marco preferred scrolling sideways on the tablet (2026-09-28).
   const width = Math.max(1, box.width)
-  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H
-  const rest = lanesH - SECTION_H - PARTS_H
+  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H + CUE_H
+  const rest = lanesH - SECTION_H - PARTS_H - CUE_H
   const audioH = fill ? Math.round(rest * 0.4) : DEFAULT_AUDIO_H
   const textH = fill ? Math.round(rest * 0.22) : DEFAULT_TEXT_H
   const gridH = fill ? rest - audioH - textH : DEFAULT_GRID_H
   const textTop = audioH + SECTION_H + gridH
+  const cueTop = textTop + PARTS_H + textH
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const textCanvas = useRef<HTMLCanvasElement>(null)
+  const cueCanvas = useRef<HTMLCanvasElement>(null)
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
 
@@ -143,12 +159,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const pan = useRef<Pan | null>(null)
   const pinch = useRef<{ startDistance: number; startView: TimelineView; centerX: number } | null>(null)
   const pointers = useRef(new Map<number, number>())
+  const [recordingCues, setRecordingCues] = useState(false)
+  /** The open cue window: a new cue at `timeMs`, or the cue `cueId` being edited. */
+  const [cueDialog, setCueDialog] = useState<{ timeMs: number; cueId?: string } | null>(null)
+  const lastCueTap = useRef<{ at: number; x: number } | null>(null)
   const [undoStack, setUndoStack] = useState<TimelineEditState[]>([])
   const [redoStack, setRedoStack] = useState<TimelineEditState[]>([])
 
   const editableGrid = beatGrid ?? NO_GRID
   const selectedBar = selection?.kind === 'bar' ? selection.bar : null
   const selectedLine = selection?.kind === 'line' ? selection.rawIndex : null
+  const selectedCueId = selection?.kind === 'cue' ? selection.id : null
 
   /** A time pulled onto the nearest detected drum hit within ONSET_MAGNET_MS. */
   function magnet(ms: number): number {
@@ -178,10 +199,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   // While a bar line or a text line is dragged, it is shown as it will be when dropped there.
-  const dragMs = drag?.moved ? (drag.kind === 'bar' ? magnet : snapToBeat)(xToTime(drag.x, view)) : null
+  const dragMs = drag?.moved ? (drag.kind === 'bar' ? magnet : snapToBeat)(Math.max(0, xToTime(drag.x, view))) : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
   const shownGrid = previewGrid ?? beatGrid
   const shownContent = drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
+  const shownCues = drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
 
   const timeline = useMemo(
     () => (shownGrid === beatGrid ? baseTimeline : clickTimeline({ beatGrid: shownGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })),
@@ -228,7 +250,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setView(next)
   }, [box.width, width, durationMs, minMs, lengthKnown, view])
 
-  const current: TimelineEditState = { beatGrid, bpm, chordProContent: content }
+  const current: TimelineEditState = { beatGrid, bpm, chordProContent: content, cues }
   function commit(next: TimelineEditState) {
     setUndoStack((stack) => [...stack.slice(-49), current])
     setRedoStack([])
@@ -237,10 +259,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
   /** A new grid, with the song's bpm following its first stretch once there are two points. */
   function commitGrid(grid: BeatGrid | undefined, nextBpm = bpm) {
     const first = grid && grid.points.length >= 2 ? gridStretches(grid, nextBpm, timeSignature)[0] : undefined
-    commit({ beatGrid: grid, bpm: first ? Math.round(first.bpm * 10) / 10 : nextBpm, chordProContent: content })
+    commit({ ...current, beatGrid: grid, bpm: first ? Math.round(first.bpm * 10) / 10 : nextBpm })
   }
   function commitText(nextContent: string) {
     if (nextContent !== content) commit({ ...current, chordProContent: nextContent })
+  }
+  function commitCues(nextCues: ShowCue[]) {
+    commit({ ...current, cues: nextCues })
   }
   function undo() {
     const previous = undoStack[undoStack.length - 1]
@@ -300,7 +325,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const activeLine = drag?.kind === 'line' ? drag.rawIndex : selectedLine
     const activeBarMs = activeBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(activeBar)) : null
     const activeLineMs = activeLine !== null ? (lines.find((l) => l.rawIndex === activeLine)?.timeMs ?? null) : null
-    const activeMs = activeBarMs ?? activeLineMs
+    const activeCue = drag?.kind === 'cue' ? drag.id : selectedCueId
+    const activeCueMs = activeCue !== null ? (shownCues.find((c) => c.id === activeCue)?.timeMs ?? null) : null
+    const activeMs = activeBarMs ?? activeLineMs ?? activeCueMs
 
     const audio = audioCanvas.current?.getContext('2d')
     if (audio && audioCanvas.current) {
@@ -392,10 +419,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
           label(String(beat.bar), x + 4, SECTION_H + 16)
         }
       }
-      // A selected text line crosses the grid too.
-      if (activeLineMs !== null) {
+      // A selected text line or cue crosses the grid too.
+      const crossingMs = activeLineMs ?? activeCueMs
+      if (crossingMs !== null) {
         g.fillStyle = accent
-        g.fillRect(timeToX(activeLineMs, view) - 1.5, 0, 3, h)
+        g.fillRect(timeToX(crossingMs, view) - 1.5, 0, 3, h)
       }
       // Alignment points as diamonds on their bar lines.
       g.fillStyle = accent
@@ -452,7 +480,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
       })
       // Lines: a marker at each time tag, the lyric beside it up to the next marker - wrapped
       // over as many rows as the lane holds, so more than a few words are readable.
-      const timed = lines.filter((l) => l.timeMs !== null)
+      // In time order: a song's text order and time order can differ (a repeated chorus), and each
+      // lyric may only use the room up to the next marker on the axis.
+      const timed = lines.filter((l) => l.timeMs !== null).sort((a, b) => a.timeMs! - b.timeMs!)
       t.font = '15px system-ui, sans-serif'
       const rowH = 19
       const maxRows = Math.max(1, Math.floor((textH - 8) / rowH))
@@ -466,8 +496,43 @@ export function TimelineEditor(props: TimelineEditorProps) {
         t.fillStyle = active ? accent : ink
         wrapText(line.text, nextX - x - 12, maxRows, (row) => t.measureText(row).width).forEach((row, r) => t.fillText(row, x + 6, PARTS_H + 22 + r * rowH))
       })
+      if (activeCueMs !== null) {
+        t.fillStyle = accent
+        t.fillRect(timeToX(activeCueMs, view) - 1.5, 0, 3, h)
+      }
     }
-  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, lines, blocks])
+
+    // Cues: a marker per cue in its device's colour, with device name and command beside it.
+    const q = cueCanvas.current?.getContext('2d')
+    if (q && cueCanvas.current) {
+      cueCanvas.current.width = width * dpr
+      cueCanvas.current.height = CUE_H * dpr
+      q.setTransform(dpr, 0, 0, dpr, 0, 0)
+      q.clearRect(0, 0, width, CUE_H)
+      q.fillStyle = 'rgba(255,255,255,0.04)'
+      q.fillRect(0, 0, width, CUE_H)
+      q.font = '14px system-ui, sans-serif'
+      const deviceIndex = new Map(logicalDevices.map((d, i) => [d.id, i]))
+      shownCues.forEach((cue, i) => {
+        const x = timeToX(cue.timeMs, view)
+        const nextX = i + 1 < shownCues.length ? timeToX(shownCues[i + 1]!.timeMs, view) : width + 200
+        if (nextX < 0 || x > width) return
+        const active = cue.id === activeCue
+        const color = active ? accent : CUE_COLORS[(deviceIndex.get(cue.targetLogicalDeviceId) ?? 0) % CUE_COLORS.length]!
+        q.fillStyle = color
+        q.fillRect(x - 1.5, 0, 3, CUE_H)
+        q.beginPath()
+        q.arc(x, CUE_H / 2, active ? 8 : 6, 0, Math.PI * 2)
+        q.fill()
+        const device = logicalDevices.find((d) => d.id === cue.targetLogicalDeviceId)
+        const [text] = wrapText(`${device?.name ?? '?'} · ${describeCue(cue, device?.capability)}`, nextX - x - 16, 1, (row) => q.measureText(row).width)
+        if (text) {
+          q.fillStyle = active ? accent : ink
+          q.fillText(text, x + 10, CUE_H / 2 + 5)
+        }
+      })
+    }
+  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, lines, blocks, shownCues, logicalDevices])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -507,6 +572,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return best
   }
 
+  /** The cue whose marker is within finger reach of `x`. */
+  function cueAt(x: number): string | null {
+    let best: string | null = null
+    let bestDistance = TOLERANCE_PX
+    for (const cue of cues) {
+      const distance = Math.abs(timeToX(cue.timeMs, view) - x)
+      if (distance <= bestDistance) [best, bestDistance] = [cue.id, distance]
+    }
+    return best
+  }
+
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const { x, y } = logical(e)
     pointers.current.set(e.pointerId, x)
@@ -519,7 +595,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const base = { pointerId: e.pointerId, startX: x, x, moved: false }
-    if (y >= textTop + PARTS_H) {
+    if (y >= cueTop) {
+      const id = cueAt(x)
+      if (id !== null) {
+        setDrag({ ...base, kind: 'cue', id })
+        return
+      }
+    } else if (y >= textTop + PARTS_H) {
       const rawIndex = lineAt(x)
       if (rawIndex !== null) {
         setDrag({ ...base, kind: 'line', rawIndex })
@@ -532,7 +614,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         return
       }
     }
-    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false }
+    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, inCueLane: y >= cueTop }
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -564,17 +646,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (drag.kind === 'bar') {
         setSelection({ kind: 'bar', bar: drag.bar })
         if (drag.moved && dragMs !== null) alignBar(drag.bar, dragMs)
-      } else {
+      } else if (drag.kind === 'line') {
         setSelection({ kind: 'line', rawIndex: drag.rawIndex })
         if (drag.moved && dragMs !== null) commitText(setLineTime(content, drag.rawIndex, dragMs))
+      } else {
+        setSelection({ kind: 'cue', id: drag.id })
+        if (drag.moved && dragMs !== null) commitCues(moveCue(cues, drag.id, dragMs))
       }
       setDrag(null)
       return
     }
     const p = pan.current
     if (p && p.pointerId === e.pointerId && !p.moved) {
-      setSelection(null)
-      seek(xToTime(p.startX, view))
+      // A double tap in the cue lane adds a cue there; a single tap moves the playhead.
+      const now = performance.now()
+      const last = lastCueTap.current
+      if (p.inCueLane && last && now - last.at < DOUBLE_TAP_MS && Math.abs(last.x - p.startX) < TOLERANCE_PX) {
+        lastCueTap.current = null
+        openCueDialog(snapToBeat(Math.max(0, xToTime(p.startX, view))))
+      } else {
+        lastCueTap.current = p.inCueLane ? { at: now, x: p.startX } : null
+        setSelection(null)
+        seek(xToTime(p.startX, view))
+      }
     }
     pan.current = null
   }
@@ -673,7 +767,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         setNotice('Keine Schläge erkannt.')
         return
       }
-      commit({ ...result, chordProContent: content })
+      commit({ ...current, ...result })
     } catch {
       setNotice('Analyse fehlgeschlagen.')
     } finally {
@@ -699,6 +793,33 @@ export function TimelineEditor(props: TimelineEditorProps) {
     commitGrid(setMeter(editableGrid, bar, ts || null))
   }
 
+  // --- cues ---
+  function openCueDialog(timeMs: number, cueId?: string) {
+    if (logicalDevices.length === 0) {
+      setNotice('Noch keine Geräte angelegt – Cues brauchen ein Ziel-Gerät (Einstellungen → Geräte).')
+      return
+    }
+    setNotice(null)
+    setCueDialog({ timeMs, cueId })
+  }
+
+  function submitCue(content: CueContent) {
+    if (!cueDialog) return
+    if (cueDialog.cueId) {
+      commitCues(updateCue(cues, cueDialog.cueId, content))
+    } else {
+      const { cues: next, id } = addCue(cues, { ...content, timeMs: cueDialog.timeMs })
+      commitCues(next)
+      setSelection({ kind: 'cue', id })
+    }
+    setCueDialog(null)
+  }
+
+  function startRecordingCues() {
+    clock.audioProps.ref.current?.pause()
+    setRecordingCues(true)
+  }
+
   /** "Nächste Problemstelle": the next red (else orange) bar after the playhead, zoomed so a few
    * bars fill the view, the playhead on it and its bar line selected - ready to listen and align. */
   function jumpToNextProblem() {
@@ -721,6 +842,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedPoint = selectedBar !== null ? shownGrid?.points.find((p) => p.bar === selectedBar) : undefined
   const selectedTempo = selectedBar !== null ? 60000 / timeline.periodAfter(timeline.barStartBeat(selectedBar)) : null
   const selectedLineInfo = selectedLine !== null ? lines.find((l) => l.rawIndex === selectedLine) : undefined
+  const selectedCue = selectedCueId !== null ? cues.find((c) => c.id === selectedCueId) : undefined
+  const selectedCueDevice = selectedCue ? logicalDevices.find((d) => d.id === selectedCue.targetLogicalDeviceId) : undefined
 
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
@@ -746,6 +869,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
       } else if (selectedLineInfo) {
         e.preventDefault()
         nudgeLine(sign * 50)
+      } else if (selectedCue) {
+        e.preventDefault()
+        commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs + sign * 50))
       }
     }
   }
@@ -757,7 +883,27 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const gridHint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
-  const hint = untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint
+  const cueHint = cues.length === 0 ? ' · Cue: Doppeltipp in die unterste Spur.' : ''
+  const hint = (untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint) + cueHint
+
+  if (recordingCues) {
+    return (
+      <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0 overflow-y-auto' : ''}`}>
+        <CueRecorder
+          trackSrc={trackSrc}
+          chordProContent={content}
+          onComplete={(recorded) => {
+            setRecordingCues(false)
+            if (recorded.length > 0) {
+              commitCues(mergeCues(cues, recorded))
+              setNotice(`${recorded.length} ${recorded.length === 1 ? 'Cue' : 'Cues'} aufgenommen.`)
+            }
+          }}
+          onCancel={() => setRecordingCues(false)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
@@ -800,6 +946,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={button} disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
         </button>
+        <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
+          Cues aufnehmen
+        </button>
         <button type="button" className={button} disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
           Raster löschen
         </button>
@@ -826,6 +975,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
         <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: audioH, width, height: SECTION_H + gridH }} />
         <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />
+        <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
@@ -887,6 +1037,43 @@ export function TimelineEditor(props: TimelineEditorProps) {
             Zeilen tippen ab hier
           </button>
         </div>
+      )}
+
+      {selectedCue && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+          <span className="font-semibold">
+            {selectedCueDevice?.name ?? 'Unbekanntes Gerät'} · {describeCue(selectedCue, selectedCueDevice?.capability)} · {formatTimelineTime(selectedCue.timeMs)}
+          </span>
+          <button type="button" className={button} onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
+            −50 ms
+          </button>
+          <button type="button" className={button} onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs + 50))}>
+            +50 ms
+          </button>
+          <button type="button" className={button} onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
+            Bearbeiten
+          </button>
+          <button
+            type="button"
+            className={button}
+            onClick={() => {
+              commitCues(removeCue(cues, selectedCue.id))
+              setSelection(null)
+            }}
+          >
+            Entfernen
+          </button>
+        </div>
+      )}
+
+      {cueDialog && (
+        <CueDialog
+          title={cueDialog.cueId ? 'Cue bearbeiten' : `Cue bei ${formatTimelineTime(cueDialog.timeMs)}`}
+          devices={logicalDevices}
+          initial={cues.find((c) => c.id === cueDialog.cueId)}
+          onSubmit={submitCue}
+          onCancel={() => setCueDialog(null)}
+        />
       )}
 
       <audio {...clock.audioProps} className="hidden" />

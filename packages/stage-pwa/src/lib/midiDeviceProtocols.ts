@@ -24,6 +24,35 @@ export const KEMPER_CC = {
 export const KEMPER_STOMP_CC: Record<string, number> = { A: 17, B: 18, C: 19, D: 20, X: 22, MOD: 24, DELAY: 26, REVERB: 28, ALL: 16 }
 export const KEMPER_STOMP_CC_WITH_TAIL: Record<string, number> = { DELAY: 27, REVERB: 29 }
 
-/** Continuous knob CCs 11-74 of the NUX MG-30 (per-block ranges, `nux_mg30_emulator/cc_map.py`'s
- * `KNOB_CC_NAMES`) - `mg30.setKnob`'s `cc` payload field is the raw CC number, not a symbolic name. */
-export const MG30_KNOB_CC_RANGE = { min: 11, max: 74 } as const
+/**
+ * The NUX MG-30's knob CCs with a name a musician can read (the manual's "MIDI CC ASSIGNMENTS"
+ * table, reproduced in the emulator's docs/protocol-notes.md): one CC per block and knob position.
+ * What a knob does inside its block (Gain, Bass, …) depends on the model loaded in the patch, so
+ * the name gives block and position only. Values run 0-100; three positions are switches or
+ * selectors with a smaller range. Not the whole 11-74 span: CC 16 is unused, and compressor knob 4
+ * is CC 90. `mg30.setKnob`'s `cc` payload field is the raw CC number.
+ */
+const knobs = (block: string, first: number, count: number, from = 1) =>
+  Array.from({ length: count }, (_, i) => [first + i, `${block} – Regler ${from + i}`] as const)
+export const MG30_KNOBS: ReadonlyMap<number, string> = new Map<number, string>([
+  [11, 'Wah – Regler 1'],
+  [12, 'Wah – Schalter (0/1)'],
+  ...knobs('Kompressor', 13, 3),
+  [90, 'Kompressor – Regler 4'],
+  ...knobs('Effekt', 17, 5),
+  ...knobs('Amp', 22, 8),
+  ...knobs('EQ', 30, 12),
+  ...knobs('Noise Gate', 42, 3),
+  [45, 'Noise Gate – Auswahl (0–6)'],
+  ...knobs('Modulation', 46, 6),
+  ...knobs('Delay', 52, 3),
+  [55, 'Delay – Auswahl (0–6)'],
+  ...knobs('Delay', 56, 4, 5),
+  ...knobs('Reverb', 60, 4),
+  ...knobs('IR', 64, 6),
+  [70, 'Send-Pegel'],
+  [71, 'Return-Pegel'],
+  [72, 'Patch-Lautstärke'],
+  [73, 'Aktiver Block'],
+  [74, 'Pedal'],
+])

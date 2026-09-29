@@ -636,6 +636,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       countInEnabled={draft.countInEnabled}
       countInBars={draft.countInBars}
       content={draft.chordProContent}
+      cues={draft.cues}
       onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
       onDetectGrid={detectGrid}
       fill

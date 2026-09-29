@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BeatGrid } from 'shared-types'
+import type { BeatGrid, ShowCue } from 'shared-types'
 
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -17,12 +17,16 @@ vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn(
 vi.mock('../../store/useDialogStore', () => ({
   useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: async () => null }),
 }))
+vi.mock('../../store/useLogicalDevicesStore', () => ({
+  useLogicalDevicesStore: (select: (state: object) => unknown) =>
+    select({ devices: [{ id: 'kemper-1', name: 'Kemper Marco', capability: 'kemper-control', pluginId: null, executionTarget: null }] }),
+}))
 
 const { TimelineEditor } = await import('./TimelineEditor')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
-function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string } = {}) {
+function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string; cues?: ShowCue[] } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
@@ -35,6 +39,7 @@ function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm:
       countInEnabled={false}
       countInBars={1}
       content={extra.content ?? ''}
+      cues={extra.cues ?? []}
       onChange={onChange}
       onDetectGrid={extra.onDetectGrid}
       fill={extra.fill}
@@ -47,9 +52,9 @@ describe('TimelineEditor (docs/14 §5a)', () => {
   it('clears the grid after confirming, and can undo it', async () => {
     const { onChange } = setup({ beatGrid })
     fireEvent.click(screen.getByText('Raster löschen'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120, chordProContent: '' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120, chordProContent: '', cues: [] }))
     fireEvent.click(screen.getByLabelText('Rückgängig'))
-    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '' })
+    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
   })
 
   it('has nothing to clear without a grid', () => {
@@ -61,7 +66,7 @@ describe('TimelineEditor (docs/14 §5a)', () => {
     const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
     const { onChange } = setup({ beatGrid, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
     fireEvent.click(screen.getByText('Track analysieren'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected, chordProContent: '' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected, chordProContent: '', cues: [] }))
   })
 
   it('offers no problem jump without a track to compare against', () => {
@@ -121,7 +126,7 @@ describe('aligning the grid (docs/14 §5a)', () => {
   it('"Takt 1 hier" starts a grid at the playhead', () => {
     const { onChange } = setup()
     fireEvent.click(screen.getByText('Takt 1 hier'))
-    expect(onChange).toHaveBeenCalledWith({ beatGrid: { points: [expect.objectContaining({ bar: 1 })], meters: [] }, bpm: 120, chordProContent: '' })
+    expect(onChange).toHaveBeenCalledWith({ beatGrid: { points: [expect.objectContaining({ bar: 1 })], meters: [] }, bpm: 120, chordProContent: '', cues: [] })
   })
 
   it('swiping outside a bar line scrolls instead of moving the grid', () => {
@@ -180,16 +185,66 @@ describe('song text on the timeline (docs/14 §6)', () => {
   })
 })
 
+describe('cues on the timeline (docs/14 §7)', () => {
+  // The cue lane is the bottom one: y from 96 + 26 + 84 + 28 + 64 = 298, 44 px high.
+  const cueY = 298 + 22
+  const cue: ShowCue = { id: 'c1', timeMs: 12000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 1 } }
+  function pointer(fromMs: number, toMs: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: fromMs / 60, clientY: cueY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: toMs / 60, clientY: cueY })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: toMs / 60, clientY: cueY })
+  }
+
+  it('dragging a cue moves it, landing on a beat nearby', () => {
+    const { onChange } = setup({ cues: [cue] })
+    pointer(12000, 15040)
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 15000 }])
+  })
+
+  it('tapping a cue selects it; "Entfernen" removes it', () => {
+    const { onChange } = setup({ cues: [cue] })
+    pointer(12000, 12000)
+    expect(screen.getByText(/Kemper Marco · Performance 4, Slot 1 · 0:12.0/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Entfernen'))
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([])
+  })
+
+  it('a double tap in the cue lane opens the cue window; the chosen device, command and values become the cue', () => {
+    const { onChange } = setup()
+    pointer(20000, 20000)
+    pointer(20000, 20000)
+    fireEvent.change(screen.getByLabelText('Gerät'), { target: { value: 'kemper-1' } })
+    fireEvent.change(screen.getByLabelText('Befehl'), { target: { value: 'kemper.selectRig' } })
+    fireEvent.change(screen.getByLabelText('Performance'), { target: { value: '11' } })
+    fireEvent.change(screen.getByLabelText('Slot'), { target: { value: '3' } })
+    fireEvent.click(screen.getByText('Übernehmen'))
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([
+      expect.objectContaining({ timeMs: 20000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 11, slot: 3 } }),
+    ])
+  })
+
+  it('"Bearbeiten" opens the window with the cue\'s values', () => {
+    const { onChange } = setup({ cues: [cue] })
+    pointer(12000, 12000)
+    fireEvent.click(screen.getByText('Bearbeiten'))
+    expect((screen.getByLabelText('Performance') as HTMLSelectElement).value).toBe('3')
+    fireEvent.change(screen.getByLabelText('Slot'), { target: { value: '5' } })
+    fireEvent.click(screen.getByText('Übernehmen'))
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues[0]!.payload).toEqual({ performance: 3, slot: 5 })
+  })
+})
+
 describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
   it('keeps time running left to right; the lanes are stacked and share the height', () => {
     box.width = 800
     box.height = 1100
     const { container } = setup({ beatGrid, fill: true })
     const [audio, gridLane] = [...container.querySelectorAll('canvas')]
-    // Waveform: full width, 40 % of (1100 - 26 - 28) px high; the grid lane below it.
+    // Waveform: full width, 40 % of (1100 - 26 - 28 - 44) px high; the grid lane below it.
     expect(audio!.style.width).toBe('800px')
-    expect(audio!.style.height).toBe('418px')
-    expect(gridLane!.style.top).toBe('418px')
+    expect(audio!.style.height).toBe('401px')
+    expect(gridLane!.style.top).toBe('401px')
     box.width = 1000
     box.height = 206
   })
