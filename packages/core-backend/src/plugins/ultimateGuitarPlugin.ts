@@ -71,6 +71,12 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
       executablePath: resolveChromeExecutable(),
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // The server owns process signals (gracefulShutdown.ts, #335) - Puppeteer's own SIGTERM
+      // listener only closed Chrome and never exited, so every restart hung until SIGKILL.
+      // Chrome is closed by this plugin's shutdown() during app.close() instead.
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
     })
   }
 

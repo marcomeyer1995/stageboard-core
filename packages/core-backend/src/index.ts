@@ -45,6 +45,7 @@ import { allDocs, getDoc, putDocWithRetry, userExists, verifyUser, type CouchCon
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
+import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
@@ -1390,6 +1391,13 @@ async function main() {
     } else {
       app.log.warn('No LAN IP detected and LAN_IP not set - stageboard.local will not resolve, only the raw IP will work')
     }
+
+    // #335: a stop (systemd restart, Ctrl+C) closes everything within seconds instead of hanging
+    // until systemd SIGKILLs the process. Open SSE connections would hold `close()` open, so
+    // they're dropped first. Registered before `listen()` (no addHook once listening).
+    const dropConnections = trackConnections(app.server)
+    app.addHook('preClose', async () => dropConnections())
+    installShutdownHandlers(process, { close: () => app.close(), log: pluginLog, exit: (code) => process.exit(code) })
 
     await app.listen({ port, host: '0.0.0.0' })
   } catch (err) {
