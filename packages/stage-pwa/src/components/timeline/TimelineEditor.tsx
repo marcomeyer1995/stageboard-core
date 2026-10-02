@@ -85,6 +85,29 @@ const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters
 const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
 /** Alternating part block fills, so neighbouring parts stay apart. */
 const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
+/** Lane names and empty-lane hints (#324): faint, stage-readable size. */
+const LANE_LABEL_FONT = '600 16px system-ui, sans-serif'
+
+/** The lane's name at its left edge - only while nothing the lane draws is there, so it never
+ * covers a marker or text. `occupied` are the x ranges the lane's content covers. */
+function drawLaneLabel(g: CanvasRenderingContext2D, name: string, y: number, occupied: Array<[number, number]>, color: string) {
+  g.font = LANE_LABEL_FONT
+  const end = 8 + g.measureText(name).width + 8
+  if (occupied.some(([a, b]) => b > 0 && a < end)) return
+  g.fillStyle = color
+  g.fillText(name, 8, y)
+}
+
+/** A hint centred in an empty lane - the first of `texts` (longest first) that fits. */
+function drawLaneHint(g: CanvasRenderingContext2D, texts: string[], width: number, height: number, color: string) {
+  g.font = LANE_LABEL_FONT
+  const text = texts.find((t) => g.measureText(t).width <= width - 16) ?? texts[texts.length - 1]!
+  g.fillStyle = color
+  g.textAlign = 'center'
+  g.fillText(text, width / 2, height / 2 + 6)
+  g.textAlign = 'left'
+}
+
 /** Notes: comments and tab blocks told apart by colour. */
 const NOTE_COLOR = { comment: '#38bdf8', tab: '#4ade80' } as const
 /** One colour per target device, so a lane full of cues shows at a glance which device each is for. */
@@ -485,10 +508,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
       t.clearRect(0, 0, width, h)
       // Parts as coloured blocks with their name.
       t.font = 'bold 14px system-ui, sans-serif'
+      const partsUsed: Array<[number, number]> = []
+      const textUsed: Array<[number, number]> = []
       blocks.forEach((block, i) => {
         const x0 = Math.max(0, timeToX(block.startMs, view))
         const x1 = Math.min(width, timeToX(block.endMs, view))
         if (x1 <= 0 || x0 >= width) return
+        partsUsed.push([x0, x1])
         t.fillStyle = PART_FILL[i % 2]!
         t.fillRect(x0, 2, Math.max(1, x1 - x0 - 2), PARTS_H - 4)
         const name = fitText(block.label ?? 'Teil', x1 - x0 - 12)
@@ -513,8 +539,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
         t.fillStyle = active ? accent : faint
         t.fillRect(x - (active ? 1.5 : 1), PARTS_H, active ? 3 : 2, textH)
         t.fillStyle = active ? accent : ink
-        wrapText(line.text, nextX - x - 12, maxRows, (row) => t.measureText(row).width).forEach((row, r) => t.fillText(row, x + 6, PARTS_H + 22 + r * rowH))
+        const rows = wrapText(line.text, nextX - x - 12, maxRows, (row) => t.measureText(row).width)
+        rows.forEach((row, r) => t.fillText(row, x + 6, PARTS_H + 22 + r * rowH))
+        textUsed.push([x - 2, x + 6 + Math.max(0, ...rows.map((row) => t.measureText(row).width))])
       })
+      drawLaneLabel(t, 'Parts', PARTS_H - 9, partsUsed, faint)
+      drawLaneLabel(t, 'Text', PARTS_H + textH - 8, textUsed, faint)
       if (activeCueMs !== null) {
         t.fillStyle = accent
         t.fillRect(timeToX(activeCueMs, view) - 1.5, 0, 3, h)
@@ -541,6 +571,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       // Several notes on one line share its time: the later ones step down a row.
       let lastMs = -Infinity
       let row = 0
+      const notesUsed: Array<[number, number]> = []
       placed.forEach(({ note, timeMs }, i) => {
         row = timeMs === lastMs ? row + 1 : 0
         lastMs = timeMs
@@ -554,11 +585,24 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const who = note.targets ? ` · ${note.targets.join(', ')}` : ''
         const label = note.kind === 'tab' ? `Tab${note.text ? `: ${note.text}` : ''}${who}` : `${note.text ?? ''}${who}`
         const [text] = wrapText(label, nextX - x - 12, 1, (t) => n.measureText(t).width)
+        notesUsed.push([x - 2, x + 6 + (text ? n.measureText(text).width : 0)])
         if (text) {
           n.fillStyle = active ? accent : ink
           n.fillText(text, x + 6, 17 + row * 18)
         }
       })
+      if (placed.length === 0) {
+        const hasTimedLine = lines.some((l) => l.timeMs !== null)
+        drawLaneHint(
+          n,
+          hasTimedLine ? ['Notizen · Doppeltipp: Notiz hinzufügen', 'Doppeltipp: Notiz'] : ['Notizen hängen an Liedzeilen – erst „Zeilen tippen“', 'Notizen: erst Zeilen tippen'],
+          width,
+          NOTES_H,
+          faint,
+        )
+      } else {
+        drawLaneLabel(n, 'Notizen', NOTES_H - 8, notesUsed, faint)
+      }
     }
 
     // Cues: a marker per cue in its device's colour, with device name and command beside it.
@@ -572,6 +616,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       q.fillRect(0, 0, width, CUE_H)
       q.font = '14px system-ui, sans-serif'
       const deviceIndex = new Map(logicalDevices.map((d, i) => [d.id, i]))
+      const cuesUsed: Array<[number, number]> = []
       shownCues.forEach((cue, i) => {
         const x = timeToX(cue.timeMs, view)
         const nextX = i + 1 < shownCues.length ? timeToX(shownCues[i + 1]!.timeMs, view) : width + 200
@@ -585,11 +630,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
         q.fill()
         const device = logicalDevices.find((d) => d.id === cue.targetLogicalDeviceId)
         const [text] = wrapText(`${device?.name ?? '?'} · ${describeCue(cue, device?.capability)}`, nextX - x - 16, 1, (row) => q.measureText(row).width)
+        cuesUsed.push([x - 8, x + 10 + (text ? q.measureText(text).width : 0)])
         if (text) {
           q.fillStyle = active ? accent : ink
           q.fillText(text, x + 10, CUE_H / 2 + 5)
         }
       })
+      if (shownCues.length === 0) drawLaneHint(q, ['Cues · Doppeltipp: Cue hinzufügen', 'Doppeltipp: Cue'], width, CUE_H, faint)
+      else drawLaneLabel(q, 'Cues', CUE_H - 6, cuesUsed, faint)
     }
   }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs])
 
@@ -1010,8 +1058,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const gridHint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
-  const cueHint = cues.length === 0 && notes.length === 0 ? ' · Notiz oder Cue: Doppeltipp in die Notiz- bzw. unterste Spur.' : cues.length === 0 ? ' · Cue: Doppeltipp in die unterste Spur.' : ''
-  const hint = (untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint) + cueHint
+  const hint = untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint
 
   if (recordingCues) {
     return (
