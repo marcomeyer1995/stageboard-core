@@ -53,6 +53,15 @@ function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm:
 }
 
 describe('TimelineEditor (docs/14 §5a)', () => {
+  it('keeps wheel and touchpad gestures to itself - no browser Back swipe, no page zoom (#323)', () => {
+    setup({ beatGrid })
+    const lanes = screen.getByTestId('timeline-lanes')
+    // fireEvent returns false when the listener called preventDefault() - only possible with a
+    // non-passive native listener, not React's onWheel.
+    expect(fireEvent.wheel(lanes, { deltaX: 120, deltaY: 0, clientX: 500, clientY: 100 })).toBe(false)
+    expect(fireEvent.wheel(lanes, { deltaY: -100, ctrlKey: true, clientX: 500, clientY: 100 })).toBe(false)
+  })
+
   it('clears the grid after confirming, and can undo it', async () => {
     const { onChange } = setup({ beatGrid })
     fireEvent.click(screen.getByText('Raster löschen'))

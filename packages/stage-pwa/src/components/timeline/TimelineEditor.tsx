@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BeatGrid, ShowCue } from 'shared-types'
 import { beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { startClick, stopClick } from '../../lib/clickEngine'
@@ -130,7 +130,15 @@ function fitText(text: string, maxPx: number): string {
 export function TimelineEditor(props: TimelineEditorProps) {
   const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, cues, onChange, onDetectGrid, fill = false } = props
   const clock = useTrackClock(trackSrc)
-  const [boxRef, box] = useElementSize()
+  const [sizeRef, box] = useElementSize()
+  const [lanesEl, setLanesEl] = useState<HTMLDivElement | null>(null)
+  const boxRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      sizeRef(el)
+      setLanesEl(el)
+    },
+    [sizeRef],
+  )
   // Time always runs left to right, in portrait too: a vertical layout for portrait (2026-09-27)
   // was tried and dropped - Marco preferred scrolling sideways on the tablet (2026-09-28).
   const width = Math.max(1, box.width)
@@ -752,7 +760,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     pan.current = null
   }
 
-  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+  function onWheel(e: WheelEvent & { currentTarget: Element }) {
     const { x } = logical(e)
     if (e.ctrlKey || e.metaKey) {
       setView(clampView(zoomAround(view, Math.exp(e.deltaY * 0.002), x), width, minMs, durationMs))
@@ -761,6 +769,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setView(clampView({ ...view, startMs: view.startMs + delta * view.msPerPx }, width, minMs, durationMs))
     }
   }
+
+  // Native, non-passive wheel listener (#323): React registers `wheel` as passive, so
+  // preventDefault() in an onWheel prop is ignored - a horizontal touchpad swipe then also
+  // triggered the browser's "Back" gesture (leaving the editor, losing unsaved edits) and
+  // Ctrl+wheel / pinch zoomed the whole page as well as the timeline.
+  const wheelRef = useRef(onWheel)
+  wheelRef.current = onWheel
+  useEffect(() => {
+    if (!lanesEl) return
+    const listener = (e: WheelEvent) => {
+      e.preventDefault()
+      wheelRef.current(e as WheelEvent & { currentTarget: Element })
+    }
+    lanesEl.addEventListener('wheel', listener, { passive: false })
+    return () => lanesEl.removeEventListener('wheel', listener)
+  }, [lanesEl])
 
   // --- grid edits ---
   /** Bar `bar` starts at `ms`: moves its point or adds one - refused past a neighbouring point. */
@@ -1072,7 +1096,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onWheel={onWheel}
         data-testid="timeline-lanes"
       >
         <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
