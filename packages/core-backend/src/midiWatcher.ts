@@ -50,6 +50,28 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
   let stopped = false
   let triggerListener: { input: Input; hardwareKey: string } | null = null
   const written = new Set<string>() // hardwareKeys already written, so a role only gets written once
+  let unavailable = false
+
+  /** Creates a native RtMidi port, or null when the ALSA sequencer can't be opened (e.g.
+   * `/dev/snd/seq` not accessible at boot before a desktop login, #336). MIDI is optional - the
+   * Stage-Server must keep running without it, and the poll keeps retrying, so ports appear as
+   * soon as access exists. Logged once per outage, not every poll. */
+  function openNative<T>(make: () => T): T | null {
+    try {
+      const port = make()
+      if (unavailable) {
+        unavailable = false
+        log.info('Native MIDI available again')
+      }
+      return port
+    } catch (err) {
+      if (!unavailable) {
+        unavailable = true
+        log.error('Native MIDI unavailable - running without the Stage-Server\'s own MIDI ports, retrying', { error: String(err) })
+      }
+      return null
+    }
+  }
 
   /**
    * Resolves the real *output* port to actually send to and writes the DeviceTransportConfig
@@ -74,7 +96,8 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
       )?.namePattern
       if (!namePattern) continue
 
-      const output = new Output()
+      const output = openNative(() => new Output())
+      if (!output) return
       try {
         const count = output.getPortCount()
         let outputIndex = -1
@@ -127,7 +150,8 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
   }
 
   function reportCurrentPorts(): void {
-    const probe = new Input()
+    const probe = openNative(() => new Input())
+    if (!probe) return
     try {
       const count = probe.getPortCount()
       for (let i = 0; i < count; i++) {
@@ -186,23 +210,30 @@ export function createMidiWatcher(options: MidiWatcherOptions): MidiWatcherHandl
 
     stopTriggerListener()
 
-    const probe = new Input()
-    const count = probe.getPortCount()
-    let index = -1
-    for (let i = 0; i < count; i++) {
-      if (hardwareKeyFor(detectedFor(probe.getPortName(i))) === ownCandidate.hardwareKey) index = i
-    }
-    if (index === -1) {
-      probe.destroy()
-      return
-    }
+    const probe = openNative(() => new Input())
+    if (!probe) return
+    try {
+      const count = probe.getPortCount()
+      let index = -1
+      for (let i = 0; i < count; i++) {
+        if (hardwareKeyFor(detectedFor(probe.getPortName(i))) === ownCandidate.hardwareKey) index = i
+      }
+      if (index === -1) {
+        probe.destroy()
+        return
+      }
 
-    const handleMessage = makeSequenceMatcher(identifying.matchCcSequence, () => {
-      discoverySessionStore.reportTriggered(workspaceId, SERVER_EXECUTION_TARGET, ownCandidate.hardwareKey)
-    })
-    probe.on('message', (_deltaTime: number, message: number[]) => handleMessage(message))
-    probe.openPort(index)
-    triggerListener = { input: probe, hardwareKey: ownCandidate.hardwareKey }
+      const handleMessage = makeSequenceMatcher(identifying.matchCcSequence, () => {
+        discoverySessionStore.reportTriggered(workspaceId, SERVER_EXECUTION_TARGET, ownCandidate.hardwareKey)
+      })
+      probe.on('message', (_deltaTime: number, message: number[]) => handleMessage(message))
+      probe.openPort(index)
+      triggerListener = { input: probe, hardwareKey: ownCandidate.hardwareKey }
+    } catch (err) {
+      // The port vanished between listing and opening - the next poll tries again.
+      log.error('Failed to open native MIDI port for identification', { error: String(err) })
+      probe.destroy()
+    }
   }
 
   reportCurrentPorts()

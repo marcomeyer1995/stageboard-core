@@ -82,6 +82,8 @@ WantedBy=default.target
 
 `YT_DLP_PATH` zeigt auf das offizielle Standalone-Release von yt-dlp (für die YouTube-Extraktion, #5; Checksumme gegen `SHA2-256SUMS` des Releases geprüft) - kein ffmpeg nötig, als JS-Runtime nutzt yt-dlp das Node des Servers. Aktualisieren: `~/.local/bin/yt-dlp -U`. Port 443 ohne root geht, weil das nvm-Node-Binary `cap_net_bind_service` hat. **Bei einem Node-Update** (neue Version in `.nvmrc`) muss `ExecStart` angepasst und die Capability auf das neue Binary gesetzt werden: `sudo setcap cap_net_bind_service=ep ~/.nvm/versions/node/<version>/bin/node`, dann `systemctl --user daemon-reload && systemctl --user restart stageboard`. Logs: `journalctl --user -u stageboard` (ersetzt das frühere `real-server.log`).
 
+**MIDI ohne Desktop-Login:** Der Benutzer muss in der Gruppe `audio` sein (`sudo usermod -aG audio marco-linux`, danach neu booten). Sonst ist `/dev/snd/seq` nur über die logind-ACL der *aktiven Desktop-Sitzung* erreichbar - die Unit startet per Linger aber schon vor dem Login. Bis 2026-09-28 riss das den ganzen Server in eine Neustart-Schleife, bis jemand sich am Desktop anmeldete (#336). Seitdem startet der Server auch ohne MIDI (Log `Native MIDI unavailable`), die Server-eigenen MIDI-Ports fehlen dann aber, bis der Zugriff da ist (Log `Native MIDI available again`).
+
 **Redeploy nach dem Mergen eines PRs:**
 1. `cd ~/stageboard-deploy && git fetch && git checkout --detach origin/main`
 2. `npm ci`, falls sich Abhängigkeiten geändert haben; dann `npm run build -w shared-types`, `npm run build -w core-backend` (nur falls Backend-Code sich geändert hat) und `npm run build -w stage-pwa`.
