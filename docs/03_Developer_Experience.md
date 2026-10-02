@@ -75,12 +75,15 @@ Environment=YT_DLP_PATH=%h/.local/bin/yt-dlp
 ExecStart=%h/.nvm/versions/node/v24.19.0/bin/node dist/index.js
 Restart=always
 RestartSec=5
+TimeoutStopSec=15
 
 [Install]
 WantedBy=default.target
 ```
 
 `YT_DLP_PATH` zeigt auf das offizielle Standalone-Release von yt-dlp (für die YouTube-Extraktion, #5; Checksumme gegen `SHA2-256SUMS` des Releases geprüft) - kein ffmpeg nötig, als JS-Runtime nutzt yt-dlp das Node des Servers. Aktualisieren: `~/.local/bin/yt-dlp -U`. Port 443 ohne root geht, weil das nvm-Node-Binary `cap_net_bind_service` hat. **Bei einem Node-Update** (neue Version in `.nvmrc`) muss `ExecStart` angepasst und die Capability auf das neue Binary gesetzt werden: `sudo setcap cap_net_bind_service=ep ~/.nvm/versions/node/<version>/bin/node`, dann `systemctl --user daemon-reload && systemctl --user restart stageboard`. Logs: `journalctl --user -u stageboard` (ersetzt das frühere `real-server.log`).
+
+**Stoppen/Neustart:** Der Server beendet sich auf SIGTERM selbst (`gracefulShutdown.ts`): offene Verbindungen werden getrennt, alle `onClose`-Hooks laufen (inkl. Chrome des UG-Plugins), spätestens nach 10 s ist Schluss; im Log `Stop signal received` → `Shut down cleanly`. `TimeoutStopSec=15` ist nur das Sicherheitsnetz. Bis #335 hat Puppeteer SIGTERM abgefangen, ohne den Prozess zu beenden - jeder Neustart hing 90 s bis zum SIGKILL.
 
 **MIDI ohne Desktop-Login:** Der Benutzer muss in der Gruppe `audio` sein (`sudo usermod -aG audio marco-linux`, danach neu booten). Sonst ist `/dev/snd/seq` nur über die logind-ACL der *aktiven Desktop-Sitzung* erreichbar - die Unit startet per Linger aber schon vor dem Login. Bis 2026-09-28 riss das den ganzen Server in eine Neustart-Schleife, bis jemand sich am Desktop anmeldete (#336). Seitdem startet der Server auch ohne MIDI (Log `Native MIDI unavailable`), die Server-eigenen MIDI-Ports fehlen dann aber, bis der Zugriff da ist (Log `Native MIDI available again`).
 
