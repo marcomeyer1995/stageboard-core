@@ -1,4 +1,3 @@
-import { createSocket as createDgramSocket, type Socket } from 'node:dgram'
 import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
@@ -7,7 +6,6 @@ import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
-import mdnsFactory from 'multicast-dns'
 import {
   ActivateProfileRequestSchema,
   ActivateWorkspaceHardwareRequestSchema,
@@ -46,6 +44,7 @@ import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
+import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
@@ -1245,29 +1244,6 @@ function detectLanIp(): string | null {
   return null
 }
 
-/** Builds and fully configures the UDP socket the mDNS responder above uses, rather than
- * letting `multicast-dns` create and configure its own - see that call site's doc comment for
- * why (in short: its own outgoing-interface selection isn't reliable on a machine with Docker's
- * virtual network interfaces present). Bind stays on the wildcard address (`0.0.0.0`, Node's
- * `dgram` default with no address argument) - binding to `lanIp` specifically instead, which
- * seems like the more obviously-correct choice, was tried first and silently breaks *receiving*
- * multicast traffic on Linux. `setMulticastInterface(lanIp)` is what actually pins outgoing
- * packets to the real interface. */
-function createMdnsSocket(lanIp: string): Promise<Socket> {
-  return new Promise((resolve, reject) => {
-    const socket = createDgramSocket({ type: 'udp4', reuseAddr: true })
-    socket.once('error', reject)
-    socket.bind(5353, () => {
-      socket.removeListener('error', reject)
-      socket.addMembership('224.0.0.251', lanIp)
-      socket.setMulticastTTL(255)
-      socket.setMulticastLoopback(true)
-      socket.setMulticastInterface(lanIp)
-      resolve(socket)
-    })
-  })
-}
-
 async function main() {
   const { app, lookupRegistry, workspaceHardware, pluginLog } = await buildApp()
 
@@ -1355,7 +1331,7 @@ async function main() {
     // conflict - resolvers special-case that suffix to mDNS instead of asking the LAN's own
     // DNS server at all.
     //
-    // Builds its own socket (`createMdnsSocket` below) rather than letting `multicast-dns`
+    // Builds its own socket (`createMdnsSocket` in mdnsResponder.ts) rather than letting `multicast-dns`
     // create one, for one specific reason: this machine has Docker's own virtual network
     // interfaces (`docker0`, `br-*`) alongside the real one, and the library's default outgoing-
     // interface selection (`socket.setMulticastInterface('0.0.0.0')`, i.e. "let the OS pick")
@@ -1374,20 +1350,10 @@ async function main() {
     const lanIp = process.env.LAN_IP ?? detectLanIp()
     const mdnsHostname = process.env.MDNS_HOSTNAME ?? 'stageboard.local'
     if (lanIp) {
-      const socket = await createMdnsSocket(lanIp)
-      const mdns = mdnsFactory({ socket, bind: false })
-      mdns.on('query', (query) => {
-        if (query.questions.some((q) => q.type === 'A' && q.name === mdnsHostname)) {
-          mdns.respond({ answers: [{ name: mdnsHostname, type: 'A', ttl: 120, data: lanIp }] })
-        }
-      })
-      mdns.on('error', (err) => {
-        app.log.warn({ err }, `Could not start the mDNS responder for ${mdnsHostname} - falling back to raw IP access`)
-      })
-      app.addHook('onClose', async () => {
-        await new Promise<void>((resolve) => mdns.destroy(resolve))
-      })
-      app.log.info(`Advertising ${mdnsHostname} -> ${lanIp} via mDNS`)
+      // Never awaited and never throws: at boot the Wi-Fi may not have its address yet (#339) -
+      // the responder retries on its own while the server already serves by raw IP.
+      const mdns = startMdnsResponder({ lanIp, hostname: mdnsHostname, log: pluginLog })
+      app.addHook('onClose', async () => mdns.stop())
     } else {
       app.log.warn('No LAN IP detected and LAN_IP not set - stageboard.local will not resolve, only the raw IP will work')
     }
