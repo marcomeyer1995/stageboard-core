@@ -7,6 +7,8 @@ let inputPorts: string[] = []
 let outputPorts: string[] = []
 const inputInstances: FakePort[] = []
 const outputInstances: FakePort[] = []
+/** Simulates RtMidi failing to open the ALSA sequencer (`/dev/snd/seq` not accessible, #336). */
+let nativeFails = false
 
 class FakePort extends EventEmitter {
   openedIndex: number | null = null
@@ -14,6 +16,7 @@ class FakePort extends EventEmitter {
 
   constructor(private readonly ports: () => string[]) {
     super()
+    if (nativeFails) throw new Error('Failed to initialise RtMidi')
   }
 
   getPortCount() {
@@ -98,6 +101,7 @@ function lastInput(): FakeInput {
 beforeEach(() => {
   vi.useFakeTimers()
   inputInstances.length = 0
+  nativeFails = false
   outputInstances.length = 0
   inputPorts = ['Midi Through Port-0', 'Kemper Profiler Emulator']
   outputPorts = ['Midi Through Port-0', 'RtMidiIn Client:Kemper Profiler Emulator 128:0']
@@ -159,6 +163,23 @@ describe('createMidiWatcher', () => {
     vi.advanceTimersByTime(2000)
 
     expect(inputInstances.every((i) => i.openedIndex === null)).toBe(true)
+    watcher.stop()
+  })
+
+  it('keeps running without native MIDI, logs once, and picks the ports up once access exists (#336)', () => {
+    nativeFails = true
+    const log = logStub()
+    const watcher = createMidiWatcher({ couch: COUCH, workspaceId: 'band-a', log })
+    vi.advanceTimersByTime(6000)
+
+    expect(reportCandidate).not.toHaveBeenCalled()
+    expect(log.error).toHaveBeenCalledTimes(1)
+
+    nativeFails = false
+    vi.advanceTimersByTime(2000)
+
+    expect(reportCandidate).toHaveBeenCalledTimes(2)
+    expect(log.info).toHaveBeenCalledWith('Native MIDI available again')
     watcher.stop()
   })
 
