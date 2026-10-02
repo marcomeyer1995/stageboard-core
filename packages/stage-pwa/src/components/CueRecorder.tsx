@@ -12,6 +12,7 @@ import { listenToMidiInputById, listMidiInputs, type MidiInputInfo } from '../li
 import { useClockStore } from '../store/useClockStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
@@ -48,6 +49,7 @@ function describe(type: string, payload: Record<string, unknown> | undefined): s
 const SNAP_WINDOWS_MS = [30, 60, 100, 150] as const
 
 export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }: CueRecorderProps) {
+  useBackHandler(onCancel)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const configs = useDeviceTransportConfigStore((state) => state.configs)
   const recordable = logicalDevices.filter((device) => canDecodeCapability(device.capability))

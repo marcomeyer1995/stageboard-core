@@ -17,6 +17,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 const TOTAL_STEPS = 4
 const STEP_TITLE: Record<number, string> = { 1: 'Name', 2: 'Typ', 3: 'Verbindung', 4: 'Prüfen' }
@@ -487,6 +488,7 @@ export function DeviceSetupWizard({
   initialDraft?: NewDevicePrefill | null
   onClose: () => void
 }) {
+  useBackHandler(onClose)
   const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : initialDraft ? 2 : 1))
   const [draft, setDraft] = useState<Draft>(() => draftFrom(device, initialDraft))
   const saveDevice = useLogicalDevicesStore((state) => state.save)

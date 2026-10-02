@@ -8,6 +8,7 @@ import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface DashboardManagerProps {
   onClose: () => void
@@ -33,6 +34,7 @@ const DASHBOARD_MODES = ['gig', 'practice'] as const
 const MODE_LABEL: Record<(typeof DASHBOARD_MODES)[number], string> = { gig: 'Gig', practice: 'Solo' }
 
 export function DashboardManager({ onClose }: DashboardManagerProps) {
+  useBackHandler(onClose)
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const save = useDashboardsStore((state) => state.save)
   const create = useDashboardsStore((state) => state.create)

@@ -29,6 +29,7 @@ import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TapToSync } from './TapToSync'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
+import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -138,6 +139,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // state to represent here, since creation now happens in LibraryView before this editor
   // ever opens (it always receives a real songId for a song that already exists).
   const [draft, setDraft] = useState<EditorDraft | null>(null)
+  /** The draft as last loaded or saved (JSON) - the baseline for `dirty`. */
+  const savedDraft = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [isTapping, setIsTapping] = useState(false)
@@ -195,7 +198,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const variant = preferredVariantId
       ? (variants.find((v) => v.id === preferredVariantId) ?? defaultVariant)
       : defaultVariant
-    setDraft(draftFrom(song, variant))
+    const loaded = draftFrom(song, variant)
+    setDraft(loaded)
+    savedDraft.current = JSON.stringify(loaded)
     setError(null)
     setSavedAt(null)
   }
@@ -209,6 +214,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     if (songLoaded) void selectSong(songId, variantId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId, variantId, songLoaded])
+
+  // Unsaved changes (#341): the draft differs from what was last loaded or saved. Leaving asks
+  // first - via Back, "← Bibliothek", reload or closing the tab.
+  const dirty = draft !== null && savedDraft.current !== null && JSON.stringify(draft) !== savedDraft.current
+  useUnsavedChangesWarning(dirty)
+  const leave = async () => {
+    if (dirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return
+    onBack()
+  }
+  // Back closes the current view: the timeline returns to the text view, the editor to the library.
+  useBackHandler(editorView === 'timeline' ? () => setEditorView('text') : () => void leave())
 
   useEffect(() => {
     // The open song was deleted - here, or on another device mid-sync. There's nothing left
@@ -228,7 +244,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const selectVariant = (variantId: string) => {
     const variant = variantsForSong.find((v) => v.id === variantId)
     if (!variant) return
-    setDraft({
+    const next: EditorDraft = {
       ...draft,
       variantId: variant.id,
       variantLabel: variant.label,
@@ -246,7 +262,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       key: variant.key,
       tuning: variant.tuning,
       capo: variant.capo,
-    })
+    }
+    setDraft(next)
+    // Switching variants loads that variant as saved - its own baseline.
+    savedDraft.current = JSON.stringify(next)
     setError(null)
     setSavedAt(null)
   }
@@ -312,6 +331,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setError(null)
     await saveSong(songResult.data)
     await saveVariant(variantResult.data)
+    savedDraft.current = JSON.stringify(draft)
     setSavedAt(Date.now())
   }
 
@@ -822,7 +842,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
-            onClick={onBack}
+            onClick={() => void leave()}
             className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
           >
             ← Bibliothek

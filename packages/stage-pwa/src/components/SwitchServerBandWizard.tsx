@@ -3,6 +3,7 @@ import type { AdminPinProof, WorkspaceSummary } from 'shared-types'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { VerifyWorkspaceAdmin, type VerifiedAdmin } from './VerifyWorkspaceAdmin'
+import { useBackHandler } from '../lib/backNavigation'
 
 type Step = 'closing' | 'pick-band' | 'target' | 'committing'
 
@@ -34,6 +35,7 @@ export function SwitchServerBandWizard({
   activeWorkspaceId: string | null
   onClose: (switched: boolean) => void
 }) {
+  useBackHandler(() => onClose(false))
   const activateWorkspaceHardware = useWorkspaceStore((state) => state.activateWorkspaceHardware)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)

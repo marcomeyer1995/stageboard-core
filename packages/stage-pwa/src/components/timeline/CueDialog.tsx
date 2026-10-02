@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { LogicalDevice, ShowCue } from 'shared-types'
 import { commandsFor, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
 import { parseCuePayload } from '../../lib/timelineCues'
+import { useBackHandler } from '../../lib/backNavigation'
 
 export type CueContent = Omit<ShowCue, 'id' | 'timeMs'>
 
@@ -25,6 +26,7 @@ export function CueDialog({
   onSubmit: (content: CueContent) => void
   onCancel: () => void
 }) {
+  useBackHandler(onCancel)
   const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? '')
   const device = devices.find((d) => d.id === deviceId)
   const commands = device ? commandsFor(device.capability) : []

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { CapabilityStatus } from '../lib/capabilities'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface WidgetFrameProps {
   title: string
@@ -58,6 +59,7 @@ export function WidgetFrame({
 }: WidgetFrameProps) {
   const isDisabled = status === 'degraded'
   const [menuOpen, setMenuOpen] = useState(false)
+  useBackHandler(menuOpen ? () => setMenuOpen(false) : null)
   const inert = isDisabled || isEditing
   // Hidden chrome is a live/locked-view thing only - while editing, every widget keeps its
   // border so its drag/resize bounds stay visible, same reasoning `inert` already applies.

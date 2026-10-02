@@ -12,6 +12,7 @@ import { ProfileRolePickerView } from './components/ProfileRolePickerView'
 import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
+import { useBackHandler } from './lib/backNavigation'
 import { MODE_LABEL, type Mode } from './lib/modes'
 import { useModeDashboards } from './lib/useModeDashboards'
 import { StatusBar } from './components/StatusBar'
@@ -68,6 +69,8 @@ function noopStart(): TrackedSync | null {
 function App() {
   const [mode, setMode] = useState<Mode>('live')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Back from Bibliothek/System returns to the Boards (#341); on the dashboard it does nothing.
+  useBackHandler(mode !== 'live' ? () => setMode('live') : null)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const hasAnyWorkspace = useWorkspaceStore((state) => state.workspaces.length > 0)
   const activeWorkspacePassword = useWorkspaceStore(

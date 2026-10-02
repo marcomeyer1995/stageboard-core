@@ -13,6 +13,7 @@ import { usePresenceStore } from '../store/usePresenceStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 /**
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
@@ -213,6 +214,7 @@ export function BandManagementView() {
   // One "+ Band" entry point (matching "+ Neue Band"'s old spot) opens a small choice first
   // (join existing vs. found new), rather than two separate always-visible buttons.
   const [showAddBandChoice, setShowAddBandChoice] = useState(false)
+  useBackHandler(showAddBandChoice ? () => setShowAddBandChoice(false) : null)
   const [showJoinAnotherBand, setShowJoinAnotherBand] = useState(false)
   // 2026-09-02 follow-up: which member's row currently shows the inline "become this profile"
   // password form (mirrors JoinBandView.tsx's step-3 roster picker, moved here since band/

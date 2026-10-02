@@ -32,6 +32,7 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -62,6 +63,7 @@ function VariantPicker({
   onSelect: (variantId: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  useBackHandler(open ? () => setOpen(false) : null)
   const selectedLabel = variants.find((v) => v.id === selectedId)?.label ?? ''
 
   return (
@@ -168,6 +170,7 @@ function TransitionPicker({
   onChange: (type: TransitionType, delayMs: number) => void
 }) {
   const [open, setOpen] = useState(false)
+  useBackHandler(open ? () => setOpen(false) : null)
   const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
 
   return (

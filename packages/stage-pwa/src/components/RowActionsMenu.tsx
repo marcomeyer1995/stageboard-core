@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useBackHandler } from '../lib/backNavigation'
 
 /**
  * The "⋮ opens a popup of actions" pattern (see BandManagementView.tsx's member-row follow-up,
@@ -34,6 +35,7 @@ export function RowActionsMenu({
   onClose: () => void
   children?: ReactNode
 }) {
+  useBackHandler(onClose)
   return (
     <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
       {/* Stops the overlay's own onClick (which closes the popup) from firing when the tap
