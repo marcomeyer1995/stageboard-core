@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
@@ -12,6 +13,7 @@ export function DialogHost() {
   const acceptConfirm = useDialogStore((state) => state.acceptConfirm)
   const acceptAlert = useDialogStore((state) => state.acceptAlert)
   const cancel = useDialogStore((state) => state.cancel)
+  useBackHandler(request ? cancel : null)
 
   if (!request) return null
 

@@ -3,6 +3,7 @@ import { buildJoinUrl, renderQrCode } from '../lib/qrCode'
 import { fetchLanIp } from '../lib/serverInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 /**
  * "Band beitreten" QR/code screen (see #21, redesigned 2026-09-01 at Marco's explicit request
@@ -41,6 +42,7 @@ export function InviteBandView({
   onClose: () => void
   isFoundingSummary?: boolean
 }) {
+  useBackHandler(onClose)
   const getAccessCode = useWorkspaceStore((state) => state.getAccessCode)
   const rotateAccessCode = useWorkspaceStore((state) => state.rotateAccessCode)
   const confirm = useDialogStore((state) => state.confirm)

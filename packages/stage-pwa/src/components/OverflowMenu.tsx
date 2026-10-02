@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface OverflowMenuAction {
   label: string
@@ -64,6 +65,7 @@ export function OverflowMenu({
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
+  useBackHandler(open ? () => setOpen(false) : null)
   const normal = actions.filter((a) => !a.danger)
   const danger = actions.filter((a) => a.danger)
 

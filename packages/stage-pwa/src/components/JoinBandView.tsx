@@ -5,6 +5,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
+import { useBackHandler } from '../lib/backNavigation'
 
 type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -69,6 +70,7 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  * new usage, where it has to sit on top of the already-rendered BandManagementView.tsx.
  */
 export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
+  useBackHandler(onClose ?? null)
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)

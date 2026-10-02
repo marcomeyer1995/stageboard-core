@@ -9,6 +9,7 @@ import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 import { useModeDashboards } from '../lib/useModeDashboards'
+import { useBackHandler } from '../lib/backNavigation'
 
 interface AppMenuProps {
   mode: Mode
@@ -47,6 +48,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * else: blank resets a non-admin account, is refused for an admin one).
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
+  useBackHandler(onClose)
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
 

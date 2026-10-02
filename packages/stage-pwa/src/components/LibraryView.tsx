@@ -26,6 +26,7 @@ import { OverflowMenu } from './OverflowMenu'
 import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
+import { useBackHandler } from '../lib/backNavigation'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -249,6 +250,8 @@ export function LibraryView() {
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
   // SheetEditor. Irrelevant while selection isn't a song.
   const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
+  // Back closes an open song preview or setlist (#341) - the song editor handles its own Back.
+  useBackHandler(selection && songMode !== 'edit' ? () => setSelection(null) : null)
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
   // Keyboard row navigation (#178, pointer lane only) - a separate "which row is arrow-keyed"
   // cursor from `selection` itself (see keyboardFocused's own doc comment on DraggableSongRow).

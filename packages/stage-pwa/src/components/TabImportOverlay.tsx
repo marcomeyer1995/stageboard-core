@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
+import { useBackHandler } from '../lib/backNavigation'
 
 const PROVIDERS = [
   { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
@@ -36,6 +37,7 @@ interface TabImportOverlayProps {
 /** docs/08 Use Case 1.1 "Smarter In-App Tab Import": search, preview, then commit to the
  * editor - the user never has to leave the app to find a chord sheet. */
 export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
+  useBackHandler(onClose)
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LookupResult[]>([])

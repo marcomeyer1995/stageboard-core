@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { setLineTimeTag, tappableLines } from '../lib/chordpro'
 import { formatTrackClockTime as formatTime, useTrackClock } from '../lib/useTrackClock'
 import { useClockStore } from '../store/useClockStore'
+import { useBackHandler } from '../lib/backNavigation'
 
 /** First tappable line after `after` (-1 for "from the start"), or -1 when there's none left.
  * Only lyric lines get a timecode - see `tappableLines` for what's skipped and why. */
@@ -28,6 +29,7 @@ interface TapToSyncProps {
  * bare-stopwatch behavior (e.g. syncing to a click only in your head).
  */
 export function TapToSync({ content, trackSrc, onComplete, onCancel }: TapToSyncProps) {
+  useBackHandler(onCancel)
   const [lines, setLines] = useState<string[]>(() => content.split('\n'))
   const [tapIndex, setTapIndex] = useState(() => nextTappableIndex(lines, -1))
   const { elapsedMs, isPlaying, duration, position, togglePlay, audioProps } = useTrackClock(trackSrc)

@@ -14,6 +14,7 @@ import {
 } from '../lib/dashboardLayout'
 import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
+import { useBackHandler } from '../lib/backNavigation'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   performance: 'Performance',
@@ -96,12 +97,14 @@ export function WidgetLibrary({
   onAddToNewDashboard,
   onClose,
 }: WidgetLibraryProps) {
+  useBackHandler(onClose)
   // A rehearsal widget is fine anywhere; on a dashboard that is also offered in Gig mode it
   // just gets a note, never a block (Marco, 2026-09-27: keep the gig dashboards lean by choice).
   const offeredInGig = isDashboardAvailableInMode(dashboard, 'gig')
   const [search, setSearch] = useState('')
   // A widget that does not fit at full size waits here for the user's choice.
   const [noRoom, setNoRoom] = useState<WidgetDefinition | null>(null)
+  useBackHandler(noRoom ? () => setNoRoom(null) : null)
 
   const available = useMemo(
     () => availableWidgets(ALL_WIDGETS, capabilities, activeRoles),
