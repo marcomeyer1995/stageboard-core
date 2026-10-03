@@ -44,6 +44,7 @@ import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
+import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
@@ -85,11 +86,18 @@ const keyFile = fileURLToPath(new URL('../../../certs/dev-key.pem', import.meta.
 const CERTS_AVAILABLE = existsSync(certFile) && existsSync(keyFile)
 /** `localhost` for whoever opens this dev server directly, `stageboard.local` for the mDNS
  * name devices normally use (docs/03) - covers both without requiring FRONTEND_ORIGIN to be
- * set by hand for the common cases. */
+ * set by hand for the common cases. `https://localhost` is the native Android app's own origin
+ * (Capacitor, #348): its UI is bundled in the APK, so every server call is cross-origin. */
 const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://localhost:5173`,
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
+  'https://localhost',
 ].join(',')
+
+/** SHA-256 fingerprint of the server's certificate (lowercase hex, no separators), or null
+ * without HTTPS. The native app pins exactly this certificate when pairing (#348) - the invite
+ * QR code carries it, so a self-signed certificate is trusted without any CA on the device. */
+const CERT_FINGERPRINT = CERTS_AVAILABLE ? certFingerprint(readFileSync(certFile, 'utf8')) : null
 
 /** True if `username`/`password` authenticate as a genuine admin *of this specific workspace*
  * (see per-person-accounts follow-up) - every admin-gated route below uses this instead of
@@ -357,6 +365,7 @@ export async function buildApp() {
   app.get('/server-info', async () => ({
     lanIp: process.env.LAN_IP ?? detectLanIp(),
     hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',
+    certFingerprint: CERT_FINGERPRINT,
   }))
 
   // Audio tracks arrive as whatever mime type the browser's Blob carries (audio/mpeg,

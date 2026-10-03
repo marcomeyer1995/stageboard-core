@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { buildJoinUrl, renderQrCode } from '../lib/qrCode'
-import { fetchLanIp } from '../lib/serverInfo'
+import { fetchServerAddress } from '../lib/serverInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
@@ -27,7 +27,7 @@ import { useBackHandler } from '../lib/backNavigation'
  * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
  * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a
  * phone's *native* camera app can open it directly and land on the right Stage-Server, not only
- * the in-app scanner. The IP is fetched fresh (`fetchLanIp`) every time this screen mounts - so
+ * the in-app scanner. The IP is fetched fresh (`fetchServerAddress`) every time this screen mounts - so
  * every "Einladen" press embeds whatever address is current right now, not a stale build-time
  * or first-load one - and shown as plain text alongside the QR, with a note that the code needs
  * regenerating if that address ever changes, since there's no way to update an already-printed
@@ -49,17 +49,18 @@ export function InviteBandView({
 
   const [code, setCode] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [lanIp, setLanIp] = useState<string | null>(null)
+  const [server, setServer] = useState<{ lanIp: string; certFingerprint: string | null } | null>(null)
+  const lanIp = server?.lanIp ?? null
   const [error, setError] = useState<string | null>(null)
   const [rotating, setRotating] = useState(false)
 
-  async function loadQr(nextCode: string, host: string | null) {
+  async function loadQr(nextCode: string, address: { lanIp: string; certFingerprint: string | null } | null) {
     // The QR carries workspaceId+code together (WiFi-QR-style - SSID and password in one
     // scan) either way; wrapped in a real URL when the server's current LAN IP is known, so a
     // scanning device's native camera app can open it directly - falls back to the older bare
     // `workspaceId:code` text (still fine for the in-app scanner) if the IP couldn't be
     // determined, rather than blocking the invite screen on that.
-    const payload = host ? buildJoinUrl(host, workspaceId, nextCode) : `${workspaceId}:${nextCode}`
+    const payload = address ? buildJoinUrl(address.lanIp, workspaceId, nextCode, address.certFingerprint) : `${workspaceId}:${nextCode}`
     const url = await renderQrCode(payload)
     setQrDataUrl(url)
   }
@@ -69,9 +70,9 @@ export function InviteBandView({
     // Fetched fresh on every mount, i.e. every time "Einladen" is opened (Marco's explicit
     // request) - not cached/reused, so a QR regenerated after the server's IP changes always
     // reflects the current address, never a stale one from an earlier visit to this screen.
-    const ipPromise = fetchLanIp().then((ip) => {
-      if (!cancelled) setLanIp(ip)
-      return ip
+    const addressPromise = fetchServerAddress().then((address) => {
+      if (!cancelled) setServer(address)
+      return address
     })
     void getAccessCode(workspaceId).then(async (result) => {
       if (cancelled) return
@@ -80,7 +81,7 @@ export function InviteBandView({
         return
       }
       setCode(result.code)
-      void loadQr(result.code, await ipPromise)
+      void loadQr(result.code, await addressPromise)
     })
     return () => {
       cancelled = true
@@ -145,7 +146,7 @@ export function InviteBandView({
                 setRotating(false)
                 if (!result) return
                 setCode(result.code)
-                void loadQr(result.code, lanIp)
+                void loadQr(result.code, server)
               }}
               className="w-full text-center text-xs text-ink-faint underline disabled:opacity-50 print:hidden"
             >

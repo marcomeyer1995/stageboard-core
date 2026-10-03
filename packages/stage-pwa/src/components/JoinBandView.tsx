@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
-import { decodeQrFrame, parseJoinPayload } from '../lib/qrCode'
+import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
+import { isNativeApp, pairWithServer, serverFingerprint, shortFingerprint } from '../lib/native'
+import { useStageServerStore } from '../store/useStageServerStore'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -78,6 +80,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   const joinWithPassword = useWorkspaceStore((state) => state.joinWithPassword)
   const setActiveProfile = useActiveProfileStore((state) => state.setActive)
   const promptText = useDialogStore((state) => state.promptText)
+  const confirm = useDialogStore((state) => state.confirm)
+  // The native app (#348) pairs with a Stage-Server first - its own origin isn't one.
+  const native = isNativeApp()
+  const serverUrl = useStageServerStore((state) => state.url)
+  const [serverAddress, setServerAddress] = useState('')
+  const [connectError, setConnectError] = useState<string | null>(null)
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
   const [busy, setBusy] = useState(false)
@@ -127,9 +135,42 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   }
 
   useEffect(() => {
+    // The native app without a paired server has nothing to ask yet - pairing loads the list.
+    if (native && !serverUrl) return
     void loadWorkspaces()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** Native app: trust the server by the certificate it presents (after the user confirms its
+   * fingerprint) and use it - for a typed-in address, without a QR code. */
+  async function connectByAddress() {
+    const host = serverAddress.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    if (!host) return
+    setConnectError(null)
+    let fingerprint: string
+    try {
+      fingerprint = await serverFingerprint(host)
+    } catch {
+      setConnectError(`Kein Stage-Server unter ${host} erreichbar.`)
+      return
+    }
+    const trusted = await confirm(`Mit dem Stage-Server ${host} verbinden? Zertifikat: ${shortFingerprint(fingerprint)} – auf dem Admin-Gerät unter „Einladen“ vergleichbar.`, { confirmLabel: 'Verbinden' })
+    if (!trusted) return
+    await pairWithServer(host, fingerprint)
+    await loadWorkspaces()
+  }
+
+  /** A scanned invite: in the native app it also pairs with the server it names. */
+  async function joinFromPayload(payload: JoinPayload) {
+    if (native) {
+      if (!payload.host || !payload.fingerprint) {
+        setConnectError('Dieser QR-Code enthält keine Server-Kennung – bitte die Adresse des Stage-Servers eingeben.')
+        return
+      }
+      await pairWithServer(payload.host, payload.fingerprint)
+    }
+    await handleFetchRoster(payload.workspaceId, payload.code)
+  }
 
   async function handleFetchRoster(workspaceId: string, enteredCode: string) {
     if (busyRef.current) return
@@ -221,7 +262,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
       if (payload) {
         stopCamera()
         setCameraStatus('idle')
-        void handleFetchRoster(payload.workspaceId, payload.code)
+        void joinFromPayload(payload)
         return
       }
     }
@@ -399,6 +440,32 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           >
             Abbrechen
           </button>
+        )}
+
+        {native && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void connectByAddress()
+            }}
+            className="space-y-2 rounded-sb border border-line bg-surface p-3"
+          >
+            <p className="text-sm text-ink-muted">{serverUrl ? `Stage-Server: ${serverUrl.replace(/^https:\/\//, '')}` : 'Stage-Server: QR-Code scannen oder Adresse eingeben.'}</p>
+            <div className="flex gap-2">
+              <input
+                value={serverAddress}
+                onChange={(e) => setServerAddress(e.target.value)}
+                placeholder="192.168.178.158"
+                inputMode="url"
+                className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+                aria-label="Adresse des Stage-Servers"
+              />
+              <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                Verbinden
+              </button>
+            </div>
+            {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+          </form>
         )}
 
         {/* Fixed height, not aspect-square: aspect-square sized to full device width made
