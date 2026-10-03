@@ -1,4 +1,5 @@
 import { useStageServerStore } from '../store/useStageServerStore'
+import { isNativeApp } from './native'
 
 /**
  * The Stage-Server base URL to use for every core-backend call in the app - a runtime setting
@@ -21,6 +22,8 @@ export function getStageServerUrl(): string | undefined {
  * tablet that opened the app from the Stage-Server itself this is always right, which is why the
  * Settings field is an *override* behind "Erweitert", not something to fill in. */
 export function getAutomaticStageServerUrl(): string | undefined {
+  // The native app's own origin (https://localhost) is not a Stage-Server - it pairs instead (#348).
+  if (isNativeApp()) return undefined
   if (!import.meta.env.DEV) return window.location.origin
   return import.meta.env.VITE_STAGE_SERVER_URL as string | undefined
 }

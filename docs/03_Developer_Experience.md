@@ -97,6 +97,15 @@ WantedBy=default.target
 
 **Noch offen:** Es gibt noch kein automatisches Backup auf ein zweites Medium - CouchDB-Volume, `~/stageboard-data` und `certs/` liegen auf einer einzigen Platte. Der manuelle Snapshot in der App (System → Backup, `workspaceSnapshot.ts`) enthält weder die Backing-Tracks noch `logical-devices`/`devices`/`device-transport-config`.
 
+## 0c. Native Android-App (Capacitor, #348)
+
+Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.
+
+* **Pairing statt Origin:** Die App-Origin ist `https://localhost`, die Server-Adresse kommt aus dem Einladungs-QR-Code (`?ws=&code=&fp=`) oder einer eingetippten Adresse (`lib/native.ts`, `JoinBandView`).
+* **Zertifikat per Fingerprint:** `ServerTrustPlugin.java` merkt sich pro Host den SHA-256-Fingerprint (aus dem QR-Code bzw. nach Bestätigung), `PinnedWebViewClient.java` akzeptiert nur exakt dieses Zertifikat - für alle Anfragen (API, CouchDB-Sync, SSE, Audio; am Samsung-Handy geprüft). Der Server meldet seinen Fingerprint in `GET /server-info` (`certFingerprint`) und erlaubt `https://localhost` per CORS.
+* **Toolchain (nur im Home-Verzeichnis, kein sudo):** JDK 21 unter `~/.local/share/jdk/current`, Android-SDK unter `~/Android/Sdk` (Platform 36, Build-Tools). Bauen: `npm run build -w stage-pwa`, dann in `packages/stage-pwa`: `npx cap sync android`, dann in `android/`: `JAVA_HOME=~/.local/share/jdk/current ANDROID_HOME=~/Android/Sdk ./gradlew assembleDebug` - APK unter `android/app/build/outputs/apk/debug/`. Aufs Gerät: `adb install -r <apk>`.
+* **Noch offen (Phase 1, zweiter Teil):** Release-Signierung, APK-Download-Seite auf dem Stage-Server, Versionsabgleich App/Server.
+
 ## 1. Die Logging- & Debug-Strategie (Home Assistant Style)
 Um bei zig parallelen Plugins den Überblick zu behalten, reicht ein einfaches `console.log` nicht aus. Wir nutzen Structured Logging (z.B. mit Pino oder Winston im Backend).
 

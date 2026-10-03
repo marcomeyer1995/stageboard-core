@@ -23,10 +23,12 @@ export function decodeQrFrame(imageData: ImageData): string | null {
  * (`InviteBandView.tsx` fetches it fresh via `fetchLanIp()` every time the screen opens) -
  * baking in an address that might later change is exactly why re-opening "Einladen" always
  * re-embeds whatever the address currently is, rather than reusing a cached QR. */
-export function buildJoinUrl(host: string, workspaceId: string, code: string): string {
+export function buildJoinUrl(host: string, workspaceId: string, code: string, certFingerprint: string | null = null): string {
   const url = new URL(`https://${host}/`)
   url.searchParams.set('ws', workspaceId)
   url.searchParams.set('code', code)
+  // The server certificate's SHA-256 fingerprint: the native app pins it when pairing (#348).
+  if (certFingerprint) url.searchParams.set('fp', certFingerprint)
   return url.toString()
 }
 
@@ -34,12 +36,21 @@ export function buildJoinUrl(host: string, workspaceId: string, code: string): s
  * (2026-09-01's original WiFi-style QR format), so a code printed before this URL-based format
  * existed keeps scanning correctly. Used by both `JoinBandView.tsx`'s in-app scanner and, for a
  * `?ws=&code=` link opened fresh (no app running yet), `App.tsx`'s startup check. */
-export function parseJoinPayload(text: string): { workspaceId: string; code: string } | null {
+export interface JoinPayload {
+  workspaceId: string
+  code: string
+  /** Only from a URL-format QR: the server's host, and its certificate fingerprint if the QR has one. */
+  host?: string
+  fingerprint?: string
+}
+
+export function parseJoinPayload(text: string): JoinPayload | null {
   try {
     const url = new URL(text)
     const workspaceId = url.searchParams.get('ws')
     const code = url.searchParams.get('code')
-    if (workspaceId && code) return { workspaceId, code }
+    const fingerprint = url.searchParams.get('fp')
+    if (workspaceId && code) return { workspaceId, code, host: url.host, ...(fingerprint ? { fingerprint } : {}) }
   } catch {
     // Not a URL - fall through to the legacy plain-text format below.
   }

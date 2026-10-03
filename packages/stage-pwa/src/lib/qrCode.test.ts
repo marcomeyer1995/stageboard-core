@@ -30,9 +30,16 @@ describe('buildJoinUrl', () => {
 })
 
 describe('parseJoinPayload', () => {
-  it('parses a buildJoinUrl URL back into its workspace/code pair', () => {
+  it('parses a buildJoinUrl URL back into its workspace/code pair and the server host', () => {
     const url = buildJoinUrl('192.168.178.158', 'band-a', '12345678')
-    expect(parseJoinPayload(url)).toEqual({ workspaceId: 'band-a', code: '12345678' })
+    expect(parseJoinPayload(url)).toEqual({ workspaceId: 'band-a', code: '12345678', host: '192.168.178.158' })
+  })
+
+  it('carries the server certificate fingerprint for the native app to pin (#348)', () => {
+    const fp = 'ab'.repeat(32)
+    const url = buildJoinUrl('192.168.178.158', 'band-a', '12345678', fp)
+    expect(url).toBe(`https://192.168.178.158/?ws=band-a&code=12345678&fp=${fp}`)
+    expect(parseJoinPayload(url)).toEqual({ workspaceId: 'band-a', code: '12345678', host: '192.168.178.158', fingerprint: fp })
   })
 
   it('still parses the legacy plain workspaceId:code format', () => {
