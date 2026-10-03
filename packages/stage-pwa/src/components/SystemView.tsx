@@ -43,7 +43,7 @@ function useIsWideScreen(): boolean {
 }
 
 /**
- * The "System" pillar of the Live / Bibliothek / System structure #20 originally planned -
+ * The "System" pillar of the Boards / Bibliothek / System structure (#20 called the first one "Live") -
  * Plugins, Hardware (#10's Logical Device / HardwareSetup admin UI), Backup, Nachbericht, the
  * settings that used to live directly in AppMenu.tsx
  * (Darstellung, Sync status, Speicher & Sync - see the 2026-08-30 menu-decluttering pass), and

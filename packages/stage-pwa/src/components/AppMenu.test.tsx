@@ -28,11 +28,11 @@ beforeEach(() => {
 })
 
 describe('AppMenu', () => {
-  it('offers exactly the three top-level modes (Live/Bibliothek/System)', () => {
+  it('offers exactly the three top-level modes (Boards/Bibliothek/System)', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'Live' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Boards' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Bibliothek' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plugins' })).not.toBeInTheDocument()
@@ -40,7 +40,7 @@ describe('AppMenu', () => {
 
   it('no longer shows the settings sections moved to SystemView (Darstellung, Sync, Speicher & Sync)', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.queryByText('Darstellung')).not.toBeInTheDocument()
     expect(screen.queryByText('Synchronisation')).not.toBeInTheDocument()
@@ -58,7 +58,7 @@ describe('AppMenu', () => {
     })
 
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.getByText('Anzeige')).toBeInTheDocument()
     expect(screen.getByText('Vollbild')).toBeInTheDocument()
@@ -66,14 +66,14 @@ describe('AppMenu', () => {
 
   it('2026-09-02: no longer shows "Wer bin ich" - band/profile switching moved to BandManagementView.tsx\'s "Band" tab', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
   it('only shows the Dashboard edit-lock section in live mode', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    const { rerender } = render(<AppMenu mode="live" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    const { rerender } = render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
 
     rerender(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
@@ -103,7 +103,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     expect(inactive).not.toHaveClass('bg-accent')
   })
 
-  it('picking a dashboard sets it active, switches to Live mode, and closes the menu - one tap from anywhere', () => {
+  it('picking a dashboard sets it active, switches to the Boards, and closes the menu - one tap from anywhere', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0), dashboard('d2', 'Monitor', 1)] })
     const onSelectMode = vi.fn()
@@ -113,7 +113,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Monitor' }))
 
     expect(useActiveDashboardStore.getState().byWorkspace['band-a']).toBe('d2')
-    expect(onSelectMode).toHaveBeenCalledWith('live')
+    expect(onSelectMode).toHaveBeenCalledWith('boards')
     expect(onClose).toHaveBeenCalled()
   })
 })

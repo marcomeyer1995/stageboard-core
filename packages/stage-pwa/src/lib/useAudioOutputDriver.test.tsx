@@ -388,7 +388,7 @@ describe('surviving a top-level tab switch (Live -> Bibliothek/System, #13/#25 f
       playbackStatus: 'playing',
     })
 
-    // App.tsx mounts the driver unconditionally, alongside {mode === 'live' && <Dashboard />}
+    // App.tsx mounts the driver unconditionally, alongside {mode === 'boards' && <Dashboard />}
     // which is what actually unmounts ShowTransportWidget on a tab switch (App.tsx).
     function Scene({ onLiveTab }: { onLiveTab: boolean }) {
       return (

@@ -1,4 +1,6 @@
-export type Mode = 'live' | 'library' | 'system'
+/** The three main views. "Boards" (was "Live" until #333) holds the dashboards - used in Gig and
+ * Solo practice alike, so it isn't named after the show. */
+export type Mode = 'boards' | 'library' | 'system'
 
 /**
  * All always available - no capability gating at this level anymore. Plugins, Backup, and
@@ -8,10 +10,10 @@ export type Mode = 'live' | 'library' | 'system'
  * own gating per tab (only Backup needs it) instead of this module hiding a whole top-level
  * mode.
  */
-export const MODES: Mode[] = ['live', 'library', 'system']
+export const MODES: Mode[] = ['boards', 'library', 'system']
 
 export const MODE_LABEL: Record<Mode, string> = {
-  live: 'Live',
+  boards: 'Boards',
   library: 'Bibliothek',
   system: 'System',
 }

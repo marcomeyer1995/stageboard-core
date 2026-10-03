@@ -58,7 +58,7 @@ beforeEach(() => {
 describe('StatusBar (PR F2)', () => {
   it('shows state, song, time, mode, Master crown, clock, musician and sync', () => {
     mockShow('playing', 65_000)
-    render(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('playing')
     expect(bar().className).toContain('bg-green-700')
     expect(bar().textContent).toContain('Spielt')
@@ -74,7 +74,7 @@ describe('StatusBar (PR F2)', () => {
   it('keeps the bar calm blue and flashes only the count block on each count-in beat', () => {
     // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms.
     mockShow('playing', -1_450)
-    const { rerender } = render(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('count-in')
     expect(bar().className).toContain('bg-blue-700')
     const block = screen.getByRole('status')
@@ -83,7 +83,7 @@ describe('StatusBar (PR F2)', () => {
     expect(block.className).toContain('bg-white')
 
     mockShow('playing', -1_200)
-    rerender(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().className).toContain('bg-blue-700')
     expect(screen.getByRole('status').dataset.flash).toBe('false')
     // Time counts down cleanly, never "-0:00".
@@ -92,23 +92,23 @@ describe('StatusBar (PR F2)', () => {
 
   it('turns "Beendet" (magenta) when a run stops at the song\'s end, not after a false start', () => {
     mockShow('playing', 179_000)
-    const { rerender } = render(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     mockShow('stopped', null)
-    rerender(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('finished')
     expect(bar().className).toContain('bg-fuchsia-700')
 
     mockShow('playing', 3_000)
-    rerender(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     mockShow('stopped', null)
-    rerender(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('ready')
   })
 
   it('goes red with the fault named when nobody holds the Master token in Gig mode', () => {
     stores.masterHolderId = null
     mockShow('stopped', null, false)
-    render(<StatusBar screen="live" onOpenMenu={vi.fn()} />)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().className).toContain('bg-red-600')
     expect(bar().textContent).toContain('Kein Master')
     expect(screen.queryByLabelText('Master')).not.toBeInTheDocument()
@@ -117,7 +117,7 @@ describe('StatusBar (PR F2)', () => {
   it('opens the menu from its ☰ button', () => {
     mockShow('stopped', null)
     const onOpenMenu = vi.fn()
-    render(<StatusBar screen="live" onOpenMenu={onOpenMenu} />)
+    render(<StatusBar screen="boards" onOpenMenu={onOpenMenu} />)
     screen.getByLabelText('Menü öffnen').click()
     expect(onOpenMenu).toHaveBeenCalled()
   })
