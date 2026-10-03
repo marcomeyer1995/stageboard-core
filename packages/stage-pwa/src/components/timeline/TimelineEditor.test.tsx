@@ -13,6 +13,18 @@ const box = vi.hoisted(() => ({ width: 1000, height: 206 }))
 vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, box] }))
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
+// Playback state the tapping tests switch on; everything else sees a stopped track.
+const trackClock = vi.hoisted(() => ({ isPlaying: false, togglePlay: vi.fn(), ref: { current: null as HTMLAudioElement | null } }))
+vi.mock('../../lib/useTrackClock', () => ({
+  useTrackClock: () => ({
+    elapsedMs: 0,
+    isPlaying: trackClock.isPlaying,
+    duration: 0,
+    position: 0,
+    togglePlay: trackClock.togglePlay,
+    audioProps: { ref: trackClock.ref },
+  }),
+}))
 // The in-app confirm dialog answers "yes" right away.
 const dialog = vi.hoisted(() => ({ promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null) }))
 vi.mock('../../store/useDialogStore', () => ({
@@ -30,7 +42,7 @@ const { TimelineEditor } = await import('./TimelineEditor')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
-function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string; cues?: ShowCue[] } = {}) {
+function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string; cues?: ShowCue[]; startLineTapping?: boolean } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
@@ -47,6 +59,7 @@ function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm:
       onChange={onChange}
       onDetectGrid={extra.onDetectGrid}
       fill={extra.fill}
+      startLineTapping={extra.startLineTapping}
     />,
   )
   return { onChange, ...utils }
@@ -301,5 +314,51 @@ describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
     expect(gridLane!.style.top).toBe('383px')
     box.width = 1000
     box.height = 206
+  })
+})
+
+describe('tapping lines (#325)', () => {
+  const song = ['{part: Verse}', 'First line', 'Second line', 'Third line', 'Fourth line'].join('\n')
+
+  it('opens straight into line tapping, shows the context, undoes taps by button and key', () => {
+    trackClock.isPlaying = true
+    setup({ content: song, trackSrc: 'blob:track', startLineTapping: true })
+    const panel = screen.getByTestId('tap-lines-panel')
+    expect(panel.textContent).toContain('→ First line')
+    expect(screen.getByText('Letzte Zeile zurück')).toBeDisabled()
+
+    const tapButton = screen.getByText('TIPP')
+    fireEvent.pointerDown(tapButton)
+    fireEvent.pointerDown(tapButton)
+    expect(panel.textContent).toContain('✓ Second line')
+    expect(panel.textContent).toContain('→ Third line')
+    expect(panel.textContent).toContain('Fourth line')
+
+    fireEvent.click(screen.getByText('Letzte Zeile zurück'))
+    expect(panel.textContent).toContain('→ Second line')
+
+    // Space taps (instead of toggling playback), ArrowUp undoes.
+    const timeline = screen.getByLabelText('Timeline')
+    fireEvent.keyDown(timeline, { key: ' ' })
+    expect(trackClock.togglePlay).not.toHaveBeenCalled()
+    expect(panel.textContent).toContain('→ Third line')
+    fireEvent.keyDown(timeline, { key: 'ArrowUp' })
+    expect(panel.textContent).toContain('→ Second line')
+    trackClock.isPlaying = false
+  })
+
+  it('"Zurück + 4 s" undoes the last tap and replays from before it', () => {
+    trackClock.isPlaying = true
+    setup({ content: song, trackSrc: 'blob:track', startLineTapping: true })
+    trackClock.ref.current!.currentTime = 30
+    fireEvent.pointerDown(screen.getByText('TIPP'))
+    const panel = screen.getByTestId('tap-lines-panel')
+    expect(panel.textContent).toContain('→ Second line')
+
+    fireEvent.keyDown(screen.getByLabelText('Timeline'), { key: 'ArrowLeft' })
+    expect(panel.textContent).toContain('→ First line')
+    // The tap was at the clock's 0 ms here, so playback goes back to the start (never below 0).
+    expect(trackClock.ref.current!.currentTime).toBe(0)
+    trackClock.isPlaying = false
   })
 })

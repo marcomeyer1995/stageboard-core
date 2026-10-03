@@ -85,15 +85,33 @@ export function setLineTime(content: string, rawIndex: number, ms: number | null
   return raw.join('\n')
 }
 
-/** The line tapping starts at: the selected one, else the first without a time, else the first. */
-export function tapStartLine(lines: readonly TimelineLine[], selectedRawIndex: number | null): TimelineLine | null {
-  return lines.find((l) => l.rawIndex === selectedRawIndex) ?? lines.find((l) => l.timeMs === null) ?? lines[0] ?? null
+/** A row of chords only (`| C | F | G | G |`, `[C] [G]`) - nothing left to sing once the chords
+ * are gone. Shown on the timeline, but skipped when tapping lines (#325). */
+export function isChordOnlyLine(line: TimelineLine): boolean {
+  return !/[\p{L}\p{N}]/u.test(line.text)
 }
 
-/** "Zeilen tippen": one tap per line, in text order from `fromRawIndex` - the tapped lines get
- * the tap times, every other line keeps its tag. Extra taps past the last line are ignored. */
+/** The lines "Zeilen tippen" goes through: every lyric line except chord-only rows. */
+export function tapLines(lines: readonly TimelineLine[]): TimelineLine[] {
+  return lines.filter((l) => !isChordOnlyLine(l))
+}
+
+/** The line tapping starts at: the selected one (or the next lyric after a selected chord row),
+ * else the first without a time, else the first. Chord-only rows are never the start. */
+export function tapStartLine(lines: readonly TimelineLine[], selectedRawIndex: number | null): TimelineLine | null {
+  const tappable = tapLines(lines)
+  if (selectedRawIndex !== null) {
+    const fromSelected = tappable.find((l) => l.rawIndex >= selectedRawIndex)
+    if (fromSelected && lines.some((l) => l.rawIndex === selectedRawIndex)) return fromSelected
+  }
+  return tappable.find((l) => l.timeMs === null) ?? tappable[0] ?? null
+}
+
+/** "Zeilen tippen": one tap per line, in text order from `fromRawIndex`, chord-only rows skipped -
+ * the tapped lines get the tap times, every other line keeps its tag. Extra taps past the last
+ * line are ignored. */
 export function stampLines(content: string, fromRawIndex: number, tapsMs: readonly number[]): string {
-  const lines = timelineLines(content)
+  const lines = tapLines(timelineLines(content))
   const start = lines.findIndex((l) => l.rawIndex === fromRawIndex)
   if (start < 0) return content
   const raw = content.split('\n')

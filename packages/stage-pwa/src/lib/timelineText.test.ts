@@ -63,6 +63,21 @@ describe('Zeilen tippen', () => {
   })
 })
 
+describe('chord-only rows when tapping (#325)', () => {
+  const withIntro = ['{part: Intro}', '| [C] | [F] | [G] | [G] |', '[C] [G]', '{part: Verse}', 'First [C]line', 'Second line'].join('\n')
+
+  it('are skipped: never the start, never stamped', () => {
+    const lines = timelineLines(withIntro)
+    expect(lines.map((l) => l.rawIndex)).toEqual([1, 2, 4, 5]) // still on the timeline
+    expect(tapStartLine(lines, null)?.rawIndex).toBe(4)
+    expect(tapStartLine(lines, 1)?.rawIndex).toBe(4) // a selected chord row starts at the next lyric
+    const raw = stampLines(withIntro, 4, [5000, 9000]).split('\n')
+    expect(raw[1]).toBe('| [C] | [F] | [G] | [G] |')
+    expect(raw[4]).toBe('[00:05.00] First [C]line')
+    expect(raw[5]).toBe('[00:09.00] Second line')
+  })
+})
+
 describe('partBlocks', () => {
   it('spans each part from its first timed line to the next part', () => {
     expect(partBlocks(timelineLines(song), 60000)).toEqual([

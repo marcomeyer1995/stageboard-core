@@ -18,7 +18,7 @@ import {
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
-import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
+import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
@@ -60,7 +60,14 @@ export interface TimelineEditorProps {
   onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>
   /** Full screen (docs/14): the lanes take all the height the parent gives the component. */
   fill?: boolean
+  /** Opened from the text editor's "Tap-to-Sync" (#325): start "Zeilen tippen" right away;
+   * `onLineTappingStarted` lets the parent clear the request so it doesn't repeat on remount. */
+  startLineTapping?: boolean
+  onLineTappingStarted?: () => void
 }
+
+/** "Zurück + 4 s" while tapping lines: how far before the undone tap playback resumes. */
+const TAP_REWIND_MS = 4000
 
 /** Lane heights in the compact layout; full screen (`fill`) splits the available height. */
 const DEFAULT_AUDIO_H = 96
@@ -151,7 +158,7 @@ function fitText(text: string, maxPx: number): string {
  * swipe elsewhere = scroll, tap = move the playhead (or select), pinch / Ctrl+wheel = zoom.
  */
 export function TimelineEditor(props: TimelineEditorProps) {
-  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, cues, onChange, onDetectGrid, fill = false } = props
+  const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, cues, onChange, onDetectGrid, fill = false, startLineTapping = false, onLineTappingStarted } = props
   const clock = useTrackClock(trackSrc)
   const [sizeRef, box] = useElementSize()
   const [lanesEl, setLanesEl] = useState<HTMLDivElement | null>(null)
@@ -259,7 +266,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const minMs = Math.min(0, countInStartMs)
   const songBeats = useMemo(() => beatsBetween(timeline, 0, durationMs), [timeline, durationMs])
   const quality = useMemo(() => (analysis ? barQuality(songBeats, analysis.onsetsMs) : []), [songBeats, analysis])
-  const untimedLines = lines.filter((l) => l.timeMs === null).length
+  const untimedLines = tapLines(lines).filter((l) => l.timeMs === null).length
 
   // Track analysis (waveform + onsets): cached per track, computed once in a worker.
   useEffect(() => {
@@ -903,9 +910,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
     taps.current.push(useClockStore.getState().getElapsedMs())
     setTapCount(taps.current.length)
   }
+  /** "Letzte Zeile zurück": forget the last tap - its line is next again; playback goes on. */
+  function undoTap() {
+    taps.current.pop()
+    setTapCount(taps.current.length)
+  }
+  /** "Zurück + 4 s": forget the last tap and replay from a little before it, to tap it again. */
+  function undoTapAndRewind() {
+    const last = taps.current.pop()
+    setTapCount(taps.current.length)
+    seek((last ?? useClockStore.getState().getElapsedMs()) - TAP_REWIND_MS)
+  }
   // The line the next tap stamps (shown on the tap button).
-  const tapStartIndex = tapFromLine.current !== null ? lines.findIndex((l) => l.rawIndex === tapFromLine.current) : -1
-  const nextTapLine = tapMode === 'lines' && tapStartIndex >= 0 ? lines[tapStartIndex + tapCount] : undefined
+  // Chord-only rows are skipped when tapping (#325).
+  const tappable = tapMode === 'lines' ? tapLines(lines) : []
+  const tapStartIndex = tapFromLine.current !== null ? tappable.findIndex((l) => l.rawIndex === tapFromLine.current) : -1
+  const nextTapLine = tapStartIndex >= 0 ? tappable[tapStartIndex + tapCount] : undefined
+  const prevTapLine = tapStartIndex >= 0 && tapCount > 0 ? tappable[tapStartIndex + tapCount - 1] : undefined
+  const afterTapLine = tapStartIndex >= 0 ? tappable[tapStartIndex + tapCount + 1] : undefined
+
+  // Opened via the text editor's "Tap-to-Sync" (#325): straight into "Zeilen tippen".
+  useEffect(() => {
+    if (!startLineTapping) return
+    startTapping('lines', null)
+    onLineTappingStarted?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startLineTapping])
 
   async function detectGrid() {
     if (!onDetectGrid) return
@@ -1029,6 +1059,21 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    // While tapping, Space taps (it would otherwise toggle playback too) - from anywhere in the
+    // timeline, not just the container; holding it down must not rapid-fire through lines.
+    if (tapMode && e.key === ' ') {
+      e.preventDefault()
+      if (e.repeat) return
+      if (clock.isPlaying) tap()
+      else clock.togglePlay()
+      return
+    }
+    if (tapMode === 'lines' && (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'Backspace')) {
+      e.preventDefault()
+      if (e.key === 'ArrowUp') undoTap()
+      else undoTapAndRewind()
+      return
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault()
       if (e.shiftKey) redo()
@@ -1155,17 +1200,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
         )}
       </div>
 
-      {tapMode && (
+      {tapMode === 'lines' && (
+        <div className="flex flex-col gap-2 rounded-sb bg-control p-2" data-testid="tap-lines-panel">
+          <div className="flex flex-col gap-1 px-2 text-base">
+            <span className="truncate text-ink-faint">{prevTapLine ? `✓ ${prevTapLine.text}` : ' '}</span>
+            <span className="truncate text-lg font-bold text-accent">{nextTapLine ? `→ ${nextTapLine.text}` : 'Alle Zeilen gesetzt – Tippen beenden'}</span>
+            <span className="truncate text-ink-faint">{afterTapLine ? afterTapLine.text : ' '}</span>
+          </div>
+          <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+            {clock.isPlaying ? (nextTapLine ? 'TIPP' : 'Fertig') : 'Abspielen, dann zu jeder Zeile tippen'}
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={button} disabled={tapCount === 0} onClick={undoTap}>
+              Letzte Zeile zurück
+            </button>
+            <button type="button" className={button} disabled={!clock.isPlaying} onClick={undoTapAndRewind}>
+              Zurück + 4 s
+            </button>
+            <span className="text-sm text-ink-faint">Tastatur: Leertaste tippen · ↑ letzte zurück · ← zurück + 4 s</span>
+          </div>
+        </div>
+      )}
+      {tapMode === 'tempo' && (
         <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
-          {!clock.isPlaying
-            ? tapMode === 'lines'
-              ? 'Abspielen, dann zu jeder Zeile tippen'
-              : 'Abspielen, dann im Takt tippen'
-            : tapMode === 'lines'
-              ? nextTapLine
-                ? `TIPP: „${fitText(nextTapLine.text, 480)}“`
-                : 'Alle Zeilen gesetzt – Tippen beenden'
-              : `TIPP (${tapCount})`}
+          {clock.isPlaying ? `TIPP (${tapCount})` : 'Abspielen, dann im Takt tippen'}
         </button>
       )}
 

@@ -117,8 +117,8 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
  *
  * Returns whether playback actually started, not just whether it was attempted - `audio.play()`
  * can reject for two very different reasons. `AbortError` (pause() interrupting play() before it
- * resolves, e.g. a quick double-tap) is expected and swallowed, same as BackingTrackPlayerWidget
- * and TapToSync's identical pattern. Anything else - in practice almost always `NotAllowedError`,
+ * resolves, e.g. a quick double-tap) is expected and swallowed, same as BackingTrackPlayerWidget's
+ * identical pattern. Anything else - in practice almost always `NotAllowedError`,
  * the browser's autoplay policy refusing an unattended `play()` call with no user gesture behind
  * it - is a real failure callers need to know about: useAudioOutputDriver.ts's reload-time
  * auto-resume has no gesture to offer, so a reload during an already-playing song silently lost
