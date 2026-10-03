@@ -66,7 +66,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
   function selectDashboard(dashboardId: string) {
     setActiveDashboard(workspaceId, dashboardId)
-    onSelectMode('live')
+    onSelectMode('boards')
     onClose()
   }
 
@@ -134,7 +134,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           </Section>
         )}
 
-        {mode === 'live' && (
+        {mode === 'boards' && (
           <Section title="Dashboard">
             <EditLock onUnlock={onClose} />
           </Section>

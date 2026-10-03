@@ -409,7 +409,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ---
 
-### 4. Live-Ansicht: Dashboard (`Dashboard.tsx`, `WidgetFrame.tsx`, `DashboardEditBar.tsx`, `DashboardManager.tsx`, `WidgetLibrary.tsx`, `EditLock.tsx`)
+### 4. Boards (bis #333 „Live“): Dashboard (`Dashboard.tsx`, `WidgetFrame.tsx`, `DashboardEditBar.tsx`, `DashboardManager.tsx`, `WidgetLibrary.tsx`, `EditLock.tsx`)
 
 #### 4.1 Dashboard-Raster
 - **Was:** `react-grid-layout`-Raster, Breakpoints `xl 1600 / lg 1024 / md 640 / sm 0` (Layout wird pro Breakpoint gespeichert, Breite wird real gemessen). Im Normalbetrieb **schreibgeschützt**: nichts bewegt sich. Sichtbare Dashboards = geteilte + eigene private Stations (`isDashboardVisible`). Fällt das gemerkte Dashboard weg, wird das erste sichtbare gezeigt. Unbekannte Widget-Typen (nach Update entfernt) erscheinen als „Unbekanntes Widget" mit Entfernen-Möglichkeit. Widgets, deren Hardware nicht erreichbar ist, bleiben **an Ort und Stelle, grau, inert, mit „⃠ Offline"** (Graceful Degradation).
@@ -452,7 +452,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 | Abschnitt | Funktion | Gating / Hinweis |
 |---|---|---|
-| **Ansicht** | Live / Bibliothek / System | offen |
+| **Ansicht** | Boards / Bibliothek / System | offen |
 | **Dashboards** | Aktives Dashboard wählen | nur bei >1 sichtbarem |
 | **Modus** (`SessionModeControl`) | **Gig** ↔ **Solo Üben**. In Solo läuft die Queue rein lokal, Wiedergabe über das eigene Gerät. Wechsel **Solo → Gig** stoppt lokales Playback und setzt es zurück (#233); **Gig → Solo** ist gesperrt, solange die geteilte Show spielt („Wechsel zu Solo Üben erst möglich, wenn gerade kein Song läuft"). | nur pro Gerät; Sperre = Sicherheitsfeature |
 | **Setlist zum Üben** (`PracticeSetlistPicker`) | Nur im Solo-Modus: „Keine Setlist (ganzer Katalog)" oder eine bestehende Setlist. Wechsel stoppt Wiedergabe und setzt Position/Overrides zurück (#234). | lokal, berührt nie den ShowState |

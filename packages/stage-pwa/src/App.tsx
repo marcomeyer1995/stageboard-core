@@ -67,10 +67,10 @@ function noopStart(): TrackedSync | null {
 }
 
 function App() {
-  const [mode, setMode] = useState<Mode>('live')
+  const [mode, setMode] = useState<Mode>('boards')
   const [menuOpen, setMenuOpen] = useState(false)
   // Back from Bibliothek/System returns to the Boards (#341); on the dashboard it does nothing.
-  useBackHandler(mode !== 'live' ? () => setMode('live') : null)
+  useBackHandler(mode !== 'boards' ? () => setMode('boards') : null)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const hasAnyWorkspace = useWorkspaceStore((state) => state.workspaces.length > 0)
   const activeWorkspacePassword = useWorkspaceStore(
@@ -211,7 +211,7 @@ function App() {
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
   // The status bar is on every screen except onboarding, unless the dashboard shown in Live
   // switched it off (Dashboard.statusBar === false).
-  const showStatusBar = !inOnboarding && !(mode === 'live' && activeDashboard?.statusBar === false)
+  const showStatusBar = !inOnboarding && !(mode === 'boards' && activeDashboard?.statusBar === false)
 
   // The Device Ledger's admin "kick" (DeviceLedgerView.tsx, Marco's explicit request) - takes
   // priority over even needsJoin/needsRosterSetup/needsProfile above, since a revoked device
@@ -230,7 +230,7 @@ function App() {
         {needsProfile && <ProfileRolePickerView />}
         {!inOnboarding && (
           <>
-            {mode === 'live' && <Dashboard />}
+            {mode === 'boards' && <Dashboard />}
             {mode === 'library' && <LibraryView />}
             {mode === 'system' && <SystemView />}
           </>
