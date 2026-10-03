@@ -25,13 +25,11 @@ export interface TrackClock {
 }
 
 /**
- * Drives a Master-Clock (`useClockStore.ts`) from a `<audio>` element's own playback position -
- * extracted out of TapToSync.tsx, which originally had this inlined, so the other tools that tap
- * or record against a real track's position (Cue Recorder, the timeline) share the exact same
- * mechanics. Without a track
- * (`trackSrc === null`), falls back to a hand-started stopwatch so tapping still works with
- * nothing to sync against - callers that have no audio-less fallback of their own (unlike
- * TapToSync's line-tapping, which does) should simply require a track before rendering this.
+ * Drives a Master-Clock (`useClockStore.ts`) from a `<audio>` element's own playback position,
+ * so the tools that tap or record against a real track's position (Cue Recorder, the timeline)
+ * share the exact same mechanics. Without a track (`trackSrc === null`), falls back to a
+ * hand-started stopwatch - callers that need the real recording should require a track before
+ * rendering this.
  */
 export function useTrackClock(trackSrc: string | null): TrackClock {
   const elapsedMs = useElapsedMs()

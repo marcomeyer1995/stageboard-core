@@ -26,7 +26,6 @@ import { CommentListEditor } from './CommentListEditor'
 import { CueListEditor } from './CueListEditor'
 import { CueRecorder } from './CueRecorder'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
-import { TapToSync } from './TapToSync'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
@@ -143,7 +142,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const savedDraft = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [isTapping, setIsTapping] = useState(false)
+  // "Tap-to-Sync" opens the timeline straight into "Zeilen tippen" (#325) - the one place lines are tapped.
+  const [tapLinesOnOpen, setTapLinesOnOpen] = useState(false)
   const [isRecordingCues, setIsRecordingCues] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -174,7 +174,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   useEffect(() => {
     setTapTrackSrc(null)
     const timelineOpen = editorView === 'timeline'
-    if (!draft || (!isTapping && !isRecordingCues && !timelineOpen) || !tapTrack) return
+    if (!draft || (!isRecordingCues && !timelineOpen) || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -189,7 +189,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTapping, isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
+  }, [isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -660,6 +660,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       onChange={(patch) => setDraft((d) => (d ? { ...d, ...patch } : d))}
       onDetectGrid={detectGrid}
       fill
+      startLineTapping={tapLinesOnOpen}
+      onLineTappingStarted={() => setTapLinesOnOpen(false)}
     />
   )
 
@@ -724,73 +726,64 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // regardless of which section is open, not "the thing you're actively editing".
   const textContent = (
     <div className="flex flex-1 flex-col gap-3">
-      {isTapping ? (
-        <TapToSync
-          content={draft.chordProContent}
-          trackSrc={tapTrackSrc}
-          onComplete={(content) => {
-            setDraft({ ...draft, chordProContent: content })
-            setIsTapping(false)
-          }}
-          onCancel={() => setIsTapping(false)}
+      <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+        <div className="flex items-center justify-between">
+          ChordPro-Text
+          <span className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setIsImporting(true)}
+              className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
+            >
+              Song importieren
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTapLinesOnOpen(true)
+                setEditorView('timeline')
+              }}
+              disabled={!draft.chordProContent.trim()}
+              className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+            >
+              Tap-to-Sync starten
+            </button>
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {PART_LABELS.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => insertPart(label)}
+              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
+            >
+              + {label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={insertComment}
+            className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
+          >
+            + Kommentar
+          </button>
+          <button
+            type="button"
+            onClick={insertTabBlock}
+            className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
+          >
+            + Tab
+          </button>
+        </div>
+        <textarea
+          ref={textareaRef}
+          className="min-h-[240px] flex-1 rounded-sb-sm bg-control p-2 font-sb-mono text-sm text-ink"
+          value={draft.chordProContent}
+          onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
+          placeholder="[00:00.00] Come on baby [G] don't you wanna go"
         />
-      ) : (
-        <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-          <div className="flex items-center justify-between">
-            ChordPro-Text
-            <span className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => setIsImporting(true)}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
-              >
-                Song importieren
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsTapping(true)}
-                disabled={!draft.chordProContent.trim()}
-                className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
-              >
-                Tap-to-Sync starten
-              </button>
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {PART_LABELS.map((label) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => insertPart(label)}
-                className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-accent hover:bg-control-strong-hover"
-              >
-                + {label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={insertComment}
-              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
-            >
-              + Kommentar
-            </button>
-            <button
-              type="button"
-              onClick={insertTabBlock}
-              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink-faint hover:bg-control-strong-hover"
-            >
-              + Tab
-            </button>
-          </div>
-          <textarea
-            ref={textareaRef}
-            className="min-h-[240px] flex-1 rounded-sb-sm bg-control p-2 font-sb-mono text-sm text-ink"
-            value={draft.chordProContent}
-            onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
-            placeholder="[00:00.00] Come on baby [G] don't you wanna go"
-          />
-        </label>
-      )}
+      </label>
       {layout !== 'panel' && (
         <div className="rounded-sb border border-line bg-surface p-4 shadow-sb">
           <ChordProLyrics lines={preview} />
