@@ -9,6 +9,7 @@ import {
   clampView,
   formatTimelineTime,
   nextProblemBar,
+  PART_FILL,
   timeToX,
   tokenColor,
   wrapText,
@@ -29,6 +30,7 @@ import { CueRecorder } from '../CueRecorder'
 import { TargetPicker } from '../CommentListEditor'
 import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
+import { TimelineMinimap } from './TimelineMinimap'
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
@@ -90,8 +92,6 @@ const LINE_SNAP_MS = 60
 const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters: [] }
 
 const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
-/** Alternating part block fills, so neighbouring parts stay apart. */
-const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
 /** Lane names and empty-lane hints (#324): faint, stage-readable size. */
 const LANE_LABEL_FONT = '600 16px system-ui, sans-serif'
 
@@ -264,6 +264,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const blocks = useMemo(() => partBlocks(lines, durationMs), [lines, durationMs])
   const countInStartMs = timeline.timeOfBeat(timeline.firstBeat)
   const minMs = Math.min(0, countInStartMs)
+  const minimapRange = useMemo(() => ({ fromMs: minMs, toMs: durationMs }), [minMs, durationMs])
   const songBeats = useMemo(() => beatsBetween(timeline, 0, durationMs), [timeline, durationMs])
   const quality = useMemo(() => (analysis ? barQuality(songBeats, analysis.onsetsMs) : []), [songBeats, analysis])
   const untimedLines = tapLines(lines).filter((l) => l.timeMs === null).length
@@ -1179,6 +1180,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
       {!trackId && <p className="text-sm text-ink-faint">Kein Track angehängt - die Timeline zeigt nur das Raster.</p>}
       {analysisState === 'loading' && <p className="text-sm text-ink-faint">Wellenform wird berechnet…</p>}
       {analysisState === 'error' && <p className="text-sm text-amber-500">Track auf diesem Gerät nicht verfügbar - keine Wellenform.</p>}
+
+      <TimelineMinimap
+        width={width}
+        peaks={analysis?.peaks ?? null}
+        range={minimapRange}
+        view={view}
+        viewSpanMs={width * view.msPerPx}
+        blocks={blocks}
+        playheadMs={playheadMs}
+        onPan={(startMs) => setView((v) => clampView({ ...v, startMs }, width, minMs, durationMs))}
+      />
 
       <div
         ref={boxRef}

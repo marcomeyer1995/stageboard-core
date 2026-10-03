@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barQuality, clampView, barLabelEvery, formatTimelineTime, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
+import { barQuality, clampView, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
 
 const grid = Array.from({ length: 16 }, (_, i) => ({ timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
@@ -83,5 +83,24 @@ describe('wrapText', () => {
   it('cuts a single word wider than a row, and shows nothing without room for one', () => {
     expect(wrapText('Twenty-five', 60, 3, measure)).toEqual(['Twent…'])
     expect(wrapText('Hey', 15, 3, measure)).toEqual([])
+  })
+})
+
+describe('minimap (#327)', () => {
+  const range = { fromMs: -2000, toMs: 98000 } // 100 s over 1000 px: 100 ms per px
+  it('maps song time onto the strip and back', () => {
+    expect(minimapX(-2000, range, 1000)).toBe(0)
+    expect(minimapX(48000, range, 1000)).toBe(500)
+    expect(minimapTime(500, range, 1000)).toBe(48000)
+  })
+
+  it('a touch outside the box centres the view there; inside it keeps the grab point', () => {
+    const view = { startMs: 10000, msPerPx: 10 }
+    // The lanes show 10 s (10000..20000) - touching at 70 s centres it: start 65 s.
+    expect(minimapGrab(720, range, 1000, view, 10000)).toEqual({ startMs: 65000, grabMs: 5000 })
+    // Grabbing the box 2 s from its left edge keeps that point under the finger.
+    const inside = minimapGrab(140, range, 1000, view, 10000)
+    expect(inside.startMs).toBeCloseTo(10000)
+    expect(inside.grabMs).toBeCloseTo(2000)
   })
 })

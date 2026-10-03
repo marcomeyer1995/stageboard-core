@@ -306,8 +306,8 @@ describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
   it('keeps time running left to right; the lanes are stacked and share the height', () => {
     box.width = 800
     box.height = 1100
-    const { container } = setup({ beatGrid, fill: true })
-    const [audio, gridLane] = [...container.querySelectorAll('canvas')]
+    setup({ beatGrid, fill: true })
+    const [audio, gridLane] = [...screen.getByTestId('timeline-lanes').querySelectorAll('canvas')]
     // Waveform: full width, 40 % of (1100 - 26 - 28 - 44 - 44) px high; the grid lane below it.
     expect(audio!.style.width).toBe('800px')
     expect(audio!.style.height).toBe('383px')

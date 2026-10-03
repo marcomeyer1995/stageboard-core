@@ -159,3 +159,35 @@ export function wrapText(text: string, maxPx: number, maxRows: number, measure: 
   if (i < words.length && rows.length > 0) rows[rows.length - 1] = cut(`${rows[rows.length - 1]!} ${words.slice(i).join(' ')}`)
   return rows
 }
+
+/** Alternating part block fills, so neighbouring parts stay apart (lanes and minimap). */
+export const PART_FILL = ['rgba(59,130,246,0.35)', 'rgba(168,85,247,0.35)'] as const
+
+/** The overview strip (#327) maps the whole song, `fromMs`..`toMs`, onto its width. */
+export interface MinimapRange {
+  fromMs: number
+  toMs: number
+}
+
+/** Strip x of song time `ms`. */
+export function minimapX(ms: number, range: MinimapRange, widthPx: number): number {
+  const span = Math.max(1, range.toMs - range.fromMs)
+  return ((ms - range.fromMs) / span) * widthPx
+}
+
+/** Song time at strip x. */
+export function minimapTime(x: number, range: MinimapRange, widthPx: number): number {
+  const span = Math.max(1, range.toMs - range.fromMs)
+  return range.fromMs + (x / Math.max(1, widthPx)) * span
+}
+
+/** Where the view starts when the strip is touched at `x`: a touch inside the visible box keeps
+ * the box under the finger where it was grabbed (`grabMs` = touched time minus the view start),
+ * a touch outside centres the view there. Returns that offset too, for the rest of the drag. */
+export function minimapGrab(x: number, range: MinimapRange, widthPx: number, view: TimelineView, viewSpanMs: number): { startMs: number; grabMs: number } {
+  const t = minimapTime(x, range, widthPx)
+  const inside = t >= view.startMs && t <= view.startMs + viewSpanMs
+  const grabMs = inside ? t - view.startMs : viewSpanMs / 2
+  return { startMs: t - grabMs, grabMs }
+}
+
