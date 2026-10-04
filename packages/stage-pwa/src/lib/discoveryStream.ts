@@ -10,7 +10,8 @@ import { getStageServerUrl } from './stageServer'
  */
 export function subscribeToDiscovery(workspaceId: string, onSession: (session: DiscoverySession) => void): () => void {
   const base = getStageServerUrl()
-  if (!base) {
+  // No band yet (the native app paired with a server before joining, #348): nothing to subscribe to.
+  if (!base || !workspaceId) {
     onSession(EMPTY_DISCOVERY_SESSION)
     return () => {}
   }

@@ -1,7 +1,11 @@
 package de.stageboard.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
+
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -9,10 +13,15 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
@@ -93,6 +102,70 @@ public class ServerTrustPlugin extends Plugin {
             }
         } catch (Exception e) {
             call.reject("Could not reach " + host + ": " + e.getMessage());
+        }
+    }
+
+    /** Downloads an app update from the paired Stage-Server - over the pinned certificate, as the
+     * WebView would - and hands it to Android's installer (the user confirms there; the first
+     * time Android also asks to allow installs from StageBoard). */
+    @PluginMethod
+    public void downloadAndInstall(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null) {
+            call.reject("url is required");
+            return;
+        }
+        try {
+            URL target = new URL(url);
+            String host = target.getHost();
+            String pinned = pinnedFingerprint(getContext(), host);
+            if (!"https".equals(target.getProtocol()) || pinned == null) {
+                call.reject("Only the paired Stage-Server can provide updates");
+                return;
+            }
+            TrustManager[] pinnedOnly = { new X509TrustManager() {
+                public void checkClientTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
+                    throw new java.security.cert.CertificateException("not used");
+                }
+                public void checkServerTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
+                    try {
+                        if (chain.length == 0 || !pinned.equals(fingerprint(chain[0]))) throw new java.security.cert.CertificateException("certificate is not the paired one");
+                    } catch (java.security.cert.CertificateException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new java.security.cert.CertificateException(e);
+                    }
+                }
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+            } };
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, pinnedOnly, null);
+            HttpsURLConnection connection = (HttpsURLConnection) target.openConnection();
+            connection.setSSLSocketFactory(context.getSocketFactory());
+            // The certificate itself is pinned above - the name check adds nothing for an IP address.
+            connection.setHostnameVerifier((name, session) -> name.equals(host));
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(30000);
+            if (connection.getResponseCode() != 200) {
+                call.reject("Download failed: HTTP " + connection.getResponseCode());
+                return;
+            }
+            File dir = new File(getContext().getCacheDir(), "updates");
+            if (!dir.exists() && !dir.mkdirs()) throw new Exception("cannot create " + dir);
+            File apk = new File(dir, "stageboard.apk");
+            try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(apk)) {
+                byte[] buffer = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+            }
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", apk);
+            Intent install = new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(uri, "application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(install);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Update failed: " + e.getMessage());
         }
     }
 }

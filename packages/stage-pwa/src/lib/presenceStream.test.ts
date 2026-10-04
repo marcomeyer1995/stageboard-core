@@ -48,6 +48,16 @@ describe('subscribeToPresence', () => {
     expect(onPresence).toHaveBeenCalledWith(snapshot)
   })
 
+  it('opens no stream without a band yet (native app paired before joining, #348)', () => {
+    vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
+    const onPresence = vi.fn()
+
+    subscribeToPresence('', onPresence)
+
+    expect(FakeEventSource.instances).toHaveLength(0)
+    expect(onPresence).toHaveBeenCalledWith(DEFAULT_PRESENCE)
+  })
+
   it('ignores a malformed payload instead of throwing', () => {
     vi.stubEnv('VITE_STAGE_SERVER_URL', 'https://stage.example')
     const onPresence = vi.fn()
