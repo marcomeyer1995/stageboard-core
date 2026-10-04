@@ -368,7 +368,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             ))}
           </ul>
 
-          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
             Andere Band oder anderer Code
           </button>
         </div>
@@ -410,7 +410,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             </button>
           </form>
 
-          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
             Andere Band wählen
           </button>
         </div>
@@ -511,7 +511,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Verfügbare Bands</h2>
-            <button type="button" onClick={() => void loadWorkspaces()} className="text-xs text-ink-faint underline">
+            <button type="button" onClick={() => void loadWorkspaces()} className="inline-flex min-h-12 items-center text-sm text-ink-faint underline">
               Neu laden
             </button>
           </div>
@@ -557,7 +557,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <button
             type="button"
             onClick={() => setShowPasswordFallback((v) => !v)}
-            className="text-xs text-ink-faint underline"
+            className="inline-flex min-h-12 items-center text-sm text-ink-faint underline"
           >
             Passwort direkt eingeben
           </button>

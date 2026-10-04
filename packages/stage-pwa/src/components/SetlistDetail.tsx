@@ -180,7 +180,7 @@ function TransitionPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`Übergang zum nächsten Eintrag: ${current.label}`}
-        className={`h-10 flex-shrink-0 rounded-sb-sm px-2 text-sm hover:bg-control-strong-hover ${
+        className={`h-12 min-w-12 flex-shrink-0 rounded-sb-sm px-3 text-sm hover:bg-control-strong-hover ${
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
         }`}
       >
@@ -298,7 +298,7 @@ function EntryRow({
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
@@ -306,7 +306,7 @@ function EntryRow({
       <button
         type="button"
         onClick={() => onSelectSong(entry.songId, entry.variantId)}
-        className="min-w-0 flex-1 truncate text-left hover:underline"
+        className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline"
       >
         {songNumber}. {title}
       </button>
@@ -346,7 +346,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
   }
   return (
     <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
-      <summary className="cursor-pointer select-none font-medium text-ink-muted">
+      <summary className="flex min-h-12 cursor-pointer select-none items-center font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
       <div className="mt-2 flex flex-col gap-2">
@@ -427,12 +427,12 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-w-0 flex-1 truncate text-left hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (

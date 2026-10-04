@@ -482,7 +482,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           BPM
           <input
             type="number"
-            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+            className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
             value={draft.bpm}
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
@@ -490,29 +490,29 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Takt
           <input
-            className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+            className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
             placeholder="4/4"
             value={draft.timeSignature}
             onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
           />
         </label>
       </div>
-      <label className="flex items-center gap-2 text-sm text-ink-soft">
+      <label className="flex min-h-12 items-center gap-3 text-sm text-ink-soft">
         <input
           type="checkbox"
           checked={draft.clickTrackEnabled}
           onChange={(e) => setDraft({ ...draft, clickTrackEnabled: e.target.checked })}
-          className="h-5 w-5"
+          className="h-6 w-6"
         />
         Klick standardmäßig an (per Show überstimmbar)
       </label>
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-ink-soft">
+        <label className="flex min-h-12 items-center gap-3 text-sm text-ink-soft">
           <input
             type="checkbox"
             checked={draft.countInEnabled}
             onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
-            className="h-5 w-5"
+            className="h-6 w-6"
           />
           Count-in aktivieren
         </label>
@@ -522,7 +522,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             type="number"
             min={1}
             disabled={!draft.countInEnabled}
-            className="w-16 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+            className="w-16 min-h-12 rounded-sb-sm bg-control px-3 text-ink disabled:opacity-40"
             value={draft.countInBars}
             onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
           />
@@ -628,7 +628,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <button
           type="button"
           onClick={() => setIsRecordingCues(true)}
-          className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-accent hover:bg-control-strong-hover"
+          className="min-h-12 rounded-sb-sm bg-control-strong px-4 font-medium text-accent hover:bg-control-strong-hover"
         >
           Cues aufnehmen
         </button>
@@ -734,7 +734,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={() => setIsImporting(true)}
-              className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover"
+              className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm text-ink hover:bg-control-strong-hover"
             >
               Song importieren
             </button>
@@ -745,7 +745,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 setEditorView('timeline')
               }}
               disabled={!draft.chordProContent.trim()}
-              className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm text-ink hover:bg-control-strong-hover disabled:opacity-40"
             >
               Tap-to-Sync starten
             </button>
@@ -848,7 +848,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           Variante
           <div className="flex items-center gap-2">
             <select
-              className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="flex-1 min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.variantId}
               onChange={(e) => selectVariant(e.target.value)}
             >
@@ -864,7 +864,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={addVariant}
-                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
+                className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm text-ink hover:bg-control-strong-hover"
               >
                 + Neue Variante
               </button>
@@ -874,7 +874,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Varianten-Name
             <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.variantLabel}
               onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
             />
@@ -890,7 +890,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
             <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
@@ -898,7 +898,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
             Band
             <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.artist ?? ''}
               onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
             />
@@ -908,7 +908,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.key ?? ''}
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
@@ -916,7 +916,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Tuning
             <input
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.tuning ?? ''}
               onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
@@ -926,7 +926,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <input
               type="number"
               min={0}
-              className="rounded-sb-sm bg-control px-2 py-1 text-ink"
+              className="min-h-12 rounded-sb-sm bg-control px-3 text-ink"
               value={draft.capo ?? ''}
               onChange={(e) =>
                 setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })
@@ -978,7 +978,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               type="button"
               onClick={() => setTextExpanded((v) => !v)}
               aria-expanded={textExpanded}
-              className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
+              className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft hover:text-ink"
             >
               <Icon name={textExpanded ? 'collapse' : 'expand'} /> Text
             </button>
@@ -997,7 +997,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                   type="button"
                   onClick={section.onToggleExpand}
                   aria-expanded={section.expanded}
-                  className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
+                  className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft hover:text-ink"
                 >
                   <Icon name={section.expanded ? 'collapse' : 'expand'} /> {section.fullLabel}
                 </button>
@@ -1021,7 +1021,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                       <button
                         type="button"
                         onClick={() => setMobileTab('text')}
-                        className="rounded-sb-sm bg-control px-3 py-1 text-sm text-ink-soft hover:bg-control-hover"
+                        className="min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
                       >
                         Fertig
                       </button>
