@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BeatGrid, ShowCue } from 'shared-types'
-import { beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { startClick, stopClick } from '../../lib/clickEngine'
 import { describeCue } from '../../lib/deviceCommands'
 import {
@@ -883,8 +883,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setTapMode(mode)
   }
 
-  /** Tapping ends: "Tempo tippen" sets the tempo from the slope through the taps, for the whole
-   * song - a grid aligned at several bars gives them up (after asking), bar 1 stays. "Zeilen
+  /** Tapping ends: "Tempo tippen" sets the tempo from the slope through the taps, from the bar
+   * where tapping started (applySectionTempo, #329) - earlier points and the next one stay. "Zeilen
    * tippen" stamps one line per tap from the start line on, as one undoable step. */
   async function finishTapping() {
     const mode = tapMode
@@ -904,14 +904,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setNotice('Mindestens 4 Schläge im Takt tippen.')
       return
     }
-    let grid = beatGrid
-    if (grid && grid.points.length > 1) {
-      if (!(await confirm(`${tempo.toFixed(1)} BPM für den ganzen Song übernehmen? Die Ausrichtungspunkte nach Takt 1 werden entfernt. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
-      const first = [...grid.points].sort((a, b) => a.bar - b.bar)[0]!
-      grid = { ...grid, points: [first] }
+    // From the bar where tapping started up to the next alignment point (#329).
+    const result = beatGrid ? applySectionTempo(beatGrid, bpm, timeSignature, tapped, tempo) : ({ kind: 'bpm' } as const)
+    if (result.kind === 'refused') {
+      setNotice(result.reason)
+      return
     }
-    setNotice(`Tempo: ${tempo.toFixed(1)} BPM`)
-    commitGrid(grid, tempo)
+    if (result.kind === 'bpm') {
+      setNotice(`Tempo: ${tempo.toFixed(1)} BPM`)
+      commitGrid(beatGrid, tempo)
+      return
+    }
+    const range = result.nextBar !== null ? ` (bis Takt ${result.endBar}, bis Takt ${result.nextBar} angeglichen)` : ''
+    if (!(await confirm(`${tempo.toFixed(1)} BPM ab Takt ${result.startBar} übernehmen?${range} Takt ${result.startBar} bleibt, wo er ist. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
+    setNotice(`Tempo ab Takt ${result.startBar}: ${tempo.toFixed(1)} BPM`)
+    commitGrid(result.grid)
+    setSelection({ kind: 'bar', bar: result.startBar })
   }
   function tap() {
     taps.current.push(useClockStore.getState().getElapsedMs())

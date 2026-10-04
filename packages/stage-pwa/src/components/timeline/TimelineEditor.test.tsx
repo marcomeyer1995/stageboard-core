@@ -446,3 +446,27 @@ describe('collapsible lanes (#328)', () => {
     expect(screen.getByRole('button', { name: 'Cues' })).toBeDisabled()
   })
 })
+
+describe('"Tempo tippen" for a section (#329)', () => {
+  afterEach(() => {
+    trackClock.isPlaying = false
+    useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 0 })
+  })
+
+  it('tapped from bar 16: bar 16 stays, the tapped tempo applies from there, earlier bars untouched', async () => {
+    trackClock.isPlaying = true
+    const single: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }], meters: [] }
+    const { onChange } = setup({ beatGrid: single, trackSrc: 'blob:track' })
+    fireEvent.click(screen.getByText('Tempo tippen'))
+    for (let i = 0; i < 8; i++) {
+      useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 30100 + i * 600 })
+      fireEvent.pointerDown(screen.getByText(/^TIPP/))
+    }
+    fireEvent.click(screen.getByText('Tippen beenden (8)'))
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid; bpm: number }
+    expect(next.beatGrid.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 0], [16, 30000], [18, 34800]])
+    expect(next.bpm).toBe(120)
+    expect(screen.getByRole('status')).toHaveTextContent('Tempo ab Takt 16: 100.0 BPM')
+  })
+})

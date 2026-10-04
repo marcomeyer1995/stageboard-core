@@ -128,7 +128,7 @@ Die Wiedergabe liest weiterhin `playbackAnchors(variant)`: mit `beatGrid` liefer
 ### Ablauf für einen Song
 
 1. **Takt 1 setzen:** in der Wellenform auf den ersten Hit tippen → „Takt 1 hier“ (oder den Taktstrich 1 dorthin ziehen). Mit Einrasten landet er auf dem Drum-Hit.
-2. **Tempo:** „Tempo tippen“ – beim Abspielen 8–16 Schläge irgendwo im Song mittippen; das Tempo ist die Steigung einer Ausgleichsgeraden durch die Tipps. Die Tipp-Latenz des Geräts (Fire 136–260 ms) spielt keine Rolle, weil sie nur verschiebt, nicht streckt, und die Lage aus Schritt 1 kommt. Alternativ Zahl eingeben oder „Track analysieren“.
+2. **Tempo:** „Tempo tippen“ – beim Abspielen 8–16 Schläge irgendwo im Song mittippen; das Tempo ist die Steigung einer Ausgleichsgeraden durch die Tipps. Die Tipp-Latenz des Geräts (Fire 136–260 ms) spielt keine Rolle, weil sie nur verschiebt, nicht streckt, und die Lage aus Schritt 1 kommt. Alternativ Zahl eingeben oder „Track analysieren“. **Mitten im Song (#329):** getippt wird ab dem Takt, in dem der erste Tipp liegt – dieser Takt bleibt, wo das Raster ihn hat, ein zweiter Punkt an dem Takt, bis zu dem getippt wurde, trägt das neue Tempo; frühere Punkte und der nächste Punkt bleiben unverändert (dazwischen gleicht das Raster an). Ab dem einzigen Punkt ohne weiteren danach ändert Tippen einfach das Song-Tempo.
 3. **Ans Ende springen**, letzten gut hörbaren Takt auf seinen Hit ziehen → zweiter Punkt, das Tempo dazwischen wird neu berechnet. Bei zum Klick aufgenommenen Tracks ist man hier fertig.
 4. **Qualitätsband** prüfen, „Nächste Problemstelle“: dort den Taktstrich auf den Hit ziehen → weiterer Punkt. Erwartung: 2 Punkte bei Studio-Tracks, 3–6 bei driftenden.
 5. **Speichern.**
