@@ -60,6 +60,15 @@ public class ServerTrustPlugin extends Plugin {
         return colon > 0 && host.indexOf(':') == colon ? host.substring(0, colon) : host;
     }
 
+    /** The fingerprint pinned for a host, or null - to recognise the paired server at a new address (#351). */
+    @PluginMethod
+    public void pinned(PluginCall call) {
+        String host = call.getString("host");
+        JSObject result = new JSObject();
+        result.put("fingerprint", host == null ? null : pinnedFingerprint(getContext(), host));
+        call.resolve(result);
+    }
+
     @PluginMethod
     public void pin(PluginCall call) {
         String host = call.getString("host");

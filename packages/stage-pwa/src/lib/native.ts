@@ -20,9 +20,63 @@ interface ServerTrustPlugin {
   fingerprintOf(options: { host: string }): Promise<{ fingerprint: string }>
   /** Downloads an update from the paired server (pinned certificate) and opens the installer. */
   downloadAndInstall(options: { url: string }): Promise<void>
+  /** The fingerprint pinned for a host, or null. */
+  pinned(options: { host: string }): Promise<{ fingerprint: string | null }>
 }
 
 const ServerTrust = registerPlugin<ServerTrustPlugin>('ServerTrust')
+
+/** A Stage-Server found on the network (`ServerDiscoveryPlugin.java`, DNS-SD `_stageboard._tcp`, #351). */
+export interface FoundServer {
+  name: string
+  /** `address` or `address:port` - the form the app stores and pins. */
+  host: string
+  /** From the server's announcement - only used to recognise the paired server, never to trust a new one. */
+  fingerprint: string | null
+}
+
+const ServerDiscovery = registerPlugin<{ discover(options: { timeoutMs: number }): Promise<{ servers: { name: string; address: string; port: number; fingerprint: string | null }[] }> }>('ServerDiscovery')
+
+/** Stage-Servers announcing themselves on the local network. Empty in the browser. */
+export async function discoverServers(timeoutMs = 3000): Promise<FoundServer[]> {
+  if (!isNativeApp()) return []
+  const { servers } = await ServerDiscovery.discover({ timeoutMs })
+  return servers
+    .map((s) => ({ name: s.name, host: s.port === 443 ? s.address : `${s.address}:${s.port}`, fingerprint: s.fingerprint }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The paired server at a new address: the one announcing exactly the pinned fingerprint, on
+ * another host. Never a server with a different certificate (#351). */
+export function pickMovedServer(found: readonly FoundServer[], pinnedFingerprint: string, currentHost: string): FoundServer | null {
+  return found.find((s) => s.fingerprint === pinnedFingerprint && s.host !== currentHost) ?? null
+}
+
+/**
+ * Native app: if the paired Stage-Server doesn't answer at its stored address, look for it on the
+ * network and switch to it silently when it is there under a new address with the same
+ * certificate (#351) - e.g. another router at the venue gave it a new IP.
+ */
+export async function followServerIfMoved(): Promise<'reachable' | 'moved' | 'not-found' | 'skipped'> {
+  const base = useStageServerStore.getState().url
+  if (!isNativeApp() || !base) return 'skipped'
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 3000)
+  try {
+    if ((await fetch(`${base}/time`, { signal: controller.signal })).ok) return 'reachable'
+  } catch {
+    // Unreachable - look for it below.
+  } finally {
+    clearTimeout(timer)
+  }
+  const currentHost = new URL(base).host
+  const { fingerprint } = await ServerTrust.pinned({ host: currentHost })
+  if (!fingerprint) return 'not-found'
+  const moved = pickMovedServer(await discoverServers(4000), fingerprint, currentHost)
+  if (!moved) return 'not-found'
+  await pairWithServer(moved.host, fingerprint)
+  return 'moved'
+}
 
 /** "aa bb cc …": the first bytes of a fingerprint, readable enough to compare by eye. */
 export function shortFingerprint(fingerprint: string): string {

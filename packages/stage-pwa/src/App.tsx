@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
@@ -8,7 +8,7 @@ import { DialogHost } from './components/DialogHost'
 import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
 import { AppUpdateBanner } from './components/AppUpdateBanner'
-import { isNativeApp } from './lib/native'
+import { followServerIfMoved, isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
 import { RosterSetupView } from './components/RosterSetupView'
@@ -71,6 +71,15 @@ function noopStart(): TrackedSync | null {
 function App() {
   const [mode, setMode] = useState<Mode>('boards')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Native app: if the paired server moved to another address (new router at the venue), find it
+  // by its certificate and follow (#351) - on start and whenever the network comes back.
+  useEffect(() => {
+    if (!isNativeApp()) return
+    const follow = () => void followServerIfMoved()
+    follow()
+    window.addEventListener('online', follow)
+    return () => window.removeEventListener('online', follow)
+  }, [])
   // Back from Bibliothek/System returns to the Boards (#341); on the dashboard it does nothing.
   useBackHandler(mode !== 'boards' ? () => setMode('boards') : null)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)

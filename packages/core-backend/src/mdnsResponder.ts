@@ -4,7 +4,66 @@ import mdnsFactory from 'multicast-dns'
 /** How long to wait before trying again when the network isn't up yet. */
 export const MDNS_RETRY_MS = 5000
 
-export interface MdnsResponderOptions {
+/** DNS-SD service type the native app browses for (#351). */
+export const SERVICE_TYPE = '_stageboard._tcp.local'
+const SERVICES_META = '_services._dns-sd._udp.local'
+
+export interface MdnsIdentity {
+  lanIp: string
+  hostname: string
+  /** HTTPS port of the Stage-Server. */
+  port: number
+  /** Human-readable server name, shown in the app's server list - no dots. */
+  instance: string
+  /** SHA-256 certificate fingerprint (lowercase hex), or null without HTTPS. */
+  certFingerprint: string | null
+}
+
+interface MdnsQuestion {
+  name: string
+  type: string
+}
+type MdnsRecord =
+  | { name: string; type: 'A'; ttl: number; data: string }
+  | { name: string; type: 'PTR'; ttl: number; data: string }
+  | { name: string; type: 'SRV'; ttl: number; data: { port: number; target: string } }
+  | { name: string; type: 'TXT'; ttl: number; data: string[] }
+
+/**
+ * What to answer for one mDNS query (#351): the A record for the hostname (since docs/03 §0a),
+ * and DNS-SD for `_stageboard._tcp` - PTR to this server's instance, SRV (port, hostname) and TXT
+ * with the certificate fingerprint, so the app can list servers and recognise the one it is paired
+ * with at a new address. Null when the query isn't about this server.
+ */
+export function mdnsAnswer(questions: readonly MdnsQuestion[], id: MdnsIdentity): { answers: MdnsRecord[]; additionals: MdnsRecord[] } | null {
+  const instanceName = `${id.instance}.${SERVICE_TYPE}`
+  const a: MdnsRecord = { name: id.hostname, type: 'A', ttl: 120, data: id.lanIp }
+  const srv: MdnsRecord = { name: instanceName, type: 'SRV', ttl: 120, data: { port: id.port, target: id.hostname } }
+  const txt: MdnsRecord = { name: instanceName, type: 'TXT', ttl: 120, data: ['v=1', ...(id.certFingerprint ? [`fp=${id.certFingerprint}`] : [])] }
+  const answers: MdnsRecord[] = []
+  const additionals: MdnsRecord[] = []
+  const add = (list: MdnsRecord[], record: MdnsRecord) => {
+    if (!answers.includes(record) && !additionals.includes(record)) list.push(record)
+  }
+  for (const q of questions) {
+    const name = q.name.toLowerCase()
+    if (name === id.hostname.toLowerCase() && (q.type === 'A' || q.type === 'ANY')) add(answers, a)
+    else if (name === SERVICES_META && q.type === 'PTR') answers.push({ name: SERVICES_META, type: 'PTR', ttl: 120, data: SERVICE_TYPE })
+    else if (name === SERVICE_TYPE && (q.type === 'PTR' || q.type === 'ANY')) {
+      answers.push({ name: SERVICE_TYPE, type: 'PTR', ttl: 120, data: instanceName })
+      add(additionals, srv)
+      add(additionals, txt)
+      add(additionals, a)
+    } else if (name === instanceName.toLowerCase()) {
+      if (q.type === 'SRV' || q.type === 'ANY') add(answers, srv)
+      if (q.type === 'TXT' || q.type === 'ANY') add(answers, txt)
+      add(additionals, a)
+    }
+  }
+  return answers.length > 0 ? { answers, additionals: additionals.filter((r) => !answers.includes(r)) } : null
+}
+
+export interface MdnsResponderOptions extends Omit<MdnsIdentity, 'lanIp' | 'hostname'> {
   lanIp: string
   hostname: string
   log: {
@@ -28,7 +87,8 @@ export interface MdnsResponderHandle {
  * network is up; the server works by raw IP meanwhile.
  */
 export function startMdnsResponder(options: MdnsResponderOptions): MdnsResponderHandle {
-  const { lanIp, hostname, log, retryMs = MDNS_RETRY_MS, createSocket = createMdnsSocket } = options
+  const { lanIp, hostname, port, instance, certFingerprint, log, retryMs = MDNS_RETRY_MS, createSocket = createMdnsSocket } = options
+  const identity: MdnsIdentity = { lanIp, hostname, port, instance, certFingerprint }
   let stopped = false
   let failedBefore = false
   let retry: ReturnType<typeof setTimeout> | null = null
@@ -53,12 +113,11 @@ export function startMdnsResponder(options: MdnsResponderOptions): MdnsResponder
     }
     mdns = mdnsFactory({ socket, bind: false })
     mdns.on('query', (query) => {
-      if (query.questions.some((q) => q.type === 'A' && q.name === hostname)) {
-        mdns?.respond({ answers: [{ name: hostname, type: 'A', ttl: 120, data: lanIp }] })
-      }
+      const response = mdnsAnswer(query.questions, identity)
+      if (response) mdns?.respond(response as Parameters<NonNullable<typeof mdns>['respond']>[0])
     })
     mdns.on('error', (err) => log.error(`mDNS responder for ${hostname} failed - falling back to raw IP access`, { error: String(err) }))
-    log.info(`Advertising ${hostname} -> ${lanIp} via mDNS`)
+    log.info(`Advertising ${hostname} -> ${lanIp} via mDNS (service "${instance}" ${SERVICE_TYPE})`)
   }
 
   void attempt()

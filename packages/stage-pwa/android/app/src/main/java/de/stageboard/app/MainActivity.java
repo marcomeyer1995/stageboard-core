@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ServerTrustPlugin.class);
+        registerPlugin(ServerDiscoveryPlugin.class);
         super.onCreate(savedInstanceState);
         // The Stage-Server's self-signed certificate is trusted only as pinned at pairing (#348).
         bridge.setWebViewClient(new PinnedWebViewClient(bridge));
