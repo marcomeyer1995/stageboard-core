@@ -944,11 +944,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             stretching each tab thinner - same pattern SystemView.tsx already uses for its own
             seven tabs, not a new idiom. */}
         {layout !== 'panel' && (
-          <div className="flex gap-2 overflow-x-auto">
+          // Wraps instead of scrolling sideways - "Kommentare" was off screen on the phone (#373).
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setMobileTab('text')}
-              className={`h-10 flex-shrink-0 rounded-sb-pill px-4 text-sm font-medium ${
+              className={`h-12 flex-grow rounded-sb-pill px-4 text-sm font-medium ${
                 mobileTab === 'text' ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
               }`}
             >
@@ -959,7 +960,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 key={section.key}
                 type="button"
                 onClick={() => setMobileTab(section.key)}
-                className={`h-10 flex-shrink-0 rounded-sb-pill px-4 text-sm font-medium ${
+                className={`h-12 flex-grow rounded-sb-pill px-4 text-sm font-medium ${
                   mobileTab === section.key
                     ? 'bg-accent text-accent-ink'
                     : 'bg-control text-ink-soft hover:bg-control-hover'
