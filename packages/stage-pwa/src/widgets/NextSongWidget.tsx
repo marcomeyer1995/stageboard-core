@@ -8,6 +8,7 @@ import { ReadyCheckControl } from '../components/ReadyCheckControl'
 import { stageFontSize } from '../lib/stageSize'
 import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
+import { Icon } from '../components/Icon'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -78,10 +79,22 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
         <div className={`flex gap-2 ${layout.stacked ? 'min-h-0 flex-1' : ''}`}>
           <ReadyCheckControl compact={layout.shortLabels} buttonClassName={buttonClass} />
           <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
-            {layout.shortLabels ? <span className="text-4xl leading-none">‹</span> : '‹ Zurück'}
+            {layout.shortLabels ? (
+              <Icon name="previous" size="2.25rem" />
+            ) : (
+              <span className="flex items-center justify-center gap-1">
+                <Icon name="previous" /> Zurück
+              </span>
+            )}
           </button>
           <button type="button" onClick={next} disabled={!nextEntry} title="Nächster Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
-            {layout.shortLabels ? <span className="text-4xl leading-none">›</span> : 'Weiter ›'}
+            {layout.shortLabels ? (
+              <Icon name="next" size="2.25rem" />
+            ) : (
+              <span className="flex items-center justify-center gap-1">
+                Weiter <Icon name="next" />
+              </span>
+            )}
           </button>
         </div>
       ) : (

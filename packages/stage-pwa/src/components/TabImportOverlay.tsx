@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 const PROVIDERS = [
   { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
@@ -118,7 +119,7 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
             onClick={onClose}
             className="rounded-sb-sm px-2 py-1 text-ink-muted hover:bg-control-hover hover:text-ink"
           >
-            ✕
+            <Icon name="close" size="1.25rem" />
           </button>
         </div>
 
@@ -174,7 +175,7 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
                     title="Original-Seite öffnen"
                     className="flex-shrink-0 rounded-sb-sm px-2 py-1 text-ink-faint hover:bg-control-hover hover:text-ink"
                   >
-                    ↗
+                    <Icon name="external" />
                   </button>
                 )}
               </li>
@@ -198,9 +199,9 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
                 <button
                   type="button"
                   onClick={() => openSourcePreview(selected.sourceUrl!)}
-                  className="flex-shrink-0 rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
                 >
-                  Original ansehen ↗
+                  Original ansehen <Icon name="external" />
                 </button>
               </div>
             )}

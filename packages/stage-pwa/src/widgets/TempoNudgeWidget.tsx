@@ -6,6 +6,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 import { READOUT_MIN, tempoLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
+import { Icon } from '../components/Icon'
 
 /** Step size per tap - fine enough to correct real drift without overshooting, coarse enough
  * that reaching the +/-15% limit doesn't take a dozen taps. */
@@ -74,7 +75,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
             className="flex h-full min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden whitespace-nowrap font-bold tabular-nums text-accent disabled:cursor-not-allowed"
           >
             {value}
-            <span className="text-[length:max(var(--sb-text-min),0.5em)]">↺</span>
+            <Icon name="reset" size="max(var(--sb-text-min), 0.5em)" />
           </button>
         ) : (
           <div className="flex h-full min-w-0 flex-1 items-center justify-center overflow-hidden">

@@ -13,6 +13,7 @@ import { useLongPress } from '../lib/useLongPress'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
+import { Icon } from '../components/Icon'
 
 type RowStatus = 'past' | 'current' | 'upcoming'
 
@@ -129,7 +130,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
         <OverflowMenu
           title={queueItemTitle(item)}
           variant="flat"
-          glyph="⋮"
+          glyph="moreVertical"
           triggerSize="touch"
           hideTrigger={!sorting}
           open={menuOpen}
@@ -223,7 +224,13 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
               sorting ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
             }`}
           >
-            {sorting ? 'Fertig' : '⇅ Sortieren'}
+            {sorting ? (
+              'Fertig'
+            ) : (
+              <span className="flex items-center gap-1">
+                <Icon name="sort" /> Sortieren
+              </span>
+            )}
           </button>
         )}
         {mode === 'gig' && !canControl && (

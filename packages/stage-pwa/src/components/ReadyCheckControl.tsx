@@ -1,6 +1,7 @@
 import { useReadyCheck } from '../lib/useReadyCheck'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { Icon } from './Icon'
 
 /** The Master's Ready Check control (#60), for NextSongWidget: starts a check, then shows the
  * live "x/y bereit" count (who is still missing on hover) with a button to close it early. */
@@ -28,7 +29,7 @@ export function ReadyCheckControl({ compact = false, buttonClassName }: { compac
         title={missing.length > 0 ? `Warten auf: ${missing.join(', ')}` : 'Alle bereit'}
         className={`font-bold tabular-nums ${status.allReady ? 'text-green-500' : 'text-ink'}`}
       >
-        {status.allReady ? '✓ ' : ''}
+        {status.allReady && <Icon name="check" className="mr-1" />}
         {status.ready}/{status.total}{compact ? '' : ' bereit'}
       </span>
       <button type="button" onClick={() => void endReadyCheck()} title="Ready-Check beenden" className={buttonClass}>

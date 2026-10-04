@@ -33,6 +33,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -96,7 +97,7 @@ function VariantPicker({
                   title="Schließen"
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
                 >
-                  ✕
+                  <Icon name="close" size="1.25rem" />
                 </button>
               </div>
               <div className="flex flex-col gap-2">
@@ -183,7 +184,10 @@ function TransitionPicker({
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
         }`}
       >
-        {type === 'manual' ? '→' : `→ ${current.label}`}
+        <span className="flex items-center gap-1">
+          <Icon name="forward" />
+          {type === 'manual' ? null : current.label}
+        </span>
       </button>
       {open &&
         createPortal(
@@ -205,7 +209,7 @@ function TransitionPicker({
                   title="Schließen"
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
                 >
-                  ✕
+                  <Icon name="close" size="1.25rem" />
                 </button>
               </div>
               <div className="flex flex-col gap-2">
@@ -709,7 +713,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
           {setlist.name}
           {activeSetlist?.id === setlist.id && (
-            <span className="text-xs font-semibold normal-case text-accent">● Aktiv</span>
+            <span className="flex items-center gap-1 text-xs font-semibold normal-case text-accent"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aktiv</span>
           )}
         </h2>
         <span className="flex flex-shrink-0 gap-1">

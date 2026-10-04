@@ -8,7 +8,7 @@ describe('RowMenuButton', () => {
     render(<RowMenuButton label="Weitere Optionen für Marco" onClick={onClick} />)
 
     const button = screen.getByRole('button', { name: 'Weitere Optionen für Marco' })
-    expect(button).toHaveTextContent('⋮')
+    expect(button.querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
     fireEvent.click(button)
     expect(onClick).toHaveBeenCalledOnce()
   })

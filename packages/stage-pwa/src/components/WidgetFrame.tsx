@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 interface WidgetFrameProps {
   title: string
@@ -94,7 +95,7 @@ export function WidgetFrame({
             title="Widget-Menü"
             className="widget-menu pointer-events-auto flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-sb-sm bg-stage/70 text-lg leading-none text-ink-soft hover:bg-control-hover"
           >
-            ⋯
+            <Icon name="more" size="1.5rem" />
           </button>
         </div>
       )}
@@ -141,7 +142,7 @@ export function WidgetFrame({
                   title="Schließen"
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
                 >
-                  ✕
+                  <Icon name="close" size="1.25rem" />
                 </button>
               </div>
 

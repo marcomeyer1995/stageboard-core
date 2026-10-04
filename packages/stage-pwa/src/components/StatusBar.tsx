@@ -21,12 +21,13 @@ import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
+import { Icon, type IconName } from './Icon'
 
-const SYNC_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
-  idle: { icon: '✓', label: 'Synchron' },
-  syncing: { icon: '⟳', label: 'Synchronisiere…' },
-  offline: { icon: '⚠', label: 'Offline' },
-  error: { icon: '✕', label: 'Sync-Fehler' },
+const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
+  idle: { icon: 'check', label: 'Synchron' },
+  syncing: { icon: 'syncing', label: 'Synchronisiere…' },
+  offline: { icon: 'warning', label: 'Offline' },
+  error: { icon: 'close', label: 'Sync-Fehler' },
 }
 
 /**
@@ -144,7 +145,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         aria-label="Menü öffnen"
         className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-sb px-3 hover:bg-black/15"
       >
-        <span className="text-2xl leading-none">☰</span>
+        <Icon name="menu" size="1.75rem" />
         <span className="hidden text-base md:inline">{MODE_LABEL[screen]}</span>
       </button>
 
@@ -169,16 +170,16 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
         <span className="rounded-sb-sm bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
         {mode === 'gig' && canControl && (
-          <span title="Dieses Gerät hat das Master-Token" aria-label="Master">
-            👑
+          <span title="Dieses Gerät hat das Master-Token" aria-label="Master" className="flex items-center">
+            <Icon name="master" size="1.4rem" />
           </span>
         )}
         <span className="hidden font-bold tabular-nums sm:inline">
           {new Date(now).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
         </span>
         {profile && <span className="hidden max-w-32 truncate md:inline">{profile.name}</span>}
-        <span title={sync.label} aria-label={sync.label} className="font-bold">
-          {sync.icon}
+        <span title={sync.label} aria-label={sync.label} className="flex items-center font-bold">
+          <Icon name={sync.icon} size="1.3rem" />
           <span className="ml-1 hidden font-normal lg:inline">{sync.label}</span>
         </span>
       </span>

@@ -13,6 +13,7 @@ import { useClockStore } from '../store/useClockStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
@@ -181,7 +182,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           <span className="font-sb-mono">
             {formatTrackClockTime(position)} / {formatTrackClockTime(duration)}
           </span>
-          {isPlaying && device && inputId && <span className="ml-auto font-bold text-red-500">● Aufnahme läuft</span>}
+          {isPlaying && device && inputId && <span className="ml-auto flex items-center gap-1 font-bold text-red-500"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aufnahme läuft</span>}
         </div>
       )}
 
@@ -208,7 +209,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
               ))}
             </select>
             <button type="button" onClick={refreshInputs} title="MIDI-Eingänge neu einlesen" className="rounded-sb-sm bg-control-strong px-2 text-sm text-ink hover:bg-control-strong-hover">
-              ↻
+              <Icon name="retry" />
             </button>
           </span>
         </label>

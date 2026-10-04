@@ -327,26 +327,26 @@ describe('tapping lines (#325)', () => {
     trackClock.isPlaying = true
     setup({ content: song, trackSrc: 'blob:track', startLineTapping: true })
     const panel = screen.getByTestId('tap-lines-panel')
-    expect(panel.textContent).toContain('→ First line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('First line')
     expect(screen.getByText('Letzte Zeile zurück')).toBeDisabled()
 
     const tapButton = screen.getByText('TIPP')
     fireEvent.pointerDown(tapButton)
     fireEvent.pointerDown(tapButton)
-    expect(panel.textContent).toContain('✓ Second line')
-    expect(panel.textContent).toContain('→ Third line')
+    expect(screen.getByTestId('tap-prev-line')).toHaveTextContent('Second line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('Third line')
     expect(panel.textContent).toContain('Fourth line')
 
     fireEvent.click(screen.getByText('Letzte Zeile zurück'))
-    expect(panel.textContent).toContain('→ Second line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('Second line')
 
     // Space taps (instead of toggling playback), ArrowUp undoes.
     const timeline = screen.getByLabelText('Timeline')
     fireEvent.keyDown(timeline, { key: ' ' })
     expect(trackClock.togglePlay).not.toHaveBeenCalled()
-    expect(panel.textContent).toContain('→ Third line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('Third line')
     fireEvent.keyDown(timeline, { key: 'ArrowUp' })
-    expect(panel.textContent).toContain('→ Second line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('Second line')
     trackClock.isPlaying = false
   })
 
@@ -355,11 +355,10 @@ describe('tapping lines (#325)', () => {
     setup({ content: song, trackSrc: 'blob:track', startLineTapping: true })
     trackClock.ref.current!.currentTime = 30
     fireEvent.pointerDown(screen.getByText('TIPP'))
-    const panel = screen.getByTestId('tap-lines-panel')
-    expect(panel.textContent).toContain('→ Second line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('Second line')
 
     fireEvent.keyDown(screen.getByLabelText('Timeline'), { key: 'ArrowLeft' })
-    expect(panel.textContent).toContain('→ First line')
+    expect(screen.getByTestId('tap-next-line')).toHaveTextContent('First line')
     // The tap was at the clock's 0 ms here, so playback goes back to the start (never below 0).
     expect(trackClock.ref.current!.currentTime).toBe(0)
     trackClock.isPlaying = false

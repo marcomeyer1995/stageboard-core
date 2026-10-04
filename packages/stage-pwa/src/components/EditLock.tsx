@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEditModeStore } from '../store/useEditModeStore'
+import { Icon } from './Icon'
 
 const LONG_PRESS_MS = 600
 /** How long the "hold it" hint stays after a too-short tap, ms. */
@@ -88,7 +89,7 @@ export function EditLock({ onUnlock }: EditLockProps) {
           }}
         />
         <span className={`relative ${pressing ? 'text-accent-ink' : ''}`}>Bearbeiten</span>
-        <span className="relative text-xl leading-none">🔒</span>
+        <Icon name="locked" size="1.4rem" className="relative" />
       </button>
       {hint && (
         <p role="status" className="text-sm text-accent">

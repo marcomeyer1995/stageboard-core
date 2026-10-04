@@ -10,6 +10,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 interface AppMenuProps {
   mode: Mode
@@ -116,7 +117,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
                   }`}
                 >
                   {dashboard.name}
-                  {dashboard.id === activeDashboardId && <span aria-hidden="true">✓</span>}
+                  {dashboard.id === activeDashboardId && <Icon name="check" size="1.25rem" />}
                 </button>
               ))}
             </div>
@@ -148,7 +149,10 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
               className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
             >
               Vollbild
-              <span>{fullscreen.isFullscreen ? '⤡ Aus' : '⤢ An'}</span>
+              <span className="flex items-center gap-2">
+                <Icon name={fullscreen.isFullscreen ? 'exitFullscreen' : 'fullscreen'} />
+                {fullscreen.isFullscreen ? 'Aus' : 'An'}
+              </span>
             </button>
           </Section>
         )}

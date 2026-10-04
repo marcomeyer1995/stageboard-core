@@ -418,7 +418,7 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
     render(<JoinBandView onClose={onClose} />)
     await screen.findByText('Band beitreten')
 
-    expect(screen.queryByText('← Zurück zu Band B')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zurück zu Band B')).not.toBeInTheDocument()
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-a')
   })
 
@@ -438,6 +438,6 @@ describe('JoinBandView - opened voluntarily with onClose (#68: joining a second 
 
     render(<JoinBandView />)
 
-    expect(await screen.findByText('← Zurück zu Band B')).toBeInTheDocument()
+    expect(await screen.findByText('Zurück zu Band B')).toBeInTheDocument()
   })
 })

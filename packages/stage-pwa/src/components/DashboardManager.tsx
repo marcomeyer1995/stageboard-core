@@ -9,6 +9,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 interface DashboardManagerProps {
   onClose: () => void
@@ -106,7 +107,7 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
             className="px-1 py-0.5 hover:text-ink-soft"
             title="Nach oben"
           >
-            ▲
+            <Icon name="up" size="1.25rem" />
           </button>
           <button
             type="button"
@@ -114,7 +115,7 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
             className="px-1 py-0.5 hover:text-ink-soft"
             title="Nach unten"
           >
-            ▼
+            <Icon name="down" size="1.25rem" />
           </button>
         </div>
 

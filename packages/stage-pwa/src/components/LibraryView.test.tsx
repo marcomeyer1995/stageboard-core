@@ -306,7 +306,7 @@ describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not 
     render(<LibraryView />)
 
     fireEvent.click(screen.getByText('Alpha'))
-    expect(screen.getByRole('button', { name: '← Bibliothek' })).toHaveClass('hidden')
+    expect(screen.getByRole('button', { name: 'Bibliothek' })).toHaveClass('hidden')
   })
 
   it('narrow portrait still shows the "← Bibliothek" back button once something is selected', () => {
@@ -314,7 +314,7 @@ describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not 
     render(<LibraryView />)
 
     fireEvent.click(screen.getByText('Alpha'))
-    expect(screen.getByRole('button', { name: '← Bibliothek' })).not.toHaveClass('hidden')
+    expect(screen.getByRole('button', { name: 'Bibliothek' })).not.toHaveClass('hidden')
   })
 })
 

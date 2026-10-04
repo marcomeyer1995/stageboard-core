@@ -1,3 +1,4 @@
+import { Icon } from './Icon'
 /**
  * The actual "kick" behind the Device Ledger's admin revoke action (DeviceLedgerView.tsx,
  * Marco's explicit request) - a soft, cooperative lockout, not a hard security boundary
@@ -13,7 +14,7 @@
 export function DeviceRevokedScreen() {
   return (
     <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-red-950 p-8 text-center text-white">
-      <span className="text-5xl">🚫</span>
+      <Icon name="blocked" size="3.5rem" />
       <h1 className="text-xl font-bold">Dieses Gerät wurde entfernt</h1>
       <p className="max-w-sm text-sm text-red-200">
         Ein Admin hat dieses Gerät aus der Band entfernt. Wende dich an einen Admin, wenn das ein
