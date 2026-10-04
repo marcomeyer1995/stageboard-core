@@ -1,21 +1,25 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-09-26, `main` @ `05b8301` (nach #255-#278). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) der Cue-Recorder (#6), das Einrasten auf Onsets (#7, erste Scheibe), die Bugfixes #247-#249, die YouTube-Referenzspur über Async-Jobs (#5), der gereifte Ultimate-Guitar-Import (#277) und Tab-Blöcke im ChordPro (#278). **Seit 2026-09-25 ist StageBoard produktiv im Einsatz** (Betrieb: docs/03 §0b). 26 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-/Geräte-Prüfungen von #5, #6, #7, #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
+Stand: 2026-10-04, `main` @ `fd668cc` (nach #281-#358). Seit dem letzten Stand dazugekommen: Bühnengröße für alle Widgets und Dashboards je Modus (#281-#305), die feste Statusleiste (PR F2), der **Timeline-Editor** mit Raster, Liedtext, Notizen, Cues, Übersichtsleiste, einklappbaren Spuren und Einrast-Schalter (docs/14, #307-#358), das **starre Klick-Raster mit Ausrichtungspunkten statt Beat-Ankern** (#313/#314), die **native Android-App** mit Zertifikat-Pinning und Updates vom Stage-Server (#348-#350), die Zurück-Navigation innerhalb der App (#341), robuster Stage-Server-Betrieb (Start ohne Desktop-Anmeldung, schnelles Stoppen, mDNS wartet aufs Netz, #335/#336/#339) und die Umbenennung „Live" → „Boards" (#333). 33 offene Issues.
+
+Ältere Grundlage: Stand 2026-09-26, `main` @ `05b8301` (nach #255-#278). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) der Cue-Recorder (#6), das Einrasten auf Onsets (#7, erste Scheibe), die Bugfixes #247-#249, die YouTube-Referenzspur über Async-Jobs (#5), der gereifte Ultimate-Guitar-Import (#277) und Tab-Blöcke im ChordPro (#278). **Seit 2026-09-25 ist StageBoard produktiv im Einsatz** (Betrieb: docs/03 §0b). Damals 26 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-/Geräte-Prüfungen von #5, #6, #7, #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
 ## 1. Kurzfassung
 
-StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Server (Fastify + CouchDB, Linux, nativ) und React-PWAs auf den Tablets, verbunden über ein lokales Netz. Der **Kern läuft und ist im Einsatz**: mehrere Bands mit Konten/Rollen, Song-Bibliothek mit ChordPro-Editor, Setlists, ein synchroner Prompter, Backing-Tracks mit Offline-Cache, ein synthetisierter Klick samt Beat-Grid, NTP-artige Uhr-Synchronisation, Zeitleisten-Cues, Hardware-Erkennung und -Bindung (Kemper, Boss RC-500, NUX MG-30, A&H CQ-18T, Soundcraft Ui24R, generisches WebMIDI), ein anpassbares Dashboard mit 27 Widget-Typen sowie Nachbericht und Backups. **Solo Üben** und **Gig** sind zwei getrennte Modi; seit dieser Woche gibt es zusätzlich pro Setlist-Eintrag einen **Übergangstyp** (manuell / nächster bereit / nahtlos / mit Pause).
+StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Server (Fastify + CouchDB, Linux, nativ) und eine React-App auf den Tablets und Handys - im Browser oder seit 2026-10-03 als **native Android-App** (#348), die sich ohne Zertifikatswarnung installieren lässt und ihre Updates vom Stage-Server holt -, verbunden über ein lokales Netz. Der **Kern läuft und ist im Einsatz**: mehrere Bands mit Konten/Rollen, Song-Bibliothek mit ChordPro-Editor, Setlists, ein synchroner Prompter, Backing-Tracks mit Offline-Cache, ein synthetisierter Klick auf einem **starren Raster mit Ausrichtungspunkten**, das im **Timeline-Editor** über der Wellenform ausgerichtet wird (dort auch Liedtext-Zeiten, Notizen und Cues), NTP-artige Uhr-Synchronisation, Zeitleisten-Cues, Hardware-Erkennung und -Bindung (Kemper, Boss RC-500, NUX MG-30, A&H CQ-18T, Soundcraft Ui24R, generisches WebMIDI), ein anpassbares Dashboard mit 27 Widget-Typen sowie Nachbericht und Backups. **Solo Üben** und **Gig** sind zwei getrennte Modi; seit dieser Woche gibt es zusätzlich pro Setlist-Eintrag einen **Übergangstyp** (manuell / nächster bereit / nahtlos / mit Pause).
 
 ### Reifegrad auf einen Blick
 
 | Bereich | Stand |
 |---|---|
 | Bands, Beitritt, Roster, PINs, Geräte-Ledger | fertig |
-| Bibliothek, Song-Editor, ChordPro, Tap-to-Sync, Tab-Import | fertig (UG-Scraper hängt an UGs Seitenstruktur, #15; Umwandlung seit #277 an 35 echten Tabs ohne Akkordverlust geprüft) |
+| Bibliothek, Song-Editor, ChordPro, Tab-Import | fertig (UG-Scraper hängt an UGs Seitenstruktur, #15; Umwandlung seit #277 an 35 echten Tabs ohne Akkordverlust geprüft); ungespeicherte Änderungen fragen vor dem Verlassen (#341) |
+| Timeline-Editor (docs/14): Raster ausrichten, Liedzeilen tippen (mit Kontext und Rückgängig, #325), Notizen, Cues, Übersichtsleiste (#327), Abspielkopf-Aktionen (#326), einklappbare Spuren (#328), Abschnitts-Tempo (#329), Greifbarkeit (#331), Einrasten/Alt (#332) | fertig; Phasen 1-3 auf Fire/Xiaomi geprüft, die Ergänzungen ab #323 nur im Browser und per Test |
+| Native Android-App (Capacitor, #348) | fertig für Android: Pairing per Band-QR mit Zertifikat-Fingerprint, Sync/Live-Streams/Audio, Updates über `/app` - auf dem Samsung-Handy geprüft; Fire/Xiaomi ungeprüft; iOS nicht gebaut; Server-Suche per mDNS offen (#351) |
 | Tab-Blöcke (`{start_of_tab}`, pro Mitglied sichtbar, #278) | fertig, Import live geprüft; Darstellung im Prompter auf dem Tablet noch nicht geprüft |
 | Setlists, Queue, Master-Token, Solo/Gig | fertig (Master-Heartbeat und Force Takeover seit #32, noch nicht auf Tablets geprüft) |
 | Ready-Check (Master-Abfrage, Vollbild-Overlay, Live-Zähler) | fertig (#60), noch nicht auf Tablets geprüft |
-| Prompter (inkl. Transposition/Capo), Metronom, Klick, Beat-Erkennung | fertig |
+| Prompter (inkl. Transposition/Capo), Metronom, Klick (starres Raster, #313), Beat-Erkennung → Raster | fertig; allmähliche Tempowechsel (Ritardando) nur stufenweise (#354); Ausgabelatenz je Gerät gemessen, bewusst nicht kompensiert (docs/13 §7, #302) |
 | Loop-Trainer (Solo Üben), Festival-Uhr, Übergangs-/Abschnitts-Einträge | fertig (Loop-Trainer noch nicht auf Tablets geprüft) |
 | Backing-Tracks, Offline-Cache, Audio-Resume | fertig (Übergänge noch nicht auf Tablet geprüft) |
 | Hardware-Erkennung/-Bindung, Cue-Timeline | fertig, aber Polling (~60 fps), nicht sample-genau |
@@ -36,7 +40,11 @@ StageBoard ist ein lokal-first arbeitendes Live-System für Bands: ein Stage-Ser
 8. **YouTube-Extraktion (#5) hängt an yt-dlp:** YouTube ändert regelmäßig etwas, dann scheitern Jobs mit einer yt-dlp-Fehlermeldung, bis jemand `yt-dlp -U` ausführt. Das Ergebnis ist meist WebM/Opus - in Chrome/Android problemlos, ältere iPads spielen es womöglich nicht ab.
 9. **Tab-Blöcke (#278) nur im Test und per Live-Import geprüft:** Wie breite Riffs im Prompter auf einem kleinen Tablet wirken (seitliches Scrollen während des Spiels, Schriftgröße 0,8 em) ist nicht am Gerät ausprobiert. Bereits importierte Songs haben ihre Riffs noch als Textzeilen, bis sie neu importiert werden.
 10. **Lokale Änderungs-Feeds (behoben 2026-09-27) und Revisionsverlauf von `show-state`:** Jeder Store hatte einen eigenen gefilterten PouchDB-Feed; ein gefilterter Feed rückt nur bei passenden Änderungen vor, also las nach jedem Schreibvorgang jeder Feed alles seit Seitenaufruf neu - bei jedem Play auf dem Tablet ~1,1 s Standbild (~270 × 118 KB Metadaten geparst), und mit jedem 5-s-Heartbeat länger, je länger die App lief. Jetzt ein gemeinsamer ungefilterter Feed pro Datenbank (`lib/localChanges.ts`), der nach Dokument-Id verteilt. Offen: `show-state` trägt durch den Heartbeat ~2000 Revisionen (118 KB Metadaten, PouchDB-Standard `revs_limit` 1000) - ein kleineres `revs_limit` würde das verkleinern, kann aber bei langen Offline-Phasen eines Tablets zu Konflikten statt sauberer Historie führen; bewusst noch nicht geändert.
-11. **Klick-Gleichmaß und Stop-Verzögerung (behoben 2026-09-27):** Der Klick-Scheduler rechnete jeden Schlag einzeln aus einer groben Audio-Uhr um (~20-ms-Schritte auf dem Tablet) - Einzähl-Klicks lagen 438-513 ms statt 480 ms auseinander; jetzt wird nur beim (Neu-)Verankern umgerechnet, danach exakt eine Schlaglänge weiter in Audio-Zeit. Stop/Play auf dem Master wirkten erst nach dem Umweg über die Datenbank (0,87 s gemessen); `applyPatch` setzt den Zustand jetzt sofort lokal. Offen: Songs mit einem Beat-Anker pro Schlag (z. B. getappt oder erkannt, ±27 ms Streuung) lassen den Klick den Ankern exakt folgen - hörbar unruhig.
+11. **Klick-Gleichmaß und Stop-Verzögerung (behoben 2026-09-27):** Der Klick-Scheduler rechnete jeden Schlag einzeln aus einer groben Audio-Uhr um (~20-ms-Schritte auf dem Tablet) - Einzähl-Klicks lagen 438-513 ms statt 480 ms auseinander; jetzt wird nur beim (Neu-)Verankern umgerechnet, danach exakt eine Schlaglänge weiter in Audio-Zeit. Stop/Play auf dem Master wirkten erst nach dem Umweg über die Datenbank (0,87 s gemessen); `applyPatch` setzt den Zustand jetzt sofort lokal. Die damals offene Unruhe durch einen Beat-Anker pro Schlag ist mit #313 erledigt: Beat-Anker gibt es nicht mehr, der Klick spielt ein starres Raster, das nur an wenigen Ausrichtungspunkten am Track festgemacht wird (docs/14 §5a).
+12. **Signierschlüssel der Android-App (neu):** Jedes App-Update muss mit demselben Schlüssel signiert sein (`~/stageboard-data/android/`). Geht er verloren, lassen sich die installierten Apps nicht mehr aktualisieren, nur deinstallieren und neu einrichten - zusammen mit Punkt 7 (kein Backup auf ein zweites Medium) ein echtes Risiko.
+13. **Heimnetz-Mesh (beobachtet 2026-10-02):** Das eero-Mesh verwarf wiederholt den Verkehr zwischen einem Handy und dem Stage-Server-Laptop auf demselben 5-GHz-Funk (beide erreichten Router und andere Geräte); über das FritzBox-WLAN ging es sofort. Kein StageBoard-Fehler, aber für Gigs ein Argument für einen eigenen, einfachen Band-Router.
+14. **Ausgabelatenz je Gerät (docs/13 §7):** Klick und Backing-Track laufen je Gerät mit eigener Verzögerung (Laptop ~30 ms, Fire bis ~400 ms). Bewusst geparkt; wer den Klick über ein langsames Tablet hört, hört ihn spät.
+15. **Native App, Server-Adresse:** Die App merkt sich die Server-Adresse aus dem Pairing; ändert sich die IP des Stage-Servers, muss jedes Gerät neu koppeln, bis die mDNS-Suche (#351) gebaut ist.
 
 ### Kleine Unstimmigkeiten (nur beobachtet)
 
@@ -107,7 +115,7 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Use Cases:** (1) Der Master-Tablet-Halter drückt „Play"; Backing-Track startet über das Server-Plugin, und die Prompter aller Tablets scrollen los. (2) Solo-Üben: Sängerin übt zu Hause mit „Play/Pause" auf dem eigenen Tablet über Kopfhörer, „Reset" bringt sie an den Songanfang.
 
 #### 6. Visueller Metronom (`visual-metronome`)
-- **Was:** Blitzt im Takt des aktiven Songs, aus derselben synchronen Uhr wie der Prompter (kein lokaler `setInterval`). Stil `number`: große Beat-im-Takt-Zahl, ganzes Feld blitzt (Downbeat in Akzentfarbe, Einzählen gedämpft); Stil `beat-dots`: Punktreihe über den Takt, aktueller Beat leuchtet. Darunter „<BPM> · <Taktart>" (BPM auf eine Nachkommastelle, effektives Tempo inkl. Beat-Anker-Korrektur und Live-Korrektur „(+x%)"; bis 2026-09-27 wurde die Anker-Korrektur invertiert angezeigt - Schläge im Abstand von 480 ms standen als ~104 statt 125 BPM da). Vor Start „Wartet auf Play", während Einzählen ohne Grid „Einzählen…".
+- **Was:** Blitzt im Takt des aktiven Songs, aus derselben synchronen Uhr wie der Prompter (kein lokaler `setInterval`). Stil `number`: große Beat-im-Takt-Zahl, ganzes Feld blitzt (Downbeat in Akzentfarbe, Einzählen gedämpft); Stil `beat-dots`: Punktreihe über den Takt, aktueller Beat leuchtet. Darunter „<BPM> · <Taktart>" (BPM auf eine Nachkommastelle, effektives Tempo der aktuellen Raster-Strecke und Live-Korrektur „(+x%)"). Vor Start „Wartet auf Play", während Einzählen ohne Grid „Einzählen…".
 - **Config:** `style` (`number`|`beat-dots`, Default `number`), `sizeRatio` (3,5; nur für `number`).
 - **Gig vs. Practice:** beide (`useShowMode()`); Live-Tempo-Korrektur nur im Gig wirksam.
 - **Disabled/Degradation:** Kein Song → „Kein Song aktiv". Keine Capability nötig. Hat eine statische `Preview`.
@@ -323,7 +331,7 @@ Widgets 24 und 25 gehören zur Kategorie `performance`, 26 und 27 zur neuen Kate
 
 ## Teil B - Oberfläche, Bands/Konten, Stores
 
-Stand: main nach PR #245 (Übergangstypen), 2026-09-19. Grundlage: gelesener Code in `components/`, `store/`, `App.tsx`, `lib/modes.ts` sowie die Schema-Dateien in `shared-types`. Widgets (`widgets/`) sind bewusst **nicht** Teil dieses Surveys (nur ihre Einbindung: Dashboard, Widget-Bibliothek, Edit-Modus). Das Backend wurde nicht gelesen; Aussagen über Server-Verhalten stammen ausschließlich aus Kommentaren der Client-Dateien und sind als „laut Code-Kommentar" markiert.
+Stand: main nach PR #245 (Übergangstypen), 2026-09-19; ergänzt am 2026-10-04 (Navigation „Boards"/Zurück, Beitritt in der Android-App, Song-Editor mit Timeline, Einstellungen → App, neue Stores). Grundlage: gelesener Code in `components/`, `store/`, `App.tsx`, `lib/modes.ts` sowie die Schema-Dateien in `shared-types`. Widgets (`widgets/`) sind bewusst **nicht** Teil dieses Surveys (nur ihre Einbindung: Dashboard, Widget-Bibliothek, Edit-Modus). Das Backend wurde nicht gelesen; Aussagen über Server-Verhalten stammen ausschließlich aus Kommentaren der Client-Dateien und sind als „laut Code-Kommentar" markiert.
 
 Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwendungsfall einer Band.
 
@@ -331,7 +339,9 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ### 1. Navigation und Grundstruktur
 
-**Drei Top-Level-Ansichten** (`lib/modes.ts`, `App.tsx`): `Live` (Dashboard), `Bibliothek`, `System`. Der Modus ist reiner React-State in `App` (nicht persistiert) – nach einem Reload startet die App immer in **Live**.
+**Drei Top-Level-Ansichten** (`lib/modes.ts`, `App.tsx`): `Boards` (Dashboard, bis #333 „Live"), `Bibliothek`, `System`. Der Modus ist reiner React-State in `App` (nicht persistiert) – nach einem Reload startet die App immer in **Boards**.
+
+**Zurück (#341, `lib/backNavigation.ts`):** Die App hat kein URL-Routing; früher verließ jedes „Zurück" (Android-Geste/-Taste, Touchpad-Wischen, Maus-Zurücktaste) StageBoard ganz. Jetzt hält die App einen eigenen Verlaufseintrag und schließt stattdessen die aktuelle Ansicht: Dialog/Menü/Overlay zu, Timeline → Text, Song-Editor → Bibliothek (mit Rückfrage bei ungespeicherten Änderungen), Bibliothek/System → Boards; auf dem Dashboard passiert nichts. Gig-Overlays (Audio-Resume, Ready-Check) schließt Zurück bewusst nicht.
 
 **Statusleiste (PR F2, 2026-09-27, `StatusBar.tsx`, `lib/statusBar.ts`):** Feste Leiste (56 px) oben auf jedem Bildschirm außer den Onboarding-Screens; die Ansichten füllen den Rest (`h-full` statt eigener `h-dvh`). Links **☰ <Ansicht>** (öffnet das `AppMenu`), der **Zustand** als Wort, **Songtitel** (mit Variante, wenn nicht Standard) und **Laufzeit / Länge**; rechts **GIG/SOLO**, 👑 wenn dieses Gerät das Master-Token hat, **Uhrzeit**, **Musiker** (aktives Profil) und **Sync** (✓ / ⟳ / ⚠ / ✕). Die ganze Leiste trägt die Farbe des Zustands (mit Marco festgelegt; volle Einfärbung ist ein Versuch, auf dem Tablet zu beurteilen): grau **Bereit**, blau **Einzählen**, grün **Spielt**, amber **Pause**, magenta **Beendet** (der Lauf endete höchstens 5 s vor der Songlänge - Stop setzt den Eintrag zurück, deshalb merkt die Leiste das selbst; ein Reset nach Fehlstart zählt nicht), rot **nur bei Fehlern**: Audio-Fehler, Sync-Fehler, im Gig zusätzlich Offline und Kein Master. Farbe immer zusammen mit dem Wort. **Beim Einzählen** bleibt die Leiste ruhig blau; statt des Zustandsworts steht links ein **Zählblock** mit großer Zählzahl, Punkten für die Schläge des Takts und „Takt 1/2" bei mehreren Einzähltakten, und nur dieser Block blitzt auf jedem Schlag (120 ms weiß), aus derselben synchronen Uhr wie Prompter und Visueller Metronom - alle Tablets blitzen gemeinsam im Songtempo. (Die erste Fassung ließ die ganze Leiste samt Text hell/dunkel umschlagen; auf dem Tablet „sah das komisch aus", Marco 2026-09-27.) Die Laufzeit zählt vor dem ersten Schlag sauber herunter (-0:02, -0:01, 0:00 - vorher kurz „-0:00"). Pro Dashboard abschaltbar (Chip **Statusleiste** in „Dashboards verwalten", `Dashboard.statusBar`, fehlt = an), z. B. für einen reinen Prompter-Bildschirm; dort kommt der frühere schwebende Menü-Button unten rechts zurück (`☰ <Ansicht>` mit Sync-Punkt, im Bearbeitungsmodus ausgeblendet). Vorher lag dieser Button auf jedem Bildschirm über Widgets und Listen (GUI-Audit).
 
@@ -392,6 +402,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Was:** WLAN-artiger 3-Schritt-Ablauf: (1) verfügbare Bands des konfigurierten Stage-Servers listen (ohne Code) oder QR scannen, (2) Bandcode eingeben, (3) „Wer bist du?" aus dem Roster wählen (`fetchRoster` → `joinAsMember`). Zusätzlich: „Neue Band gründen", „Andere Band oder anderer Code", „Passwort direkt eingeben" (Workspace-ID + Benutzername + Passwort/PIN für Sonderfälle).
 - **Wo:** Vollbild beim allerersten Start; freiwillig erneut aus dem Band-Tab („+ Band → Bestehender Band beitreten"), dann mit „Abbrechen".
 - **Gating:** offen; Admin-Zeile verlangt 4-stellige PIN/Recovery-Code. QR-Scan braucht HTTPS/Kamera (sonst freundliche Meldung, Fallback Liste).
+- **In der Android-App (#348):** Die App kennt den Server noch nicht. Der Einladungs-QR-Code trägt Server-Adresse **und** Zertifikat-Fingerprint (`fp=`) - der Scan koppelt die App mit dem Server (Zertifikat wird genau so gemerkt) und geht direkt zu Schritt 3. Alternativ Adresse eintippen: die App zeigt den Fingerprint des Servers zur Bestätigung. Im Android-*Browser* zeigt die Seite zusätzlich „StageBoard-App für Android installieren" (`/app`).
 - **UC:** Neuer Schlagzeuger bekommt das Tablet, scannt den QR-Code vom Probenraum-Ausdruck und tippt seinen Namen – sofort sind Songs/Setlists da. **UC:** Nach Server-Tausch: Band aus der Liste wählen, Code eingeben, Admin-PIN.
 
 #### 3.2 RosterSetupView – Roster aufbauen (`components/RosterSetupView.tsx`)
@@ -488,16 +499,16 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - Read-only Ansicht des Songs (ChordPro-Rendering), Button **Bearbeiten** öffnet den Editor.
 
 #### 6.4 Song-Editor (`SheetEditor`)
-- **Kopf (immer sichtbar):** ← Bibliothek, **Variante** (Auswahl + „+ Neue Variante"; bei nicht-Standard-Variante Feld „Varianten-Name"), **Titel**, **Band** (Artist), **Key, Tuning, Capo**. **Speichern** speichert Song + Variante (Fehlermeldung, „Gespeichert.").
+- **Kopf (immer sichtbar):** ← Bibliothek (bei ungespeicherten Änderungen erst „Ungespeicherte Änderungen verwerfen?", ebenso bei Zurück; Neu laden/Tab schließen warnt im Browser, #341), Umschalter **Text | Timeline**, **Variante** (Auswahl + „+ Neue Variante"; bei nicht-Standard-Variante Feld „Varianten-Name"), **Titel**, **Band** (Artist), **Key, Tuning, Capo**. **Speichern** speichert Song + Variante (Fehlermeldung, „Gespeichert.").
 - **Abschnitte** (alle initial eingeklappt; Phone = Tabs, Tablet-Hochkant = Bottom-Sheet, breit = Akkordeon neben dem Text):
-  - **Text:** ChordPro-Textfeld mit Part-Buttons (**+ Verse/Chorus/Bridge …**, `PART_LABELS`), **+ Kommentar** und **+ Tab** (leerer Tab-Block an der Cursorposition); **Song importieren**; **Tap-to-Sync starten**; Live-Vorschau (`ChordProLyrics`).
-  - **Tempo & Klick:** BPM, Takt, „Klick standardmäßig an (per Show überstimmbar)", **Count-in** (aktiv + Takte), darunter das **Klick-Sync-Werkzeug:** Anker per Tippen setzen (`TapBeatAnchors`), **Track analysieren** (Plugin *music-tempo* falls installiert, sonst eingebauter Detektor; überschreibt vorhandene Anker nur nach Bestätigung), **Tempo-Wechsel** markieren (`TapTempoMarker`) und **erkennen**, Listeneditoren für **Klick-Anker** (Zeit, Beat-in-Bar) und **Tempo-Wechsel** (Zeit, BPM). Automatisch Erkanntes ist immer nur ein **Vorschlag zum Prüfen**.
+  - **Text:** ChordPro-Textfeld mit Part-Buttons (**+ Verse/Chorus/Bridge …**, `PART_LABELS`), **+ Kommentar** und **+ Tab** (leerer Tab-Block an der Cursorposition); **Song importieren**; **Tap-to-Sync starten** (öffnet die Timeline direkt im „Zeilen tippen", #325); Live-Vorschau (`ChordProLyrics`).
+  - **Tempo & Klick:** BPM, Takt, „Klick standardmäßig an (per Show überstimmbar)", **Count-in** (aktiv + Takte), Zusammenfassung des **Klick-Rasters** (Ausrichtungspunkte), **Track analysieren** (Beat-Erkennung, daraus ein Raster mit wenigen Punkten, `gridFromBeats`; ersetzt ein vorhandenes Raster nur nach Bestätigung) und **Raster löschen**. Ausgerichtet wird das Raster in der Timeline. Automatisch Erkanntes ist immer nur ein **Vorschlag zum Prüfen**. (Beat-Anker, Tempo-Marker und ihre Editoren gibt es seit #313 nicht mehr.)
   - **Audio:** `TrackManagerField` – benannte Tracks (*reference / band-mix / stem*) hochladen/entfernen; erst nach Speichern der Variante möglich („Erst speichern, dann Tracks anhängen."). **Neu (#5):** Feld „YouTube-Link für eine Referenzaufnahme" + „Von YouTube laden" legt einen Async-Job an; darunter der Job-Status („wartet…" / „42 %" / „abgeschlossen" / Fehlertext, „Ausblenden"). Das Ergebnis erscheint als Track „YouTube Referenz" (*reference*) auf allen Geräten, siehe C 3.11.
   - **Cues:** `CueListEditor` – Cue hinzufügen mit Zeit (s), Capability, Typ, **Ziel-Gerät** (nur Logical Devices mit dieser Capability), Payload als JSON; kein pluginspezifisches Autoren-Panel (später). Darüber **„Cues aufnehmen"** (#6, neu): der `CueRecorder`, siehe 5.5.
   - **Kommentare:** `CommentListEditor` – listet `{comment:}/{c:}/{cc:}`-Direktiven; **„Sichtbar für"** pro Kommentar (an bestimmte Mitglieder), Text ändern, entfernen. Die Position bleibt die Zeile im Text. Darunter **„Tab-Blöcke"** (#278): jeder Tab-Block mit Zeilenzahl und demselben „Sichtbar für" (ändert nur die öffnende Direktive, nie das Riff).
 - **Song importieren** (`TabImportOverlay`): Suche → Vorschau → Übernahme von Akkorden/BPM/Key/Tuning/Capo/Band; „Original ansehen ↗" öffnet die Quelle in einem Popup (iframe scheitert an `frame-ancestors`). MusicBrainz-Treffer dienen nur der Identität, importierbar sind nur Treffer mit ChordPro-Inhalt. Nutzt Lookup-Plugins am Stage-Server (nicht verifiziert, ob ohne Server nutzbar).
-- **Tap-to-Sync** (`TapToSync`): Zeile für Zeile im Takt tippen (Leertaste/Button); mit Track läuft die Master-Clock an der echten Wiedergabeposition, ohne Track als Stoppuhr → Zeitstempel `[mm:ss.xx]` im Text.
-- **Gating:** keine. **UC:** Nach dem Import einer Tab-Vorlage legt der Gitarrist den Backing-Track an, lässt die Beat-Erkennung laufen, korrigiert zwei Anker von Hand und speichert; danach spielt der Klick sauber zum Track.
+- **Timeline** (`components/timeline/TimelineEditor.tsx`, docs/14): alles mit Zeitbezug auf einer Zeitachse über der Wellenform - Spuren Wellenform, Tempo-Leiste + Raster, Parts + Liedtext, Notizen (Kommentare/Tab-Blöcke), Cues; darüber eine **Übersichtsleiste** des ganzen Songs (#327). Taktstriche auf den Schlag ziehen (= Ausrichtungspunkt), „Takt 1 hier", „Tempo tippen" (ab dem Takt des ersten Tipps bis zum nächsten Punkt, #329), „Zeilen tippen" (Kontext vorher/nächste/danach, „Letzte Zeile zurück", „Zurück + 4 s", Leertaste/↑/←; Akkord-Zeilen werden übersprungen, #325), Liedzeilen/Notizen/Cues ziehen, **Zum Abspielkopf** und **Cue am Abspielkopf** (#326), Cue-Fenster mit Gerät → Befehl → Wert, „Nächste Problemstelle", Rückgängig/Wiederholen. Pro Gerät: **Spuren** ein-/ausblenden (#328), **Einrasten** an/aus, Alt kehrt es beim Ziehen um (#332). Greifbar ist ein Element nur mit zwei Fingerbreiten Abstand zum Nachbarn (#331). Der alte Tap-to-Sync-Bildschirm ist entfernt (#325).
+- **Gating:** keine. **UC:** Nach dem Import einer Tab-Vorlage legt der Gitarrist den Backing-Track an, lässt „Track analysieren" laufen, zieht in der Timeline zwei Taktstriche auf ihren Schlag und speichert; danach spielt der Klick sauber zum Track.
 
 ---
 
@@ -542,6 +553,7 @@ Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbe
 
 #### 7.8 Einstellungen (`SystemSettings`)
 Alles einmalig einzustellen, pro Gerät:
+- **App** (nur in der Android-App, #348): installierte Version und „Nach Update suchen" - bietet der Stage-Server eine neuere Version an, lädt die App sie selbst (über das gekoppelte Zertifikat) und öffnet den Android-Installer. Dieselbe Meldung erscheint beim App-Start als Leiste unten („Später" blendet sie bis zum nächsten Start aus).
 - **Gerätename** (`DeviceNameSettings`, selbst umbenennen; erscheint überall, z. B. Master-Anzeige).
 - **Darstellung** (`ThemeSwitcher`): 5 Designs *Klassisch, Stage Console, Soft Cards, High Contrast, Neon Live*; Hell/Dunkel nur bei „Klassisch" (die anderen sind dunkel). `localStorage`.
 - **Textgröße** (`TextSizeSettings`): Standard-Schriftgröße für Prompter, Live-Queue, Show-Notizen, System-Status; pro Widget im ⋯-Menü überschreibbar.
@@ -574,7 +586,7 @@ Alles einmalig einzustellen, pro Gerät:
 | `useProfilesStore` | Roster (Profil = id, Name, `stageRoles`); Anlegen/Umbenennen/Rollen/Löschen/`connectToServer` | PouchDB→CouchDB |
 | `useActiveProfileStore` | aktives Profil je Band (`''` = „ohne Profil") | `localStorage` |
 | `useRosterSetupStore` | Roster-Einrichtung abgeschlossen (je Band, pro Gerät) | `localStorage` |
-| `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Anker, Tempo-Marker, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (nur Track-*Metadaten*; das Audio liegt seit #30 auf der Server-Platte, C 3.4b) |
+| `useSongsStore`, `useSongVariantsStore`, `useSetlistsStore` | Songkatalog, Varianten (Tracks, Klick-Raster `beatGrid`, Cues, Count-in), Setlists (Legacy-`songIds` werden lesend zu `entries` migriert; `transitionType`/`transitionDelayMs` optional) | PouchDB→CouchDB (nur Track-*Metadaten*; das Audio liegt seit #30 auf der Server-Platte, C 3.4b) |
 | `useShowStateStore` | geteilter Live-Zustand: Master-Token (`claimMaster`, `releaseMaster`), Ready-Check auf/zu (`startReadyCheck`/`endReadyCheck`), aktive Setlist/Eintrag, Transport, Click-Override, Extend | PouchDB→CouchDB |
 | `useAsyncJobsStore` (#5) | alle Async-Jobs der Band (YouTube-Extraktion); `TrackManagerField` filtert auf die aktuelle Variante | PouchDB→CouchDB |
 | `useReadyCheckStore` | welche Ready-Check-Abfrage dieses Gerät schon erledigt hat (#60) | **flüchtig** (bewusst) |
@@ -603,7 +615,9 @@ Alles einmalig einzustellen, pro Gerät:
 | `useThemeStore` | Design + Hell/Dunkel | `localStorage` |
 | `useContentFontSizeStore` | Standard-Textgröße | `localStorage` |
 | `useViewportStore` | Vollbild-Präferenz | `localStorage` `stageboard-viewport` |
-| `useStageServerStore` | Stage-Server-URL zur Laufzeit | `localStorage` `stageboard-stage-server` |
+| `useStageServerStore` | Stage-Server-URL zur Laufzeit (in der Android-App: aus dem Pairing) | `localStorage` `stageboard-stage-server` |
+| `useTimelineLanesStore` (#328) | ausgeblendete Timeline-Spuren dieses Geräts | `localStorage` `stageboard-timeline-lanes` |
+| `useTimelineSnapStore` (#332) | Einrasten in der Timeline an/aus | `localStorage` `stageboard-timeline-snapping` |
 | `useDialogStore` | aktuelle Dialoganfrage | flüchtig |
 
 ---
@@ -618,13 +632,13 @@ Alles einmalig einzustellen, pro Gerät:
 - **Auto-Stopp/Übergang** (#231/#232) funktioniert auf dem Gerät, das zugleich Master (`canControl`) **und** lokale Audio-Ausgabe ist; ist beides auf zwei Tablets verteilt, greift die Automatik nicht (im Code als Limitation dokumentiert).
 - **Bekannte Build-Warnungen** (Vite): `practiceQueue.ts` und `useAppModeStore.ts` werden statisch **und** dynamisch importiert (kein Chunk-Splitting) – harmlos, Dynamic-Imports existieren wegen Test-Isolation.
 - **Offene, zugehörige Issues** (Auswahl): #213 (Container/Group-Widgets Nesting), #183/#182 (Setlist/Song-Erstellungs-Flows), #149 (Multi-Instance-Hardware-Routing), #85/#84 (Master-Token-Modus, abweichender Stage-Server je Band), #70 (Break-Glass-CLI), #57/#16 (Rollenbasierter Zugriff, Read-only-Dashboards), #27/#26 (Foot Switch, Stage Messenger).
-- **Nicht in diesem Survey geprüft:** die konkreten Widgets, Server-Endpunkte/Plugins im Backend, die Wirksamkeit der serverseitigen Rechteprüfungen, Verhalten auf iOS/Capacitor.
+- **Nicht in diesem Survey geprüft:** die konkreten Widgets, Server-Endpunkte/Plugins im Backend, die Wirksamkeit der serverseitigen Rechteprüfungen, Verhalten auf iOS. (Android/Capacitor gibt es seit #348, siehe C 3.12.)
 
 ---
 
 ## Teil C - Backend, Datenmodell, Plugins, Domain-Logik
 
-Stand: 2026-09-19, `main` @ `e265c88` (nach Merge von #242/#243/#245).
+Stand: 2026-09-19, `main` @ `e265c88` (nach Merge von #242/#243/#245); ergänzt am 2026-10-04 (Android-App und `/app`, Stage-Server-Betrieb, starres Klick-Raster, Tap-to-Sync in der Timeline).
 Quelle: direkt aus dem Code gelesen (`packages/core-backend/src`, `packages/shared-types/src`, `packages/stage-pwa/src/lib`), gegengelesen mit `docs/00`, `02`, `05`, `08` und der offenen Issue-Liste.
 Kennzeichnung: **[fertig]** = im Code verifiziert und verdrahtet, **[teilweise]** = vorhanden, aber mit klaren Lücken, **[Stub]** = Gerüst/Mock ohne echte Funktion, **[geplant]** = nur Issue/Doku, kein Code.
 Nicht enthalten: Widgets/Screens (`stage-pwa/src/widgets`, `components`) – das deckt ein anderer Survey ab. Wo ein Widget zur Einordnung nötig ist, wird es nur erwähnt.
@@ -637,12 +651,12 @@ Nicht enthalten: Widgets/Screens (`stage-pwa/src/widgets`, `components`) – das
 |---|---|---|
 | **Stage-Server** (`core-backend`) | Ein Fastify-Prozess (HTTP/2 + TLS, wenn `certs/dev-cert.pem` existiert, sonst HTTP/1.1). Liefert die gebaute PWA aus, proxyt CouchDB unter `/db`, hält flüchtige Live-Stores (Presence, Health, Discovery, Relay), speichert Audio-Dateien, hostet Server-Plugins, provisioniert Bands/Konten. | läuft produktiv auf Marcos Rechner (`node dist/index.js`, Port 443) |
 | **CouchDB** | Eine Datenbank pro Band (`stageboard-<workspaceId>`), alle Dokumentarten per `_id`-Präfix (`songs:`, `setlists:`, `profiles:`, `plugins:`, `logical-devices:`, `devices:`, `async-jobs:` …). | fertig |
-| **Tablet-Client** (`stage-pwa`) | React-PWA mit lokaler PouchDB pro Band, Live-Sync gegen CouchDB (über den `/db`-Proxy des Stage-Servers). Rechnet Uhr, Queue, Click, Cues **lokal**. | fertig |
+| **Tablet-Client** (`stage-pwa`) | React-PWA mit lokaler PouchDB pro Band, Live-Sync gegen CouchDB (über den `/db`-Proxy des Stage-Servers). Rechnet Uhr, Queue, Click, Cues **lokal**. Derselbe Build läuft auch als **native Android-App** (Capacitor, `packages/stage-pwa/android`, UI im APK, #348). | fertig |
 | **shared-types** | Zod-Schemas + TypeScript-Typen für alles, was zwischen Server und Client fließt. | fertig |
 
 **Wichtigste Architekturentscheidungen (verifiziert):**
 - **Local-First:** Musik-/Setlist-Daten fließen *nur* über PouchDB↔CouchDB. Fastify sitzt nicht dazwischen (nur als Reverse-Proxy `/db`, der den Basic-Auth-Header des Clients unverändert durchreicht – `index.ts:1178`).
-- **Ein Ursprung:** Server liefert PWA, API und DB unter einer Origin aus → ein einziges Zertifikat-Ausnahme-Tippen pro Tablet. Zusätzlich lauscht ein Port-80-Listener nur für den 301-Redirect auf HTTPS, und ein selbstgebauter mDNS-Responder antwortet auf `stageboard.local` (nur A-Record).
+- **Ein Ursprung:** Server liefert PWA, API und DB unter einer Origin aus → ein einziges Zertifikat-Ausnahme-Tippen pro Tablet. Ausnahme: die Android-App hat ihre eigene Origin `https://localhost` - der Server erlaubt sie per CORS, und die App vertraut dem selbstsignierten Zertifikat per gepinntem Fingerprint statt per Ausnahme-Tippen. Zusätzlich lauscht ein Port-80-Listener nur für den 301-Redirect auf HTTPS, und ein selbstgebauter mDNS-Responder antwortet auf `stageboard.local` (nur A-Record).
 - **Zwei Sync-Wege:** *Dauerhafte* Daten → CouchDB-Replikation. *Flüchtige Live-Signale* (Präsenz, Plugin-Gesundheit, Geräte-Info, Discovery-Session, Geräte-Relay) → In-Memory-Stores im Server + SSE-Push. Diese gehen bei Serverneustart verloren (bewusst – sie werden von den Clients zyklisch neu gemeldet).
 - **Zwei Ausführungsorte für Hardware:** Server-Plugin (Node, `IShowControlPlugin`) *oder* Client-Translator im Browser (WebMIDI/WebSocket). Welcher zuständig ist, entscheidet das Logical Device (`executionTarget`).
 
@@ -657,7 +671,9 @@ Alle Routen aus `index.ts`. **Auth** = Prüfung im Handler (nicht per Fastify-Ho
 |---|---|---|
 | `GET /health` | Liveness `{status:'ok'}` | – |
 | `GET /time` | `{serverTime: Date.now()}` – Ziel des Clock-Sync-Burst | – |
-| `GET /server-info` | `{lanIp, hostname}` (für QR-Code „Band einladen“, frisch pro Aufruf ermittelt) | – |
+| `GET /server-info` | `{lanIp, hostname, certFingerprint}` (für QR-Code „Band einladen“, frisch pro Aufruf ermittelt; `certFingerprint` = SHA-256 des Server-Zertifikats für das Pairing der App) | – |
+| `GET /app` | Download-Seite der Android-App (Version, großer Knopf, 3 Schritte) | – |
+| `GET /app/stageboard.apk`, `GET /app/version.json` | das signierte APK und `{versionCode, versionName, builtAt}` aus `~/stageboard-data/app` (gebaut von `scripts/build-android-app.sh`, `appDownload.ts`); 404, solange keine App gebaut ist | – |
 | `ANY /db/*` | Reverse-Proxy auf CouchDB (`@fastify/http-proxy`), Client-Auth wird durchgereicht | CouchDB selbst |
 | `GET /*` | statische PWA aus `packages/stage-pwa/dist` (falls vorhanden) | – |
 
@@ -770,8 +786,13 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `<AU
 
 #### 3.9 Server-Discovery im Netz (mDNS, Port-80-Redirect, `/server-info`) **[fertig]**
 - **Was:** `stageboard.local` → LAN-IP per handgebautem mDNS-Responder (`multicast-dns`, eigener UDP-Socket, `setMulticastInterface(lanIp)`, um Docker-Bridges zu umgehen). Port 80 antwortet 301 auf HTTPS. LAN-IP per `LAN_IP` oder Auto-Erkennung (Docker/`br-`/`veth`-Interfaces übersprungen).
-- **Grenzen:** Nur A-Record, kein vollständiges RFC-6762 (kein Probing/Announce). Port 80/443 brauchen `cap_net_bind_service`. Native Apps mit mDNS-Discovery: nicht gebaut (nur Browser).
+- **Robust beim Booten (#339, `mdnsResponder.ts`):** Ist das WLAN beim Start noch ohne Adresse (`addMembership ENODEV`), stürzt der Server nicht mehr ab, sondern versucht es alle 5 s erneut; per IP ist er sofort erreichbar.
+- **Grenzen:** Nur A-Record, kein vollständiges RFC-6762 (kein Probing/Announce). Port 80/443 brauchen `cap_net_bind_service`. Server-Suche per mDNS in der Android-App: geplant (#351).
 - **Use Case:** Die Keyboarderin tippt „stageboard.local“ oder scannt den QR-Code im „Band einladen“-Dialog und ist im Netz.
+
+#### 3.9b Betrieb: Start ohne Anmeldung, sauberes Stoppen (#335, #336) **[fertig, live geprüft]**
+- **Start ohne Desktop-Anmeldung:** Fehlt der MIDI-Zugriff (ohne Gruppe `audio`, vor dem Login), läuft der Server ohne seine eigenen MIDI-Ports weiter und versucht es erneut, statt in eine Neustart-Schleife zu fallen (`midiWatcher.ts`); mit Gruppe `audio` hat er MIDI auch ohne Anmeldung. Am 2026-10-02 per Neustart ohne Anmeldung geprüft.
+- **Stoppen in Sekunden:** Puppeteer (UG-Plugin) hatte SIGTERM abgefangen, jeder Neustart hing 90 s bis zum SIGKILL. Jetzt eigene Signalbehandlung (`gracefulShutdown.ts`): offene Verbindungen trennen, alle `onClose`-Hooks (inkl. Chrome), höchstens 10 s; die Unit hat `TimeoutStopSec=15` als Netz.
 
 #### 3.10 Clock-Sync-Gegenstelle (`GET /time`) **[fertig]**
 - Ein Timestamp pro Anfrage, kein Zustand. Die eigentliche Intelligenz liegt im Client (`clockSync.ts`, siehe 6.1).
@@ -785,6 +806,11 @@ IDs werden gegen `^[a-zA-Z0-9-]+$` geprüft (Path-Traversal-Schutz); Ablage `<AU
 
 ---
 
+#### 3.12 Native Android-App und Updates vom Stage-Server (#348) **[fertig für Android, auf dem Samsung-Handy geprüft]**
+- **Was:** Capacitor-Hülle um denselben Build (UI im APK), Vollbild, Bildschirm bleibt an. `ServerTrustPlugin.java` merkt sich je Host den SHA-256-Fingerprint aus dem Pairing, `PinnedWebViewClient.java` akzeptiert nur exakt dieses Zertifikat - für alle Anfragen (API, CouchDB-Sync, SSE, Audio). Updates: `scripts/build-android-app.sh` baut bei jedem Redeploy (docs/03 Schritt 5) ein signiertes APK (Version = Commit-Anzahl), der Server liefert es unter `/app`; die App vergleicht beim Start und bietet das Update an, lädt es selbst über das gepinnte Zertifikat und öffnet den Android-Installer.
+- **Grenzen:** Nur Android; iOS bräuchte einen Apple-Entwickler-Account. Server-Adresse ändert sich → neu koppeln (#351). Erst-Download im Browser braucht einmal „Trotzdem fortfahren". Signierschlüssel muss gesichert werden (Risiko 12).
+- **Use Case:** Neues Bandmitglied scannt den Einladungs-QR mit der Handy-Kamera, lädt die App von `/app`, scannt den QR noch einmal in der App, wählt seinen Namen - fertig, ohne Zertifikatsdialoge.
+
 ### 4. Datenmodell (`packages/shared-types`)
 
 Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Server.
@@ -792,7 +818,7 @@ Alles ist Zod-validiert; die Typen sind die einzige Quelle für Client *und* Ser
 | Schema | Inhalt / Besonderheiten |
 |---|---|
 | **Song** | `title, bpm, timeSignature ('4/4'), clickTrackEnabled, chordProContent, timecodes[], artist?` – dient auch als Lese-Spiegel der Default-Variante. |
-| **SongVariant** | Vollständig eigenständige Arrangement-Kopie („Original“, „Akustik“, „Kurzfassung“): eigene `bpm`, `timeSignature`, ChordPro, `tracks[]` (Art: `reference` / `band-mix` / `stem`, Quelle: `upload` / `youtube-extract` / `stem-separation`), `cues[]` (ShowCue), `beatAnchors[]`, `tempoMarkers[]` (#141), `countInEnabled/countInBars`, `key/tuning/capo`. |
+| **SongVariant** | Vollständig eigenständige Arrangement-Kopie („Original“, „Akustik“, „Kurzfassung“): eigene `bpm`, `timeSignature`, ChordPro, `tracks[]` (Art: `reference` / `band-mix` / `stem`, Quelle: `upload` / `youtube-extract` / `stem-separation`), `cues[]` (ShowCue), `beatGrid` (Klick-Raster: Ausrichtungspunkte `{bar, timeMs}` und Taktart-Wechsel, #313 - ersetzt `beatAnchors[]`/`tempoMarkers[]`), `countInEnabled/countInBars`, `key/tuning/capo`. |
 | **BeatAnchor** | Exakter Beat-Zeitpunkt (+ `beatInBar`) – Phasenkorrektur, *kein* Tempo. **TempoMarker** = echter Tempowechsel ab `timeMs`. |
 | **ShowCue** | Hardware-Kommando am Song-Zeitpunkt, adressiert an ein **Logical Device**, nicht an eine Capability (#99). Gleiche Form wie ein `ShowControlEvent`. |
 | **Setlist / SetlistEntry** | Eintrag hat eigene `id` (dasselbe Lied darf zweimal vorkommen, z. B. Voll- und Kurzfassung), `variantId`, `trackId`, **neu (#232)** `transitionType` (`manual` / `next-ready` / `seamless` / `delayed`) und `transitionDelayMs`. Beides optional → Altbestände laufen als `manual`. |
@@ -851,7 +877,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Use Cases:** (1) „Bei Takt 32 Lichtszene ‚Refrain‘“ wird im Song-Editor an den Song geheftet und läuft bei jedem Gig automatisch. (2) Beim Ad-hoc-Event „Nebel!“ (Knopf) läuft der Weg über den Server statt über die Timeline.
 
 #### 5.5 Cue-Aufnahme und Einrasten auf Onsets (`CueRecorder.tsx`, `cueRecording.ts`, `midiCueDecoders.ts`, `midiDeviceProtocols.ts`, `onsetSnap.ts`, `audioAnalysis.ts`, `webMidi.ts`) **[fertig, ungetestet mit echter Hardware]** (#6, #7 erste Scheibe)
-- **Was (#6):** Im Cues-Abschnitt des Song-Editors „Cues aufnehmen": Track abspielen und am Gerät spielen - jede Nachricht, die das Gerät **während der Wiedergabe** sendet, wird ein Cue an der Track-Position (dieselbe Master-Clock, die Tap-to-Sync liest). Man wählt ein aufnahmefähiges Logical Device und den MIDI-Eingang; gelesen wird nur der am Gerät eingestellte MIDI-Kanal (ohne Einstellung jeder). Eine Live-Liste zeigt das Aufgenommene und zählt übersprungene Nachrichten; „Übernehmen" hängt die Cues sortiert an den Entwurf der Variante an, gespeichert wird mit dem normalen Speichern des Editors. Das `ShowCue`-Schema, `SongVariant.cues`, `CueListEditor` und der Scheduler existierten schon (#10/#99/#102) - neu ist nur die Aufnahme.
+- **Was (#6):** Im Cues-Abschnitt des Song-Editors „Cues aufnehmen": Track abspielen und am Gerät spielen - jede Nachricht, die das Gerät **während der Wiedergabe** sendet, wird ein Cue an der Track-Position (dieselbe Master-Clock, die das Zeilen-Tippen in der Timeline liest). Man wählt ein aufnahmefähiges Logical Device und den MIDI-Eingang; gelesen wird nur der am Gerät eingestellte MIDI-Kanal (ohne Einstellung jeder). Eine Live-Liste zeigt das Aufgenommene und zählt übersprungene Nachrichten; „Übernehmen" hängt die Cues sortiert an den Entwurf der Variante an, gespeichert wird mit dem normalen Speichern des Editors. Das `ShowCue`-Schema, `SongVariant.cues`, `CueListEditor` und der Scheduler existierten schon (#10/#99/#102) - neu ist nur die Aufnahme.
 - **Wie:** `midiCueDecoders.ts` ist die Umkehrung der Translatoren und macht aus rohem MIDI dasselbe Plugin-Ereignis, das der Translator wieder senden würde: Kemper (Performance-Vorwahl + Slot-Taste → `kemper.selectRig`, Stomp-Tasten → `kemper.stomp`, auch die Tail-Varianten), RC-500 (Program Change → `rc500.selectMemory`), MG-30 (Program Change → `mg30.selectPatch`, Knopf-CCs 11-74 → `mg30.setKnob`). Aufgenommene Cues laufen deshalb unverändert durch die bestehenden Translatoren und lesen sich als „Kemper Rig 3", nicht als Hex. Die MIDI-Tabellen wurden dafür in das storefreie Modul `midiDeviceProtocols.ts` gezogen, das Translatoren (senden) und Decoder (lesen) gemeinsam nutzen - so können Senden und Aufnehmen nicht auseinanderlaufen. `cueRecording.ts` sammelt rein funktional; ein Knopf-Drehen (dutzende CCs pro Sekunde) wird zu **einem** Cue am Ende der Geste mit dem Endwert (Lücke 300 ms). System-Nachrichten (Clock, Active Sensing, SysEx) werden nie zu Cues. `webMidi.ts` liefert `listMidiInputs` und `listenToMidiInputById`.
 - **Was (#7, erste Scheibe):** „Onsets analysieren" dekodiert den Track einmal (`analyzeOnsetsBlob`, dieselbe Spektralfluss-Hüllkurve wie die Beat-Analyse) und `detectOnsets` liefert **alle** Anschlag-Kandidaten (lokale adaptive Schwelle, Mindestabstand 60 ms, Rauschgrenze; Frame 0 zählt nie). Mit „Cues einrasten" und einem Fenster von ±30/60/100/150 ms (hart auf ±250 ms begrenzt) wird jeder aufgenommene Cue beim Übernehmen auf den **nächsten** Onset verschoben; die Live-Liste zeigt die Verschiebung („eingerastet −40 ms"), Cues ohne Onset im Fenster bleiben unverändert. Bei Songs mit zeitgestempelten `{part:}`-Abschnitten steht zu jedem Abschnittsstart der Abstand zum nächsten Onset. `onsetSnap.ts` enthält außerdem `scoreAlignment` und `randomBaseline`, die Messwerkzeuge für die echte Validierung.
 - **Grenzen - bitte ehrlich lesen:**
@@ -885,10 +911,10 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Grenzen:** Telemetrie/Analysen über mehrere Gigs (#64) fehlen; Ready-Check-Antworten werden nicht ins Show-Log geschrieben.
 - **Use Case:** Nach dem Gig zeigt der Nachbericht: 14 Songs, 1:32 h, 20:47 Uhr „Mischpult offline“ – für die Gagenabrechnung/GEMA-Meldung.
 
-#### 6.4 Klick, Metronom, Beat-Grid (`metronome.ts`, `clickEngine.ts`, `useClickOutputDriver.ts`) **[fertig]**
-- **Was:** Hörbarer Klick (Web Audio, Downbeat höher/lauter) und visuelles Metronom teilen sich dieselbe Beat-Grid-Berechnung. Unterstützt: Taktarten, Beat-Anker (Phasenkorrektur), Tempomarker (echte Tempowechsel), Einzähler (auch negative Startzeit, wenn er nicht ins Intro passt), Live-Tempo-Nudge, Klick an/aus-Override.
+#### 6.4 Klick, Metronom, Klick-Raster (`beatGrid.ts`, `metronome.ts`, `clickEngine.ts`, `useClickOutputDriver.ts`) **[fertig]**
+- **Was:** Hörbarer Klick (Web Audio, Downbeat höher/lauter) und visuelles Metronom teilen sich dieselbe Zeitachse (`clickTimeline`). Seit #313 ist das ein **starres Raster** (docs/14 §5a): gleichmäßige Schläge, an wenigen **Ausrichtungspunkten** („Takt n beginnt bei t") am Track festgemacht; zwischen zwei Punkten konstantes Tempo, davor/danach läuft das Nachbartempo weiter, mit nur einem Punkt gibt das Varianten-BPM den Abstand vor. Dazu Taktart-Wechsel ab einem Takt, Einzähler (auch vor 0:00), Live-Tempo-Nudge (nur ohne zweiten Punkt), Klick an/aus-Override. Beat-Anker und Tempo-Marker sind entfernt.
 - **Wie:** Look-ahead-Scheduler nach „A Tale of Two Clocks“ (kurzes Vorlauffenster, Cursor wächst inkrementell statt jedes Mal neu berechnet). Stall-Erkennung (Tab im Hintergrund → Neu-Ankern statt Klick-Salve). Wird beim Verstecken/Fokusverlust der Seite hart gestoppt (iOS-Eigenheit), beim Zurückkehren sauber neu gestartet.
-- **Grenzen:** Ein Tempowechsel per Live-Nudge gilt nur für Segment 0 (Marker-Tempi bleiben unverändert). Klick zu Hardware routen (Ausgabe an ein Gerät/IEM) ist an den Routing-Layer gekoppelt; das Issue #25 (Visual Metronome & hardware-routed Click) ist noch offen, obwohl Klick und Metronom schon liefen.
+- **Grenzen:** Mit zwei oder mehr Punkten bestimmt der Track das Tempo, ein Live-Nudge wirkt dann nicht. Allmähliche Tempowechsel (Ritardando/Accelerando) nur als Stufen über mehrere Punkte; „Tempo tippen" über ein Ritardando ergibt dessen Durchschnitt (#354). Ausgabelatenz je Gerät nicht kompensiert (docs/13 §7, #302). Klick zu Hardware routen (Ausgabe an ein Gerät/IEM) ist an den Routing-Layer gekoppelt; das Issue #25 (Visual Metronome & hardware-routed Click) ist noch offen, obwohl Klick und Metronom schon liefen.
 - **Use Cases:** (1) Der Drummer bekommt den Klick nur auf sein Tablet/seine In-Ears, der Rest hört nichts. (2) „Die Band schleppt heute“ – Tempo-Nudge +3 % ohne den gespeicherten BPM anzufassen.
 
 #### 6.5 Audio: Engine, Cache, Sync-Abgleich, Analyse
@@ -898,9 +924,9 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Grenzen:** Kein Fortsetzen abgebrochener Downloads. Server liefert ganze Dateien; parallele Downloads können die geteilte HTTP/2-Verbindung sättigen (docs/11: ~1,2 s Rest-Latenz kleiner Antworten während eines Streams, bewusst offen).
 - **Use Case:** Im Keller des Clubs gibt es kein WLAN mehr – alle für heute nötigen Tracks liegen bereits auf dem Tablet.
 
-**Analyse (`audioAnalysis.ts`, `analyzeTrack.ts`, `musicTempoAnalysis.ts`, Worker) [fertig, optional teilweise Plugin]:** Handgeschriebene DSP: Spektralfluss-Onset-Hüllkurve, erster Onset, Autokorrelation für BPM (Bereich einstellbar), Beat-Tracking über den ganzen Track (Anker-Korrekturen nur, wenn die *folgende* Beat-Position sie bestätigt), Tempo-Map (Viterbi über 8-s-Fenster) für Tempowechsel. Optional der Anbieter `music-tempo` (Plugin `music-tempo-beat-detection`, in Web Worker; 44,1 kHz-Annahme wird durch Resampling erfüllt). Manuelles Tap-Sync steht immer zur Verfügung.
-- **Grenzen:** Erkennung ist Assistenz, keine Wahrheit (Marcos Regel: gegen Ground-Truth prüfen). Echte Tempowechsel werden bewusst *nie* automatisch gesetzt (Marker sind manuell), nur die Tempo-Map liefert einen Vorschlag.
-- **Use Cases:** (1) „Track analysieren“ liefert BPM 118 und ein Beat-Raster, der Klick liegt sofort auf dem Backing-Track. (2) Für den Schlussteil mit Ritardando setzt der Drummer per Hand einen Tempomarker.
+**Analyse (`audioAnalysis.ts`, `analyzeTrack.ts`, `musicTempoAnalysis.ts`, Worker) [fertig, optional teilweise Plugin]:** Handgeschriebene DSP: Spektralfluss-Onset-Hüllkurve, erster Onset, Autokorrelation für BPM (Bereich einstellbar), Beat-Tracking über den ganzen Track (`detectBeats`); daraus macht `gridFromBeats` ein Klick-Raster mit wenigen Ausrichtungspunkten (Punkt nur dort, wo das Raster sonst mehr als 40 ms von den erkannten Schlägen abwiche). Die frühere Tempo-Map (Viterbi) ist mit #313 entfernt. Optional der Anbieter `music-tempo` (Plugin `music-tempo-beat-detection`, in Web Worker; 44,1 kHz-Annahme wird durch Resampling erfüllt). Manuelles Tap-Sync steht immer zur Verfügung.
+- **Grenzen:** Erkennung ist Assistenz, keine Wahrheit (Marcos Regel: gegen Ground-Truth prüfen); das Ergebnis wird in der Timeline geprüft und per Taktstrich-Ziehen korrigiert.
+- **Use Cases:** (1) „Track analysieren“ liefert BPM 118 und ein Raster mit drei Ausrichtungspunkten, der Klick liegt sofort auf dem Backing-Track. (2) Im Schlussteil mit Ritardando zieht der Drummer in der Timeline Takt für Takt den Taktstrich auf den Schlag (bis #354 allmähliche Wechsel kann).
 
 **YouTube-Extraktion / Async-Jobs (#5)** sind seit 2026-09-25 **[fertig]**, siehe 3.11. **Stems (#9) und Tone-Match (#66)** bleiben **[geplant]** – `TrackMeta.source` kennt `stem-separation` schon, und die Async-Job-Warteschlange ist der vorgesehene Einstieg dafür.
 
@@ -910,8 +936,8 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 - **Grenzen:** Greift nur auf dem Gerät, das den Track lokal geladen *und* Master ist (bei Master ≠ Audio-Tablet kein Auto-Stopp – dieselbe Einschränkung wie #231). `delayed` ist ein lokaler Timer (geht bei Reload verloren). `crossfade` ausdrücklich nicht enthalten (#244). Unverifiziert: Ob ein Gig-Modus-`delayed`-Start den Einzähler bekommt (der Eintrag zählt dort schon als „gestartet“).
 - **Use Cases:** (1) „Highway to Hell“ → „Whole Lotta Rosie“ sollen ineinander laufen: erster Eintrag `seamless`. (2) Zwischen zwei Songs sind 8 s Ansage gewünscht: `delayed`.
 
-#### 6.7 ChordPro, Prompter-Logik, Tap-to-Sync (`chordpro.ts`, `useMidiTrigger.ts`) **[fertig]**
-- **Was:** Parser für `[G]Text`, Zeit-Tags `[mm:ss.xx]`, Part-Direktiven (`{part: Chorus}` plus Standard-Aliasse `{soc}/{sov}/{sob}` und `{start_of_…}`), Kommentar-Direktiven (`{c:}`, `{comment:}`, `{cc:}`, `{cc4all:}`, **adressiert** `{cc4marco,jamie: …}` – nur für genannte Profilnamen sichtbar, unauflösbare Namen zeigen den Kommentar allen). **Neu: Tab-Blöcke** `{start_of_tab}`…`{end_of_tab}` (`{sot}`/`{eot}`) als eine unveränderte Zeile (keine Akkorde/Transposition/Timecodes, nicht umbrechender Monospace-Block), adressierbar wie Kommentare per `{sot4marco}`; ohne `{eot}` endet ein Block am nächsten Part. `tappableLines` lässt Tap-to-Sync nur Liedtextzeilen stempeln (vorher bekamen auch Kommentare einen Timecode und wurden dadurch als Liedtext angezeigt; solche Zeilen liest der Parser jetzt wieder als Kommentar). Seiteneinteilung für die geblätterte Ansicht (eine Seite pro Part, sonst 6er-Blöcke), aktuelle Zeile/Seite aus der Uhr, `nextSectionIndex` für den manuellen Umblätter-Modus per Fußtaster (WebMIDI Note-On/Program-Change).
+#### 6.7 ChordPro, Prompter-Logik, Zeilen-Tippen (`chordpro.ts`, `timelineText.ts`, `useMidiTrigger.ts`) **[fertig]**
+- **Was:** Parser für `[G]Text`, Zeit-Tags `[mm:ss.xx]`, Part-Direktiven (`{part: Chorus}` plus Standard-Aliasse `{soc}/{sov}/{sob}` und `{start_of_…}`), Kommentar-Direktiven (`{c:}`, `{comment:}`, `{cc:}`, `{cc4all:}`, **adressiert** `{cc4marco,jamie: …}` – nur für genannte Profilnamen sichtbar, unauflösbare Namen zeigen den Kommentar allen). **Neu: Tab-Blöcke** `{start_of_tab}`…`{end_of_tab}` (`{sot}`/`{eot}`) als eine unveränderte Zeile (keine Akkorde/Transposition/Timecodes, nicht umbrechender Monospace-Block), adressierbar wie Kommentare per `{sot4marco}`; ohne `{eot}` endet ein Block am nächsten Part. `tappableLines` lässt das Zeilen-Tippen (seit #325 nur noch in der Timeline, `timelineText.ts`; reine Akkordzeilen werden dort übersprungen) nur Liedtextzeilen stempeln (vorher bekamen auch Kommentare einen Timecode und wurden dadurch als Liedtext angezeigt; solche Zeilen liest der Parser jetzt wieder als Kommentar). Seiteneinteilung für die geblätterte Ansicht (eine Seite pro Part, sonst 6er-Blöcke), aktuelle Zeile/Seite aus der Uhr, `nextSectionIndex` für den manuellen Umblätter-Modus per Fußtaster (WebMIDI Note-On/Program-Change).
 - **Transposition/Capo (#59, neu, `transposeChord.ts`, `useChordOffsets.ts`):** reine Funktionen `transposeChord`/`transposeKey`/`transposeLines` (Wurzel und Slash-Bass, Vorzeichen je Zieltonart, Nicht-Akkorde unverändert, Versatz 0 gibt dasselbe Array zurück - Zeilenindizes bleiben stabil); Details und Grenzen bei Widget 1 (Prompter).
 - **Grenzen:** Nur der Prompter transponiert; Song-Vorschau und Editor zeigen weiter die notierten Akkorde. `{key}`/`{capo}` stehen weiter nur als Variantenfelder.
 - **Use Cases:** (1) Der Gitarrist bekommt „{cc4jamie: Solo eine Oktave höher}“ nur auf seinem Bildschirm. (2) Ohne Timecodes blättert der Fußtaster (MIDI) zum nächsten Part. (3) Das Intro-Riff steht als Tab-Block nur beim Gitarristen im Prompter (`{sot4marco}`), die Sängerin sieht nur den Text.
@@ -935,19 +961,22 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 26)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 33 - 2026-10-04)
 
 | Bereich | Issues |
 |---|---|
 | **Live-Show-Automatik** | #7 Auto-Cue-Erkennung (erste Scheibe gebaut: Einrasten; offen: Validierung mit echten Abschnittszeiten in #267, Vorschlags-Zuweisung), #8 Live-Cue-Firing + Post-Show-Persistenz |
 | **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
-| **Musiker-Werkzeuge** | #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung) |
+| **Musiker-Werkzeuge** | #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung; in der Android-App nativ möglich, #348 Phase 3) |
+| **Timeline/Klick** | #330 alles nach einem Punkt verschieben (z. B. nach Track-Tausch), #354 allmähliche Tempowechsel (Ritardando) + Warnung beim Tippen, #334 Feinpositionierung per Abstand (niedrige Priorität), #267 Onset-Einrasten validieren |
+| **Latenz** | #302 Ausgabelatenz je Gerät ausgleichen, #303 Geräte-Fähigkeitsprofil, #317 Latenz externer Geräte (alle bewusst geparkt) |
+| **Native App** | #351 Server-Suche per mDNS und IP-Wechsel folgen (Phase 2 von #348) |
 | **Audio-Pipeline** | #9 Stem-Trennung (kann auf der Async-Job-Warteschlange aus #5 aufsetzen), #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
 | **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
 | **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
 | **Sonstiges** | #14 Live-Debug-Konsole, #15 Robustheit UG/MusicBrainz, #25 Visual-Metronome/Click (Feature-Kern läuft, Issue offen), #64 Post-Gig-Telemetrie, #65 Publikums-QR-Jukebox, #213 Container-Widgets |
 
-**Laut Ausbaustufen-Doku (`docs/02`) nicht vorhanden:** Auto-Failover A/B-Server (Stufe 5), Cloud-Sync/VPS (Stufe 4), Auto-Backup auf USB/NAS, Multikanal-Audio-Routing (Dante/USB-Interface), echte Mixer-/DMX-Server-Adapter, Native-App-mDNS-Discovery.
+**Laut Ausbaustufen-Doku (`docs/02`) nicht vorhanden:** Auto-Failover A/B-Server (Stufe 5), Cloud-Sync/VPS (Stufe 4), Auto-Backup auf USB/NAS, Multikanal-Audio-Routing (Dante/USB-Interface), echte Mixer-/DMX-Server-Adapter. (Native-App-mDNS-Discovery ist jetzt #351.)
 
 ---
 
@@ -962,4 +991,5 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 7. *(erledigt mit #250)* `docs/05` ist mit dem Issue-Stand abgeglichen.
 8. **Build-Warnung:** `practiceQueue.ts` und `useAppModeStore.ts` sind in `clientTranslator.ts` dynamisch, sonst statisch importiert → Rolldown meldet `INEFFECTIVE_DYNAMIC_IMPORT` (harmlos; die dynamischen Imports existieren, um PouchDB im Test nicht laden zu müssen).
 9. **Ultimate-Guitar-Scraper braucht Chrome/Chromium auf dem Server** und ist von der UG-Seitenstruktur abhängig (#15).
-10. **Native MIDI im Server:** `midiWatcher` nutzt `@julusian/midi` (natives Modul); scheitert das Auflisten der Ports, wird nur „Failed to enumerate native MIDI ports“ geloggt (Code-Lesart; Verhalten auf einem System ohne MIDI-Zugriff nicht getestet).
+10. *(erledigt mit #336)* **Native MIDI im Server:** Ohne MIDI-Zugriff (vor der Desktop-Anmeldung) warf `new Input()` außerhalb jedes `try` und riss den ganzen Server in eine Neustart-Schleife - live gefunden am 2026-09-28. Jetzt geht jede native MIDI-Erzeugung über einen Schutz (einmal loggen, weiter versuchen); geprüft per Neustart ohne Anmeldung.
+11. *(erledigt mit #335/#339)* **Neustart hing 90 s** (Puppeteer fing SIGTERM ab) und **Absturz beim Booten ohne WLAN-Adresse** (mDNS `addMembership ENODEV`) - siehe C 3.9/3.9b.
