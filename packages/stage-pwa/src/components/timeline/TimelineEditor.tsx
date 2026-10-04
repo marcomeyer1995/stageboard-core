@@ -15,6 +15,9 @@ import {
   wrapText,
   xToTime,
   zoomAround,
+  laneLayout,
+  TIMELINE_LANES,
+  type TimelineLane,
   type TimelineView,
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
@@ -23,6 +26,7 @@ import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStart
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
+import { useTimelineLanesStore } from '../../store/useTimelineLanesStore'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import { useLogicalDevicesStore } from '../../store/useLogicalDevicesStore'
@@ -71,7 +75,7 @@ export interface TimelineEditorProps {
 /** "Zurück + 4 s" while tapping lines: how far before the undone tap playback resumes. */
 const TAP_REWIND_MS = 4000
 
-/** Lane heights in the compact layout; full screen (`fill`) splits the available height. */
+/** Lane heights in the compact layout; full screen (`fill`) splits the available height (laneLayout). */
 const DEFAULT_AUDIO_H = 96
 const SECTION_H = 26
 const DEFAULT_GRID_H = 84
@@ -79,6 +83,9 @@ const PARTS_H = 28
 const DEFAULT_TEXT_H = 64
 const NOTES_H = 44
 const CUE_H = 44
+const LANE_SIZES = { sectionH: SECTION_H, partsH: PARTS_H, notesH: NOTES_H, cueH: CUE_H, defaultAudioH: DEFAULT_AUDIO_H, defaultGridH: DEFAULT_GRID_H, defaultTextH: DEFAULT_TEXT_H }
+/** Names of the lanes in the "Spuren" toggles. */
+const LANE_NAME: Record<TimelineLane, string> = { audio: 'Wellenform', grid: 'Raster', text: 'Text', notes: 'Notizen', cues: 'Cues' }
 /** Two taps within this time and distance in the cue lane add a cue (a double click on the PC). */
 const DOUBLE_TAP_MS = 400
 const TOLERANCE_PX = 24
@@ -172,14 +179,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // Time always runs left to right, in portrait too: a vertical layout for portrait (2026-09-27)
   // was tried and dropped - Marco preferred scrolling sideways on the tablet (2026-09-28).
   const width = Math.max(1, box.width)
-  const lanesH = fill && box.height > 0 ? box.height : DEFAULT_AUDIO_H + SECTION_H + DEFAULT_GRID_H + PARTS_H + DEFAULT_TEXT_H + NOTES_H + CUE_H
-  const rest = lanesH - SECTION_H - PARTS_H - NOTES_H - CUE_H
-  const audioH = fill ? Math.round(rest * 0.4) : DEFAULT_AUDIO_H
-  const textH = fill ? Math.round(rest * 0.22) : DEFAULT_TEXT_H
-  const gridH = fill ? rest - audioH - textH : DEFAULT_GRID_H
-  const textTop = audioH + SECTION_H + gridH
-  const notesTop = textTop + PARTS_H + textH
-  const cueTop = notesTop + NOTES_H
+  // Collapsed lanes (#328, per device) take no space; the visible ones share the height.
+  const hiddenLaneList = useTimelineLanesStore((state) => state.hidden)
+  const toggleLane = useTimelineLanesStore((state) => state.toggle)
+  const hiddenLanes = useMemo(() => new Set(hiddenLaneList), [hiddenLaneList])
+  const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
+  const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
+  const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const textCanvas = useRef<HTMLCanvasElement>(null)
@@ -647,7 +653,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (shownCues.length === 0) drawLaneHint(q, ['Cues · Doppeltipp: Cue hinzufügen', 'Doppeltipp: Cue'], width, CUE_H, faint)
       else drawLaneLabel(q, 'Cues', CUE_H - 6, cuesUsed, faint)
     }
-  }, [width, audioH, gridH, textH, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs])
+  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -734,13 +740,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         setDrag({ ...base, kind: 'note', start })
         return
       }
-    } else if (y >= textTop + PARTS_H) {
+    } else if (y >= textTop + partsH) {
       const rawIndex = lineAt(x)
       if (rawIndex !== null) {
         setDrag({ ...base, kind: 'line', rawIndex })
         return
       }
-    } else if (y >= audioH && y < textTop) {
+    } else if (y >= gridTop && y < textTop) {
       const bar = barAt(x)
       if (bar !== null) {
         setDrag({ ...base, kind: 'bar', bar })
@@ -1198,6 +1204,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={button} disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
           Cue am Abspielkopf
         </button>
+        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} onClick={() => setLanesMenuOpen((open) => !open)}>
+          Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
+        </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
         </button>
@@ -1205,6 +1214,25 @@ export function TimelineEditor(props: TimelineEditorProps) {
           Raster löschen
         </button>
       </div>
+
+      {lanesMenuOpen && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
+          {TIMELINE_LANES.map((lane) => (
+            <button
+              key={lane}
+              type="button"
+              className={toggle(!hiddenLanes.has(lane))}
+              aria-pressed={!hiddenLanes.has(lane)}
+              // The last visible lane stays - an empty timeline would show nothing to work on.
+              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
+              onClick={() => toggleLane(lane)}
+            >
+              {LANE_NAME[lane]}
+            </button>
+          ))}
+          <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
+        </div>
+      )}
       <p className="text-sm text-ink-soft" role="status">
         {notice ?? hint}
       </p>
@@ -1234,11 +1262,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
         onPointerCancel={onPointerUp}
         data-testid="timeline-lanes"
       >
-        <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />
-        <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: audioH, width, height: SECTION_H + gridH }} />
-        <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />
-        <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />
-        <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />
+        {!hiddenLanes.has('audio') && <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />}
+        {!hiddenLanes.has('grid') && <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: gridTop, width, height: SECTION_H + gridH }} />}
+        {!hiddenLanes.has('text') && <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />}
+        {!hiddenLanes.has('notes') && <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />}
+        {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}

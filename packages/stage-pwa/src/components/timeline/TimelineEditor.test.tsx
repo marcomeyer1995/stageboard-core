@@ -40,6 +40,7 @@ vi.mock('../../store/useLogicalDevicesStore', () => ({
 
 const { TimelineEditor } = await import('./TimelineEditor')
 const { useClockStore } = await import('../../store/useClockStore')
+const { useTimelineLanesStore } = await import('../../store/useTimelineLanesStore')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
@@ -417,5 +418,31 @@ describe('playhead quick actions (#326)', () => {
     setup()
     fireEvent.click(screen.getByText('Cue am Abspielkopf'))
     expect(screen.getByText('Cue bei 0:30.0')).toBeInTheDocument()
+  })
+})
+
+describe('collapsible lanes (#328)', () => {
+  afterEach(() => useTimelineLanesStore.setState({ hidden: [] }))
+  const cue: ShowCue = { id: 'c1', timeMs: 12000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 1 } }
+
+  it('hides a lane on this device; the lanes below move up and stay usable', () => {
+    setup({ cues: [cue] })
+    fireEvent.click(screen.getByText('Spuren'))
+    fireEvent.click(screen.getByRole('button', { name: 'Notizen' }))
+    expect(screen.queryByTestId('timeline-notes')).toBeNull()
+    expect(useTimelineLanesStore.getState().hidden).toEqual(['notes'])
+    // The cue lane now starts where the notes lane was (298) - a tap there selects the cue.
+    expect(screen.getByTestId('timeline-cues').style.top).toBe('298px')
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: 12000 / 60, clientY: 298 + 22 })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: 12000 / 60, clientY: 298 + 22 })
+    expect(screen.getByText(/Kemper Marco · Performance 4, Slot 1/)).toBeInTheDocument()
+  })
+
+  it('keeps the last visible lane', () => {
+    useTimelineLanesStore.setState({ hidden: ['audio', 'grid', 'text', 'notes'] })
+    setup()
+    fireEvent.click(screen.getByText(/Spuren/))
+    expect(screen.getByRole('button', { name: 'Cues' })).toBeDisabled()
   })
 })

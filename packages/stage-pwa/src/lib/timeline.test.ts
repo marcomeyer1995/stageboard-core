@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barQuality, clampView, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
+import { barQuality, clampView, laneLayout, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
 
 const grid = Array.from({ length: 16 }, (_, i) => ({ timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
@@ -102,5 +102,32 @@ describe('minimap (#327)', () => {
     const inside = minimapGrab(140, range, 1000, view, 10000)
     expect(inside.startMs).toBeCloseTo(10000)
     expect(inside.grabMs).toBeCloseTo(2000)
+  })
+})
+
+describe('laneLayout (#328)', () => {
+  const sizes = { sectionH: 26, partsH: 28, notesH: 44, cueH: 44, defaultAudioH: 96, defaultGridH: 84, defaultTextH: 64 }
+
+  it('stacks all lanes; full screen shares the rest 40/38/22 and fills it exactly', () => {
+    const l = laneLayout(1100, new Set(), sizes)
+    expect([l.audioH, l.gridH, l.textH]).toEqual([383, 364, 211])
+    expect(l.cueTop + l.cueH).toBe(1100)
+    expect([l.gridTop, l.textTop, l.notesTop, l.cueTop]).toEqual([383, 773, 1012, 1056])
+  })
+
+  it('a hidden lane takes no space; the others share it', () => {
+    const l = laneLayout(1100, new Set(['audio', 'notes'] as const), sizes)
+    expect(l.audioH).toBe(0)
+    expect(l.notesH).toBe(0)
+    expect(l.gridTop).toBe(0)
+    expect(l.gridH + l.textH).toBe(1100 - 26 - 28 - 44)
+    expect(l.cueTop + l.cueH).toBe(1100)
+  })
+
+  it('without the grid the remainder goes to the last flexible lane; compact layout sums the defaults', () => {
+    const l = laneLayout(500, new Set(['grid'] as const), sizes)
+    expect(l.audioH + l.textH).toBe(500 - 28 - 44 - 44)
+    const compact = laneLayout(null, new Set(['text', 'cues'] as const), sizes)
+    expect(compact.totalH).toBe(96 + 26 + 84 + 44)
   })
 })

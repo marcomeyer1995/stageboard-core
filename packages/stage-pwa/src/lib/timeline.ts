@@ -191,3 +191,81 @@ export function minimapGrab(x: number, range: MinimapRange, widthPx: number, vie
   return { startMs: t - grabMs, grabMs }
 }
 
+
+/** The timeline's lanes that can be hidden (#328): grid = tempo strip + grid, text = parts + lyrics. */
+export type TimelineLane = 'audio' | 'grid' | 'text' | 'notes' | 'cues'
+export const TIMELINE_LANES: readonly TimelineLane[] = ['audio', 'grid', 'text', 'notes', 'cues']
+
+/** Fixed (touch-size) and default heights of the lanes, px. */
+export interface LaneSizes {
+  sectionH: number
+  partsH: number
+  notesH: number
+  cueH: number
+  defaultAudioH: number
+  defaultGridH: number
+  defaultTextH: number
+}
+
+export interface LaneLayout {
+  totalH: number
+  audioH: number
+  /** Tempo strip and grid. */
+  sectionH: number
+  gridH: number
+  partsH: number
+  textH: number
+  notesH: number
+  cueH: number
+  gridTop: number
+  textTop: number
+  notesTop: number
+  cueTop: number
+}
+
+/** Shares of the flexible lanes (waveform, grid, lyrics) in the space left by the fixed ones. */
+const FLEX_SHARE = { audio: 0.4, grid: 0.38, text: 0.22 } as const
+
+/**
+ * Heights and tops of the visible lanes, stacked top to bottom. A hidden lane takes no space; in
+ * full screen (`availableH`) the flexible lanes share what the fixed ones leave, otherwise each
+ * visible lane has its default height.
+ */
+export function laneLayout(availableH: number | null, hidden: ReadonlySet<TimelineLane>, sizes: LaneSizes): LaneLayout {
+  const shown = (lane: TimelineLane) => !hidden.has(lane)
+  const sectionH = shown('grid') ? sizes.sectionH : 0
+  const partsH = shown('text') ? sizes.partsH : 0
+  const notesH = shown('notes') ? sizes.notesH : 0
+  const cueH = shown('cues') ? sizes.cueH : 0
+  let audioH: number
+  let gridH: number
+  let textH: number
+  let totalH: number
+  if (availableH !== null) {
+    const rest = Math.max(0, availableH - sectionH - partsH - notesH - cueH)
+    const flex = (['audio', 'grid', 'text'] as const).filter(shown)
+    const shareSum = flex.reduce((sum, lane) => sum + FLEX_SHARE[lane], 0)
+    const share = (lane: 'audio' | 'grid' | 'text') => (shown(lane) && shareSum > 0 ? Math.round((rest * FLEX_SHARE[lane]) / shareSum) : 0)
+    audioH = share('audio')
+    textH = share('text')
+    // The grid takes the rounding remainder, so the lanes always fill the height exactly.
+    gridH = shown('grid') ? rest - audioH - textH : 0
+    if (!shown('grid') && flex.length > 0) {
+      const last = flex[flex.length - 1]!
+      const remainder = rest - audioH - textH
+      if (last === 'audio') audioH += remainder
+      else textH += remainder
+    }
+    totalH = availableH
+  } else {
+    audioH = shown('audio') ? sizes.defaultAudioH : 0
+    gridH = shown('grid') ? sizes.defaultGridH : 0
+    textH = shown('text') ? sizes.defaultTextH : 0
+    totalH = audioH + sectionH + gridH + partsH + textH + notesH + cueH
+  }
+  const gridTop = audioH
+  const textTop = gridTop + sectionH + gridH
+  const notesTop = textTop + partsH + textH
+  const cueTop = notesTop + notesH
+  return { totalH, audioH, sectionH, gridH, partsH, textH, notesH, cueH, gridTop, textTop, notesTop, cueTop }
+}
