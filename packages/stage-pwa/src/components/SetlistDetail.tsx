@@ -346,7 +346,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
   }
   return (
     <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
-      <summary className="flex min-h-12 cursor-pointer select-none items-center font-medium text-ink-muted">
+      <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
       <div className="mt-2 flex flex-col gap-2">
