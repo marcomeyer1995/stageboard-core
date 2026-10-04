@@ -1051,6 +1051,35 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedCueDevice = selectedCue ? logicalDevices.find((d) => d.id === selectedCue.targetLogicalDeviceId) : undefined
   const selectedNote = selectedNoteStart !== null ? notes.find((note) => note.start === selectedNoteStart) : undefined
 
+  // --- playhead quick actions (#326): the playhead as the target of an edit ---
+  /** Where the playhead is right now - the same clock tapping reads, exact while playing too. */
+  function playheadNow(): number {
+    return Math.round(useClockStore.getState().getElapsedMs())
+  }
+
+  /** "Zum Abspielkopf": the selected bar line, lyric line, cue or note moves to the playhead. */
+  function moveSelectionToPlayhead() {
+    const ms = playheadNow()
+    if (selectedBar !== null) {
+      alignBar(selectedBar, ms)
+    } else if (selectedLineInfo) {
+      const { minMs: lo, maxMs: hi } = lineTimeBounds(lines, selectedLineInfo.rawIndex)
+      if (ms < lo || ms > hi) {
+        setNotice(`Die Zeile kann nur zwischen ihren Nachbarn liegen (${formatTimelineTime(lo)} bis ${Number.isFinite(hi) ? formatTimelineTime(hi) : 'Ende'}).`)
+        return
+      }
+      setNotice(null)
+      commitText(setLineTime(content, selectedLineInfo.rawIndex, ms))
+    } else if (selectedCue) {
+      commitCues(moveCue(cues, selectedCue.id, ms))
+    } else if (selectedNote) {
+      // A note belongs to a line: it moves to the line playing at the playhead.
+      const moved = moveNote(content, selectedNote.start, ms)
+      commitText(moved.content)
+      setSelection({ kind: 'note', start: moved.start })
+    }
+  }
+
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
     if (!selectedLineInfo || selectedLineInfo.timeMs === null) return
@@ -1166,6 +1195,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={button} disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
         </button>
+        <button type="button" className={button} disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
+          Cue am Abspielkopf
+        </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
         </button>
@@ -1250,6 +1282,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <button type="button" className={button} onClick={() => alignBar(selectedBar, selectedBarMs + 10)}>
             +10 ms
           </button>
+          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+            Zum Abspielkopf
+          </button>
           {selectedPoint && (shownGrid?.points.length ?? 0) > 1 && (
             <button type="button" className={button} onClick={() => commitGrid(removePoint(editableGrid, selectedPoint.id))}>
               Punkt entfernen
@@ -1274,6 +1309,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(50)}>
             +50 ms
           </button>
+          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+            Zum Abspielkopf
+          </button>
           <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => commitText(setLineTime(content, selectedLineInfo.rawIndex, null))}>
             Zeit entfernen
           </button>
@@ -1293,6 +1331,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </button>
           <button type="button" className={button} onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs + 50))}>
             +50 ms
+          </button>
+          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+            Zum Abspielkopf
           </button>
           <button type="button" className={button} onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
             Bearbeiten
@@ -1317,6 +1358,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
               {selectedNote.kind === 'tab' ? `Tab${selectedNote.text ? `: ${selectedNote.text}` : ''}` : `„${selectedNote.text ?? ''}“`}
               {selectedNote.timeMs !== null ? ` · ${formatTimelineTime(selectedNote.timeMs)}` : ''}
             </span>
+            <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+              Zum Abspielkopf
+            </button>
             <button type="button" className={button} onClick={() => void editNoteText(selectedNote.start, selectedNote.kind, selectedNote.text)}>
               {selectedNote.kind === 'tab' ? 'Name ändern' : 'Text ändern'}
             </button>
