@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ResponsiveGridLayout,
   type Compactor,
@@ -9,13 +9,16 @@ import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-t
 import { capabilityStatusFor } from '../lib/capabilities'
 import {
   belowMinimumItems,
+  BREAKPOINT_CANVAS,
   breakpointFor,
+  columnWidth,
   GRID_COLUMNS,
   GRID_ROWS,
   gridMetrics,
   displayLayout,
   normalizeLayout,
   type MinSize,
+  pixelMinimum,
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
@@ -38,12 +41,22 @@ const COLS: Record<Breakpoint, number> = {
   sm: GRID_COLUMNS,
 }
 
-/** Each widget instance's minimum size from the *current* registry entry (see layoutFor). */
-function minSizeFor(dashboard: DashboardDoc): (instanceId: string) => MinSize | undefined {
+/** Cell size in CSS px a breakpoint's layout is judged at: the real grid for the breakpoint on
+ * screen, the breakpoint's nominal canvas for the others (only the current one is rendered). */
+interface CellSize {
+  colWidth: number
+  rowHeight: number
+}
+
+/** Each widget instance's minimum size from the *current* registry entry (see layoutFor), raised
+ * to a usable pixel size for the given cell size (#369 - see pixelMinimum). */
+function minSizeFor(dashboard: DashboardDoc, cell?: CellSize): (instanceId: string) => MinSize | undefined {
   return (instanceId) => {
     const widget = dashboard.widgets.find((w) => w.i === instanceId)
     const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
-    return bounds ? { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h } : undefined
+    if (!bounds) return undefined
+    const min = { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h }
+    return cell ? pixelMinimum(min, cell.colWidth, cell.rowHeight) : min
   }
 }
 
@@ -225,29 +238,40 @@ export function Dashboard() {
   // (nobody arranged it - e.g. a portrait dashboard on a tablet turned to landscape) shows a
   // layout derived from an arranged breakpoint instead. Never persisted: only drag/resize in
   // edit mode writes layouts, and edit mode shows the stored layout plus a banner to adopt it.
+  // Real cell size of the grid on screen; other breakpoints are judged at their nominal canvas.
+  const cellFor = useCallback(
+    (name: Breakpoint): CellSize => {
+      if (name === breakpoint && width > 0) return { colWidth: columnWidth(width, metrics), rowHeight: metrics.rowHeight }
+      const canvas = BREAKPOINT_CANVAS[name]
+      const nominal = gridMetrics(canvas.h)
+      return { colWidth: columnWidth(canvas.w, nominal), rowHeight: nominal.rowHeight }
+    },
+    [breakpoint, width, metrics],
+  )
   const layouts = useMemo(() => {
     if (!active) return {}
-    const minFor = minSizeFor(active)
     return Object.fromEntries(
       (Object.keys(BREAKPOINT_WIDTHS) as Breakpoint[]).map((name) => [
         name,
-        isEditing ? layoutFor(active, name) : layoutFor(active, name, displayLayout(active.layouts, name, minFor).items),
+        isEditing
+          ? layoutFor(active, name)
+          : layoutFor(active, name, displayLayout(active.layouts, name, minSizeFor(active, cellFor(name))).items),
       ]),
     )
-  }, [active, isEditing])
+  }, [active, isEditing, cellFor])
   const current = useMemo(
-    () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active)) : null),
-    [active, breakpoint],
+    () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active, cellFor(breakpoint))) : null),
+    [active, breakpoint, cellFor],
   )
   // Outlined in edit mode: widgets smaller than their minimum in the grid being edited.
   const tooSmall = useMemo(
     () =>
       new Set(
         active && isEditing
-          ? belowMinimumItems(normalizeLayout(active.layouts[breakpoint] ?? []), minSizeFor(active)).map((item) => item.i)
+          ? belowMinimumItems(normalizeLayout(active.layouts[breakpoint] ?? []), minSizeFor(active, cellFor(breakpoint))).map((item) => item.i)
           : [],
       ),
-    [active, breakpoint, isEditing],
+    [active, breakpoint, isEditing, cellFor],
   )
 
   if (!loaded) {
