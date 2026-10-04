@@ -307,7 +307,7 @@ export function Dashboard() {
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">
           <span className="text-amber-500">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
-            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : 'eine korrigierte Anordnung'}{' '}
+            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
             gezeigt).
           </span>
           {current.source !== 'stored' && (
@@ -318,7 +318,9 @@ export function Dashboard() {
             >
               {current.source === 'repaired'
                 ? 'Zu kleine Widgets neu platzieren'
-                : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
+                : current.source === 'stacked'
+                  ? 'Untereinander übernehmen'
+                  : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
             </button>
           )}
         </div>

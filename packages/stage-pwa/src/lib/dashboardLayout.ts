@@ -502,8 +502,8 @@ export function repairLayout(stored: LayoutItem[], minFor: (instanceId: string) 
 export interface DisplayLayout {
   items: LayoutItem[]
   /** `stored` as saved, `repaired` = only the collapsed widgets re-placed, `derived` = the
-   * whole layout derived from `derivedFrom`. */
-  source: 'stored' | 'repaired' | 'derived'
+   * whole layout derived from `derivedFrom`, `stacked` = all widgets full width (stackLayout). */
+  source: 'stored' | 'repaired' | 'derived' | 'stacked'
   /** The breakpoint the items were derived from (source `derived`), else null. */
   derivedFrom: Breakpoint | null
   /** Widgets squeezed below their minimum in the *stored* layout of this breakpoint. */
@@ -541,8 +541,48 @@ export function displayLayout(
       best = { breakpoint: candidate, source, squeezed: candidateSqueezed }
     }
   }
-  if (!best) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
-  return { items: deriveLayout(best.source, best.breakpoint, breakpoint, minFor), source: 'derived', derivedFrom: best.breakpoint, squeezed }
+  const derived = best ? deriveLayout(best.source, best.breakpoint, breakpoint, minFor) : null
+  // Last resort (#369): nothing arranged fits at a usable size (a phone with seven widgets) -
+  // stack them full width rather than park four of them as 25 px slivers.
+  const stacked = stackLayout(stored, minFor)
+  const candidates: Array<{ items: LayoutItem[]; source: DisplayLayout['source']; from: Breakpoint | null }> = [
+    ...(derived ? [{ items: derived, source: 'derived' as const, from: best!.breakpoint }] : []),
+    { items: repaired, source: 'repaired', from: null },
+    { items: stacked, source: 'stacked', from: null },
+  ]
+  const pick = candidates.reduce((a, b) => (squeezedItems(b.items, minFor).length < squeezedItems(a.items, minFor).length ? b : a))
+  if (squeezedItems(pick.items, minFor).length >= squeezed) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
+  return { items: pick.items, source: pick.source, derivedFrom: pick.from, squeezed }
+}
+
+/**
+ * Every widget full width, one under the other in reading order, heights sharing the 24 rows:
+ * each gets its minimum first, the rest is split by default height. Used only when no arranged
+ * layout fits (see displayLayout).
+ */
+export function stackLayout(items: LayoutItem[], minFor: (instanceId: string) => MinSize | undefined): LayoutItem[] {
+  const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
+  if (ordered.length === 0) return []
+  const minH = ordered.map((item) => Math.max(1, minFor(item.i)?.minH ?? 1))
+  const want = ordered.map((item, i) => Math.max(minH[i], minFor(item.i)?.h ?? item.h))
+  const totalMin = minH.reduce((a, b) => a + b, 0)
+  let heights: number[]
+  if (totalMin >= GRID_ROWS) {
+    // Not even the minimums fit: scale them down evenly, at least one row each.
+    heights = minH.map((h) => Math.max(1, Math.floor((h * GRID_ROWS) / totalMin)))
+  } else {
+    const spare = GRID_ROWS - totalMin
+    const extra = want.map((w, i) => w - minH[i])
+    const totalExtra = extra.reduce((a, b) => a + b, 0)
+    heights = minH.map((h, i) => h + (totalExtra > 0 ? Math.floor((extra[i] * spare) / totalExtra) : 0))
+  }
+  let y = 0
+  return ordered.map((item, i) => {
+    const h = Math.min(heights[i], GRID_ROWS - Math.min(y, GRID_ROWS - 1))
+    const placed = { ...item, x: 0, y: Math.min(y, GRID_ROWS - 1), w: GRID_COLUMNS, h: Math.max(1, h) }
+    y += placed.h
+    return placed
+  })
 }
 
 /** Removes a widget instance from the widget list and from every breakpoint's layout. */

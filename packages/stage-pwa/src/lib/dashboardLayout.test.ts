@@ -25,6 +25,7 @@ import {
   withWidgetAppended,
   withWidgetRemoved,
   pixelMinimum,
+  stackLayout,
   type MinSize,
 } from './dashboardLayout'
 import { defaultDashboards } from './defaultDashboards'
@@ -790,6 +791,37 @@ describe('pixelMinimum (#369: minimums need a pixel floor)', () => {
     const prompter = shown.items.find((item) => item.i === 'prompter')!
     expect(shown.source).not.toBe('stored')
     expect(prompter.w).toBeGreaterThanOrEqual(10)
+  })
+
+  it('stacks everything full width when no arrangement fits (seven widgets on a phone)', () => {
+    const phone = (min: MinSize) => pixelMinimum(min, 29, 28)
+    const registry: Record<string, MinSize> = {
+      loop: { minW: 3, minH: 4, w: 5, h: 8 },
+      queue: { minW: 3, minH: 4, w: 4, h: 12 },
+      transport: { minW: 4, minH: 3, w: 6, h: 4 },
+      next: { minW: 4, minH: 3, w: 7, h: 3 },
+      click: { minW: 2, minH: 2, w: 3, h: 3 },
+      prompter: { minW: 3, minH: 6, w: 12, h: 16 },
+      track: { minW: 2, minH: 2, w: 4, h: 3 },
+    }
+    const minFor = (id: string) => phone(registry[id])
+    // Roughly what the phone had stored: two big widgets on the left, five slivers on the right.
+    const stored = [
+      { i: 'loop', x: 0, y: 0, w: 8, h: 9 },
+      { i: 'queue', x: 0, y: 9, w: 9, h: 9 },
+      { i: 'transport', x: 0, y: 18, w: 8, h: 6 },
+      { i: 'next', x: 8, y: 0, w: 4, h: 3 },
+      { i: 'click', x: 9, y: 3, w: 3, h: 3 },
+      { i: 'prompter', x: 10, y: 6, w: 2, h: 16 },
+      { i: 'track', x: 9, y: 22, w: 3, h: 2 },
+    ]
+    const shown = displayLayout({ sm: stored }, 'sm', minFor)
+    expect(shown.source).toBe('stacked')
+    expect(shown.items.every((item) => item.w === GRID_COLUMNS)).toBe(true)
+    expect(shown.items.reduce((sum, item) => sum + item.h, 0)).toBeLessThanOrEqual(GRID_ROWS)
+    expect(hasOverlap(shown.items)).toBe(false)
+    expect(squeezedItems(shown.items, minFor)).toHaveLength(0)
+    expect(stackLayout([], minFor)).toEqual([])
   })
 })
 
