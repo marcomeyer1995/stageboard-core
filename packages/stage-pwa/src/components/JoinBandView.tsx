@@ -442,6 +442,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           </button>
         )}
 
+        {!native && /Android/i.test(navigator.userAgent) && (
+          <a href="/app" className="flex min-h-12 items-center justify-center rounded-sb bg-control-strong px-4 text-base font-semibold text-ink">
+            StageBoard-App für Android installieren
+          </a>
+        )}
+
         {native && (
           <form
             onSubmit={(e) => {

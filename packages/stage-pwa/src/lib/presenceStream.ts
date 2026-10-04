@@ -13,7 +13,8 @@ import { getStageServerUrl } from './stageServer'
  */
 export function subscribeToPresence(workspaceId: string, onPresence: (presence: Presence) => void): () => void {
   const base = getStageServerUrl()
-  if (!base) {
+  // No band yet (the native app paired with a server before joining, #348): nothing to subscribe to.
+  if (!base || !workspaceId) {
     onPresence(DEFAULT_PRESENCE)
     return () => {}
   }

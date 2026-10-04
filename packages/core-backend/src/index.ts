@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import httpProxy from '@fastify/http-proxy'
@@ -44,6 +45,7 @@ import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
 import { installShutdownHandlers, trackConnections } from './gracefulShutdown.js'
+import { registerAppRoutes } from './appDownload.js'
 import { certFingerprint } from './certFingerprint.js'
 import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
@@ -1226,6 +1228,9 @@ export async function buildApp() {
   // routing needed: the app has no client-side URL router at all, just one `index.html` and
   // in-memory React state, so `@fastify/static`'s default file-or-404 behavior is already
   // exactly right - `/` is the only path anything ever actually requests.
+  // The native Android app (#348), built by scripts/build-android-app.sh next to the server's data.
+  registerAppRoutes(app, process.env.STAGEBOARD_APP_DIR ?? join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'app'))
+
   const pwaDist = fileURLToPath(new URL('../../stage-pwa/dist', import.meta.url))
   if (existsSync(pwaDist)) {
     await app.register(fastifyStatic, { root: pwaDist })

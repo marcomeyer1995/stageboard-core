@@ -7,6 +7,8 @@ import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
 import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
+import { AppUpdateBanner } from './components/AppUpdateBanner'
+import { isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
 import { RosterSetupView } from './components/RosterSetupView'
@@ -284,6 +286,7 @@ function App() {
 
       <DialogHost />
       <DiscoveryBanner />
+      {isNativeApp() && <AppUpdateBanner />}
       <AudioResumeOverlay />
       <ReadyCheckOverlay />
     </div>

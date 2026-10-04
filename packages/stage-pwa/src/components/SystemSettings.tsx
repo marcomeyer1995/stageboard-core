@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import { AppVersionSettings } from './AppVersionSettings'
 import { AudioSyncSettings } from './AudioSyncSettings'
+import { isNativeApp } from '../lib/native'
 import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
@@ -42,6 +44,12 @@ export function SystemSettings() {
       <Section title="Textgröße">
         <TextSizeSettings />
       </Section>
+
+      {isNativeApp() && (
+        <Section title="App">
+          <AppVersionSettings />
+        </Section>
+      )}
 
       <Section title="Stage-Server">
         <StageServerSettings />

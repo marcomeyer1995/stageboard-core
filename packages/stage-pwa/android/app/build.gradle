@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Release signing (#348): the key lives outside the repo (default ~/stageboard-data/android,
+// next to the server's other data) - every update must be signed with the same key, or Android
+// refuses to install it over the existing app. Without the file, release builds stay unsigned.
+def keystorePropertiesFile = file(System.getenv('STAGEBOARD_KEYSTORE_PROPERTIES') ?: "${System.getProperty('user.home')}/stageboard-data/android/keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+
 android {
     namespace = "de.stageboard.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,10 @@ android {
         applicationId "de.stageboard.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Set by scripts/build-android-app.sh from the git history (commit count) - always rising,
+        // and the same number the server reports, so the app can tell when it is outdated.
+        versionCode((project.findProperty('stageboardVersionCode') ?: '1') as Integer)
+        versionName(project.findProperty('stageboardVersionName') ?: 'dev')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +25,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystorePropertiesFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
