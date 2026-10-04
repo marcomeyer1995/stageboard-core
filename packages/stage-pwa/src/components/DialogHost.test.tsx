@@ -158,4 +158,46 @@ describe('DialogHost - destructive confirmation (#361)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     await expect(result!).resolves.toBeNull()
   })
+
+  it('sits above the burger menu and other overlays (#375: Force Takeover opened behind the menu)', () => {
+    render(<DialogHost />)
+    act(() => {
+      void useDialogStore.getState().confirm('Ein anderes Gerät ist Master.', { title: 'Master übernehmen?' })
+    })
+    const host = screen.getByTestId('dialog-host')
+    // AppMenu / OverflowMenu / WidgetFrame menus use z-40, DeviceSetupWizard and nested sheets z-50.
+    expect(host.className).toContain('z-[55]')
+    expect(host.className).not.toMatch(/\bz-(30|40|50)\b/)
+  })
+
+  it('covers only the visible area, so an on-screen keyboard cannot hide the dialog (#375)', () => {
+    const listeners: Record<string, () => void> = {}
+    const vv = {
+      offsetTop: 0,
+      height: 800,
+      addEventListener: (type: string, fn: () => void) => {
+        listeners[type] = fn
+      },
+      removeEventListener: () => {},
+    }
+    Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true })
+    try {
+      render(<DialogHost />)
+      act(() => {
+        void useDialogStore.getState().promptText('Neue Setlist')
+      })
+      expect(screen.getByTestId('dialog-host').style.height).toBe('800px')
+
+      // Keyboard opens: the visible area shrinks to 420 px.
+      act(() => {
+        vv.height = 420
+        listeners.resize()
+      })
+      expect(screen.getByTestId('dialog-host').style.height).toBe('420px')
+      expect(screen.getByTestId('dialog-host').style.top).toBe('0px')
+    } finally {
+      Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
+    }
+  })
 })
+

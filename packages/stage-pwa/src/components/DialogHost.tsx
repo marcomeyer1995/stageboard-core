@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { useVisualViewport } from '../lib/useVisualViewport'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
  * every promptText/promptFields/confirm call anywhere in the app shows up here. See
  * useDialogStore.ts for why this replaces window.prompt()/window.confirm().
+ *
+ * Stacking (#375): a dialog is always the answer to something the user just did - often inside
+ * another overlay (the burger menu's "Force Takeover", a widget's or row's ⋯ menu). It therefore
+ * sits above every menu/sheet layer (those use z-40/z-50); only the AudioResumeOverlay (z-60),
+ * which blocks the whole app until audio is unlocked, stays above it. It also covers only the
+ * visible area, so an on-screen keyboard can't hide its input or buttons.
  */
 export function DialogHost() {
   const request = useDialogStore((state) => state.request)
@@ -15,17 +22,21 @@ export function DialogHost() {
   const cancel = useDialogStore((state) => state.cancel)
   const resolveDestructive = useDialogStore((state) => state.resolveDestructive)
   useBackHandler(request ? cancel : null)
+  const visible = useVisualViewport()
 
   if (!request) return null
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
+      role="presentation"
+      data-testid="dialog-host"
+      className="fixed inset-x-0 top-0 z-[55] flex h-dvh items-center justify-center overflow-y-auto bg-black/60 p-4"
+      style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Escape') cancel()
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink">
+      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink">
         <h2 className="text-lg font-bold">{request.title}</h2>
 
         {request.kind === 'prompt' && (
