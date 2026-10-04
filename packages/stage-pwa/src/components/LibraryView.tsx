@@ -27,6 +27,7 @@ import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -570,7 +571,7 @@ export function LibraryView() {
                               : 'text-accent'
                           }`}
                         >
-                          ● Aktiv
+                          <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aktiv
                         </span>
                       )}
                     </button>
@@ -627,11 +628,12 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
-                ← Bibliothek
+                <Icon name="back" />
+                Bibliothek
               </button>
               <SetlistDetail
                 setlistId={selection.id}
@@ -644,11 +646,12 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 h-10 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
-                ← Bibliothek
+                <Icon name="back" />
+                Bibliothek
               </button>
               <SongPreview
                 songId={selection.songId}

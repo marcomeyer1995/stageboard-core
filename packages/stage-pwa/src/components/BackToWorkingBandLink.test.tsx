@@ -43,8 +43,8 @@ describe('BackToWorkingBandLink', () => {
     })
     render(<BackToWorkingBandLink />)
 
-    expect(screen.getByText('← Zurück zu Band B')).toBeInTheDocument()
-    expect(screen.getByText('← Zurück zu Band C')).toBeInTheDocument()
+    expect(screen.getByText('Zurück zu Band B')).toBeInTheDocument()
+    expect(screen.getByText('Zurück zu Band C')).toBeInTheDocument()
     expect(screen.queryByText(/Band A/)).not.toBeInTheDocument()
   })
 
@@ -58,7 +58,7 @@ describe('BackToWorkingBandLink', () => {
     })
     render(<BackToWorkingBandLink />)
 
-    fireEvent.click(screen.getByText('← Zurück zu Band B'))
+    fireEvent.click(screen.getByText('Zurück zu Band B'))
 
     expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('band-b')
   })

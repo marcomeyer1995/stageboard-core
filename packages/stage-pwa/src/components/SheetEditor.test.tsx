@@ -201,8 +201,8 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     stubViewport({ width1280: true, width1024: true, width768: true })
     await renderLoaded()
 
-    expect(screen.queryByRole('button', { name: 'Text' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Tempo' })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: 'Text' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
+    expect(screen.queryAllByRole('button', { name: 'Tempo' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
 
     // Header always visible; everything collapsible starts collapsed.
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
@@ -211,7 +211,7 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
     expect(screen.queryByText('Noch keine Cues für diese Variante.')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^.\s*Text$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Tempo & Klick/ }))
@@ -219,10 +219,10 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     // Expanding Tempo & Klick didn't collapse Text.
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^.\s*Audio$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Audio', expanded: false }))
     expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /^.\s*Cues$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cues', expanded: false }))
     expect(screen.getByText('Noch keine Cues für diese Variante.')).toBeInTheDocument()
   })
 
@@ -244,7 +244,7 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     await renderLoaded()
 
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Text' })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: 'Text' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
     expect(screen.getByRole('button', { name: /Tempo & Klick/ })).toBeInTheDocument()
     expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
   })
@@ -258,7 +258,7 @@ describe('SheetEditor - song switching moved to LibraryView', () => {
     expect(screen.queryByLabelText('Song')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Neuer Song' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Song löschen' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '← Bibliothek' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bibliothek' })).toBeInTheDocument()
   })
 })
 

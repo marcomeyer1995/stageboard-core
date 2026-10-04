@@ -1,6 +1,7 @@
 import type { ShowLogEvent } from 'shared-types'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { Icon } from './Icon'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -76,7 +77,8 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
           <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Notizen ({notes.length})</h3>
           {notes.map((event) => (
             <p key={event.id} className="text-ink-soft">
-              📝 {event.text} — {authorName(event.authorProfileId)} ({fmtTime(event.at)})
+              <Icon name="note" className="mr-1" />
+              {event.text} — {authorName(event.authorProfileId)} ({fmtTime(event.at)})
             </p>
           ))}
         </div>
@@ -89,7 +91,8 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
           <div className="space-y-1 text-sm text-amber-500">
             {technical.map((event) => (
               <div key={event.id}>
-                ⚠ {event.capability}: {event.from} → {event.to} ({fmtTime(event.at)})
+                <Icon name="warning" className="mr-1" />
+                {event.capability}: {event.from} → {event.to} ({fmtTime(event.at)})
               </div>
             ))}
           </div>

@@ -12,6 +12,7 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DashboardManager } from './DashboardManager'
 import { WidgetLibrary } from './WidgetLibrary'
+import { Icon } from './Icon'
 
 interface DashboardEditBarProps {
   dashboard: Dashboard
@@ -85,9 +86,10 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <button
         type="button"
         onClick={() => setEditing(false)}
-        className="ml-auto rounded-sb-sm bg-control h-touch px-4 text-ink-soft hover:bg-control-hover"
+        className="ml-auto flex h-touch items-center gap-2 rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover"
       >
-        🔒 Bearbeiten beenden
+        <Icon name="locked" size="1.25rem" />
+        Bearbeiten beenden
       </button>
 
       {showLibrary && (

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon, type IconName } from './Icon'
 
 interface OverflowMenuAction {
   label: string
@@ -34,7 +35,7 @@ interface OverflowMenuProps {
   onOpenChange?: (open: boolean) => void
   /** The trigger's symbol - the Live-Queue uses "⋮" so its row menu can't be mistaken for the
    * widget's own "⋯" menu beside it in edit mode (GUI audit 2026-09-26). */
-  glyph?: string
+  glyph?: IconName
   /** No visible trigger - the menu opens only through `open` (the Live-Queue's long press on a
    * row outside sort mode). */
   hideTrigger?: boolean
@@ -57,7 +58,7 @@ export function OverflowMenu({
   variant = 'boxed',
   open: controlledOpen,
   onOpenChange,
-  glyph = '⋯',
+  glyph = 'more',
   hideTrigger = false,
   triggerSize = 'default',
 }: OverflowMenuProps) {
@@ -82,7 +83,7 @@ export function OverflowMenu({
               : `flex ${size} flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover`
           }
         >
-          {glyph}
+          <Icon name={glyph} size="1.4rem" />
         </button>
       )}
       {open &&
@@ -103,7 +104,7 @@ export function OverflowMenu({
                   title="Schließen"
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
                 >
-                  ✕
+                  <Icon name="close" size="1.25rem" />
                 </button>
               </div>
 

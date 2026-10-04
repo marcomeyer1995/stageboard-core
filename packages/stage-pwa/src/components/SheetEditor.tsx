@@ -29,6 +29,7 @@ import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -836,9 +837,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <button
             type="button"
             onClick={() => void leave()}
-            className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
+            className="flex min-h-12 items-center gap-2 rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover"
           >
-            ← Bibliothek
+            <Icon name="back" />
+            Bibliothek
           </button>
           {viewSwitch}
         </div>
@@ -975,9 +977,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={() => setTextExpanded((v) => !v)}
+              aria-expanded={textExpanded}
               className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
             >
-              <span>{textExpanded ? '▾' : '▸'}</span> Text
+              <Icon name={textExpanded ? 'collapse' : 'expand'} /> Text
             </button>
             {textExpanded && textContent}
           </div>
@@ -993,9 +996,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 <button
                   type="button"
                   onClick={section.onToggleExpand}
+                  aria-expanded={section.expanded}
                   className="flex items-center gap-2 self-start text-sm font-medium text-ink-soft hover:text-ink"
                 >
-                  <span>{section.expanded ? '▾' : '▸'}</span> {section.fullLabel}
+                  <Icon name={section.expanded ? 'collapse' : 'expand'} /> {section.fullLabel}
                 </button>
                 {section.expanded && section.content}
               </div>

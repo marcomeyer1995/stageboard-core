@@ -46,7 +46,8 @@ describe('NextSongWidget - size-dependent layout (PR B, stage GUI audit)', () =>
     mockSize.height = 67
     mockQueue()
     render(<NextSongWidget config={{}} />)
-    expect(screen.getByText('Weiter ›').className).toContain('min-h-touch')
+    expect(screen.getByTitle('Nächster Song')).toHaveTextContent('Weiter')
+    expect(screen.getByTitle('Nächster Song').className).toContain('min-h-touch')
     expect(screen.getByText('Ready-Check')).toBeInTheDocument()
   })
 
@@ -55,8 +56,8 @@ describe('NextSongWidget - size-dependent layout (PR B, stage GUI audit)', () =>
     mockSize.height = 66
     mockQueue()
     render(<NextSongWidget config={{}} />)
-    expect(screen.getByTitle('Nächster Song')).toHaveTextContent('›')
-    expect(screen.queryByText('Weiter ›')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Nächster Song').querySelector('svg.lucide-chevron-right')).not.toBeNull()
+    expect(screen.getByTitle('Nächster Song')).not.toHaveTextContent('Weiter')
     expect(screen.getByText('Ready')).toBeInTheDocument()
   })
 

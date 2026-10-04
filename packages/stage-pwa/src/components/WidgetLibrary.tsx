@@ -15,6 +15,7 @@ import {
 import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   performance: 'Performance',
@@ -170,7 +171,7 @@ export function WidgetLibrary({
             title="Schließen"
             className="flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
           >
-            ✕
+            <Icon name="close" size="1.5rem" />
           </button>
         </div>
 

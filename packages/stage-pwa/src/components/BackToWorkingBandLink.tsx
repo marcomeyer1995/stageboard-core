@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { Icon } from './Icon'
 
 /**
  * Escape hatch for App.tsx's three onboarding gates (JoinBandView, RosterSetupView,
@@ -42,9 +43,9 @@ export function BackToWorkingBandLink() {
           key={w.id}
           type="button"
           onClick={() => setActiveWorkspace(w.id)}
-          className="text-xs text-ink-faint underline"
+          className="flex items-center gap-1 text-xs text-ink-faint underline"
         >
-          ← Zurück zu {w.name}
+          <Icon name="back" /> Zurück zu {w.name}
         </button>
       ))}
     </div>

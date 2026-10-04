@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useBackHandler } from '../lib/backNavigation'
+import { Icon } from './Icon'
 
 /**
  * The "⋮ opens a popup of actions" pattern (see BandManagementView.tsx's member-row follow-up,
@@ -21,7 +22,7 @@ export function RowMenuButton({ label, onClick }: { label: string; onClick: () =
       aria-label={label}
       className="flex-shrink-0 rounded-sb px-2 py-1 text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink-soft"
     >
-      ⋮
+      <Icon name="moreVertical" size="1.25rem" />
     </button>
   )
 }

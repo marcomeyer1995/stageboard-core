@@ -51,9 +51,9 @@ describe('LiveQueueWidget - sort mode and long-press menu (PR F1, stage GUI audi
   it('"⇅ Sortieren" shows handles and "⋮" triggers on the upcoming rows, "Fertig" hides them', () => {
     mockQueue()
     render(<LiveQueueWidget config={{}} />)
-    fireEvent.click(screen.getByText('⇅ Sortieren'))
+    fireEvent.click(screen.getByText('Sortieren'))
     expect(screen.getAllByLabelText('Ziehen zum Sortieren')).toHaveLength(2)
-    expect(screen.getAllByTitle('Menü öffnen')[0]).toHaveTextContent('⋮')
+    expect(screen.getAllByTitle('Menü öffnen')[0].querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
     // 56px Gig-tier target (it was 40px, tablet check after #293).
     expect(screen.getAllByTitle('Menü öffnen')[0].className).toContain('h-touch w-touch')
     fireEvent.click(screen.getByText('Fertig'))
@@ -63,11 +63,11 @@ describe('LiveQueueWidget - sort mode and long-press menu (PR F1, stage GUI audi
   it('closes sort mode when playback starts', () => {
     mockQueue()
     const { rerender } = render(<LiveQueueWidget config={{}} />)
-    fireEvent.click(screen.getByText('⇅ Sortieren'))
+    fireEvent.click(screen.getByText('Sortieren'))
     mockQueue({ playbackStatus: 'playing' })
     rerender(<LiveQueueWidget config={{}} />)
     expect(screen.queryByLabelText('Ziehen zum Sortieren')).not.toBeInTheDocument()
-    expect(screen.getByText('⇅ Sortieren')).toBeInTheDocument()
+    expect(screen.getByText('Sortieren')).toBeInTheDocument()
   })
 
   it('opens the row actions on a long press, not on a tap', () => {
@@ -101,7 +101,7 @@ describe('LiveQueueWidget - sort mode and long-press menu (PR F1, stage GUI audi
     vi.useFakeTimers()
     mockQueue({ canControl: false })
     render(<LiveQueueWidget config={{}} />)
-    expect(screen.queryByText('⇅ Sortieren')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sortieren')).not.toBeInTheDocument()
     const row = screen.getByText('Sweet Home Alabama').closest('div')!
     fireEvent.pointerDown(row, { button: 0, clientX: 10, clientY: 10 })
     act(() => vi.advanceTimersByTime(LONG_PRESS_MS))

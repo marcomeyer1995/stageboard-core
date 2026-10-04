@@ -37,6 +37,7 @@ import { TargetPicker } from '../CommentListEditor'
 import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 import { TimelineMinimap } from './TimelineMinimap'
+import { Icon } from '../Icon'
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
@@ -1203,7 +1204,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={button} onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
-          {clock.isPlaying ? '❚❚' : '▶'}
+          <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
         </button>
         <span className="min-w-20 font-bold tabular-nums">{formatTimelineTime(playheadMs)}</span>
         <button type="button" className={button} aria-label="Herauszoomen" onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
@@ -1323,8 +1324,26 @@ export function TimelineEditor(props: TimelineEditorProps) {
       {tapMode === 'lines' && (
         <div className="flex flex-col gap-2 rounded-sb bg-control p-2" data-testid="tap-lines-panel">
           <div className="flex flex-col gap-1 px-2 text-base">
-            <span className="truncate text-ink-faint">{prevTapLine ? `✓ ${prevTapLine.text}` : ' '}</span>
-            <span className="truncate text-lg font-bold text-accent">{nextTapLine ? `→ ${nextTapLine.text}` : 'Alle Zeilen gesetzt – Tippen beenden'}</span>
+            <span className="truncate text-ink-faint" data-testid="tap-prev-line">
+              {prevTapLine ? (
+                <>
+                  <Icon name="check" className="mr-1" />
+                  {prevTapLine.text}
+                </>
+              ) : (
+                ' '
+              )}
+            </span>
+            <span className="truncate text-lg font-bold text-accent" data-testid="tap-next-line">
+              {nextTapLine ? (
+                <>
+                  <Icon name="forward" className="mr-1" />
+                  {nextTapLine.text}
+                </>
+              ) : (
+                'Alle Zeilen gesetzt – Tippen beenden'
+              )}
+            </span>
             <span className="truncate text-ink-faint">{afterTapLine ? afterTapLine.text : ' '}</span>
           </div>
           <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>

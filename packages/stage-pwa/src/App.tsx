@@ -59,6 +59,7 @@ import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
+import { Icon } from './components/Icon'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -267,7 +268,7 @@ function App() {
               onClick={() => setMenuOpen(true)}
               className="relative flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
             >
-              <span className="text-xl leading-none">☰</span>
+              <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}
               {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
                   since this button is always on screen; the detailed SyncIndicator with its

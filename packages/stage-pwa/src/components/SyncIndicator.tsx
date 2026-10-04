@@ -2,12 +2,13 @@ import { getDeviceId } from '../lib/deviceId'
 import { deriveSyncProgress, deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { deriveOwnProfileId, useWorkspaceStore } from '../store/useWorkspaceStore'
+import { Icon, type IconName } from './Icon'
 
-const STATUS_TEXT: Record<SyncStatus, { icon: string; label: string }> = {
-  idle: { icon: '✓', label: 'Synchronisiert' },
-  syncing: { icon: '☁', label: 'Synchronisiere…' },
-  offline: { icon: '⃠', label: 'Offline' },
-  error: { icon: '⚠', label: 'Fehler' },
+const STATUS_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
+  idle: { icon: 'check', label: 'Synchronisiert' },
+  syncing: { icon: 'cloud', label: 'Synchronisiere…' },
+  offline: { icon: 'blocked', label: 'Offline' },
+  error: { icon: 'warning', label: 'Fehler' },
 }
 
 /**
@@ -62,7 +63,9 @@ export function SyncIndicator() {
         className="flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft"
         title={displayLabel}
       >
-        <span className={`text-lg leading-none ${status === 'syncing' ? 'animate-pulse' : ''}`}>{icon}</span>
+        <span data-testid="sync-icon" className={`flex items-center text-lg leading-none ${status === 'syncing' ? 'animate-pulse' : ''}`}>
+          <Icon name={icon} />
+        </span>
         {displayLabel}
       </div>
       {status === 'error' && (

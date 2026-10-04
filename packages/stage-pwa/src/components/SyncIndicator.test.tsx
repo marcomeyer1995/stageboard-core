@@ -36,7 +36,7 @@ describe('SyncIndicator', () => {
     render(<SyncIndicator />)
 
     expect(screen.getByText('Synchronisiere…')).toBeInTheDocument()
-    expect(screen.getByText('☁')).toHaveClass('animate-pulse')
+    expect(screen.getByTestId('sync-icon')).toHaveClass('animate-pulse')
   })
 
   it('shows Offline when a stream lost its connection, without animating', () => {
@@ -44,7 +44,7 @@ describe('SyncIndicator', () => {
     render(<SyncIndicator />)
 
     expect(screen.getByText('Offline')).toBeInTheDocument()
-    expect(screen.getByText('⃠')).not.toHaveClass('animate-pulse')
+    expect(screen.getByTestId('sync-icon')).not.toHaveClass('animate-pulse')
   })
 
   it('shows the worst status (error) even while another stream is still syncing', () => {
