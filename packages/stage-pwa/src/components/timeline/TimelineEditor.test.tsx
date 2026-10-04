@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BeatGrid, ShowCue } from 'shared-types'
 
 vi.mock('pouchdb-browser', () => ({
@@ -39,6 +39,7 @@ vi.mock('../../store/useLogicalDevicesStore', () => ({
 }))
 
 const { TimelineEditor } = await import('./TimelineEditor')
+const { useClockStore } = await import('../../store/useClockStore')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
@@ -360,5 +361,61 @@ describe('tapping lines (#325)', () => {
     // The tap was at the clock's 0 ms here, so playback goes back to the start (never below 0).
     expect(trackClock.ref.current!.currentTime).toBe(0)
     trackClock.isPlaying = false
+  })
+})
+
+describe('playhead quick actions (#326)', () => {
+  // Same lane geometry as above: no grid, no track, 60 ms per px.
+  const content = ['{c: Solo starts in 8th fret}', '[00:10.00] First line', '[00:14.00] Second line', '[00:20.00] Third line'].join('\n')
+  const cue: ShowCue = { id: 'c1', timeMs: 12000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 1 } }
+  function tapAt(ms: number, y: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: ms / 60, clientY: y })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: ms / 60, clientY: y })
+  }
+  function playheadAt(ms: number) {
+    useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: ms })
+  }
+  afterEach(() => playheadAt(0))
+
+  it('moves a selected cue to the playhead', () => {
+    playheadAt(16500)
+    const { onChange } = setup({ cues: [cue] })
+    tapAt(12000, 342 + 22)
+    fireEvent.click(screen.getByText('Zum Abspielkopf'))
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 16500 }])
+  })
+
+  it('moves a selected lyric line there - only between its neighbours, else it says why', () => {
+    playheadAt(12500)
+    const { onChange } = setup({ content })
+    tapAt(14000, 96 + 26 + 84 + 28 + 20)
+    fireEvent.click(screen.getByText('Zum Abspielkopf'))
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[2]).toBe('[00:12.50] Second line')
+
+    playheadAt(25000)
+    fireEvent.click(screen.getByText('Zum Abspielkopf'))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toHaveTextContent('nur zwischen ihren Nachbarn')
+  })
+
+  it('a note goes to the line playing at the playhead', () => {
+    playheadAt(21000)
+    const { onChange } = setup({ content })
+    tapAt(10000, 298 + 22)
+    fireEvent.click(screen.getByText('Zum Abspielkopf'))
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')).toEqual([
+      '[00:10.00] First line',
+      '[00:14.00] Second line',
+      '{c: Solo starts in 8th fret}',
+      '[00:20.00] Third line',
+    ])
+  })
+
+  it('"Cue am Abspielkopf" opens the cue window at the playhead', () => {
+    playheadAt(30000)
+    setup()
+    fireEvent.click(screen.getByText('Cue am Abspielkopf'))
+    expect(screen.getByText('Cue bei 0:30.0')).toBeInTheDocument()
   })
 })
