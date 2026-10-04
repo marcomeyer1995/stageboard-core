@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { getAutomaticStageServerUrl, overrideForTypedUrl } from '../lib/stageServer'
 import { useStageServerStore } from '../store/useStageServerStore'
+import { isNativeApp } from '../lib/native'
+import { NetworkServerList } from './NetworkServerList'
 
 /**
  * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
@@ -24,6 +26,25 @@ export function StageServerSettings() {
   function reset() {
     setUrl(null)
     setDraft('')
+  }
+
+  // Native app (#348/#351): the address comes from pairing, there is no "automatic" one - show the
+  // paired server and the servers on the network instead of the browser's override field.
+  if (isNativeApp()) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-ink-soft">
+          {override ? (
+            <>
+              Gekoppelt mit <span className="font-semibold break-all">{override.replace(/^https:\/\//, '')}</span>
+            </>
+          ) : (
+            <span className="text-ink-faint">Noch mit keinem Stage-Server gekoppelt.</span>
+          )}
+        </p>
+        <NetworkServerList />
+      </div>
+    )
   }
 
   return (

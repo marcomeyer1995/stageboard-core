@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { networkInterfaces } from 'node:os'
+import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
@@ -1366,7 +1366,15 @@ async function main() {
     if (lanIp) {
       // Never awaited and never throws: at boot the Wi-Fi may not have its address yet (#339) -
       // the responder retries on its own while the server already serves by raw IP.
-      const mdns = startMdnsResponder({ lanIp, hostname: mdnsHostname, log: pluginLog })
+      const mdns = startMdnsResponder({
+        lanIp,
+        hostname: mdnsHostname,
+        port,
+        // The name the native app lists this server under (#351).
+        instance: process.env.MDNS_INSTANCE ?? `StageBoard ${hostname().split('.')[0]}`,
+        certFingerprint: CERT_FINGERPRINT,
+        log: pluginLog,
+      })
       app.addHook('onClose', async () => mdns.stop())
     } else {
       app.log.warn('No LAN IP detected and LAN_IP not set - stageboard.local will not resolve, only the raw IP will work')

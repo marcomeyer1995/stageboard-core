@@ -3,6 +3,7 @@ import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
 import { isNativeApp, pairWithServer, serverFingerprint, shortFingerprint } from '../lib/native'
 import { useStageServerStore } from '../store/useStageServerStore'
+import { NetworkServerList } from './NetworkServerList'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -471,6 +472,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               </button>
             </div>
             {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+            {/* #351: servers announcing themselves - searched right away while not yet paired. */}
+            <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
           </form>
         )}
 
