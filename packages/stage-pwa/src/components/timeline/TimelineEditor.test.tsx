@@ -470,3 +470,34 @@ describe('"Tempo tippen" for a section (#329)', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Tempo ab Takt 16: 100.0 BPM')
   })
 })
+
+describe('what can be grabbed (#331)', () => {
+  const cueY = 342 + 22
+  const near: ShowCue[] = [
+    { id: 'a', timeMs: 12000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 1 } },
+    { id: 'b', timeMs: 13000, targetLogicalDeviceId: 'kemper-1', type: 'kemper.selectRig', payload: { performance: 3, slot: 2 } },
+  ]
+  function tapAt(ms: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: ms / 60, clientY: cueY })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: ms / 60, clientY: cueY })
+  }
+
+  it('cues closer than two finger widths cannot be grabbed - a tap scrolls instead', () => {
+    setup({ cues: near }) // 1 s apart = 17 px at 60 ms per px
+    tapAt(12000)
+    expect(screen.queryByText(/Performance 4, Slot 1/)).toBeNull()
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerMove(lanes, { pointerId: 9, pointerType: 'mouse', buttons: 0, clientX: 12000 / 60, clientY: cueY })
+    expect(lanes.style.cursor).toBe('')
+  })
+
+  it('says to zoom in while bar lines are too close to drag, and shows a grab hand over a grabbable cue', () => {
+    const grid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }], meters: [] }
+    setup({ beatGrid: grid, cues: [near[0]!] }) // 2 s bars = 33 px: too close
+    expect(screen.getByRole('status')).toHaveTextContent('Taktstriche zum Ziehen zu dicht – hineinzoomen.')
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerMove(lanes, { pointerId: 9, pointerType: 'mouse', buttons: 0, clientX: 12000 / 60, clientY: cueY })
+    expect(lanes.style.cursor).toBe('grab')
+  })
+})
