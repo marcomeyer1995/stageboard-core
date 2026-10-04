@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // PluginManager/BackupManager/PostShowReport transitively import workspaceDb.ts, which
@@ -181,4 +181,24 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expectSidebar()
     expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
   })
+
+  it('Einstellungen groups device settings apart from the band-wide ones (#371)', () => {
+    usePluginsStore.setState({ installed: [] })
+    render(<SystemView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
+
+    const device = screen.getByRole('region', { name: 'Dieses Gerät' })
+    expect(within(device).getByText('Gerätename')).toBeInTheDocument()
+    expect(within(device).getByText('Textgröße')).toBeInTheDocument()
+    expect(within(device).queryByText('Aktive Band (Hardware)')).not.toBeInTheDocument()
+
+    const connection = screen.getByRole('region', { name: 'Verbindung' })
+    expect(within(connection).getByText('Stage-Server')).toBeInTheDocument()
+    expect(within(connection).getByText('Synchronisation')).toBeInTheDocument()
+
+    // "Band wechseln…" switches the server's band for everyone - its own, marked group.
+    const shared = screen.getByRole('region', { name: 'Band & Server - gilt für alle' })
+    expect(within(shared).getByText('Aktive Band (Hardware)')).toBeInTheDocument()
+  })
 })
+
