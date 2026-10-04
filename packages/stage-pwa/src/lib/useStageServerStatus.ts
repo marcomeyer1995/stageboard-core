@@ -7,8 +7,12 @@ import {
   updateLastKnownStageServer,
   type StageServerSnapshot,
 } from './stageServerStatusCache'
+import { isNativeApp } from './native'
+import { getStageServerUrl } from './stageServer'
+import { useStageServerStore } from '../store/useStageServerStore'
 
-export type StageServerReachability = 'loading' | 'reachable' | 'unreachable'
+/** `unpaired`: the native app (#348) hasn't been paired with any Stage-Server yet - nothing to ask. */
+export type StageServerReachability = 'loading' | 'reachable' | 'unreachable' | 'unpaired'
 
 /** How long the hook waits with no answer at all before it flags the status as `slow`. Not a
  * failure and nothing is aborted: an answer that arrives later still just shows up. */
@@ -47,6 +51,8 @@ export function useStageServerStatus() {
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchActiveWorkspaceHardware = useWorkspaceStore((state) => state.fetchActiveWorkspaceHardware)
   const fetchServerInfo = useWorkspaceStore((state) => state.fetchServerInfo)
+  // Re-check when the app gets paired (or re-paired) with a server.
+  const serverUrl = useStageServerStore((state) => state.url)
 
   const cached = getLastKnownStageServer()
   const [snapshot, setSnapshot] = useState<StageServerSnapshot>(cached ?? EMPTY)
@@ -59,6 +65,14 @@ export function useStageServerStatus() {
 
   async function reload(): Promise<void> {
     const run = ++runRef.current
+    if (isNativeApp() && !getStageServerUrl()) {
+      // The unpaired native app: no server to ask yet (a browser always has the address it was loaded from).
+      clearTimeout(timerRef.current)
+      setRefreshing(false)
+      setSlow(false)
+      setStatus('unpaired')
+      return
+    }
     const current = () => run === runRef.current && !unmountedRef.current
     let answered = 0
 
@@ -109,7 +123,7 @@ export function useStageServerStatus() {
       clearTimeout(timerRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [serverUrl])
 
   const activeWorkspaceName =
     snapshot.workspaces?.find((w: WorkspaceSummary) => w.workspaceId === snapshot.activeWorkspaceId)?.workspaceName ?? null

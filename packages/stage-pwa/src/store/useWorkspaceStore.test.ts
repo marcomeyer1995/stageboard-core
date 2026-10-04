@@ -895,7 +895,7 @@ describe('listWorkspaces', () => {
     expect(init).toBeUndefined()
   })
 
-  it('alerts and returns null when no Stage-Server is configured', async () => {
+  it('returns null quietly when no Stage-Server is configured - a background load, no pop-up', async () => {
     delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
     const alertMock = vi.fn().mockResolvedValue(undefined)
     useDialogStore.setState({ alert: alertMock })
@@ -903,7 +903,7 @@ describe('listWorkspaces', () => {
     const result = await useWorkspaceStore.getState().listWorkspaces()
 
     expect(result).toBeNull()
-    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('nicht konfiguriert'))
+    expect(alertMock).not.toHaveBeenCalled()
   })
 
   it('alerts with a distinct network-failure message when fetch itself throws', async () => {
