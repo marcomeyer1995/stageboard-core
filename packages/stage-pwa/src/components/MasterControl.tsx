@@ -3,6 +3,7 @@ import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
 
 /**
  * The Master-Token claim, previously reachable only from inside NextSongWidget/
@@ -25,15 +26,28 @@ export function MasterControl() {
     await releaseMaster()
   }
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
+  // The master token lives in the band's synced ShowState doc. With a permanently failed sync
+  // (401/403 - e.g. stale credentials after a band restore) this device only sees its own local
+  // copy: it may still read "Dieses Gerät" while another device took over on the server (#378,
+  // found on the Fire 2026-10-04). Say so instead of presenting it as valid.
+  const syncBroken = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline) === 'error')
   const masterName = useDeviceName(masterHolderId)
 
   return (
     <div className="flex flex-col gap-2">
+      {isMaster && syncBroken && (
+        <p role="status" className="text-sm text-amber-500">
+          Sync-Fehler: Die anderen Geräte sehen nicht, was dieses Gerät als Master tut, und vielleicht hat längst ein
+          anderes Gerät übernommen. Unter System → Einstellungen → Synchronisation „Reparieren“.
+        </p>
+      )}
       {isMaster ? (
         <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
           Master-Kontrolle
           <span className="flex items-center gap-3">
-            <span className="text-sm text-accent">Dieses Gerät</span>
+            <span className={`text-sm ${syncBroken ? 'text-amber-500' : 'text-accent'}`}>
+              {syncBroken ? 'Dieses Gerät - nicht synchron' : 'Dieses Gerät'}
+            </span>
             <button
               type="button"
               onClick={release}

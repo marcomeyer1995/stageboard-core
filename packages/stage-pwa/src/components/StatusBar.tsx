@@ -170,7 +170,11 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
         <span className="rounded-sb-sm bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
         {mode === 'gig' && canControl && (
-          <span title="Dieses Gerät hat das Master-Token" aria-label="Master" className="flex items-center">
+          <span
+            title={syncStatus === 'error' ? 'Master laut eigener Kopie - nicht synchron, andere Geräte sehen das nicht' : 'Dieses Gerät hat das Master-Token'}
+            aria-label={syncStatus === 'error' ? 'Master, nicht synchron' : 'Master'}
+            className={`flex items-center ${syncStatus === 'error' ? 'opacity-60' : ''}`}
+          >
             <Icon name="master" size="1.4rem" />
           </span>
         )}
