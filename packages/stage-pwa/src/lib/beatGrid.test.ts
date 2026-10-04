@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BeatGrid } from 'shared-types'
-import { beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from './beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from './beatGrid'
 
 const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
 const times = (g: BeatGrid, from: number, to: number, bpm = 120, ts = '4/4') => beatsBetween(clickTimeline({ beatGrid: g, bpm, timeSignature: ts }), from, to).map((b) => Math.round(b.timeMs))
@@ -166,5 +166,45 @@ describe('gridFromBeats ("Track analysieren")', () => {
 
   it('is null without a downbeat', () => {
     expect(gridFromBeats([{ timeMs: 100, beatInBar: 1 }], 120, '4/4')).toBeNull()
+  })
+})
+
+describe('applySectionTempo (#329)', () => {
+  // 120 BPM, 4/4: a bar is 2 s, bar 16 starts at 30 s. Taps at 100 BPM (600 ms apart).
+  const single: BeatGrid = { points: [{ id: 'a', bar: 1, timeMs: 0 }], meters: [] }
+  const taps = (fromMs: number, count: number) => Array.from({ length: count }, (_, i) => fromMs + i * 600)
+
+  it('tapping from the only point with nothing after it just sets the bpm', () => {
+    expect(applySectionTempo(single, 120, '4/4', taps(100, 8), 100)).toEqual({ kind: 'bpm' })
+  })
+
+  it('from bar 16 on: bar 16 stays where it was, the tapped tempo runs to the bar the taps reached', () => {
+    const result = applySectionTempo(single, 120, '4/4', taps(30100, 8), 100)
+    expect(result).toMatchObject({ kind: 'grid', startBar: 16, endBar: 18, nextBar: null })
+    if (result.kind !== 'grid') return
+    expect(result.grid.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 0], [16, 30000], [18, 34800]])
+    const timeline = clickTimeline({ beatGrid: result.grid, bpm: 120, timeSignature: '4/4' })
+    expect(timeline.timeOfBeat(timeline.barStartBeat(9))).toBe(16000) // before: unchanged
+    expect(timeline.timeOfBeat(timeline.barStartBeat(17))).toBe(32400) // 100 BPM from bar 16
+  })
+
+  it('late taps (device delay) change nothing as long as they start in the same bar', () => {
+    const onTime = applySectionTempo(single, 120, '4/4', taps(30100, 8), 100)
+    const late = applySectionTempo(single, 120, '4/4', taps(30400, 8), 100)
+    expect(late.kind === 'grid' && onTime.kind === 'grid' && late.grid.points.map((p) => p.timeMs)).toEqual(onTime.kind === 'grid' && onTime.grid.points.map((p) => p.timeMs))
+  })
+
+  it('stops before the next alignment point, which stays untouched', () => {
+    const grid: BeatGrid = { points: [{ id: 'a', bar: 1, timeMs: 0 }, { id: 'q', bar: 20, timeMs: 38000 }], meters: [] }
+    const result = applySectionTempo(grid, 120, '4/4', taps(30100, 40), 100)
+    expect(result).toMatchObject({ kind: 'grid', startBar: 16, endBar: 19, nextBar: 20 })
+    if (result.kind !== 'grid') return
+    expect(result.grid.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 0], [16, 30000], [19, 37200], [20, 38000]])
+  })
+
+  it('says so when there is no room before the next point', () => {
+    const grid: BeatGrid = { points: [{ id: 'a', bar: 1, timeMs: 0 }, { id: 'q', bar: 17, timeMs: 32000 }], meters: [] }
+    const result = applySectionTempo(grid, 120, '4/4', taps(30100, 8), 100)
+    expect(result.kind).toBe('refused')
   })
 })

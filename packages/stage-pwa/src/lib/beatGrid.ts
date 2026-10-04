@@ -308,3 +308,40 @@ export function tempoFromTaps(tapsMs: readonly number[]): number | null {
   const periodMs = sxy / sxx
   return periodMs > 0 ? Math.round((60000 / periodMs) * 10) / 10 : null
 }
+
+export type SectionTempoResult =
+  | { kind: 'bpm' }
+  | { kind: 'grid'; grid: BeatGrid; startBar: number; endBar: number; nextBar: number | null }
+  | { kind: 'refused'; reason: string }
+
+/**
+ * "Tempo tippen" from somewhere in the song (#329): the tapped `tempo` applies from the bar where
+ * tapping started, up to the next alignment point - points before it, and the next point itself,
+ * stay. Tap *positions* are never used as alignment points: taps arrive late by the device's
+ * audio/touch delay (docs/13 §7, hundreds of ms on some tablets) - only the tempo, the slope
+ * through them, is reliable. So the starting bar stays where the grid has it, and a second point
+ * at the bar the taps reached (`endBar`) carries the new tempo; after it, the tempo carries on
+ * unless a later point bridges back. Tapping from the only point with nothing after it just sets
+ * the song's bpm (`kind: 'bpm'`), as for the whole song.
+ */
+export function applySectionTempo(grid: BeatGrid, bpm: number, timeSignature: string, tapsMs: readonly number[], tempo: number): SectionTempoResult {
+  const timeline = clickTimeline({ beatGrid: grid, bpm, timeSignature })
+  const taps = [...tapsMs].sort((a, b) => a - b)
+  const points = [...grid.points].sort((a, b) => a.bar - b.bar)
+  const startBar = Math.max(1, timeline.barOf(timeline.beatAtOrBefore(taps[0]!)))
+  const next = points.find((p) => p.bar > startBar) ?? null
+  if (!next && points.length === 1 && startBar <= points[0]!.bar) return { kind: 'bpm' }
+
+  const startMs = timeline.timeOfBeat(timeline.barStartBeat(startBar))
+  const beatMs = 60000 / tempo
+  const perBar = timeline.barStartBeat(startBar + 1) - timeline.barStartBeat(startBar)
+  let endBar = startBar + Math.max(1, Math.ceil((taps[taps.length - 1]! - startMs) / beatMs / perBar))
+  if (next && endBar >= next.bar) endBar = next.bar - 1
+  if (endBar <= startBar) return { kind: 'refused', reason: `Zwischen Takt ${startBar} und dem nächsten Ausrichtungspunkt (Takt ${next?.bar}) ist kein Platz für ein eigenes Tempo.` }
+  const endMs = startMs + (timeline.barStartBeat(endBar) - timeline.barStartBeat(startBar)) * beatMs
+
+  const pinned = setPoint(grid, startBar, startMs, timeSignature)
+  const withTempo = pinned && setPoint(pinned, endBar, endMs, timeSignature)
+  if (!withTempo) return { kind: 'refused', reason: `${tempo.toFixed(1)} BPM ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}) - dort zuerst die Ausrichtung prüfen.` }
+  return { kind: 'grid', grid: withTempo, startBar, endBar, nextBar: next?.bar ?? null }
+}
