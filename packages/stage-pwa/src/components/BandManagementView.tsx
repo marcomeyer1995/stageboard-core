@@ -181,6 +181,7 @@ export function BandManagementView() {
   const promptText = useDialogStore((state) => state.promptText)
   const promptFields = useDialogStore((state) => state.promptFields)
   const confirm = useDialogStore((state) => state.confirm)
+  const confirmDestructive = useDialogStore((state) => state.confirmDestructive)
   const alert = useDialogStore((state) => state.alert)
   // Deliberately separate from `activeWorkspaceId` above, which is this *device's* own "which
   // band am I displaying" pointer (SystemSettings.tsx's "Aktive Band (Hardware)" is the
@@ -369,19 +370,38 @@ export function BandManagementView() {
                   </RowActionButton>
                 )}
                 {workspace.isAdmin && (
-                  <RowActionButton
-                    danger
-                    onClick={async () => {
-                      setActionsMenuWorkspaceId(null)
-                      const confirmed = await confirm(
-                        `"${workspace.name}" endgültig löschen? Alle Daten (Songs, Setlisten, Roster, ...) gehen unwiderruflich verloren, für jedes Gerät, das dieser Band beigetreten ist.`,
-                        { confirmLabel: 'Endgültig löschen', danger: true },
-                      )
-                      if (confirmed) void deleteWorkspace(workspace.id)
-                    }}
-                  >
-                    Löschen
-                  </RowActionButton>
+                  <>
+                    {/* Set apart and named for what it does (#361): on 2026-10-04 "Löschen" next
+                        to "Von diesem Gerät entfernen" deleted a band for everyone by mistake. */}
+                    {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-red-500">Für alle Geräte</div>}
+                    <RowActionButton
+                      danger
+                      onClick={async () => {
+                        setActionsMenuWorkspaceId(null)
+                        const onServer = !!workspace.username
+                        const choice = await confirmDestructive(
+                          onServer
+                            ? {
+                                title: `„${workspace.name}" für alle löschen?`,
+                                message: 'Songs, Setlisten, Roster und Dashboards werden auf dem Stage-Server gelöscht - für jedes Gerät, jedes Mitglied verliert den Zugang. Willst du die Band nur von diesem Gerät entfernen, nimm den Knopf darunter.',
+                                typeToConfirm: workspace.name,
+                                confirmLabel: 'Für alle löschen',
+                                alternativeLabel: 'Nur von diesem Gerät entfernen',
+                              }
+                            : {
+                                title: `„${workspace.name}" löschen?`,
+                                message: 'Die Band ist nur auf diesem Gerät - Songs, Setlisten und Roster gehen verloren.',
+                                typeToConfirm: workspace.name,
+                                confirmLabel: 'Löschen',
+                              },
+                        )
+                        if (choice === 'confirm') void deleteWorkspace(workspace.id)
+                        else if (choice === 'alternative') await removeWorkspaceLocally(workspace.id)
+                      }}
+                    >
+                      {workspace.username ? 'Band für alle löschen …' : 'Band löschen …'}
+                    </RowActionButton>
+                  </>
                 )}
               </RowActionsMenu>
             )}
