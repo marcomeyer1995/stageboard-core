@@ -122,3 +122,40 @@ describe('DialogHost', () => {
     expect(await promise).toBeUndefined()
   })
 })
+
+describe('DialogHost - destructive confirmation (#361)', () => {
+  const options = { title: '„Abadschendaler" für alle löschen?', message: 'Alles weg.', typeToConfirm: 'Abadschendaler', confirmLabel: 'Für alle löschen', alternativeLabel: 'Nur von diesem Gerät entfernen' }
+
+  it('the delete button only works once the name is typed (spaces and case ignored)', async () => {
+    render(<DialogHost />)
+    let result: Promise<'confirm' | 'alternative' | null>
+    act(() => {
+      result = useDialogStore.getState().confirmDestructive(options)
+    })
+    const button = screen.getByRole('button', { name: 'Für alle löschen' })
+    expect(button).toBeDisabled()
+    const input = screen.getByLabelText('Zum Bestätigen „Abadschendaler“ eingeben')
+    fireEvent.change(input, { target: { value: 'Abadschen' } })
+    expect(button).toBeDisabled()
+    fireEvent.change(input, { target: { value: '  abadschendaler ' } })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+    await expect(result!).resolves.toBe('confirm')
+  })
+
+  it('offers the harmless alternative in one tap, and cancelling resolves null', async () => {
+    render(<DialogHost />)
+    let result: Promise<'confirm' | 'alternative' | null>
+    act(() => {
+      result = useDialogStore.getState().confirmDestructive(options)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Nur von diesem Gerät entfernen' }))
+    await expect(result!).resolves.toBe('alternative')
+
+    act(() => {
+      result = useDialogStore.getState().confirmDestructive(options)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    await expect(result!).resolves.toBeNull()
+  })
+})

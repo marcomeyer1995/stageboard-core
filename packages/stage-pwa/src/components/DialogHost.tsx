@@ -13,6 +13,7 @@ export function DialogHost() {
   const acceptConfirm = useDialogStore((state) => state.acceptConfirm)
   const acceptAlert = useDialogStore((state) => state.acceptAlert)
   const cancel = useDialogStore((state) => state.cancel)
+  const resolveDestructive = useDialogStore((state) => state.resolveDestructive)
   useBackHandler(request ? cancel : null)
 
   if (!request) return null
@@ -36,6 +37,17 @@ export function DialogHost() {
             confirmLabel={request.confirmLabel}
             danger={request.danger}
             onConfirm={acceptConfirm}
+            onCancel={cancel}
+          />
+        )}
+        {request.kind === 'destructive' && (
+          <DestructiveBody
+            key={request.typeToConfirm}
+            message={request.message}
+            typeToConfirm={request.typeToConfirm}
+            confirmLabel={request.confirmLabel}
+            alternativeLabel={request.alternativeLabel}
+            onResolve={resolveDestructive}
             onCancel={cancel}
           />
         )}
@@ -216,3 +228,58 @@ function ConfirmBody({
     </div>
   )
 }
+
+/** Typing the name is the confirmation (#361): the destructive button stays disabled until the
+ * text matches (ignoring surrounding spaces and case); the harmless alternative is one tap. */
+function DestructiveBody({
+  message,
+  typeToConfirm,
+  confirmLabel,
+  alternativeLabel,
+  onResolve,
+  onCancel,
+}: {
+  message: string
+  typeToConfirm: string
+  confirmLabel: string
+  alternativeLabel?: string
+  onResolve: (value: 'confirm' | 'alternative') => void
+  onCancel: () => void
+}) {
+  const [typed, setTyped] = useState('')
+  const matches = typed.trim().toLowerCase() === typeToConfirm.trim().toLowerCase()
+  return (
+    <div className="space-y-3">
+      <p className="text-base text-ink-muted">{message}</p>
+      {alternativeLabel && (
+        <button type="button" onClick={() => onResolve('alternative')} className="h-touch w-full rounded-sb bg-accent px-4 font-semibold text-accent-ink">
+          {alternativeLabel}
+        </button>
+      )}
+      <label className="flex flex-col gap-1 text-sm text-ink-muted">
+        Zum Bestätigen „{typeToConfirm}“ eingeben
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          autoComplete="off"
+          className="h-12 rounded-sb bg-control px-3 text-base text-ink"
+          aria-label={`Zum Bestätigen „${typeToConfirm}“ eingeben`}
+        />
+      </label>
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover">
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          disabled={!matches}
+          onClick={() => onResolve('confirm')}
+          className="h-touch rounded-sb bg-red-600 px-4 font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+

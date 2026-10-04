@@ -34,6 +34,18 @@ interface ConfirmRequest {
   resolve: (value: boolean) => void
 }
 
+/** A "for everyone, can't be undone" action (#361): confirmed only by typing `typeToConfirm`,
+ * with a harmless `alternativeLabel` offered as its own button. */
+interface DestructiveRequest {
+  kind: 'destructive'
+  title: string
+  message: string
+  typeToConfirm: string
+  confirmLabel: string
+  alternativeLabel?: string
+  resolve: (value: 'confirm' | 'alternative' | null) => void
+}
+
 interface AlertRequest {
   kind: 'alert'
   title: string
@@ -42,7 +54,7 @@ interface AlertRequest {
 }
 
 interface DialogState {
-  request: PromptRequest | ConfirmRequest | AlertRequest | null
+  request: PromptRequest | ConfirmRequest | DestructiveRequest | AlertRequest | null
   promptFields: (title: string, fields: DialogField[], submitLabel?: string) => Promise<Record<string, string> | null>
   promptText: (
     title: string,
@@ -50,6 +62,10 @@ interface DialogState {
   ) => Promise<string | null>
   confirm: (message: string, options?: { title?: string; confirmLabel?: string; danger?: boolean }) => Promise<boolean>
   alert: (message: string, options?: { title?: string }) => Promise<void>
+  /** Resolves 'confirm' only after the exact text was typed, 'alternative' for the harmless
+   * option, null when cancelled. */
+  confirmDestructive: (options: { title: string; message: string; typeToConfirm: string; confirmLabel: string; alternativeLabel?: string }) => Promise<'confirm' | 'alternative' | null>
+  resolveDestructive: (value: 'confirm' | 'alternative') => void
   submit: (value: Record<string, string>) => void
   acceptConfirm: () => void
   acceptAlert: () => void
@@ -105,6 +121,16 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
         },
       })
     }),
+  confirmDestructive: (options) =>
+    new Promise((resolve) => {
+      set({ request: { kind: 'destructive', ...options, resolve } })
+    }),
+  resolveDestructive: (value) => {
+    const request = get().request
+    if (request?.kind !== 'destructive') return
+    request.resolve(value)
+    set({ request: null })
+  },
   submit: (value) => {
     const request = get().request
     if (request?.kind !== 'prompt') return
@@ -130,6 +156,8 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
       request.resolve(null)
     } else if (request.kind === 'confirm') {
       request.resolve(false)
+    } else if (request.kind === 'destructive') {
+      request.resolve(null)
     } else {
       request.resolve()
     }

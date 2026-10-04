@@ -125,7 +125,7 @@ describe('BandManagementView', () => {
 
     openBandMenu('Band A')
     expect(screen.getByText('Einladen')).toBeInTheDocument()
-    expect(screen.getByText('Löschen')).toBeInTheDocument()
+    expect(screen.getByText('Band für alle löschen …')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Schließen'))
 
     openMemberMenu('Marco')
@@ -192,29 +192,35 @@ describe('BandManagementView', () => {
     expect(addWorkspace).not.toHaveBeenCalled()
   })
 
-  it('deleting a band confirms (danger-styled) first, then calls deleteWorkspace', async () => {
+  it('deleting a band for everyone needs the typed name; "Nur von diesem Gerät entfernen" is offered beside it (#361)', async () => {
     const deleteWorkspace = vi.fn()
     useWorkspaceStore.setState({ deleteWorkspace })
-    const confirm = vi.fn().mockResolvedValue(true)
-    useDialogStore.setState({ confirm })
+    const confirmDestructive = vi.fn().mockResolvedValue('confirm')
+    useDialogStore.setState({ confirmDestructive })
 
     render(<BandManagementView />)
     openBandMenu('Band A')
-    fireEvent.click(screen.getByText('Löschen'))
+    fireEvent.click(screen.getByText('Band für alle löschen …'))
 
     await waitFor(() => expect(deleteWorkspace).toHaveBeenCalledWith('band-a'))
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Band A'), expect.objectContaining({ danger: true }))
+    expect(confirmDestructive).toHaveBeenCalledWith(expect.objectContaining({ typeToConfirm: 'Band A', alternativeLabel: 'Nur von diesem Gerät entfernen' }))
   })
 
-  it('does not delete the band if the confirmation is declined', async () => {
+  it('choosing the alternative only removes the band from this device; cancelling deletes nothing', async () => {
     const deleteWorkspace = vi.fn()
-    useWorkspaceStore.setState({ deleteWorkspace })
-    useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
+    const removeWorkspaceLocally = vi.fn()
+    useWorkspaceStore.setState({ deleteWorkspace, removeWorkspaceLocally })
+    useDialogStore.setState({ confirmDestructive: vi.fn().mockResolvedValue('alternative') })
 
     render(<BandManagementView />)
     openBandMenu('Band A')
-    fireEvent.click(screen.getByText('Löschen'))
+    fireEvent.click(screen.getByText('Band für alle löschen …'))
+    await waitFor(() => expect(removeWorkspaceLocally).toHaveBeenCalledWith('band-a'))
+    expect(deleteWorkspace).not.toHaveBeenCalled()
 
+    useDialogStore.setState({ confirmDestructive: vi.fn().mockResolvedValue(null) })
+    openBandMenu('Band A')
+    fireEvent.click(screen.getByText('Band für alle löschen …'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(deleteWorkspace).not.toHaveBeenCalled()
   })
@@ -641,10 +647,10 @@ describe('BandManagementView', () => {
       expect(screen.getByText('Von diesem Gerät entfernen')).toBeInTheDocument()
       // Admin-only actions stay hidden for this non-admin member.
       expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
-      expect(screen.queryByText('Löschen')).not.toBeInTheDocument()
+      expect(screen.queryByText('Band für alle löschen …')).not.toBeInTheDocument()
     })
 
-    it('is not offered for a local-only band (no Stage-Server account) - "Löschen" alone covers it there', () => {
+    it('is not offered for a local-only band (no Stage-Server account) - "Band löschen …" alone covers it there', () => {
       useWorkspaceStore.setState({
         workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, ownProfileId: 'p1' }],
       })
@@ -652,7 +658,7 @@ describe('BandManagementView', () => {
 
       openBandMenu('Band A')
       expect(screen.queryByText('Von diesem Gerät entfernen')).not.toBeInTheDocument()
-      expect(screen.getByText('Löschen')).toBeInTheDocument()
+      expect(screen.getByText('Band löschen …')).toBeInTheDocument()
     })
 
     it('confirms first, then calls removeWorkspaceLocally - not deleteWorkspace', async () => {
