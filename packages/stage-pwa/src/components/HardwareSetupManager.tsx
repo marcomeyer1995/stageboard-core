@@ -86,7 +86,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
       <button
         type="button"
         onClick={onAdd}
-        className="h-11 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
+        className="h-12 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
       >
         + Neues Gerät
       </button>
