@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barQuality, clampView, laneLayout, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
+import { barQuality, clampView, grabbableAt, laneLayout, barLabelEvery, formatTimelineTime, minimapGrab, minimapTime, minimapX, nextProblemBar, tokenColor, timeToX, wrapText, xToTime, zoomAround } from './timeline'
 
 const grid = Array.from({ length: 16 }, (_, i) => ({ timeMs: 1000 + i * 500, beatInBar: i % 4 }))
 
@@ -129,5 +129,21 @@ describe('laneLayout (#328)', () => {
     expect(l.audioH + l.textH).toBe(500 - 28 - 44 - 44)
     const compact = laneLayout(null, new Set(['text', 'cues'] as const), sizes)
     expect(compact.totalH).toBe(96 + 26 + 84 + 44)
+  })
+})
+
+describe('grabbableAt (#331)', () => {
+  it('picks the nearest marker within reach', () => {
+    expect(grabbableAt([100, 300, 500], 310, 24)).toBe(1)
+    expect(grabbableAt([100, 300, 500], 200, 24)).toBeNull()
+  })
+
+  it('a marker crowded by a neighbour (closer than two finger widths) cannot be grabbed', () => {
+    expect(grabbableAt([100, 140, 500], 100, 24)).toBeNull()
+    expect(grabbableAt([100, 148, 500], 100, 24)).toBe(0)
+  })
+
+  it('markers at the same position count as one', () => {
+    expect(grabbableAt([100, 100, 400], 100, 24)).not.toBeNull()
   })
 })

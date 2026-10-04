@@ -13,6 +13,7 @@ import {
   timeToX,
   tokenColor,
   wrapText,
+  grabbableAt,
   xToTime,
   zoomAround,
   laneLayout,
@@ -186,6 +187,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
   const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
+  /** PC: the mouse is over something that can be dragged - the cursor becomes a grab hand (#331). */
+  const [hoverGrab, setHoverGrab] = useState(false)
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
   const textCanvas = useRef<HTMLCanvasElement>(null)
@@ -463,12 +466,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (!isBar && !showBeats) continue
         if (isBar && !everyBar && !numbered && !active) continue
         const x = timeToX(beat.timeMs, view)
+        // A bar line that can be grabbed (two finger widths to the next one, #331) stands out;
+        // too close to grab, it stays thin - zoom in to align.
+        const grabbable = isBar && (timeline.timeOfBeat(timeline.barStartBeat(beat.bar + 1)) - beat.timeMs) / view.msPerPx >= 2 * TOLERANCE_PX
         g.strokeStyle = active ? accent : isBar ? ink : faint
-        g.lineWidth = active ? 4 : isBar ? 2 : 1
+        g.globalAlpha = isBar && !active && !grabbable ? 0.55 : 1
+        g.lineWidth = active ? 4 : isBar ? (grabbable ? 3 : 1.5) : 1
         g.beginPath()
         g.moveTo(x + 0.5, active ? 0 : SECTION_H + (isBar ? 0 : gridH * 0.45))
         g.lineTo(x + 0.5, active ? h : h - 12)
         g.stroke()
+        g.globalAlpha = 1
         if (numbered || active) {
           g.fillStyle = active ? accent : ink
           g.font = active ? 'bold 16px system-ui, sans-serif' : '14px system-ui, sans-serif'
@@ -681,39 +689,36 @@ export function TimelineEditor(props: TimelineEditorProps) {
     return best
   }
 
+  /** The marker of `items` (with a time) within finger reach of `x` - only while it isn't
+   * crowded by a neighbour (grabbableAt, #331). */
+  function markerAt<T>(items: readonly T[], timeOf: (item: T) => number | null, x: number): T | null {
+    const timed = items.filter((item) => timeOf(item) !== null).sort((a, b) => timeOf(a)! - timeOf(b)!)
+    const index = grabbableAt(timed.map((item) => timeToX(timeOf(item)!, view)), x, TOLERANCE_PX)
+    return index === null ? null : timed[index]!
+  }
+
   /** The timed text line whose marker is within finger reach of `x`. */
   function lineAt(x: number): number | null {
-    let best: number | null = null
-    let bestDistance = TOLERANCE_PX
-    for (const line of lines) {
-      if (line.timeMs === null) continue
-      const distance = Math.abs(timeToX(line.timeMs, view) - x)
-      if (distance <= bestDistance) [best, bestDistance] = [line.rawIndex, distance]
-    }
-    return best
+    return markerAt(lines, (line) => line.timeMs, x)?.rawIndex ?? null
   }
 
   /** The note (comment or tab block) whose marker is within finger reach of `x`. */
   function noteAt(x: number): number | null {
-    let best: number | null = null
-    let bestDistance = TOLERANCE_PX
-    for (const note of notes) {
-      if (note.timeMs === null) continue
-      const distance = Math.abs(timeToX(note.timeMs, view) - x)
-      if (distance <= bestDistance) [best, bestDistance] = [note.start, distance]
-    }
-    return best
+    return markerAt(notes, (note) => note.timeMs, x)?.start ?? null
   }
 
   /** The cue whose marker is within finger reach of `x`. */
   function cueAt(x: number): string | null {
-    let best: string | null = null
-    let bestDistance = TOLERANCE_PX
-    for (const cue of cues) {
-      const distance = Math.abs(timeToX(cue.timeMs, view) - x)
-      if (distance <= bestDistance) [best, bestDistance] = [cue.id, distance]
-    }
-    return best
+    return markerAt(cues, (cue) => cue.timeMs, x)?.id ?? null
+  }
+
+  /** Whether something draggable is under the pointer - the same lanes and rules as onPointerDown. */
+  function grabbableUnder(x: number, y: number): boolean {
+    if (y >= cueTop) return cueAt(x) !== null
+    if (y >= notesTop) return noteAt(x) !== null
+    if (y >= textTop + partsH) return lineAt(x) !== null
+    if (y >= gridTop && y < textTop) return barAt(x) !== null
+    return false
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -757,7 +762,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const { x } = logical(e)
+    const { x, y } = logical(e)
+    if (e.pointerType === 'mouse' && e.buttons === 0) setHoverGrab(grabbableUnder(x, y))
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, x)
     if (pinch.current && pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()]
@@ -1144,9 +1150,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const button = 'min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
   const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
+  const viewBar = timeline.barOf(Math.max(0, timeline.beatAtOrBefore(view.startMs)))
+  const barsGrabbable = (timeline.timeOfBeat(timeline.barStartBeat(viewBar + 1)) - timeline.timeOfBeat(timeline.barStartBeat(viewBar))) / view.msPerPx >= 2 * TOLERANCE_PX
   const gridHint = !beatGrid
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
-    : 'Wo das Raster danebenliegt: hineinzoomen und den Taktstrich auf den Schlag in der Wellenform ziehen.'
+    : barsGrabbable
+      ? 'Wo das Raster danebenliegt: den Taktstrich auf den Schlag in der Wellenform ziehen.'
+      : 'Taktstriche zum Ziehen zu dicht – hineinzoomen.'
   const hint = untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint
 
   if (recordingCues) {
@@ -1263,7 +1274,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       <div
         ref={boxRef}
         className={`relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
-        style={{ height: fill ? undefined : lanesH, touchAction: 'none' }}
+        style={{ height: fill ? undefined : lanesH, touchAction: 'none', cursor: drag ? 'grabbing' : hoverGrab ? 'grab' : undefined }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

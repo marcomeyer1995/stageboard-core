@@ -269,3 +269,24 @@ export function laneLayout(availableH: number | null, hidden: ReadonlySet<Timeli
   const cueTop = notesTop + notesH
   return { totalH, audioH, sectionH, gridH, partsH, textH, notesH, cueH, gridTop, textTop, notesTop, cueTop }
 }
+
+/**
+ * The marker within `tolerancePx` of `x` that may be grabbed (#331) - an index into `xs` (marker
+ * positions, ascending), or null. Like bar lines, a marker is only grabbable while its nearest
+ * neighbour is at least two finger widths away: zoomed out further, every touch in the lane would
+ * grab something and the lane could never be scrolled. Markers at the same position (several notes
+ * on one line) count as one.
+ */
+export function grabbableAt(xs: readonly number[], x: number, tolerancePx: number): number | null {
+  let best = -1
+  let bestDistance = tolerancePx
+  xs.forEach((mx, i) => {
+    const distance = Math.abs(mx - x)
+    if (distance <= bestDistance) [best, bestDistance] = [i, distance]
+  })
+  if (best < 0) return null
+  const at = xs[best]!
+  let gap = Infinity
+  for (const mx of xs) if (mx !== at) gap = Math.min(gap, Math.abs(mx - at))
+  return gap >= 2 * tolerancePx ? best : null
+}
