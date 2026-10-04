@@ -20,6 +20,8 @@ services:
     volumes:
       - couchdb-data:/opt/couchdb/data
       - ./docker/couchdb-ssl.ini:/opt/couchdb/etc/local.d/00-ssl.ini:ro
+      # Deleted databases stay recoverable as *.deleted.couch files (#362).
+      - ./docker/couchdb-recovery.ini:/opt/couchdb/etc/local.d/00-recovery.ini:ro
       - ./certs:/opt/couchdb/etc/certs:ro
 
 volumes:
