@@ -52,7 +52,7 @@ export function MasterControl() {
           title={
             isForce
               ? canClaim
-                ? 'Ein anderes Gerät ist aktiv Master - Force Takeover'
+                ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
                 : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
               : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
           }
@@ -62,7 +62,7 @@ export function MasterControl() {
           <span className="flex items-center gap-2">
             {masterHolderId && <span className="text-sm text-ink-faint">{masterName ?? 'Anderes Gerät'}</span>}
             {status === 'stale' && <span className="text-sm text-amber-500">antwortet nicht</span>}
-            <span className="font-medium text-accent">{isForce ? 'Force Takeover' : 'Übernehmen'}</span>
+            <span className="font-medium text-accent">{isForce ? 'Übernahme erzwingen' : 'Übernehmen'}</span>
           </span>
         </button>
       )}

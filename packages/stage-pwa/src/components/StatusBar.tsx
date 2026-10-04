@@ -22,6 +22,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
+import { stageVariantLabel } from '../lib/variantLabel'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
@@ -129,7 +130,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
       : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
-  const variantLabel = currentVariant && !currentVariant.isDefault ? currentVariant.label : null
+  const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
   const sync = SYNC_TEXT[syncStatus]
 
   return (

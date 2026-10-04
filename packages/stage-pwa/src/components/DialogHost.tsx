@@ -177,7 +177,7 @@ function PromptFields({
 function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge: () => void }) {
   return (
     <div className="space-y-3">
-      {message && <p className="text-sm text-ink-muted">{message}</p>}
+      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
       <div className="flex justify-end pt-2">
         <button
           type="button"
@@ -206,7 +206,7 @@ function ConfirmBody({
 }) {
   return (
     <div className="space-y-3">
-      {message && <p className="text-sm text-ink-muted">{message}</p>}
+      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
