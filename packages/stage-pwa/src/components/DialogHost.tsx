@@ -11,9 +11,20 @@ import { useVisualViewport } from '../lib/useVisualViewport'
  * Stacking (#375): a dialog is always the answer to something the user just did - often inside
  * another overlay (the burger menu's "Force Takeover", a widget's or row's ⋯ menu). It therefore
  * sits above every menu/sheet layer (those use z-40/z-50); only the AudioResumeOverlay (z-60),
- * which blocks the whole app until audio is unlocked, stays above it. It also covers only the
- * visible area, so an on-screen keyboard can't hide its input or buttons.
+ * which blocks the whole app until audio is unlocked, stays above it.
+ *
+ * Keyboard: a dialog the user types into opens at the top of the screen, where the on-screen
+ * keyboard (which comes from below) can't cover its field or buttons. Centring it in the visual
+ * viewport alone is not enough: Silk/Chrome in fullscreen mode (Fire tablet, GUI check
+ * 2026-10-04) report the full 800 px height with the keyboard open, and the VirtualKeyboard API
+ * reports nothing there either. Where the browser does shrink the visual viewport, the overlay
+ * follows it as well.
  */
+/** Whether the dialog asks for typed input - those open at the top (see DialogHost). */
+function typesText(request: NonNullable<ReturnType<typeof useDialogStore.getState>['request']>): boolean {
+  return request.kind === 'prompt' || request.kind === 'destructive'
+}
+
 export function DialogHost() {
   const request = useDialogStore((state) => state.request)
   const submit = useDialogStore((state) => state.submit)
@@ -30,7 +41,9 @@ export function DialogHost() {
     <div
       role="presentation"
       data-testid="dialog-host"
-      className="fixed inset-x-0 top-0 z-[55] flex h-dvh items-center justify-center overflow-y-auto bg-black/60 p-4"
+      className={`fixed inset-x-0 top-0 z-[55] flex h-dvh justify-center overflow-y-auto bg-black/60 p-4 ${
+        typesText(request) ? 'items-start pt-6' : 'items-center'
+      }`}
       style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Escape') cancel()

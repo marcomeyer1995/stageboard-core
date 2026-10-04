@@ -195,9 +195,19 @@ describe('DialogHost - destructive confirmation (#361)', () => {
       })
       expect(screen.getByTestId('dialog-host').style.height).toBe('420px')
       expect(screen.getByTestId('dialog-host').style.top).toBe('0px')
+      // A dialog with a text field opens at the top, out of the keyboard's way.
+      expect(screen.getByTestId('dialog-host').className).toContain('items-start')
     } finally {
       Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
     }
+  })
+
+  it('centres dialogs without a text field (confirm), opens typing dialogs at the top (#375)', () => {
+    render(<DialogHost />)
+    act(() => {
+      void useDialogStore.getState().confirm('Wirklich?')
+    })
+    expect(screen.getByTestId('dialog-host').className).toContain('items-center')
   })
 })
 
