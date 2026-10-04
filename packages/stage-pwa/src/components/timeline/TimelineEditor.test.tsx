@@ -523,6 +523,18 @@ describe('snapping switch (#332)', () => {
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
   })
 
+  it('with the switch off, holding Alt snaps after all - Alt inverts the switch', () => {
+    useTimelineSnapStore.setState({ snapping: false })
+    const { onChange } = setup({ content })
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true })
+    expect(screen.getByRole('button', { name: 'Einrasten' })).toHaveAttribute('aria-pressed', 'true')
+    dragText(10000, 12030)
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.00] First line')
+    fireEvent.keyUp(window, { key: 'Alt', altKey: false })
+    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toBeInTheDocument()
+    expect(useTimelineSnapStore.getState().snapping).toBe(false)
+  })
+
   it('holding Alt drags freely for as long as it is held, and the switch shows it', () => {
     const { onChange } = setup({ content })
     fireEvent.keyDown(window, { key: 'Alt', altKey: true })

@@ -190,7 +190,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
   const snapping = useTimelineSnapStore((state) => state.snapping)
   const setSnapping = useTimelineSnapStore((state) => state.setSnapping)
-  /** PC: Alt held - dragging ignores snapping for as long as it is (#332). */
+  /** PC: Alt held - the snapping switch is inverted for as long as it is (#332). */
   const [altHeld, setAltHeld] = useState(false)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => setAltHeld(e.altKey)
@@ -273,8 +273,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   // While a bar line or a text line is dragged, it is shown as it will be when dropped there.
-  // Snapping (#332) can be switched off, or held off with Alt on the PC; notes still attach to lines.
-  const snapOn = snapping && !altHeld
+  // Snapping (#332) can be switched off; on the PC, holding Alt inverts the switch for as long as
+  // it is held (on -> free, off -> snaps). Notes still attach to lines.
+  const snapOn = snapping !== altHeld
   const dragMs = drag?.moved ? (snapOn ? (drag.kind === 'bar' ? magnet : snapToBeat) : (ms: number) => ms)(Math.max(0, xToTime(drag.x, view))) : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
   const shownGrid = previewGrid ?? beatGrid
@@ -1246,7 +1247,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           type="button"
           className={toggle(snapOn)}
           aria-pressed={snapOn}
-          title="Einrasten (Alt gedrückt halten zum Ausschalten)"
+          title="Einrasten (Alt gedrückt halten kehrt es um)"
           onClick={() => setSnapping(!snapping)}
         >
           Einrasten{snapOn ? '' : ' aus'}
