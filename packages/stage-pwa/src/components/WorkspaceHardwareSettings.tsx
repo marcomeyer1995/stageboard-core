@@ -18,6 +18,7 @@ export function WorkspaceHardwareSettings() {
       <p className="text-sm text-ink-muted">
         {status === 'loading' && (slow ? 'Stage-Server antwortet langsam…' : 'Lade…')}
         {status === 'unreachable' && 'Stage-Server nicht erreichbar.'}
+        {status === 'unpaired' && 'Noch mit keinem Stage-Server gekoppelt - unter System → Einstellungen → Stage-Server suchen.'}
         {status === 'reachable' && (
           <>
             Aktiv:{' '}

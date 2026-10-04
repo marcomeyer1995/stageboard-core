@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { ActiveWorkspaceAdmins, AdminPinProof, ServerInfo, WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
+import { isNativeApp } from '../lib/native'
 import { getStageServerUrl } from '../lib/stageServer'
 import { destroyLocalWorkspaceDb } from '../lib/workspaceDb'
 import { getWorkspaceAccessDoc, watchWorkspaceAccessDoc } from '../lib/workspaceAccessDoc'
@@ -231,6 +232,14 @@ interface WorkspaceState {
  * `JoinBandView.tsx` is what it sees first, offering both "join" and "start a new band" equally.
  */
 let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null = null
+
+/** What to do when a deliberate server action has no server to go to. The native app (#348)
+ * pairs with a server; the browser always knows the address it was loaded from. */
+function noServerMessage(): string {
+  return isNativeApp()
+    ? 'Noch mit keinem Stage-Server gekoppelt - unter System → Einstellungen → Stage-Server suchen oder den QR-Code der Band scannen.'
+    : 'Stage-Server nicht konfiguriert - Beitritt nicht möglich.'
+}
 
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
@@ -666,10 +675,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // step. Doesn't touch local state at all; JoinBandView.tsx just renders the result.
       listWorkspaces: async () => {
         const base = getStageServerUrl()
-        if (!base) {
-          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert - Beitritt nicht möglich.')
-          return null
-        }
+        // A background load (band list, join screen, "Aktive Band") - no pop-up without a server:
+        // the screens say themselves that pairing is missing.
+        if (!base) return null
 
         let response: Response
         try {
@@ -790,7 +798,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       fetchRoster: async (workspaceId, code) => {
         const base = getStageServerUrl()
         if (!base) {
-          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert - Beitritt nicht möglich.')
+          void useDialogStore.getState().alert(noServerMessage())
           return null
         }
 
@@ -835,7 +843,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       joinAsMember: async (workspaceId, workspaceName, code, profileId, password) => {
         const base = getStageServerUrl()
         if (!base) {
-          void useDialogStore.getState().alert('Stage-Server nicht konfiguriert - Beitritt nicht möglich.')
+          void useDialogStore.getState().alert(noServerMessage())
           return null
         }
 
