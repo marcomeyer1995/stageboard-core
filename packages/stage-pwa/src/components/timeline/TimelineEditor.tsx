@@ -28,6 +28,7 @@ import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
 import { useTimelineLanesStore } from '../../store/useTimelineLanesStore'
+import { useTimelineSnapStore } from '../../store/useTimelineSnapStore'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import { useLogicalDevicesStore } from '../../store/useLogicalDevicesStore'
@@ -187,6 +188,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
   const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
+  const snapping = useTimelineSnapStore((state) => state.snapping)
+  const setSnapping = useTimelineSnapStore((state) => state.setSnapping)
+  /** PC: Alt held - dragging ignores snapping for as long as it is (#332). */
+  const [altHeld, setAltHeld] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => setAltHeld(e.altKey)
+    const release = () => setAltHeld(false)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKey)
+    window.addEventListener('blur', release)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKey)
+      window.removeEventListener('blur', release)
+    }
+  }, [])
   /** PC: the mouse is over something that can be dragged - the cursor becomes a grab hand (#331). */
   const [hoverGrab, setHoverGrab] = useState(false)
   const audioCanvas = useRef<HTMLCanvasElement>(null)
@@ -256,7 +273,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   // While a bar line or a text line is dragged, it is shown as it will be when dropped there.
-  const dragMs = drag?.moved ? (drag.kind === 'bar' ? magnet : snapToBeat)(Math.max(0, xToTime(drag.x, view))) : null
+  // Snapping (#332) can be switched off, or held off with Alt on the PC; notes still attach to lines.
+  const snapOn = snapping && !altHeld
+  const dragMs = drag?.moved ? (snapOn ? (drag.kind === 'bar' ? magnet : snapToBeat) : (ms: number) => ms)(Math.max(0, xToTime(drag.x, view))) : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
   const shownGrid = previewGrid ?? beatGrid
   const shownContent = drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
@@ -1222,6 +1241,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
         </button>
         <button type="button" className={button} disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
           Cue am Abspielkopf
+        </button>
+        <button
+          type="button"
+          className={toggle(snapOn)}
+          aria-pressed={snapOn}
+          title="Einrasten (Alt gedrückt halten zum Ausschalten)"
+          onClick={() => setSnapping(!snapping)}
+        >
+          Einrasten{snapOn ? '' : ' aus'}
         </button>
         <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}

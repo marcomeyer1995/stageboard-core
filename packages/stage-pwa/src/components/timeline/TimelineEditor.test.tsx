@@ -41,6 +41,7 @@ vi.mock('../../store/useLogicalDevicesStore', () => ({
 const { TimelineEditor } = await import('./TimelineEditor')
 const { useClockStore } = await import('../../store/useClockStore')
 const { useTimelineLanesStore } = await import('../../store/useTimelineLanesStore')
+const { useTimelineSnapStore } = await import('../../store/useTimelineSnapStore')
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
@@ -499,5 +500,37 @@ describe('what can be grabbed (#331)', () => {
     const lanes = screen.getByTestId('timeline-lanes')
     fireEvent.pointerMove(lanes, { pointerId: 9, pointerType: 'mouse', buttons: 0, clientX: 12000 / 60, clientY: cueY })
     expect(lanes.style.cursor).toBe('grab')
+  })
+})
+
+describe('snapping switch (#332)', () => {
+  afterEach(() => useTimelineSnapStore.setState({ snapping: true }))
+  const content = ['{part: Verse}', '[00:10.00] First line', '[00:14.00] Second line', 'Third line'].join('\n')
+  const textY = 96 + 26 + 84 + 28 + 20
+  function dragText(fromMs: number, toMs: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: fromMs / 60, clientY: textY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: toMs / 60, clientY: textY })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: toMs / 60, clientY: textY })
+  }
+
+  it('switched off, a dragged line lands exactly where it is dropped; the choice stays on this device', () => {
+    const { onChange } = setup({ content })
+    fireEvent.click(screen.getByRole('button', { name: 'Einrasten' }))
+    expect(useTimelineSnapStore.getState().snapping).toBe(false)
+    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toHaveAttribute('aria-pressed', 'false')
+    dragText(10000, 12030) // with snapping it would land on the beat at 12 s
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
+  })
+
+  it('holding Alt drags freely for as long as it is held, and the switch shows it', () => {
+    const { onChange } = setup({ content })
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true })
+    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toBeInTheDocument()
+    dragText(10000, 12030)
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
+    fireEvent.keyUp(window, { key: 'Alt', altKey: false })
+    expect(screen.getByRole('button', { name: 'Einrasten' })).toHaveAttribute('aria-pressed', 'true')
+    expect(useTimelineSnapStore.getState().snapping).toBe(true)
   })
 })
