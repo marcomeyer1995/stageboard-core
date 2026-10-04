@@ -96,6 +96,11 @@ export function Dashboard() {
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
   const [containerRef, { width, height }] = useElementSize()
+  // The whole dashboard area, edit bar included (#370). Row height comes from this, not from
+  // the space left under the edit bar: otherwise every widget was shorter while editing (Fire:
+  // grid 697 -> 627 px, phone: 775 -> 412 px) than on stage, and a layout that "just fit" in
+  // edit mode had different sizes in the show. While editing, the grid area scrolls instead.
+  const [rootRef, { height: fullHeight }] = useElementSize()
   // Real measurement or nothing: react-grid-layout's own bundled width hook starts every
   // mount with a hard-coded 1280px guess and only corrects a frame later, which on a real
   // device (rarely 1280px wide) put every widget at whatever position that guess implied
@@ -106,7 +111,7 @@ export function Dashboard() {
   // Derived, not stored: onBreakpointChange only fires on a change, which would leave a
   // portrait tablet writing its edits into the landscape layout.
   const breakpoint = breakpointFor(width)
-  const metrics = gridMetrics(height)
+  const metrics = gridMetrics(fullHeight > 0 ? fullHeight : height)
   // Diagnostic for "widgets jumping/resizing" reports that aren't from a drag/resize gesture
   // (those are already covered by captureBaseline/stopInteraction above) - rowHeight is a
   // direct function of the measured container height (gridMetrics), so anything that jitters
@@ -277,7 +282,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="flex h-full flex-col sb-app-bg">
+    <div ref={rootRef} className="flex h-full flex-col sb-app-bg">
       {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
       {isEditing && current && current.squeezed > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">
@@ -300,7 +305,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
+      <div ref={containerRef} className={`min-h-0 flex-1 ${isEditing ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         {mounted && (
           <ResponsiveGridLayout
             // A fresh instance per dashboard (and per reset of the active one, via
