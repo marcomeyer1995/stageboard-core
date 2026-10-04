@@ -39,6 +39,9 @@ import { CueDialog, type CueContent } from './CueDialog'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
 
+/** Below this timeline width (CSS px, a phone in portrait) the tool row collapses behind "Werkzeuge". */
+const COMPACT_TOOLS_WIDTH = 600
+
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
  * time tags) and the cues. */
@@ -189,6 +192,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
   const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
+  // Phone (#373): the eleven tool buttons wrapped into six rows and pushed the waveform below
+  // the fold. On a narrow timeline they sit behind one "Werkzeuge" toggle; a running tap stays
+  // visible so "Tippen beenden" can always be reached.
+  const [toolsOpen, setToolsOpen] = useState(false)
   const snapping = useTimelineSnapStore((state) => state.snapping)
   const setSnapping = useTimelineSnapStore((state) => state.setSnapping)
   /** PC: Alt held - the snapping switch is inverted for as long as it is (#332). */
@@ -1200,6 +1207,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
     )
   }
 
+  const compactTools = box.width > 0 && box.width < COMPACT_TOOLS_WIDTH
+  const showTools = !compactTools || toolsOpen || tapMode !== null || lanesMenuOpen
+
   return (
     <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div className="flex flex-wrap items-center gap-2">
@@ -1222,7 +1232,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={iconButton} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
           <UndoIcon mirrored />
         </button>
+        {compactTools && (
+          <button type="button" className={toggle(toolsOpen)} aria-pressed={toolsOpen} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>
+            Werkzeuge
+          </button>
+        )}
       </div>
+      {showTools && (
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={button} onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
@@ -1263,6 +1279,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           Raster löschen
         </button>
       </div>
+      )}
 
       {lanesMenuOpen && (
         <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">

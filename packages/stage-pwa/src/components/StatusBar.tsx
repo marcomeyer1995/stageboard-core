@@ -152,7 +152,15 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       {position ? (
         <CountBlock position={position} flash={flash} />
       ) : (
-        <span className="flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide">{state.label}</span>
+        // On a phone the song title needs the room (#373: it was cut to "Wie …"); "Bereit" is the
+        // resting state and the only one the bar can drop there - every other state stays visible.
+        <span
+          className={`flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide ${
+            state.kind === 'ready' ? 'hidden sm:inline' : ''
+          }`}
+        >
+          {state.label}
+        </span>
       )}
 
       <span className="min-w-0 flex-1 truncate text-lg font-semibold">
@@ -163,7 +171,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
           {formatSongTime(elapsedMs ?? 0)}
-          {durationMs !== null && <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>}
+          {durationMs !== null && <span className="hidden font-normal opacity-80 sm:inline"> / {formatSongTime(durationMs)}</span>}
         </span>
       )}
 

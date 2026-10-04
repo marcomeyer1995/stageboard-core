@@ -123,16 +123,17 @@ export function SystemView() {
     )
   }
 
-  // Narrow touch (phone, tablet portrait): unchanged horizontal tab strip.
+  // Narrow touch (phone, tablet portrait): the tabs wrap onto a second row instead of scrolling
+  // sideways - a scrolling strip hid Band/Plugins on the phone with no hint that more existed (#373).
   return (
     <div className="h-full overflow-y-auto sb-app-bg text-ink">
-      <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-line bg-surface p-2">
+      <div className="sticky top-0 z-10 flex flex-wrap gap-2 border-b border-line bg-surface p-2">
         {tabs.map((candidate) => (
           <button
             key={candidate}
             type="button"
             onClick={() => setTab(candidate)}
-            className={`flex-shrink-0 rounded-sb px-4 py-2 text-sm font-semibold ${
+            className={`min-h-12 flex-grow rounded-sb px-4 text-sm font-semibold ${
               activeTab === candidate ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
             }`}
           >

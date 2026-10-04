@@ -844,9 +844,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           </button>
           {viewSwitch}
         </div>
-        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+        <label className="flex min-w-0 flex-col gap-1 text-sm text-ink-muted">
           Variante
-          <div className="flex items-center gap-2">
+          {/* min-w-0: a long variant name ("Auto: Hand-rolled (FFT/Spectral-Flux)…") made the
+              select push the whole form past the right edge on a phone (#373). */}
+          <div className="flex min-w-0 items-center gap-2 [&>select]:min-w-0">
             <select
               className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
               value={draft.variantId}
@@ -887,7 +889,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             Arrangement section (Marco, explicit request) - same always-visible treatment as
             Titel/Band, not a collapsible cluster of its own. */}
         <div className="flex gap-2">
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -895,7 +897,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Band
             <input
               className="rounded-sb-sm bg-control px-2 py-1 text-ink"
@@ -904,7 +906,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             />
           </label>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 [&>label]:min-w-0">
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
