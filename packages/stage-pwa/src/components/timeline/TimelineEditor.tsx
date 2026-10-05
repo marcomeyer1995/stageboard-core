@@ -1197,7 +1197,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const button = 'min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const button = 'min-h-12 min-w-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
   const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
