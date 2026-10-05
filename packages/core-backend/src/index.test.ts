@@ -32,6 +32,7 @@ import {
   getSnapshot as getPresenceSnapshot,
   setEntry as setPresenceEntry,
 } from './presenceStore.js'
+import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 function testContext(): PluginContext {
   return { log: { info: vi.fn(), error: vi.fn() } }
@@ -842,6 +843,87 @@ describe('Fastify routes', () => {
     it('returns 400 for a body that fails schema validation', async () => {
       const response = await app.inject({ method: 'POST', url: '/workspaces', payload: {} })
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces - who may provision (#364)', () => {
+    const fromLan = { remoteAddress: '192.168.178.50' }
+    const provisionResponses = [
+      { ok: false, status: 404 }, // userExists
+      { ok: true, status: 201 }, // createUser (founder)
+      { ok: true, status: 201 }, // ensureDb
+      { ok: true, status: 200 }, // putSecurity
+      { ok: true, status: 201 }, // putDoc (_design/roster)
+      { ok: false, status: 404 }, // access code getDoc
+      { ok: true, status: 201 }, // putDoc (workspace:access)
+    ]
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    const payload = { workspaceId: 'band-new', founderId: 'p1', workspaceName: 'Neue Band' }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('refuses a LAN request without any proof', async () => {
+      const fetchMock = stubFetch([])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload, ...fromLan })
+      expect(response.statusCode).toBe(403)
+      expect(response.json().code).toBe('setup-required')
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts the founding code once - it changes after use - and the code is readable only on the server itself', async () => {
+      expect((await app.inject({ method: 'GET', url: '/server/setup-code', ...fromLan })).statusCode).toBe(403)
+      const code = (await app.inject({ method: 'GET', url: '/server/setup-code' })).json().code as string
+      expect(code).toMatch(/^\d{8}$/)
+
+      stubFetch(provisionResponses)
+      expect((await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, setupCode: code }, ...fromLan })).statusCode).toBe(201)
+
+      stubFetch([])
+      const again = await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, workspaceId: 'band-x', setupCode: code }, ...fromLan })
+      expect(again.statusCode).toBe(403)
+      expect((await app.inject({ method: 'GET', url: '/server/setup-code' })).json().code).not.toBe(code)
+    })
+
+    it('accepts an admin of another band on this server', async () => {
+      stubFetch([
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+        ...provisionResponses,
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces',
+        payload: { ...payload, adminUsername: 'stageboard-band-a-p1', adminPassword: 'pw' },
+        ...fromLan,
+      })
+      expect(response.statusCode).toBe(201)
+    })
+
+    it('band admins can ask for the founding code', async () => {
+      stubFetch([{ ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/server/setup-code',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'pw' },
+        ...fromLan,
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json().code).toMatch(/^\d{8}$/)
+    })
+
+    it('never provisions a deleted band again, not even from the server itself', async () => {
+      recordDeletedWorkspace('band-gone')
+      const fetchMock = stubFetch([])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, workspaceId: 'band-gone' } })
+      expect(response.statusCode).toBe(409)
+      expect(response.json().code).toBe('deleted')
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 

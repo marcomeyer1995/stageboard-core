@@ -101,6 +101,9 @@ interface WorkspaceState {
    * calls this first, then provisions everyone else via `createMember`. */
   connectWorkspace: (workspaceId: string, serverUrl: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
+  /** The Stage-Server's current founding code for a new band (#364), asked for as an admin of
+   * `workspaceId`. `null` if that isn't possible (not admin, not connected, server down). */
+  fetchSetupCode: (workspaceId: string) => Promise<string | null>
   /** Renames a workspace (#58). A local-only workspace (Tier-A follow-up, no `username` -
    * nothing has ever been provisioned server-side) has no other device that could ever see a
    * stale name, so this just edits `name` locally, same as before this feature existed. A
@@ -241,6 +244,50 @@ function noServerMessage(): string {
     : 'Stage-Server nicht konfiguriert - Beitritt nicht möglich.'
 }
 
+/**
+ * `POST /workspaces` with proof (#364): the Stage-Server only provisions a band for an admin of
+ * another band on it, for its current founding code, or for a request from the server machine
+ * itself. Sends an admin login this device already has (no question for anyone who runs a band
+ * here), otherwise asks for the founding code. `null` = not provisioned (already told the user).
+ */
+async function provisionWithProof(
+  base: string,
+  body: { workspaceId: string; founderId: string; workspaceName: string },
+  known: Workspace[],
+): Promise<{ username: string; password: string } | null> {
+  const dialogs = useDialogStore.getState()
+  const admin = known.find((w) => w.isAdmin && w.username && w.couchPassword)
+  let proof: Record<string, string> = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(`${base}/workspaces`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, ...proof }),
+    })
+    if (response.ok) return (await response.json()) as { username: string; password: string }
+    const error = (await response.json().catch(() => ({}))) as { code?: string }
+    if (response.status === 409 && error.code === 'deleted') {
+      void dialogs.alert('Diese Band wurde auf dem Stage-Server gelöscht und kann so nicht neu angelegt werden.')
+      return null
+    }
+    if (response.status === 429) {
+      void dialogs.alert('Zu viele falsche Gründungs-Codes - bitte ein paar Minuten warten.')
+      return null
+    }
+    if (response.status !== 403 || error.code !== 'setup-required') throw new Error(`HTTP ${response.status}`)
+    const code = await dialogs.promptText('Gründungs-Code', {
+      label:
+        attempt === 0 || !proof.setupCode
+          ? 'Eine neue Band braucht den Gründungs-Code des Stage-Servers (8 Ziffern). Jeder Band-Admin sieht ihn unter System → Band → ⋯ → „Gründungs-Code anzeigen“.'
+          : 'Der Code stimmt nicht (oder wurde schon benutzt). Bitte den aktuellen Gründungs-Code eingeben.',
+      submitLabel: 'Band gründen',
+    })
+    if (code === null) return null
+    proof = { setupCode: code.replace(/\D/g, '') }
+  }
+  return null
+}
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
@@ -271,13 +318,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         let credentials: { username: string; password: string }
         try {
-          const response = await fetch(`${base}/workspaces`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId: id, founderId, workspaceName: name }),
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          credentials = (await response.json()) as { username: string; password: string }
+          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name }, get().workspaces)
+          if (!provisioned) return null
+          credentials = provisioned
         } catch (err) {
           console.error('Failed to provision workspace', err)
           void useDialogStore.getState().alert('Stage-Server nicht erreichbar - Workspace konnte nicht angelegt werden.')
@@ -303,13 +346,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!workspace || !workspace.ownProfileId) return false
 
         try {
-          const response = await fetch(`${serverUrl}/workspaces`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name }),
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const credentials = (await response.json()) as { username: string; password: string }
+          const credentials = await provisionWithProof(
+            serverUrl,
+            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name },
+            get().workspaces,
+          )
+          if (!credentials) return false
 
           set({
             workspaces: get().workspaces.map((w) =>
@@ -331,6 +373,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // mechanism to notify them. A local-only workspace (Tier-A follow-up) has no server-side
       // counterpart to tear down yet, so this just drops it locally - this is what
       // RosterSetupView.tsx's "Neu anfangen" escape hatch relies on for a solo-founded band.
+      fetchSetupCode: async (workspaceId) => {
+        const workspace = get().workspaces.find((w) => w.id === workspaceId)
+        const base = getStageServerUrl()
+        if (!base || !workspace?.isAdmin || !workspace.username || !workspace.couchPassword) return null
+        try {
+          const response = await fetch(`${base}/server/setup-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+          })
+          if (!response.ok) return null
+          return ((await response.json()) as { code: string }).code
+        } catch {
+          return null
+        }
+      },
       deleteWorkspace: async (id) => {
         const workspace = get().workspaces.find((w) => w.id === id)
         if (!workspace?.isAdmin) return false

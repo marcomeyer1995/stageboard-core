@@ -35,6 +35,7 @@ import {
   VerifyAdminPinRequestSchema,
   WorkspaceDeleteRequestSchema,
   WorkspaceProvisionRequestSchema,
+  SetupCodeRequestSchema,
   type Device,
 } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
@@ -55,6 +56,7 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
+import { createSetupCode, isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -783,14 +785,70 @@ export async function buildApp() {
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
   // the founding device's own personal CouchDB account (see per-person-accounts follow-up -
   // every roster member gets their own account, the founder is just the first one, auto-admin).
+  // Founding code for new bands (#364, see provisioningAuth.ts): changes after every use and on
+  // every restart. The server machine itself may read it; so may any admin of a band here.
+  const setupCode = createSetupCode()
+  const setupThrottle = createPinThrottle()
+
+  app.get('/server/setup-code', async (request, reply) => {
+    if (!isLoopback(request.ip)) {
+      return reply.status(403).send({ status: 'error', message: 'Only on the Stage-Server itself - or ask as a band admin (POST)' })
+    }
+    return reply.status(200).send({ code: setupCode.current() })
+  })
+
+  app.post('/server/setup-code', async (request, reply) => {
+    const parsed = SetupCodeRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not an admin of a band on this server' })
+    }
+    return reply.status(200).send({ code: setupCode.current() })
+  })
+
   app.post('/workspaces', async (request, reply) => {
     const parsed = WorkspaceProvisionRequestSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
+    const { workspaceId, adminUsername, adminPassword } = parsed.data
+
+    // A deleted band comes back only through the documented CouchDB recovery (docs/03 §0b) -
+    // this route handed its admin account to anyone before (#364, 2026-10-04).
+    if (readDeletedWorkspaces().includes(workspaceId)) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused to provision a deleted band again')
+      return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
+    }
+
+    let proof: 'server' | 'admin' | 'setup-code' | null = null
+    if (isLoopback(request.ip)) proof = 'server'
+    else if (adminUsername && adminPassword && (await verifyAdmin(couch, adminUsername, adminPassword))) proof = 'admin'
+    else if (parsed.data.setupCode) {
+      const key = `setup:${request.ip}`
+      const retryAfterSeconds = setupThrottle.lockedForSeconds(key)
+      if (retryAfterSeconds > 0) {
+        return reply
+          .status(429)
+          .header('Retry-After', String(retryAfterSeconds))
+          .send({ status: 'error', message: 'Too many wrong codes - try again later', retryAfterSeconds })
+      }
+      if (setupCode.consume(parsed.data.setupCode)) {
+        setupThrottle.recordSuccess(key)
+        proof = 'setup-code'
+      } else if (setupThrottle.recordFailure(key)) {
+        app.log.warn({ remoteAddress: request.ip }, 'Too many wrong founding codes - locked out temporarily')
+      }
+    }
+    if (!proof) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
+      return reply.status(403).send({ status: 'error', code: 'setup-required', message: 'Founding code or band admin login required' })
+    }
 
     try {
-      const credentials = await provisionWorkspace(couch, parsed.data.workspaceId, parsed.data.founderId, parsed.data.workspaceName)
+      const credentials = await provisionWorkspace(couch, workspaceId, parsed.data.founderId, parsed.data.workspaceName)
+      app.log.info({ workspaceId, proof, remoteAddress: request.ip }, 'Band provisioned')
       return reply.status(201).send(credentials)
     } catch (err) {
       if (err instanceof WorkspaceAlreadyProvisionedError) {
