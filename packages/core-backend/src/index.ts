@@ -790,6 +790,19 @@ export async function buildApp() {
   const setupCode = createSetupCode()
   const setupThrottle = createPinThrottle()
 
+  /** An admin login as proof for founding (any band's admin) - locked after 5 wrong tries per
+   * account like the PIN routes, since an admin's anchor password is their 4-digit PIN. */
+  async function isAnyBandAdmin(request: FastifyRequest, username: string, password: string): Promise<boolean> {
+    const key = `admin:${username}`
+    if (setupThrottle.lockedForSeconds(key) > 0) return false
+    if (await verifyAdmin(couch, username, password)) {
+      setupThrottle.recordSuccess(key)
+      return true
+    }
+    if (setupThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+    return false
+  }
+
   app.get('/server/setup-code', async (request, reply) => {
     if (!isLoopback(request.ip)) {
       return reply.status(403).send({ status: 'error', message: 'Only on the Stage-Server itself - or ask as a band admin (POST)' })
@@ -802,7 +815,7 @@ export async function buildApp() {
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isAnyBandAdmin(request, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not an admin of a band on this server' })
     }
     return reply.status(200).send({ code: setupCode.current() })
@@ -824,7 +837,7 @@ export async function buildApp() {
 
     let proof: 'server' | 'admin' | 'setup-code' | null = null
     if (isLoopback(request.ip)) proof = 'server'
-    else if (adminUsername && adminPassword && (await verifyAdmin(couch, adminUsername, adminPassword))) proof = 'admin'
+    else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
     else if (parsed.data.setupCode) {
       const key = `setup:${request.ip}`
       const retryAfterSeconds = setupThrottle.lockedForSeconds(key)

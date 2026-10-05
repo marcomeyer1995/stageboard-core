@@ -917,6 +917,16 @@ describe('Fastify routes', () => {
       expect(response.json().code).toMatch(/^\d{8}$/)
     })
 
+    it('locks an admin account after 5 wrong logins when asking for the founding code', async () => {
+      const wrong = { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) }
+      const fetchMock = stubFetch([wrong, wrong, wrong, wrong, wrong])
+      const ask = (adminPassword: string) =>
+        app.inject({ method: 'POST', url: '/server/setup-code', payload: { adminUsername: 'stageboard-band-a-p1', adminPassword }, ...fromLan })
+      for (const pin of ['1000', '1001', '1002', '1003', '1004']) expect((await ask(pin)).statusCode).toBe(403)
+      expect((await ask('1005')).statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(5)
+    })
+
     it('never provisions a deleted band again, not even from the server itself', async () => {
       recordDeletedWorkspace('band-gone')
       const fetchMock = stubFetch([])
