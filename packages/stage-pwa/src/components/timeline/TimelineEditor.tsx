@@ -1304,8 +1304,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         }
         style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
         // An action closes the panel; switches you'd flip several of (Einrasten, Spuren, the lanes)
-        // keep it open.
-        onClickCapture={(e) => {
+        // keep it open. Bubble phase, not capture: closing in the capture phase unmounted the
+        // button before a real tap reached its own onClick (found on the phone, 2026-10-05).
+        onClick={(e) => {
           const pressed = (e.target as Element).closest('button')
           if (compactTools && pressed && !pressed.hasAttribute('data-keep-open')) setToolsOpen(false)
         }}
