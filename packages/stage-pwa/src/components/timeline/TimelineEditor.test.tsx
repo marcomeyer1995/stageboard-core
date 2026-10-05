@@ -550,6 +550,13 @@ describe('snapping switch (#332)', () => {
 })
 
 describe('TimelineEditor - shift everything (#330)', () => {
+  /** Tools sit in the "Werkzeuge" panel on narrow timelines once #385 is in - open it if it's there. */
+  function toolButton(name: string) {
+    const panelToggle = screen.queryByRole('button', { name: 'Werkzeuge' })
+    if (panelToggle && panelToggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(panelToggle)
+    return screen.getByRole('button', { name })
+  }
+
   it('"Ganzen Song verschieben" moves grid, lines and cues in one change', async () => {
     dialog.promptText.mockResolvedValueOnce('2')
     const { onChange } = setup({
@@ -557,7 +564,7 @@ describe('TimelineEditor - shift everything (#330)', () => {
       content: '[00:01.00]First line\n[00:05.00]Second line',
       cues: [{ id: 'c1', timeMs: 3000 } as unknown as ShowCue],
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Ganzen Song verschieben…' }))
+    fireEvent.click(toolButton('Ganzen Song verschieben…'))
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
     const next = onChange.mock.calls[0][0]
     expect(next.beatGrid.points[0].timeMs).toBe(2500)
@@ -569,7 +576,7 @@ describe('TimelineEditor - shift everything (#330)', () => {
   it('refuses a shift before 0:00 with a message and changes nothing', async () => {
     dialog.promptText.mockResolvedValueOnce('-5')
     const { onChange } = setup({ content: '[00:01.00]First line' })
-    fireEvent.click(screen.getByRole('button', { name: 'Ganzen Song verschieben…' }))
+    fireEvent.click(toolButton('Ganzen Song verschieben…'))
     expect(await screen.findByText(/vor 0:00/)).toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
   })
