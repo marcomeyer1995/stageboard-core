@@ -141,7 +141,7 @@ export function VerifyWorkspaceAdmin({
           <input
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="12345678"
+            placeholder="8-stelliger Code"
             inputMode="numeric"
             autoFocus
             className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"

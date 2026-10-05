@@ -131,3 +131,12 @@ export async function installAppUpdate(): Promise<void> {
   await ServerTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
 }
 
+/** The question asked before trusting a Stage-Server's certificate (#377): name, address and the
+ * fingerprint each on their own line instead of one long sentence. */
+export function pairingConfirmation(name: string, host: string, fingerprint: string): { title: string; message: string } {
+  const where = name && name !== host ? `${name}\n${host}` : host
+  return {
+    title: 'Mit diesem Stage-Server verbinden?',
+    message: `${where}\n\nZertifikat: ${shortFingerprint(fingerprint)}\nZum Vergleich steht es auf dem Admin-Gerät unter „Einladen“.`,
+  }
+}

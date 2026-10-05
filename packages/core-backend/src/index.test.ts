@@ -33,6 +33,7 @@ import {
   getSnapshot as getPresenceSnapshot,
   setEntry as setPresenceEntry,
 } from './presenceStore.js'
+import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 function testContext(): PluginContext {
   return { log: { info: vi.fn(), error: vi.fn() } }
@@ -858,6 +859,81 @@ describe('Fastify routes', () => {
     it('returns 400 for a body that fails schema validation', async () => {
       const response = await app.inject({ method: 'POST', url: '/workspaces', payload: {} })
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('POST /workspaces - who may provision (#364)', () => {
+    const fromLan = { remoteAddress: '192.168.178.50' }
+    const provisionResponses = [
+      { ok: false, status: 404 }, // userExists
+      { ok: true, status: 201 }, // createUser (founder)
+      { ok: true, status: 201 }, // ensureDb
+      { ok: true, status: 200 }, // putSecurity
+      { ok: true, status: 201 }, // putDoc (_design/roster)
+      { ok: false, status: 404 }, // access code getDoc
+      { ok: true, status: 201 }, // putDoc (workspace:access)
+    ]
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    const payload = { workspaceId: 'band-new', founderId: 'p1', workspaceName: 'Neue Band' }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    const someBands = { ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] } // _all_dbs
+    const noBands = { ok: true, status: 200, json: async () => ['_users', '_replicator'] }
+
+    it('refuses a LAN request without an admin login once a band exists', async () => {
+      const fetchMock = stubFetch([someBands])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload, ...fromLan })
+      expect(response.statusCode).toBe(403)
+      expect(response.json().code).toBe('admin-required')
+      expect(fetchMock).toHaveBeenCalledTimes(1) // only the band listing - nothing provisioned
+    })
+
+    it('lets anyone found the first band on a fresh server', async () => {
+      stubFetch([noBands, ...provisionResponses])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload, ...fromLan })
+      expect(response.statusCode).toBe(201)
+    })
+
+    it('accepts an admin of a band on this server', async () => {
+      stubFetch([
+        someBands,
+        { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
+        ...provisionResponses,
+      ])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces',
+        payload: { ...payload, adminUsername: 'stageboard-band-a-p1', adminPassword: 'pw' },
+        ...fromLan,
+      })
+      expect(response.statusCode).toBe(201)
+    })
+
+    it('locks an admin account after 5 wrong logins', async () => {
+      const wrong = { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) }
+      const fetchMock = stubFetch([someBands, wrong, someBands, wrong, someBands, wrong, someBands, wrong, someBands, wrong, someBands])
+      const found = (adminPassword: string) =>
+        app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, adminUsername: 'stageboard-band-a-p1', adminPassword }, ...fromLan })
+      for (const pin of ['1000', '1001', '1002', '1003', '1004']) expect((await found(pin)).statusCode).toBe(403)
+      expect((await found('1005')).statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(11) // the sixth try never reaches CouchDB's login
+    })
+
+    it('never provisions a deleted band again, not even from the server itself', async () => {
+      recordDeletedWorkspace('band-gone')
+      const fetchMock = stubFetch([])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, workspaceId: 'band-gone' } })
+      expect(response.statusCode).toBe(409)
+      expect(response.json().code).toBe('deleted')
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 
