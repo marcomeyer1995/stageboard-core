@@ -89,6 +89,13 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
     expect(fetchRoster).not.toHaveBeenCalled()
   })
 
+  it('once the server has a band, founding is not offered here - only an admin can (#364)', async () => {
+    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'a', workspaceName: 'SOAT' }]) })
+    render(<JoinBandView />)
+    expect(await screen.findByText(/Weitere Bands legt ein Band-Admin an/)).toBeInTheDocument()
+    expect(screen.queryByText('Neue Band gründen')).not.toBeInTheDocument()
+  })
+
   it('"Neue Band gründen" prompts for a name (in-app dialog) and calls addWorkspace', async () => {
     const addWorkspace = vi.fn().mockResolvedValue({ id: 'new-id', name: 'New Band' })
     useWorkspaceStore.setState({ addWorkspace })
@@ -99,13 +106,6 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
     fireEvent.click(screen.getByText('Neue Band gründen'))
 
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('New Band'))
-  })
-
-  it('once the server has a band, founding is not offered here - only an admin can (#364)', async () => {
-    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'a', workspaceName: 'SOAT' }]) })
-    render(<JoinBandView />)
-    expect(await screen.findByText(/Weitere Bands legt ein Band-Admin an/)).toBeInTheDocument()
-    expect(screen.queryByText('Neue Band gründen')).not.toBeInTheDocument()
   })
 
   it('the "Passwort direkt eingeben" fallback calls joinWithPassword with the typed id, username and password', () => {
