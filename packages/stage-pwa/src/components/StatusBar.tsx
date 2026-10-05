@@ -22,6 +22,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
+import { ScrollOnceText } from './ScrollOnceText'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
@@ -163,10 +164,10 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         </span>
       )}
 
-      <span className="min-w-0 flex-1 truncate text-lg font-semibold">
+      <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 flex-1 text-lg font-semibold">
         {title}
         {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
-      </span>
+      </ScrollOnceText>
 
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
