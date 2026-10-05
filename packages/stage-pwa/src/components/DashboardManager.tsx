@@ -10,6 +10,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { canEditDashboard } from '../lib/dashboardLayout'
 
 interface DashboardManagerProps {
   onClose: () => void
@@ -47,6 +48,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
   const setActive = useActiveDashboardStore((state) => state.setActive)
   const profiles = useProfilesStore((state) => state.profiles)
   const activeProfile = useActiveProfile()
+  const roles = activeProfile?.stageRoles ?? []
+  const isAdmin = roles.includes('admin')
 
   const [newName, setNewName] = useState('')
   const [newOwner, setNewOwner] = useState(activeProfile ? `profile:${activeProfile.id}` : 'public')
@@ -95,6 +98,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
 
   function row(dashboard: Dashboard, list: Dashboard[]) {
     const locked = isLastPublic(dashboard)
+    // #16: a template is read-only for everyone but admins.
+    const editable = canEditDashboard(dashboard, roles)
     return (
       <div
         key={dashboard.id}
@@ -121,6 +126,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
 
         <input
           value={dashboard.name}
+          disabled={!editable}
+          title={editable ? undefined : 'Vorlage - nur Admins können sie umbenennen'}
           onChange={(e) => void rename(dashboard.id, e.target.value)}
           className="min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
         />
@@ -172,6 +179,27 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           Statusleiste
         </button>
 
+        {(isAdmin || dashboard.isReadOnly) && (
+          <button
+            type="button"
+            aria-pressed={dashboard.isReadOnly === true}
+            disabled={!isAdmin}
+            title={
+              isAdmin
+                ? dashboard.isReadOnly
+                  ? 'Vorlage: nur Admins ändern sie - hier wieder freigeben'
+                  : 'Als Vorlage schützen: nur Admins können sie ändern, alle können sie duplizieren'
+                : 'Vorlage - nur Admins ändern sie; duplizieren für eine eigene Kopie'
+            }
+            onClick={() => void save({ ...dashboard, isReadOnly: dashboard.isReadOnly ? undefined : true })}
+            className={`flex items-center gap-1 whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-default ${
+              dashboard.isReadOnly ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint hover:bg-control-hover'
+            }`}
+          >
+            <Icon name="locked" /> Vorlage
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
@@ -182,7 +210,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         <button
           type="button"
           onClick={async () => {
-            const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`)
+            // A template's copy becomes the musician's own, editable dashboard (#16).
+            const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`, !editable ? activeProfile?.id : undefined)
             if (copy) setActive(workspaceId, copy.id)
           }}
           className="rounded-sb-sm bg-control px-2 py-1 text-xs text-ink-soft hover:bg-control-hover"
@@ -191,8 +220,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         </button>
         <button
           type="button"
-          disabled={locked}
-          title={locked ? 'Das letzte öffentliche Dashboard bleibt bestehen' : undefined}
+          disabled={locked || !editable}
+          title={locked ? 'Das letzte öffentliche Dashboard bleibt bestehen' : !editable ? 'Vorlage - nur Admins können sie löschen' : undefined}
           onClick={async () => {
             if (await confirm(`"${dashboard.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
               void remove(dashboard.id)

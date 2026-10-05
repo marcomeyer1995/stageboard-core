@@ -7,6 +7,7 @@ import {
 } from 'react-grid-layout'
 import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-types'
 import { capabilityStatusFor } from '../lib/capabilities'
+import { canEditDashboard } from '../lib/dashboardLayout'
 import {
   belowMinimumItems,
   breakpointFor,
@@ -28,6 +29,7 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
+import { useActiveProfile } from '../lib/useActiveProfile'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -210,6 +212,14 @@ export function Dashboard() {
   // business showing. A remembered dashboard that was deleted, turned private or taken out of
   // this mode since falls back the same way (useModeDashboards / resolveActiveDashboard).
   const { active } = useModeDashboards()
+  // A read-only template (#16) can't be edited by non-admins - also not by switching to it via
+  // the edit bar's dashboard menu while edit mode is already on (the bypass the issue names).
+  const roles = useActiveProfile()?.stageRoles ?? []
+  const editable = !active || canEditDashboard(active, roles)
+  const leaveEditing = useEditModeStore((state) => state.setEditing)
+  useEffect(() => {
+    if (isEditing && !editable) leaveEditing(false)
+  }, [isEditing, editable, leaveEditing])
 
   // A baseline belongs to one specific dashboard's widgets and must never outlive it - e.g.
   // switching away mid-drag, or the active dashboard being rewritten out from under the grid

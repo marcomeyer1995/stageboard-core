@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard } from 'shared-types'
 
@@ -9,6 +9,9 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
+
+const me = vi.hoisted(() => ({ profile: { id: 'p-me', name: 'Caro', stageRoles: [] as string[] } }))
+vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => me.profile }))
 
 const { useDashboardsStore } = await import('../store/useDashboardsStore')
 const { DashboardManager } = await import('./DashboardManager')
@@ -74,3 +77,31 @@ describe('DashboardManager - status bar per dashboard (PR F2)', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Prompter', statusBar: true }))
   })
 })
+
+describe('DashboardManager - read-only templates (#16)', () => {
+  it('a musician cannot rename or delete a template, and duplicating it gives an own editable copy', async () => {
+    me.profile.stageRoles = []
+    const duplicate = vi.fn(async () => null)
+    useDashboardsStore.setState({ duplicate, dashboards: [dashboard('Bühne', { isReadOnly: true }), dashboard('Probe', { order: 1 })] })
+    render(<DashboardManager onClose={vi.fn()} />)
+
+    expect(screen.getByDisplayValue('Bühne')).toBeDisabled()
+    const row = screen.getByDisplayValue('Bühne').closest('div.flex-wrap') as HTMLElement
+    expect(within(row).getByRole('button', { name: 'Löschen' })).toBeDisabled()
+    expect(within(row).getByRole('button', { name: /Vorlage/ })).toBeDisabled()
+    fireEvent.click(within(row).getByRole('button', { name: 'Duplizieren' }))
+    expect(duplicate).toHaveBeenCalledWith(expect.any(String), 'Bühne Kopie', 'p-me')
+    expect(screen.getByDisplayValue('Probe')).not.toBeDisabled()
+  })
+
+  it('an admin protects a dashboard as template and can still edit it', () => {
+    me.profile.stageRoles = ['admin']
+    useDashboardsStore.setState({ dashboards: [dashboard('Bühne'), dashboard('Probe', { order: 1 })] })
+    render(<DashboardManager onClose={vi.fn()} />)
+    const row = screen.getByDisplayValue('Bühne').closest('div.flex-wrap') as HTMLElement
+    fireEvent.click(within(row).getByRole('button', { name: /Vorlage/ }))
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Bühne', isReadOnly: true }))
+    expect(screen.getByDisplayValue('Bühne')).not.toBeDisabled()
+  })
+})
+
