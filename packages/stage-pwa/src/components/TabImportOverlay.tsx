@@ -284,7 +284,7 @@ function RatingLine({ rating, votes }: { rating: number; votes?: number }) {
   const count = votes !== undefined ? votes.toLocaleString('de-DE') : null
   return (
     <span className="mt-0.5 flex items-center gap-1 text-xs" aria-label={`${stars} von 5 Sternen${count ? `, ${count} Bewertungen` : ''}`}>
-      <Icon name="rating" className="fill-current text-amber-400" />
+      <Icon name="rating" />
       <span className="font-semibold">{stars}</span>
       {count && <span className="opacity-70">· {count} Bewertungen</span>}
     </span>
