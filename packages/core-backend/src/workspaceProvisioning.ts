@@ -51,8 +51,8 @@ export function deviceUsername(workspaceId: string, profileId: string, deviceId:
 const PROFILE_ID_PREFIX = 'profiles:'
 
 /**
- * `_design/roster`'s validator, set once at workspace founding and never regenerated (see
- * `provisionWorkspace` below) - a role check, not a name check, so it never needs to change as
+ * `_design/roster`'s validator, set at workspace founding and brought up to date at every server
+ * start (`updateRosterValidators`, for rules added later) - a role check, not a name check, so it never needs to change as
  * members are added/removed/promoted. `userCtx.roles` reflects the authenticated user's own
  * CouchDB roles (whatever `createUser`/`setUserRoles` gave them), the same mechanism a true
  * CouchDB server admin's `_admin` role is exposed through (verified live against a real
@@ -61,11 +61,40 @@ const PROFILE_ID_PREFIX = 'profiles:'
  * just checks a role now instead of one hardcoded username). Deliberately plain ES5 - runs
  * inside CouchDB's own sandboxed JS engine, not Node.
  */
-const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
-  if (newDoc._id.indexOf('profiles:') === 0 && userCtx.roles.indexOf('admin') === -1) {
+export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
+  var isAdmin = userCtx.roles.indexOf('admin') !== -1 || userCtx.roles.indexOf('_admin') !== -1;
+  if (newDoc._id.indexOf('profiles:') === 0 && !isAdmin) {
     throw({forbidden: 'Only a band admin may edit the roster.'});
   }
+  if (newDoc._id.indexOf('dashboards:') === 0 && !isAdmin) {
+    if (oldDoc && oldDoc.isReadOnly) {
+      throw({forbidden: 'Only a band admin may change a protected dashboard template.'});
+    }
+    if (newDoc.isReadOnly) {
+      throw({forbidden: 'Only a band admin may protect a dashboard as a template.'});
+    }
+  }
 }`
+
+/**
+ * Brings `_design/roster` of every band on this server up to the current validator - it used to be
+ * written once at founding only, so bands founded before a rule was added (protected dashboard
+ * templates, #16) would never get it. Returns the bands whose validator was replaced.
+ */
+export async function updateRosterValidators(config: CouchConfig): Promise<string[]> {
+  const updated: string[] = []
+  for (const db of await listDbs(config)) {
+    if (!db.startsWith('stageboard-')) continue
+    const current = await getDoc<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
+    if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
+    await putDocWithRetry<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
+      ...(existing ?? { _id: '_design/roster' }),
+      validate_doc_update: ROSTER_VALIDATOR_SOURCE,
+    }))
+    updated.push(db)
+  }
+  return updated
+}
 
 export class WorkspaceAlreadyProvisionedError extends Error {
   constructor(workspaceId: string) {
