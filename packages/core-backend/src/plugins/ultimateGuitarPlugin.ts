@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
 import type { ILookupPlugin, LookupResult, PluginContext } from 'shared-types'
+import { LookupError } from './lookupError.js'
 import { convertUltimateGuitarContent } from './ultimateGuitarFormat.js'
 
 const SEARCH_USER_AGENT =
@@ -15,16 +16,50 @@ const CHROME_CANDIDATES = [
 
 /** puppeteer-core brings no browser of its own on purpose (see the plugin doc comment) - this
  * just needs to find whichever real Chrome/Chromium is already on the host. */
-function resolveChromeExecutable(): string {
+export function resolveChromeExecutable(): string {
   const configured = process.env.CHROME_EXECUTABLE_PATH
-  if (configured) return configured
+  if (configured) {
+    if (existsSync(configured)) return configured
+    throw new LookupError('no-browser', `CHROME_EXECUTABLE_PATH zeigt auf „${configured}“ - dort ist kein Chrome/Chromium. Pfad korrigieren oder die Variable entfernen.`)
+  }
   const found = CHROME_CANDIDATES.find((path) => existsSync(path))
   if (!found) {
-    throw new Error(
-      `No Chrome/Chromium executable found. Set CHROME_EXECUTABLE_PATH, or install Chrome at one of: ${CHROME_CANDIDATES.join(', ')}`,
+    throw new LookupError(
+      'no-browser',
+      `Für Ultimate Guitar braucht der Stage-Server Chrome oder Chromium - keins gefunden. Installieren (z. B. „sudo apt install chromium“) oder CHROME_EXECUTABLE_PATH setzen. Gesucht in: ${CHROME_CANDIDATES.join(', ')}`,
     )
   }
   return found
+}
+
+const PAGE_TIMEOUT_MS = 20_000
+
+/** Opens a UG page; a timeout or a network failure becomes an error that says what to check. */
+export async function openUgPage(page: Pick<Page, 'goto'>, url: string): Promise<void> {
+  try {
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: PAGE_TIMEOUT_MS })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new LookupError('timeout', `Ultimate Guitar antwortet nicht (${PAGE_TIMEOUT_MS / 1000} s). Internetverbindung des Stage-Servers prüfen und noch einmal versuchen.`, err)
+    }
+    if (err instanceof Error && /net::ERR_/.test(err.message)) {
+      throw new LookupError('unavailable', 'Ultimate Guitar ist nicht erreichbar - hat der Stage-Server gerade Internet?', err)
+    }
+    throw err
+  }
+}
+
+/** What a UG page offered when the expected data (`window.UGAPP.store.page.data`) was missing:
+ * a Cloudflare challenge page means blocked (try later), anything else means UG rebuilt its
+ * site and the plugin needs an update - previously both just looked like "no results". */
+export function missingDataError(pageTitle: string): LookupError {
+  if (/just a moment|attention required|cloudflare|access denied/i.test(pageTitle)) {
+    return new LookupError('blocked', 'Ultimate Guitar hat die Anfrage als Bot blockiert. In ein paar Minuten noch einmal versuchen.')
+  }
+  return new LookupError(
+    'source-changed',
+    `Ultimate Guitar hat seine Seite umgebaut - der Import (Plugin „ultimate-guitar-scraper“) muss angepasst werden. Seitentitel: „${pageTitle || 'leer'}“`,
+  )
 }
 
 interface UgSearchResult {
@@ -138,15 +173,15 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
     async search(query: string): Promise<LookupResult[]> {
       context?.log.info('ultimate-guitar-scraper search', { query })
       return withPage(async (page) => {
-        await page.goto(
-          `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(query)}`,
-          { waitUntil: 'networkidle2', timeout: 20_000 },
-        )
-        const results = await page.evaluate(
-          () =>
-            (globalThis as { UGAPP?: { store?: { page?: { data?: { results?: UgSearchResult[] } } } } }).UGAPP
-              ?.store?.page?.data?.results ?? [],
-        )
+        await openUgPage(page, `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(query)}`)
+        const found = await page.evaluate(() => {
+          const data = (globalThis as { UGAPP?: { store?: { page?: { data?: { results?: UgSearchResult[] } } } } }).UGAPP?.store?.page?.data
+          return { hasData: data !== undefined, results: data?.results ?? [], title: document.title }
+        })
+        // No data at all is not "no results" (UG then still sends an empty list) - it's a
+        // challenge page or a rebuilt site, and the musician should be told which.
+        if (!found.hasData) throw missingDataError(found.title)
+        const results = found.results
 
         // Entries with no `type` are the paid "official"/"TabPro" listings (they carry
         // `marketing_type` instead). Among the rest, "Pro"/"Official"/"Video" have no plain
@@ -180,8 +215,8 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
       const tabUrl = resultId.slice(separatorIndex + 2)
 
       return withPage(async (page) => {
-        await page.goto(tabUrl, { waitUntil: 'networkidle2', timeout: 20_000 })
-        const raw = await page.evaluate((): UgTabPageData => {
+        await openUgPage(page, tabUrl)
+        const raw = await page.evaluate((): UgTabPageData & { hasData: boolean; pageTitle: string } => {
           const data = (
             globalThis as {
               UGAPP?: {
@@ -201,6 +236,8 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
             }
           ).UGAPP?.store?.page?.data
           return {
+            hasData: data !== undefined,
+            pageTitle: document.title,
             content: data?.tab_view?.wiki_tab?.content ?? null,
             title: data?.tab?.song_name ?? null,
             artist: data?.tab?.artist_name ?? null,
@@ -210,7 +247,10 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
             bpm: data?.tab_view?.strummings?.[0]?.bpm ?? null,
           }
         })
-        if (!raw.content) throw new Error(`Could not extract tab content from ${tabUrl}`)
+        if (!raw.hasData) throw missingDataError(raw.pageTitle)
+        if (!raw.content) {
+          throw new LookupError('not-importable', 'Diese Version hat keinen Text zum Übernehmen (z. B. eine Pro- oder Video-Version). Bitte eine andere Version wählen.')
+        }
         return {
           title: raw.title,
           artist: raw.artist,

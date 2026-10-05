@@ -26,6 +26,7 @@ import {
   getSnapshot as getDiscoverySnapshot,
 } from './discoverySessionStore.js'
 import { buildApp } from './index.js'
+import { LookupError } from './plugins/lookupError.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 import {
   __resetPresenceStoreForTests,
@@ -237,6 +238,21 @@ describe('Fastify routes', () => {
       )
       const response = await app.inject({ method: 'GET', url: '/lookup/fake-lookup/search?q=wonderwall' })
       expect(response.statusCode).toBe(502)
+      expect(response.json()).toEqual({ status: 'error', code: 'failed', message: 'upstream is down' })
+    })
+
+    it("passes a plugin's actionable LookupError on with its code (#15)", async () => {
+      await lookupRegistry.register(
+        fakeLookupPlugin({
+          search: vi.fn(async () => {
+            throw new LookupError('blocked', 'Ultimate Guitar hat die Anfrage als Bot blockiert.')
+          }),
+        }),
+        testContext(),
+      )
+      const response = await app.inject({ method: 'GET', url: '/lookup/fake-lookup/search?q=wonderwall' })
+      expect(response.statusCode).toBe(502)
+      expect(response.json()).toEqual({ status: 'error', code: 'blocked', message: 'Ultimate Guitar hat die Anfrage als Bot blockiert.' })
     })
   })
 
