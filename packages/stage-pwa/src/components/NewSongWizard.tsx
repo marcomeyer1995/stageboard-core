@@ -200,7 +200,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
           )}
         </div>
       </div>
-      {importing && <TabImportOverlay onImport={takeImport} onClose={() => setImporting(false)} />}
+      {importing && <TabImportOverlay onImport={takeImport} onClose={() => setImporting(false)} initialQuery={[title, artist].filter((part) => part.trim()).join(' ')} />}
     </div>
   )
 }

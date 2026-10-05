@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 // The import step itself is TabImportOverlay's own business - stand-in that "imports" at once.
 vi.mock('./TabImportOverlay', () => ({
-  TabImportOverlay: ({ onImport }: { onImport: (data: object) => void }) => (
-    <button type="button" onClick={() => onImport({ chordProContent: '[Am]Line one\nLine two', artist: 'Oasis', key: 'Am', bpm: 87, capo: 2 })}>
+  TabImportOverlay: ({ onImport, initialQuery }: { onImport: (data: object) => void; initialQuery?: string }) => (
+    <button type="button" data-query={initialQuery} onClick={() => onImport({ chordProContent: '[Am]Line one\nLine two', artist: 'Oasis', key: 'Am', bpm: 87, capo: 2 })}>
       Import bestätigen
     </button>
   ),
@@ -19,6 +19,8 @@ describe('NewSongWizard (#182)', () => {
     fireEvent.change(screen.getByLabelText('Titel'), { target: { value: 'Wonderwall' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
     fireEvent.click(screen.getByRole('button', { name: /Von Ultimate Guitar importieren/ }))
+    // The title from step 1 is the search (Marco).
+    expect(screen.getByRole('button', { name: 'Import bestätigen' })).toHaveAttribute('data-query', 'Wonderwall')
     fireEvent.click(screen.getByRole('button', { name: 'Import bestätigen' }))
 
     expect(screen.getByText(/Schritt 3\/3/)).toBeInTheDocument()

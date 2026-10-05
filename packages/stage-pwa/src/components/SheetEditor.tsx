@@ -1051,7 +1051,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <ChordProLyrics lines={preview} />
         </div>
       )}
-      {isImporting && <TabImportOverlay onImport={handleImport} onClose={() => setIsImporting(false)} />}
+      {isImporting && (
+        <TabImportOverlay
+          onImport={handleImport}
+          onClose={() => setIsImporting(false)}
+          initialQuery={[draft.title, draft.artist ?? ''].filter((part) => part.trim()).join(' ')}
+        />
+      )}
     </div>
   )
 }
