@@ -78,7 +78,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
           </span>
         </div>
       )}
-      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1'}`}>
+      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}>
         {OVERRIDE_OPTIONS.map((option) => (
           <button
             key={option.label}
