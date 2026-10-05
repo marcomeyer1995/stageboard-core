@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 
 /**
@@ -41,8 +42,24 @@ export function createSetupCode(): SetupCode {
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
 
-export function isLoopback(ip: string): boolean {
-  return LOOPBACK.has(ip)
+/** The machine's own addresses, IPv4 also in its IPv6-mapped form. */
+function ownAddresses(): Set<string> {
+  const own = new Set<string>()
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      own.add(entry.address)
+      if (entry.family === 'IPv4') own.add(`::ffff:${entry.address}`)
+    }
+  }
+  return own
+}
+
+/** Whether a request comes from the Stage-Server machine itself: loopback, or one of its own
+ * interface addresses - a browser on the server laptop that opens the server by its LAN IP
+ * (https://192.168.178.x) arrives with that address, not 127.0.0.1. A TCP connection can't
+ * fake its source address on the LAN, and `trustProxy` is off, so `request.ip` is the socket's. */
+export function isLoopback(ip: string, own: Set<string> = ownAddresses()): boolean {
+  return LOOPBACK.has(ip) || own.has(ip)
 }
 
 function deletedFile(): string {
