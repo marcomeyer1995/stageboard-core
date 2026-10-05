@@ -16,6 +16,9 @@
  * Keeps the newest STAGEBOARD_BACKUP_KEEP generations (default 7) and deletes older ones - only
  * folders it created itself (`stageboard-…` with a manifest).
  *
+ * Confidential: a generation holds the signing key, the TLS private key and every account's
+ * password hash - keep the medium like a key ring. Written owner-only (0700 / 0600).
+ *
  * Never silently skipped: a missing target (e.g. USB disk not mounted), a failed step or a full
  * disk ends with exit code 1, a JSON error line on stderr (journal) and `ok: false` in
  * `<STAGEBOARD_STATE_DIR>/backup-status.json`, which the app shows (Geräte → Stage-Server).
@@ -24,7 +27,7 @@
  * same defaults. No credential is ever printed.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -95,6 +98,7 @@ async function dumpDb(db) {
 function tarGz(sourceDir, file) {
   if (!existsSync(sourceDir)) throw new Error(`Folder to back up is missing: ${sourceDir}`)
   execFileSync('tar', ['-czf', file, '-C', dirname(sourceDir), basename(sourceDir)], { stdio: ['ignore', 'ignore', 'pipe'] })
+  chmodSync(file, 0o600)
   return statSync(file).size
 }
 
@@ -115,14 +119,15 @@ async function main() {
   }
   const stamp = startedAt.toISOString().slice(0, 16).replace('T', '_').replace(':', '')
   const dir = join(target, `stageboard-${stamp}`)
-  mkdirSync(join(dir, 'couchdb'), { recursive: true })
+  mkdirSync(join(dir, 'couchdb'), { recursive: true, mode: 0o700 })
+  chmodSync(dir, 0o700)
 
   const dbs = (await couchGet('/_all_dbs')).filter((db) => db.startsWith('stageboard-') || db === '_users')
   const databases = []
   for (const db of dbs) {
     const dump = await dumpDb(db)
     const file = join(dir, 'couchdb', `${db}.json`)
-    writeFileSync(file, JSON.stringify(dump))
+    writeFileSync(file, JSON.stringify(dump), { mode: 0o600 })
     databases.push({ db, docs: dump.docs.length, bytes: statSync(file).size })
   }
   const dataBytes = tarGz(dataDir, join(dir, 'data.tar.gz'))
