@@ -20,7 +20,7 @@ export function RowMenuButton({ label, onClick }: { label: string; onClick: () =
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex-shrink-0 rounded-sb px-2 py-1 text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink-soft"
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink-soft"
     >
       <Icon name="moreVertical" size="1.25rem" />
     </button>

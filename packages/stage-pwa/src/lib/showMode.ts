@@ -12,6 +12,7 @@ import {
   setLiveTempoAdjustPercent,
   setTrackOverride,
   stopSong,
+  stopSongAtTrackEnd,
   useQueue,
 } from './queue'
 import {
@@ -24,6 +25,7 @@ import {
   practiceSetTrackOverride,
   practiceSetVariantOverride,
   practiceStopSong,
+  practiceStopSongAtTrackEnd,
   usePracticeQueue,
 } from './practiceQueue'
 import { usePlaybackElapsedMs } from './usePlaybackElapsedMs'
@@ -63,6 +65,10 @@ export interface ShowModeApi {
   play: (opts?: PlayOptions) => Promise<void>
   pause: () => Promise<void>
   stop: () => Promise<void>
+  /** Stop because the track ran out by itself - marks the entry "Beendet" (#27). */
+  stopAtTrackEnd: () => Promise<void>
+  /** The current entry stopped because its track ran out ("Beendet", #27). */
+  trackEnded: boolean
   reset: () => Promise<void>
   next: () => Promise<void>
   previous: () => Promise<void>
@@ -94,6 +100,7 @@ export function useShowMode(): ShowModeApi {
   const gigLiveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const gigClickTrackOverride = useShowStateStore((state) => state.state.clickTrackOverride)
   const gigClickExtendMs = useShowStateStore((state) => state.state.clickExtendMs)
+  const gigTrackEnded = useShowStateStore((state) => state.state.trackEnded === true)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
 
   if (mode === 'practice') {
@@ -113,6 +120,8 @@ export function useShowMode(): ShowModeApi {
       play: practicePlaySong,
       pause: practicePauseSong,
       stop: practiceStopSong,
+      stopAtTrackEnd: practiceStopSongAtTrackEnd,
+      trackEnded: practiceState.trackEnded === true,
       reset: practiceResetSong,
       next: practiceAdvanceNext,
       previous: practiceAdvancePrevious,
@@ -138,6 +147,8 @@ export function useShowMode(): ShowModeApi {
     play: playSong,
     pause: pauseSong,
     stop: stopSong,
+    stopAtTrackEnd: stopSongAtTrackEnd,
+    trackEnded: gigTrackEnded,
     reset: resetSong,
     next: advanceToNextSong,
     previous: advanceToPreviousSong,

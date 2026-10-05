@@ -43,7 +43,13 @@ export interface TransportLayout {
   /** Title and time at the 24px readout minimum instead of the configured size - one discrete
    * step when a full-size info line would squeeze stacked buttons. */
   compactInfo: boolean
+  /** Play/Pause/Stop/Reset as icons: the buttons are narrower than their words (#369 follow-up -
+   * a phone's 239 px transport squeezed "PLAY PAUSE STOP RESET" into each other). */
+  iconButtons: boolean
 }
+
+/** Narrower than this, a transport button shows its icon instead of its word, px. */
+export const TRANSPORT_WORD_MIN = 88
 
 /** Width of the info block beside the buttons: with the title / time only, px. */
 const TRANSPORT_INFO_WITH_TITLE = 200
@@ -61,7 +67,7 @@ const TRANSPORT_INFO_TIME_ONLY = 96
  */
 export function transportLayout(width: number, height: number, infoHeight: number): TransportLayout {
   if (unmeasured(width, height)) {
-    return { row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false }
+    return { row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false, iconButtons: false }
   }
   const compactHeight = lineHeightFor(READOUT_MIN)
   const fullArea = height - infoHeight - GAP
@@ -80,11 +86,13 @@ export function transportLayout(width: number, height: number, infoHeight: numbe
   const rowSide = Math.min((rowButtonsWidth - 3 * GAP) / 4, height)
 
   if (rowSide > stackedSide) {
-    return { row: true, columns: 4, showTitle, showHelper: false, compactInfo: false }
+    const buttonWidth = (rowButtonsWidth - 3 * GAP) / 4
+    return { row: true, columns: 4, showTitle, showHelper: false, compactInfo: false, iconButtons: buttonWidth < TRANSPORT_WORD_MIN }
   }
   const rows = columns === 4 ? 1 : 2
   const perRowWithHelper = (buttonsArea - LINE - GAP - (rows - 1) * GAP) / rows
-  return { row: false, columns, showTitle: true, showHelper: perRowWithHelper >= TOUCH, compactInfo }
+  const buttonWidth = columns === 4 ? (width - 3 * GAP) / 4 : (width - GAP) / 2
+  return { row: false, columns, showTitle: true, showHelper: perRowWithHelper >= TOUCH, compactInfo, iconButtons: buttonWidth < TRANSPORT_WORD_MIN }
 }
 
 export interface NextSongLayout {
@@ -119,14 +127,23 @@ export interface ClickLayout {
   showLabel: boolean
   /** "Std." instead of "Standard". */
   shortLabels: boolean
+  /** The big "An"/"Aus" word. Gives way only when neither stacked nor side by side fits it (a
+   * small widget on a phone): the highlighted button then shows the state on its own. */
+  showState: boolean
 }
 
 export function clickLayout(width: number, height: number, stateFont: number): ClickLayout {
-  if (unmeasured(width, height)) return { row: false, showLabel: true, shortLabels: false }
+  if (unmeasured(width, height)) return { row: false, showLabel: true, shortLabels: false, showState: true }
   const state = lineHeightFor(stateFont)
-  const row = height < state + GAP + TOUCH && width >= 260
-  if (row) return { row, showLabel: false, shortLabels: width < 480 }
-  return { row, showLabel: height >= LINE + GAP + state + GAP + TOUCH, shortLabels: width < 300 }
+  const tooFlatToStack = height < state + GAP + TOUCH
+  const row = tooFlatToStack && width >= 260
+  if (row) return { row, showLabel: false, shortLabels: width < 480, showState: true }
+  return {
+    row,
+    showLabel: height >= LINE + GAP + state + GAP + TOUCH,
+    shortLabels: width < 300,
+    showState: !tooFlatToStack,
+  }
 }
 
 export interface TempoLayout {
