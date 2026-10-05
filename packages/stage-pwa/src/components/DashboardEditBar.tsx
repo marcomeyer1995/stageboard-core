@@ -62,7 +62,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <button
         type="button"
         onClick={() => setShowLibrary(true)}
-        className="h-touch flex-shrink-0 rounded-sb-sm bg-accent-2 px-3 font-bold text-accent-ink hover:bg-accent-2-hover"
+        className="h-12 flex-shrink-0 rounded-sb-sm bg-accent-2 px-3 font-bold text-accent-ink hover:bg-accent-2-hover"
       >
         + Widget
       </button>
@@ -70,14 +70,13 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <button
         type="button"
         onClick={() => setShowManager(true)}
-        className="h-touch flex-shrink-0 rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover"
+        className="h-12 flex-shrink-0 rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover"
       >
         Dashboards
       </button>
 
       <OverflowMenu
         title="Bearbeiten"
-        triggerSize="touch"
         actions={[
           {
             label: 'Alle Dashboards zurücksetzen',
@@ -95,7 +94,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
         type="button"
         onClick={() => setEditing(false)}
         aria-label="Bearbeiten beenden"
-        className="flex h-touch flex-shrink-0 items-center gap-2 rounded-sb-sm bg-control px-3 text-ink-soft hover:bg-control-hover"
+        className="flex h-12 flex-shrink-0 items-center gap-2 rounded-sb-sm bg-control px-3 text-ink-soft hover:bg-control-hover"
       >
         <Icon name="locked" size="1.25rem" />
         <span className="hidden sm:inline">Fertig</span>
