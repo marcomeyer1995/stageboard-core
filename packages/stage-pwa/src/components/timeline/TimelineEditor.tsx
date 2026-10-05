@@ -39,6 +39,11 @@ import { CueDialog, type CueContent } from './CueDialog'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
 
+/** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
+ * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
+ * pushes the timeline down. Only a wide PC window keeps the plain row. */
+const COMPACT_TOOLS_WIDTH = 1700
+
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
  * time tags) and the cues. */
@@ -189,6 +194,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
   const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
+  // Phone/tablet (#373): the tool buttons wrapped into up to six rows and pushed the waveform
+  // down. Where they don't fit one row they open as a floating panel behind "Werkzeuge" (over the
+  // timeline, nothing moves); a running tap keeps its "Tippen beenden" in the top row.
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const toolsPanel = useRef<HTMLDivElement>(null)
+  const toolsToggle = useRef<HTMLButtonElement>(null)
+  const topRow = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!toolsOpen) return
+    const close = (e: Event) => {
+      const target = e.target as Node
+      if (toolsPanel.current?.contains(target) || toolsToggle.current?.contains(target)) return
+      setToolsOpen(false)
+    }
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setToolsOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [toolsOpen])
   const snapping = useTimelineSnapStore((state) => state.snapping)
   const setSnapping = useTimelineSnapStore((state) => state.setSnapping)
   /** PC: Alt held - the snapping switch is inverted for as long as it is (#332). */
@@ -1200,9 +1229,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
     )
   }
 
+  const lanesGroup = (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
+          {TIMELINE_LANES.map((lane) => (
+            <button
+              key={lane}
+              type="button"
+              className={toggle(!hiddenLanes.has(lane))}
+              data-keep-open
+              aria-pressed={!hiddenLanes.has(lane)}
+              // The last visible lane stays - an empty timeline would show nothing to work on.
+              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
+              onClick={() => toggleLane(lane)}
+            >
+              {LANE_NAME[lane]}
+            </button>
+          ))}
+          <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
+        </div>
+  )
+
+  const compactTools = box.width > 0 && box.width < COMPACT_TOOLS_WIDTH
+  const showTools = !compactTools || (toolsOpen && tapMode === null)
+
   return (
-    <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
+      <div ref={topRow} className="flex flex-wrap items-center gap-2">
         <button type="button" className={button} onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
         </button>
@@ -1222,8 +1274,43 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={iconButton} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
           <UndoIcon mirrored />
         </button>
+        {compactTools && tapMode === null && (
+          <button
+            ref={toolsToggle}
+            type="button"
+            className={toggle(toolsOpen)}
+            aria-pressed={toolsOpen}
+            aria-expanded={toolsOpen}
+            onClick={() => setToolsOpen((open) => !open)}
+          >
+            Werkzeuge
+          </button>
+        )}
+        {compactTools && tapMode !== null && (
+          <button type="button" className={toggle(true)} aria-pressed onClick={() => void finishTapping()}>
+            Tippen beenden ({tapCount})
+          </button>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      {showTools && (
+      <div
+        ref={toolsPanel}
+        role={compactTools ? 'dialog' : undefined}
+        aria-label={compactTools ? 'Werkzeuge' : undefined}
+        className={
+          compactTools
+            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-sb border border-line bg-surface p-3 shadow-sb'
+            : 'flex flex-wrap items-center gap-2'
+        }
+        style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
+        // An action closes the panel; switches you'd flip several of (Einrasten, Spuren, the lanes)
+        // keep it open. Bubble phase, not capture: closing in the capture phase unmounted the
+        // button before a real tap reached its own onClick (found on the phone, 2026-10-05).
+        onClick={(e) => {
+          const pressed = (e.target as Element).closest('button')
+          if (compactTools && pressed && !pressed.hasAttribute('data-keep-open')) setToolsOpen(false)
+        }}
+      >
         <button type="button" className={button} onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
         </button>
@@ -1249,11 +1336,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
           className={toggle(snapOn)}
           aria-pressed={snapOn}
           title="Einrasten (Alt gedrückt halten kehrt es um)"
+          data-keep-open
           onClick={() => setSnapping(!snapping)}
         >
           Einrasten{snapOn ? '' : ' aus'}
         </button>
-        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} onClick={() => setLanesMenuOpen((open) => !open)}>
+        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
         </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
@@ -1262,26 +1350,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={button} disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
           Raster löschen
         </button>
+        {lanesMenuOpen && compactTools && <div className="w-full">{lanesGroup}</div>}
       </div>
-
-      {lanesMenuOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
-          {TIMELINE_LANES.map((lane) => (
-            <button
-              key={lane}
-              type="button"
-              className={toggle(!hiddenLanes.has(lane))}
-              aria-pressed={!hiddenLanes.has(lane)}
-              // The last visible lane stays - an empty timeline would show nothing to work on.
-              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
-              onClick={() => toggleLane(lane)}
-            >
-              {LANE_NAME[lane]}
-            </button>
-          ))}
-          <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
-        </div>
       )}
+
+      {lanesMenuOpen && !compactTools && lanesGroup}
       <p className="text-sm text-ink-soft" role="status">
         {notice ?? hint}
       </p>
