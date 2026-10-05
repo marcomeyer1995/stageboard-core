@@ -314,9 +314,9 @@ export function Dashboard() {
   return (
     <div className="flex h-full flex-col sb-app-bg">
       {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
-      {/* Floating over the bottom edge, not above the grid: edit mode shows widgets at their
-          true size (#370), so nothing may take height away from the grid. */}
       {isEditing && current && current.squeezed > 0 && (
+        // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
+        // true size (#370), so nothing may take height away from the grid.
         <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-3 py-2 shadow-sb">
           <span className="text-amber-500">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
