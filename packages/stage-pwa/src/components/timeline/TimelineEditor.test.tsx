@@ -26,9 +26,12 @@ vi.mock('../../lib/useTrackClock', () => ({
   }),
 }))
 // The in-app confirm dialog answers "yes" right away.
-const dialog = vi.hoisted(() => ({ promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null) }))
+const dialog = vi.hoisted(() => ({
+  promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null),
+  promptText: vi.fn(async (): Promise<string | null> => null),
+}))
 vi.mock('../../store/useDialogStore', () => ({
-  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields }),
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields, promptText: dialog.promptText }),
 }))
 vi.mock('../../store/useProfilesStore', () => ({
   useProfilesStore: (select: (state: object) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }] }),
@@ -42,6 +45,16 @@ const { TimelineEditor } = await import('./TimelineEditor')
 const { useClockStore } = await import('../../store/useClockStore')
 const { useTimelineLanesStore } = await import('../../store/useTimelineLanesStore')
 const { useTimelineSnapStore } = await import('../../store/useTimelineSnapStore')
+
+/** A timeline tool button - on a narrow timeline (as in these tests) the tools sit in the
+ * "Werkzeuge" panel (#373), which this opens first when needed. */
+function tool(name: string) {
+  const found = screen.queryByRole('button', { name })
+  if (found) return found
+  const toggle = screen.queryByRole('button', { name: 'Werkzeuge' })
+  if (toggle && toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle)
+  return screen.getByRole('button', { name })
+}
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
@@ -80,7 +93,7 @@ describe('TimelineEditor (docs/14 §5a)', () => {
 
   it('clears the grid after confirming, and can undo it', async () => {
     const { onChange } = setup({ beatGrid })
-    fireEvent.click(screen.getByText('Raster löschen'))
+    fireEvent.click(tool('Raster löschen'))
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ beatGrid: undefined, bpm: 120, chordProContent: '', cues: [] }))
     fireEvent.click(screen.getByLabelText('Rückgängig'))
     expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
@@ -88,19 +101,19 @@ describe('TimelineEditor (docs/14 §5a)', () => {
 
   it('has nothing to clear without a grid', () => {
     setup()
-    expect(screen.getByText('Raster löschen')).toBeDisabled()
+    expect(tool('Raster löschen')).toBeDisabled()
   })
 
   it('replaces the grid with a detection run, bpm included', async () => {
     const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
     const { onChange } = setup({ beatGrid, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
-    fireEvent.click(screen.getByText('Track analysieren'))
+    fireEvent.click(tool('Track analysieren'))
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected, chordProContent: '', cues: [] }))
   })
 
   it('offers no problem jump without a track to compare against', () => {
     setup({ beatGrid })
-    expect(screen.getByText('Nächste Problemstelle')).toBeDisabled()
+    expect(tool('Nächste Problemstelle')).toBeDisabled()
   })
 })
 
@@ -154,7 +167,7 @@ describe('aligning the grid (docs/14 §5a)', () => {
 
   it('"Takt 1 hier" starts a grid at the playhead', () => {
     const { onChange } = setup()
-    fireEvent.click(screen.getByText('Takt 1 hier'))
+    fireEvent.click(tool('Takt 1 hier'))
     expect(onChange).toHaveBeenCalledWith({ beatGrid: { points: [expect.objectContaining({ bar: 1 })], meters: [] }, bpm: 120, chordProContent: '', cues: [] })
   })
 
@@ -416,7 +429,7 @@ describe('playhead quick actions (#326)', () => {
   it('"Cue am Abspielkopf" opens the cue window at the playhead', () => {
     playheadAt(30000)
     setup()
-    fireEvent.click(screen.getByText('Cue am Abspielkopf'))
+    fireEvent.click(tool('Cue am Abspielkopf'))
     expect(screen.getByText('Cue bei 0:30.0')).toBeInTheDocument()
   })
 })
@@ -427,8 +440,8 @@ describe('collapsible lanes (#328)', () => {
 
   it('hides a lane on this device; the lanes below move up and stay usable', () => {
     setup({ cues: [cue] })
-    fireEvent.click(screen.getByText('Spuren'))
-    fireEvent.click(screen.getByRole('button', { name: 'Notizen' }))
+    fireEvent.click(tool('Spuren'))
+    fireEvent.click(tool('Notizen'))
     expect(screen.queryByTestId('timeline-notes')).toBeNull()
     expect(useTimelineLanesStore.getState().hidden).toEqual(['notes'])
     // The cue lane now starts where the notes lane was (298) - a tap there selects the cue.
@@ -442,8 +455,8 @@ describe('collapsible lanes (#328)', () => {
   it('keeps the last visible lane', () => {
     useTimelineLanesStore.setState({ hidden: ['audio', 'grid', 'text', 'notes'] })
     setup()
-    fireEvent.click(screen.getByText(/Spuren/))
-    expect(screen.getByRole('button', { name: 'Cues' })).toBeDisabled()
+    fireEvent.click(tool('Spuren (1/5)'))
+    expect(tool('Cues')).toBeDisabled()
   })
 })
 
@@ -457,7 +470,7 @@ describe('"Tempo tippen" for a section (#329)', () => {
     trackClock.isPlaying = true
     const single: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }], meters: [] }
     const { onChange } = setup({ beatGrid: single, trackSrc: 'blob:track' })
-    fireEvent.click(screen.getByText('Tempo tippen'))
+    fireEvent.click(tool('Tempo tippen'))
     for (let i = 0; i < 8; i++) {
       useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 30100 + i * 600 })
       fireEvent.pointerDown(screen.getByText(/^TIPP/))
@@ -502,6 +515,50 @@ describe('what can be grabbed (#331)', () => {
   })
 })
 
+describe('"Werkzeuge" panel (#373)', () => {
+  afterEach(() => {
+    box.width = 1000
+  })
+
+  it('opens over the timeline instead of pushing it down, and closes after an action', () => {
+    setup()
+    expect(screen.queryByRole('button', { name: 'Takt 1 hier' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }))
+    const panel = screen.getByRole('dialog', { name: 'Werkzeuge' })
+    expect(panel.className).toContain('absolute')
+    fireEvent.click(screen.getByRole('button', { name: 'Takt 1 hier' }))
+    expect(screen.queryByRole('dialog', { name: 'Werkzeuge' })).not.toBeInTheDocument()
+  })
+
+  it('stays open for switches (Einrasten, Spuren and the lanes)', () => {
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Einrasten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Spuren' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Notizen' }))
+    expect(screen.getByRole('dialog', { name: 'Werkzeuge' })).toBeInTheDocument()
+    useTimelineSnapStore.setState({ snapping: true })
+    useTimelineLanesStore.setState({ hidden: [] })
+  })
+
+  it('closes on a tap outside and with Escape', () => {
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }))
+    fireEvent.pointerDown(screen.getByTestId('timeline-lanes'))
+    expect(screen.queryByRole('dialog', { name: 'Werkzeuge' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Werkzeuge' })).not.toBeInTheDocument()
+  })
+
+  it('a wide PC window keeps the plain tool row', () => {
+    box.width = 1800
+    setup()
+    expect(screen.queryByRole('button', { name: 'Werkzeuge' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Takt 1 hier' })).toBeInTheDocument()
+  })
+})
+
 describe('snapping switch (#332)', () => {
   afterEach(() => useTimelineSnapStore.setState({ snapping: true }))
   const content = ['{part: Verse}', '[00:10.00] First line', '[00:14.00] Second line', 'Third line'].join('\n')
@@ -515,9 +572,9 @@ describe('snapping switch (#332)', () => {
 
   it('switched off, a dragged line lands exactly where it is dropped; the choice stays on this device', () => {
     const { onChange } = setup({ content })
-    fireEvent.click(screen.getByRole('button', { name: 'Einrasten' }))
+    fireEvent.click(tool('Einrasten'))
     expect(useTimelineSnapStore.getState().snapping).toBe(false)
-    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toHaveAttribute('aria-pressed', 'false')
+    expect(tool('Einrasten aus')).toHaveAttribute('aria-pressed', 'false')
     dragText(10000, 12030) // with snapping it would land on the beat at 12 s
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
   })
@@ -526,22 +583,89 @@ describe('snapping switch (#332)', () => {
     useTimelineSnapStore.setState({ snapping: false })
     const { onChange } = setup({ content })
     fireEvent.keyDown(window, { key: 'Alt', altKey: true })
-    expect(screen.getByRole('button', { name: 'Einrasten' })).toHaveAttribute('aria-pressed', 'true')
+    expect(tool('Einrasten')).toHaveAttribute('aria-pressed', 'true')
     dragText(10000, 12030)
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.00] First line')
     fireEvent.keyUp(window, { key: 'Alt', altKey: false })
-    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toBeInTheDocument()
+    expect(tool('Einrasten aus')).toBeInTheDocument()
     expect(useTimelineSnapStore.getState().snapping).toBe(false)
   })
 
   it('holding Alt drags freely for as long as it is held, and the switch shows it', () => {
     const { onChange } = setup({ content })
     fireEvent.keyDown(window, { key: 'Alt', altKey: true })
-    expect(screen.getByRole('button', { name: 'Einrasten aus' })).toBeInTheDocument()
+    expect(tool('Einrasten aus')).toBeInTheDocument()
     dragText(10000, 12030)
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
     fireEvent.keyUp(window, { key: 'Alt', altKey: false })
-    expect(screen.getByRole('button', { name: 'Einrasten' })).toHaveAttribute('aria-pressed', 'true')
+    expect(tool('Einrasten')).toHaveAttribute('aria-pressed', 'true')
     expect(useTimelineSnapStore.getState().snapping).toBe(true)
   })
 })
+
+describe('TimelineEditor - shift everything (#330)', () => {
+  /** Tools sit in the "Werkzeuge" panel on narrow timelines once #385 is in - open it if it's there. */
+  function toolButton(name: string) {
+    const panelToggle = screen.queryByRole('button', { name: 'Werkzeuge' })
+    if (panelToggle && panelToggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(panelToggle)
+    return screen.getByRole('button', { name })
+  }
+
+  const lanes = () => screen.getByTestId('timeline-lanes')
+  const textY = 96 + 26 + 84 + 28 + 20
+  function dragLanes(fromMs: number, toMs: number, y = 50) {
+    fireEvent.pointerDown(lanes(), { pointerId: 1, clientX: fromMs / 60, clientY: y })
+    fireEvent.pointerMove(lanes(), { pointerId: 1, clientX: toMs / 60, clientY: y })
+    fireEvent.pointerUp(lanes(), { pointerId: 1, clientX: toMs / 60, clientY: y })
+  }
+  const song = {
+    beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 500 }], meters: [] },
+    content: '[00:01.00]First line\n[00:05.00]Second line',
+    cues: [{ id: 'c1', timeMs: 3000 } as unknown as ShowCue],
+  }
+
+  it('"Ganzen Song verschieben" switches the shift mode on; one drag moves grid, lines and cues together', () => {
+    const { onChange } = setup(song)
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    expect(screen.getByRole('status', { name: 'Verschieben' })).toHaveTextContent('in der Timeline ziehen')
+    dragLanes(10000, 12000)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0][0]
+    expect(next.beatGrid.points[0].timeMs).toBe(2500)
+    expect(next.chordProContent).toMatch(/\[00:03\.00\] ?First line/)
+    expect(next.chordProContent).toMatch(/\[00:07\.00\] ?Second line/)
+    expect(next.cues[0].timeMs).toBe(5000)
+    // The mode stays on for another drag until "Fertig".
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    expect(screen.queryByRole('status', { name: 'Verschieben' })).not.toBeInTheDocument()
+  })
+
+  it('from a selected line: only that line and everything after it moves', () => {
+    const { onChange } = setup(song)
+    fireEvent.pointerDown(lanes(), { pointerId: 1, clientX: 5000 / 60, clientY: textY })
+    fireEvent.pointerUp(lanes(), { pointerId: 1, clientX: 5000 / 60, clientY: textY })
+    fireEvent.click(screen.getByRole('button', { name: 'Alles danach verschieben' }))
+    dragLanes(10000, 11000)
+    const next = onChange.mock.calls[0][0]
+    expect(next.chordProContent).toMatch(/\[00:01\.00\] ?First line/)
+    expect(next.chordProContent).toMatch(/\[00:06\.00\] ?Second line/)
+    expect(next.cues[0].timeMs).toBe(3000)
+  })
+
+  it('a drag to the left stops at 0:00', () => {
+    const { onChange } = setup({ content: '[00:01.00]First line' })
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    dragLanes(10000, 5000)
+    expect(onChange.mock.calls[0][0].chordProContent).toMatch(/\[00:00\.00\] ?First line/)
+  })
+
+  it('"Sekunden eingeben…" is the exact alternative', async () => {
+    dialog.promptText.mockResolvedValueOnce('2')
+    const { onChange } = setup(song)
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    fireEvent.click(screen.getByRole('button', { name: 'Sekunden eingeben…' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(onChange.mock.calls[0][0].cues[0].timeMs).toBe(5000)
+  })
+})
+

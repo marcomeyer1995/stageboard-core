@@ -104,7 +104,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
               type="button"
               onClick={() => handleRemove(track.id)}
               disabled={disabled || busyTrackId === track.id}
-              className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-xs text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm text-ink hover:bg-control-strong-hover disabled:opacity-40"
             >
               Entfernen
             </button>

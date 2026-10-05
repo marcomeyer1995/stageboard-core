@@ -1,3 +1,4 @@
+import { ScrollOnceText } from './ScrollOnceText'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -20,6 +21,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
+import { stageVariantLabel } from '../lib/variantLabel'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
@@ -74,6 +76,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
+  const holdsToken = useShowStateStore((state) => state.holdsToken)
   const audioError = useLocalAudioOutputStore((state) => state.error)
   const profile = useActiveProfile()
   const now = useNow(1000)
@@ -114,7 +117,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
       : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
-  const variantLabel = currentVariant && !currentVariant.isDefault ? currentVariant.label : null
+  const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
   const sync = SYNC_TEXT[syncStatus]
 
   return (
@@ -137,25 +140,37 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       {position ? (
         <CountBlock position={position} flash={flash} />
       ) : (
-        <span className="flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide">{state.label}</span>
+        // On a phone the song title needs the room (#373: it was cut to "Wie …"); "Bereit" is the
+        // resting state and the only one the bar can drop there - every other state stays visible.
+        <span
+          className={`flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide ${
+            state.kind === 'ready' ? 'hidden sm:inline' : ''
+          }`}
+        >
+          {state.label}
+        </span>
       )}
 
-      <span className="min-w-0 flex-1 truncate text-lg font-semibold">
+      <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 flex-1 text-lg font-semibold">
         {title}
         {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
-      </span>
+      </ScrollOnceText>
 
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
           {formatSongTime(elapsedMs ?? 0)}
-          {durationMs !== null && <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>}
+          {durationMs !== null && <span className="hidden font-normal opacity-80 sm:inline"> / {formatSongTime(durationMs)}</span>}
         </span>
       )}
 
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
         <span className="rounded-sb-sm bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
-        {mode === 'gig' && canControl && (
-          <span title="Dieses Gerät hat das Master-Token" aria-label="Master" className="flex items-center">
+        {mode === 'gig' && (canControl || holdsToken) && (
+          <span
+            title={canControl ? 'Dieses Gerät hat das Master-Token' : 'Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht'}
+            aria-label={canControl ? 'Master' : 'Master, nicht bestätigt'}
+            className={`flex items-center ${canControl ? '' : 'opacity-60'}`}
+          >
             <Icon name="master" size="1.4rem" />
           </span>
         )}
