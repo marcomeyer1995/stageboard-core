@@ -123,21 +123,44 @@ describe('LibraryView', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
   })
 
-  it('Songs "+ Neu" creates a song from a title prompt and opens it, same shape as Setlists', async () => {
-    // saveSong/remove are spied via setState rather than asserted through `songs` afterward -
-    // the mocked PouchDB's changes() feed is a no-op stub (see the class above), so the store's
-    // `songs` array never actually refreshes in this test environment even though the real
-    // write happens; the point here is LibraryView's own wiring, not the store's sync plumbing.
+  it('Setlists "+ Neu" opens one dialog with name and optional songs; picked songs become the entries (#183)', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    render(<LibraryView />)
+
+    const setlistsHeading = screen.getByRole('heading', { name: 'Setlists' })
+    fireEvent.click(within(setlistsHeading.parentElement!).getByRole('button', { name: '+ Neu' }))
+    const dialog = screen.getByRole('dialog', { name: 'Neue Setlist' })
+    fireEvent.change(within(dialog).getByLabelText('Name der neuen Setlist'), { target: { value: 'Sommerfest' } })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /Alpha/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Fertig' }))
+
+    await waitFor(() =>
+      expect(saveSetlist).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Sommerfest', entries: [expect.objectContaining({ songId: 'a', variantId: null, trackId: null })] }),
+      ),
+    )
+    expect(screen.queryByRole('dialog', { name: 'Neue Setlist' })).not.toBeInTheDocument()
+  })
+
+  it('Songs "+ Neu" opens the guided new-song flow; nothing is saved before its last step (#182)', async () => {
+    // saveSong is spied via setState rather than asserted through `songs` afterward - the mocked
+    // PouchDB's changes() feed is a no-op stub, so the store's `songs` never refreshes here.
     const saveSong = vi.fn(async () => {})
-    useDialogStore.setState({ promptText: async () => 'Wonderwall' })
     useSongsStore.setState({ saveSong })
     render(<LibraryView />)
 
     const songsHeading = screen.getByRole('heading', { name: 'Songs' })
     fireEvent.click(within(songsHeading.parentElement!).getByRole('button', { name: '+ Neu' }))
+    const wizard = screen.getByRole('dialog', { name: 'Neuer Song' })
+    fireEvent.change(within(wizard).getByLabelText('Titel'), { target: { value: 'Wonderwall' } })
+    fireEvent.click(within(wizard).getByRole('button', { name: 'Weiter' }))
+    fireEvent.click(within(wizard).getByRole('button', { name: /Leer beginnen/ }))
+    expect(saveSong).not.toHaveBeenCalled()
+    fireEvent.click(within(wizard).getByRole('button', { name: 'Song anlegen' }))
 
     await screen.findByText('Song-Editor')
-    expect(saveSong).toHaveBeenCalledWith(expect.objectContaining({ title: 'Wonderwall' }))
+    expect(saveSong).toHaveBeenCalledWith(expect.objectContaining({ title: 'Wonderwall', bpm: 120, timeSignature: '4/4' }))
   })
 
   it('highlights the selected song row, same as a selected setlist', () => {

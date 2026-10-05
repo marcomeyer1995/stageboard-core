@@ -118,6 +118,9 @@ describe('SongPreview', () => {
     expect(await screen.findByText('Cues (1)')).toBeInTheDocument()
     expect(screen.getByText('Audio (1)')).toBeInTheDocument()
     expect(screen.getByText('Klick-Punkte (1)')).toBeInTheDocument()
+    // #374: black accent-ink on a 20 % accent tint was unreadable (1.0-1.2:1) in every theme.
+    expect(screen.getByText('Audio (1)').className).not.toContain('text-accent-ink')
+    expect(screen.getByText('Audio (1)').className).toContain('text-ink')
   })
 
   it('"Bearbeiten" calls onEdit', async () => {

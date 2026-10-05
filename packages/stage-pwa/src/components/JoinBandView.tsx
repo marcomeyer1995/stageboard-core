@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
-import { isNativeApp, pairWithServer, serverFingerprint, shortFingerprint } from '../lib/native'
+import { isNativeApp, pairingConfirmation, pairWithServer, serverFingerprint } from '../lib/native'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { NetworkServerList } from './NetworkServerList'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
@@ -129,6 +129,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   useEffect(() => stopCamera, [])
 
+  // The server already hosts a band (#364): founding another needs an admin login this device
+  // doesn't have yet.
+  const workspacesExist = !!workspaces && workspaces.length > 0
+
   async function loadWorkspaces() {
     setLoadingWorkspaces(true)
     const result = await listWorkspaces()
@@ -156,7 +160,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
       setConnectError(`Kein Stage-Server unter ${host} erreichbar.`)
       return
     }
-    const trusted = await confirm(`Mit dem Stage-Server ${host} verbinden? Zertifikat: ${shortFingerprint(fingerprint)} – auf dem Admin-Gerät unter „Einladen“ vergleichbar.`, { confirmLabel: 'Verbinden' })
+    const question = pairingConfirmation(host, host, fingerprint)
+    const trusted = await confirm(question.message, { title: question.title, confirmLabel: 'Verbinden' })
     if (!trusted) return
     await pairWithServer(host, fingerprint)
     await loadWorkspaces()
@@ -368,7 +373,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             ))}
           </ul>
 
-          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
             Andere Band oder anderer Code
           </button>
         </div>
@@ -396,7 +401,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             <input
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="12345678"
+              placeholder="8-stelliger Code"
               inputMode="numeric"
               autoFocus
               className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
@@ -410,7 +415,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             </button>
           </form>
 
-          <button type="button" onClick={backToList} className="w-full text-center text-xs text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
             Andere Band wählen
           </button>
         </div>
@@ -458,23 +463,57 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             }}
             className="space-y-2 rounded-sb border border-line bg-surface p-3"
           >
-            <p className="text-sm text-ink-muted">{serverUrl ? `Stage-Server: ${serverUrl.replace(/^https:\/\//, '')}` : 'Stage-Server: QR-Code scannen oder Adresse eingeben.'}</p>
-            <div className="flex gap-2">
-              <input
-                value={serverAddress}
-                onChange={(e) => setServerAddress(e.target.value)}
-                placeholder="192.168.178.158"
-                inputMode="url"
-                className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
-                aria-label="Adresse des Stage-Servers"
-              />
-              <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
-                Verbinden
-              </button>
-            </div>
-            {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
-            {/* #351: servers announcing themselves - searched right away while not yet paired. */}
-            <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
+            {serverUrl ? (
+              <p className="text-base text-ink">
+                Gekoppelt mit <span className="font-semibold">{serverUrl.replace(/^https:\/\//, '')}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-ink-muted">Stage-Server: unten aus dem Netzwerk wählen, QR-Code scannen oder Adresse eingeben.</p>
+            )}
+            {/* Already paired (#377): the address field is only for switching to another server,
+                so it folds away instead of looking like a step that still has to be done. */}
+            {serverUrl ? (
+              <details>
+                <summary className="cursor-pointer select-none py-3 text-sm font-medium text-ink-muted">Anderen Stage-Server verwenden</summary>
+                <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    value={serverAddress}
+                    onChange={(e) => setServerAddress(e.target.value)}
+                    placeholder="192.168.178.158"
+                    inputMode="url"
+                    className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+                    aria-label="Adresse des Stage-Servers"
+                  />
+                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                    Verbinden
+                  </button>
+                </div>
+                {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+                {/* #351: servers announcing themselves - searched right away while not yet paired. */}
+                <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
+                </div>
+              </details>
+            ) : (
+              <>
+              <div className="flex gap-2">
+                <input
+                  value={serverAddress}
+                  onChange={(e) => setServerAddress(e.target.value)}
+                  placeholder="192.168.178.158"
+                  inputMode="url"
+                  className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+                  aria-label="Adresse des Stage-Servers"
+                />
+                <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                  Verbinden
+                </button>
+              </div>
+              {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+              {/* #351: servers announcing themselves - searched right away while not yet paired. */}
+              <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
+              </>
+            )}
           </form>
         )}
 
@@ -511,11 +550,14 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Verfügbare Bands</h2>
-            <button type="button" onClick={() => void loadWorkspaces()} className="text-xs text-ink-faint underline">
+            <button type="button" onClick={() => void loadWorkspaces()} className="inline-flex min-h-12 items-center text-sm text-ink-faint underline">
               Neu laden
             </button>
           </div>
           {loadingWorkspaces && <p className="text-sm text-ink-muted">Lade…</p>}
+          {native && !serverUrl && !loadingWorkspaces && (
+            <p className="text-sm text-ink-muted">Erst mit einem Stage-Server koppeln (oben) - dann erscheinen hier die Bands.</p>
+          )}
           {!loadingWorkspaces && workspaces?.length === 0 && (
             <p className="text-sm text-ink-muted">Keine Band auf diesem Stage-Server gefunden.</p>
           )}
@@ -542,24 +584,34 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <div className="h-px flex-1 bg-line" />
         </div>
 
-        <button
-          type="button"
-          onClick={async () => {
-            const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
-            if (name?.trim()) void addWorkspace(name.trim())
-          }}
-          className="w-full rounded-sb border border-line bg-surface px-4 py-3 font-semibold text-ink-soft hover:bg-control-hover"
-        >
-          Neue Band gründen
-        </button>
+        {/* #364: once the server has a band, only an admin of one can found another - a device on
+            this screen has no admin login, so offering it here could only fail. The first band
+            on a fresh server (or a band without any server) is still founded here. */}
+        {workspacesExist ? (
+          <p className="rounded-sb border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+            Weitere Bands legt ein Band-Admin an: System → Band → „+ Band“. Danach lädt er dich ein.
+          </p>
+        ) : (
+          <button
+            type="button"
+            disabled={loadingWorkspaces}
+            onClick={async () => {
+              const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
+              if (name?.trim()) void addWorkspace(name.trim())
+            }}
+            className="w-full rounded-sb border border-line bg-surface px-4 py-3 font-semibold text-ink-soft hover:bg-control-hover disabled:opacity-40"
+          >
+            Neue Band gründen
+          </button>
+        )}
 
         <div>
           <button
             type="button"
             onClick={() => setShowPasswordFallback((v) => !v)}
-            className="text-xs text-ink-faint underline"
+            className="inline-flex min-h-12 items-center text-sm text-ink-faint underline"
           >
-            Passwort direkt eingeben
+            Zugangsdaten manuell eingeben
           </button>
           {showPasswordFallback && (
             <form
@@ -571,10 +623,14 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               }}
               className="mt-2 flex flex-col gap-2"
             >
+              <p className="text-sm text-ink-muted">
+                Nur für Sonderfälle - normalerweise reichen QR-Code oder Band-Code. Die Angaben gibt es beim Band-Admin.
+              </p>
               <input
                 value={fallbackWorkspaceId}
                 onChange={(e) => setFallbackWorkspaceId(e.target.value)}
-                placeholder="Workspace-ID (z.B. band-a)"
+                placeholder="Band-ID"
+                aria-label="Band-ID"
                 className="h-12 rounded-sb bg-control px-3 text-ink-soft"
               />
               {/* Per-person-accounts follow-up: every account has its own username now, no
@@ -582,7 +638,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Benutzername (z.B. stageboard-band-a-p1)"
+                placeholder="Benutzername"
+                aria-label="Benutzername"
                 className="h-12 rounded-sb bg-control px-3 text-ink-soft"
               />
               <div className="flex gap-2">
@@ -590,7 +647,8 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Passwort/PIN"
+                  placeholder="Passwort oder PIN"
+                  aria-label="Passwort oder PIN"
                   className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
                 />
                 <button

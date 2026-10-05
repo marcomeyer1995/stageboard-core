@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ResponsiveGridLayout,
   type Compactor,
@@ -10,19 +10,24 @@ import { capabilityStatusFor } from '../lib/capabilities'
 import { canEditDashboard } from '../lib/dashboardLayout'
 import {
   belowMinimumItems,
+  BREAKPOINT_CANVAS,
   breakpointFor,
+  columnWidth,
   GRID_COLUMNS,
   GRID_ROWS,
   gridMetrics,
   displayLayout,
   normalizeLayout,
   type MinSize,
+  pixelMinimum,
   resolveInteraction,
   withWidgetRemoved,
 } from '../lib/dashboardLayout'
 import { fmtItems, gridLog } from '../lib/gridDebug'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
+import { useEditBarSlot } from '../lib/useEditBarSlot'
+import { createPortal } from 'react-dom'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
@@ -40,12 +45,22 @@ const COLS: Record<Breakpoint, number> = {
   sm: GRID_COLUMNS,
 }
 
-/** Each widget instance's minimum size from the *current* registry entry (see layoutFor). */
-function minSizeFor(dashboard: DashboardDoc): (instanceId: string) => MinSize | undefined {
+/** Cell size in CSS px a breakpoint's layout is judged at: the real grid for the breakpoint on
+ * screen, the breakpoint's nominal canvas for the others (only the current one is rendered). */
+interface CellSize {
+  colWidth: number
+  rowHeight: number
+}
+
+/** Each widget instance's minimum size from the *current* registry entry (see layoutFor), raised
+ * to a usable pixel size for the given cell size (#369 - see pixelMinimum). */
+function minSizeFor(dashboard: DashboardDoc, cell?: CellSize): (instanceId: string) => MinSize | undefined {
   return (instanceId) => {
     const widget = dashboard.widgets.find((w) => w.i === instanceId)
     const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
-    return bounds ? { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h } : undefined
+    if (!bounds) return undefined
+    const min = { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h }
+    return cell ? pixelMinimum(min, cell.colWidth, cell.rowHeight) : min
   }
 }
 
@@ -97,6 +112,7 @@ export function Dashboard() {
   const updateWidget = useDashboardsStore((state) => state.updateWidget)
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
+  const editBarSlot = useEditBarSlot(isEditing)
   const [containerRef, { width, height }] = useElementSize()
   // Real measurement or nothing: react-grid-layout's own bundled width hook starts every
   // mount with a hard-coded 1280px guess and only corrects a frame later, which on a real
@@ -235,29 +251,51 @@ export function Dashboard() {
   // (nobody arranged it - e.g. a portrait dashboard on a tablet turned to landscape) shows a
   // layout derived from an arranged breakpoint instead. Never persisted: only drag/resize in
   // edit mode writes layouts, and edit mode shows the stored layout plus a banner to adopt it.
+  // Real cell size of the grid on screen; other breakpoints are judged at their nominal canvas.
+  // Keyed on the numbers, not the `metrics` object: that is a new object on every render, and
+  // the layouts below depend on this - react-grid-layout then got a "new" layout several times a
+  // second and its collision handling moved the widgets around without end (phone, 2026-10-05).
+  const { rowHeight: cellRowHeight, margin: cellMargin, padding: cellPadding } = metrics
+  const cellFor = useCallback(
+    (name: Breakpoint): CellSize => {
+      if (name === breakpoint && width > 0) {
+        return { colWidth: columnWidth(width, { margin: cellMargin, padding: cellPadding }), rowHeight: cellRowHeight }
+      }
+      const canvas = BREAKPOINT_CANVAS[name]
+      const nominal = gridMetrics(canvas.h)
+      return { colWidth: columnWidth(canvas.w, nominal), rowHeight: nominal.rowHeight }
+    },
+    [breakpoint, width, cellRowHeight, cellMargin, cellPadding],
+  )
   const layouts = useMemo(() => {
     if (!active) return {}
-    const minFor = minSizeFor(active)
     return Object.fromEntries(
       (Object.keys(BREAKPOINT_WIDTHS) as Breakpoint[]).map((name) => [
         name,
-        isEditing ? layoutFor(active, name) : layoutFor(active, name, displayLayout(active.layouts, name, minFor).items),
+        isEditing
+          ? layoutFor(active, name)
+          : layoutFor(active, name, displayLayout(active.layouts, name, minSizeFor(active, cellFor(name))).items),
       ]),
     )
-  }, [active, isEditing])
+  }, [active, isEditing, cellFor])
   const current = useMemo(
-    () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active)) : null),
-    [active, breakpoint],
+    () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active, cellFor(breakpoint))) : null),
+    [active, breakpoint, cellFor],
   )
+  // Identifies the arrangement on screen, for the grid's remount key below.
+  const shownSignature = useMemo(() => {
+    const items = isEditing && active ? normalizeLayout(active.layouts[breakpoint] ?? []) : (current?.items ?? [])
+    return items.map((item) => `${item.i}.${item.x}.${item.y}.${item.w}.${item.h}`).join('|')
+  }, [active, breakpoint, current, isEditing])
   // Outlined in edit mode: widgets smaller than their minimum in the grid being edited.
   const tooSmall = useMemo(
     () =>
       new Set(
         active && isEditing
-          ? belowMinimumItems(normalizeLayout(active.layouts[breakpoint] ?? []), minSizeFor(active)).map((item) => item.i)
+          ? belowMinimumItems(normalizeLayout(active.layouts[breakpoint] ?? []), minSizeFor(active, cellFor(breakpoint))).map((item) => item.i)
           : [],
       ),
-    [active, breakpoint, isEditing],
+    [active, breakpoint, isEditing, cellFor],
   )
 
   if (!loaded) {
@@ -288,12 +326,17 @@ export function Dashboard() {
 
   return (
     <div className="flex h-full flex-col sb-app-bg">
-      {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
+      {/* In the status bar's place (App renders the slot), not above the grid: the grid keeps
+          exactly its show-mode area, so edit mode shows every widget at its true size without
+          scrolling (#370, Marco's choice A). */}
+      {isEditing && editBarSlot && createPortal(<DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />, editBarSlot)}
       {isEditing && current && current.squeezed > 0 && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-3 py-2">
+        // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
+        // true size (#370), so nothing may take height away from the grid.
+        <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-3 py-2 shadow-sb">
           <span className="text-amber-500">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
-            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : 'eine korrigierte Anordnung'}{' '}
+            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
             gezeigt).
           </span>
           {current.source !== 'stored' && (
@@ -304,7 +347,9 @@ export function Dashboard() {
             >
               {current.source === 'repaired'
                 ? 'Zu kleine Widgets neu platzieren'
-                : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
+                : current.source === 'stacked'
+                  ? 'Untereinander übernehmen'
+                  : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
             </button>
           )}
         </div>
@@ -333,7 +378,13 @@ export function Dashboard() {
             // moments after initial load hits the identical shape (found live, 2026-09-15:
             // "widgets jumping and resizing", specifically right after initial load or
             // right after adding a widget - never during otherwise-idle normal use).
-            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}`}
+            //
+            // And on the breakpoint plus the arrangement actually shown (#369): after turning
+            // the phone, the library's responsive part kept its pre-rotation layout as internal
+            // state and alternated between that and the freshly derived one - widgets jumping
+            // back and forth without end (found live, 2026-10-05). A fresh instance per shown
+            // arrangement has nothing stale left to fall back to.
+            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}`}
             width={width}
             layouts={layouts}
             breakpoints={BREAKPOINT_WIDTHS}

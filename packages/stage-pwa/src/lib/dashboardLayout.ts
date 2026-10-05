@@ -135,28 +135,32 @@ function placeInGrid(
   item: LayoutItem,
   cols: number,
   rows: number,
+  /** Sizes not to shrink below while any spot at or above them exists (#369). Without it the
+   * width shrank first, so a repaired phone widget landed back in its old 2-column slot. */
+  min: { w?: number; h?: number } = {},
 ): LayoutItem {
   let w = item.w
   let h = item.h
   let spot: { x: number; y: number } | null = null
 
-  outer: for (h = item.h; h >= 1; h--) {
-    for (w = item.w; w >= 1; w--) {
-      const preferredX = Math.min(Math.max(0, item.x), cols - w)
-      for (let y = 0; y + h <= rows; y++) {
-        if (grid.isFree(preferredX, y, w, h)) {
-          spot = { x: preferredX, y }
-          break outer
-        }
-        for (let x = 0; x + w <= cols; x++) {
-          if (grid.isFree(x, y, w, h)) {
-            spot = { x, y }
-            break outer
+  const search = (minW: number, minH: number) => {
+    for (h = item.h; h >= minH; h--) {
+      for (w = item.w; w >= minW; w--) {
+        const preferredX = Math.min(Math.max(0, item.x), cols - w)
+        for (let y = 0; y + h <= rows; y++) {
+          if (grid.isFree(preferredX, y, w, h)) return { x: preferredX, y }
+          for (let x = 0; x + w <= cols; x++) {
+            if (grid.isFree(x, y, w, h)) return { x, y }
           }
         }
       }
     }
+    return null
   }
+  const minW = Math.min(item.w, Math.max(1, min.w ?? 1))
+  const minH = Math.min(item.h, Math.max(1, min.h ?? 1))
+  spot = search(minW, minH)
+  if (spot === null && (minW > 1 || minH > 1)) spot = search(1, 1)
 
   // Not a single free cell left. Park it in the last row rather than lose a widget
   // silently - an overlapping widget can still be moved, a missing one cannot.
@@ -367,6 +371,42 @@ export interface MinSize {
   h?: number
 }
 
+/**
+ * Smallest width (CSS px) one grid column of a widget's minimum stands for (#369). Widget
+ * minimums are written in grid units for a landscape tablet, where a column is ~100 px. On a
+ * phone a column is ~30 px, so "minW 3" became an 85 px prompter and a 54 px Now-Playing column
+ * whose title broke letter by letter - while still counting as "big enough". 90 px per minimum
+ * column keeps landscape layouts unchanged (columns are wider there) and turns the same minimum
+ * into a usable width on a phone or a portrait tablet.
+ */
+export const MIN_COLUMN_PX = 90
+/** Same idea for rows: a minimum row never stands for less than this many CSS px. */
+export const MIN_ROW_PX = 26
+
+/** Width of one grid column in CSS px for a grid `gridWidth` px wide. */
+export function columnWidth(gridWidth: number, { margin, padding }: Pick<GridMetrics, 'margin' | 'padding'>): number {
+  return Math.max(1, (gridWidth - 2 * padding - (GRID_COLUMNS - 1) * margin) / GRID_COLUMNS)
+}
+
+/**
+ * A widget's minimum in grid units for the actual cell size: never smaller than its registry
+ * minimum, and large enough that it is at least MIN_COLUMN_PX / MIN_ROW_PX per minimum unit
+ * wide/tall - capped at the whole grid. The default size grows with it, so a repaired widget is
+ * re-placed at a usable size.
+ */
+export function pixelMinimum(min: MinSize, colWidthPx: number, rowHeightPx: number): MinSize {
+  const floorUnits = (units: number | undefined, cellPx: number, unitPx: number, cap: number) =>
+    units === undefined ? undefined : Math.min(cap, Math.max(units, Math.ceil((units * unitPx) / Math.max(1, cellPx))))
+  const minW = floorUnits(min.minW, colWidthPx, MIN_COLUMN_PX, GRID_COLUMNS)
+  const minH = floorUnits(min.minH, rowHeightPx, MIN_ROW_PX, GRID_ROWS)
+  return {
+    minW,
+    minH,
+    w: min.w === undefined ? undefined : Math.max(min.w, minW ?? 0),
+    h: min.h === undefined ? undefined : Math.max(min.h, minH ?? 0),
+  }
+}
+
 /** Items smaller than their widget's current minimum in either direction - outlined in edit
  * mode, so a widget that cannot show its content is visible while arranging, not only later on
  * stage. Broader than squeezedItems: a deliberately small widget counts here too. */
@@ -425,7 +465,7 @@ export function deriveLayout(
       const w = Math.min(GRID_COLUMNS, Math.max(min?.minW ?? 1, Math.round(item.w * colRatio)))
       const h = Math.min(GRID_ROWS, Math.max(min?.minH ?? 1, Math.round(item.h * rowRatio * scale)))
       const x = Math.min(Math.round(item.x * colRatio), GRID_COLUMNS - w)
-      return placeInGrid(grid, { ...item, x, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS)
+      return placeInGrid(grid, { ...item, x, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS, { w: min?.minW, h: min?.minH })
     })
     if (squeezedItems(placed, minFor).length === 0) break
   }
@@ -454,7 +494,7 @@ export function repairLayout(stored: LayoutItem[], minFor: (instanceId: string) 
     const size = minFor(item.i) ?? {}
     const w = Math.min(GRID_COLUMNS, Math.max(size.minW ?? 1, size.w ?? item.w))
     const h = Math.min(GRID_ROWS, Math.max(size.minH ?? 1, size.h ?? item.h))
-    moved.set(item.i, placeInGrid(grid, { ...item, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS))
+    moved.set(item.i, placeInGrid(grid, { ...item, y: 0, w, h }, GRID_COLUMNS, GRID_ROWS, { w: size.minW, h: size.minH }))
   }
   return stored.map((item) => moved.get(item.i) ?? item)
 }
@@ -462,8 +502,8 @@ export function repairLayout(stored: LayoutItem[], minFor: (instanceId: string) 
 export interface DisplayLayout {
   items: LayoutItem[]
   /** `stored` as saved, `repaired` = only the collapsed widgets re-placed, `derived` = the
-   * whole layout derived from `derivedFrom`. */
-  source: 'stored' | 'repaired' | 'derived'
+   * whole layout derived from `derivedFrom`, `stacked` = all widgets full width (stackLayout). */
+  source: 'stored' | 'repaired' | 'derived' | 'stacked'
   /** The breakpoint the items were derived from (source `derived`), else null. */
   derivedFrom: Breakpoint | null
   /** Widgets squeezed below their minimum in the *stored* layout of this breakpoint. */
@@ -501,8 +541,48 @@ export function displayLayout(
       best = { breakpoint: candidate, source, squeezed: candidateSqueezed }
     }
   }
-  if (!best) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
-  return { items: deriveLayout(best.source, best.breakpoint, breakpoint, minFor), source: 'derived', derivedFrom: best.breakpoint, squeezed }
+  const derived = best ? deriveLayout(best.source, best.breakpoint, breakpoint, minFor) : null
+  // Last resort (#369): nothing arranged fits at a usable size (a phone with seven widgets) -
+  // stack them full width rather than park four of them as 25 px slivers.
+  const stacked = stackLayout(stored, minFor)
+  const candidates: Array<{ items: LayoutItem[]; source: DisplayLayout['source']; from: Breakpoint | null }> = [
+    ...(derived ? [{ items: derived, source: 'derived' as const, from: best!.breakpoint }] : []),
+    { items: repaired, source: 'repaired', from: null },
+    { items: stacked, source: 'stacked', from: null },
+  ]
+  const pick = candidates.reduce((a, b) => (squeezedItems(b.items, minFor).length < squeezedItems(a.items, minFor).length ? b : a))
+  if (squeezedItems(pick.items, minFor).length >= squeezed) return { items: stored, source: 'stored', derivedFrom: null, squeezed }
+  return { items: pick.items, source: pick.source, derivedFrom: pick.from, squeezed }
+}
+
+/**
+ * Every widget full width, one under the other in reading order, heights sharing the 24 rows:
+ * each gets its minimum first, the rest is split by default height. Used only when no arranged
+ * layout fits (see displayLayout).
+ */
+export function stackLayout(items: LayoutItem[], minFor: (instanceId: string) => MinSize | undefined): LayoutItem[] {
+  const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x)
+  if (ordered.length === 0) return []
+  const minH = ordered.map((item) => Math.max(1, minFor(item.i)?.minH ?? 1))
+  const want = ordered.map((item, i) => Math.max(minH[i], minFor(item.i)?.h ?? item.h))
+  const totalMin = minH.reduce((a, b) => a + b, 0)
+  let heights: number[]
+  if (totalMin >= GRID_ROWS) {
+    // Not even the minimums fit: scale them down evenly, at least one row each.
+    heights = minH.map((h) => Math.max(1, Math.floor((h * GRID_ROWS) / totalMin)))
+  } else {
+    const spare = GRID_ROWS - totalMin
+    const extra = want.map((w, i) => w - minH[i])
+    const totalExtra = extra.reduce((a, b) => a + b, 0)
+    heights = minH.map((h, i) => h + (totalExtra > 0 ? Math.floor((extra[i] * spare) / totalExtra) : 0))
+  }
+  let y = 0
+  return ordered.map((item, i) => {
+    const h = Math.min(heights[i], GRID_ROWS - Math.min(y, GRID_ROWS - 1))
+    const placed = { ...item, x: 0, y: Math.min(y, GRID_ROWS - 1), w: GRID_COLUMNS, h: Math.max(1, h) }
+    y += placed.h
+    return placed
+  })
 }
 
 /** Removes a widget instance from the widget list and from every breakpoint's layout. */
