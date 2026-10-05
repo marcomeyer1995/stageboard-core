@@ -77,93 +77,101 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-sm flex-col gap-5 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb"
+        className="flex max-h-[min(85vh,85dvh)] w-full max-w-sm flex-col overflow-hidden rounded-sb border border-line bg-surface shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
-        <Section title="Ansicht">
-          <div className="grid grid-cols-3 gap-2">
-            {MODES.map((candidate) => (
-              <button
-                key={candidate}
-                type="button"
-                onClick={() => {
-                  onSelectMode(candidate)
-                  onClose()
-                }}
-                className={`h-14 rounded-sb text-base font-semibold ${
-                  mode === candidate
-                    ? 'bg-accent text-accent-ink'
-                    : 'bg-control text-ink-soft hover:bg-control-hover'
-                }`}
-              >
-                {MODE_LABEL[candidate]}
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {switchableDashboards.length > 1 && (
-          <Section title="Dashboards">
-            <div className="flex flex-col gap-1">
-              {switchableDashboards.map((dashboard) => (
+        {/* Close sits in a fixed header, not at the end of the list (#376): on a phone or a short
+            landscape screen the list scrolls, and "Schließen" used to be reachable only after
+            scrolling to the bottom (on the phone it was even cut off). */}
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-2">
+          <p className="text-sm font-bold uppercase tracking-widest text-ink-faint">Menü</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-touch items-center gap-2 rounded-sb bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
+          >
+            <Icon name="close" size="1.25rem" />
+            Schließen
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
+          <Section title="Ansicht">
+            <div className="grid grid-cols-3 gap-2">
+              {MODES.map((candidate) => (
                 <button
-                  key={dashboard.id}
+                  key={candidate}
                   type="button"
-                  onClick={() => selectDashboard(dashboard.id)}
-                  className={`flex h-11 items-center justify-between rounded-sb px-4 text-sm font-medium ${
-                    dashboard.id === activeDashboardId
+                  onClick={() => {
+                    onSelectMode(candidate)
+                    onClose()
+                  }}
+                  className={`h-14 rounded-sb text-base font-semibold ${
+                    mode === candidate
                       ? 'bg-accent text-accent-ink'
                       : 'bg-control text-ink-soft hover:bg-control-hover'
                   }`}
                 >
-                  {dashboard.name}
-                  {dashboard.id === activeDashboardId && <Icon name="check" size="1.25rem" />}
+                  {MODE_LABEL[candidate]}
                 </button>
               ))}
             </div>
           </Section>
-        )}
 
-        <Section title="Modus">
-          <SessionModeControl />
-          {sessionMode === 'practice' && <PracticeSetlistPicker />}
-        </Section>
+          {switchableDashboards.length > 1 && (
+            <Section title="Dashboards">
+              <div className="flex flex-col gap-1">
+                {switchableDashboards.map((dashboard) => (
+                  <button
+                    key={dashboard.id}
+                    type="button"
+                    onClick={() => selectDashboard(dashboard.id)}
+                    className={`flex h-11 items-center justify-between rounded-sb px-4 text-sm font-medium ${
+                      dashboard.id === activeDashboardId
+                        ? 'bg-accent text-accent-ink'
+                        : 'bg-control text-ink-soft hover:bg-control-hover'
+                    }`}
+                  >
+                    {dashboard.name}
+                    {dashboard.id === activeDashboardId && <Icon name="check" size="1.25rem" />}
+                  </button>
+                ))}
+              </div>
+            </Section>
+          )}
 
-        {sessionMode === 'gig' && (
-          <Section title="Master-Kontrolle">
-            <MasterControl />
+          <Section title="Modus">
+            <SessionModeControl />
+            {sessionMode === 'practice' && <PracticeSetlistPicker />}
           </Section>
-        )}
 
-        {mode === 'boards' && (
-          <Section title="Dashboard">
-            <EditLock onUnlock={onClose} />
-          </Section>
-        )}
+          {sessionMode === 'gig' && (
+            <Section title="Master-Kontrolle">
+              <MasterControl />
+            </Section>
+          )}
 
-        {fullscreen.supported && (
-          <Section title="Anzeige">
-            <button
-              type="button"
-              onClick={() => void fullscreen.toggle()}
-              className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
-            >
-              Vollbild
-              <span className="flex items-center gap-2">
-                <Icon name={fullscreen.isFullscreen ? 'exitFullscreen' : 'fullscreen'} />
-                {fullscreen.isFullscreen ? 'Aus' : 'An'}
-              </span>
-            </button>
-          </Section>
-        )}
+          {mode === 'boards' && (
+            <Section title="Dashboard">
+              <EditLock onUnlock={onClose} />
+            </Section>
+          )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-12 rounded-sb bg-control-strong text-base font-medium text-ink hover:bg-control-strong-hover"
-        >
-          Schließen
-        </button>
+          {fullscreen.supported && (
+            <Section title="Anzeige">
+              <button
+                type="button"
+                onClick={() => void fullscreen.toggle()}
+                className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
+              >
+                Vollbild
+                <span className="flex items-center gap-2">
+                  <Icon name={fullscreen.isFullscreen ? 'exitFullscreen' : 'fullscreen'} />
+                  {fullscreen.isFullscreen ? 'Aus' : 'An'}
+                </span>
+              </button>
+            </Section>
+          )}
+        </div>
       </div>
     </div>
   )
