@@ -1289,8 +1289,28 @@ describe('Fastify routes', () => {
   })
 
   describe('POST /workspaces/:workspaceId/flash (#26)', () => {
+    const basic = (username: string, password: string) => ({ authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` })
+    const signedIn = basic('stageboard-band-a-p1~d1', 'pw')
+    const session = (name: string) => vi.fn(async () => new Response(JSON.stringify({ ok: true, userCtx: { name, roles: ['member'] } }), { status: 200 }))
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('only takes messages from a device signed in to this band', async () => {
+      const send = (headers: Record<string, string>) => app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'VAMP' }, headers })
+      expect((await send({})).statusCode).toBe(401)
+      const fetchMock = session('stageboard-band-b-p1~d1')
+      vi.stubGlobal('fetch', fetchMock)
+      expect((await send(basic('stageboard-band-b-p1~d1', 'pw'))).statusCode).toBe(401) // another band's device
+      expect(fetchMock).not.toHaveBeenCalled()
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+      expect((await send(signedIn)).statusCode).toBe(401) // wrong password
+    })
+
     it('stores the message, returns it with id and time, and rejects empty text', async () => {
-      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '  VAMP  ', from: 'Caro' } })
+      vi.stubGlobal('fetch', session('stageboard-band-a-p1~d1'))
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '  VAMP  ', from: 'Caro' }, headers: signedIn })
       expect(response.statusCode).toBe(201)
       const flash = response.json()
       expect(flash).toMatchObject({ text: 'VAMP', from: 'Caro' })

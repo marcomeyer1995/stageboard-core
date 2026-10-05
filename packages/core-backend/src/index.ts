@@ -97,6 +97,15 @@ const DEFAULT_FRONTEND_ORIGINS = [
   'https://localhost',
 ].join(',')
 
+/** Username and password from an `Authorization: Basic …` header, or null. */
+export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
+  if (!header?.startsWith('Basic ')) return null
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
+  const colon = decoded.indexOf(':')
+  if (colon <= 0) return null
+  return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) }
+}
+
 /** SHA-256 fingerprint of the server's certificate (lowercase hex, no separators), or null
  * without HTTPS. The native app pins exactly this certificate when pairing (#348) - the invite
  * QR code carries it, so a self-signed certificate is trusted without any CA on the device. */
@@ -491,6 +500,13 @@ export async function buildApp() {
     const parsed = FlashReportSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
+    // device signed in to this band may send one (its own CouchDB login, as Basic auth).
+    const login = basicAuthCredentials(request.headers.authorization)
+    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`) || (await verifyUser(couch, login.username, login.password)) === null) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
+      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
     }
     const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from)
     app.log.info({ workspaceId, flashId: flash.id, from: flash.from, remoteAddress: request.ip }, 'Flash message sent')

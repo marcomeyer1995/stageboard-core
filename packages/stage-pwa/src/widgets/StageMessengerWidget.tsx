@@ -11,6 +11,7 @@ import type { ContentFontSizeConfig } from './contentFontSizeConfig'
  */
 export function StageMessengerWidget({ config }: { config: ContentFontSizeConfig }) {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const workspace = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId))
   const from = useActiveProfile()?.name
   const fontSize = useContentFontSize(config)
   const [text, setText] = useState('')
@@ -19,9 +20,15 @@ export function StageMessengerWidget({ config }: { config: ContentFontSizeConfig
   async function send(message: string) {
     const trimmed = message.trim()
     if (!trimmed) return
-    const ok = await sendFlash(workspaceId, trimmed.slice(0, 120), from)
-    setStatus(ok ? `Gesendet: „${trimmed}“` : 'Nicht gesendet - Stage-Server nicht erreichbar.')
-    if (ok) setText('')
+    const result = await sendFlash(workspaceId, trimmed.slice(0, 120), from, { username: workspace?.username, password: workspace?.couchPassword })
+    setStatus(
+      result === 'sent'
+        ? `Gesendet: „${trimmed}“`
+        : result === 'not-signed-in'
+          ? 'Nicht gesendet - dieses Gerät ist nicht bei der Band angemeldet.'
+          : 'Nicht gesendet - Stage-Server nicht erreichbar.',
+    )
+    if (result === 'sent') setText('')
   }
 
   return (
