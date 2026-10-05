@@ -36,6 +36,9 @@ export const GridPointSchema = z.object({
   id: z.string().min(1),
   bar: z.number().int().positive(),
   timeMs: z.number().int().nonnegative(),
+  /** The stretch from this point to the next one changes tempo evenly (ritardando/accelerando,
+   * #354) instead of being constant. Absent = constant, as before. */
+  gradual: z.boolean().optional(),
 })
 export type GridPoint = z.infer<typeof GridPointSchema>
 

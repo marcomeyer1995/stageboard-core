@@ -471,6 +471,38 @@ describe('"Tempo tippen" for a section (#329)', () => {
   })
 })
 
+describe('tapping a ritardando (#354)', () => {
+  afterEach(() => {
+    trackClock.isPlaying = false
+    useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 0 })
+  })
+
+  function tapRitardando() {
+    // 16 taps from 8 s, slowing evenly from 500 ms to ~667 ms spacing (120 -> 90 BPM).
+    let t = 8000
+    for (let i = 0; i < 16; i++) {
+      useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: Math.round(t) })
+      fireEvent.pointerDown(screen.getByText(/^TIPP/))
+      t += 500 + (166.7 * i) / 14
+    }
+  }
+
+  it('offers the even change as a gradual stretch and applies it as one undo step', async () => {
+    trackClock.isPlaying = true
+    const constant: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 30, timeMs: 58000 }], meters: [] }
+    const { onChange } = setup({ beatGrid: constant, trackSrc: 'blob:track' })
+    fireEvent.click(screen.getByText('Tempo tippen'))
+    tapRitardando()
+    fireEvent.click(screen.getByText('Tippen beenden (16)'))
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }
+    const start = next.beatGrid.points.find((p) => p.bar === 5)!
+    expect(start.timeMs).toBe(8000)
+    expect(start.gradual).toBe(true)
+    expect(screen.getByRole('status')).toHaveTextContent(/Tempo ändert sich gleichmäßig bis Takt \d+ auf (8|9)\d BPM/)
+  })
+})
+
 describe('what can be grabbed (#331)', () => {
   const cueY = 342 + 22
   const near: ShowCue[] = [

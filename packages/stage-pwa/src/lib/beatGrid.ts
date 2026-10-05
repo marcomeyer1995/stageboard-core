@@ -33,6 +33,74 @@ interface Knot {
   timeMs: number
 }
 
+/** One stretch between two knots: beat spacing `p0` at its start, `p1` at its end, changing
+ * linearly in between (equal for a constant stretch). */
+interface Stretch {
+  a: Knot
+  b: Knot
+  p0: number
+  p1: number
+}
+
+const MIN_PERIOD = 60000 / MAX_STRETCH_BPM
+const MAX_PERIOD = 60000 / MIN_STRETCH_BPM
+
+/**
+ * Beat spacing per stretch (#354). Constant stretches: the average. A gradual one starts at the
+ * tempo the song arrives with (the previous stretch's end) and changes linearly so that the
+ * stretch still ends exactly on the next point: with spacing p(x) = p0 + (p1 - p0)·x/N over N
+ * beats the length is N·(p0 + p1)/2. A gradual first stretch ends at the following constant
+ * stretch's tempo instead. Where neither neighbour exists, or the result leaves the tempo limits,
+ * it stays constant.
+ */
+function stretchesOf(ks: readonly Knot[], gradual: readonly boolean[]): Stretch[] {
+  const avg = ks.slice(0, -1).map((k, i) => (ks[i + 1]!.timeMs - k.timeMs) / (ks[i + 1]!.beat - k.beat))
+  const out: Stretch[] = []
+  for (let i = 0; i < avg.length; i++) {
+    const a = ks[i]!
+    const b = ks[i + 1]!
+    let p0 = avg[i]!
+    let p1 = avg[i]!
+    if (gradual[i]) {
+      if (i > 0) {
+        p0 = out[i - 1]!.p1
+        p1 = 2 * avg[i]! - p0
+      } else if (i + 1 < avg.length && !gradual[i + 1]) {
+        p1 = avg[i + 1]!
+        p0 = 2 * avg[i]! - p1
+      }
+      const ok = (p: number) => p >= MIN_PERIOD && p <= MAX_PERIOD
+      if (!ok(p0) || !ok(p1)) {
+        p0 = avg[i]!
+        p1 = avg[i]!
+      }
+    }
+    out.push({ a, b, p0, p1 })
+  }
+  return out
+}
+
+/** Song time of beat position `x` beats after the stretch start (may lie outside the stretch:
+ * before it the start spacing, after it the end spacing carries on). */
+function timeInStretch(s: Stretch, beat: number): number {
+  const n = s.b.beat - s.a.beat
+  const x = beat - s.a.beat
+  if (x <= 0) return s.a.timeMs + x * s.p0
+  if (x >= n) return s.b.timeMs + (x - n) * s.p1
+  return s.a.timeMs + s.p0 * x + ((s.p1 - s.p0) * x * x) / (2 * n)
+}
+
+/** Inverse of timeInStretch: the (fractional) beat at song time `timeMs`. */
+function beatInStretch(s: Stretch, timeMs: number): number {
+  const n = s.b.beat - s.a.beat
+  if (timeMs <= s.a.timeMs) return s.a.beat + (timeMs - s.a.timeMs) / s.p0
+  if (timeMs >= s.b.timeMs) return s.b.beat + (timeMs - s.b.timeMs) / s.p1
+  const dt = timeMs - s.a.timeMs
+  const k = (s.p1 - s.p0) / n
+  if (Math.abs(k) < 1e-12) return s.a.beat + dt / s.p0
+  return s.a.beat + (-s.p0 + Math.sqrt(s.p0 * s.p0 + 2 * k * dt)) / k
+}
+
 /** What playback, the editor and the displays read from a grid. */
 export interface ClickTimeline {
   /** Beat number of the first click: -(count-in beats), or 0 without a count-in. */
@@ -99,25 +167,23 @@ export function clickTimeline(opts: { beatGrid?: BeatGrid; bpm: number; timeSign
     }
     return (bar - 1) * runs[0]!.perBar // count-in bars use bar 1's meter
   }
-  const ks: Knot[] = [...grid.points].sort((a, b) => a.bar - b.bar).map((p) => ({ beat: startBeat(p.bar), timeMs: p.timeMs }))
+  const sortedPoints = [...grid.points].sort((a, b) => a.bar - b.bar)
+  const ks: Knot[] = sortedPoints.map((p) => ({ beat: startBeat(p.bar), timeMs: p.timeMs }))
   const nominal = 60000 / opts.bpm
   const rigid = ks.length >= 2
+  const stretches = rigid ? stretchesOf(ks, sortedPoints.map((p) => p.gradual === true)) : []
 
   const time = (beat: number): number => {
     if (!rigid) return ks[0]!.timeMs + (beat - ks[0]!.beat) * nominal
     let i = 0
-    while (i < ks.length - 2 && beat > ks[i + 1]!.beat) i++
-    const a = ks[i]!
-    const b = ks[i + 1]!
-    return a.timeMs + ((beat - a.beat) * (b.timeMs - a.timeMs)) / (b.beat - a.beat)
+    while (i < stretches.length - 1 && beat > stretches[i]!.b.beat) i++
+    return timeInStretch(stretches[i]!, beat)
   }
   const beatOf = (timeMs: number): number => {
     if (!rigid) return ks[0]!.beat + (timeMs - ks[0]!.timeMs) / nominal
     let i = 0
-    while (i < ks.length - 2 && timeMs > ks[i + 1]!.timeMs) i++
-    const a = ks[i]!
-    const b = ks[i + 1]!
-    return a.beat + ((timeMs - a.timeMs) * (b.beat - a.beat)) / (b.timeMs - a.timeMs)
+    while (i < stretches.length - 1 && timeMs > stretches[i]!.b.timeMs) i++
+    return beatInStretch(stretches[i]!, timeMs)
   }
   const countInBeats = Math.max(0, opts.countInBars ?? 0) * runs[0]!.perBar
   // Integer beats computed from the fractional inverse can land a hair below an exact beat time.
@@ -167,18 +233,36 @@ export interface GridStretch {
   toBar: number | null
   fromMs: number
   toMs: number | null
+  /** Average tempo of the stretch. */
   bpm: number
+  /** Tempo at its start and end - differ only for a gradual stretch (#354). */
+  startBpm: number
+  endBpm: number
+  gradual: boolean
 }
 
 /** Tempo of every stretch between two points (one entry with a single point: the variant's bpm). */
 export function gridStretches(grid: BeatGrid, bpm: number, timeSignature: string): GridStretch[] {
   const sorted = [...grid.points].sort((a, b) => a.bar - b.bar)
-  if (sorted.length === 1) return [{ fromBar: sorted[0]!.bar, toBar: null, fromMs: sorted[0]!.timeMs, toMs: null, bpm }]
+  if (sorted.length === 1) return [{ fromBar: sorted[0]!.bar, toBar: null, fromMs: sorted[0]!.timeMs, toMs: null, bpm, startBpm: bpm, endBpm: bpm, gradual: false }]
   const timeline = clickTimeline({ beatGrid: grid, bpm, timeSignature })
   return sorted.slice(0, -1).map((p, i) => {
     const next = sorted[i + 1]!
-    const beats = timeline.barStartBeat(next.bar) - timeline.barStartBeat(p.bar)
-    return { fromBar: p.bar, toBar: next.bar, fromMs: p.timeMs, toMs: next.timeMs, bpm: (60000 * beats) / (next.timeMs - p.timeMs) }
+    const startBeat = timeline.barStartBeat(p.bar)
+    const endBeat = timeline.barStartBeat(next.bar)
+    const beats = endBeat - startBeat
+    const startBpm = 60000 / timeline.periodAfter(startBeat)
+    const endBpm = 60000 / timeline.periodAfter(endBeat - 1)
+    return {
+      fromBar: p.bar,
+      toBar: next.bar,
+      fromMs: p.timeMs,
+      toMs: next.timeMs,
+      bpm: (60000 * beats) / (next.timeMs - p.timeMs),
+      startBpm,
+      endBpm,
+      gradual: p.gradual === true && Math.abs(startBpm - endBpm) > 0.05,
+    }
   })
 }
 
@@ -196,7 +280,8 @@ export function setPoint(grid: BeatGrid, bar: number, timeMs: number, timeSignat
   const t = Math.round(timeMs)
   if (t < 0 || bar < 1) return null
   const existing = grid.points.find((p) => p.bar === bar)
-  const points: GridPoint[] = [...grid.points.filter((p) => p.bar !== bar), { id: existing?.id ?? randomId(), bar, timeMs: t }].sort((a, b) => a.bar - b.bar)
+  // A moved point keeps its other properties (e.g. `gradual`, #354).
+  const points: GridPoint[] = [...grid.points.filter((p) => p.bar !== bar), { ...existing, id: existing?.id ?? randomId(), bar, timeMs: t }].sort((a, b) => a.bar - b.bar)
   const timeline = clickTimeline({ beatGrid: { ...grid, points: points.slice(0, 1) }, bpm: 120, timeSignature })
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!
@@ -345,3 +430,103 @@ export function applySectionTempo(grid: BeatGrid, bpm: number, timeSignature: st
   if (!withTempo) return { kind: 'refused', reason: `${tempo.toFixed(1)} BPM ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}) - dort zuerst die Ausrichtung prüfen.` }
   return { kind: 'grid', grid: withTempo, startBar, endBar, nextBar: next?.bar ?? null }
 }
+
+/** Marks the stretch starting at point `pointId` as gradual (#354) or constant again. */
+export function setGradual(grid: BeatGrid, pointId: string, gradual: boolean): BeatGrid {
+  return {
+    ...grid,
+    points: grid.points.map((p) => {
+      if (p.id !== pointId) return p
+      const plain: GridPoint = { id: p.id, bar: p.bar, timeMs: p.timeMs }
+      return gradual ? { ...plain, gradual: true } : plain
+    }),
+  }
+}
+
+export type TapTrend =
+  | { kind: 'steady'; bpm: number }
+  | { kind: 'gradual'; startBpm: number; endBpm: number }
+  | { kind: 'unsteady'; startBpm: number; endBpm: number }
+
+/**
+ * Whether tapped beats change tempo (#354). Fits tap time = a + b·i + c·i² over the beat index i
+ * (missed taps counted like tempoFromTaps); the beat spacing is then b + 2c·i, so its value at the
+ * first and last tap gives start and end tempo.
+ * - `steady`: start and end differ by less than ~4 % - one tempo, as before.
+ * - `gradual`: a clear change, and the curve explains the taps (residual within tapping jitter).
+ * - `unsteady`: the tempo changes, but not evenly enough for one gradual stretch.
+ */
+export function tempoTrendFromTaps(tapsMs: readonly number[]): TapTrend | null {
+  const steadyBpm = tempoFromTaps(tapsMs)
+  if (steadyBpm === null) return null
+  const taps = [...tapsMs].sort((x, y) => x - y)
+  if (taps.length < 6) return { kind: 'steady', bpm: steadyBpm }
+  const gaps = taps.slice(1).map((t, i) => t - taps[i]!)
+  const median = [...gaps].sort((x, y) => x - y)[Math.floor(gaps.length / 2)]!
+  const idx = [0]
+  for (let i = 1; i < taps.length; i++) idx.push(idx[i - 1]! + Math.max(1, Math.round((taps[i]! - taps[i - 1]!) / median)))
+  // Least squares for t = a + b i + c i^2 (normal equations, centred for stability).
+  const n = taps.length
+  const mi = idx.reduce((s, x) => s + x, 0) / n
+  const mt = taps.reduce((s, x) => s + x, 0) / n
+  let s11 = 0, s12 = 0, s22 = 0, s1y = 0, s2y = 0
+  const xs = idx.map((x) => x - mi)
+  const x2m = xs.reduce((s, x) => s + x * x, 0) / n
+  for (let i = 0; i < n; i++) {
+    const x1 = xs[i]!
+    const x2 = x1 * x1 - x2m
+    const y = taps[i]! - mt
+    s11 += x1 * x1; s12 += x1 * x2; s22 += x2 * x2; s1y += x1 * y; s2y += x2 * y
+  }
+  const det = s11 * s22 - s12 * s12
+  if (Math.abs(det) < 1e-9) return { kind: 'steady', bpm: steadyBpm }
+  const b = (s1y * s22 - s2y * s12) / det
+  const c = (s2y * s11 - s1y * s12) / det
+  const periodAt = (i: number) => b + 2 * c * (i - mi)
+  const p0 = periodAt(idx[0]!)
+  const p1 = periodAt(idx[n - 1]!)
+  if (p0 <= 0 || p1 <= 0) return { kind: 'steady', bpm: steadyBpm }
+  const startBpm = Math.round((60000 / p0) * 10) / 10
+  const endBpm = Math.round((60000 / p1) * 10) / 10
+  if (Math.abs(endBpm - startBpm) / ((startBpm + endBpm) / 2) < 0.04) return { kind: 'steady', bpm: steadyBpm }
+  // Residual of the curve vs. a typical tapping jitter (~30 ms RMS).
+  let sse = 0
+  for (let i = 0; i < n; i++) {
+    const x1 = xs[i]!
+    const fit = mt + b * x1 + c * (x1 * x1 - x2m)
+    sse += (taps[i]! - fit) ** 2
+  }
+  const rms = Math.sqrt(sse / n)
+  return rms <= 35 ? { kind: 'gradual', startBpm, endBpm } : { kind: 'unsteady', startBpm, endBpm }
+}
+
+/**
+ * Applies a tapped ritardando/accelerando (#354): like applySectionTempo the starting bar keeps
+ * its grid position (tap positions arrive late, docs/13 §7); it becomes a gradual point, and the
+ * bar the taps reached gets a point placed so the stretch ends at the tapped end tempo - starting
+ * from the tempo the song arrives with, as every gradual stretch does.
+ */
+export function applySectionRamp(grid: BeatGrid, bpm: number, timeSignature: string, tapsMs: readonly number[], endBpm: number): SectionTempoResult {
+  const timeline = clickTimeline({ beatGrid: grid, bpm, timeSignature })
+  const taps = [...tapsMs].sort((a, b) => a - b)
+  const points = [...grid.points].sort((a, b) => a.bar - b.bar)
+  const startBar = Math.max(1, timeline.barOf(timeline.beatAtOrBefore(taps[0]!)))
+  const next = points.find((p) => p.bar > startBar) ?? null
+  const startBeat = timeline.barStartBeat(startBar)
+  const startMs = timeline.timeOfBeat(startBeat)
+  const p0 = timeline.periodAfter(startBeat - 1)
+  const p1 = 60000 / endBpm
+  const perBar = timeline.barStartBeat(startBar + 1) - startBeat
+  const avg = (p0 + p1) / 2
+  let endBar = startBar + Math.max(1, Math.ceil((taps[taps.length - 1]! - startMs) / avg / perBar))
+  if (next && endBar >= next.bar) endBar = next.bar - 1
+  if (endBar <= startBar) return { kind: 'refused', reason: `Zwischen Takt ${startBar} und dem nächsten Ausrichtungspunkt (Takt ${next?.bar}) ist kein Platz für eine Tempoänderung.` }
+  const beats = timeline.barStartBeat(endBar) - startBeat
+  const endMs = startMs + beats * avg
+  const pinned = setPoint(grid, startBar, startMs, timeSignature)
+  const withEnd = pinned && setPoint(pinned, endBar, Math.round(endMs), timeSignature)
+  if (!withEnd) return { kind: 'refused', reason: `Die Tempoänderung ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}).` }
+  const startPoint = withEnd.points.find((p) => p.bar === startBar)!
+  return { kind: 'grid', grid: setGradual(withEnd, startPoint.id, true), startBar, endBar, nextBar: next?.bar ?? null }
+}
+

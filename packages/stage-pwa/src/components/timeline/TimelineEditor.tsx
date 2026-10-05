@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BeatGrid, ShowCue } from 'shared-types'
-import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { applySectionRamp, applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setGradual, setMeter, setPoint, tempoFromTaps, tempoTrendFromTaps } from '../../lib/beatGrid'
 import { startClick, stopClick } from '../../lib/clickEngine'
 import { describeCue } from '../../lib/deviceCommands'
 import {
@@ -530,7 +530,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       // A label only where it has room - with points a bar or two apart they overlapped; the
       // selected bar line shows its tempo in the selection bar anyway.
       // Stretches starting left of the view share the left edge: only the one still playing there.
-      const allLabels = stretches.length ? stretches : [{ fromMs: timeline.bar1Ms, bpm }]
+      const allLabels = stretches.length ? stretches : [{ fromMs: timeline.bar1Ms, bpm, startBpm: bpm, endBpm: bpm, gradual: false }]
       const firstOnScreen = allLabels.findIndex((st) => timeToX(st.fromMs, view) + 6 >= 4)
       const tempoLabels = allLabels.slice(Math.max(0, (firstOnScreen < 0 ? allLabels.length : firstOnScreen) - 1))
       let lastLabelX = -Infinity
@@ -538,7 +538,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const x = Math.max(4, timeToX(stretch.fromMs, view) + 6)
         if (x > width || x - lastLabelX < 100) continue
         lastLabelX = x
-        label(`${stretch.bpm.toFixed(1)} BPM`, x, 18)
+        label(stretch.gradual ? `${stretch.startBpm.toFixed(0)} → ${stretch.endBpm.toFixed(0)} BPM` : `${stretch.bpm.toFixed(1)} BPM`, x, 18)
       }
     }
 
@@ -931,6 +931,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setNotice('Mindestens 4 Schläge im Takt tippen.')
       return
     }
+    // #354: an even ritardando/accelerando can become a gradual stretch instead of one average.
+    const trend = tempoTrendFromTaps(tapped)
+    if (trend?.kind === 'gradual' && beatGrid && beatGrid.points.length >= 2) {
+      const asRamp = await confirm(
+        `Das Tempo ändert sich beim Tippen gleichmäßig: ${trend.startBpm.toFixed(0)} → ${trend.endBpm.toFixed(0)} BPM. Als gleichmäßige Tempoänderung übernehmen? (Sonst ein Durchschnittstempo von ${tempo.toFixed(1)} BPM.)`,
+        { title: trend.endBpm < trend.startBpm ? 'Ritardando erkannt' : 'Accelerando erkannt', confirmLabel: 'Gleichmäßig übernehmen' },
+      )
+      if (asRamp) {
+        const ramp = applySectionRamp(beatGrid, bpm, timeSignature, tapped, trend.endBpm)
+        if (ramp.kind === 'grid') {
+          setNotice(`Ab Takt ${ramp.startBar}: Tempo ändert sich gleichmäßig bis Takt ${ramp.endBar} auf ${trend.endBpm.toFixed(0)} BPM.`)
+          commitGrid(ramp.grid)
+          setSelection({ kind: 'bar', bar: ramp.startBar })
+          return
+        }
+        if (ramp.kind === 'refused') {
+          setNotice(ramp.reason)
+          return
+        }
+      }
+    }
+    if (trend?.kind === 'unsteady') {
+      setNotice(
+        `Das Tempo ändert sich während des Tippens (${trend.startBpm.toFixed(0)} → ${trend.endBpm.toFixed(0)} BPM), aber nicht gleichmäßig - lieber Takt für Takt ausrichten oder „Track analysieren“.`,
+      )
+    }
     // From the bar where tapping started up to the next alignment point (#329).
     const result = beatGrid ? applySectionTempo(beatGrid, bpm, timeSignature, tapped, tempo) : ({ kind: 'bpm' } as const)
     if (result.kind === 'refused') {
@@ -1086,6 +1112,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // The selection: a bar line (where, point or not, tempo) or a text line (where, what).
   const selectedBarMs = selectedBar !== null ? timeline.timeOfBeat(timeline.barStartBeat(selectedBar)) : null
   const selectedPoint = selectedBar !== null ? shownGrid?.points.find((p) => p.bar === selectedBar) : undefined
+  /** The stretch starting at the selected point (#354: gradual or constant). */
+  const selectedStretch = selectedPoint ? stretches.find((st) => st.fromBar === selectedPoint.bar) : undefined
   const selectedTempo = selectedBar !== null ? 60000 / timeline.periodAfter(timeline.barStartBeat(selectedBar)) : null
   const selectedLineInfo = selectedLine !== null ? lines.find((l) => l.rawIndex === selectedLine) : undefined
   const selectedCue = selectedCueId !== null ? cues.find((c) => c.id === selectedCueId) : undefined
@@ -1369,7 +1397,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
       {selectedBar !== null && selectedBarMs !== null && (
         <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
           <span className="font-semibold">
-            Takt {selectedBar} · {formatTimelineTime(selectedBarMs)} · {selectedTempo!.toFixed(1)} BPM{selectedPoint ? ' · Ausrichtungspunkt' : ''}
+            Takt {selectedBar} · {formatTimelineTime(selectedBarMs)} ·{' '}
+            {selectedStretch?.gradual
+              ? `${selectedStretch.startBpm.toFixed(1)} → ${selectedStretch.endBpm.toFixed(1)} BPM bis Takt ${selectedStretch.toBar}`
+              : `${selectedTempo!.toFixed(1)} BPM`}
+            {selectedPoint ? ' · Ausrichtungspunkt' : ''}
           </span>
           <button type="button" className={button} onClick={() => alignBar(selectedBar, selectedBarMs - 10)}>
             −10 ms
@@ -1383,6 +1415,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
           {selectedPoint && (shownGrid?.points.length ?? 0) > 1 && (
             <button type="button" className={button} onClick={() => commitGrid(removePoint(editableGrid, selectedPoint.id))}>
               Punkt entfernen
+            </button>
+          )}
+          {selectedPoint && selectedStretch && selectedStretch.toBar !== null && (
+            <button
+              type="button"
+              className={toggle(selectedPoint.gradual === true)}
+              aria-pressed={selectedPoint.gradual === true}
+              title="Das Tempo ändert sich bis zum nächsten Ausrichtungspunkt gleichmäßig (Ritardando/Accelerando) statt konstant zu bleiben."
+              onClick={() => commitGrid(setGradual(editableGrid, selectedPoint.id, selectedPoint.gradual !== true))}
+            >
+              Tempo ändert sich gleichmäßig
             </button>
           )}
           {selectedBar >= 2 && (
