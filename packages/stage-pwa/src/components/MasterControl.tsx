@@ -3,6 +3,7 @@ import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
+import type { MasterSelfCheck } from '../lib/masterTakeover'
 
 /**
  * The Master-Token claim, previously reachable only from inside NextSongWidget/
@@ -12,6 +13,22 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * - the same "which setlist is live right now" question Marco wanted visible in the
  * Bibliothek too (LibraryView.tsx/SetlistDetail.tsx's "● Aktiv" badges).
  */
+const SELF_CHECK_LABEL: Record<MasterSelfCheck, string> = {
+  ok: '',
+  'sync-error': 'nicht synchron',
+  offline: 'offline',
+  unconfirmed: 'nicht bestätigt',
+}
+
+const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
+  ok: '',
+  'sync-error':
+    'Sync-Fehler: Dieses Gerät steuert die Show gerade nicht - die anderen sähen es nicht, und vielleicht hat schon ein anderes Gerät übernommen. Unter System → Einstellungen → Synchronisation „Reparieren“.',
+  offline: 'Keine Verbindung zum Stage-Server: Dieses Gerät steuert die Show erst wieder, wenn die Verbindung zurück ist.',
+  unconfirmed:
+    'Der Stage-Server bestätigt dieses Gerät nicht als Master - vermutlich hat ein anderes Gerät übernommen. Dieses Gerät steuert die Show gerade nicht.',
+}
+
 export function MasterControl() {
   const { isMaster, activeSetlist } = useQueue()
   const { status, canClaim, isForce, claim } = useMasterTakeover()
@@ -25,15 +42,31 @@ export function MasterControl() {
     await releaseMaster()
   }
   const masterHolderId = useShowStateStore((state) => state.state.masterHolderId)
+  // The master token lives in the band's synced ShowState doc. With a permanently failed sync
+  // (401/403 - e.g. stale credentials after a band restore) this device only sees its own local
+  // copy: it may still read "Dieses Gerät" while another device took over on the server (#378,
+  // found on the Fire 2026-10-04). Say so instead of presenting it as valid.
+  const holdsToken = useShowStateStore((state) => state.holdsToken)
+  const selfCheck = useShowStateStore((state) => state.selfCheck)
+  // Holds the token by its own copy but fails the self-check (#378 option B): shown as this
+  // device's token, not controllable, with the reason.
+  const unconfirmed = holdsToken && !isMaster
   const masterName = useDeviceName(masterHolderId)
 
   return (
     <div className="flex flex-col gap-2">
-      {isMaster ? (
+      {unconfirmed && (
+        <p role="status" className="text-sm text-amber-500">
+          {SELF_CHECK_HINT[selfCheck]}
+        </p>
+      )}
+      {isMaster || unconfirmed ? (
         <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
           Master-Kontrolle
           <span className="flex items-center gap-3">
-            <span className="text-sm text-accent">Dieses Gerät</span>
+            <span className={`text-sm ${unconfirmed ? 'text-amber-500' : 'text-accent'}`}>
+              {unconfirmed ? `Dieses Gerät - ${SELF_CHECK_LABEL[selfCheck]}` : 'Dieses Gerät'}
+            </span>
             <button
               type="button"
               onClick={release}
@@ -52,7 +85,7 @@ export function MasterControl() {
           title={
             isForce
               ? canClaim
-                ? 'Ein anderes Gerät ist aktiv Master - Force Takeover'
+                ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
                 : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
               : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
           }
@@ -62,7 +95,7 @@ export function MasterControl() {
           <span className="flex items-center gap-2">
             {masterHolderId && <span className="text-sm text-ink-faint">{masterName ?? 'Anderes Gerät'}</span>}
             {status === 'stale' && <span className="text-sm text-amber-500">antwortet nicht</span>}
-            <span className="font-medium text-accent">{isForce ? 'Force Takeover' : 'Übernehmen'}</span>
+            <span className="font-medium text-accent">{isForce ? 'Übernahme erzwingen' : 'Übernehmen'}</span>
           </span>
         </button>
       )}

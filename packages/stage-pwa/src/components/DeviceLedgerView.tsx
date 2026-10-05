@@ -140,7 +140,7 @@ export function DeviceLedgerView() {
                   <button
                     type="button"
                     onClick={() => void toggleRevoked(device)}
-                    className={`rounded-sb-sm px-3 py-1 text-xs font-medium ${
+                    className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
                       device.revoked ? 'bg-control-strong text-accent hover:bg-control-strong-hover' : 'bg-control text-ink-soft hover:bg-control-hover'
                     }`}
                   >
