@@ -11,7 +11,7 @@ import {
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isSongEntry, type Setlist, type Song } from 'shared-types'
+import { isSongEntry, type Setlist, type Song, type SongVariant } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
@@ -29,6 +29,8 @@ import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { NewSetlistDialog } from './NewSetlistDialog'
+import { NewSongWizard } from './NewSongWizard'
+import { putVariant } from '../lib/songVariantsDb'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -380,21 +382,17 @@ export function LibraryView() {
    * editing a setlist that already exists. A brand-new song starts with a title and nothing
    * else; its default variant is created lazily the moment SheetEditor opens it
    * (`ensureDefaultVariant`, same lazy-migration path a pre-variant legacy song already uses). */
-  async function createSong() {
-    const title = await promptText('Neuer Song', { label: 'Titel des neuen Songs' })
-    if (!title?.trim()) return
-    const song: Song = {
-      id: randomId(),
-      title: title.trim(),
-      bpm: 120,
-      timeSignature: '4/4',
-      clickTrackEnabled: false,
-      chordProContent: '',
-      timecodes: [],
-    }
+  // #182: a guided flow (NewSongWizard) instead of a bare title prompt - nothing is written until
+  // its last step.
+  const [creatingSong, setCreatingSong] = useState(false)
+  function createSong() {
+    setCreatingSong(true)
+  }
+  async function finishCreateSong(song: Song, variant: SongVariant) {
+    setCreatingSong(false)
     await saveSong(song)
-    // Straight to edit mode, not the preview - there's nothing to preview yet on a brand-new,
-    // still-empty song.
+    await putVariant(variant)
+    // Straight to edit mode (Text), not the preview - the normal editor, like any other song.
     setSelection({ type: 'song', songId: song.id, variantId: null })
     setSongMode('edit')
   }
@@ -689,6 +687,7 @@ export function LibraryView() {
           </p>
         </div>
       )}
+      {creatingSong && <NewSongWizard onCancel={() => setCreatingSong(false)} onFinish={(song, variant) => void finishCreateSong(song, variant)} />}
     </DndContext>
   )
 }

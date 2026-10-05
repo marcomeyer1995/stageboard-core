@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
 import { useBackHandler } from '../lib/backNavigation'
@@ -33,14 +33,16 @@ interface TabImportOverlayProps {
    * results are for confirming song identity, not for importing (it has no chord/lyric data). */
   onImport: (data: ImportedSongData) => void
   onClose: () => void
+  /** A song title (and artist) already known - prefilled and searched for at once (Marco). */
+  initialQuery?: string
 }
 
 /** docs/08 Use Case 1.1 "Smarter In-App Tab Import": search, preview, then commit to the
  * editor - the user never has to leave the app to find a chord sheet. */
-export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
+export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportOverlayProps) {
   useBackHandler(onClose)
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery?.trim() ?? '')
   const [results, setResults] = useState<LookupResult[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
@@ -50,13 +52,26 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    if (!query.trim()) return
+    await search(query)
+  }
+
+  // A known title is searched for right away - one tap less in the common case.
+  const searchedInitial = useRef(false)
+  useEffect(() => {
+    if (searchedInitial.current || !initialQuery?.trim()) return
+    searchedInitial.current = true
+    void search(initialQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function search(text: string) {
+    if (!text.trim()) return
     setBusy('searching')
     setError(null)
     setResults([])
     setSelectedId(null)
     setDetail(null)
-    const result = await searchLookup(provider, query.trim())
+    const result = await searchLookup(provider, text.trim())
     setBusy(null)
     setSearched(true)
     if (result.status === 'error') {
