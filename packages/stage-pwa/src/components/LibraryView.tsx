@@ -28,6 +28,7 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { NewSetlistDialog } from './NewSetlistDialog'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -356,18 +357,23 @@ export function LibraryView() {
   }, [inputCapability, dialogOpen, focusableItems, focusedIndex, selection, selectSong])
 
 
-  async function createSetlist() {
-    const name = await promptText('Neue Setlist', { label: 'Name der neuen Setlist' })
-    if (!name?.trim()) return
+  // #183: name + optional starting songs in one dialog (NewSetlistDialog).
+  const [creatingSetlist, setCreatingSetlist] = useState(false)
+  function createSetlist() {
+    setCreatingSetlist(true)
+  }
+  function finishCreateSetlist(name: string, songIds: string[]) {
+    setCreatingSetlist(false)
     const setlist: Setlist = {
       id: randomId(),
-      name: name.trim(),
-      entries: [],
+      name,
+      entries: songIds.map((songId) => ({ id: randomId(), songId, variantId: null, trackId: null })),
       createdAt: Date.now(),
     }
     saveSetlist(setlist)
     setSelection({ type: 'setlist', id: setlist.id })
   }
+  const songsAlphabetical = useMemo(() => [...songs].sort((a, b) => a.title.localeCompare(b.title)), [songs])
 
   /** Song creation/deletion moved here from SheetEditor (Marco, explicit request) - the editor
    * is now purely for editing a song that already exists, same as SetlistDetail is purely for
@@ -666,6 +672,10 @@ export function LibraryView() {
           )}
         </div>
       </div>
+
+      {creatingSetlist && (
+        <NewSetlistDialog songs={songsAlphabetical} onCancel={() => setCreatingSetlist(false)} onDone={finishCreateSetlist} />
+      )}
 
       {/* Fixed overlay, not part of either pane's own flow (Marco, explicit request) - it used
           to sit inline above the Setlists/Songs sections, so it shifted that whole list down
