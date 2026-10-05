@@ -16,6 +16,19 @@ const input = { beatGrid: grid, chordProContent: content, cues: [cue('a', 2000),
 const times = (text: string) => timelineLines(text).map((l) => l.timeMs)
 
 describe('rippleShift (#330)', () => {
+  it('a bar line between points (fractional time) becomes a point and moves along (Marco, 2026-10-05)', () => {
+    // Bar 3 halfway between the points at a fractional time - rounded down it used to land just
+    // before the threshold and stay behind.
+    const r = rippleShift(input, 4500.4, 1000, { bar: 3, timeMs: 4500.4 })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.beatGrid!.points.map((p) => [p.bar, p.timeMs])).toEqual([
+      [1, 500],
+      [3, 5500],
+      [5, 9500],
+    ])
+  })
+
   it('moves the whole song by +2 s from 0:00 - grid, lines and cues, distances intact', () => {
     const r = rippleShift(input, 0, 2000)
     expect(r.ok).toBe(true)

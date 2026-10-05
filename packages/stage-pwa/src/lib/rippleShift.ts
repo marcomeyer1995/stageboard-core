@@ -32,21 +32,25 @@ export function rippleShift(
 ): RippleResult {
   const delta = Math.round(deltaMs)
   if (delta === 0) return { ok: false, message: 'Verschiebung 0 ms - nichts zu tun.' }
+  // A bar line between alignment points sits at a fractional time; it becomes a point at the
+  // rounded time below. The threshold must not lie past that point, or the new point stays behind
+  // while everything after it moves (Marco, 2026-10-05).
+  const from = anchorBar ? Math.min(fromMs, Math.round(anchorBar.timeMs)) : fromMs
 
   // Grid points.
   let points = input.beatGrid ? [...input.beatGrid.points] : []
   if (anchorBar && input.beatGrid && !points.some((p) => p.bar === anchorBar.bar)) {
     points = [...points, { id: randomId(), bar: anchorBar.bar, timeMs: Math.round(anchorBar.timeMs) }].sort((a, b) => a.bar - b.bar)
   }
-  const movingPoints = points.filter((p) => p.timeMs >= fromMs)
-  const stayingPoints = points.filter((p) => p.timeMs < fromMs)
+  const movingPoints = points.filter((p) => p.timeMs >= from)
+  const stayingPoints = points.filter((p) => p.timeMs < from)
 
   // Lyric lines with a time.
   const timed = timelineLines(input.chordProContent).filter((l) => l.timeMs !== null) as Array<{ rawIndex: number; timeMs: number; text: string }>
-  const movingLines = timed.filter((l) => l.timeMs >= fromMs)
-  const stayingLines = timed.filter((l) => l.timeMs < fromMs)
+  const movingLines = timed.filter((l) => l.timeMs >= from)
+  const stayingLines = timed.filter((l) => l.timeMs < from)
 
-  const movingCues = input.cues.filter((c) => c.timeMs >= fromMs)
+  const movingCues = input.cues.filter((c) => c.timeMs >= from)
 
   const firstMoving = Math.min(...movingPoints.map((p) => p.timeMs), ...movingLines.map((l) => l.timeMs), ...movingCues.map((c) => c.timeMs))
   if (!Number.isFinite(firstMoving)) return { ok: false, message: 'Ab hier gibt es nichts zu verschieben.' }
@@ -67,11 +71,11 @@ export function rippleShift(
   }
 
   const beatGrid = input.beatGrid
-    ? { ...input.beatGrid, points: points.map((p) => (p.timeMs >= fromMs ? { ...p, timeMs: p.timeMs + delta } : p)) }
+    ? { ...input.beatGrid, points: points.map((p) => (p.timeMs >= from ? { ...p, timeMs: p.timeMs + delta } : p)) }
     : undefined
   const raw = input.chordProContent.split('\n')
   for (const line of movingLines) raw[line.rawIndex] = setLineTimeTag(raw[line.rawIndex], line.timeMs + delta)
-  const cues = input.cues.map((c) => (c.timeMs >= fromMs ? { ...c, timeMs: c.timeMs + delta } : c))
+  const cues = input.cues.map((c) => (c.timeMs >= from ? { ...c, timeMs: c.timeMs + delta } : c))
 
   return {
     ok: true,
