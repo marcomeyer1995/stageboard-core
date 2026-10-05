@@ -65,7 +65,7 @@ export function AudioSyncSettings() {
                   ? `Katalog zu groß für "Komplett" (mehr als ${Math.round(SAFE_QUOTA_FRACTION * 100)}% des verfügbaren Speichers)`
                   : undefined
               }
-              className={`h-10 flex-1 rounded-sb-pill text-sm font-medium disabled:opacity-40 ${
+              className={`h-12 flex-1 rounded-sb-pill text-base font-medium disabled:opacity-40 ${
                 mode === candidate
                   ? 'bg-accent text-accent-ink'
                   : 'bg-control text-ink-soft hover:bg-control-hover'
