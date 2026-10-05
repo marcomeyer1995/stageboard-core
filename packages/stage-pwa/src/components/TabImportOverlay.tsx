@@ -167,6 +167,7 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
                 >
                   <span className="font-medium">{r.title}</span>
                   {r.subtitle && <span className="block text-xs text-ink-faint">{r.subtitle}</span>}
+                  {r.rating !== undefined && <RatingLine rating={r.rating} votes={r.votes} />}
                 </button>
                 {r.sourceUrl && (
                   <button
@@ -273,5 +274,19 @@ export function TabImportOverlay({ onImport, onClose }: TabImportOverlayProps) {
         </button>
       </div>
     </div>
+  )
+}
+
+/** "★ 4,8 · 11.313 Bewertungen" - how much the community trusts this version (results come
+ * best-rated first). */
+function RatingLine({ rating, votes }: { rating: number; votes?: number }) {
+  const stars = rating.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const count = votes !== undefined ? votes.toLocaleString('de-DE') : null
+  return (
+    <span className="mt-0.5 flex items-center gap-1 text-xs" aria-label={`${stars} von 5 Sternen${count ? `, ${count} Bewertungen` : ''}`}>
+      <Icon name="rating" className="fill-current text-amber-400" />
+      <span className="font-semibold">{stars}</span>
+      {count && <span className="opacity-70">· {count} Bewertungen</span>}
+    </span>
   )
 }

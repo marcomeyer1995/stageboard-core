@@ -71,6 +71,20 @@ interface UgSearchResult {
   type?: string
   tonality_name?: string
   tab_url: string
+  /** 0-5 stars and the number of votes behind them (verified live: present on every free version). */
+  rating?: number
+  votes?: number
+}
+
+/** How sure the community is about a version: its stars, pulled towards an average 4.0 while it
+ * has few votes (Bayesian average, weight 50 votes) - 4.86 stars from 406 votes should not beat
+ * 4.81 from 11 313 just by the second decimal. Unrated versions come last. */
+export function ratingScore(rating: number | undefined, votes: number | undefined): number {
+  if (rating === undefined) return -1
+  const v = Math.max(0, votes ?? 0)
+  const PRIOR_VOTES = 50
+  const PRIOR_RATING = 4
+  return (v * rating + PRIOR_VOTES * PRIOR_RATING) / (v + PRIOR_VOTES)
 }
 
 interface UgTabPageData {
@@ -189,8 +203,10 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
         // links offsite) - fetchDetail would only fail on them, so they're excluded upfront
         // rather than left to surface as an error after the user picks one.
         const NOT_IMPORTABLE_TYPES = new Set(['Pro', 'Official', 'Video'])
+        // Best-rated first (Marco): the version the community trusts most is usually the one to take.
         return results
           .filter((r) => typeof r.type === 'string' && r.type.length > 0 && !NOT_IMPORTABLE_TYPES.has(r.type))
+          .sort((a, b) => ratingScore(b.rating, b.votes) - ratingScore(a.rating, a.votes))
           .map(
             (r): LookupResult => ({
               // The plugin is stateless between calls, so fetchDetail needs the full URL
@@ -203,6 +219,8 @@ export function createUltimateGuitarPlugin(): ILookupPlugin {
               title: r.song_name,
               subtitle: [r.artist_name, r.type, r.tonality_name].filter(Boolean).join(' · '),
               sourceUrl: r.tab_url,
+              ...(typeof r.rating === 'number' ? { rating: Math.round(r.rating * 100) / 100 } : {}),
+              ...(typeof r.votes === 'number' ? { votes: r.votes } : {}),
             }),
           )
       })
