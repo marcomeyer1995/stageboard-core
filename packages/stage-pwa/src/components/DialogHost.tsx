@@ -1,12 +1,30 @@
 import { useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { useVisualViewport } from '../lib/useVisualViewport'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
  * every promptText/promptFields/confirm call anywhere in the app shows up here. See
  * useDialogStore.ts for why this replaces window.prompt()/window.confirm().
+ *
+ * Stacking (#375): a dialog is always the answer to something the user just did - often inside
+ * another overlay (the burger menu's "Force Takeover", a widget's or row's ⋯ menu). It therefore
+ * sits above every menu/sheet layer (those use z-40/z-50); only the AudioResumeOverlay (z-60),
+ * which blocks the whole app until audio is unlocked, stays above it.
+ *
+ * Keyboard: a dialog the user types into opens at the top of the screen, where the on-screen
+ * keyboard (which comes from below) can't cover its field or buttons. Centring it in the visual
+ * viewport alone is not enough: Silk/Chrome in fullscreen mode (Fire tablet, GUI check
+ * 2026-10-04) report the full 800 px height with the keyboard open, and the VirtualKeyboard API
+ * reports nothing there either. Where the browser does shrink the visual viewport, the overlay
+ * follows it as well.
  */
+/** Whether the dialog asks for typed input - those open at the top (see DialogHost). */
+function typesText(request: NonNullable<ReturnType<typeof useDialogStore.getState>['request']>): boolean {
+  return request.kind === 'prompt' || request.kind === 'destructive'
+}
+
 export function DialogHost() {
   const request = useDialogStore((state) => state.request)
   const submit = useDialogStore((state) => state.submit)
@@ -15,17 +33,23 @@ export function DialogHost() {
   const cancel = useDialogStore((state) => state.cancel)
   const resolveDestructive = useDialogStore((state) => state.resolveDestructive)
   useBackHandler(request ? cancel : null)
+  const visible = useVisualViewport()
 
   if (!request) return null
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-black/60 p-4"
+      role="presentation"
+      data-testid="dialog-host"
+      className={`fixed inset-x-0 top-0 z-[55] flex h-dvh justify-center overflow-y-auto bg-black/60 p-4 ${
+        typesText(request) ? 'items-start pt-6' : 'items-center'
+      }`}
+      style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
       onKeyDown={(e) => {
         if (e.key === 'Escape') cancel()
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink">
+      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink">
         <h2 className="text-lg font-bold">{request.title}</h2>
 
         {request.kind === 'prompt' && (
@@ -177,7 +201,7 @@ function PromptFields({
 function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge: () => void }) {
   return (
     <div className="space-y-3">
-      {message && <p className="text-sm text-ink-muted">{message}</p>}
+      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
       <div className="flex justify-end pt-2">
         <button
           type="button"
@@ -206,7 +230,7 @@ function ConfirmBody({
 }) {
   return (
     <div className="space-y-3">
-      {message && <p className="text-sm text-ink-muted">{message}</p>}
+      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
