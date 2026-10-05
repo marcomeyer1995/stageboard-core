@@ -57,7 +57,10 @@ export function finalizeSongPlay(
   // boundary, so this doesn't touch the actual playback/cue-timing precision anywhere else
   // (found live, 2026-09-14: a stored fractional activeMs crashed the whole app on load, since
   // useShowLogStore parsed every event with .parse() rather than tolerating one bad one).
-  return { showId, songId: entry.songId, songTitle: entry.songTitle, at: startedAt, endedAt, activeMs: Math.round(activeMs) }
+  // Same for the timestamps: they come from the synced server clock (getServerTime(), fractional)
+  // - stored fractional, the whole event was dropped on every device (found 2026-10-05 via the
+  // Live-Debug-Console, #14).
+  return { showId, songId: entry.songId, songTitle: entry.songTitle, at: Math.round(startedAt), endedAt: Math.round(endedAt), activeMs: Math.round(activeMs) }
 }
 
 export interface CapabilityTransition {
