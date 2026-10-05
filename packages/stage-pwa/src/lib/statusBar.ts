@@ -21,7 +21,7 @@ export interface StatusBarInput {
   playbackStatus: PlaybackStatus
   /** Playing, but still in the count-in bars before the song's first beat. */
   isCountIn: boolean
-  /** Stopped after the last run reached the song's end (see finishedAfterRun). */
+  /** Stopped because the track ran out by itself (shared ShowState.trackEnded, #27). */
   finished: boolean
   /** Gig mode: nobody holds the Master token, so nobody can start the next song. */
   noMaster: boolean
@@ -42,17 +42,6 @@ export function statusBarState(input: StatusBarInput): StatusBarState {
   }
   if (input.playbackStatus === 'paused') return { kind: 'paused', label: 'Pause' }
   return input.finished ? { kind: 'finished', label: 'Beendet' } : { kind: 'ready', label: 'Bereit' }
-}
-
-/** How close to its length a song must have run for a stop to count as "finished", ms - covers
- * the auto-stop at the end and a band that stops on the last chord a moment early, but not a
- * Reset after a false start. */
-export const FINISHED_TOLERANCE_MS = 5000
-
-/** Whether a run that just went from playing to stopped reached the song's end. A song without a
- * known length is never "finished" - the bar simply goes back to "Bereit". */
-export function finishedAfterRun(lastElapsedMs: number | null, durationMs: number | null): boolean {
-  return lastElapsedMs !== null && durationMs !== null && lastElapsedMs >= durationMs - FINISHED_TOLERANCE_MS
 }
 
 /** Full-bar colours per state (Marco: "try the full bar"), each with its own readable text. */
