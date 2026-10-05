@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { useEditBarSlot } from '../lib/useEditBarSlot'
 import {
   ResponsiveGridLayout,
   type Compactor,
@@ -24,6 +22,8 @@ import {
 import { fmtItems, gridLog } from '../lib/gridDebug'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
+import { useEditBarSlot } from '../lib/useEditBarSlot'
+import { createPortal } from 'react-dom'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
