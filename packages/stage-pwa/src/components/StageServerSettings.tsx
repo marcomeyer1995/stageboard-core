@@ -78,7 +78,7 @@ export function StageServerSettings() {
       )}
 
       <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
-        <summary className="cursor-pointer select-none font-medium text-ink-muted">Erweitert: andere Adresse verwenden</summary>
+        <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">Erweitert: andere Adresse verwenden</summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-ink-faint">
             Nur nötig, wenn dieses Gerät die App nicht vom Stage-Server geladen hat. Leer lassen oder die

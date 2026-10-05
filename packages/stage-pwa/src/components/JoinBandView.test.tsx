@@ -55,7 +55,7 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
 
     expect(await screen.findByText('Band C')).toBeInTheDocument()
     expect(screen.getByText('Band D')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
   })
 
   it('shows an empty-state message when the server hosts no bands', async () => {
@@ -84,7 +84,7 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
     render(<JoinBandView />)
     fireEvent.click(await screen.findByText('Band C'))
 
-    expect(await screen.findByPlaceholderText('12345678')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('8-stelliger Code')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Band C' })).toBeInTheDocument()
     expect(fetchRoster).not.toHaveBeenCalled()
   })
@@ -108,33 +108,33 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('New Band'))
   })
 
-  it('the "Passwort direkt eingeben" fallback calls joinWithPassword with the typed id, username and password', () => {
+  it('the "Zugangsdaten manuell eingeben" fallback calls joinWithPassword with the typed id, username and password', () => {
     const joinWithPassword = vi.fn()
     useWorkspaceStore.setState({ joinWithPassword })
 
     render(<JoinBandView />)
-    fireEvent.click(screen.getByText('Passwort direkt eingeben'))
-    fireEvent.change(screen.getByPlaceholderText('Workspace-ID (z.B. band-a)'), { target: { value: 'band-a' } })
-    fireEvent.change(screen.getByPlaceholderText('Benutzername (z.B. stageboard-band-a-p1)'), {
+    fireEvent.click(screen.getByText('Zugangsdaten manuell eingeben'))
+    fireEvent.change(screen.getByPlaceholderText('Band-ID'), { target: { value: 'band-a' } })
+    fireEvent.change(screen.getByPlaceholderText('Benutzername'), {
       target: { value: 'stageboard-band-a-p1' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Passwort/PIN'), { target: { value: 'raw-pw' } })
+    fireEvent.change(screen.getByPlaceholderText('Passwort oder PIN'), { target: { value: 'raw-pw' } })
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
 
     expect(joinWithPassword).toHaveBeenCalledWith('band-a', 'stageboard-band-a-p1', 'raw-pw', false)
   })
 
-  it('the "Passwort direkt eingeben" fallback passes isAdmin true when the checkbox is checked', () => {
+  it('the "Zugangsdaten manuell eingeben" fallback passes isAdmin true when the checkbox is checked', () => {
     const joinWithPassword = vi.fn()
     useWorkspaceStore.setState({ joinWithPassword })
 
     render(<JoinBandView />)
-    fireEvent.click(screen.getByText('Passwort direkt eingeben'))
-    fireEvent.change(screen.getByPlaceholderText('Workspace-ID (z.B. band-a)'), { target: { value: 'band-a' } })
-    fireEvent.change(screen.getByPlaceholderText('Benutzername (z.B. stageboard-band-a-p1)'), {
+    fireEvent.click(screen.getByText('Zugangsdaten manuell eingeben'))
+    fireEvent.change(screen.getByPlaceholderText('Band-ID'), { target: { value: 'band-a' } })
+    fireEvent.change(screen.getByPlaceholderText('Benutzername'), {
       target: { value: 'stageboard-band-a-p1' },
     })
-    fireEvent.change(screen.getByPlaceholderText('Passwort/PIN'), { target: { value: 'raw-pw' } })
+    fireEvent.change(screen.getByPlaceholderText('Passwort oder PIN'), { target: { value: 'raw-pw' } })
     fireEvent.click(screen.getByText('Dies ist ein Admin-Konto'))
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
 
@@ -195,7 +195,7 @@ describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => 
     useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue(workspaceList) })
     render(<JoinBandView />)
     fireEvent.click(await screen.findByText('Band C'))
-    await screen.findByPlaceholderText('12345678')
+    await screen.findByPlaceholderText('8-stelliger Code')
   }
 
   it('submits the typed 8-digit code via fetchRoster, scoped to the picked workspace, and shows the roster picker on success', async () => {
@@ -203,7 +203,7 @@ describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => 
     useWorkspaceStore.setState({ fetchRoster })
     await renderAtCodeEntry()
 
-    fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.change(screen.getByPlaceholderText('8-stelliger Code'), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
 
     await waitFor(() => expect(fetchRoster).toHaveBeenCalledWith('band-c', '12345678'))
@@ -215,7 +215,7 @@ describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => 
 
   it('strips non-digit characters and caps the code at 8 characters', async () => {
     await renderAtCodeEntry()
-    const input = screen.getByPlaceholderText('12345678') as HTMLInputElement
+    const input = screen.getByPlaceholderText('8-stelliger Code') as HTMLInputElement
     fireEvent.change(input, { target: { value: '12-34ab56 78 99' } })
     expect(input.value).toBe('12345678')
   })
@@ -225,12 +225,12 @@ describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => 
     useWorkspaceStore.setState({ fetchRoster })
     await renderAtCodeEntry()
 
-    fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value: '99999999' } })
+    fireEvent.change(screen.getByPlaceholderText('8-stelliger Code'), { target: { value: '99999999' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
 
     await waitFor(() => expect(fetchRoster).toHaveBeenCalled())
     expect(screen.queryByText('Wer bist du?')).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument()
   })
 
   it('"Andere Band wählen" returns to the step 1 workspace list', async () => {
@@ -239,7 +239,7 @@ describe('JoinBandView - step 2: code entry (scoped to the picked band)', () => 
     fireEvent.click(screen.getByText('Andere Band wählen'))
 
     expect(await screen.findByText('Band C')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
   })
 })
 
@@ -251,7 +251,7 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
 
     render(<JoinBandView />)
     fireEvent.click(await screen.findByText('Band C'))
-    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.change(await screen.findByPlaceholderText('8-stelliger Code'), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
     await screen.findByText('Wer bist du?')
 
@@ -285,7 +285,7 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
 
     render(<JoinBandView />)
     fireEvent.click(await screen.findByText('Band C'))
-    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.change(await screen.findByPlaceholderText('8-stelliger Code'), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
     await screen.findByText('Wer bist du?')
 
@@ -356,7 +356,7 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
 
     expect(screen.queryByText('Wer bist du?')).not.toBeInTheDocument()
     expect(await screen.findByText('Band C')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
   })
 
   it('calls onClose after a successful join, when opened voluntarily (#68)', async () => {
@@ -367,7 +367,7 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
 
     render(<JoinBandView onClose={onClose} />)
     fireEvent.click(await screen.findByText('Band C'))
-    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.change(await screen.findByPlaceholderText('8-stelliger Code'), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
     await screen.findByText('Wer bist du?')
 
@@ -384,7 +384,7 @@ describe('JoinBandView - step 3: "wer bist du?" roster picker', () => {
 
     render(<JoinBandView onClose={onClose} />)
     fireEvent.click(await screen.findByText('Band C'))
-    fireEvent.change(await screen.findByPlaceholderText('12345678'), { target: { value: '12345678' } })
+    fireEvent.change(await screen.findByPlaceholderText('8-stelliger Code'), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
     await screen.findByText('Wer bist du?')
 
