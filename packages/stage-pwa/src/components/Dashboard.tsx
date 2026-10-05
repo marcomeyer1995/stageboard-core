@@ -239,14 +239,20 @@ export function Dashboard() {
   // layout derived from an arranged breakpoint instead. Never persisted: only drag/resize in
   // edit mode writes layouts, and edit mode shows the stored layout plus a banner to adopt it.
   // Real cell size of the grid on screen; other breakpoints are judged at their nominal canvas.
+  // Keyed on the numbers, not the `metrics` object: that is a new object on every render, and
+  // the layouts below depend on this - react-grid-layout then got a "new" layout several times a
+  // second and its collision handling moved the widgets around without end (phone, 2026-10-05).
+  const { rowHeight: cellRowHeight, margin: cellMargin, padding: cellPadding } = metrics
   const cellFor = useCallback(
     (name: Breakpoint): CellSize => {
-      if (name === breakpoint && width > 0) return { colWidth: columnWidth(width, metrics), rowHeight: metrics.rowHeight }
+      if (name === breakpoint && width > 0) {
+        return { colWidth: columnWidth(width, { margin: cellMargin, padding: cellPadding }), rowHeight: cellRowHeight }
+      }
       const canvas = BREAKPOINT_CANVAS[name]
       const nominal = gridMetrics(canvas.h)
       return { colWidth: columnWidth(canvas.w, nominal), rowHeight: nominal.rowHeight }
     },
-    [breakpoint, width, metrics],
+    [breakpoint, width, cellRowHeight, cellMargin, cellPadding],
   )
   const layouts = useMemo(() => {
     if (!active) return {}
