@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { discoverServers, pairWithServer, serverFingerprint, shortFingerprint, type FoundServer } from '../lib/native'
+import { discoverServers, pairingConfirmation, pairWithServer, serverFingerprint, type FoundServer } from '../lib/native'
 import { useDialogStore } from '../store/useDialogStore'
 
 /**
@@ -38,7 +38,8 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
       setError(`${server.name} antwortet nicht.`)
       return
     }
-    if (!(await confirm(`Mit ${server.name} (${server.host}) verbinden? Zertifikat: ${shortFingerprint(fingerprint)} – auf dem Admin-Gerät unter „Einladen“ vergleichbar.`, { confirmLabel: 'Verbinden' }))) return
+    const question = pairingConfirmation(server.name, server.host, fingerprint)
+    if (!(await confirm(question.message, { title: question.title, confirmLabel: 'Verbinden' }))) return
     await pairWithServer(server.host, fingerprint)
     onPaired?.()
   }

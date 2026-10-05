@@ -62,7 +62,7 @@ export function OverflowMenu({
   hideTrigger = false,
   triggerSize = 'default',
 }: OverflowMenuProps) {
-  const size = triggerSize === 'touch' ? 'h-touch w-touch' : 'h-10 w-10'
+  const size = triggerSize === 'touch' ? 'h-touch w-touch' : 'h-12 w-12'
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
