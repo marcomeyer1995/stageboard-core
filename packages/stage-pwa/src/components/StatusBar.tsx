@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ScrollOnceText } from './ScrollOnceText'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -22,7 +23,6 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
-import { ScrollOnceText } from './ScrollOnceText'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
