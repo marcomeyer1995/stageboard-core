@@ -472,6 +472,13 @@ describe('"Tempo tippen" for a section (#329)', () => {
 })
 
 describe('tapping a ritardando (#354)', () => {
+  /** Tools sit in the "Werkzeuge" panel on narrow timelines once #385 is in - open it if it's there. */
+  function toolButton(name: string) {
+    const panelToggle = screen.queryByRole('button', { name: 'Werkzeuge' })
+    if (panelToggle && panelToggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(panelToggle)
+    return screen.getByRole('button', { name })
+  }
+
   afterEach(() => {
     trackClock.isPlaying = false
     useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 0 })
@@ -491,7 +498,7 @@ describe('tapping a ritardando (#354)', () => {
     trackClock.isPlaying = true
     const constant: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 30, timeMs: 58000 }], meters: [] }
     const { onChange } = setup({ beatGrid: constant, trackSrc: 'blob:track' })
-    fireEvent.click(screen.getByText('Tempo tippen'))
+    fireEvent.click(toolButton('Tempo tippen'))
     tapRitardando()
     fireEvent.click(screen.getByText('Tippen beenden (16)'))
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
