@@ -54,6 +54,7 @@ import { TunerConfigPanel, TunerWidget, TunerWidgetPreview } from './TunerWidget
 import { TunerConfigSchema } from './tunerConfig'
 import { MetronomeConfigPanel, VisualMetronomeWidget, VisualMetronomeWidgetPreview } from './VisualMetronomeWidget'
 import { MetronomeConfigSchema } from './metronomeConfig'
+import { StageMessengerWidget } from './StageMessengerWidget'
 
 export interface WidgetSize {
   w: number
@@ -398,6 +399,17 @@ const DEFINITIONS: WidgetDefinition[] = [
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,
     Preview: TunerWidgetPreview,
+  }),
+  defineWidget({
+    type: 'stage-messenger',
+    title: 'Stage-Messenger',
+    description: 'Kurze Nachricht groß auf alle Tablets blitzen: „Noch 5 Minuten“, „VAMP“, eigener Text.',
+    category: 'system-crew',
+    stageTier: 'glance',
+    defaultLayout: { w: 6, h: 6, minW: 3, minH: 4 },
+    configSchema: ContentFontSizeConfigSchema,
+    Component: StageMessengerWidget,
+    ConfigPanel: ContentFontSizeConfigPanel,
   }),
   defineWidget({
     type: 'show-notes',

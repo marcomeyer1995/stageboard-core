@@ -37,6 +37,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
+import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
@@ -481,6 +482,19 @@ export async function buildApp() {
 
     presenceStore.setMasterHeartbeat(workspaceId, parsed.data.deviceId)
     return reply.status(204).send()
+  })
+
+  // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
+  // stream like the Ready Check. In memory only - a message is only meaningful for seconds.
+  app.post('/workspaces/:workspaceId/flash', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = FlashReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from)
+    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, remoteAddress: request.ip }, 'Flash message sent')
+    return reply.status(201).send(flash)
   })
 
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened

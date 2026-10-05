@@ -1288,6 +1288,18 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /workspaces/:workspaceId/flash (#26)', () => {
+    it('stores the message, returns it with id and time, and rejects empty text', async () => {
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '  VAMP  ', from: 'Caro' } })
+      expect(response.statusCode).toBe(201)
+      const flash = response.json()
+      expect(flash).toMatchObject({ text: 'VAMP', from: 'Caro' })
+      expect(typeof flash.id).toBe('string')
+      expect(typeof flash.at).toBe('number')
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '   ' } })).statusCode).toBe(400)
+    })
+  })
+
   describe('POST /workspaces/:workspaceId/roster', () => {
     function stubFetch(responses: Array<Partial<Response>>) {
       const fetchMock = vi.fn()
