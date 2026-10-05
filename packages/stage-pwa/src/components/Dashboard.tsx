@@ -25,6 +25,8 @@ import {
 import { fmtItems, gridLog } from '../lib/gridDebug'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
+import { useEditBarSlot } from '../lib/useEditBarSlot'
+import { createPortal } from 'react-dom'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useDashboardsStore } from '../store/useDashboardsStore'
 import { useEditModeStore } from '../store/useEditModeStore'
@@ -108,6 +110,7 @@ export function Dashboard() {
   const updateWidget = useDashboardsStore((state) => state.updateWidget)
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
+  const editBarSlot = useEditBarSlot(isEditing)
   const [containerRef, { width, height }] = useElementSize()
   // Real measurement or nothing: react-grid-layout's own bundled width hook starts every
   // mount with a hard-coded 1280px guess and only corrects a frame later, which on a real
@@ -313,7 +316,10 @@ export function Dashboard() {
 
   return (
     <div className="flex h-full flex-col sb-app-bg">
-      {isEditing && <DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />}
+      {/* In the status bar's place (App renders the slot), not above the grid: the grid keeps
+          exactly its show-mode area, so edit mode shows every widget at its true size without
+          scrolling (#370, Marco's choice A). */}
+      {isEditing && editBarSlot && createPortal(<DashboardEditBar dashboard={active} breakpoint={breakpoint} capabilities={capabilities} />, editBarSlot)}
       {isEditing && current && current.squeezed > 0 && (
         // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
         // true size (#370), so nothing may take height away from the grid.
