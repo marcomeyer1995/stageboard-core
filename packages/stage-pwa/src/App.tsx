@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
@@ -234,7 +235,13 @@ function App() {
 
   return (
     <div className="flex h-dvh flex-col">
-      {showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />}
+      {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
+          dashboard that hides the status bar - so the grid keeps its show-mode size. */}
+      {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
+        <EditBarSlot />
+      ) : (
+        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />
+      )}
       {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
       <div className="relative min-h-0 flex-1">
         {needsJoin && <JoinBandView />}

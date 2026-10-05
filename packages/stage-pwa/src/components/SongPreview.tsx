@@ -61,7 +61,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     // (a flex-col sibling, not a fixed-height container of its own) - h-full would claim 100%
     // of that shared space and overflow by the button's own height whenever it's visible,
     // same "whole page scrolls" bug SetlistDetail had (Marco, explicit report there).
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-2xl font-bold text-ink">{song.title || '(ohne Titel)'}</h2>
@@ -70,7 +70,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         <button
           type="button"
           onClick={onEdit}
-          className="h-10 flex-shrink-0 rounded-sb-sm bg-accent-2 px-4 text-sm font-medium text-accent-ink hover:bg-accent-2-hover"
+          className="h-12 flex-shrink-0 rounded-sb-sm bg-accent-2 px-4 text-base font-medium text-accent-ink hover:bg-accent-2-hover"
         >
           Bearbeiten
         </button>
@@ -84,7 +84,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
           <span
             key={label}
             className={`rounded-sb-sm px-2 py-1 ${
-              count > 0 ? 'bg-accent-2/20 text-accent-ink' : 'bg-control text-ink-faint'
+              count > 0 ? 'bg-accent-2/20 font-semibold text-ink' : 'bg-control text-ink-faint'
             }`}
           >
             {label}
