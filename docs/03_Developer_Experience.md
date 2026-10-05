@@ -106,6 +106,8 @@ WantedBy=default.target
 
 Aufräumen alter Reste, z. B. älter als 30 Tage: `docker run --rm -v stageboard-core_couchdb-data:/data alpine find /data/shards -name '*.deleted.couch' -mtime +30 -delete`. Die Einstellung wirkt erst nach `docker compose up -d couchdb` (Container wird mit dem neuen Mount neu erstellt, kurze Unterbrechung; Daten liegen im Volume).
 
+**Wer eine Band gründen darf (#364):** Die erste Band auf einem frischen Stage-Server darf jedes Gerät anlegen (Einrichtung). Jede weitere nur ein Admin einer Band auf diesem Server (die App schickt dessen Login automatisch mit) - oder eine Anfrage vom Stage-Server-Rechner selbst (localhost oder eine seiner eigenen Adressen, also auch der Browser auf dem Server-Laptop mit der LAN-IP) als Notausgang. Andere Geräte bekommen die Meldung, dass nur ein Band-Admin Bands anlegen kann. Falsche Admin-Logins werden nach 5 Versuchen für einige Minuten gesperrt. IDs gelöschter Bands (`deleted-workspaces.json` in `STAGEBOARD_STATE_DIR`) werden so nie wieder angelegt - eine gelöschte Band kommt nur über die Wiederherstellung unten zurück.
+
 **Noch offen:** Es gibt noch kein automatisches Backup auf ein zweites Medium (#363) - CouchDB-Volume, `~/stageboard-data` und `certs/` liegen auf einer einzigen Platte. Der manuelle Snapshot in der App (System → Backup, `workspaceSnapshot.ts`) enthält weder die Backing-Tracks noch `logical-devices`/`devices`/`device-transport-config`.
 
 ## 0c. Native Android-App (Capacitor, #348)

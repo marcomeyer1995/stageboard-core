@@ -55,6 +55,8 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
+import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
+import { listDbs } from './couch.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -783,14 +785,49 @@ export async function buildApp() {
   // Provisions a brand-new workspace: its database, `_security` doc, roster validation doc, and
   // the founding device's own personal CouchDB account (see per-person-accounts follow-up -
   // every roster member gets their own account, the founder is just the first one, auto-admin).
+  // Who may found a band (#364, Marco 2026-10-05): the first band on a fresh server anyone; every
+  // further one only an admin of a band on this server (or the server machine itself).
+  const adminProofThrottle = createPinThrottle()
+
+  /** An admin login as proof for founding (any band's admin) - locked after 5 wrong tries per
+   * account like the PIN routes, since an admin's anchor password is their 4-digit PIN. */
+  async function isAnyBandAdmin(request: FastifyRequest, username: string, password: string): Promise<boolean> {
+    const key = `admin:${username}`
+    if (adminProofThrottle.lockedForSeconds(key) > 0) return false
+    if (await verifyAdmin(couch, username, password)) {
+      adminProofThrottle.recordSuccess(key)
+      return true
+    }
+    if (adminProofThrottle.recordFailure(key)) app.log.warn({ username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+    return false
+  }
+
   app.post('/workspaces', async (request, reply) => {
     const parsed = WorkspaceProvisionRequestSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
+    const { workspaceId, adminUsername, adminPassword } = parsed.data
+
+    // A deleted band comes back only through the documented CouchDB recovery (docs/03 §0b) -
+    // this route handed its admin account to anyone before (#364, 2026-10-04).
+    if (readDeletedWorkspaces().includes(workspaceId)) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused to provision a deleted band again')
+      return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
+    }
+
+    let proof: 'first-band' | 'server' | 'admin' | null = null
+    if (isLoopback(request.ip)) proof = 'server'
+    else if ((await listDbs(couch)).every((db) => !db.startsWith('stageboard-'))) proof = 'first-band'
+    else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
+    if (!proof) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
+      return reply.status(403).send({ status: 'error', code: 'admin-required', message: 'Only an admin of a band on this server can found another band' })
+    }
 
     try {
-      const credentials = await provisionWorkspace(couch, parsed.data.workspaceId, parsed.data.founderId, parsed.data.workspaceName)
+      const credentials = await provisionWorkspace(couch, workspaceId, parsed.data.founderId, parsed.data.workspaceName)
+      app.log.info({ workspaceId, proof, remoteAddress: request.ip }, 'Band provisioned')
       return reply.status(201).send(credentials)
     } catch (err) {
       if (err instanceof WorkspaceAlreadyProvisionedError) {

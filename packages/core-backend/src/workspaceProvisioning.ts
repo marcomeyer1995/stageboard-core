@@ -16,6 +16,7 @@ import {
   type CouchConfig,
   type CouchDoc,
 } from './couch.js'
+import { recordDeletedWorkspace } from './provisioningAuth.js'
 
 /** Matches `localDbName()`/the CouchDB username convention in stage-pwa's workspaceDb.ts -
  * client and server must derive the same names from a workspaceId independently. */
@@ -404,6 +405,8 @@ export async function deprovisionWorkspace(config: CouchConfig, workspaceId: str
   }).catch(() => [])
 
   await deleteDb(config, db)
+  // Never provisioned again through POST /workspaces (#364).
+  recordDeletedWorkspace(workspaceId)
 
   for (const profile of profiles) {
     const profileId = profile._id.slice(PROFILE_ID_PREFIX.length)
