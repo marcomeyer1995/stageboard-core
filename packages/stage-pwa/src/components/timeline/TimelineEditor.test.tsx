@@ -26,9 +26,12 @@ vi.mock('../../lib/useTrackClock', () => ({
   }),
 }))
 // The in-app confirm dialog answers "yes" right away.
-const dialog = vi.hoisted(() => ({ promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null) }))
+const dialog = vi.hoisted(() => ({
+  promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null),
+  promptText: vi.fn(async (): Promise<string | null> => null),
+}))
 vi.mock('../../store/useDialogStore', () => ({
-  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields }),
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields, promptText: dialog.promptText }),
 }))
 vi.mock('../../store/useProfilesStore', () => ({
   useProfilesStore: (select: (state: object) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }] }),
@@ -545,3 +548,30 @@ describe('snapping switch (#332)', () => {
     expect(useTimelineSnapStore.getState().snapping).toBe(true)
   })
 })
+
+describe('TimelineEditor - shift everything (#330)', () => {
+  it('"Ganzen Song verschieben" moves grid, lines and cues in one change', async () => {
+    dialog.promptText.mockResolvedValueOnce('2')
+    const { onChange } = setup({
+      beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 500 }], meters: [] },
+      content: '[00:01.00]First line\n[00:05.00]Second line',
+      cues: [{ id: 'c1', timeMs: 3000 } as unknown as ShowCue],
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Ganzen Song verschieben…' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    const next = onChange.mock.calls[0][0]
+    expect(next.beatGrid.points[0].timeMs).toBe(2500)
+    expect(next.chordProContent).toMatch(/\[00:03\.00\] ?First line/)
+    expect(next.chordProContent).toMatch(/\[00:07\.00\] ?Second line/)
+    expect(next.cues[0].timeMs).toBe(5000)
+  })
+
+  it('refuses a shift before 0:00 with a message and changes nothing', async () => {
+    dialog.promptText.mockResolvedValueOnce('-5')
+    const { onChange } = setup({ content: '[00:01.00]First line' })
+    fireEvent.click(screen.getByRole('button', { name: 'Ganzen Song verschieben…' }))
+    expect(await screen.findByText(/vor 0:00/)).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+

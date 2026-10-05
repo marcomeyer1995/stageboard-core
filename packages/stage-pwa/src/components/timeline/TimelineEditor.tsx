@@ -24,6 +24,7 @@ import {
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStartLine, timelineLines } from '../../lib/timelineText'
+import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
@@ -216,6 +217,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
+  const promptText = useDialogStore((state) => state.promptText)
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -1121,6 +1123,31 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }
 
+  /** "Alles danach verschieben" (#330): asks for the amount and moves every alignment point, lyric
+   * time and cue from `fromMs` on - one undo step. */
+  async function rippleFrom(fromMs: number, what: string, anchorBar?: { bar: number; timeMs: number }) {
+    const answer = await promptText(`${what} verschieben`, {
+      label: 'Um wie viele Sekunden? (z. B. 2 oder -1,5)',
+      submitLabel: 'Verschieben',
+    })
+    if (answer === null) return
+    const deltaMs = parseShiftSeconds(answer)
+    if (deltaMs === null) {
+      setNotice(`„${answer}“ ist keine Zahl - z. B. 2 oder -1,5 eingeben.`)
+      return
+    }
+    const result = rippleShift({ beatGrid, chordProContent: content, cues }, fromMs, deltaMs, anchorBar)
+    if (!result.ok) {
+      setNotice(result.message)
+      return
+    }
+    commit({ ...current, beatGrid: result.beatGrid, chordProContent: result.chordProContent, cues: result.cues })
+    const { points, lines: movedLines, cues: movedCues } = result.moved
+    setNotice(
+      `Um ${deltaMs > 0 ? '+' : ''}${(deltaMs / 1000).toLocaleString('de-DE')} s verschoben: ${points} Ausrichtungspunkt${points === 1 ? '' : 'e'}, ${movedLines} Zeile${movedLines === 1 ? '' : 'n'}, ${movedCues} Cue${movedCues === 1 ? '' : 's'}. Rückgängig mit ↶.`,
+    )
+  }
+
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
     if (!selectedLineInfo || selectedLineInfo.timeMs === null) return
@@ -1256,6 +1283,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
         </button>
+        <button type="button" className={button} disabled={tapMode !== null} onClick={() => void rippleFrom(0, 'Ganzen Song')}>
+          Ganzen Song verschieben…
+        </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
         </button>
@@ -1390,6 +1420,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Taktart ab hier
             </button>
           )}
+          <button
+            type="button"
+            className={button}
+            disabled={tapMode !== null}
+            onClick={() => void rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}
+          >
+            Alles danach verschieben…
+          </button>
         </div>
       )}
 
@@ -1412,6 +1450,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </button>
           <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
             Zeilen tippen ab hier
+          </button>
+          <button
+            type="button"
+            className={button}
+            disabled={selectedLineInfo.timeMs === null || tapMode !== null}
+            onClick={() => selectedLineInfo.timeMs !== null && void rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}
+          >
+            Alles danach verschieben…
           </button>
         </div>
       )}
