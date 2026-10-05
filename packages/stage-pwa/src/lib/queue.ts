@@ -38,7 +38,8 @@ function currentTransport(state: ShowState): TransportState {
 }
 
 function transportPatch(t: TransportState): Partial<ShowState> {
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs }
+  // Any transport change ends "Beendet" (#27) - only stopSongAtTrackEnd sets it.
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, trackEnded: false }
 }
 
 /** Rearms the current entry: no time accumulated, no active-entry-started marker - what both
@@ -168,6 +169,15 @@ export async function stopSong(): Promise<void> {
   if (!isMaster) return
   finalizeCurrentSong(state, getServerTime())
   await applyPatch(REARM_PATCH)
+}
+
+/** Stop because the track ran out by itself (useAutoStopDriver): like Stop, but leaves the entry
+ * marked "Beendet" for every device (#27). */
+export async function stopSongAtTrackEnd(): Promise<void> {
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
+  if (!isMaster) return
+  finalizeCurrentSong(state, getServerTime())
+  await applyPatch({ ...REARM_PATCH, trackEnded: true })
 }
 
 /** Rearms the current entry without logging anything - an explicit "that didn't count"

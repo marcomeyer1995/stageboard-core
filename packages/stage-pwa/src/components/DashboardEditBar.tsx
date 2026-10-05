@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { DashboardManager } from './DashboardManager'
 import { WidgetLibrary } from './WidgetLibrary'
 import { Icon } from './Icon'
+import { OverflowMenu } from './OverflowMenu'
 
 interface DashboardEditBarProps {
   dashboard: Dashboard
@@ -49,15 +50,19 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
     setShowLibrary(false)
   }
 
+  // One row in the status bar's place (#370): its height is fixed (h-14), so nothing wraps -
+  // the name shortens, and the rare "Zurücksetzen" sits behind ⋯.
   return (
-    <div className="z-20 flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2 text-xs">
-      <span className="font-bold uppercase tracking-widest text-accent">Edit</span>
-      <span className="font-semibold text-ink">{dashboard.name}</span>
+    <div className="flex min-w-0 flex-1 items-center gap-2 px-2 text-sm">
+      <span className="flex-shrink-0 font-bold uppercase tracking-widest text-accent">Edit</span>
+      {/* On a phone there is no room for the name next to the buttons - the menu shows it. */}
+      <span className="hidden min-w-0 flex-1 truncate font-semibold text-ink sm:block">{dashboard.name}</span>
+      <span className="flex-1 sm:hidden" />
 
       <button
         type="button"
         onClick={() => setShowLibrary(true)}
-        className="rounded-sb-sm bg-accent-2 h-touch px-4 font-bold text-accent-ink hover:bg-accent-2-hover"
+        className="h-12 flex-shrink-0 rounded-sb-sm bg-accent-2 px-3 font-bold text-accent-ink hover:bg-accent-2-hover"
       >
         + Widget
       </button>
@@ -65,31 +70,34 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <button
         type="button"
         onClick={() => setShowManager(true)}
-        className="rounded-sb-sm bg-control-strong h-touch px-4 text-ink hover:bg-control-strong-hover"
+        className="h-12 flex-shrink-0 rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover"
       >
-        Dashboards verwalten
+        Dashboards
       </button>
 
-      <button
-        type="button"
-        title="Alle Dashboards verwerfen und die Standard-Layouts neu anlegen"
-        onClick={async () => {
-          if (await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true })) {
-            void resetToDefaults()
-          }
-        }}
-        className="rounded-sb-sm bg-control-strong h-touch px-4 text-ink hover:bg-control-strong-hover"
-      >
-        Zurücksetzen
-      </button>
+      <OverflowMenu
+        title="Bearbeiten"
+        actions={[
+          {
+            label: 'Alle Dashboards zurücksetzen',
+            danger: true,
+            onClick: async () => {
+              if (await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true })) {
+                void resetToDefaults()
+              }
+            },
+          },
+        ]}
+      />
 
       <button
         type="button"
         onClick={() => setEditing(false)}
-        className="ml-auto flex h-touch items-center gap-2 rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover"
+        aria-label="Bearbeiten beenden"
+        className="flex h-12 flex-shrink-0 items-center gap-2 rounded-sb-sm bg-control px-3 text-ink-soft hover:bg-control-hover"
       >
         <Icon name="locked" size="1.25rem" />
-        Bearbeiten beenden
+        <span className="hidden sm:inline">Fertig</span>
       </button>
 
       {showLibrary && (

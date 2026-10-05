@@ -29,6 +29,8 @@ export interface PracticeState {
    * `clickExtendMs` (no Master-Token to gate here, same reasoning `clickTrackOverride` above
    * already documents). */
   clickExtendMs: number
+  /** Practice-mode twin of ShowState.trackEnded (#27). */
+  trackEnded?: boolean
   playbackStatus: PlaybackStatus
   playbackStartedAt: number | null
   playbackAccumulatedMs: number
