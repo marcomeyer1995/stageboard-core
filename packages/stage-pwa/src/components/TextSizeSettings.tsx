@@ -26,7 +26,7 @@ export function TextSizeSettings() {
         step={1}
         value={baseFontSize}
         onChange={(e) => setBaseFontSize(Number(e.target.value))}
-        className="w-full accent-accent"
+        className="h-12 w-full accent-accent"
       />
       <p
         style={{ fontSize: baseFontSize, lineHeight: 1.3 }}
