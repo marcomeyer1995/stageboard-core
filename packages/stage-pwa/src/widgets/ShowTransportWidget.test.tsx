@@ -168,7 +168,7 @@ describe('ShowTransportWidget', () => {
       render(<ShowTransportWidget config={{}} />)
       expect(screen.getByText('00:12')).toBeInTheDocument()
       expect(screen.getByText('Were not gonna take it').parentElement?.className).toContain('hidden')
-      expect((screen.getByText('Play').closest('div') as HTMLElement).parentElement?.className).toContain('items-stretch')
+      expect((screen.getByLabelText('Play').closest('div') as HTMLElement).parentElement?.className).toContain('items-stretch')
     })
 
     it('switches to a 2 x 2 button grid when too narrow for four in a row', () => {

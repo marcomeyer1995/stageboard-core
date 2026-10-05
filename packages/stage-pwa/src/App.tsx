@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
@@ -63,6 +64,7 @@ import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 import { Icon } from './components/Icon'
+import { useMasterSelfCheck } from './lib/useMasterSelfCheck'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -179,8 +181,13 @@ function App() {
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
   // decided yet" nor "explicitly no profile" should show this device as anyone in particular.
   usePresenceReporter(activeWorkspaceId, activeProfileId || undefined)
-  // Master-Token liveness (#32): beats only while this device holds the token.
-  useMasterHeartbeatReporter(activeWorkspaceId, useShowStateStore((state) => state.isMaster))
+  // Master-Token liveness (#32): beats while this device holds the token and its sync works -
+  // not gated on the self-check below, which needs these very beats to confirm itself (#378).
+  useMasterHeartbeatReporter(
+    activeWorkspaceId,
+    useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
+  )
+  useMasterSelfCheck()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not
@@ -241,7 +248,13 @@ function App() {
 
   return (
     <div className="flex h-dvh flex-col">
-      {showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />}
+      {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
+          dashboard that hides the status bar - so the grid keeps its show-mode size. */}
+      {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
+        <EditBarSlot />
+      ) : (
+        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />
+      )}
       {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
       <div className="relative min-h-0 flex-1">
         {needsJoin && <JoinBandView />}

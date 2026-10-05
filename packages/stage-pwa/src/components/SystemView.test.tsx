@@ -127,12 +127,12 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
   function expectSidebar() {
     const bandButton = screen.getByRole('button', { name: 'Band' })
     expect(bandButton.parentElement).toHaveClass('w-56')
-    expect(bandButton.parentElement).not.toHaveClass('overflow-x-auto')
+    expect(bandButton.parentElement).not.toHaveClass('flex-wrap')
   }
 
   function expectStrip() {
     const bandButton = screen.getByRole('button', { name: 'Band' })
-    expect(bandButton.parentElement).toHaveClass('overflow-x-auto')
+    expect(bandButton.parentElement).toHaveClass('flex-wrap')
     expect(bandButton.parentElement).not.toHaveClass('w-56')
   }
 
@@ -142,7 +142,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expectSidebar()
   })
 
-  it('narrow touch: the existing horizontal strip, not the sidebar', () => {
+  it('narrow touch: a wrapping tab strip (no sideways scroll, #373), not the sidebar', () => {
     stubMatchMedia({ pointer: false, wide: false })
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
