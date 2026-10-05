@@ -341,7 +341,7 @@ function ConnectionStep({
         <select
           value={manualTarget}
           onChange={(e) => setManualTarget(e.target.value)}
-          className="h-10 rounded-sb-sm bg-control px-2 text-sm text-ink"
+          className="h-12 rounded-sb-sm bg-control px-3 text-base text-ink"
         >
           <option value="">— nicht festgelegt —</option>
           <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
@@ -359,7 +359,7 @@ function ConnectionStep({
                 setManualTransportId(e.target.value)
                 setManualValues({})
               }}
-              className="h-10 rounded-sb-sm bg-control px-2 text-sm text-ink"
+              className="h-12 rounded-sb-sm bg-control px-3 text-base text-ink"
             >
               <option value="">Anschlussart wählen…</option>
               {plugin.transports.map((t) => (
@@ -388,7 +388,7 @@ function ConnectionStep({
         <button
           type="button"
           onClick={() => void saveManual()}
-          className="h-9 self-start rounded-sb-sm bg-control-strong px-4 text-xs font-medium text-accent hover:bg-control-strong-hover"
+          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover"
         >
           Speichern
         </button>

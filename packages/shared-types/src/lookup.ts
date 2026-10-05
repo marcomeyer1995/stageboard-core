@@ -7,6 +7,9 @@ export const LookupResultSchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().optional(),
   sourceUrl: z.string().optional(),
+  /** Community rating of this version, 0-5 stars (e.g. Ultimate Guitar), and how many voted. */
+  rating: z.number().min(0).max(5).optional(),
+  votes: z.number().int().nonnegative().optional(),
 })
 export type LookupResult = z.infer<typeof LookupResultSchema>
 

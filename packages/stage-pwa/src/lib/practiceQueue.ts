@@ -59,7 +59,7 @@ function currentTransport(state: PracticeState): TransportState {
 }
 
 function transportPatch(t: TransportState): Partial<PracticeState> {
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs }
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, trackEnded: false }
 }
 
 /** Cancels a pending deferred audio start (see `practicePlaySong` below) - every action that can
@@ -152,6 +152,13 @@ export function practiceEndLoop(positionMs: number): void {
 export async function practiceStopSong(): Promise<void> {
   clearScheduledAudioStart()
   patch(transportPatch(ARMED_TRANSPORT))
+  stopLocalTrack()
+}
+
+/** Practice-mode twin of stopSongAtTrackEnd (#27). */
+export async function practiceStopSongAtTrackEnd(): Promise<void> {
+  clearScheduledAudioStart()
+  patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: true })
   stopLocalTrack()
 }
 

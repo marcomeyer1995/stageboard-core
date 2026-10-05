@@ -26,7 +26,7 @@ import { useShowMode } from './showMode'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, canControl, clickExtendMs, stop, next, play, queue, trackOverride } = useShowMode()
+  const { elapsedMs, playbackStatus, canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
   const { currentEntry, currentVariant, nextEntry } = queue
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`
@@ -56,14 +56,14 @@ export function useAutoStopDriver(): void {
     handledForRunRef.current = true
     const action = resolveTrackEndAction(currentEntry, nextEntry)
     if (action.kind === 'stop') {
-      void stop()
+      void stopAtTrackEnd()
       return
     }
     if (action.kind === 'start-next' && nextEntry) {
       pendingStartRef.current = { entryId: nextEntry.id, skipCountIn: action.skipCountIn, delayMs: action.delayMs }
     }
     void next()
-  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stop, next, currentEntry, currentVariant, trackOverride, nextEntry])
+  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stopAtTrackEnd, next, currentEntry, currentVariant, trackOverride, nextEntry])
 
   const currentEntryId = currentEntry?.id ?? null
   useEffect(() => {

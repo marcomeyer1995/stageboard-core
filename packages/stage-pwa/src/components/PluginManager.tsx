@@ -53,7 +53,7 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void setEnabled(plugin.id, !plugin.enabled)}
-              className={`rounded-sb-sm px-3 py-1 text-xs font-medium ${
+              className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
                 plugin.enabled
                   ? 'bg-accent text-accent-ink hover:bg-accent-hover'
                   : 'bg-control-strong text-ink hover:bg-control-strong-hover'
@@ -64,7 +64,7 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}
-              className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+              className="ml-2 min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -93,7 +93,7 @@ export function PluginManager() {
               onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }
-              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-medium text-ink hover:bg-control-strong-hover"
+              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
             >
               Installieren
             </button>

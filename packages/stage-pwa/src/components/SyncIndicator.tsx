@@ -72,7 +72,7 @@ export function SyncIndicator() {
         <button
           type="button"
           onClick={() => void repair()}
-          className="h-10 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
+          className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
         >
           Reparieren
         </button>

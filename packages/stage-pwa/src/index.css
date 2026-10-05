@@ -64,14 +64,15 @@
   --sb-ink-soft: 63 63 70;
   --sb-ink-muted: 82 82 91;
   --sb-ink-faint: 99 99 107;
-  /* Darker amber: the dark-mode accent has too little contrast on a light surface. */
-  --sb-accent: 180 83 9;
-  --sb-accent-hover: 217 119 6;
-  /* White reads better than black on this darker amber-700 fill (WCAG contrast ~5.8:1
-     vs ~3.6:1). */
+  /* Dark amber (orange-800): the dark-mode accent has too little contrast on a light surface.
+     amber-700 (180 83 9) was still only 3.4:1 as text on the light control background (GUI
+     check 2026-10-04, #374); orange-800 reaches 4.9:1 there, 7.3:1 on white. */
+  --sb-accent: 154 52 18;
+  --sb-accent-hover: 180 83 9;
+  /* White on this fill: 7.3:1 (black would be ~2.9:1). */
   --sb-accent-ink: 255 255 255;
-  --sb-accent-2: 180 83 9;
-  --sb-accent-2-hover: 217 119 6;
+  --sb-accent-2: 154 52 18;
+  --sb-accent-2-hover: 180 83 9;
   --sb-line: rgba(0, 0, 0, 0.08);
 }
 
