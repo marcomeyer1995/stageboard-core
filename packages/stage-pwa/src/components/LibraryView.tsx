@@ -184,7 +184,7 @@ function DraggableSongRow({
         <button
           type="button"
           onClick={onClick}
-          className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base"
+          className="min-h-12 min-w-0 flex-1 truncate px-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
@@ -195,7 +195,7 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
           >
             +
           </button>
@@ -507,7 +507,7 @@ export function LibraryView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Songs & Setlists durchsuchen…"
-            className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink"
+            className="h-12 flex-shrink-0 rounded-sb-sm bg-control px-4 text-base text-ink"
           />
 
           <div className="flex gap-2">
@@ -516,7 +516,7 @@ export function LibraryView() {
                 key={mode}
                 type="button"
                 onClick={() => setFilterMode(mode)}
-                className={`h-10 flex-1 rounded-sb-pill text-sm font-medium ${
+                className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${
                   filterMode === mode
                     ? 'bg-accent text-accent-ink'
                     : 'bg-control text-ink-soft hover:bg-control-hover'
@@ -536,7 +536,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={createSetlist}
-                  className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs hover:bg-control-strong-hover"
+                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -594,7 +594,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={() => void createSong()}
-                  className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs hover:bg-control-strong-hover"
+                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -634,7 +634,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
@@ -652,7 +652,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >

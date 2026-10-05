@@ -7,7 +7,7 @@ export function MasterTakeoverButton({ className }: { className: string }) {
   const { status, canClaim, isForce, claim } = useMasterTakeover()
   const title = isForce
     ? canClaim
-      ? 'Ein anderes Gerät ist aktiv Master - Force Takeover'
+      ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
       : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
     : status === 'stale'
       ? 'Das Master-Gerät antwortet nicht mehr'
@@ -15,7 +15,7 @@ export function MasterTakeoverButton({ className }: { className: string }) {
 
   return (
     <button type="button" onClick={claim} disabled={!canClaim} title={title} className={`${className} disabled:cursor-not-allowed disabled:opacity-40`}>
-      {isForce ? 'Force Takeover' : 'Master übernehmen'}
+      {isForce ? 'Übernahme erzwingen' : 'Master übernehmen'}
     </button>
   )
 }

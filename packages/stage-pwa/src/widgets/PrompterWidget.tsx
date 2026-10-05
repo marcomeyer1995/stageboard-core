@@ -23,6 +23,7 @@ import {
   type PrompterConfig,
 } from './prompterConfig'
 import { stageFontSize } from '../lib/stageSize'
+import { PROMPTER_SCROLL_EVENT, type PrompterScrollDetail } from '../lib/keybindings'
 
 export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // The one anchor size - every other element below is a ratio of this, not its own
@@ -110,6 +111,18 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]
+
+  // Foot switch (#27): page the lyrics up/down by most of a screen.
+  useEffect(() => {
+    const onScroll = (event: Event) => {
+      const container = containerRef.current
+      if (!container) return
+      const { direction } = (event as CustomEvent<PrompterScrollDetail>).detail
+      container.scrollBy({ top: direction * container.clientHeight * 0.8, behavior: 'smooth' })
+    }
+    window.addEventListener(PROMPTER_SCROLL_EVENT, onScroll)
+    return () => window.removeEventListener(PROMPTER_SCROLL_EVENT, onScroll)
+  }, [])
 
   useEffect(() => {
     if (config.viewMode !== 'scroll') return
