@@ -61,6 +61,7 @@ import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 import { Icon } from './components/Icon'
+import { useMasterSelfCheck } from './lib/useMasterSelfCheck'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -173,8 +174,13 @@ function App() {
   // '' vs undefined distinction (useActiveProfileStore.ts's doc comment) - neither "never
   // decided yet" nor "explicitly no profile" should show this device as anyone in particular.
   usePresenceReporter(activeWorkspaceId, activeProfileId || undefined)
-  // Master-Token liveness (#32): beats only while this device holds the token.
-  useMasterHeartbeatReporter(activeWorkspaceId, useShowStateStore((state) => state.isMaster))
+  // Master-Token liveness (#32): beats while this device holds the token and its sync works -
+  // not gated on the self-check below, which needs these very beats to confirm itself (#378).
+  useMasterHeartbeatReporter(
+    activeWorkspaceId,
+    useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
+  )
+  useMasterSelfCheck()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not

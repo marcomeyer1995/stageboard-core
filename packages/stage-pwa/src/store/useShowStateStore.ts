@@ -4,6 +4,7 @@ import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
+import type { MasterSelfCheck } from '../lib/masterTakeover'
 
 interface ShowStateStore {
   state: ShowState
@@ -12,7 +13,14 @@ interface ShowStateStore {
    * device is currently online" must mean the same device, not two coincidentally-similar
    * ones (found live, 2026-09-04, while scoping the DeviceRegistry slice of #10). */
   deviceId: string
+  /** The replicated token names this device (`state.masterHolderId === deviceId`). */
+  holdsToken: boolean
+  /** Result of the holder's self-check (#378 option B, set by useMasterSelfCheck). */
+  selfCheck: MasterSelfCheck
+  /** May act as master right now: holds the token AND passes the self-check. Every master-gated
+   * write and control checks this. */
   isMaster: boolean
+  setSelfCheck: (check: MasterSelfCheck) => void
   init: (workspaceId: string) => Promise<void>
   /** Claims (or re-claims, e.g. "Take Over" after a crashed master) the token for this tablet. */
   claimMaster: () => Promise<void>
@@ -33,37 +41,48 @@ interface ShowStateStore {
 
 let changesHandle: LocalChangesHandle<ShowState> | null = null
 
+function mastership(holdsToken: boolean, selfCheck: MasterSelfCheck): { holdsToken: boolean; isMaster: boolean } {
+  return { holdsToken, isMaster: holdsToken && selfCheck === 'ok' }
+}
+
 export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   state: DEFAULT_SHOW_STATE,
   deviceId: getDeviceId(),
+  holdsToken: false,
+  selfCheck: 'ok',
   isMaster: false,
+  setSelfCheck: (check) => {
+    if (check === get().selfCheck) return
+    set({ selfCheck: check, isMaster: get().holdsToken && check === 'ok' })
+  },
   init: async (workspaceId) => {
     changesHandle?.cancel()
     changesHandle = null
     switchShowStateWorkspace(workspaceId)
-    set({ state: DEFAULT_SHOW_STATE, isMaster: false })
+    set({ state: DEFAULT_SHOW_STATE, holdsToken: false, isMaster: false })
 
     const state = await getShowState()
-    set({ state, isMaster: state.masterHolderId === get().deviceId })
+    set({ state, ...mastership(state.masterHolderId === get().deviceId, get().selfCheck) })
 
     changesHandle = showStateChanges()
     changesHandle.on('change', async () => {
       const fresh = await getShowState()
-      set({ state: fresh, isMaster: fresh.masterHolderId === get().deviceId })
+      set({ state: fresh, ...mastership(fresh.masterHolderId === get().deviceId, get().selfCheck) })
     })
   },
   claimMaster: async () => {
     const { deviceId } = get()
     await putShowState({ masterHolderId: deviceId, masterClaimedAt: Date.now() })
     const fresh = await getShowState()
-    set({ state: fresh, isMaster: fresh.masterHolderId === deviceId })
+    set({ state: fresh, ...mastership(fresh.masterHolderId === deviceId, get().selfCheck) })
   },
   releaseMaster: async () => {
-    const { deviceId, isMaster } = get()
-    if (!isMaster) return
+    const { deviceId, holdsToken } = get()
+    // Handing back works even while the self-check fails - giving the token up is always safe.
+    if (!holdsToken) return
     await putShowState({ masterHolderId: null, masterClaimedAt: null })
     const fresh = await getShowState()
-    set({ state: fresh, isMaster: fresh.masterHolderId === deviceId })
+    set({ state: fresh, ...mastership(fresh.masterHolderId === deviceId, get().selfCheck) })
   },
   startReadyCheck: async () => {
     if (!get().isMaster) return
