@@ -129,6 +129,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   useEffect(() => stopCamera, [])
 
+  // The server already hosts a band (#364): founding another needs an admin login this device
+  // doesn't have yet.
+  const workspacesExist = !!workspaces && workspaces.length > 0
+
   async function loadWorkspaces() {
     setLoadingWorkspaces(true)
     const result = await listWorkspaces()
@@ -542,16 +546,26 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <div className="h-px flex-1 bg-line" />
         </div>
 
-        <button
-          type="button"
-          onClick={async () => {
-            const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
-            if (name?.trim()) void addWorkspace(name.trim())
-          }}
-          className="w-full rounded-sb border border-line bg-surface px-4 py-3 font-semibold text-ink-soft hover:bg-control-hover"
-        >
-          Neue Band gründen
-        </button>
+        {/* #364: once the server has a band, only an admin of one can found another - a device on
+            this screen has no admin login, so offering it here could only fail. The first band
+            on a fresh server (or a band without any server) is still founded here. */}
+        {workspacesExist ? (
+          <p className="rounded-sb border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+            Weitere Bands legt ein Band-Admin an: System → Band → „+ Band“. Danach lädt er dich ein.
+          </p>
+        ) : (
+          <button
+            type="button"
+            disabled={loadingWorkspaces}
+            onClick={async () => {
+              const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
+              if (name?.trim()) void addWorkspace(name.trim())
+            }}
+            className="w-full rounded-sb border border-line bg-surface px-4 py-3 font-semibold text-ink-soft hover:bg-control-hover disabled:opacity-40"
+          >
+            Neue Band gründen
+          </button>
+        )}
 
         <div>
           <button

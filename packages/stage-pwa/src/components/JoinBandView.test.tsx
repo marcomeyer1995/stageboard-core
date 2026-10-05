@@ -95,9 +95,17 @@ describe('JoinBandView - step 1: workspace list (landing, no code needed)', () =
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('New Band') })
 
     render(<JoinBandView />)
+    await waitFor(() => expect(screen.getByText('Neue Band gründen')).toBeEnabled())
     fireEvent.click(screen.getByText('Neue Band gründen'))
 
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('New Band'))
+  })
+
+  it('once the server has a band, founding is not offered here - only an admin can (#364)', async () => {
+    useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'a', workspaceName: 'SOAT' }]) })
+    render(<JoinBandView />)
+    expect(await screen.findByText(/Weitere Bands legt ein Band-Admin an/)).toBeInTheDocument()
+    expect(screen.queryByText('Neue Band gründen')).not.toBeInTheDocument()
   })
 
   it('the "Passwort direkt eingeben" fallback calls joinWithPassword with the typed id, username and password', () => {
