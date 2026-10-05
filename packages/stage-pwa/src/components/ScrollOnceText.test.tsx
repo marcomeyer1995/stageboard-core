@@ -6,7 +6,7 @@ function fakeLayout(scrollWidth: number, clientWidth: number) {
   vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(scrollWidth)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(clientWidth)
   const animation = { onfinish: null as null | (() => void), cancel: vi.fn() }
-  const animate = vi.fn(() => animation)
+  const animate = vi.fn<(frames: Keyframe[], options?: KeyframeAnimationOptions) => typeof animation>(() => animation)
   Object.defineProperty(HTMLElement.prototype, 'animate', { value: animate, configurable: true })
   return { animate, animation }
 }
