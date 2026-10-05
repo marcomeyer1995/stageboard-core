@@ -949,7 +949,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={() => setMobileTab('text')}
-              className={`h-12 flex-grow rounded-sb-pill px-4 text-sm font-medium ${
+              className={`h-12 flex-grow rounded-sb-pill px-4 text-base font-medium ${
                 mobileTab === 'text' ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
               }`}
             >
@@ -960,7 +960,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 key={section.key}
                 type="button"
                 onClick={() => setMobileTab(section.key)}
-                className={`h-12 flex-grow rounded-sb-pill px-4 text-sm font-medium ${
+                className={`h-12 flex-grow rounded-sb-pill px-4 text-base font-medium ${
                   mobileTab === section.key
                     ? 'bg-accent text-accent-ink'
                     : 'bg-control text-ink-soft hover:bg-control-hover'
