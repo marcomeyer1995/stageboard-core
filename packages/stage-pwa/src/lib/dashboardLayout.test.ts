@@ -24,6 +24,9 @@ import {
   toggleDashboardMode,
   withWidgetAppended,
   withWidgetRemoved,
+  pixelMinimum,
+  stackLayout,
+  type MinSize,
 } from './dashboardLayout'
 import { defaultDashboards } from './defaultDashboards'
 import type { CapabilityStatus } from './capabilities'
@@ -753,3 +756,72 @@ describe('belowMinimumItems (edit-mode outline)', () => {
     expect(belowMinimumItems([{ i: 'x', x: 0, y: 0, w: 1, h: 1 }], () => undefined)).toEqual([])
   })
 })
+
+describe('pixelMinimum (#369: minimums need a pixel floor)', () => {
+  it('leaves a landscape tablet unchanged - its columns are already wider than the floor', () => {
+    expect(pixelMinimum({ minW: 3, minH: 6, w: 12, h: 16 }, 105, 28)).toEqual({ minW: 3, minH: 6, w: 12, h: 16 })
+  })
+
+  it('raises the minimum on a phone, where a column is ~30 px', () => {
+    // Prompter: minW 3 is 3 x 90 = 270 px -> 10 columns of 29 px.
+    expect(pixelMinimum({ minW: 3, minH: 6, w: 12, h: 16 }, 29, 28).minW).toBe(10)
+    // A small widget (minW 2) becomes half the phone width, not 58 px.
+    expect(pixelMinimum({ minW: 2, minH: 2, w: 3, h: 3 }, 29, 28)).toEqual({ minW: 7, minH: 2, w: 7, h: 3 })
+  })
+
+  it('never asks for more than the whole grid', () => {
+    const min = pixelMinimum({ minW: 6, minH: 12 }, 20, 10)
+    expect(min.minW).toBe(GRID_COLUMNS)
+    expect(min.minH).toBe(GRID_ROWS)
+  })
+
+  it('a phone layout with a 2-column prompter gets repaired instead of shown as is', () => {
+    const phoneCell = { colWidth: 29, rowHeight: 28 }
+    const registry: Record<string, MinSize> = {
+      prompter: { minW: 3, minH: 6, w: 12, h: 16 },
+      queue: { minW: 3, minH: 4, w: 4, h: 12 },
+    }
+    const minFor = (id: string) => pixelMinimum(registry[id], phoneCell.colWidth, phoneCell.rowHeight)
+    // As found on Marco's phone: prompter squeezed into the right-hand 2 columns.
+    const stored = [
+      { i: 'queue', x: 0, y: 0, w: 10, h: 10 },
+      { i: 'prompter', x: 10, y: 0, w: 2, h: 18 },
+    ]
+    const shown = displayLayout({ sm: stored }, 'sm', minFor)
+    const prompter = shown.items.find((item) => item.i === 'prompter')!
+    expect(shown.source).not.toBe('stored')
+    expect(prompter.w).toBeGreaterThanOrEqual(10)
+  })
+
+  it('stacks everything full width when no arrangement fits (seven widgets on a phone)', () => {
+    const phone = (min: MinSize) => pixelMinimum(min, 29, 28)
+    const registry: Record<string, MinSize> = {
+      loop: { minW: 3, minH: 4, w: 5, h: 8 },
+      queue: { minW: 3, minH: 4, w: 4, h: 12 },
+      transport: { minW: 4, minH: 3, w: 6, h: 4 },
+      next: { minW: 4, minH: 3, w: 7, h: 3 },
+      click: { minW: 2, minH: 2, w: 3, h: 3 },
+      prompter: { minW: 3, minH: 6, w: 12, h: 16 },
+      track: { minW: 2, minH: 2, w: 4, h: 3 },
+    }
+    const minFor = (id: string) => phone(registry[id])
+    // Roughly what the phone had stored: two big widgets on the left, five slivers on the right.
+    const stored = [
+      { i: 'loop', x: 0, y: 0, w: 8, h: 9 },
+      { i: 'queue', x: 0, y: 9, w: 9, h: 9 },
+      { i: 'transport', x: 0, y: 18, w: 8, h: 6 },
+      { i: 'next', x: 8, y: 0, w: 4, h: 3 },
+      { i: 'click', x: 9, y: 3, w: 3, h: 3 },
+      { i: 'prompter', x: 10, y: 6, w: 2, h: 16 },
+      { i: 'track', x: 9, y: 22, w: 3, h: 2 },
+    ]
+    const shown = displayLayout({ sm: stored }, 'sm', minFor)
+    expect(shown.source).toBe('stacked')
+    expect(shown.items.every((item) => item.w === GRID_COLUMNS)).toBe(true)
+    expect(shown.items.reduce((sum, item) => sum + item.h, 0)).toBeLessThanOrEqual(GRID_ROWS)
+    expect(hasOverlap(shown.items)).toBe(false)
+    expect(squeezedItems(shown.items, minFor)).toHaveLength(0)
+    expect(stackLayout([], minFor)).toEqual([])
+  })
+})
+

@@ -16,6 +16,7 @@ import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 import { stageFontSize } from '../lib/stageSize'
 import { lineHeightFor, READOUT_MIN, transportLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
+import { Icon } from '../components/Icon'
 
 /** A negative `ms` (#25 follow-up: counting in before the backing track's own audio starts,
  * elapsedMs 0) is a real, intended state - shown as a visible negative countdown up through
@@ -146,7 +147,11 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          <span style={{ fontSize: buttonFontSize }}>Play</span>
+          {layout.iconButtons ? (
+            <Icon name="play" size="1.6em" label="Play" className="mx-auto" />
+          ) : (
+            <span style={{ fontSize: buttonFontSize }}>Play</span>
+          )}
         </button>
         <button
           type="button"
@@ -160,7 +165,11 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
               : 'bg-control-strong text-ink hover:bg-control-strong-hover'
           }`}
         >
-          <span style={{ fontSize: buttonFontSize }}>Pause</span>
+          {layout.iconButtons ? (
+            <Icon name="pause" size="1.6em" label="Pause" className="mx-auto" />
+          ) : (
+            <span style={{ fontSize: buttonFontSize }}>Pause</span>
+          )}
         </button>
         <button
           type="button"
@@ -170,14 +179,22 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           }}
           className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          <span style={{ fontSize: buttonFontSize }}>Stop</span>
+          {layout.iconButtons ? (
+            <Icon name="stop" size="1.6em" label="Stop" className="mx-auto" />
+          ) : (
+            <span style={{ fontSize: buttonFontSize }}>Stop</span>
+          )}
         </button>
         <button
           type="button"
           onClick={() => void reset()}
           className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
         >
-          <span style={{ fontSize: buttonFontSize }}>Reset</span>
+          {layout.iconButtons ? (
+            <Icon name="reset" size="1.6em" label="Reset" className="mx-auto" />
+          ) : (
+            <span style={{ fontSize: buttonFontSize }}>Reset</span>
+          )}
         </button>
       </div>
       {layout.showHelper && remoteDeviceOutput && <p className="flex-none text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}

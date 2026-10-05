@@ -43,7 +43,7 @@ function enterPin(value: string) {
   fireEvent.click(screen.getByText('Bestätigen'))
 }
 function enterCode(value: string) {
-  fireEvent.change(screen.getByPlaceholderText('12345678'), { target: { value } })
+  fireEvent.change(screen.getByPlaceholderText('8-stelliger Code'), { target: { value } })
   fireEvent.click(screen.getByText('Weiter'))
 }
 
@@ -77,7 +77,7 @@ describe('SwitchServerBandWizard', () => {
       render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       expect(screen.getByText('PIN des angemeldeten Admins eingeben.')).toBeInTheDocument()
-      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
       expect(screen.queryByText('Admin band-a')).not.toBeInTheDocument()
 
       enterPin('1111')
@@ -115,7 +115,7 @@ describe('SwitchServerBandWizard', () => {
       render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
-      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
       fireEvent.click(screen.getByText('Admin band-a'))
       enterPin('1111')
 
@@ -131,7 +131,7 @@ describe('SwitchServerBandWizard', () => {
       fetchActiveWorkspaceAdmins.mockResolvedValue(null)
       render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={vi.fn()} />)
 
-      await waitFor(() => expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument())
       enterCode('11112222')
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
       expect(screen.queryByText('Member band-a')).not.toBeInTheDocument()
@@ -143,7 +143,7 @@ describe('SwitchServerBandWizard', () => {
       fireEvent.click(screen.getByText('Anderer Admin wählen'))
 
       await waitFor(() => expect(screen.getByText('Admin band-a')).toBeInTheDocument())
-      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
     })
   })
 
@@ -175,7 +175,7 @@ describe('SwitchServerBandWizard', () => {
       await reachBandList()
 
       fireEvent.click(screen.getByText('SOAT'))
-      await waitFor(() => expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument())
       enterCode('99512679')
       await waitFor(() => expect(screen.getByText('Admin band-b')).toBeInTheDocument())
       expect(screen.queryByText('Member band-b')).not.toBeInTheDocument()
@@ -204,7 +204,7 @@ describe('SwitchServerBandWizard', () => {
 
       fireEvent.click(screen.getByText('SOAT'))
       await waitFor(() => expect(screen.getByText('Admin band-b')).toBeInTheDocument())
-      expect(screen.queryByPlaceholderText('12345678')).not.toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('8-stelliger Code')).not.toBeInTheDocument()
       fireEvent.click(screen.getByText('Admin band-b'))
       enterPin('2222')
 
@@ -241,7 +241,7 @@ describe('SwitchServerBandWizard', () => {
       render(<SwitchServerBandWizard bands={bands} activeWorkspaceId="band-a" onClose={onClose} />)
       await reachBandList()
       fireEvent.click(screen.getByText('SOAT'))
-      await waitFor(() => expect(screen.getByPlaceholderText('12345678')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByPlaceholderText('8-stelliger Code')).toBeInTheDocument())
       fireEvent.click(screen.getByText('Abbrechen'))
       expect(onClose).toHaveBeenLastCalledWith(false)
       expect(activateWorkspaceHardware).not.toHaveBeenCalled()
