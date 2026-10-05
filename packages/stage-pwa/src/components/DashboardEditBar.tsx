@@ -55,7 +55,9 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 px-2 text-sm">
       <span className="flex-shrink-0 font-bold uppercase tracking-widest text-accent">Edit</span>
-      <span className="min-w-0 flex-1 truncate font-semibold text-ink">{dashboard.name}</span>
+      {/* On a phone there is no room for the name next to the buttons - the menu shows it. */}
+      <span className="hidden min-w-0 flex-1 truncate font-semibold text-ink sm:block">{dashboard.name}</span>
+      <span className="flex-1 sm:hidden" />
 
       <button
         type="button"
