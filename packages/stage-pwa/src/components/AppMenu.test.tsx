@@ -116,4 +116,18 @@ describe('AppMenu dashboard picker (#35)', () => {
     expect(onSelectMode).toHaveBeenCalledWith('boards')
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('puts "Schließen" in a fixed header above the scrolling list, not at its end (#376)', () => {
+    const onClose = vi.fn()
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
+    const close = screen.getByRole('button', { name: 'Schließen' })
+    const firstMode = screen.getByRole('button', { name: 'Boards' })
+    // Before every menu entry in document order, and outside the scroll container.
+    expect(close.compareDocumentPosition(firstMode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(close.closest('.overflow-y-auto')).toBeNull()
+    expect(firstMode.closest('.overflow-y-auto')).not.toBeNull()
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalled()
+  })
 })
+
