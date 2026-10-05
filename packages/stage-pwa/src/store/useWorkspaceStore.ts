@@ -101,9 +101,6 @@ interface WorkspaceState {
    * calls this first, then provisions everyone else via `createMember`. */
   connectWorkspace: (workspaceId: string, serverUrl: string) => Promise<boolean>
   deleteWorkspace: (id: string) => Promise<boolean>
-  /** The Stage-Server's current founding code for a new band (#364), asked for as an admin of
-   * `workspaceId`. `null` if that isn't possible (not admin, not connected, server down). */
-  fetchSetupCode: (workspaceId: string) => Promise<string | null>
   /** Renames a workspace (#58). A local-only workspace (Tier-A follow-up, no `username` -
    * nothing has ever been provisioned server-side) has no other device that could ever see a
    * stale name, so this just edits `name` locally, same as before this feature existed. A
@@ -245,10 +242,9 @@ function noServerMessage(): string {
 }
 
 /**
- * `POST /workspaces` with proof (#364): the Stage-Server only provisions a band for an admin of
- * another band on it, for its current founding code, or for a request from the server machine
- * itself. Sends an admin login this device already has (no question for anyone who runs a band
- * here), otherwise asks for the founding code. `null` = not provisioned (already told the user).
+ * `POST /workspaces` with proof (#364): after the first band, the Stage-Server only founds a band
+ * for an admin of a band on it (or a request from the server machine itself) - this sends an
+ * admin login this device already has. `null` = not provisioned (already told the user).
  */
 async function provisionWithProof(
   base: string,
@@ -257,35 +253,26 @@ async function provisionWithProof(
 ): Promise<{ username: string; password: string } | null> {
   const dialogs = useDialogStore.getState()
   const admin = known.find((w) => w.isAdmin && w.username && w.couchPassword)
-  let proof: Record<string, string> = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const response = await fetch(`${base}/workspaces`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, ...proof }),
-    })
-    if (response.ok) return (await response.json()) as { username: string; password: string }
-    const error = (await response.json().catch(() => ({}))) as { code?: string }
-    if (response.status === 409 && error.code === 'deleted') {
-      void dialogs.alert('Diese Band wurde auf dem Stage-Server gelöscht und kann so nicht neu angelegt werden.')
-      return null
-    }
-    if (response.status === 429) {
-      void dialogs.alert('Zu viele falsche Gründungs-Codes - bitte ein paar Minuten warten.')
-      return null
-    }
-    if (response.status !== 403 || error.code !== 'setup-required') throw new Error(`HTTP ${response.status}`)
-    const code = await dialogs.promptText('Gründungs-Code', {
-      label:
-        attempt === 0 || !proof.setupCode
-          ? 'Eine neue Band braucht den Gründungs-Code des Stage-Servers (8 Ziffern). Jeder Band-Admin sieht ihn unter System → Band → ⋯ → „Gründungs-Code anzeigen“.'
-          : 'Der Code stimmt nicht (oder wurde schon benutzt). Bitte den aktuellen Gründungs-Code eingeben.',
-      submitLabel: 'Band gründen',
-    })
-    if (code === null) return null
-    proof = { setupCode: code.replace(/\D/g, '') }
+  const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
+  const response = await fetch(`${base}/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, ...proof }),
+  })
+  if (response.ok) return (await response.json()) as { username: string; password: string }
+  const error = (await response.json().catch(() => ({}))) as { code?: string }
+  if (response.status === 409 && error.code === 'deleted') {
+    void dialogs.alert('Diese Band wurde auf dem Stage-Server gelöscht und kann so nicht neu angelegt werden.')
+    return null
   }
-  return null
+  if (response.status === 403 && error.code === 'admin-required') {
+    void dialogs.alert(
+      'Neue Bands kann auf diesem Stage-Server nur ein Band-Admin anlegen. Bitte den Admin einer Band hier, die neue Band zu gründen und dich dann einzuladen.',
+      { title: 'Band gründen nicht möglich' },
+    )
+    return null
+  }
+  throw new Error(`HTTP ${response.status}`)
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -373,22 +360,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       // mechanism to notify them. A local-only workspace (Tier-A follow-up) has no server-side
       // counterpart to tear down yet, so this just drops it locally - this is what
       // RosterSetupView.tsx's "Neu anfangen" escape hatch relies on for a solo-founded band.
-      fetchSetupCode: async (workspaceId) => {
-        const workspace = get().workspaces.find((w) => w.id === workspaceId)
-        const base = getStageServerUrl()
-        if (!base || !workspace?.isAdmin || !workspace.username || !workspace.couchPassword) return null
-        try {
-          const response = await fetch(`${base}/server/setup-code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
-          })
-          if (!response.ok) return null
-          return ((await response.json()) as { code: string }).code
-        } catch {
-          return null
-        }
-      },
       deleteWorkspace: async (id) => {
         const workspace = get().workspaces.find((w) => w.id === id)
         if (!workspace?.isAdmin) return false

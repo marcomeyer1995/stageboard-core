@@ -1288,26 +1288,14 @@ describe('addWorkspace - proof for the Stage-Server (#364)', () => {
     expect(promptText).not.toHaveBeenCalled()
   })
 
-  it('asks for the founding code when the server wants one, then retries with it', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ code: 'setup-required' }) })
-      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ username: 'u', password: 'p' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    const promptText = vi.fn().mockResolvedValue('1234 5678')
-    useDialogStore.setState({ promptText })
-
-    expect(await useWorkspaceStore.getState().addWorkspace('Neue Band')).not.toBeNull()
-    expect(promptText).toHaveBeenCalledWith('Gründungs-Code', expect.anything())
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ setupCode: '12345678' })
-  })
-
-  it('cancelling the code question founds nothing', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ code: 'setup-required' }) }))
-    useDialogStore.setState({ promptText: vi.fn().mockResolvedValue(null) })
+  it('without admin rights here, explains who can found a band - and founds nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ code: 'admin-required' }) }))
+    const alert = vi.fn(async () => {})
+    useDialogStore.setState({ alert })
     const before = useWorkspaceStore.getState().workspaces.length
 
     expect(await useWorkspaceStore.getState().addWorkspace('Neue Band')).toBeNull()
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('nur ein Band-Admin'), expect.anything())
     expect(useWorkspaceStore.getState().workspaces).toHaveLength(before)
   })
 })

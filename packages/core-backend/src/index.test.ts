@@ -869,30 +869,26 @@ describe('Fastify routes', () => {
       vi.unstubAllGlobals()
     })
 
-    it('refuses a LAN request without any proof', async () => {
-      const fetchMock = stubFetch([])
+    const someBands = { ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] } // _all_dbs
+    const noBands = { ok: true, status: 200, json: async () => ['_users', '_replicator'] }
+
+    it('refuses a LAN request without an admin login once a band exists', async () => {
+      const fetchMock = stubFetch([someBands])
       const response = await app.inject({ method: 'POST', url: '/workspaces', payload, ...fromLan })
       expect(response.statusCode).toBe(403)
-      expect(response.json().code).toBe('setup-required')
-      expect(fetchMock).not.toHaveBeenCalled()
+      expect(response.json().code).toBe('admin-required')
+      expect(fetchMock).toHaveBeenCalledTimes(1) // only the band listing - nothing provisioned
     })
 
-    it('accepts the founding code once - it changes after use - and the code is readable only on the server itself', async () => {
-      expect((await app.inject({ method: 'GET', url: '/server/setup-code', ...fromLan })).statusCode).toBe(403)
-      const code = (await app.inject({ method: 'GET', url: '/server/setup-code' })).json().code as string
-      expect(code).toMatch(/^\d{8}$/)
-
-      stubFetch(provisionResponses)
-      expect((await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, setupCode: code }, ...fromLan })).statusCode).toBe(201)
-
-      stubFetch([])
-      const again = await app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, workspaceId: 'band-x', setupCode: code }, ...fromLan })
-      expect(again.statusCode).toBe(403)
-      expect((await app.inject({ method: 'GET', url: '/server/setup-code' })).json().code).not.toBe(code)
+    it('lets anyone found the first band on a fresh server', async () => {
+      stubFetch([noBands, ...provisionResponses])
+      const response = await app.inject({ method: 'POST', url: '/workspaces', payload, ...fromLan })
+      expect(response.statusCode).toBe(201)
     })
 
-    it('accepts an admin of another band on this server', async () => {
+    it('accepts an admin of a band on this server', async () => {
       stubFetch([
+        someBands,
         { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) },
         ...provisionResponses,
       ])
@@ -905,26 +901,14 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(201)
     })
 
-    it('band admins can ask for the founding code', async () => {
-      stubFetch([{ ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }])
-      const response = await app.inject({
-        method: 'POST',
-        url: '/server/setup-code',
-        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'pw' },
-        ...fromLan,
-      })
-      expect(response.statusCode).toBe(200)
-      expect(response.json().code).toMatch(/^\d{8}$/)
-    })
-
-    it('locks an admin account after 5 wrong logins when asking for the founding code', async () => {
+    it('locks an admin account after 5 wrong logins', async () => {
       const wrong = { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) }
-      const fetchMock = stubFetch([wrong, wrong, wrong, wrong, wrong])
-      const ask = (adminPassword: string) =>
-        app.inject({ method: 'POST', url: '/server/setup-code', payload: { adminUsername: 'stageboard-band-a-p1', adminPassword }, ...fromLan })
-      for (const pin of ['1000', '1001', '1002', '1003', '1004']) expect((await ask(pin)).statusCode).toBe(403)
-      expect((await ask('1005')).statusCode).toBe(403)
-      expect(fetchMock).toHaveBeenCalledTimes(5)
+      const fetchMock = stubFetch([someBands, wrong, someBands, wrong, someBands, wrong, someBands, wrong, someBands, wrong, someBands])
+      const found = (adminPassword: string) =>
+        app.inject({ method: 'POST', url: '/workspaces', payload: { ...payload, adminUsername: 'stageboard-band-a-p1', adminPassword }, ...fromLan })
+      for (const pin of ['1000', '1001', '1002', '1003', '1004']) expect((await found(pin)).statusCode).toBe(403)
+      expect((await found('1005')).statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(11) // the sixth try never reaches CouchDB's login
     })
 
     it('never provisions a deleted band again, not even from the server itself', async () => {

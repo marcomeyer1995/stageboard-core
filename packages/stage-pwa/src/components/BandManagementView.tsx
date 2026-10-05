@@ -183,7 +183,6 @@ export function BandManagementView() {
   const confirm = useDialogStore((state) => state.confirm)
   const confirmDestructive = useDialogStore((state) => state.confirmDestructive)
   const alert = useDialogStore((state) => state.alert)
-  const fetchSetupCode = useWorkspaceStore((state) => state.fetchSetupCode)
   // Deliberately separate from `activeWorkspaceId` above, which is this *device's* own "which
   // band am I displaying" pointer (SystemSettings.tsx's "Aktive Band (Hardware)" is the
   // control for this one) - shown here too so the two can't be mistaken for each other: this
@@ -345,24 +344,6 @@ export function BandManagementView() {
                     }}
                   >
                     Einladen
-                  </RowActionButton>
-                )}
-                {/* #364: a new band on this Stage-Server needs its founding code (or an admin
-                    login of a band here) - an admin can hand it to someone founding a band. */}
-                {workspace.isAdmin && !!workspace.username && (
-                  <RowActionButton
-                    onClick={async () => {
-                      setActionsMenuWorkspaceId(null)
-                      const code = await fetchSetupCode(workspace.id)
-                      await alert(
-                        code
-                          ? `Gründungs-Code: ${code}\n\nDamit kann jemand auf diesem Stage-Server eine neue Band gründen. Er gilt einmal und ändert sich danach (und bei jedem Neustart des Servers).`
-                          : 'Der Gründungs-Code ist gerade nicht abrufbar - ist der Stage-Server erreichbar?',
-                        { title: 'Neue Band gründen lassen' },
-                      )
-                    }}
-                  >
-                    Gründungs-Code anzeigen
                   </RowActionButton>
                 )}
                 {/* 2026-09-02 thirteenth follow-up, at Marco's explicit request ("welche
