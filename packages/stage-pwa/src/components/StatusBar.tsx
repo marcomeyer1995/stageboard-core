@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -9,7 +8,6 @@ import {
   COUNT_IN_FLASH_MS,
   countInPosition,
   type CountInPosition,
-  finishedAfterRun,
   formatSongTime,
   STATUS_BAR_CLASS,
   statusBarState,
@@ -72,7 +70,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
 }
 
 export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: () => void }) {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl } = useShowMode()
+  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
@@ -85,22 +83,9 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ?? null)
       : transitionItemEndMs(currentEntry)
 
-  // "Beendet" is not in the show state (Stop rearms the entry), so the bar notices it itself: a
-  // run that went from playing to stopped within a few seconds of the song's end.
-  const lastRun = useRef<{ elapsedMs: number | null; durationMs: number | null }>({ elapsedMs: null, durationMs: null })
-  const previousStatus = useRef(playbackStatus)
-  const [finished, setFinished] = useState(false)
-  useEffect(() => {
-    if (playbackStatus === 'playing') lastRun.current = { elapsedMs, durationMs }
-  }, [playbackStatus, elapsedMs, durationMs])
-  useEffect(() => {
-    const before = previousStatus.current
-    previousStatus.current = playbackStatus
-    if (playbackStatus === 'playing') setFinished(false)
-    else if (playbackStatus === 'stopped' && before !== 'stopped') {
-      setFinished(finishedAfterRun(lastRun.current.elapsedMs, lastRun.current.durationMs))
-    }
-  }, [playbackStatus])
+  // "Beendet" comes from the shared state now (#27: set when the track ran out by itself), so
+  // every device - also one that just reloaded - shows the same.
+  const finished = playbackStatus === 'stopped' && trackEnded
 
   const song = currentVariant ?? currentSong
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0

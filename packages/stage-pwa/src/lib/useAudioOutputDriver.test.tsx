@@ -103,6 +103,8 @@ function mockShowMode(overrides: {
     play: vi.fn(),
     pause: vi.fn(),
     stop: vi.fn(),
+    stopAtTrackEnd: vi.fn(),
+    trackEnded: false,
     reset: vi.fn(),
     next: vi.fn(),
     previous: vi.fn(),

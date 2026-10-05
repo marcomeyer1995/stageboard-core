@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { stopLocalTrack } from './localAudioEngine'
-import { practiceAdvanceNext, practiceSetActiveSetlist, practiceSetVariantOverride } from './practiceQueue'
+import { practiceAdvanceNext, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
 
 vi.mock('./localAudioEngine', () => ({
@@ -25,6 +25,23 @@ vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: { getState: ()
 beforeEach(() => {
   vi.clearAllMocks()
   usePracticeStateStore.setState({ byWorkspace: {} })
+})
+
+describe('"Beendet" (#27)', () => {
+  const state = () => usePracticeStateStore.getState().byWorkspace['ws-1']
+  it('is set when the track ran out by itself and cleared by the next transport change', async () => {
+    await practiceStopSongAtTrackEnd()
+    expect(state()).toMatchObject({ playbackStatus: 'stopped', trackEnded: true })
+    expect(stopLocalTrack).toHaveBeenCalled()
+    await practicePauseSong()
+    await practiceStopSong()
+    expect(state()?.trackEnded).toBe(false)
+  })
+
+  it('a plain Stop is never "Beendet"', async () => {
+    await practiceStopSong()
+    expect(state()?.trackEnded).toBe(false)
+  })
 })
 
 describe('practiceSetActiveSetlist', () => {
