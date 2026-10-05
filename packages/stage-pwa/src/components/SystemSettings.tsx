@@ -8,6 +8,7 @@ import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
+import { KeybindingSettings } from './KeybindingSettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -69,6 +70,12 @@ export function SystemSettings() {
         </Section>
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
+        </Section>
+      </Group>
+
+      <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur für Weiter, Zurück, Play und den Prompter - gilt nur für dieses Gerät.">
+        <Section title="Zuordnung">
+          <KeybindingSettings />
         </Section>
       </Group>
 
