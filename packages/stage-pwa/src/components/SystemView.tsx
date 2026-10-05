@@ -108,7 +108,7 @@ export function SystemView() {
               key={candidate}
               type="button"
               onClick={() => setTab(candidate)}
-              className={`rounded-sb px-4 py-3 text-left text-sm font-semibold ${
+              className={`min-h-12 rounded-sb px-4 text-left text-base font-semibold ${
                 activeTab === candidate
                   ? 'bg-accent text-accent-ink'
                   : 'bg-control text-ink-soft hover:bg-control-hover'
