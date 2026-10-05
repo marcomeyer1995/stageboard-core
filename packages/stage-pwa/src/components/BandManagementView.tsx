@@ -412,7 +412,7 @@ export function BandManagementView() {
         <button
           type="button"
           onClick={() => setShowAddBandChoice(true)}
-          className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover"
+          className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
         >
           + Band
         </button>
@@ -474,7 +474,7 @@ export function BandManagementView() {
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handlePickProfile(profile)} className="text-left hover:opacity-80">
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left hover:opacity-80">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}
@@ -635,7 +635,7 @@ export function BandManagementView() {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-              className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover"
+              className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
             >
               + Neues Mitglied
             </button>

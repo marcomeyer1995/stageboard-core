@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useMasterIdentity } from './lib/useMasterIdentity'
+import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
@@ -47,6 +48,7 @@ import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerS
 import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
+import { useFootswitch } from './lib/useFootswitch'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -106,6 +108,8 @@ function App() {
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.ownProfileId !== undefined,
   )
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
+  // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
+  useFootswitch(mode === 'boards' && !isEditingDashboard)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
@@ -242,7 +246,13 @@ function App() {
 
   return (
     <div className="flex h-dvh flex-col">
-      {showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />}
+      {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
+          dashboard that hides the status bar - so the grid keeps its show-mode size. */}
+      {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
+        <EditBarSlot />
+      ) : (
+        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />
+      )}
       {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
       <div className="relative min-h-0 flex-1">
         {needsJoin && <JoinBandView />}

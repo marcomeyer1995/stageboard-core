@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { ScrollOnceText } from './ScrollOnceText'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -9,7 +9,6 @@ import {
   COUNT_IN_FLASH_MS,
   countInPosition,
   type CountInPosition,
-  finishedAfterRun,
   formatSongTime,
   STATUS_BAR_CLASS,
   statusBarState,
@@ -22,6 +21,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyncStore'
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
+import { stageVariantLabel } from '../lib/variantLabel'
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
@@ -72,7 +72,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
 }
 
 export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: () => void }) {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl } = useShowMode()
+  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
@@ -86,22 +86,9 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ?? null)
       : transitionItemEndMs(currentEntry)
 
-  // "Beendet" is not in the show state (Stop rearms the entry), so the bar notices it itself: a
-  // run that went from playing to stopped within a few seconds of the song's end.
-  const lastRun = useRef<{ elapsedMs: number | null; durationMs: number | null }>({ elapsedMs: null, durationMs: null })
-  const previousStatus = useRef(playbackStatus)
-  const [finished, setFinished] = useState(false)
-  useEffect(() => {
-    if (playbackStatus === 'playing') lastRun.current = { elapsedMs, durationMs }
-  }, [playbackStatus, elapsedMs, durationMs])
-  useEffect(() => {
-    const before = previousStatus.current
-    previousStatus.current = playbackStatus
-    if (playbackStatus === 'playing') setFinished(false)
-    else if (playbackStatus === 'stopped' && before !== 'stopped') {
-      setFinished(finishedAfterRun(lastRun.current.elapsedMs, lastRun.current.durationMs))
-    }
-  }, [playbackStatus])
+  // "Beendet" comes from the shared state now (#27: set when the track ran out by itself), so
+  // every device - also one that just reloaded - shows the same.
+  const finished = playbackStatus === 'stopped' && trackEnded
 
   const song = currentVariant ?? currentSong
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
@@ -130,7 +117,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
       : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
-  const variantLabel = currentVariant && !currentVariant.isDefault ? currentVariant.label : null
+  const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
   const sync = SYNC_TEXT[syncStatus]
 
   return (
@@ -153,18 +140,26 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       {position ? (
         <CountBlock position={position} flash={flash} />
       ) : (
-        <span className="flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide">{state.label}</span>
+        // On a phone the song title needs the room (#373: it was cut to "Wie …"); "Bereit" is the
+        // resting state and the only one the bar can drop there - every other state stays visible.
+        <span
+          className={`flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide ${
+            state.kind === 'ready' ? 'hidden sm:inline' : ''
+          }`}
+        >
+          {state.label}
+        </span>
       )}
 
-      <span className="min-w-0 flex-1 truncate text-lg font-semibold">
+      <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 flex-1 text-lg font-semibold">
         {title}
         {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
-      </span>
+      </ScrollOnceText>
 
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
           {formatSongTime(elapsedMs ?? 0)}
-          {durationMs !== null && <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>}
+          {durationMs !== null && <span className="hidden font-normal opacity-80 sm:inline"> / {formatSongTime(durationMs)}</span>}
         </span>
       )}
 

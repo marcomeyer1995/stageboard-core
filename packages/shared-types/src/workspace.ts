@@ -15,6 +15,10 @@ export const WorkspaceProvisionRequestSchema = z.object({
   workspaceId: z.string().min(1),
   founderId: z.string().min(1),
   workspaceName: z.string().min(1),
+  /** Proof for provisioning (#364): an admin account of a band on this server. Not needed for the
+   * first band on a fresh server, nor from the server machine itself. */
+  adminUsername: z.string().min(1).optional(),
+  adminPassword: z.string().min(1).optional(),
 })
 export type WorkspaceProvisionRequest = z.infer<typeof WorkspaceProvisionRequestSchema>
 

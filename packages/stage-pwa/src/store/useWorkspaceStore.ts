@@ -245,6 +245,40 @@ function noServerMessage(): string {
     : 'Stage-Server nicht konfiguriert - Beitritt nicht möglich.'
 }
 
+/**
+ * `POST /workspaces` with proof (#364): after the first band, the Stage-Server only founds a band
+ * for an admin of a band on it (or a request from the server machine itself) - this sends an
+ * admin login this device already has. `null` = not provisioned (already told the user).
+ */
+async function provisionWithProof(
+  base: string,
+  body: { workspaceId: string; founderId: string; workspaceName: string },
+  known: Workspace[],
+): Promise<{ username: string; password: string } | null> {
+  const dialogs = useDialogStore.getState()
+  const admin = known.find((w) => w.isAdmin && w.username && w.couchPassword)
+  const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
+  const response = await fetch(`${base}/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, ...proof }),
+  })
+  if (response.ok) return (await response.json()) as { username: string; password: string }
+  const error = (await response.json().catch(() => ({}))) as { code?: string }
+  if (response.status === 409 && error.code === 'deleted') {
+    void dialogs.alert('Diese Band wurde auf dem Stage-Server gelöscht und kann so nicht neu angelegt werden.')
+    return null
+  }
+  if (response.status === 403 && error.code === 'admin-required') {
+    void dialogs.alert(
+      'Neue Bands kann auf diesem Stage-Server nur ein Band-Admin anlegen. Bitte den Admin einer Band hier, die neue Band zu gründen und dich dann einzuladen.',
+      { title: 'Band gründen nicht möglich' },
+    )
+    return null
+  }
+  throw new Error(`HTTP ${response.status}`)
+}
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
@@ -275,13 +309,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
         let credentials: { username: string; password: string }
         try {
-          const response = await fetch(`${base}/workspaces`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId: id, founderId, workspaceName: name }),
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          credentials = (await response.json()) as { username: string; password: string }
+          const provisioned = await provisionWithProof(base, { workspaceId: id, founderId, workspaceName: name }, get().workspaces)
+          if (!provisioned) return null
+          credentials = provisioned
         } catch (err) {
           console.error('Failed to provision workspace', err)
           void useDialogStore.getState().alert('Stage-Server nicht erreichbar - Workspace konnte nicht angelegt werden.')
@@ -307,13 +337,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (!workspace || !workspace.ownProfileId) return false
 
         try {
-          const response = await fetch(`${serverUrl}/workspaces`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name }),
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const credentials = (await response.json()) as { username: string; password: string }
+          const credentials = await provisionWithProof(
+            serverUrl,
+            { workspaceId, founderId: workspace.ownProfileId, workspaceName: workspace.name },
+            get().workspaces,
+          )
+          if (!credentials) return false
 
           set({
             workspaces: get().workspaces.map((w) =>
