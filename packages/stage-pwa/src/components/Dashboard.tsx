@@ -269,6 +269,11 @@ export function Dashboard() {
     () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active, cellFor(breakpoint))) : null),
     [active, breakpoint, cellFor],
   )
+  // Identifies the arrangement on screen, for the grid's remount key below.
+  const shownSignature = useMemo(() => {
+    const items = isEditing && active ? normalizeLayout(active.layouts[breakpoint] ?? []) : (current?.items ?? [])
+    return items.map((item) => `${item.i}.${item.x}.${item.y}.${item.w}.${item.h}`).join('|')
+  }, [active, breakpoint, current, isEditing])
   // Outlined in edit mode: widgets smaller than their minimum in the grid being edited.
   const tooSmall = useMemo(
     () =>
@@ -355,7 +360,13 @@ export function Dashboard() {
             // moments after initial load hits the identical shape (found live, 2026-09-15:
             // "widgets jumping and resizing", specifically right after initial load or
             // right after adding a widget - never during otherwise-idle normal use).
-            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}`}
+            //
+            // And on the breakpoint plus the arrangement actually shown (#369): after turning
+            // the phone, the library's responsive part kept its pre-rotation layout as internal
+            // state and alternated between that and the freshly derived one - widgets jumping
+            // back and forth without end (found live, 2026-10-05). A fresh instance per shown
+            // arrangement has nothing stale left to fall back to.
+            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}`}
             width={width}
             layouts={layouts}
             breakpoints={BREAKPOINT_WIDTHS}
