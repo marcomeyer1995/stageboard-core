@@ -77,6 +77,7 @@ describe('fireCue', () => {
     expect(triggerShowControl).toHaveBeenCalledWith('mock-mixer', {
       type: 'set_volume',
       payload: { channel: 'Band', volume: 80 },
+      logicalDeviceId: 'mixer-1', // #149: which instance the cue is for
     })
   })
 

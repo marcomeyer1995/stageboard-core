@@ -73,7 +73,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
       pluginId,
       supportsLocalExecution(installed, device.capability),
     )
-    const event: ShowControlEvent = { type: config.commandType, payload }
+    const event: ShowControlEvent = { type: config.commandType, payload, ...(device ? { logicalDeviceId: device.id } : {}) }
 
     if (engine === 'local-mine') {
       const translator = getTranslator(device.capability)
