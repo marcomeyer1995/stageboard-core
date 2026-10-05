@@ -25,6 +25,7 @@ import {
   ReadyReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
+  SetMasterModeRequestSchema,
   ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
   RosterRequestSchema,
@@ -68,6 +69,7 @@ import {
   provisionMember,
   provisionWorkspace,
   renameWorkspace,
+  setMasterMode,
   resetAdminPin,
   rotateAccessCode,
   setMemberAdmin,
@@ -1115,6 +1117,21 @@ export async function buildApp() {
     }
 
     await renameWorkspace(couch, workspaceId, parsed.data.name)
+    return reply.status(200).send({ status: 'ok' })
+  })
+
+  // Who holds the Master-Token (#85): admin-only, stored with the band name.
+  app.post('/workspaces/:workspaceId/master-mode', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = SetMasterModeRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
+    }
+    await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
     return reply.status(200).send({ status: 'ok' })
   })
 

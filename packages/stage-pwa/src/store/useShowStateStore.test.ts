@@ -12,8 +12,28 @@ vi.mock('../lib/showStateDb', () => ({
 }))
 
 function setState(state: Partial<ShowState>, isMaster: boolean) {
-  useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, ...state }, isMaster, holdsToken: isMaster, selfCheck: 'ok', deviceId: 'me' })
+  useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, ...state }, isMaster, holdsToken: isMaster, selfCheck: 'ok', deviceId: 'me', masterIdentity: 'me' })
 }
+
+describe("master identity (#85, 'account' mode)", () => {
+  beforeEach(() => {
+    vi.mocked(putShowState).mockReset().mockResolvedValue(undefined)
+    vi.mocked(getShowState).mockReset()
+  })
+
+  it('a device of the person holding the token holds it too, and claiming writes the person', async () => {
+    setState({ masterHolderId: 'profile:p1' }, false)
+    useShowStateStore.getState().setMasterIdentity('profile:p1')
+    expect(useShowStateStore.getState()).toMatchObject({ holdsToken: true, isMaster: true })
+
+    setState({ masterHolderId: null }, false)
+    useShowStateStore.getState().setMasterIdentity('profile:p2')
+    vi.mocked(getShowState).mockResolvedValue({ ...DEFAULT_SHOW_STATE, masterHolderId: 'profile:p2' })
+    await useShowStateStore.getState().claimMaster()
+    expect(putShowState).toHaveBeenCalledWith(expect.objectContaining({ masterHolderId: 'profile:p2' }))
+    expect(useShowStateStore.getState().holdsToken).toBe(true)
+  })
+})
 
 describe('releaseMaster', () => {
   beforeEach(() => {

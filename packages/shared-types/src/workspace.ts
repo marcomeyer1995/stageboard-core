@@ -215,6 +215,16 @@ export const ServerInfoSchema = z.object({
 })
 export type ServerInfo = z.infer<typeof ServerInfoSchema>
 
+/** Who holds the Master-Token (#85): one device ('device', the default), or a person with all
+ * their devices ('account' - a bandleader's tablet and phone are master together). */
+export const MasterModeSchema = z.enum(['device', 'account'])
+export type MasterMode = z.infer<typeof MasterModeSchema>
+
+/** Body to set the band's master mode (admin-only, #85) - stored on the same `workspace:access`
+ * doc as the band name, so it reaches every device through the normal sync. */
+export const SetMasterModeRequestSchema = AdminProofSchema.extend({ masterMode: MasterModeSchema })
+export type SetMasterModeRequest = z.infer<typeof SetMasterModeRequestSchema>
+
 /** Body to rename a workspace (admin-only, #58) - persists the new display name onto the same
  * `workspace:access` doc the standing access code already lives in (`workspaceProvisioning.ts`'s
  * `renameWorkspace`), leaving the code itself untouched. That doc already replicates to every

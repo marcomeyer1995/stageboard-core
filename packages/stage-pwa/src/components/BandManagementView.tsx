@@ -237,6 +237,7 @@ export function BandManagementView() {
   const [actionsMenuWorkspaceId, setActionsMenuWorkspaceId] = useState<string | null>(null)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
+  const setMasterMode = useWorkspaceStore((state) => state.setMasterMode)
   const adminCount = profiles.filter((profile) => profile.stageRoles.includes('admin')).length
   const isLastAdmin = (profile: (typeof profiles)[number]) => profile.stageRoles.includes('admin') && adminCount <= 1
 
@@ -639,6 +640,32 @@ export function BandManagementView() {
               + Neues Mitglied
             </button>
           )}
+        </section>
+      )}
+
+      {activeWorkspace?.isAdmin && activeWorkspace.username && (
+        <section className="space-y-2" aria-label="Master-Kontrolle">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Master-Kontrolle ({activeWorkspace.name})</h2>
+          <p className="text-sm text-ink-muted">
+            Pro Gerät: genau ein Gerät steuert die Show. Pro Person: alle Geräte der Person, die Master ist (z. B. Tablet
+            und Handy des Bandleaders), steuern gemeinsam.
+          </p>
+          <div className="flex gap-2">
+            {(['device', 'account'] as const).map((mode) => {
+              const selected = (activeWorkspace.masterMode ?? 'device') === mode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => !selected && void setMasterMode(activeWorkspace.id, mode)}
+                  className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
+                >
+                  {mode === 'device' ? 'Pro Gerät' : 'Pro Person'}
+                </button>
+              )
+            })}
+          </div>
         </section>
       )}
 

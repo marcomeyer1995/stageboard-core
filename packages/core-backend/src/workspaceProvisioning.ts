@@ -144,6 +144,8 @@ const ACCESS_CODE_DOC_ID = 'workspace:access'
 interface AccessCodeDoc extends CouchDoc {
   code: string
   name: string
+  /** #85 - absent means 'device'. */
+  masterMode?: 'device' | 'account'
 }
 
 function generateAccessCode(): string {
@@ -169,6 +171,7 @@ async function createAccessCodeDoc(config: CouchConfig, workspaceId: string, nam
     _rev: existing?._rev,
     code,
     name,
+    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
   }))
   return code
 }
@@ -218,6 +221,7 @@ export async function rotateAccessCode(config: CouchConfig, workspaceId: string)
     _rev: existing?._rev,
     code,
     name: existing?.name ?? workspaceId,
+    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
   }))
   return code
 }
@@ -237,6 +241,18 @@ export async function renameWorkspace(config: CouchConfig, workspaceId: string, 
     _rev: existing?._rev,
     code: existing?.code ?? generateAccessCode(),
     name,
+    ...(existing?.masterMode ? { masterMode: existing.masterMode } : {}),
+  }))
+}
+
+/** Sets who holds the Master-Token (#85) on the band's access doc, keeping code and name. */
+export async function setMasterMode(config: CouchConfig, workspaceId: string, masterMode: 'device' | 'account'): Promise<void> {
+  await putDocWithRetry<AccessCodeDoc>(config, workspaceDbName(workspaceId), ACCESS_CODE_DOC_ID, (existing) => ({
+    _id: ACCESS_CODE_DOC_ID,
+    _rev: existing?._rev,
+    code: existing?.code ?? generateAccessCode(),
+    name: existing?.name ?? workspaceId,
+    masterMode,
   }))
 }
 

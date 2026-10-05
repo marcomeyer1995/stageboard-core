@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const queue = { isMaster: true, activeSetlist: null }
-const show = { holdsToken: true, selfCheck: 'ok' as string }
+const show = { holdsToken: true, selfCheck: 'ok' as string, holder: 'this-device' }
 
 vi.mock('../lib/queue', () => ({ useQueue: () => queue }))
 vi.mock('../lib/useMasterTakeover', () => ({
@@ -15,8 +15,12 @@ vi.mock('../store/useShowStateStore', () => ({
       releaseMaster: vi.fn(),
       holdsToken: show.holdsToken,
       selfCheck: show.selfCheck,
-      state: { playbackStatus: 'stopped', masterHolderId: 'this-device' },
+      state: { playbackStatus: 'stopped', masterHolderId: show.holder },
     }),
+}))
+
+vi.mock('../store/useProfilesStore', () => ({
+  useProfilesStore: (select: (state: unknown) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }] }),
 }))
 
 const { MasterControl } = await import('./MasterControl')
@@ -26,6 +30,13 @@ describe('MasterControl (#378: master self-check)', () => {
     queue.isMaster = true
     show.holdsToken = true
     show.selfCheck = 'ok'
+    show.holder = 'this-device'
+  })
+
+  it("'account' master mode (#85): the holder is the person with all their devices", () => {
+    show.holder = 'profile:p1'
+    render(<MasterControl />)
+    expect(screen.getByText('Du (alle deine Geräte)')).toBeInTheDocument()
   })
 
   it('shows "Dieses Gerät" while the self-check passes', () => {

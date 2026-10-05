@@ -3,7 +3,8 @@ import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
 import { useShowStateStore } from '../store/useShowStateStore'
-import type { MasterSelfCheck } from '../lib/masterTakeover'
+import { profileIdOfMasterHolder, type MasterSelfCheck } from '../lib/masterTakeover'
+import { useProfilesStore } from '../store/useProfilesStore'
 
 /**
  * The Master-Token claim, previously reachable only from inside NextSongWidget/
@@ -51,7 +52,12 @@ export function MasterControl() {
   // Holds the token by its own copy but fails the self-check (#378 option B): shown as this
   // device's token, not controllable, with the reason.
   const unconfirmed = holdsToken && !isMaster
-  const masterName = useDeviceName(masterHolderId)
+  const deviceName = useDeviceName(masterHolderId)
+  // 'account' master mode (#85): the holder is a person with all their devices.
+  const holderProfileId = profileIdOfMasterHolder(masterHolderId)
+  const holderProfileName = useProfilesStore((state) => state.profiles.find((p) => p.id === holderProfileId)?.name)
+  const masterName = holderProfileId ? `${holderProfileName ?? 'Jemand'} (alle Geräte)` : deviceName
+  const selfLabel = holderProfileId ? 'Du (alle deine Geräte)' : 'Dieses Gerät'
 
   return (
     <div className="flex flex-col gap-2">
@@ -65,7 +71,7 @@ export function MasterControl() {
           Master-Kontrolle
           <span className="flex items-center gap-3">
             <span className={`text-sm ${unconfirmed ? 'text-amber-500' : 'text-accent'}`}>
-              {unconfirmed ? `Dieses Gerät - ${SELF_CHECK_LABEL[selfCheck]}` : 'Dieses Gerät'}
+              {unconfirmed ? `${selfLabel} - ${SELF_CHECK_LABEL[selfCheck]}` : selfLabel}
             </span>
             <button
               type="button"
