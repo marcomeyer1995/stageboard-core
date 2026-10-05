@@ -5,5 +5,6 @@ export default defineConfig({
     // Only the sources: `npm run build` emits the compiled tests into dist/ as well,
     // and without this vitest would run every suite twice.
     include: ['src/**/*.test.ts'],
+    setupFiles: ['src/test/stateDir.ts'],
   },
 })

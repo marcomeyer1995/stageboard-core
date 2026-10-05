@@ -24,6 +24,7 @@ import {
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStartLine, timelineLines } from '../../lib/timelineText'
+import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
@@ -38,6 +39,11 @@ import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
+
+/** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
+ * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
+ * pushes the timeline down. Only a wide PC window keeps the plain row. */
+const COMPACT_TOOLS_WIDTH = 1700
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
@@ -147,7 +153,10 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
 }
 
 type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number })
+type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
+/** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
+ * dragged (snapping and the readout follow it). */
+type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
 type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | null
 type TapMode = 'tempo' | 'lines' | null
 
@@ -189,6 +198,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
   const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
+  // Phone/tablet (#373): the tool buttons wrapped into up to six rows and pushed the waveform
+  // down. Where they don't fit one row they open as a floating panel behind "Werkzeuge" (over the
+  // timeline, nothing moves); a running tap keeps its "Tippen beenden" in the top row.
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const toolsPanel = useRef<HTMLDivElement>(null)
+  const toolsToggle = useRef<HTMLButtonElement>(null)
+  const topRow = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!toolsOpen) return
+    const close = (e: Event) => {
+      const target = e.target as Node
+      if (toolsPanel.current?.contains(target) || toolsToggle.current?.contains(target)) return
+      setToolsOpen(false)
+    }
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setToolsOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [toolsOpen])
   const snapping = useTimelineSnapStore((state) => state.snapping)
   const setSnapping = useTimelineSnapStore((state) => state.setSnapping)
   /** PC: Alt held - the snapping switch is inverted for as long as it is (#332). */
@@ -216,6 +249,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
+  const promptText = useDialogStore((state) => state.promptText)
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -225,6 +259,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
+  const [ripple, setRipple] = useState<Ripple | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -278,10 +313,21 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // it is held (on -> free, off -> snaps). Notes still attach to lines.
   const snapOn = snapping !== altHeld
   const dragMs = drag?.moved ? (snapOn ? (drag.kind === 'bar' ? magnet : snapToBeat) : (ms: number) => ms)(Math.max(0, xToTime(drag.x, view))) : null
+  // Shift mode (#330): the dragged element snaps like any other; everything from `fromMs` on moves
+  // by the same amount, live while dragging.
+  const rippleDelta =
+    drag?.kind === 'ripple' && drag.moved && ripple
+      ? (() => {
+          const target = Math.max(0, ripple.anchorMs + (drag.x - drag.startX) * view.msPerPx)
+          return Math.round((snapOn ? (ripple.anchorBar ? magnet : snapToBeat) : (ms: number) => ms)(target) - ripple.anchorMs)
+        })()
+      : null
+  const ripplePreview = ripple && rippleDelta ? rippleShift({ beatGrid, chordProContent: content, cues }, ripple.fromMs, rippleDelta, ripple.anchorBar) : null
+  const rippleShown = ripplePreview?.ok ? ripplePreview : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
-  const shownGrid = previewGrid ?? beatGrid
-  const shownContent = drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
-  const shownCues = drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
+  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? beatGrid)
+  const shownContent = rippleShown ? rippleShown.chordProContent : drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
+  const shownCues = rippleShown ? rippleShown.cues : drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
 
   const timeline = useMemo(
     () => (shownGrid === beatGrid ? baseTimeline : clickTimeline({ beatGrid: shownGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })),
@@ -754,6 +800,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const base = { pointerId: e.pointerId, startX: x, x, moved: false }
+    if (ripple) {
+      setDrag({ ...base, kind: 'ripple' })
+      return
+    }
     if (y >= cueTop) {
       const id = cueAt(x)
       if (id !== null) {
@@ -809,6 +859,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     if (drag && drag.pointerId === e.pointerId) {
+      if (drag.kind === 'ripple') {
+        if (ripplePreview && !ripplePreview.ok) setNotice(ripplePreview.message)
+        if (rippleShown && rippleDelta && ripple) {
+          commit({ ...current, beatGrid: rippleShown.beatGrid, chordProContent: rippleShown.chordProContent, cues: rippleShown.cues })
+          // The dragged element now sits elsewhere - the next drag continues from there.
+          setRipple({
+            ...ripple,
+            fromMs: ripple.fromMs + rippleDelta,
+            anchorMs: ripple.anchorMs + rippleDelta,
+            anchorBar: ripple.anchorBar && { bar: ripple.anchorBar.bar, timeMs: ripple.anchorBar.timeMs + rippleDelta },
+          })
+          setNotice(`Um ${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s verschoben. Rückgängig mit ↶.`)
+        }
+        setDrag(null)
+        return
+      }
       if (drag.kind === 'bar') {
         setSelection({ kind: 'bar', bar: drag.bar })
         if (drag.moved && dragMs !== null) alignBar(drag.bar, dragMs)
@@ -1149,6 +1215,54 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }
 
+  /** "Alles danach verschieben" (#330): switches the shift mode on - dragging then moves
+   * everything from `fromMs` on (Marco: drag instead of typing a number). */
+  function rippleFrom(fromMs: number, what: string, anchorBar?: { bar: number; timeMs: number }) {
+    const anchorMs = fromMs > 0 ? fromMs : earliestTimeMs()
+    setRipple({ fromMs, anchorMs, label: what, anchorBar })
+    setSelection(null)
+    setNotice(null)
+  }
+
+  /** The earliest thing on the timeline (alignment point, timed line or cue) - what "Ganzen Song
+   * verschieben" drags. */
+  function earliestTimeMs(): number {
+    const times = [
+      ...(beatGrid?.points ?? []).map((p) => p.timeMs),
+      ...timelineLines(content).flatMap((l) => (l.timeMs === null ? [] : [l.timeMs])),
+      ...cues.map((c) => c.timeMs),
+    ]
+    return times.length > 0 ? Math.min(...times) : 0
+  }
+
+  /** The exact alternative in shift mode: type the amount in seconds. */
+  async function rippleBySeconds() {
+    if (!ripple) return
+    const { fromMs, anchorBar } = ripple
+    const what = ripple.label
+    const answer = await promptText(`${what} verschieben`, {
+      label: 'Um wie viele Sekunden? (z. B. 2 oder -1,5)',
+      submitLabel: 'Verschieben',
+    })
+    if (answer === null) return
+    const deltaMs = parseShiftSeconds(answer)
+    if (deltaMs === null) {
+      setNotice(`„${answer}“ ist keine Zahl - z. B. 2 oder -1,5 eingeben.`)
+      return
+    }
+    const result = rippleShift({ beatGrid, chordProContent: content, cues }, fromMs, deltaMs, anchorBar)
+    if (!result.ok) {
+      setNotice(result.message)
+      return
+    }
+    commit({ ...current, beatGrid: result.beatGrid, chordProContent: result.chordProContent, cues: result.cues })
+    setRipple({ ...ripple, fromMs: fromMs + deltaMs, anchorMs: ripple.anchorMs + deltaMs, anchorBar: anchorBar && { bar: anchorBar.bar, timeMs: anchorBar.timeMs + deltaMs } })
+    const { points, lines: movedLines, cues: movedCues } = result.moved
+    setNotice(
+      `Um ${deltaMs > 0 ? '+' : ''}${(deltaMs / 1000).toLocaleString('de-DE')} s verschoben: ${points} Ausrichtungspunkt${points === 1 ? '' : 'e'}, ${movedLines} Zeile${movedLines === 1 ? '' : 'n'}, ${movedCues} Cue${movedCues === 1 ? '' : 's'}. Rückgängig mit ↶.`,
+    )
+  }
+
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
     if (!selectedLineInfo || selectedLineInfo.timeMs === null) return
@@ -1196,7 +1310,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const button = 'min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const button = 'min-h-12 min-w-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
   const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
@@ -1228,9 +1342,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
     )
   }
 
+  const lanesGroup = (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
+          {TIMELINE_LANES.map((lane) => (
+            <button
+              key={lane}
+              type="button"
+              className={toggle(!hiddenLanes.has(lane))}
+              data-keep-open
+              aria-pressed={!hiddenLanes.has(lane)}
+              // The last visible lane stays - an empty timeline would show nothing to work on.
+              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
+              onClick={() => toggleLane(lane)}
+            >
+              {LANE_NAME[lane]}
+            </button>
+          ))}
+          <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
+        </div>
+  )
+
+  const compactTools = box.width > 0 && box.width < COMPACT_TOOLS_WIDTH
+  const showTools = !compactTools || (toolsOpen && tapMode === null)
+
   return (
-    <div className={`flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
+      <div ref={topRow} className="flex flex-wrap items-center gap-2">
         <button type="button" className={button} onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
         </button>
@@ -1250,8 +1387,43 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={iconButton} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
           <UndoIcon mirrored />
         </button>
+        {compactTools && tapMode === null && (
+          <button
+            ref={toolsToggle}
+            type="button"
+            className={toggle(toolsOpen)}
+            aria-pressed={toolsOpen}
+            aria-expanded={toolsOpen}
+            onClick={() => setToolsOpen((open) => !open)}
+          >
+            Werkzeuge
+          </button>
+        )}
+        {compactTools && tapMode !== null && (
+          <button type="button" className={toggle(true)} aria-pressed onClick={() => void finishTapping()}>
+            Tippen beenden ({tapCount})
+          </button>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      {showTools && (
+      <div
+        ref={toolsPanel}
+        role={compactTools ? 'dialog' : undefined}
+        aria-label={compactTools ? 'Werkzeuge' : undefined}
+        className={
+          compactTools
+            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-sb border border-line bg-surface p-3 shadow-sb'
+            : 'flex flex-wrap items-center gap-2'
+        }
+        style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
+        // An action closes the panel; switches you'd flip several of (Einrasten, Spuren, the lanes)
+        // keep it open. Bubble phase, not capture: closing in the capture phase unmounted the
+        // button before a real tap reached its own onClick (found on the phone, 2026-10-05).
+        onClick={(e) => {
+          const pressed = (e.target as Element).closest('button')
+          if (compactTools && pressed && !pressed.hasAttribute('data-keep-open')) setToolsOpen(false)
+        }}
+      >
         <button type="button" className={button} onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
         </button>
@@ -1277,12 +1449,16 @@ export function TimelineEditor(props: TimelineEditorProps) {
           className={toggle(snapOn)}
           aria-pressed={snapOn}
           title="Einrasten (Alt gedrückt halten kehrt es um)"
+          data-keep-open
           onClick={() => setSnapping(!snapping)}
         >
           Einrasten{snapOn ? '' : ' aus'}
         </button>
-        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} onClick={() => setLanesMenuOpen((open) => !open)}>
+        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
+        </button>
+        <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(0, 'Ganzen Song')}>
+          Ganzen Song verschieben
         </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
@@ -1290,26 +1466,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={button} disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
           Raster löschen
         </button>
+        {lanesMenuOpen && compactTools && <div className="w-full">{lanesGroup}</div>}
       </div>
-
-      {lanesMenuOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
-          {TIMELINE_LANES.map((lane) => (
-            <button
-              key={lane}
-              type="button"
-              className={toggle(!hiddenLanes.has(lane))}
-              aria-pressed={!hiddenLanes.has(lane)}
-              // The last visible lane stays - an empty timeline would show nothing to work on.
-              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
-              onClick={() => toggleLane(lane)}
-            >
-              {LANE_NAME[lane]}
-            </button>
-          ))}
-          <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
-        </div>
       )}
+
+      {lanesMenuOpen && !compactTools && lanesGroup}
       <p className="text-sm text-ink-soft" role="status">
         {notice ?? hint}
       </p>
@@ -1433,6 +1594,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Taktart ab hier
             </button>
           )}
+          <button
+            type="button"
+            className={button}
+            disabled={tapMode !== null}
+            onClick={() => rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}
+          >
+            Alles danach verschieben
+          </button>
         </div>
       )}
 
@@ -1456,6 +1625,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
             Zeilen tippen ab hier
           </button>
+          <button
+            type="button"
+            className={button}
+            disabled={selectedLineInfo.timeMs === null || tapMode !== null}
+            onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}
+          >
+            Alles danach verschieben
+          </button>
+        </div>
+      )}
+
+      {ripple && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Verschieben">
+          <span className="font-semibold">
+            Verschieben: {ripple.label} - in der Timeline ziehen, alles ab {formatTimelineTime(ripple.fromMs)} wandert mit
+            {rippleDelta ? ` (${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s)` : ''}.
+          </span>
+          <button type="button" className={button} onClick={() => void rippleBySeconds()}>
+            Sekunden eingeben…
+          </button>
+          <button type="button" className={toggle(true)} onClick={() => setRipple(null)}>
+            Fertig
+          </button>
         </div>
       )}
 
@@ -1475,6 +1667,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </button>
           <button type="button" className={button} onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
             Bearbeiten
+          </button>
+          <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(selectedCue.timeMs, 'Dieser Cue und alles danach')}>
+            Alles danach verschieben
           </button>
           <button
             type="button"

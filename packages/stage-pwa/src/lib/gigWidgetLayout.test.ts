@@ -7,7 +7,7 @@ describe('transportLayout (Show-Transport)', () => {
   const info = lineHeightFor(24)
 
   it('stacks info over four buttons in a row at the new portrait default (6 x 4)', () => {
-    expect(transportLayout(350, 163, info)).toEqual({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
+    expect(transportLayout(350, 163, info)).toMatchObject({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
   })
 
   it('uses a 2 x 2 grid when too narrow for four readable buttons in a row', () => {
@@ -16,7 +16,7 @@ describe('transportLayout (Show-Transport)', () => {
 
   it('puts info and buttons side by side in a flat, wide tile (measured: landscape 6 x 4, 49px info)', () => {
     // Stacked, the buttons were 16px tall on the tablet; side by side they get the full 73px.
-    expect(transportLayout(599, 73, 49)).toEqual({ row: true, columns: 4, showTitle: true, showHelper: false, compactInfo: false })
+    expect(transportLayout(599, 73, 49)).toMatchObject({ row: true, columns: 4, showTitle: true, showHelper: false, compactInfo: false })
   })
 
   it('keeps only the running time beside the buttons when a flat tile is narrow (measured: 387 x 46)', () => {
@@ -33,7 +33,7 @@ describe('transportLayout (Show-Transport)', () => {
   })
 
   it('renders the roomy layout while unmeasured', () => {
-    expect(transportLayout(0, 0, info)).toEqual({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
+    expect(transportLayout(0, 0, info)).toMatchObject({ row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false })
   })
 })
 
@@ -55,11 +55,11 @@ describe('nextSongLayout (Next Song)', () => {
 
 describe('clickLayout (Klick)', () => {
   it('stacks state over buttons in portrait 3 x 3 and hides the label rather than the buttons', () => {
-    expect(clickLayout(158, 119, 40)).toEqual({ row: false, showLabel: false, shortLabels: true })
+    expect(clickLayout(158, 119, 40)).toMatchObject({ row: false, showLabel: false, shortLabels: true })
   })
 
   it('puts state and buttons side by side in the flat landscape tile', () => {
-    expect(clickLayout(278, 67, 40)).toEqual({ row: true, showLabel: false, shortLabels: true })
+    expect(clickLayout(278, 67, 40)).toMatchObject({ row: true, showLabel: false, shortLabels: true })
   })
 })
 
@@ -70,3 +70,20 @@ describe('tempoLayout (Tempo-Korrektur)', () => {
     expect(tempoLayout(200)).toEqual({ showLabel: true, resetAsButton: true })
   })
 })
+
+describe('compact widgets on a phone (#369 follow-up: dashboards never scroll)', () => {
+  it('transport buttons narrower than their words show icons', () => {
+    // Phone "Prompter Kopie": 239 x 89 px - four words squeezed into each other before.
+    expect(transportLayout(239, 89, 40).iconButtons).toBe(true)
+    // A roomy landscape tile keeps the words.
+    expect(transportLayout(737, 83, 40).iconButtons).toBe(false)
+  })
+
+  it('a small Klick widget drops the big state word; the highlighted button shows the state', () => {
+    // Phone: 177 x 57 px - stacked state + 56 px buttons did not fit, the buttons were cut.
+    expect(clickLayout(177, 57, 40)).toMatchObject({ row: false, showState: false })
+    expect(clickLayout(158, 160, 40).showState).toBe(true)
+    expect(clickLayout(278, 67, 40)).toMatchObject({ row: true, showState: true })
+  })
+})
+
