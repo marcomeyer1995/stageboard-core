@@ -52,6 +52,7 @@ import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
+import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
@@ -754,8 +755,8 @@ export async function buildApp() {
       }
       return results
     } catch (err) {
-      app.log.error(err)
-      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup search failed')
+      return reply.status(502).send(lookupErrorBody(err))
     }
   })
 
@@ -777,8 +778,8 @@ export async function buildApp() {
       }
       return detail
     } catch (err) {
-      app.log.error(err)
-      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+      app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup detail failed')
+      return reply.status(502).send(lookupErrorBody(err))
     }
   })
 
