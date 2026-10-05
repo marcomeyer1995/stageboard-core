@@ -70,20 +70,22 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
           Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
         </span>
       )}
-      <div className={`flex items-center justify-center overflow-hidden ${layout.row ? 'flex-none px-2' : 'w-full flex-1'}`}>
-        {/* The click state is the readout here - never below 24px, in every layout. */}
-        <span style={{ fontSize: stateFontSize }} className="whitespace-nowrap font-bold leading-none">
-          {enabled ? 'An' : 'Aus'}
-        </span>
-      </div>
-      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : 'w-full flex-none'}`}>
+      {layout.showState && (
+        <div className={`flex items-center justify-center overflow-hidden ${layout.row ? 'flex-none px-2' : 'w-full flex-1'}`}>
+          {/* The click state is the readout here - never below 24px, in every layout. */}
+          <span style={{ fontSize: stateFontSize }} className="whitespace-nowrap font-bold leading-none">
+            {enabled ? 'An' : 'Aus'}
+          </span>
+        </div>
+      )}
+      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1'}`}>
         {OVERRIDE_OPTIONS.map((option) => (
           <button
             key={option.label}
             type="button"
             disabled={!canControl}
             onClick={() => setClickTrackOverride(option.value)}
-            className={`h-full min-h-touch rounded-sb px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`h-full ${layout.showState ? 'min-h-touch' : 'min-h-0'} rounded-sb px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
               clickTrackOverride === option.value
                 ? 'bg-accent text-accent-ink'
                 : 'bg-control-strong text-ink hover:bg-control-strong-hover'
