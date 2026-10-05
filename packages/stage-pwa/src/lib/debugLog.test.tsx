@@ -32,6 +32,15 @@ describe('debug log (#14)', () => {
     expect(formatArg('x')).toBe('x')
     expect(formatArg({ a: 1 })).toBe('{"a":1}')
     expect(formatArg('y'.repeat(10))).toBe('yyyyyyyyyy')
+    // A big logged document is cut while serializing (long strings, long arrays).
+    const doc = { chordPro: 'x'.repeat(100_000), bars: Array.from({ length: 1000 }, (_, i) => i) }
+    const text = formatArg(doc)
+    expect(text.length).toBeLessThanOrEqual(501)
+    expect(text).toContain('…')
+    expect(formatArg({ list: Array.from({ length: 25 }, () => 1) })).toContain('"… +5"')
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    expect(formatArg(circular)).toBe('[object Object]')
     expect(entriesAsText([{ id: 1, at: Date.UTC(2026, 9, 5, 7, 3, 4, 5), level: 'warn', text: 'Hm' }])).toBe('07:03:04.005 WARN  Hm')
   })
 })

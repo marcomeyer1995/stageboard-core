@@ -40,7 +40,13 @@ export function formatArg(arg: unknown): string {
   if (typeof arg === 'string') return arg
   if (arg instanceof Error) return `${arg.name}: ${arg.message}`
   try {
-    const json = JSON.stringify(arg)
+    // Long strings and arrays are cut while serializing, not afterwards: a logged document with a
+    // whole song text or a base64 attachment must not be serialized in full on every log call.
+    const json = JSON.stringify(arg, (_key, value: unknown) => {
+      if (typeof value === 'string' && value.length > 200) return `${value.slice(0, 200)}…`
+      if (Array.isArray(value) && value.length > 20) return [...value.slice(0, 20), `… +${value.length - 20}`]
+      return value
+    })
     return json === undefined ? String(arg) : json.length > 500 ? `${json.slice(0, 500)}…` : json
   } catch {
     return String(arg)
