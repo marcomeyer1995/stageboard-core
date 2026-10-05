@@ -84,7 +84,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
           <span
             key={label}
             className={`rounded-sb-sm px-2 py-1 ${
-              count > 0 ? 'bg-accent-2/20 text-accent-ink' : 'bg-control text-ink-faint'
+              count > 0 ? 'bg-accent-2/20 font-semibold text-ink' : 'bg-control text-ink-faint'
             }`}
           >
             {label}
