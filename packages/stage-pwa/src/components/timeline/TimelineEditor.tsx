@@ -24,6 +24,7 @@ import {
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStartLine, timelineLines } from '../../lib/timelineText'
+import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
@@ -152,7 +153,10 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
 }
 
 type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number })
+type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
+/** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
+ * dragged (snapping and the readout follow it). */
+type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
 type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | null
 type TapMode = 'tempo' | 'lines' | null
 
@@ -245,6 +249,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
+  const promptText = useDialogStore((state) => state.promptText)
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -254,6 +259,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
+  const [ripple, setRipple] = useState<Ripple | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -307,10 +313,21 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // it is held (on -> free, off -> snaps). Notes still attach to lines.
   const snapOn = snapping !== altHeld
   const dragMs = drag?.moved ? (snapOn ? (drag.kind === 'bar' ? magnet : snapToBeat) : (ms: number) => ms)(Math.max(0, xToTime(drag.x, view))) : null
+  // Shift mode (#330): the dragged element snaps like any other; everything from `fromMs` on moves
+  // by the same amount, live while dragging.
+  const rippleDelta =
+    drag?.kind === 'ripple' && drag.moved && ripple
+      ? (() => {
+          const target = Math.max(0, ripple.anchorMs + (drag.x - drag.startX) * view.msPerPx)
+          return Math.round((snapOn ? (ripple.anchorBar ? magnet : snapToBeat) : (ms: number) => ms)(target) - ripple.anchorMs)
+        })()
+      : null
+  const ripplePreview = ripple && rippleDelta ? rippleShift({ beatGrid, chordProContent: content, cues }, ripple.fromMs, rippleDelta, ripple.anchorBar) : null
+  const rippleShown = ripplePreview?.ok ? ripplePreview : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
-  const shownGrid = previewGrid ?? beatGrid
-  const shownContent = drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
-  const shownCues = drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
+  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? beatGrid)
+  const shownContent = rippleShown ? rippleShown.chordProContent : drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
+  const shownCues = rippleShown ? rippleShown.cues : drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
 
   const timeline = useMemo(
     () => (shownGrid === beatGrid ? baseTimeline : clickTimeline({ beatGrid: shownGrid, bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })),
@@ -783,6 +800,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const base = { pointerId: e.pointerId, startX: x, x, moved: false }
+    if (ripple) {
+      setDrag({ ...base, kind: 'ripple' })
+      return
+    }
     if (y >= cueTop) {
       const id = cueAt(x)
       if (id !== null) {
@@ -838,6 +859,22 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     if (drag && drag.pointerId === e.pointerId) {
+      if (drag.kind === 'ripple') {
+        if (ripplePreview && !ripplePreview.ok) setNotice(ripplePreview.message)
+        if (rippleShown && rippleDelta && ripple) {
+          commit({ ...current, beatGrid: rippleShown.beatGrid, chordProContent: rippleShown.chordProContent, cues: rippleShown.cues })
+          // The dragged element now sits elsewhere - the next drag continues from there.
+          setRipple({
+            ...ripple,
+            fromMs: ripple.fromMs + rippleDelta,
+            anchorMs: ripple.anchorMs + rippleDelta,
+            anchorBar: ripple.anchorBar && { bar: ripple.anchorBar.bar, timeMs: ripple.anchorBar.timeMs + rippleDelta },
+          })
+          setNotice(`Um ${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s verschoben. Rückgängig mit ↶.`)
+        }
+        setDrag(null)
+        return
+      }
       if (drag.kind === 'bar') {
         setSelection({ kind: 'bar', bar: drag.bar })
         if (drag.moved && dragMs !== null) alignBar(drag.bar, dragMs)
@@ -1150,6 +1187,54 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }
 
+  /** "Alles danach verschieben" (#330): switches the shift mode on - dragging then moves
+   * everything from `fromMs` on (Marco: drag instead of typing a number). */
+  function rippleFrom(fromMs: number, what: string, anchorBar?: { bar: number; timeMs: number }) {
+    const anchorMs = fromMs > 0 ? fromMs : earliestTimeMs()
+    setRipple({ fromMs, anchorMs, label: what, anchorBar })
+    setSelection(null)
+    setNotice(null)
+  }
+
+  /** The earliest thing on the timeline (alignment point, timed line or cue) - what "Ganzen Song
+   * verschieben" drags. */
+  function earliestTimeMs(): number {
+    const times = [
+      ...(beatGrid?.points ?? []).map((p) => p.timeMs),
+      ...timelineLines(content).flatMap((l) => (l.timeMs === null ? [] : [l.timeMs])),
+      ...cues.map((c) => c.timeMs),
+    ]
+    return times.length > 0 ? Math.min(...times) : 0
+  }
+
+  /** The exact alternative in shift mode: type the amount in seconds. */
+  async function rippleBySeconds() {
+    if (!ripple) return
+    const { fromMs, anchorBar } = ripple
+    const what = ripple.label
+    const answer = await promptText(`${what} verschieben`, {
+      label: 'Um wie viele Sekunden? (z. B. 2 oder -1,5)',
+      submitLabel: 'Verschieben',
+    })
+    if (answer === null) return
+    const deltaMs = parseShiftSeconds(answer)
+    if (deltaMs === null) {
+      setNotice(`„${answer}“ ist keine Zahl - z. B. 2 oder -1,5 eingeben.`)
+      return
+    }
+    const result = rippleShift({ beatGrid, chordProContent: content, cues }, fromMs, deltaMs, anchorBar)
+    if (!result.ok) {
+      setNotice(result.message)
+      return
+    }
+    commit({ ...current, beatGrid: result.beatGrid, chordProContent: result.chordProContent, cues: result.cues })
+    setRipple({ ...ripple, fromMs: fromMs + deltaMs, anchorMs: ripple.anchorMs + deltaMs, anchorBar: anchorBar && { bar: anchorBar.bar, timeMs: anchorBar.timeMs + deltaMs } })
+    const { points, lines: movedLines, cues: movedCues } = result.moved
+    setNotice(
+      `Um ${deltaMs > 0 ? '+' : ''}${(deltaMs / 1000).toLocaleString('de-DE')} s verschoben: ${points} Ausrichtungspunkt${points === 1 ? '' : 'e'}, ${movedLines} Zeile${movedLines === 1 ? '' : 'n'}, ${movedCues} Cue${movedCues === 1 ? '' : 's'}. Rückgängig mit ↶.`,
+    )
+  }
+
   /** Moves the selected text line by `deltaMs` (kept between its neighbours). */
   function nudgeLine(deltaMs: number) {
     if (!selectedLineInfo || selectedLineInfo.timeMs === null) return
@@ -1344,6 +1429,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
         </button>
+        <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(0, 'Ganzen Song')}>
+          Ganzen Song verschieben
+        </button>
         <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
         </button>
@@ -1463,6 +1551,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Taktart ab hier
             </button>
           )}
+          <button
+            type="button"
+            className={button}
+            disabled={tapMode !== null}
+            onClick={() => rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}
+          >
+            Alles danach verschieben
+          </button>
         </div>
       )}
 
@@ -1486,6 +1582,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
             Zeilen tippen ab hier
           </button>
+          <button
+            type="button"
+            className={button}
+            disabled={selectedLineInfo.timeMs === null || tapMode !== null}
+            onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}
+          >
+            Alles danach verschieben
+          </button>
+        </div>
+      )}
+
+      {ripple && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Verschieben">
+          <span className="font-semibold">
+            Verschieben: {ripple.label} - in der Timeline ziehen, alles ab {formatTimelineTime(ripple.fromMs)} wandert mit
+            {rippleDelta ? ` (${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s)` : ''}.
+          </span>
+          <button type="button" className={button} onClick={() => void rippleBySeconds()}>
+            Sekunden eingeben…
+          </button>
+          <button type="button" className={toggle(true)} onClick={() => setRipple(null)}>
+            Fertig
+          </button>
         </div>
       )}
 
@@ -1505,6 +1624,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </button>
           <button type="button" className={button} onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
             Bearbeiten
+          </button>
+          <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(selectedCue.timeMs, 'Dieser Cue und alles danach')}>
+            Alles danach verschieben
           </button>
           <button
             type="button"

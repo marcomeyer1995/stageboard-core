@@ -26,9 +26,12 @@ vi.mock('../../lib/useTrackClock', () => ({
   }),
 }))
 // The in-app confirm dialog answers "yes" right away.
-const dialog = vi.hoisted(() => ({ promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null) }))
+const dialog = vi.hoisted(() => ({
+  promptFields: vi.fn(async (): Promise<Record<string, string> | null> => null),
+  promptText: vi.fn(async (): Promise<string | null> => null),
+}))
 vi.mock('../../store/useDialogStore', () => ({
-  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields }),
+  useDialogStore: (select: (state: object) => unknown) => select({ confirm: async () => true, promptFields: dialog.promptFields, promptText: dialog.promptText }),
 }))
 vi.mock('../../store/useProfilesStore', () => ({
   useProfilesStore: (select: (state: object) => unknown) => select({ profiles: [{ id: 'p1', name: 'Marco' }] }),
@@ -599,3 +602,70 @@ describe('snapping switch (#332)', () => {
     expect(useTimelineSnapStore.getState().snapping).toBe(true)
   })
 })
+
+describe('TimelineEditor - shift everything (#330)', () => {
+  /** Tools sit in the "Werkzeuge" panel on narrow timelines once #385 is in - open it if it's there. */
+  function toolButton(name: string) {
+    const panelToggle = screen.queryByRole('button', { name: 'Werkzeuge' })
+    if (panelToggle && panelToggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(panelToggle)
+    return screen.getByRole('button', { name })
+  }
+
+  const lanes = () => screen.getByTestId('timeline-lanes')
+  const textY = 96 + 26 + 84 + 28 + 20
+  function dragLanes(fromMs: number, toMs: number, y = 50) {
+    fireEvent.pointerDown(lanes(), { pointerId: 1, clientX: fromMs / 60, clientY: y })
+    fireEvent.pointerMove(lanes(), { pointerId: 1, clientX: toMs / 60, clientY: y })
+    fireEvent.pointerUp(lanes(), { pointerId: 1, clientX: toMs / 60, clientY: y })
+  }
+  const song = {
+    beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 500 }], meters: [] },
+    content: '[00:01.00]First line\n[00:05.00]Second line',
+    cues: [{ id: 'c1', timeMs: 3000 } as unknown as ShowCue],
+  }
+
+  it('"Ganzen Song verschieben" switches the shift mode on; one drag moves grid, lines and cues together', () => {
+    const { onChange } = setup(song)
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    expect(screen.getByRole('status', { name: 'Verschieben' })).toHaveTextContent('in der Timeline ziehen')
+    dragLanes(10000, 12000)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0][0]
+    expect(next.beatGrid.points[0].timeMs).toBe(2500)
+    expect(next.chordProContent).toMatch(/\[00:03\.00\] ?First line/)
+    expect(next.chordProContent).toMatch(/\[00:07\.00\] ?Second line/)
+    expect(next.cues[0].timeMs).toBe(5000)
+    // The mode stays on for another drag until "Fertig".
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    expect(screen.queryByRole('status', { name: 'Verschieben' })).not.toBeInTheDocument()
+  })
+
+  it('from a selected line: only that line and everything after it moves', () => {
+    const { onChange } = setup(song)
+    fireEvent.pointerDown(lanes(), { pointerId: 1, clientX: 5000 / 60, clientY: textY })
+    fireEvent.pointerUp(lanes(), { pointerId: 1, clientX: 5000 / 60, clientY: textY })
+    fireEvent.click(screen.getByRole('button', { name: 'Alles danach verschieben' }))
+    dragLanes(10000, 11000)
+    const next = onChange.mock.calls[0][0]
+    expect(next.chordProContent).toMatch(/\[00:01\.00\] ?First line/)
+    expect(next.chordProContent).toMatch(/\[00:06\.00\] ?Second line/)
+    expect(next.cues[0].timeMs).toBe(3000)
+  })
+
+  it('a drag to the left stops at 0:00', () => {
+    const { onChange } = setup({ content: '[00:01.00]First line' })
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    dragLanes(10000, 5000)
+    expect(onChange.mock.calls[0][0].chordProContent).toMatch(/\[00:00\.00\] ?First line/)
+  })
+
+  it('"Sekunden eingeben…" is the exact alternative', async () => {
+    dialog.promptText.mockResolvedValueOnce('2')
+    const { onChange } = setup(song)
+    fireEvent.click(toolButton('Ganzen Song verschieben'))
+    fireEvent.click(screen.getByRole('button', { name: 'Sekunden eingeben…' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(onChange.mock.calls[0][0].cues[0].timeMs).toBe(5000)
+  })
+})
+
