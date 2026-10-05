@@ -65,6 +65,11 @@ export const ShowStateSchema = z.object({
    * song change (activateEntry below), same for-tonight-only pattern as `trackOverride`/
    * `liveTempoAdjustPercent`/`clickTrackOverride` above. */
   clickExtendMs: z.number(),
+  /** The current entry stopped because its track (or a transition item's countdown) ran out by
+   * itself - "Beendet" in the status bar, and what a state-dependent pedal key (#27) reacts to.
+   * Cleared by every transport change (Play, Pause, Stop, Weiter). Optional: older devices that
+   * don't know it simply leave it out. */
+  trackEnded: z.boolean().optional(),
   /** The id of the Ready Check the Master has open (#60), or null when none is. Only the OPEN/CLOSE
    * state lives here (Master-gated like everything else in this doc); the musicians' answers do not -
    * every tablet would write the same doc, so they go to the Stage-Server's in-memory presence
