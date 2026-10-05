@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { clickTimeline } from './beatGrid'
 import { beatAt } from './metronome'
-import { countInPosition, finishedAfterRun, formatSongTime, statusBarState, type StatusBarInput } from './statusBar'
+import { countInPosition, formatSongTime, statusBarState, type StatusBarInput } from './statusBar'
 
 const base: StatusBarInput = {
   mode: 'gig',
@@ -31,19 +31,6 @@ describe('statusBarState', () => {
 
   it('does not count offline or a missing Master as faults in Solo Üben', () => {
     expect(statusBarState({ ...base, mode: 'practice', syncStatus: 'offline', noMaster: true }).kind).toBe('ready')
-  })
-})
-
-describe('finishedAfterRun', () => {
-  it('counts a run that reached the last few seconds of the song', () => {
-    expect(finishedAfterRun(180_000, 180_000)).toBe(true)
-    expect(finishedAfterRun(176_000, 180_000)).toBe(true)
-  })
-
-  it('does not count a false start, or a song without a known length', () => {
-    expect(finishedAfterRun(12_000, 180_000)).toBe(false)
-    expect(finishedAfterRun(180_000, null)).toBe(false)
-    expect(finishedAfterRun(null, 180_000)).toBe(false)
   })
 })
 

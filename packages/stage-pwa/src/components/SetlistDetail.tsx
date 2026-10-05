@@ -180,7 +180,7 @@ function TransitionPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`Übergang zum nächsten Eintrag: ${current.label}`}
-        className={`h-10 flex-shrink-0 rounded-sb-sm px-2 text-sm hover:bg-control-strong-hover ${
+        className={`h-12 min-w-12 flex-shrink-0 rounded-sb-sm px-3 text-sm hover:bg-control-strong-hover ${
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
         }`}
       >
@@ -236,7 +236,7 @@ function TransitionPicker({
                     step={1}
                     value={Math.round(delayMs / 1000)}
                     onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
-                    className="h-10 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
+                    className="h-12 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
                   />
                 </label>
               )}
@@ -298,7 +298,7 @@ function EntryRow({
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
@@ -306,7 +306,7 @@ function EntryRow({
       <button
         type="button"
         onClick={() => onSelectSong(entry.songId, entry.variantId)}
-        className="min-w-0 flex-1 truncate text-left hover:underline"
+        className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline"
       >
         {songNumber}. {title}
       </button>
@@ -338,7 +338,7 @@ function EntryRow({
 /** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
  * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
 function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
-  const inputClass = 'h-10 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
+  const inputClass = 'h-12 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
   function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
     const seconds = Number(text.trim().replace(',', '.'))
     const value = text.trim() === '' || !Number.isFinite(seconds) || seconds < 0 ? undefined : Math.round(seconds) * 1000
@@ -346,7 +346,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
   }
   return (
     <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
-      <summary className="cursor-pointer select-none font-medium text-ink-muted">
+      <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
       <div className="mt-2 flex flex-col gap-2">
@@ -356,7 +356,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
             type="time"
             value={setlist.targetEndTime ?? ''}
             onChange={(e) => onSave({ ...setlist, targetEndTime: e.target.value || undefined })}
-            className="h-10 rounded-sb-sm bg-surface px-2 text-ink"
+            className="h-12 rounded-sb-sm bg-surface px-2 text-ink"
           />
         </label>
         <label className="flex items-center justify-between gap-2">
@@ -427,12 +427,12 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-10 w-8 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-w-0 flex-1 truncate text-left hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
@@ -721,7 +721,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
             type="button"
             onClick={() => setActiveSetlist(setlist.id)}
             disabled={!isMaster}
-            className="h-10 rounded-sb-sm bg-accent-2 px-3 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
+            className="h-12 rounded-sb-sm bg-accent-2 px-4 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
           >
             Aktivieren
           </button>
@@ -744,7 +744,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           type="button"
           onClick={() => setActiveSetlist(null)}
           disabled={!isMaster}
-          className="h-10 self-start rounded-sb-sm bg-control-strong px-3 text-sm hover:bg-control-strong-hover disabled:opacity-40"
+          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover disabled:opacity-40"
         >
           Setlist deaktivieren (alle Songs)
         </button>

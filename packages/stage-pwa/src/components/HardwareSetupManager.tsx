@@ -64,7 +64,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
             <button
               type="button"
               onClick={() => onEdit(device)}
-              className="rounded-sb-sm bg-control-strong px-3 py-1 text-xs font-medium text-accent hover:bg-control-strong-hover"
+              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover"
             >
               Einrichten
             </button>
@@ -75,7 +75,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
                   void remove(device.id)
                 }
               }}
-              className="rounded-sb-sm bg-control px-3 py-1 text-xs text-ink-soft hover:bg-control-hover"
+              className="ml-2 min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -86,7 +86,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
       <button
         type="button"
         onClick={onAdd}
-        className="h-11 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
+        className="h-12 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
       >
         + Neues Gerät
       </button>

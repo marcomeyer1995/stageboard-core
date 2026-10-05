@@ -9,6 +9,7 @@ import { stageFontSize } from '../lib/stageSize'
 import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { Icon } from '../components/Icon'
+import { stageVariantLabel } from '../lib/variantLabel'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -38,7 +39,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
     <>
       Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
       {currentVariant && !currentVariant.isDefault && (
-        <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
+        <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({stageVariantLabel(currentVariant.label)})</span>
       )}
     </>
   ) : (
