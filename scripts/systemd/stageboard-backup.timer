@@ -1,0 +1,11 @@
+# Nightly backup (#363). Persistent=true: a night the server was off is caught up at the next start.
+[Unit]
+Description=Nightly StageBoard backup
+
+[Timer]
+OnCalendar=*-*-* 04:00
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

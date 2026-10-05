@@ -6,6 +6,7 @@ import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { BackupStatusLine } from './BackupStatusLine'
 
 const ENVIRONMENT_LABEL: Record<string, string> = { browser: 'Browser', pwa: 'PWA', native: 'Nativ' }
 const SYNC_STATUS_LABEL: Record<string, string> = { idle: 'Synchronisiert', syncing: 'Synchronisiert…', offline: 'Offline', error: 'Fehler' }
@@ -108,6 +109,7 @@ export function DeviceLedgerView() {
               </span>
               <span>Stage-Server</span>
               <span>Aktive Band: {stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? 'keine'}</span>
+              <BackupStatusLine />
             </>
           ) : (
             <span className="text-ink-faint">

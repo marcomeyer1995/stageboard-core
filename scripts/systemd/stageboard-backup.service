@@ -1,0 +1,21 @@
+# Backup of the Stage-Server (#363) - see docs/03 "Backup & Wiederherstellung".
+# Install (not active by default): copy both files to ~/.config/systemd/user/, set the target below,
+# then `systemctl --user daemon-reload && systemctl --user enable --now stageboard-backup.timer`.
+[Unit]
+Description=StageBoard backup to a second medium
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/stageboard-deploy
+# Same folders as stageboard.service. CouchDB access: if stageboard.service sets COUCHDB_USER /
+# COUCHDB_PASSWORD, put the same lines into this optional file (it is not in the repo).
+EnvironmentFile=-%h/.config/stageboard/backup.env
+Environment=STAGEBOARD_DATA_DIR=%h/stageboard-data
+Environment=STAGEBOARD_STATE_DIR=%h/stageboard-data
+# CHANGE: the folder on the second medium (USB disk, NAS mount). A missing folder fails loudly.
+Environment=STAGEBOARD_BACKUP_TARGET=/media/CHANGE-ME/stageboard-backup
+Environment=STAGEBOARD_BACKUP_KEEP=7
+# Same nvm Node as stageboard.service (systemd has no nvm in its PATH).
+ExecStart=%h/.nvm/versions/node/v24.19.0/bin/node scripts/backup.mjs
+Nice=10
+IOSchedulingClass=idle

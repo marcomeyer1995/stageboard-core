@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -91,6 +91,39 @@ describe('Fastify routes', () => {
       const { serverTime } = response.json() as { serverTime: number }
       expect(serverTime).toBeGreaterThanOrEqual(before)
       expect(serverTime).toBeLessThanOrEqual(after)
+    })
+  })
+
+  describe('GET /server/backup-status (#363)', () => {
+    let stateDir: string
+
+    beforeEach(() => {
+      stateDir = mkdtempSync(join(tmpdir(), 'stageboard-backup-status-test-'))
+      process.env.STAGEBOARD_STATE_DIR = stateDir
+    })
+
+    afterEach(() => {
+      delete process.env.STAGEBOARD_STATE_DIR
+      rmSync(stateDir, { recursive: true, force: true })
+    })
+
+    it('answers null while no backup has ever run', async () => {
+      const response = await app.inject({ method: 'GET', url: '/server/backup-status' })
+      expect(response.statusCode).toBe(200)
+      expect(response.body).toBe('null')
+    })
+
+    it('passes on what scripts/backup.mjs wrote', async () => {
+      writeFileSync(join(stateDir, 'backup-status.json'), JSON.stringify({ ok: false, at: '2026-10-05T04:00:00.000Z', error: 'Backup target is not there (not mounted?): /media/usb' }))
+      const response = await app.inject({ method: 'GET', url: '/server/backup-status' })
+      expect(response.json()).toMatchObject({ ok: false, error: expect.stringContaining('not mounted') })
+    })
+
+    it('reports an unreadable status file as a failure instead of crashing', async () => {
+      writeFileSync(join(stateDir, 'backup-status.json'), '{ half')
+      const response = await app.inject({ method: 'GET', url: '/server/backup-status' })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ ok: false })
     })
   })
 

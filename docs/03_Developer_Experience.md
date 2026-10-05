@@ -106,6 +106,14 @@ Aufräumen alter Reste, z. B. älter als 30 Tage: `docker run --rm -v stageboard
 
 **Noch offen:** Es gibt noch kein automatisches Backup auf ein zweites Medium (#363) - CouchDB-Volume, `~/stageboard-data` und `certs/` liegen auf einer einzigen Platte. Der manuelle Snapshot in der App (System → Backup, `workspaceSnapshot.ts`) enthält weder die Backing-Tracks noch `logical-devices`/`devices`/`device-transport-config`.
 
+## 0b2. Backup & Wiederherstellung (#363)
+
+Alles Wichtige liegt auf einer Platte: CouchDB (Songs, Setlisten, Dashboards, Mitglieder), `~/stageboard-data` (Backing-Tracks, aktive Band, Plugins, App, **Android-Signierschlüssel** - ohne ihn lässt sich die App nie mehr aktualisieren) und die TLS-Zertifikate (`certs/` - neue Zertifikate heißt: jedes Gerät neu koppeln).
+
+- **Backup:** `node scripts/backup.mjs <ziel-ordner>` schreibt eine datierte Generation `stageboard-JJJJ-MM-TT_HHMM/` (CouchDB-Dump je Datenbank mit Revisionen, Anhängen und Lösch-Markern, `data.tar.gz`, `certs.tar.gz`, `manifest.json`) und behält die neuesten `STAGEBOARD_BACKUP_KEEP` (Standard 7). Fehlt das Ziel (Platte nicht eingehängt) oder schlägt etwas fehl: Exit-Code 1, JSON-Fehlerzeile im Journal und `ok: false` in `backup-status.json` - die App zeigt das unter **Geräte → Stage-Server** ("Letztes Backup vor …" grün, fehlgeschlagen/älter als zwei Tage rot/gelb, nie eingerichtet als Hinweis).
+- **Nächtlich:** Vorlagen `scripts/systemd/stageboard-backup.{service,timer}` (04:00, `Persistent=true` holt verpasste Nächte nach). **Nicht aktiv** - zuerst `STAGEBOARD_BACKUP_TARGET` in der Service-Datei auf das zweite Medium setzen (USB-Platte, NAS), dann nach `~/.config/systemd/user/` kopieren und `systemctl --user daemon-reload && systemctl --user enable --now stageboard-backup.timer`. Einmal von Hand testen: `systemctl --user start stageboard-backup.service; journalctl --user -u stageboard-backup -n 5`.
+- **Wiederherstellen:** `node scripts/backup-restore.mjs <generation> <datenbank|--all>` legt die Datenbank an, setzt `_security` zurück und schreibt alle Dokumente mit `new_edits: false` (gleiche Revisionen - Geräte, die die Band noch haben, synchronisieren einfach weiter). In eine nicht leere Datenbank nur mit `--force`. Design-Dokumente (Validator) kommen zuletzt, sonst würde der Validator einzelne Dokumente ablehnen. Dateien: Stage-Server stoppen, `data.tar.gz`/`certs.tar.gz` an Ort und Stelle entpacken, starten. Getestet am 2026-10-05 gegen eine Wegwerf-CouchDB: alle Datenbanken mit gleicher Dokument-, Lösch- und Revisionszahl wie das Original.
+
 ## 0c. Native Android-App (Capacitor, #348)
 
 Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.

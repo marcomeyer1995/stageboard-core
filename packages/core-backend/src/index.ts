@@ -1179,6 +1179,19 @@ export async function buildApp() {
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
   // for the same reason /server-info needs none: not new information beyond what's already
   // observable on the LAN.
+  // Result of the last run of scripts/backup.mjs (#363) - shown in the app (Geräte → Stage-Server).
+  // `null` until a backup has ever run on this box.
+  app.get('/server/backup-status', async (_request, reply) => {
+    const file = join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'backup-status.json')
+    if (!existsSync(file)) return reply.status(200).send(null)
+    try {
+      return reply.status(200).send(JSON.parse(readFileSync(file, 'utf8')))
+    } catch (err) {
+      app.log.warn({ err }, 'backup-status.json unreadable')
+      return reply.status(200).send({ ok: false, error: 'Status-Datei unlesbar' })
+    }
+  })
+
   app.get('/server/active-workspace', async (_request, reply) =>
     reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
   )
