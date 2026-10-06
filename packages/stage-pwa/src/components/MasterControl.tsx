@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react'
 import { useQueue } from '../lib/queue'
+import { Icon } from './Icon'
 import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useMasterTakeover } from '../lib/useMasterTakeover'
@@ -14,6 +16,11 @@ import { useProfilesStore } from '../store/useProfilesStore'
  * - the same "which setlist is live right now" question Marco wanted visible in the
  * Bibliothek too (LibraryView.tsx/SetlistDetail.tsx's "● Aktiv" badges).
  */
+/** How long the Master row is held to change it - as long as "Bearbeiten". */
+const HOLD_MS = 600
+/** How long the "hold it" hint stays after a too-short tap, ms. */
+const HINT_MS = 2500
+
 const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
   ok: '',
   'sync-error':
@@ -51,35 +58,91 @@ export function MasterControl() {
   const holderProfileName = useProfilesStore((state) => state.profiles.find((p) => p.id === holderProfileId)?.name)
   const masterName = holderProfileId ? `${holderProfileName ?? 'Jemand'} (alle Geräte)` : deviceName
 
-  // Like Modus (Gig/Solo, Marco's #409 review): two fixed buttons, yellow is who controls the show
-  // right now, the other one changes it - status and action never look alike, and the labels
-  // don't change when pressed.
+  // One "Master" row that is held to change it, both ways (Marco's #409 review): yellow = this
+  // device / person controls the show. Holding fills it (take over) or drains it (hand over), like
+  // "Bearbeiten" below it - a stray tap on stage changes nothing, it only says "hold it".
   const mine = isMaster || unconfirmed
-  const segment = (selected: boolean) =>
-    `h-12 rounded-sb text-base font-semibold disabled:opacity-40 ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`
-  const hint = unconfirmed
+  const blocked = !mine && !canClaim
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [holding, setHolding] = useState(false)
+  const [hint, setHint] = useState(false)
+  useEffect(
+    () => () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current)
+      if (hintTimer.current) clearTimeout(hintTimer.current)
+    },
+    [],
+  )
+  function startHold() {
+    if (blocked) return
+    setHolding(true)
+    setHint(false)
+    holdTimer.current = setTimeout(() => {
+      holdTimer.current = null
+      setHolding(false)
+      void (mine ? release() : claim())
+    }, HOLD_MS)
+  }
+  function endHold(tooShort: boolean) {
+    if (holdTimer.current && tooShort) {
+      setHint(true)
+      if (hintTimer.current) clearTimeout(hintTimer.current)
+      hintTimer.current = setTimeout(() => setHint(false), HINT_MS)
+    }
+    setHolding(false)
+    if (holdTimer.current) clearTimeout(holdTimer.current)
+    holdTimer.current = null
+  }
+
+  const statusLine = unconfirmed
     ? SELF_CHECK_HINT[selfCheck]
     : isMaster
-      ? `${holderProfileId ? 'Du steuerst die Show (alle deine Geräte).' : 'Dieses Gerät steuert die Show.'} „Andere“ gibt die Kontrolle ab.`
+      ? holderProfileId
+        ? 'Du bist Master – alle deine Geräte.'
+        : 'Du bist Master – nur dieses Gerät.'
       : masterHolderId
-        ? `${masterName ?? 'Ein anderes Gerät'} steuert die Show${status === 'stale' ? ' - antwortet aber nicht' : ''}. ${
-            !canClaim ? 'Übernehmen dürfen nur Admin/Showmaster.' : isForce ? '„Ich“ erzwingt die Übernahme.' : '„Ich“ übernimmt.'
+        ? `${masterName ?? 'Ein anderes Gerät'} ist Master${status === 'stale' ? ' – antwortet aber nicht' : ''}.${
+            blocked ? ' Übernehmen dürfen nur Admin/Showmaster.' : isForce ? ' Halten erzwingt die Übernahme.' : ''
           }`
-        : 'Niemand steuert die Show. „Ich“ übernimmt.'
+        : 'Niemand ist Master.'
+  // Full while it's yours, empty otherwise; holding animates towards the other state.
+  const fill = holding ? (mine ? '0%' : '100%') : mine ? '100%' : '0%'
+  const darkText = holding ? !mine : mine
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Master-Kontrolle">
-        <button type="button" aria-pressed={mine} onClick={mine ? undefined : claim} disabled={!mine && !canClaim} className={segment(mine)}>
-          Ich
-        </button>
-        <button type="button" aria-pressed={!mine} onClick={mine ? release : undefined} className={segment(!mine)}>
-          Andere
-        </button>
-      </div>
-      <p role={unconfirmed ? 'status' : undefined} className={`text-xs ${unconfirmed || status === 'stale' ? 'text-amber-500' : 'text-ink-faint'}`}>
-        {hint}
-      </p>
+      <button
+        type="button"
+        aria-pressed={mine}
+        aria-label="Master"
+        disabled={blocked}
+        title={mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
+        onPointerDown={startHold}
+        onPointerUp={() => endHold(true)}
+        onPointerLeave={() => endHold(false)}
+        onPointerCancel={() => endHold(false)}
+        onContextMenu={(e) => e.preventDefault()}
+        className="relative flex h-12 w-full items-center justify-between overflow-hidden rounded-sb bg-control px-4 text-base hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span
+          aria-hidden
+          data-testid="master-progress"
+          className="absolute inset-y-0 left-0 bg-accent"
+          style={{ width: fill, transition: holding ? `width ${HOLD_MS}ms linear` : 'none' }}
+        />
+        <span className={`relative font-semibold ${darkText ? 'text-accent-ink' : 'text-ink-soft'}`}>Master</span>
+        <Icon name="master" size="1.4rem" className={`relative ${darkText ? 'text-accent-ink' : 'text-ink-soft'}`} />
+      </button>
+      {hint ? (
+        <p role="status" className="text-sm text-accent">
+          {mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
+        </p>
+      ) : (
+        <p role={unconfirmed ? 'status' : undefined} className={`text-sm ${unconfirmed || status === 'stale' ? 'text-amber-500' : 'text-ink-faint'}`}>
+          {statusLine}
+        </p>
+      )}
       <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
         Aktive Setlist
         {activeSetlist ? (
