@@ -16,9 +16,12 @@ services:
       # HTTPS listener (see #34, scripts/generate-dev-certs.sh) - kept alongside plain 5984
       # rather than replacing it, so anyone who hasn't generated certs yet keeps working.
       - "127.0.0.1:6984:6984"
+    # The admin login comes from ~/.config/stageboard/couchdb.env on the Stage-Server
+    # (docker compose --env-file ...), never from the repo; "admin" stays the default only for a
+    # local dev box. docs/03 "CouchDB-Zugang".
     environment:
-      COUCHDB_USER: admin
-      COUCHDB_PASSWORD: admin
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:-admin}
     volumes:
       - couchdb-data:/opt/couchdb/data
       - ./docker/couchdb-ssl.ini:/opt/couchdb/etc/local.d/00-ssl.ini:ro
