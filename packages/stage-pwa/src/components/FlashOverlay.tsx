@@ -15,8 +15,8 @@ export function isForMe(flash: FlashMessage, profileId: string | undefined): boo
  * Stage-Messenger flash (#26): a short message from the Stage-Messenger widget on any device
  * (pushed on the presence stream; only shown by the people it is addressed to) or a song's
  * `{alert: ...}` reaching its time on this device. Per device (Einstellungen → Blitzmeldungen):
- * a see-through banner under the status bar that touches pass through - so the prompter stays
- * readable and playable (Marco, #400 review) -, the whole screen, or off. Gone after
+ * a see-through banner under the status bar - only as big as the message, the rest of the screen
+ * stays playable, a tap on it closes it (Marco, #400 review) -, the whole screen, or off. Gone after
  * FLASH_DURATION_MS.
  */
 export function FlashOverlay() {
@@ -57,7 +57,8 @@ export function FlashOverlay() {
       <div
         role="alert"
         style={{ top }}
-        className="pointer-events-none fixed inset-x-2 z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-sb bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
+        onClick={() => setShown(null)}
+        className="fixed inset-x-2 cursor-pointer z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-sb bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
       >
         <p className="max-w-full break-words text-[clamp(2rem,6vw,4.5rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
         {shown.from && <p className="text-lg font-bold">— {shown.from}</p>}

@@ -60,15 +60,14 @@ describe('FlashOverlay (#26)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('banner (default): a strip at the top that lets touches through to the dashboard', () => {
+  it('banner (default): a strip at the top, not the whole screen; a tap on it closes it', () => {
     useFlashPrefsStore.setState({ mode: 'banner' })
     render(<FlashOverlay />)
     act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f3', text: 'Letzter Song', from: 'Marco', at: Date.now() } } }))
     const banner = screen.getByRole('alert')
     expect(banner).toHaveTextContent('Letzter Song')
-    expect(banner.className).toContain('pointer-events-none')
     expect(banner.className).not.toContain('inset-0')
-    act(() => vi.advanceTimersByTime(8_100))
+    fireEvent.click(banner)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

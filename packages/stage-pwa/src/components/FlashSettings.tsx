@@ -1,7 +1,7 @@
 import { useFlashPrefsStore, type FlashMode } from '../store/useFlashPrefsStore'
 
 const OPTIONS: { mode: FlashMode; label: string; hint: string }[] = [
-  { mode: 'banner', label: 'Banner', hint: 'Streifen oben, durchscheinend - darunter lässt sich weiterspielen und tippen.' },
+  { mode: 'banner', label: 'Banner', hint: 'Streifen oben, durchscheinend - der Rest bleibt bedienbar, Tippen auf den Streifen schließt ihn.' },
   { mode: 'fullscreen', label: 'Vollbild', hint: 'Über den ganzen Bildschirm, bis Tippen oder 8 Sekunden.' },
   { mode: 'off', label: 'Aus', hint: 'Keine Blitzmeldungen auf diesem Gerät.' },
 ]
