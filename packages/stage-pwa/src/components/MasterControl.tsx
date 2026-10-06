@@ -14,13 +14,6 @@ import { useProfilesStore } from '../store/useProfilesStore'
  * - the same "which setlist is live right now" question Marco wanted visible in the
  * Bibliothek too (LibraryView.tsx/SetlistDetail.tsx's "● Aktiv" badges).
  */
-const SELF_CHECK_LABEL: Record<MasterSelfCheck, string> = {
-  ok: '',
-  'sync-error': 'nicht synchron',
-  offline: 'offline',
-  unconfirmed: 'nicht bestätigt',
-}
-
 const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
   ok: '',
   'sync-error':
@@ -57,57 +50,36 @@ export function MasterControl() {
   const holderProfileId = profileIdOfMasterHolder(masterHolderId)
   const holderProfileName = useProfilesStore((state) => state.profiles.find((p) => p.id === holderProfileId)?.name)
   const masterName = holderProfileId ? `${holderProfileName ?? 'Jemand'} (alle Geräte)` : deviceName
-  const selfLabel = holderProfileId ? 'Du (alle deine Geräte)' : 'Dieses Gerät'
+
+  // Like Modus (Gig/Solo, Marco's #409 review): two fixed buttons, yellow is who controls the show
+  // right now, the other one changes it - status and action never look alike, and the labels
+  // don't change when pressed.
+  const mine = isMaster || unconfirmed
+  const segment = (selected: boolean) =>
+    `h-12 rounded-sb text-base font-semibold disabled:opacity-40 ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`
+  const hint = unconfirmed
+    ? SELF_CHECK_HINT[selfCheck]
+    : isMaster
+      ? `${holderProfileId ? 'Du steuerst die Show (alle deine Geräte).' : 'Dieses Gerät steuert die Show.'} „Andere“ gibt die Kontrolle ab.`
+      : masterHolderId
+        ? `${masterName ?? 'Ein anderes Gerät'} steuert die Show${status === 'stale' ? ' - antwortet aber nicht' : ''}. ${
+            !canClaim ? 'Übernehmen dürfen nur Admin/Showmaster.' : isForce ? '„Ich“ erzwingt die Übernahme.' : '„Ich“ übernimmt.'
+          }`
+        : 'Niemand steuert die Show. „Ich“ übernimmt.'
 
   return (
     <div className="flex flex-col gap-2">
-      {unconfirmed && (
-        <p role="status" className="text-sm text-amber-500">
-          {SELF_CHECK_HINT[selfCheck]}
-        </p>
-      )}
-      {/* Two rows in the menu's own style (Marco, #409 review): who holds the token, then the
-          action - one fixed-height row wrapped the longer "Du (alle deine Geräte)" and the button
-          stuck out of it. */}
-      <div className="flex min-h-12 items-center justify-between gap-3 rounded-sb bg-control px-4 py-2 text-left text-base text-ink-soft">
-        Master-Kontrolle
-        {isMaster || unconfirmed ? (
-          <span className={`text-right font-medium ${unconfirmed ? 'text-amber-500' : 'text-accent'}`}>
-            {unconfirmed ? `${selfLabel} - ${SELF_CHECK_LABEL[selfCheck]}` : selfLabel}
-          </span>
-        ) : (
-          <span className="text-right text-ink-faint">
-            {masterHolderId ? (masterName ?? 'Anderes Gerät') : 'Niemand'}
-            {status === 'stale' && <span className="text-amber-500"> · antwortet nicht</span>}
-          </span>
-        )}
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Master-Kontrolle">
+        <button type="button" aria-pressed={mine} onClick={mine ? undefined : claim} disabled={!mine && !canClaim} className={segment(mine)}>
+          Ich
+        </button>
+        <button type="button" aria-pressed={!mine} onClick={mine ? release : undefined} className={segment(!mine)}>
+          Andere
+        </button>
       </div>
-      {isMaster || unconfirmed ? (
-        <button
-          type="button"
-          onClick={release}
-          title="Kontrolle abgeben, damit ein anderes Gerät übernehmen kann"
-          className="flex min-h-12 items-center justify-between gap-3 rounded-sb bg-control px-4 py-2 text-left text-base text-ink hover:bg-control-hover"
-        >
-          Master abgeben
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={claim}
-          disabled={!canClaim}
-          title={
-            isForce
-              ? canClaim
-                ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
-                : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
-              : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
-          }
-          className="flex min-h-12 items-center justify-between gap-3 rounded-sb bg-control px-4 py-2 text-left text-base font-medium text-accent hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isForce ? 'Übernahme erzwingen' : 'Master übernehmen'}
-        </button>
-      )}
+      <p role={unconfirmed ? 'status' : undefined} className={`text-xs ${unconfirmed || status === 'stale' ? 'text-amber-500' : 'text-ink-faint'}`}>
+        {hint}
+      </p>
       <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
         Aktive Setlist
         {activeSetlist ? (

@@ -36,25 +36,37 @@ describe('MasterControl (#378: master self-check)', () => {
   it("'account' master mode (#85): the holder is the person with all their devices", () => {
     show.holder = 'profile:p1'
     render(<MasterControl />)
-    expect(screen.getByText('Du (alle deine Geräte)')).toBeInTheDocument()
+    expect(screen.getByText(/Du steuerst die Show \(alle deine Geräte\)/)).toBeInTheDocument()
   })
 
-  it('shows "Dieses Gerät" while the self-check passes', () => {
+  it('like Modus: "Ich" is yellow (pressed) while this device controls the show, "Andere" hands it over', () => {
     render(<MasterControl />)
-    expect(screen.getByText('Dieses Gerät')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ich' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Andere' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText(/Dieses Gerät steuert die Show/)).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('the labels stay the same when someone else holds it - only the yellow moves', () => {
+    queue.isMaster = false
+    show.holdsToken = false
+    show.holder = 'other-device'
+    render(<MasterControl />)
+    expect(screen.getByRole('button', { name: 'Ich' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Andere' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/steuert die Show/)).toBeInTheDocument()
   })
 
   it.each([
     ['sync-error', 'nicht synchron', 'Reparieren'],
     ['offline', 'offline', 'Verbindung'],
     ['unconfirmed', 'nicht bestätigt', 'anderes Gerät übernommen'],
-  ])('holder failing the self-check (%s): marked, explained, still able to hand the token back', (check, label, hint) => {
+  ])('holder failing the self-check (%s): explained, still able to hand the token back', (check, _label, hint) => {
     queue.isMaster = false
     show.selfCheck = check
     render(<MasterControl />)
-    expect(screen.getByText(`Dieses Gerät - ${label}`)).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(hint)
-    expect(screen.getByRole('button', { name: 'Master abgeben' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ich' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Andere' })).toBeEnabled()
   })
 })
