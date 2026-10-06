@@ -547,7 +547,7 @@ export async function buildApp() {
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -673,6 +673,27 @@ export async function buildApp() {
   // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh
   // set of guesses. Keyed per workspace + profile.
   const pinThrottle = createPinThrottle()
+
+  // Admin logins on the admin routes below: the anchor account's password is the admin's 4-digit
+  // PIN, so it gets the same lockout per account. And the account must belong to *this* band -
+  // the CouchDB role `admin` alone is shared by the admins of every band on the server.
+  const adminLoginThrottle = createPinThrottle()
+
+  async function isWorkspaceAdmin(request: FastifyRequest, workspaceId: string, username: string, password: string): Promise<boolean> {
+    if (!username.startsWith(`${workspaceDbName(workspaceId)}-`)) {
+      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Admin login for another band refused')
+      return false
+    }
+    if (adminLoginThrottle.lockedForSeconds(username) > 0) return false
+    if (await verifyAdmin(couch, username, password)) {
+      adminLoginThrottle.recordSuccess(username)
+      return true
+    }
+    if (adminLoginThrottle.recordFailure(username)) {
+      app.log.warn({ workspaceId, username, remoteAddress: request.ip }, 'Too many wrong admin logins - locked out temporarily')
+    }
+    return false
+  }
 
   type PinCheck = { ok: true } | { ok: false; retryAfterSeconds?: number }
   async function checkAdminPin(request: FastifyRequest, workspaceId: string, profileId: string, pin: string): Promise<PinCheck> {
@@ -853,7 +874,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -873,7 +894,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -896,7 +917,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -924,7 +945,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -989,7 +1010,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -1114,7 +1135,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -1131,7 +1152,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
@@ -1150,7 +1171,7 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
 
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
 
