@@ -88,7 +88,7 @@ export function MasterControl() {
             type="button"
             onClick={release}
             title="Kontrolle abgeben, damit ein anderes Gerät übernehmen kann"
-            className="min-h-12 w-full rounded-sb-sm bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
+            className="min-h-12 w-full rounded-sb-sm border border-line bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
           >
             Master abgeben
           </button>
@@ -104,7 +104,7 @@ export function MasterControl() {
                   : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
                 : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
             }
-            className="min-h-12 w-full rounded-sb-sm bg-control-strong px-4 text-base font-semibold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-12 w-full rounded-sb-sm border border-accent bg-control-strong px-4 text-base font-semibold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isForce ? 'Übernahme erzwingen' : 'Master übernehmen'}
           </button>
