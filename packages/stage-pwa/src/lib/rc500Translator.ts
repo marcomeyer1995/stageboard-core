@@ -5,6 +5,7 @@ import { RC500_CAPABILITY } from './midiDeviceProtocols'
 import { getMidiOutputById } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { resolveTargetDevice } from './hardwareRouting'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock - own dedicated capability,
@@ -21,8 +22,8 @@ interface Rc500Output {
 /** Same "first Logical Device with this capability, bound on this device" resolution as
  * kemperTranslator.ts/cq18tTranslator.ts/mg30Translator.ts - see their own doc comments for
  * why. */
-async function resolveRc500Output(): Promise<Rc500Output | null> {
-  const logicalDevice = useLogicalDevicesStore.getState().devices.find((d) => d.capability === RC500_CAPABILITY)
+async function resolveRc500Output(logicalDeviceId?: string): Promise<Rc500Output | null> {
+  const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, RC500_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
   const deviceId = getDeviceId()
@@ -72,7 +73,7 @@ function test(): ShowControlResult {
 }
 
 export const rc500Translator: Translator = async (event) => {
-  const rc500 = await resolveRc500Output()
+  const rc500 = await resolveRc500Output(event.logicalDeviceId)
   if (!rc500) return { status: 'error', message: 'RC-500: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

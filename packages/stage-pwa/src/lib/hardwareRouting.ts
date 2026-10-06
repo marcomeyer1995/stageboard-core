@@ -36,6 +36,19 @@ export function resolveHardwareBinding(logicalDevices: LogicalDevice[], capabili
 }
 
 /**
+ * The device a translator should drive (#149): the one an event names, if it has this capability -
+ * two Kempers on one tablet each get their own cues - otherwise the first one with the capability,
+ * as before (events from callers that don't know a specific device).
+ */
+export function resolveTargetDevice(logicalDevices: LogicalDevice[], capability: string, logicalDeviceId?: string): LogicalDevice | null {
+  if (logicalDeviceId) {
+    const named = logicalDevices.find((device) => device.id === logicalDeviceId && device.capability === capability)
+    if (named) return named
+  }
+  return resolveHardwareBinding(logicalDevices, capability)
+}
+
+/**
  * `supportsLocalExecution` (clientTranslator.ts) gates the `local-mine`/`local-other` branch -
  * #98: a binding pointing at a tablet is only honored if something can actually execute there
  * (a real client-runtime plugin, or - audio-playback - the browser's own native playback).
