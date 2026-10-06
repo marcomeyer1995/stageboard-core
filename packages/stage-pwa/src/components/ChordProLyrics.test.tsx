@@ -117,27 +117,37 @@ describe('ChordProLyrics comment lines (#215)', () => {
     expect(spacers).toEqual(['D#5', 'C#m7', 'B'])
   })
 
-  it('keeps chords inside the line box: chords above via bottom-full, room reserved on top of the line', () => {
+  it('keeps chords inside the line box: each segment reserves the chord room on top, the chord sits in it', () => {
     const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello')} />)
     const line = container.querySelector('p[data-line-index]') as HTMLElement
-    // One chord height (never below the stage text floor, lib/stageSize.ts), times 1.2.
-    expect(line.className).toContain('pt-[calc(max(var(--sb-text-min),0.7em)*1.2)]')
+    const segment = line.querySelector('span.inline-block') as HTMLElement
+    // One chord height (never below the stage text floor, lib/stageSize.ts), times 1.2 - on the
+    // segment (#416), so a wrapped line has the room on each visual line.
+    expect(segment.className).toContain('pt-[calc(max(var(--sb-text-min),0.7em)*1.2)]')
+    expect(line.className).not.toContain('pt-[')
     expect(line.querySelector('span.absolute')?.className).toContain('text-[length:max(var(--sb-text-min),0.7em)]')
-    expect(line.querySelector('span.absolute')?.className).toContain('bottom-full')
+    expect(line.querySelector('span.absolute')?.className).toContain('top-0')
+  })
+
+  it('#416: every segment of a chord line carries the room - a wrapped part keeps its chords off the line above', () => {
+    const { container } = render(<ChordProLyrics lines={parseChordPro('[C]Turn the lights off, carry [F]me [C]home')} />)
+    const segments = [...container.querySelectorAll('p[data-line-index] span.inline-block')] as HTMLElement[]
+    expect(segments.length).toBe(3)
+    for (const segment of segments) expect(segment.className).toContain('pt-[calc(max(var(--sb-text-min),0.7em)*1.2)]')
   })
 
   it('never renders chords below the 16px stage floor, even when the prompter sets a smaller chord size', () => {
     const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello')} chordFontSize={11} />)
     const line = container.querySelector('p[data-line-index]') as HTMLElement
     expect((line.querySelector('span.absolute') as HTMLElement).style.fontSize).toBe('16px')
-    expect(line.style.paddingTop).toBe(`${16 * 1.2}px`)
+    expect((line.querySelector('span.inline-block') as HTMLElement).style.paddingTop).toBe(`${16 * 1.2}px`)
   })
 
   it('sizes the reserved room from the prompter\'s own chord size, and none for a line without chords', () => {
     const { container } = render(<ChordProLyrics lines={parseChordPro('[G]Hello\nno chords here')} chordFontSize={20} />)
     const [withChords, without] = [...container.querySelectorAll('p[data-line-index]')] as HTMLElement[]
-    expect(withChords.style.paddingTop).toBe('24px')
-    expect(without.style.paddingTop).toBe('')
+    expect((withChords.querySelector('span.inline-block') as HTMLElement).style.paddingTop).toBe('24px')
+    expect((without.querySelector('span.inline-block') as HTMLElement).style.paddingTop).toBe('')
   })
 
   describe('instrumental chord rows render inline, lyric lines keep chords above', () => {
