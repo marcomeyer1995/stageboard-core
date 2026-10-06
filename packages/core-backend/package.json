@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "band:delete": "tsx src/cli/deleteBand.ts"
+    "band:delete": "tsx src/cli/deleteBand.ts",
+    "admin:reset": "tsx src/cli/resetAdmin.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
