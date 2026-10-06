@@ -11,6 +11,8 @@ import { capabilityStatusFor } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
+import { DebugConsoleView } from './DebugConsoleView'
+import { useActiveProfile } from '../lib/useActiveProfile'
 
 const TAB_LABEL: Record<SystemTab, string> = {
   band: 'Band',
@@ -20,6 +22,7 @@ const TAB_LABEL: Record<SystemTab, string> = {
   backup: 'Backup',
   'post-show': 'Nachbericht',
   settings: 'Einstellungen',
+  debug: 'Diagnose',
 }
 
 /** Mirrors LibraryView.tsx's own two-pane breakpoint (Tailwind's `lg`, min-width 1024px) -
@@ -61,9 +64,13 @@ function useIsWideScreen(): boolean {
 export function SystemView() {
   const capabilities = useCapabilities()
   const hasBackup = capabilityStatusFor([CAPABILITIES.backup], capabilities) !== 'missing'
-  const tabs: SystemTab[] = hasBackup
+  // Live-Debug-Console (#14) only for crew and admins - nothing a musician needs on stage.
+  const roles = useActiveProfile()?.stageRoles ?? []
+  const showDebug = roles.includes('admin') || roles.includes('crew')
+  const baseTabs: SystemTab[] = hasBackup
     ? ['band', 'plugins', 'hardware', 'devices', 'backup', 'post-show', 'settings']
     : ['band', 'plugins', 'hardware', 'devices', 'post-show', 'settings']
+  const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('band')
   const activeTab = tabs.includes(tab) ? tab : 'band'
   const setActiveSystemTab = useActiveSystemTabStore((state) => state.setActiveTab)
@@ -89,6 +96,7 @@ export function SystemView() {
       {activeTab === 'backup' && <BackupManager />}
       {activeTab === 'post-show' && <PostShowReport />}
       {activeTab === 'settings' && <SystemSettings />}
+      {activeTab === 'debug' && <DebugConsoleView />}
     </>
   )
 

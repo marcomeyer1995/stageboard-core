@@ -119,6 +119,20 @@ CouchDB ist **nur noch vom Stage-Server-Rechner selbst** erreichbar (`127.0.0.1:
 - Datei verloren: neue Datei mit neuem Passwort anlegen und wie beim Wechsel vorgehen - die Daten liegen im Volume, das Admin-Login steht nur in der Container-Konfiguration.
 - Admin-Logins an den Admin-Routen des Backends gelten nur für **die eigene Band** und werden nach 5 Fehlversuchen pro Konto einige Minuten gesperrt (Admin-PINs haben nur 4 Ziffern).
 
+## 0b3. Notfall: kein Admin kommt mehr in die Band (#70)
+
+Wenn niemand mehr als Admin in eine Band kommt (alle Geräte abgemeldet, PIN vergessen, kein anderer Admin da für „Passwort zurücksetzen“): **am Stage-Server selbst** (Shell/SSH) im Repo-Ordner
+
+```bash
+cd ~/stageboard-deploy
+npm run admin:reset -w core-backend                              # Bands anzeigen
+npm run admin:reset -w core-backend -- "<Band>"                  # Mitglieder (Admins markiert)
+npm run admin:reset -w core-backend -- "<Band>" "<Name>"         # neue 4-stellige PIN für einen Admin
+npm run admin:reset -w core-backend -- "<Band>" "<Name>" --make-admin   # kein Admin mehr übrig: Mitglied wird Admin
+```
+
+Band per ID oder genauem Namen, Mitglied per ID oder Name (Groß-/Kleinschreibung egal). Die PIN wird einmal angezeigt; danach in der App der Band beitreten, Namen wählen, PIN eingeben und unter Einstellungen eine eigene PIN setzen. Nach 5 Fehlversuchen ist ein Konto einige Minuten gesperrt (warten oder `systemctl --user restart stageboard`). Der Befehl nutzt das CouchDB-Login des Servers (§0b1), braucht kein Netz und öffnet keinen Zugang über die App.
+
 ## 0c. Native Android-App (Capacitor, #348)
 
 Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.
