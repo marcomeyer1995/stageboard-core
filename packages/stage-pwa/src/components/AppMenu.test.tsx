@@ -13,6 +13,9 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+const native = vi.hoisted(() => ({ app: false }))
+vi.mock('../lib/native', async (importOriginal) => ({ ...(await importOriginal<object>()), isNativeApp: () => native.app }))
+
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useDashboardsStore } = await import('../store/useDashboardsStore')
 const { useActiveDashboardStore } = await import('../store/useActiveDashboardStore')
@@ -23,6 +26,7 @@ function dashboard(id: string, name: string, order: number): Dashboard {
 }
 
 beforeEach(() => {
+  native.app = false
   useDashboardsStore.setState({ dashboards: [] })
   useActiveDashboardStore.setState({ byWorkspace: {} })
 })
@@ -62,6 +66,15 @@ describe('AppMenu', () => {
 
     expect(screen.getByText('Anzeige')).toBeInTheDocument()
     expect(screen.getByText('Vollbild')).toBeInTheDocument()
+  })
+
+  it('#412: the native app always runs full screen - no Vollbild switch there', () => {
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true })
+    Object.defineProperty(document.documentElement, 'requestFullscreen', { value: vi.fn(), configurable: true })
+    native.app = true
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByText('Vollbild')).not.toBeInTheDocument()
   })
 
   it('2026-09-02: no longer shows "Wer bin ich" - band/profile switching moved to BandManagementView.tsx\'s "Band" tab', () => {
