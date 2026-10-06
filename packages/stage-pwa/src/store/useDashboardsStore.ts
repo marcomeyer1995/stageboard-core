@@ -29,6 +29,9 @@ function toDashboard(doc: DashboardDoc): Dashboard {
     // (found live 2026-09-27: the Gig/Solo chips saved, then snapped back).
     modes: doc.modes,
     statusBar: doc.statusBar,
+    // Same trap (#16, found live on the Xiaomi): without it a template looked editable and the
+    // next save would have erased the protection.
+    isReadOnly: doc.isReadOnly,
   }
 }
 
