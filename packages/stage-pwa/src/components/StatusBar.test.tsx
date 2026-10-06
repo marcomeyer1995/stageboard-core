@@ -36,8 +36,9 @@ const variant = {
   tracks: [],
 } as unknown as SongVariant
 
-function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: number | null, canControl = true) {
+function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: number | null, canControl = true, trackEnded = false) {
   vi.mocked(useShowMode).mockReturnValue({
+    trackEnded,
     mode: 'gig',
     queue: { currentEntry: entry, currentSong: song, currentVariant: variant },
     elapsedMs,
@@ -90,17 +91,13 @@ describe('StatusBar (PR F2)', () => {
     expect(bar().textContent).toContain('-0:02 / 3:00')
   })
 
-  it('turns "Beendet" (magenta) when a run stops at the song\'s end, not after a false start', () => {
-    mockShow('playing', 179_000)
+  it('turns "Beendet" (magenta) when the shared state says the track ran out - not after a plain Stop', () => {
+    mockShow('stopped', null, true, true)
     const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
-    mockShow('stopped', null)
-    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('finished')
     expect(bar().className).toContain('bg-fuchsia-700')
 
-    mockShow('playing', 3_000)
-    rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
-    mockShow('stopped', null)
+    mockShow('stopped', null, true, false)
     rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('ready')
   })

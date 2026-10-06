@@ -1264,3 +1264,39 @@ describe('deriveOwnProfileId', () => {
     expect(deriveOwnProfileId(workspace, 'device-1')).toBeNull()
   })
 })
+
+describe('addWorkspace - proof for the Stage-Server (#364)', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(import.meta.env as any).VITE_STAGE_SERVER_URL = 'https://stage-server:3001'
+  })
+  afterEach(() => {
+    delete (import.meta.env as unknown as Record<string, unknown>).VITE_STAGE_SERVER_URL
+    vi.unstubAllGlobals()
+  })
+
+  it('sends an admin login of another band on this device as proof - no question', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', couchPassword: 'pw-a' }],
+    })
+    const fetchMock = stubFetch({ ok: true, status: 201, json: async () => ({ username: 'u', password: 'p' }) })
+    const promptText = vi.fn()
+    useDialogStore.setState({ promptText })
+
+    expect(await useWorkspaceStore.getState().addWorkspace('Neue Band')).not.toBeNull()
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ adminUsername: 'stageboard-band-a-p1', adminPassword: 'pw-a' })
+    expect(promptText).not.toHaveBeenCalled()
+  })
+
+  it('without admin rights here, explains who can found a band - and founds nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ code: 'admin-required' }) }))
+    const alert = vi.fn(async () => {})
+    useDialogStore.setState({ alert })
+    const before = useWorkspaceStore.getState().workspaces.length
+
+    expect(await useWorkspaceStore.getState().addWorkspace('Neue Band')).toBeNull()
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('nur ein Band-Admin'), expect.anything())
+    expect(useWorkspaceStore.getState().workspaces).toHaveLength(before)
+  })
+})
+

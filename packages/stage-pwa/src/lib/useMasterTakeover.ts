@@ -32,7 +32,7 @@ export function useMasterTakeover(): MasterTakeover {
 
   const claim = async () => {
     if (!canClaim) return
-    if (isForce && !(await confirm('Das aktive Master-Gerät wirklich verdrängen?', { title: 'Force Takeover', confirmLabel: 'Übernehmen', danger: true }))) {
+    if (isForce && !(await confirm('Das aktive Master-Gerät wirklich verdrängen?', { title: 'Übernahme erzwingen', confirmLabel: 'Übernehmen', danger: true }))) {
       return
     }
     await claimMaster()

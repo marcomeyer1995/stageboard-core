@@ -11,7 +11,7 @@ import {
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isSongEntry, type Setlist, type Song } from 'shared-types'
+import { isSongEntry, type Setlist, type Song, type SongVariant } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
@@ -28,6 +28,9 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { NewSetlistDialog } from './NewSetlistDialog'
+import { NewSongWizard } from './NewSongWizard'
+import { putVariant } from '../lib/songVariantsDb'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -183,7 +186,7 @@ function DraggableSongRow({
         <button
           type="button"
           onClick={onClick}
-          className="min-w-0 flex-1 truncate px-2 py-2 text-left text-base"
+          className="min-h-12 min-w-0 flex-1 truncate px-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
@@ -194,7 +197,7 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
           >
             +
           </button>
@@ -356,39 +359,40 @@ export function LibraryView() {
   }, [inputCapability, dialogOpen, focusableItems, focusedIndex, selection, selectSong])
 
 
-  async function createSetlist() {
-    const name = await promptText('Neue Setlist', { label: 'Name der neuen Setlist' })
-    if (!name?.trim()) return
+  // #183: name + optional starting songs in one dialog (NewSetlistDialog).
+  const [creatingSetlist, setCreatingSetlist] = useState(false)
+  function createSetlist() {
+    setCreatingSetlist(true)
+  }
+  function finishCreateSetlist(name: string, songIds: string[]) {
+    setCreatingSetlist(false)
     const setlist: Setlist = {
       id: randomId(),
-      name: name.trim(),
-      entries: [],
+      name,
+      entries: songIds.map((songId) => ({ id: randomId(), songId, variantId: null, trackId: null })),
       createdAt: Date.now(),
     }
     saveSetlist(setlist)
     setSelection({ type: 'setlist', id: setlist.id })
   }
+  const songsAlphabetical = useMemo(() => [...songs].sort((a, b) => a.title.localeCompare(b.title)), [songs])
 
   /** Song creation/deletion moved here from SheetEditor (Marco, explicit request) - the editor
    * is now purely for editing a song that already exists, same as SetlistDetail is purely for
    * editing a setlist that already exists. A brand-new song starts with a title and nothing
    * else; its default variant is created lazily the moment SheetEditor opens it
    * (`ensureDefaultVariant`, same lazy-migration path a pre-variant legacy song already uses). */
-  async function createSong() {
-    const title = await promptText('Neuer Song', { label: 'Titel des neuen Songs' })
-    if (!title?.trim()) return
-    const song: Song = {
-      id: randomId(),
-      title: title.trim(),
-      bpm: 120,
-      timeSignature: '4/4',
-      clickTrackEnabled: false,
-      chordProContent: '',
-      timecodes: [],
-    }
+  // #182: a guided flow (NewSongWizard) instead of a bare title prompt - nothing is written until
+  // its last step.
+  const [creatingSong, setCreatingSong] = useState(false)
+  function createSong() {
+    setCreatingSong(true)
+  }
+  async function finishCreateSong(song: Song, variant: SongVariant) {
+    setCreatingSong(false)
     await saveSong(song)
-    // Straight to edit mode, not the preview - there's nothing to preview yet on a brand-new,
-    // still-empty song.
+    await putVariant(variant)
+    // Straight to edit mode (Text), not the preview - the normal editor, like any other song.
     setSelection({ type: 'song', songId: song.id, variantId: null })
     setSongMode('edit')
   }
@@ -501,7 +505,7 @@ export function LibraryView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Songs & Setlists durchsuchen…"
-            className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink"
+            className="h-12 flex-shrink-0 rounded-sb-sm bg-control px-4 text-base text-ink"
           />
 
           <div className="flex gap-2">
@@ -510,7 +514,7 @@ export function LibraryView() {
                 key={mode}
                 type="button"
                 onClick={() => setFilterMode(mode)}
-                className={`h-10 flex-1 rounded-sb-pill text-sm font-medium ${
+                className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${
                   filterMode === mode
                     ? 'bg-accent text-accent-ink'
                     : 'bg-control text-ink-soft hover:bg-control-hover'
@@ -530,7 +534,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={createSetlist}
-                  className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs hover:bg-control-strong-hover"
+                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -588,7 +592,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={() => void createSong()}
-                  className="h-8 rounded-sb-sm bg-control-strong px-3 text-xs hover:bg-control-strong-hover"
+                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -628,7 +632,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
@@ -646,7 +650,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-10 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
@@ -667,6 +671,10 @@ export function LibraryView() {
         </div>
       </div>
 
+      {creatingSetlist && (
+        <NewSetlistDialog songs={songsAlphabetical} onCancel={() => setCreatingSetlist(false)} onDone={finishCreateSetlist} />
+      )}
+
       {/* Fixed overlay, not part of either pane's own flow (Marco, explicit request) - it used
           to sit inline above the Setlists/Songs sections, so it shifted that whole list down
           every time it appeared/disappeared. Floats centered near the bottom of the screen
@@ -679,6 +687,7 @@ export function LibraryView() {
           </p>
         </div>
       )}
+      {creatingSong && <NewSongWizard onCancel={() => setCreatingSong(false)} onFinish={(song, variant) => void finishCreateSong(song, variant)} />}
     </DndContext>
   )
 }
