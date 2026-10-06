@@ -84,23 +84,22 @@ describe('AppMenu', () => {
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
-  it('only shows the Dashboard edit-lock section in live mode', () => {
+  it('no separate "Bearbeiten" row any more - editing starts by holding a dashboard in the list', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    const { rerender } = render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
-
-    rerender(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
+    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /^Bearbeiten/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Tippen wechselt, gedrückt halten bearbeitet.')).toBeInTheDocument()
   })
 })
 
 describe('AppMenu dashboard picker (#35)', () => {
-  it('hides the picker entirely with fewer than two switchable dashboards - nothing to switch to', () => {
+  it('keeps the list with a single dashboard - it is where dashboards are edited and created', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0)] })
     render(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.queryByText('Dashboards')).not.toBeInTheDocument()
+    expect(screen.getByText('Dashboards')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Neues Dashboard' })).toBeInTheDocument()
   })
 
   it('lists every dashboard, highlights the active one, and lets any mode reach it (not gated on already being in live mode)', () => {

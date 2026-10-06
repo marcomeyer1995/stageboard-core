@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { EditLock } from './EditLock'
+import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
@@ -9,7 +9,6 @@ import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
-import { useModeDashboards } from '../lib/useModeDashboards'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 
@@ -56,15 +55,6 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
-  // Same visibility rule DashboardSwitcherWidget.tsx uses - a private Station never appears
-  // as a switch target for anyone but its owner. Hidden entirely with only one (or zero)
-  // dashboard to switch to - nothing to pick from, so the section would just be clutter
-  // (#35: "screen navigation... what's actually touched during a show", same paring-down
-  // this menu already went through once).
-  // ... and, since 2026-09-27, only the dashboards offered in the current session mode (Gig /
-  // Solo Üben), via the same hook Dashboard.tsx resolves its active dashboard with.
-  const { candidates: switchableDashboards, active: activeDashboard } = useModeDashboards()
-  const activeDashboardId = activeDashboard?.id
 
   function selectDashboard(dashboardId: string) {
     setActiveDashboard(workspaceId, dashboardId)
@@ -118,27 +108,17 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             </div>
           </Section>
 
-          {switchableDashboards.length > 1 && (
-            <Section title="Dashboards">
-              <div className="flex flex-col gap-1">
-                {switchableDashboards.map((dashboard) => (
-                  <button
-                    key={dashboard.id}
-                    type="button"
-                    onClick={() => selectDashboard(dashboard.id)}
-                    className={`flex h-11 items-center justify-between rounded-sb px-4 text-sm font-medium ${
-                      dashboard.id === activeDashboardId
-                        ? 'bg-accent text-accent-ink'
-                        : 'bg-control text-ink-soft hover:bg-control-hover'
-                    }`}
-                  >
-                    {dashboard.name}
-                    {dashboard.id === activeDashboardId && <Icon name="check" size="1.25rem" />}
-                  </button>
-                ))}
-              </div>
-            </Section>
-          )}
+          {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
+              (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
+          <Section title="Dashboards">
+            <DashboardMenuList
+              onSelect={selectDashboard}
+              onEdit={() => {
+                onSelectMode('boards')
+                onClose()
+              }}
+            />
+          </Section>
 
           <Section title="Modus">
             <SessionModeControl />
@@ -148,12 +128,6 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           {sessionMode === 'gig' && (
             <Section title="Master-Kontrolle">
               <MasterControl />
-            </Section>
-          )}
-
-          {mode === 'boards' && (
-            <Section title="Dashboard">
-              <EditLock onUnlock={onClose} />
             </Section>
           )}
 
