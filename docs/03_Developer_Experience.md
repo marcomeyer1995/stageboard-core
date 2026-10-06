@@ -110,6 +110,15 @@ Aufräumen alter Reste, z. B. älter als 30 Tage: `docker run --rm -v stageboard
 
 **Noch offen:** Es gibt noch kein automatisches Backup auf ein zweites Medium (#363) - CouchDB-Volume, `~/stageboard-data` und `certs/` liegen auf einer einzigen Platte. Der manuelle Snapshot in der App (System → Backup, `workspaceSnapshot.ts`) enthält weder die Backing-Tracks noch `logical-devices`/`devices`/`device-transport-config`.
 
+## 0b1. CouchDB-Zugang (seit 2026-10-06)
+
+CouchDB ist **nur noch vom Stage-Server-Rechner selbst** erreichbar (`127.0.0.1:5984/6984` in `docker-compose.yml`); die Geräte synchronisieren über den `/db`-Proxy des Backends, nie direkt. Das CouchDB-Admin-Login steht **nicht im Repo**, sondern in `~/.config/stageboard/couchdb.env` (Rechte 600, Zeilen `COUCHDB_USER=` / `COUCHDB_PASSWORD=`, zufällig erzeugt). Wer es liest: der Stage-Server-Dienst (`EnvironmentFile=` in der systemd-Unit), `docker compose` und die Server-Befehle (`band:delete`, Backup).
+
+- CouchDB-Container neu erzeugen/starten **immer** mit der Datei: `cd ~/stageboard-core && docker compose --env-file ~/.config/stageboard/couchdb.env up -d couchdb` (ohne sie bekommt ein *neu erzeugter* Container wieder das Entwickler-Login `admin`/`admin`).
+- Passwort wechseln: neuen Wert in die Datei, Container wie oben neu erzeugen, `systemctl --user restart stageboard`.
+- Datei verloren: neue Datei mit neuem Passwort anlegen und wie beim Wechsel vorgehen - die Daten liegen im Volume, das Admin-Login steht nur in der Container-Konfiguration.
+- Admin-Logins an den Admin-Routen des Backends gelten nur für **die eigene Band** und werden nach 5 Fehlversuchen pro Konto einige Minuten gesperrt (Admin-PINs haben nur 4 Ziffern).
+
 ## 0c. Native Android-App (Capacitor, #348)
 
 Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.
