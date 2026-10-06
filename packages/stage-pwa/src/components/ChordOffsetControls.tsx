@@ -56,7 +56,7 @@ export function ChordOffsetControls({ offsets, authoredCapo }: { offsets: ChordO
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 text-sm font-semibold ${
+        className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 font-sans text-sm font-semibold normal-case tracking-normal ${
           summary ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
         }`}
       >
