@@ -12,6 +12,7 @@
  * databases recoverable (docs/03 §0b).
  */
 import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import type { CouchConfig } from '../couch.js'
 
@@ -59,6 +60,16 @@ function serviceEnvironment(): Record<string, string> {
     const env: Record<string, string> = {}
     for (const match of out.matchAll(/(?:^|\s)([A-Z_][A-Z0-9_]*)=("[^"]*"|\S*)/g)) {
       env[match[1]] = match[2].replace(/^"|"$/g, '')
+    }
+    // The CouchDB login lives in an EnvironmentFile (~/.config/stageboard/couchdb.env), not in the
+    // unit itself - read those files too (systemctl lists them as "path (ignore_errors=…)").
+    const files = execFileSync('systemctl', ['--user', 'show', 'stageboard', '--property=EnvironmentFiles', '--value'], { encoding: 'utf8' })
+    for (const path of files.split('\n').map((line) => line.replace(/\s*\(.*\)\s*$/, '').trim()).filter(Boolean)) {
+      if (!existsSync(path)) continue
+      for (const line of readFileSync(path, 'utf8').split('\n')) {
+        const match = /^\s*([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line)
+        if (match) env[match[1]] = match[2].trim().replace(/^"|"$/g, '')
+      }
     }
     return env
   } catch {

@@ -167,23 +167,27 @@ function LyricLine({
   const hasChords = line.segments.some((segment) => segment.chord !== null)
   const chordStyle = chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }
   const chordSizeClass = chordFontSize === undefined ? STAGE_SMALL_TEXT : ''
-  const lineStyle = hasChords
-    ? { lineHeight: 1.375, ...(chordFontSize === undefined ? {} : { paddingTop: `${stageFontSize(chordFontSize) * 1.2}px` }) }
-    : undefined
+  const lineStyle = hasChords ? { lineHeight: 1.375 } : undefined
+  // The chord room sits on every segment, not on the line (#416): a line that wraps then has room
+  // for chords on each of its visual lines - with the room only at the top of the line, the
+  // chords of a wrapped part hung into the line above.
+  const segmentRoomStyle =
+    hasChords && chordFontSize !== undefined ? { paddingTop: `${stageFontSize(chordFontSize) * 1.2}px` } : undefined
+  const segmentRoomClass = hasChords && chordFontSize === undefined ? STAGE_CHORD_ROOM : ''
 
   return (
     <p
       data-line-index={lineIndex}
       style={lineStyle}
-      className={`${hasChords && chordFontSize === undefined ? STAGE_CHORD_ROOM : ''} -mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+      className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
         // Keeps a little air between a part label and its first line.
         startsPart ? 'mt-6' : ''
       } ${active ? 'bg-accent-2/20' : ''}`}
     >
       {line.segments.map((segment, segmentIndex) => (
-        <span key={segmentIndex} className="relative inline-block">
+        <span key={segmentIndex} style={segmentRoomStyle} className={`${segmentRoomClass} relative inline-block`}>
           {segment.chord && (
-            <span style={{ ...chordStyle, lineHeight: 1.15 }} className={`${chordSizeClass} absolute bottom-full left-0 font-bold text-accent`}>
+            <span style={{ ...chordStyle, lineHeight: 1.15 }} className={`${chordSizeClass} absolute left-0 top-0 font-bold text-accent`}>
               {segment.chord}
             </span>
           )}
