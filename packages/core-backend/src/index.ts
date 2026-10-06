@@ -511,8 +511,8 @@ export async function buildApp() {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
       return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
     }
-    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from)
-    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, remoteAddress: request.ip }, 'Flash message sent')
+    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
+    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
     return reply.status(201).send(flash)
   })
 

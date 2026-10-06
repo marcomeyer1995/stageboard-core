@@ -65,9 +65,10 @@ export function setMasterHeartbeat(workspaceId: string, deviceId: string): void 
   }
 }
 
-/** Broadcasts a Stage-Messenger flash message (#26) to every device of the band. */
-export function setFlash(workspaceId: string, text: string, from: string | undefined): FlashMessage {
-  const flash: FlashMessage = { id: randomUUID(), text, from, at: Date.now() }
+/** Broadcasts a Stage-Messenger flash message (#26) to every device of the band; `to` (profile
+ * ids) narrows who shows it - every device gets it, only the addressed ones display it. */
+export function setFlash(workspaceId: string, text: string, from: string | undefined, to?: string[]): FlashMessage {
+  const flash: FlashMessage = { id: randomUUID(), text, from, ...(to && to.length ? { to } : {}), at: Date.now() }
   flashByWorkspace.set(workspaceId, flash)
   const snapshot = snapshotFor(workspaceId)
   for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {

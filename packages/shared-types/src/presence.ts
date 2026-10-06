@@ -29,6 +29,8 @@ export const FlashMessageSchema = z.object({
   text: z.string().min(1).max(120),
   /** Who sent it (profile name), shown small under the text. */
   from: z.string().max(60).optional(),
+  /** Profile ids it is meant for - absent or empty: everyone in the band. */
+  to: z.array(z.string().min(1)).max(50).optional(),
   /** Server time it was sent. */
   at: z.number().int().nonnegative(),
 })
@@ -37,6 +39,7 @@ export type FlashMessage = z.infer<typeof FlashMessageSchema>
 export const FlashReportSchema = z.object({
   text: z.string().trim().min(1).max(120),
   from: z.string().max(60).optional(),
+  to: z.array(z.string().min(1)).max(50).optional(),
 })
 export type FlashReport = z.infer<typeof FlashReportSchema>
 

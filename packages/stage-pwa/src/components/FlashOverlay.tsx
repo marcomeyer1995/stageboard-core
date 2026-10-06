@@ -2,17 +2,27 @@ import { useEffect, useRef, useState } from 'react'
 import { FLASH_DURATION_MS, type FlashMessage } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { isFresh, LOCAL_FLASH_EVENT } from '../lib/flash'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { useFlashPrefsStore } from '../store/useFlashPrefsStore'
 import { usePresenceStore } from '../store/usePresenceStore'
 
+/** Whether a message is for this device's person: no recipients = everyone. */
+export function isForMe(flash: FlashMessage, profileId: string | undefined): boolean {
+  return !flash.to?.length || (profileId !== undefined && flash.to.includes(profileId))
+}
+
 /**
- * Stage-Messenger flash (#26): a huge, high-contrast message over the whole screen for a few
- * seconds - from the Stage-Messenger widget on any device (pushed on the presence stream) or a
- * song's `{alert: ...}` reaching its time on this device. Gone after FLASH_DURATION_MS or a tap,
- * so the dashboard is never covered for long. Off per device in Einstellungen.
+ * Stage-Messenger flash (#26): a short message from the Stage-Messenger widget on any device
+ * (pushed on the presence stream; only shown by the people it is addressed to) or a song's
+ * `{alert: ...}` reaching its time on this device. Per device (Einstellungen → Blitzmeldungen):
+ * a see-through banner under the status bar that touches pass through - so the prompter stays
+ * readable and playable (Marco, #400 review) -, the whole screen, or off. Gone after
+ * FLASH_DURATION_MS.
  */
 export function FlashOverlay() {
-  const enabled = useFlashPrefsStore((state) => state.enabled)
+  const mode = useFlashPrefsStore((state) => state.mode)
+  const enabled = mode !== 'off'
+  const profileId = useActiveProfile()?.id
   const remote = usePresenceStore((state) => state.presence.flash)
   const [shown, setShown] = useState<FlashMessage | null>(null)
   const seen = useRef(new Set<string>())
@@ -22,12 +32,12 @@ export function FlashOverlay() {
   useEffect(() => {
     if (!remote || seen.current.has(remote.id)) return
     seen.current.add(remote.id)
-    if (enabled && isFresh(remote, getServerTime())) setShown(remote)
-  }, [remote, enabled])
+    if (enabled && isForMe(remote, profileId) && isFresh(remote, getServerTime())) setShown(remote)
+  }, [remote, enabled, profileId])
 
   useEffect(() => {
     const onLocal = (event: Event) => {
-      if (useFlashPrefsStore.getState().enabled) setShown((event as CustomEvent<FlashMessage>).detail)
+      if (useFlashPrefsStore.getState().mode !== 'off') setShown((event as CustomEvent<FlashMessage>).detail)
     }
     window.addEventListener(LOCAL_FLASH_EVENT, onLocal)
     return () => window.removeEventListener(LOCAL_FLASH_EVENT, onLocal)
@@ -40,6 +50,20 @@ export function FlashOverlay() {
   }, [shown])
 
   if (!shown) return null
+  if (mode === 'banner') {
+    // Under the status bar, wherever it ends on this screen (none on a dashboard without it).
+    const top = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0
+    return (
+      <div
+        role="alert"
+        style={{ top }}
+        className="pointer-events-none fixed inset-x-2 z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-sb bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
+      >
+        <p className="max-w-full break-words text-[clamp(2rem,6vw,4.5rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
+        {shown.from && <p className="text-lg font-bold">— {shown.from}</p>}
+      </div>
+    )
+  }
   return (
     <div
       role="alert"

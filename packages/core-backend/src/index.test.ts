@@ -1431,6 +1431,14 @@ describe('Fastify routes', () => {
       expect(typeof flash.at).toBe('number')
       expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '   ' } })).statusCode).toBe(400)
     })
+
+    it('carries the recipients along, or none for everyone', async () => {
+      vi.stubGlobal('fetch', session('stageboard-band-a-p1~d1'))
+      const toOne = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'Gitarre stimmen', to: ['p2'] }, headers: signedIn })
+      expect(toOne.json()).toMatchObject({ text: 'Gitarre stimmen', to: ['p2'] })
+      const toAll = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'VAMP', to: [] }, headers: signedIn })
+      expect(toAll.json().to).toBeUndefined()
+    })
   })
 
   describe('POST /workspaces/:workspaceId/roster', () => {

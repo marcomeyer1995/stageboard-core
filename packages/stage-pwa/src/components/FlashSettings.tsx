@@ -1,13 +1,31 @@
-import { useFlashPrefsStore } from '../store/useFlashPrefsStore'
+import { useFlashPrefsStore, type FlashMode } from '../store/useFlashPrefsStore'
 
-/** Per-device switch for Stage-Messenger flash messages and song alerts (#26). */
+const OPTIONS: { mode: FlashMode; label: string; hint: string }[] = [
+  { mode: 'banner', label: 'Banner', hint: 'Streifen oben, durchscheinend - darunter lässt sich weiterspielen und tippen.' },
+  { mode: 'fullscreen', label: 'Vollbild', hint: 'Über den ganzen Bildschirm, bis Tippen oder 8 Sekunden.' },
+  { mode: 'off', label: 'Aus', hint: 'Keine Blitzmeldungen auf diesem Gerät.' },
+]
+
+/** Per device: how Stage-Messenger messages and song alerts show (#26). */
 export function FlashSettings() {
-  const enabled = useFlashPrefsStore((state) => state.enabled)
-  const setEnabled = useFlashPrefsStore((state) => state.setEnabled)
+  const mode = useFlashPrefsStore((state) => state.mode)
+  const setMode = useFlashPrefsStore((state) => state.setMode)
   return (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 text-base text-ink">
-      <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-6 w-6" />
-      Blitzmeldungen anzeigen
-    </label>
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Blitzmeldungen anzeigen">
+        {OPTIONS.map((option) => (
+          <button
+            key={option.mode}
+            type="button"
+            aria-pressed={mode === option.mode}
+            onClick={() => setMode(option.mode)}
+            className={`h-12 rounded-sb text-base font-semibold ${mode === option.mode ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-ink-faint">{OPTIONS.find((option) => option.mode === mode)?.hint}</p>
+    </div>
   )
 }

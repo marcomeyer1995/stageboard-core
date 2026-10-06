@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseAlertDirective, parseChordPro, songAlerts, tappableLines } from './chordpro'
 
 vi.mock('./clockSync', () => ({ getServerTime: () => Date.now() }))
+const me = { id: 'p-guitar', name: 'Caro' }
+vi.mock('./useActiveProfile', () => ({ useActiveProfile: () => me }))
 
 const { FlashOverlay } = await import('../components/FlashOverlay')
 const { usePresenceStore } = await import('../store/usePresenceStore')
@@ -25,7 +27,7 @@ describe('song alerts {alert: ...} (#26)', () => {
 describe('FlashOverlay (#26)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    useFlashPrefsStore.setState({ enabled: true })
+    useFlashPrefsStore.setState({ mode: 'fullscreen' })
     usePresenceStore.setState({ presence: { devices: {} } })
   })
   afterEach(() => {
@@ -51,10 +53,30 @@ describe('FlashOverlay (#26)', () => {
   })
 
   it('stays silent when switched off on this device', () => {
-    useFlashPrefsStore.setState({ enabled: false })
+    useFlashPrefsStore.setState({ mode: 'off' })
     render(<FlashOverlay />)
     act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f2', text: 'VAMP', at: Date.now() } } }))
     act(() => showLocalFlash('Lokal'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('banner (default): a strip at the top that lets touches through to the dashboard', () => {
+    useFlashPrefsStore.setState({ mode: 'banner' })
+    render(<FlashOverlay />)
+    act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f3', text: 'Letzter Song', from: 'Marco', at: Date.now() } } }))
+    const banner = screen.getByRole('alert')
+    expect(banner).toHaveTextContent('Letzter Song')
+    expect(banner.className).toContain('pointer-events-none')
+    expect(banner.className).not.toContain('inset-0')
+    act(() => vi.advanceTimersByTime(8_100))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a message for someone else stays on their tablet only', () => {
+    render(<FlashOverlay />)
+    act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f4', text: 'Bass stimmen', to: ['p-bass'], at: Date.now() } } }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f5', text: 'Gitarre stimmen', to: ['p-bass', 'p-guitar'], at: Date.now() } } }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Gitarre stimmen')
   })
 })
