@@ -4,6 +4,7 @@ import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
 import { useFullscreen } from '../lib/useFullscreen'
+import { isNativeApp } from '../lib/native'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -156,7 +157,8 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             </Section>
           )}
 
-          {fullscreen.supported && (
+          {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
+          {fullscreen.supported && !isNativeApp() && (
             <Section title="Anzeige">
               <button
                 type="button"
