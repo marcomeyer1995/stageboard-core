@@ -18,7 +18,7 @@ const { useActiveDashboardStore } = await import('../store/useActiveDashboardSto
 const { useEditModeStore } = await import('../store/useEditModeStore')
 const { useDashboardMenuStore } = await import('../store/useDashboardMenuStore')
 const { useDialogStore } = await import('../store/useDialogStore')
-const { DashboardMenuList, HOLD_MS } = await import('./DashboardMenuList')
+const { DashboardMenuList, HOLD_MS, FILL_DELAY_MS } = await import('./DashboardMenuList')
 
 const board = (id: string, order: number, extra: Partial<Dashboard> = {}): Dashboard => ({ id, name: id, order, widgets: [], layouts: {}, visibility: 'public', ...extra })
 
@@ -51,6 +51,16 @@ describe('DashboardMenuList', () => {
     expect(useEditModeStore.getState().isEditing).toBe(true)
     expect(useActiveDashboardStore.getState().byWorkspace.band).toBe('Pause')
     expect(onEdit).toHaveBeenCalled()
+  })
+
+  it('a short tap shows no fill - it only starts after a moment of holding', () => {
+    render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    const fill = () => screen.getAllByTestId('dashboard-hold-progress')[1]!.style.width
+    fireEvent.pointerDown(entry('Monitor'))
+    act(() => vi.advanceTimersByTime(FILL_DELAY_MS - 50))
+    expect(fill()).toBe('0%')
+    act(() => vi.advanceTimersByTime(100))
+    expect(fill()).toBe('100%')
   })
 
   it('sliding off while holding (scrolling the menu) does nothing', () => {

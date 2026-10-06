@@ -23,9 +23,9 @@ function renderBar(dashboard: Dashboard) {
   return render(<DashboardEditBar dashboard={dashboard} breakpoint="lg" capabilities={new Map()} />)
 }
 function openSettings() {
-  fireEvent.click(screen.getByTitle('Menü öffnen'))
+  fireEvent.click(screen.getByRole('button', { name: 'Dashboard-Einstellungen' }))
 }
-const action = (name: RegExp) => screen.getByRole('button', { name })
+const action = (name: RegExp | string) => screen.getByRole('button', { name })
 
 beforeEach(() => {
   save.mockReset()
@@ -43,19 +43,19 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Bühne', name: 'Hauptbühne' }))
   })
 
-  it('⋯ holds the rest: modes, status bar, sharing, template (admins), duplicate, delete', () => {
+  it('⋯ opens the settings in the menu\'s look: yellow = on, every choice a button', () => {
     renderBar(board('Bühne'))
     openSettings()
-    fireEvent.click(action(/^Gig: angeboten/))
+    expect(screen.getByRole('dialog', { name: 'Einstellungen: Bühne' })).toBeInTheDocument()
+    expect(action('Gig')).toHaveAttribute('aria-pressed', 'true')
+    expect(action('Gig')).toHaveClass('bg-accent')
+    fireEvent.click(action('Gig'))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ modes: ['practice'] }))
-    openSettings()
-    fireEvent.click(action(/Statusleiste ausblenden/))
+    fireEvent.click(action('Aus'))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ statusBar: false }))
-    openSettings()
-    fireEvent.click(action(/Als Vorlage schützen/))
+    fireEvent.click(action('Geschützt'))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ isReadOnly: true }))
-    openSettings()
-    fireEvent.click(action(/Nur für mich/))
+    fireEvent.click(action('Nur ich'))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private', ownerProfileId: 'p-me' }))
   })
 
@@ -63,15 +63,16 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     me.profile.stageRoles = []
     renderBar(board('Bühne'))
     openSettings()
-    expect(screen.queryByRole('button', { name: /Vorlage/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Vorlage')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Geschützt' })).not.toBeInTheDocument()
   })
 
   it('the last shared dashboard can neither be deleted nor made private, the last of a mode stays offered there', () => {
     useDashboardsStore.setState({ dashboards: [board('Bühne'), board('Privat', { visibility: 'private', ownerProfileId: 'p-me', modes: ['practice'] })] })
     renderBar(board('Bühne'))
     openSettings()
-    expect(action(/Dashboard löschen/)).toBeDisabled()
-    expect(action(/Nur für mich/)).toBeDisabled()
-    expect(action(/^Gig: angeboten/)).toBeDisabled()
+    expect(action('Dashboard löschen')).toBeDisabled()
+    expect(action('Nur ich')).toBeDisabled()
+    expect(action('Gig')).toBeDisabled()
   })
 })

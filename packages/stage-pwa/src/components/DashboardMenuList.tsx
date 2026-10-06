@@ -14,8 +14,13 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
 
-/** How long an entry is held to edit it - as long as the old "Bearbeiten" lock. */
-export const HOLD_MS = 600
+/** A tap stays a tap: the fill only starts after this long (Marco: filling on every short tap
+ * looked ugly). */
+export const FILL_DELAY_MS = 200
+/** How long the visible fill then runs until edit mode opens. */
+export const FILL_MS = 600
+/** Total time an entry is held to edit it. */
+export const HOLD_MS = FILL_DELAY_MS + FILL_MS
 /** How long the "hold it" hint stays after a tap that was meant as a hold, ms. */
 const HINT_MS = 2500
 
@@ -144,20 +149,22 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
 /** One dashboard in the menu: a tap switches, holding fills it up and opens it for editing. */
 function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void; onHold: () => void }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fillTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [holding, setHolding] = useState(false)
   const [hint, setHint] = useState(false)
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current)
+      if (fillTimer.current) clearTimeout(fillTimer.current)
       if (hintTimer.current) clearTimeout(hintTimer.current)
     },
     [],
   )
 
   function start() {
-    setHolding(true)
     setHint(false)
+    fillTimer.current = setTimeout(() => setHolding(true), FILL_DELAY_MS)
     timer.current = setTimeout(() => {
       timer.current = null
       setHolding(false)
@@ -168,6 +175,7 @@ function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashb
   function end(asTap: boolean) {
     const wasPending = timer.current !== null
     if (timer.current) clearTimeout(timer.current)
+    if (fillTimer.current) clearTimeout(fillTimer.current)
     timer.current = null
     setHolding(false)
     if (wasPending && asTap) onSelect()
@@ -201,7 +209,7 @@ function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashb
           aria-hidden
           data-testid="dashboard-hold-progress"
           className={`absolute inset-y-0 left-0 ${active ? 'bg-black/20' : 'bg-accent'}`}
-          style={{ width: holding ? '100%' : '0%', transition: holding ? `width ${HOLD_MS}ms linear` : 'none' }}
+          style={{ width: holding ? '100%' : '0%', transition: holding ? `width ${FILL_MS}ms linear` : 'none' }}
         />
         <span className={`relative truncate ${holding && !active ? 'text-accent-ink' : ''}`}>{dashboard.name}</span>
         <span className="relative flex items-center gap-2">
