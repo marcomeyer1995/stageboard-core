@@ -97,15 +97,15 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   ]
     .filter((part): part is string => Boolean(part))
     .join('  ·  ')
-  const arrangementInfoNode = (
-    <>
-      {arrangementInfo && (
-        <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
-          {arrangementInfo}
-        </p>
-      )}
+  // One line: key/tuning/capo info plus the "Tonart" button (#410) - transpose and capo open in
+  // a popup, so they no longer take two rows above the lyrics.
+  const arrangementInfoNode = (arrangementInfo || queue.currentEntry) && (
+    <div className="mb-2 flex items-center gap-3">
+      <p style={{ fontSize: arrangementInfoFontSize }} className="min-w-0 flex-1 uppercase tracking-widest text-ink-faint">
+        {arrangementInfo}
+      </p>
       {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} />}
-    </>
+    </div>
   )
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)

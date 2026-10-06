@@ -38,8 +38,11 @@ function mockShowMode(entryId: string, variant: Partial<SongVariant>) {
   } as never)
 }
 
+// Transpose/capo sit behind the "Tonart" button (#410): open, step, close again.
 const step = (label: string, times = 1) => {
+  fireEvent.click(screen.getByRole('button', { name: /^Tonart/ }))
   for (let i = 0; i < times; i++) fireEvent.click(screen.getByLabelText(label))
+  fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
 }
 
 describe('PrompterWidget - transpose and capo (#59)', () => {
@@ -48,6 +51,16 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     vi.mocked(useActiveProfile).mockReturnValue(undefined)
     vi.mocked(useProfilesStore).mockImplementation(((selector: (state: { profiles: never[] }) => unknown) =>
       selector({ profiles: [] })) as never)
+  })
+
+  it('#410: no steppers above the lyrics - one "Tonart" button that shows what is changed', () => {
+    mockShowMode('e1', { key: 'G' })
+    render(<PrompterWidget config={config} />)
+    expect(screen.queryByLabelText('Transpose erhöhen')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart' })).toBeInTheDocument()
+    step('Transpose erhöhen', 2)
+    step('Capo erhöhen')
+    expect(screen.getByRole('button', { name: 'Tonart +2 · Capo 1' })).toBeInTheDocument()
   })
 
   it('transposition only: chords shift and the sounding key follows', () => {
