@@ -66,45 +66,50 @@ export function MasterControl() {
           {SELF_CHECK_HINT[selfCheck]}
         </p>
       )}
-      {isMaster || unconfirmed ? (
-        <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
-          Master-Kontrolle
-          <span className="flex items-center gap-3">
-            <span className={`text-sm ${unconfirmed ? 'text-amber-500' : 'text-accent'}`}>
+      {/* A small card (Marco, #409 review): who holds the token on its own line, the action as a
+          full-width button under it - in a fixed-height row the longer "Du (alle deine Geräte)"
+          wrapped and the button stuck out of the row. */}
+      <div className="flex flex-col gap-2 rounded-sb bg-control p-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-base">
+          <span className="text-ink-soft">Master-Kontrolle</span>
+          {isMaster || unconfirmed ? (
+            <span className={`text-right text-sm font-semibold ${unconfirmed ? 'text-amber-500' : 'text-accent'}`}>
               {unconfirmed ? `${selfLabel} - ${SELF_CHECK_LABEL[selfCheck]}` : selfLabel}
             </span>
-            <button
-              type="button"
-              onClick={release}
-              title="Kontrolle abgeben, damit ein anderes Gerät übernehmen kann"
-              className="rounded-sb-sm bg-control-strong px-3 py-1 text-sm font-medium text-ink hover:bg-control-strong-hover"
-            >
-              Master abgeben
-            </button>
-          </span>
+          ) : (
+            <span className="text-right text-sm text-ink-faint">
+              {masterHolderId ? (masterName ?? 'Anderes Gerät') : 'Niemand'}
+              {status === 'stale' && <span className="text-amber-500"> · antwortet nicht</span>}
+            </span>
+          )}
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={claim}
-          disabled={!canClaim}
-          title={
-            isForce
-              ? canClaim
-                ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
-                : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
-              : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
-          }
-          className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Master-Kontrolle
-          <span className="flex items-center gap-2">
-            {masterHolderId && <span className="text-sm text-ink-faint">{masterName ?? 'Anderes Gerät'}</span>}
-            {status === 'stale' && <span className="text-sm text-amber-500">antwortet nicht</span>}
-            <span className="font-medium text-accent">{isForce ? 'Übernahme erzwingen' : 'Übernehmen'}</span>
-          </span>
-        </button>
-      )}
+        {isMaster || unconfirmed ? (
+          <button
+            type="button"
+            onClick={release}
+            title="Kontrolle abgeben, damit ein anderes Gerät übernehmen kann"
+            className="min-h-12 w-full rounded-sb-sm bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
+          >
+            Master abgeben
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={claim}
+            disabled={!canClaim}
+            title={
+              isForce
+                ? canClaim
+                  ? 'Ein anderes Gerät ist aktiv Master - Übernahme erzwingen'
+                  : 'Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen'
+                : 'Dieses Gerät hat aktuell keine Kontrolle über die Queue'
+            }
+            className="min-h-12 w-full rounded-sb-sm bg-control-strong px-4 text-base font-semibold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isForce ? 'Übernahme erzwingen' : 'Master übernehmen'}
+          </button>
+        )}
+      </div>
       <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
         Aktive Setlist
         {activeSetlist ? (
