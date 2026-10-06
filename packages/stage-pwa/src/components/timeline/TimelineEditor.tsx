@@ -29,6 +29,7 @@ import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
 import { useTimelineLanesStore } from '../../store/useTimelineLanesStore'
+import { fineFactor, fineRatioLabel, fineStep } from '../../lib/fineDrag'
 import { useTimelineSnapStore } from '../../store/useTimelineSnapStore'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
@@ -152,8 +153,10 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
   )
 }
 
-type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
+// `x` / `effectiveX` is where the finger counts as being - in fine mode (#334) that lags behind the
+// real `rawX`; `startY` is what the vertical distance for fine mode is measured from.
+type Pan = { pointerId: number; startX: number; startY: number; rawX: number; effectiveX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
+type Drag = { pointerId: number; startX: number; startY: number; rawX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
 /** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
  * dragged (snapping and the readout follow it). */
 type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
@@ -259,6 +262,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
+  /** Fine mode (#334) while it is on: where the finger is and how much a step counts. */
+  const [fine, setFine] = useState<{ x: number; y: number; factor: number } | null>(null)
   const [ripple, setRipple] = useState<Ripple | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
@@ -799,7 +804,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setDrag(null)
       return
     }
-    const base = { pointerId: e.pointerId, startX: x, x, moved: false }
+    const base = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, x, moved: false }
     if (ripple) {
       setDrag({ ...base, kind: 'ripple' })
       return
@@ -829,7 +834,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         return
       }
     }
-    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
+    pan.current = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, effectiveX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -843,17 +848,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     if (drag && drag.pointerId === e.pointerId) {
-      setDrag({ ...drag, x, moved: drag.moved || Math.abs(x - drag.startX) > MOVE_THRESHOLD_PX })
+      // Fine mode only while snapping is off - otherwise snapping decides where it lands anyway.
+      const factor = snapOn ? 1 : fineFactor(y - drag.startY)
+      showFine(x, y, factor)
+      setDrag({ ...drag, rawX: x, x: fineStep(drag.x, drag.rawX, x, factor), moved: drag.moved || Math.abs(x - drag.startX) > MOVE_THRESHOLD_PX })
       return
     }
     const p = pan.current
     if (!p || p.pointerId !== e.pointerId) return
     p.moved = p.moved || Math.abs(x - p.startX) > MOVE_THRESHOLD_PX
-    if (p.moved) setView(clampView({ ...p.startView, startMs: p.startView.startMs - (x - p.startX) * p.startView.msPerPx }, width, minMs, durationMs))
+    if (!p.moved) return
+    const factor = fineFactor(y - p.startY)
+    showFine(x, y, factor)
+    p.effectiveX = fineStep(p.effectiveX, p.rawX, x, factor)
+    p.rawX = x
+    setView(clampView({ ...p.startView, startMs: p.startView.startMs - (p.effectiveX - p.startX) * p.startView.msPerPx }, width, minMs, durationMs))
+  }
+
+  function showFine(x: number, y: number, factor: number) {
+    setFine(factor < 1 ? { x, y, factor } : null)
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId)
+    setFine(null)
     if (pinch.current) {
       if (pointers.current.size < 2) pinch.current = null
       return
@@ -1479,6 +1497,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
+        )}
+        {fine && (
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-sb-sm bg-accent px-3 py-1 text-base font-semibold text-black shadow"
+            style={{ left: Math.min(Math.max(fine.x, 60), width - 60), top: Math.max(fine.y - 72, 4) }}
+            role="status"
+          >
+            Feinmodus {fineRatioLabel(fine.factor)}
+          </div>
         )}
       </div>
 
