@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BeatGrid } from 'shared-types'
-import { applySectionRamp, applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setGradual, setMeter, setPoint, tempoFromTaps, tempoTrendFromTaps } from './beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from './beatGrid'
 
 const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
 const times = (g: BeatGrid, from: number, to: number, bpm = 120, ts = '4/4') => beatsBetween(clickTimeline({ beatGrid: g, bpm, timeSignature: ts }), from, to).map((b) => Math.round(b.timeMs))
@@ -209,10 +209,13 @@ describe('applySectionTempo (#329)', () => {
   })
 })
 
+/** Marks the stretch starting at point `id` as gradual (#354). */
+const gradualAt = (g: BeatGrid, id: string): BeatGrid => ({ ...g, points: g.points.map((p) => (p.id === id ? { ...p, gradual: true } : p)) })
+
 describe('gradual tempo stretches (#354)', () => {
   // 4/4: bars 1-5 constant 120 BPM (16 beats, 8 s), then a ritardando over bars 5-9 to 90 BPM:
   // spacing 500 -> 666.7 ms over 16 beats = 16 x 583.3 = 9333 ms.
-  const ritGrid = (): BeatGrid => setGradual(grid([1, 0], [5, 8000], [9, 17333]), 'p1', true)
+  const ritGrid = (): BeatGrid => gradualAt(grid([1, 0], [5, 8000], [9, 17333]), 'p1')
 
   it('changes the beat spacing evenly from the arriving tempo to the end tempo', () => {
     const t = clickTimeline({ beatGrid: ritGrid(), bpm: 120, timeSignature: '4/4' })
@@ -250,54 +253,8 @@ describe('gradual tempo stretches (#354)', () => {
     expect(rit!.endBpm).toBeLessThan(95)
   })
 
-  it('setGradual toggles the flag and setPoint keeps it when the point moves', () => {
-    const g = ritGrid()
-    expect(setGradual(g, 'p1', false).points[1]).toEqual({ id: 'p1', bar: 5, timeMs: 8000 })
-    expect(setPoint(g, 5, 8100, '4/4')!.points.find((p) => p.bar === 5)!.gradual).toBe(true)
-  })
-})
-
-describe('tempoTrendFromTaps (#354)', () => {
-  const tapsFor = (periods: number[], jitter: (i: number) => number = () => 0) => {
-    const out = [10_000]
-    for (const p of periods) out.push(out[out.length - 1]! + p)
-    return out.map((t, i) => t + jitter(i))
-  }
-  const ritardando = Array.from({ length: 15 }, (_, i) => 500 + ((666.7 - 500) * i) / 14)
-
-  it('steady taps: one tempo', () => {
-    expect(tempoTrendFromTaps(tapsFor(Array(12).fill(500)))).toEqual({ kind: 'steady', bpm: 120 })
-  })
-
-  it('an even ritardando 120 -> 90 is recognised with start and end tempo', () => {
-    const trend = tempoTrendFromTaps(tapsFor(ritardando, (i) => (i % 2 ? 8 : -8)))
-    expect(trend?.kind).toBe('gradual')
-    if (trend?.kind !== 'gradual') return
-    expect(trend.startBpm).toBeGreaterThan(114)
-    expect(trend.endBpm).toBeLessThan(96)
-  })
-
-  it('a tempo that jumps around is flagged as unsteady', () => {
-    const jumpy = [500, 500, 500, 500, 640, 640, 640, 450, 450, 450, 700, 700]
-    expect(tempoTrendFromTaps(tapsFor(jumpy))?.kind).toBe('unsteady')
-  })
-})
-
-describe('applySectionRamp (#354)', () => {
-  it('keeps the start bar, marks it gradual and places the end so the stretch ends at the tapped tempo', () => {
-    // 120 BPM constant (two points, 4/4), tapping a ritardando from bar 5 (8 s).
-    const g = grid([1, 0], [20, 38000])
-    const taps = Array.from({ length: 16 }, (_, i) => 8000 + 500 * i + 5 * i * i)
-    const result = applySectionRamp(g, 120, '4/4', taps, 90)
-    expect(result.kind).toBe('grid')
-    if (result.kind !== 'grid') return
-    const start = result.grid.points.find((p) => p.bar === result.startBar)!
-    expect(result.startBar).toBe(5)
-    expect(start.timeMs).toBe(8000)
-    expect(start.gradual).toBe(true)
-    const t = clickTimeline({ beatGrid: result.grid, bpm: 120, timeSignature: '4/4' })
-    const endBeat = t.barStartBeat(result.endBar)
-    expect(60000 / t.periodAfter(endBeat - 1)).toBeCloseTo(90, -1)
+  it('setPoint keeps the flag when the point moves', () => {
+    expect(setPoint(ritGrid(), 5, 8100, '4/4')!.points.find((p) => p.bar === 5)!.gradual).toBe(true)
   })
 })
 
@@ -307,7 +264,7 @@ describe('gradual stretch vs. the real ritardando from #354', () => {
     // Real beats: 5 -> 2.07 s, 9 -> 4.33 s, 13 -> 6.79 s (constant grid: 2.33 / 4.67 / 7.00 s).
     // 1/4 bars: beat k = bar k. A constant stretch before it gives the arriving 120 BPM.
     const ts = '1/4'
-    const g = setGradual(grid([1, -2000], [5, 0], [20, 8750]), 'p1', true)
+    const g = gradualAt(grid([1, -2000], [5, 0], [20, 8750]), 'p1')
     const t = clickTimeline({ beatGrid: g, bpm: 120, timeSignature: ts })
     const at = (beatNo: number) => t.timeOfBeat(t.barStartBeat(5 + beatNo - 1))
     const real: Array<[number, number]> = [[5, 2070], [9, 4330], [13, 6790], [16, 8750]]

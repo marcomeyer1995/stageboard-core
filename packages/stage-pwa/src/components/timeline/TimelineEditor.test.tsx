@@ -323,13 +323,15 @@ describe('TimelineEditor in portrait (full screen, taller than wide)', () => {
     box.width = 800
     box.height = 1100
     setup({ beatGrid, fill: true })
-    const [audio, gridLane] = [...screen.getByTestId('timeline-lanes').querySelectorAll('canvas')]
-    // Waveform: full width, 40 % of (1100 - 26 - 28 - 44 - 44) px high; the grid lane below it.
-    expect(audio!.style.width).toBe('800px')
-    expect(audio!.style.height).toBe('383px')
-    expect(gridLane!.style.top).toBe('383px')
     box.width = 1000
     box.height = 206
+    const [audio, gridLane] = [...screen.getByTestId('timeline-lanes').querySelectorAll('canvas')]
+    // Waveform: full width, 40/62 of what the small grid (64 px) and the fixed lanes leave; the
+    // tempo lane (96 px) under it, then the grid.
+    expect(audio!.style.width).toBe('800px')
+    expect(audio!.style.height).toBe('515px')
+    expect(screen.getByTestId('timeline-tempo').style.top).toBe('515px')
+    expect(gridLane!.style.top).toBe('611px')
   })
 })
 
@@ -453,9 +455,9 @@ describe('collapsible lanes (#328)', () => {
   })
 
   it('keeps the last visible lane', () => {
-    useTimelineLanesStore.setState({ hidden: ['audio', 'grid', 'text', 'notes'] })
+    useTimelineLanesStore.setState({ hidden: ['audio', 'grid', 'tempo', 'text', 'notes'] })
     setup()
-    fireEvent.click(tool('Spuren (1/5)'))
+    fireEvent.click(tool('Spuren (1/6)'))
     expect(tool('Cues')).toBeDisabled()
   })
 })
@@ -498,28 +500,49 @@ describe('tapping a ritardando (#354)', () => {
   })
 
   function tapRitardando() {
-    // 16 taps from 8 s, slowing evenly from 500 ms to ~667 ms spacing (120 -> 90 BPM).
+    // From bar 5 (8 s): 2 bars at 120 BPM, 4 bars slowing evenly to 90 BPM, 2 bars at 90 BPM.
     let t = 8000
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 33; i++) {
       useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: Math.round(t) })
       fireEvent.pointerDown(screen.getByText(/^TIPP/))
-      t += 500 + (166.7 * i) / 14
+      t += i < 8 ? 500 : i < 24 ? 500 + (166.7 * (i - 8 + 0.5)) / 16 : 666.7
     }
   }
+  const constant: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 30, timeMs: 58000 }], meters: [] }
 
-  it('offers the even change as a gradual stretch and applies it as one undo step', async () => {
+  it('shows the tapped change as a preview first, then applies it as one undo step', async () => {
     trackClock.isPlaying = true
-    const constant: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 30, timeMs: 58000 }], meters: [] }
     const { onChange } = setup({ beatGrid: constant, trackSrc: 'blob:track' })
     fireEvent.click(toolButton('Tempo tippen'))
     tapRitardando()
-    fireEvent.click(screen.getByText('Tippen beenden (16)'))
-    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByText('Tippen beenden (33)'))
+    const preview = await screen.findByRole('status', { name: 'Tempo-Vorschau' })
+    expect(preview).toHaveTextContent(/Wird langsamer: 1[12]\d → (8|9)\d BPM, Takt 5–13/)
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }
-    const start = next.beatGrid.points.find((p) => p.bar === 5)!
-    expect(start.timeMs).toBe(8000)
-    expect(start.gradual).toBe(true)
-    expect(screen.getByRole('status')).toHaveTextContent(/Tempo ändert sich gleichmäßig bis Takt \d+ auf (8|9)\d BPM/)
+    expect(next.beatGrid.points.find((p) => p.bar === 5)!.timeMs).toBe(8000)
+    expect(next.beatGrid.points.some((p) => p.gradual)).toBe(true)
+    expect(next.beatGrid.points.find((p) => p.bar === 30)!.id).toBe('p2')
+    expect(screen.queryByRole('status', { name: 'Tempo-Vorschau' })).toBeNull()
+  })
+
+  it('"Verwerfen" leaves the grid as it was', async () => {
+    trackClock.isPlaying = true
+    const { onChange } = setup({ beatGrid: constant, trackSrc: 'blob:track' })
+    fireEvent.click(toolButton('Tempo tippen'))
+    tapRitardando()
+    fireEvent.click(screen.getByText('Tippen beenden (33)'))
+    await screen.findByRole('status', { name: 'Tempo-Vorschau' })
+    fireEvent.click(screen.getByRole('button', { name: 'Verwerfen' }))
+    expect(screen.queryByRole('status', { name: 'Tempo-Vorschau' })).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('no button to mark a stretch gradual by hand any more', () => {
+    setup({ beatGrid: constant, trackSrc: 'blob:track' })
+    expect(screen.queryByRole('button', { name: 'Tempo ändert sich gleichmäßig' })).toBeNull()
   })
 })
 

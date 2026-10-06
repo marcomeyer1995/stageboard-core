@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BeatGrid, ShowCue } from 'shared-types'
-import { applySectionRamp, applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setGradual, setMeter, setPoint, tempoFromTaps, tempoTrendFromTaps } from '../../lib/beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { startClick, stopClick } from '../../lib/clickEngine'
 import { describeCue } from '../../lib/deviceCommands'
 import {
@@ -91,10 +92,15 @@ const DEFAULT_GRID_H = 84
 const PARTS_H = 28
 const DEFAULT_TEXT_H = 64
 const NOTES_H = 44
+/** The tempo lane (#354): the played tempo over time, between waveform and grid. */
+const TEMPO_H = 96
+const COMPACT_TEMPO_H = 40
+/** Full screen: the grid lane's most (bar numbers, points and quality band fit in it). */
+const MAX_GRID_H = 64
 const CUE_H = 44
-const LANE_SIZES = { sectionH: SECTION_H, partsH: PARTS_H, notesH: NOTES_H, cueH: CUE_H, defaultAudioH: DEFAULT_AUDIO_H, defaultGridH: DEFAULT_GRID_H, defaultTextH: DEFAULT_TEXT_H }
+const LANE_SIZES = { sectionH: SECTION_H, tempoH: TEMPO_H, compactTempoH: COMPACT_TEMPO_H, maxGridH: MAX_GRID_H, partsH: PARTS_H, notesH: NOTES_H, cueH: CUE_H, defaultAudioH: DEFAULT_AUDIO_H, defaultGridH: DEFAULT_GRID_H, defaultTextH: DEFAULT_TEXT_H }
 /** Names of the lanes in the "Spuren" toggles. */
-const LANE_NAME: Record<TimelineLane, string> = { audio: 'Wellenform', grid: 'Raster', text: 'Text', notes: 'Notizen', cues: 'Cues' }
+const LANE_NAME: Record<TimelineLane, string> = { audio: 'Wellenform', tempo: 'Tempo', grid: 'Raster', text: 'Text', notes: 'Notizen', cues: 'Cues' }
 /** Two taps within this time and distance in the cue lane add a cue (a double click on the PC). */
 const DOUBLE_TAP_MS = 400
 const TOLERANCE_PX = 24
@@ -196,7 +202,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const toggleLane = useTimelineLanesStore((state) => state.toggle)
   const hiddenLanes = useMemo(() => new Set(hiddenLaneList), [hiddenLaneList])
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
-  const { totalH: lanesH, audioH, gridH, textH, partsH, gridTop, textTop, notesTop, cueTop } = layout
+  const { totalH: lanesH, audioH, tempoH, gridH, textH, partsH, tempoTop, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
   // Phone/tablet (#373): the tool buttons wrapped into up to six rows and pushed the waveform
   // down. Where they don't fit one row they open as a floating panel behind "Werkzeuge" (over the
@@ -242,6 +248,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [hoverGrab, setHoverGrab] = useState(false)
   const audioCanvas = useRef<HTMLCanvasElement>(null)
   const gridCanvas = useRef<HTMLCanvasElement>(null)
+  const tempoCanvas = useRef<HTMLCanvasElement>(null)
   const textCanvas = useRef<HTMLCanvasElement>(null)
   const cueCanvas = useRef<HTMLCanvasElement>(null)
   const notesCanvas = useRef<HTMLCanvasElement>(null)
@@ -260,6 +267,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [selection, setSelection] = useState<Selection>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   const [ripple, setRipple] = useState<Ripple | null>(null)
+  /** A tapped tempo change waiting for "Übernehmen" (#354): its grid is shown, its curve drawn. */
+  const [tempoPreview, setTempoPreview] = useState<Extract<CurveGridResult, { kind: 'grid' }> | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -325,7 +334,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const ripplePreview = ripple && rippleDelta ? rippleShift({ beatGrid, chordProContent: content, cues }, ripple.fromMs, rippleDelta, ripple.anchorBar) : null
   const rippleShown = ripplePreview?.ok ? ripplePreview : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
-  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? beatGrid)
+  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? tempoPreview?.grid ?? beatGrid)
   const shownContent = rippleShown ? rippleShown.chordProContent : drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
   const shownCues = rippleShown ? rippleShown.cues : drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
 
@@ -378,6 +387,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   const current: TimelineEditState = { beatGrid, bpm, chordProContent: content, cues }
   function commit(next: TimelineEditState) {
+    setTempoPreview(null)
     setUndoStack((stack) => [...stack.slice(-49), current])
     setRedoStack([])
     onChange(next)
@@ -568,6 +578,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
         g.lineTo(x - 8, SECTION_H + gridH - 24)
         g.fill()
       }
+      // The tapped tempo curve of a preview (#354), here only while the tempo lane is hidden.
+      if (tempoPreview && tempoPreview.curve.length > 1 && hiddenLanes.has('tempo')) {
+        const bpms = tempoPreview.curve.map((c) => c.bpm)
+        const lo = Math.min(...bpms) - 2
+        const hi = Math.max(...bpms) + 2
+        const top = SECTION_H + 24
+        const bottom = SECTION_H + gridH - 44
+        const yOf = (v: number) => bottom - ((v - lo) / (hi - lo)) * (bottom - top)
+        g.strokeStyle = accent
+        g.lineWidth = 3
+        g.beginPath()
+        tempoPreview.curve.forEach((c, i) => {
+          const x = timeToX(c.timeMs, view)
+          if (i === 0) g.moveTo(x, yOf(c.bpm))
+          else g.lineTo(x, yOf(c.bpm))
+        })
+        g.stroke()
+        g.fillStyle = accent
+        g.font = 'bold 14px system-ui, sans-serif'
+        const first = tempoPreview.curve[0]!
+        const last = tempoPreview.curve[tempoPreview.curve.length - 1]!
+        label(`${first.bpm.toFixed(0)} BPM`, timeToX(first.timeMs, view) + 4, yOf(first.bpm) - 8)
+        label(`${last.bpm.toFixed(0)} BPM`, timeToX(last.timeMs, view) - 64, yOf(last.bpm) - 8)
+      }
       // Tempo of each stretch along the top strip.
       g.fillStyle = 'rgba(255,255,255,0.06)'
       g.fillRect(0, 0, width, SECTION_H)
@@ -585,6 +619,61 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (x > width || x - lastLabelX < 100) continue
         lastLabelX = x
         label(stretch.gradual ? `${stretch.startBpm.toFixed(0)} → ${stretch.endBpm.toFixed(0)} BPM` : `${stretch.bpm.toFixed(1)} BPM`, x, 18)
+      }
+    }
+
+    // Tempo lane (#354): what the click plays, beat by beat - steps where a stretch changes, slopes
+    // where it changes gradually; a tapped curve on top while its preview is open.
+    const tc = tempoCanvas.current?.getContext('2d')
+    if (tc && tempoCanvas.current) {
+      tempoCanvas.current.width = width * dpr
+      tempoCanvas.current.height = tempoH * dpr
+      tc.setTransform(dpr, 0, 0, dpr, 0, 0)
+      tc.clearRect(0, 0, width, tempoH)
+      tc.fillStyle = 'rgba(255,255,255,0.04)'
+      tc.fillRect(0, 0, width, tempoH)
+      const label = labeller(tc)
+      // One scale for the whole song, so the line doesn't jump while scrolling.
+      const bpms = stretches.length ? stretches.flatMap((st) => [st.startBpm, st.endBpm]) : [bpm]
+      if (tempoPreview) bpms.push(...tempoPreview.curve.map((c) => c.bpm))
+      let lo = Math.min(...bpms)
+      let hi = Math.max(...bpms)
+      if (hi - lo < 6) [lo, hi] = [(lo + hi) / 2 - 3, (lo + hi) / 2 + 3]
+      const top = 18
+      const bottom = tempoH - 8
+      const yOf = (v: number) => bottom - ((v - lo) / (hi - lo)) * (bottom - top)
+      const first = Math.max(timeline.firstBeat, timeline.beatAtOrBefore(xToTime(0, view)) - 1)
+      const last = timeline.beatAtOrBefore(viewEndMs) + 1
+      // Zoomed far out, one point per pixel column is plenty.
+      const step = Math.max(1, Math.floor((last - first) / Math.max(1, width)))
+      tc.strokeStyle = ink
+      tc.lineWidth = 2
+      tc.beginPath()
+      for (let b = first, i = 0; b <= last; b += step, i++) {
+        const x = timeToX(timeline.timeOfBeat(b), view)
+        const y = yOf(60000 / timeline.periodAfter(b))
+        if (i === 0) tc.moveTo(x, y)
+        else tc.lineTo(x, y)
+      }
+      tc.stroke()
+      if (tempoPreview && tempoPreview.curve.length > 1) {
+        tc.strokeStyle = accent
+        tc.lineWidth = 3
+        tc.beginPath()
+        tempoPreview.curve.forEach((c, i) => {
+          const x = timeToX(c.timeMs, view)
+          if (i === 0) tc.moveTo(x, yOf(c.bpm))
+          else tc.lineTo(x, yOf(c.bpm))
+        })
+        tc.stroke()
+      }
+      tc.font = '12px system-ui, sans-serif'
+      tc.fillStyle = faint
+      label(`${hi.toFixed(0)} BPM`, 4, 14)
+      label(`${lo.toFixed(0)}`, 4, tempoH - 4)
+      if (tempoPreview) {
+        tc.fillStyle = accent
+        label('getippt', width - 60, 14)
       }
     }
 
@@ -728,7 +817,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (shownCues.length === 0) drawLaneHint(q, ['Cues · Doppeltipp: Cue hinzufügen', 'Doppeltipp: Cue'], width, CUE_H, faint)
       else drawLaneLabel(q, 'Cues', CUE_H - 6, cuesUsed, faint)
     }
-  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs])
+  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs, tempoPreview, tempoH])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -802,6 +891,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const base = { pointerId: e.pointerId, startX: x, x, moved: false }
     if (ripple) {
       setDrag({ ...base, kind: 'ripple' })
+      return
+    }
+    // While a tempo preview is open nothing is grabbed - scrolling and tapping to listen only.
+    if (tempoPreview) {
+      pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, lane: null }
       return
     }
     if (y >= cueTop) {
@@ -997,31 +1091,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setNotice('Mindestens 4 Schläge im Takt tippen.')
       return
     }
-    // #354: an even ritardando/accelerando can become a gradual stretch instead of one average.
-    const trend = tempoTrendFromTaps(tapped)
-    if (trend?.kind === 'gradual' && beatGrid && beatGrid.points.length >= 2) {
-      const asRamp = await confirm(
-        `Das Tempo ändert sich beim Tippen gleichmäßig: ${trend.startBpm.toFixed(0)} → ${trend.endBpm.toFixed(0)} BPM. Als gleichmäßige Tempoänderung übernehmen? (Sonst ein Durchschnittstempo von ${tempo.toFixed(1)} BPM.)`,
-        { title: trend.endBpm < trend.startBpm ? 'Ritardando erkannt' : 'Accelerando erkannt', confirmLabel: 'Gleichmäßig übernehmen' },
-      )
-      if (asRamp) {
-        const ramp = applySectionRamp(beatGrid, bpm, timeSignature, tapped, trend.endBpm)
-        if (ramp.kind === 'grid') {
-          setNotice(`Ab Takt ${ramp.startBar}: Tempo ändert sich gleichmäßig bis Takt ${ramp.endBar} auf ${trend.endBpm.toFixed(0)} BPM.`)
-          commitGrid(ramp.grid)
-          setSelection({ kind: 'bar', bar: ramp.startBar })
-          return
-        }
-        if (ramp.kind === 'refused') {
-          setNotice(ramp.reason)
-          return
-        }
+    // #354: a tempo that moves while tapping - the grid follows the tapped curve, shown first.
+    if (beatGrid) {
+      const curved = gridFromTappedCurve(beatGrid, bpm, timeSignature, tapped)
+      if (curved.kind === 'refused') {
+        setNotice(curved.reason)
+        return
       }
-    }
-    if (trend?.kind === 'unsteady') {
-      setNotice(
-        `Das Tempo ändert sich während des Tippens (${trend.startBpm.toFixed(0)} → ${trend.endBpm.toFixed(0)} BPM), aber nicht gleichmäßig - lieber Takt für Takt ausrichten oder „Track analysieren“.`,
-      )
+      if (curved.kind === 'grid') {
+        setSelection(null)
+        setTempoPreview(curved)
+        setNotice(null)
+        return
+      }
     }
     // From the bar where tapping started up to the next alignment point (#329).
     const result = beatGrid ? applySectionTempo(beatGrid, bpm, timeSignature, tapped, tempo) : ({ kind: 'bpm' } as const)
@@ -1502,6 +1584,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       >
         {!hiddenLanes.has('audio') && <canvas ref={audioCanvas} className="absolute left-0 top-0" style={{ width, height: audioH }} />}
         {!hiddenLanes.has('grid') && <canvas ref={gridCanvas} className="absolute" style={{ left: 0, top: gridTop, width, height: SECTION_H + gridH }} />}
+        {!hiddenLanes.has('tempo') && <canvas ref={tempoCanvas} className="absolute" style={{ left: 0, top: tempoTop, width, height: tempoH }} data-testid="timeline-tempo" />}
         {!hiddenLanes.has('text') && <canvas ref={textCanvas} className="absolute" style={{ left: 0, top: textTop, width, height: PARTS_H + textH }} data-testid="timeline-text" />}
         {!hiddenLanes.has('notes') && <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />}
         {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
@@ -1578,17 +1661,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Punkt entfernen
             </button>
           )}
-          {selectedPoint && selectedStretch && selectedStretch.toBar !== null && (
-            <button
-              type="button"
-              className={toggle(selectedPoint.gradual === true)}
-              aria-pressed={selectedPoint.gradual === true}
-              title="Das Tempo ändert sich bis zum nächsten Ausrichtungspunkt gleichmäßig (Ritardando/Accelerando) statt konstant zu bleiben."
-              onClick={() => commitGrid(setGradual(editableGrid, selectedPoint.id, selectedPoint.gradual !== true))}
-            >
-              Tempo ändert sich gleichmäßig
-            </button>
-          )}
           {selectedBar >= 2 && (
             <button type="button" className={button} onClick={() => void editMeter(selectedBar)}>
               Taktart ab hier
@@ -1632,6 +1704,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
             onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}
           >
             Alles danach verschieben
+          </button>
+        </div>
+      )}
+
+      {tempoPreview && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
+          <span className="font-semibold">
+            {tempoPreview.endBpm < tempoPreview.startBpm ? 'Wird langsamer' : 'Wird schneller'}: {tempoPreview.startBpm.toFixed(0)} → {tempoPreview.endBpm.toFixed(0)} BPM, Takt{' '}
+            {tempoPreview.startBar}–{tempoPreview.endBar} ({tempoPreview.pointCount} Ausrichtungspunkte). Die Linie zeigt das getippte Tempo.
+          </span>
+          <button type="button" className={button} onClick={() => setTempoPreview(null)}>
+            Verwerfen
+          </button>
+          <button
+            type="button"
+            className={toggle(true)}
+            onClick={() => {
+              const preview = tempoPreview
+              commitGrid(preview.grid)
+              setSelection({ kind: 'bar', bar: preview.startBar })
+              setNotice(`Tempo ab Takt ${preview.startBar} wie getippt übernommen. Rückgängig mit ↶.`)
+            }}
+          >
+            Übernehmen
           </button>
         </div>
       )}
