@@ -5,7 +5,8 @@ import { ChordOffsetControls } from '../components/ChordOffsetControls'
 import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, commentVisibleTo, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
-import { transposeKey, transposeLines } from '../lib/transposeChord'
+import { transposeLines } from '../lib/transposeChord'
+import { isStandardTuning } from '../lib/tuning'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useChordOffsets } from '../lib/useChordOffsets'
 import { useContentFontSize } from '../lib/useContentFontSize'
@@ -83,25 +84,13 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
       )
     : []
 
-  // Key/Tuning/Capo (SongVariant-only - genuinely arrangement-specific, see songVariant.ts)
-  // are important enough to show, but not important enough to sit in the permanently
-  // visible header wasting space all show long (Marco, 2026-09-14) - rendered as the first
-  // line of the scrolling lyrics content instead, so it scrolls away on its own once
-  // playback moves past it, the same way the rest of the song does.
-  const arrangementInfo = [
-    currentVariant?.key && `Key: ${currentVariant.key}`,
-    currentVariant?.tuning && `Tuning: ${currentVariant.tuning}`,
-    (currentVariant?.capo !== undefined || offsets.capoOffset !== 0) && `Capo: ${offsets.effectiveCapo}. Bund`,
-    // The key the audience hears: base key + transpose only - a capo shifts the shapes, not the sound.
-    baseKey && (offsets.transposeOffset !== 0 || offsets.capoOffset !== 0) && `Klingende Tonart: ${transposeKey(baseKey, offsets.transposeOffset)}`,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join('  ·  ')
-  const arrangementInfoNode = arrangementInfo && (
-    <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
-      {arrangementInfo}
-    </p>
-  )
+  // Key/Tuning/Capo (#410, Marco): no line of their own any more. The key is on the "Tonart"
+  // button; capo and a tuning that isn't standard are small chips next to it in the header -
+  // in the common case (standard tuning, no capo) nothing at all takes room above the lyrics.
+  const chips = [
+    offsets.effectiveCapo > 0 && `Capo ${offsets.effectiveCapo}`,
+    !isStandardTuning(currentVariant?.tuning) && currentVariant?.tuning,
+  ].filter((chip): chip is string => Boolean(chip))
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
   const pageIndex = currentPageIndex(pages, activeIndex)
@@ -193,7 +182,14 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             </p>
           )}
         </div>
-        {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} />}
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+          {chips.map((chip) => (
+            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-sb-sm bg-control px-2 py-1 font-semibold text-ink-soft">
+              {chip}
+            </span>
+          ))}
+          {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} baseKey={baseKey} />}
+        </div>
       </div>
 
       {config.viewMode === 'paginated' && page ? (
@@ -225,7 +221,6 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               fontSize={fontSize}
               chordFontSize={chordFontSize}
               commentFontSize={commentFontSize}
-              headerContent={pageIndex === 0 ? arrangementInfoNode : null}
             />
           </div>
         </>
@@ -237,7 +232,6 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             fontSize={fontSize}
             chordFontSize={chordFontSize}
             commentFontSize={commentFontSize}
-            headerContent={arrangementInfoNode}
           />
         </div>
       )}

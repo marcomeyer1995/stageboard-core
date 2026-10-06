@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useBackHandler } from '../lib/backNavigation'
 import type { ChordOffsets } from '../lib/useChordOffsets'
 import { MAX_CAPO_FRET, MAX_TRANSPOSE } from '../lib/useChordOffsets'
+import { transposeKey } from '../lib/transposeChord'
 
 function Stepper({
   label,
@@ -35,12 +36,12 @@ function Stepper({
   )
 }
 
-/** "+2 · Capo 3" - what is changed right now, empty when nothing is. */
-function offsetSummary(offsets: ChordOffsets): string {
-  const parts: string[] = []
-  if (offsets.transposeOffset !== 0) parts.push(offsets.transposeOffset > 0 ? `+${offsets.transposeOffset}` : String(offsets.transposeOffset))
-  if (offsets.capoOffset !== 0) parts.push(`Capo ${offsets.effectiveCapo}`)
-  return parts.join(' · ')
+/** What the button reads (#410): the sounding key ("A", "Bb (+1)") when the song has one, else
+ * the transpose step ("+2"); empty when there is nothing to show. */
+function keyLabel(offsets: ChordOffsets, baseKey: string | undefined): string {
+  const step = offsets.transposeOffset > 0 ? `+${offsets.transposeOffset}` : String(offsets.transposeOffset)
+  if (baseKey) return offsets.transposeOffset === 0 ? baseKey : `${transposeKey(baseKey, offsets.transposeOffset)} (${step})`
+  return offsets.transposeOffset === 0 ? '' : step
 }
 
 /**
@@ -48,19 +49,21 @@ function offsetSummary(offsets: ChordOffsets): string {
  * is the exception, so the lyrics keep the room - the button shows what is changed, the steppers
  * open in a popup. Local to this tablet - see useChordOffsetStore.
  */
-export function ChordOffsetControls({ offsets, authoredCapo }: { offsets: ChordOffsets; authoredCapo: number }) {
+export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offsets: ChordOffsets; authoredCapo: number; baseKey?: string }) {
   const [open, setOpen] = useState(false)
-  const summary = offsetSummary(offsets)
+  const shown = keyLabel(offsets, baseKey)
+  const changed = offsets.transposeOffset !== 0 || offsets.capoOffset !== 0
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 font-sans text-sm font-semibold normal-case tracking-normal ${
-          summary ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+        aria-label={shown ? `Tonart ${shown}` : 'Tonart'}
+        className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 font-sans text-base font-bold normal-case tracking-normal ${
+          changed ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
         }`}
       >
-        Tonart{summary && ` ${summary}`}
+        {shown || 'Tonart'}
       </button>
       {open && <ChordOffsetDialog offsets={offsets} authoredCapo={authoredCapo} onClose={() => setOpen(false)} />}
     </>
