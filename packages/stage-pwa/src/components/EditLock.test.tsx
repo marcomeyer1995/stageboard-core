@@ -1,9 +1,17 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const ctx = vi.hoisted(() => ({ active: { isReadOnly: false } as { isReadOnly?: boolean } | undefined, roles: [] as string[] }))
+const ctx = vi.hoisted(() => ({
+  active: { isReadOnly: false } as { id?: string; name?: string; isReadOnly?: boolean } | undefined,
+  roles: [] as string[],
+  duplicate: (() => Promise.resolve(null)) as (id: string, name: string, personalFor?: string) => Promise<{ id: string } | null>,
+  setActive: (() => undefined) as (workspaceId: string, id: string) => void,
+}))
 vi.mock('../lib/useModeDashboards', () => ({ useModeDashboards: () => ({ active: ctx.active, candidates: [] }) }))
-vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ stageRoles: ctx.roles }) }))
+vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p-caro', stageRoles: ctx.roles }) }))
+vi.mock('../store/useDashboardsStore', () => ({ useDashboardsStore: (select: (s: object) => unknown) => select({ duplicate: (...a: Parameters<typeof ctx.duplicate>) => ctx.duplicate(...a) }) }))
+vi.mock('../store/useActiveDashboardStore', () => ({ useActiveDashboardStore: (select: (s: object) => unknown) => select({ setActive: (...a: Parameters<typeof ctx.setActive>) => ctx.setActive(...a) }) }))
+vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: (select: (s: object) => unknown) => select({ activeWorkspaceId: 'band' }) }))
 
 const { EditLock } = await import('./EditLock')
 const { useEditModeStore } = await import('../store/useEditModeStore')
@@ -61,6 +69,21 @@ describe('EditLock on a read-only template (#16)', () => {
     act(() => vi.advanceTimersByTime(700))
     expect(useEditModeStore.getState().isEditing).toBe(false)
     expect(screen.getByText(/Vorlage - nur Admins/)).toBeInTheDocument()
+  })
+
+  it('"Eigene Kopie bearbeiten": an own copy for the musician, switched to and straight into edit mode - even when every dashboard is a template', async () => {
+    ctx.active = { id: 'stage', name: 'Bühne', isReadOnly: true }
+    const duplicate = vi.fn(async () => ({ id: 'copy' }))
+    const setActive = vi.fn()
+    ctx.duplicate = duplicate
+    ctx.setActive = setActive
+    const onUnlock = vi.fn()
+    render(<EditLock onUnlock={onUnlock} />)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /Eigene Kopie bearbeiten/ })))
+    expect(duplicate).toHaveBeenCalledWith('stage', 'Bühne Kopie', 'p-caro')
+    expect(setActive).toHaveBeenCalledWith('band', 'copy')
+    expect(useEditModeStore.getState().isEditing).toBe(true)
+    expect(onUnlock).toHaveBeenCalled()
   })
 
   it('an admin can still unlock it', () => {

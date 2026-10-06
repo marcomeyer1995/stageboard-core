@@ -4,6 +4,9 @@ import { Icon } from './Icon'
 import { useModeDashboards } from '../lib/useModeDashboards'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { canEditDashboard } from '../lib/dashboardLayout'
+import { useDashboardsStore } from '../store/useDashboardsStore'
+import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 const LONG_PRESS_MS = 600
 /** How long the "hold it" hint stays after a too-short tap, ms. */
@@ -29,7 +32,12 @@ interface EditLockProps {
  */
 export function EditLock({ onUnlock }: EditLockProps) {
   const { active } = useModeDashboards()
-  const roles = useActiveProfile()?.stageRoles ?? []
+  const profile = useActiveProfile()
+  const roles = profile?.stageRoles ?? []
+  const duplicate = useDashboardsStore((state) => state.duplicate)
+  const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const [copying, setCopying] = useState(false)
   const editable = !active || canEditDashboard(active, roles)
   const isEditing = useEditModeStore((state) => state.isEditing)
   const setEditing = useEditModeStore((state) => state.setEditing)
@@ -80,7 +88,28 @@ export function EditLock({ onUnlock }: EditLockProps) {
           Bearbeiten
           <Icon name="locked" size="1.4rem" />
         </div>
-        <p className="text-sm text-ink-muted">Vorlage - nur Admins ändern sie. Unter „Dashboards verwalten“ duplizieren für eine eigene Kopie.</p>
+        <p className="text-sm text-ink-muted">Vorlage - nur Admins ändern sie.</p>
+        {/* The way out even when every dashboard is a template (Marco): without edit mode a
+            musician never reached "Dashboards verwalten" and its "Duplizieren". A private copy
+            changes nothing for anyone else, so one tap is enough. */}
+        <button
+          type="button"
+          disabled={!profile || copying}
+          onClick={async () => {
+            if (!active || !profile) return
+            setCopying(true)
+            const copy = await duplicate(active.id, `${active.name} Kopie`, profile.id)
+            setCopying(false)
+            if (!copy) return
+            setActiveDashboard(workspaceId, copy.id)
+            setEditing(true)
+            onUnlock?.()
+          }}
+          className="flex h-12 w-full items-center justify-between rounded-sb bg-control px-4 text-base text-ink hover:bg-control-hover disabled:opacity-40"
+        >
+          Eigene Kopie bearbeiten
+          <Icon name="unlocked" size="1.4rem" />
+        </button>
       </div>
     )
   }
