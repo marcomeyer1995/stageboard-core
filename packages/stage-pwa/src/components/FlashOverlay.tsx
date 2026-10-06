@@ -17,10 +17,11 @@ export function isForMe(flash: FlashMessage, profileId: string | undefined): boo
  * `{alert: ...}` reaching its time on this device. Per device (Einstellungen → Blitzmeldungen):
  * a see-through banner under the status bar - only as big as the message, the rest of the screen
  * stays playable, a tap on it closes it (Marco, #400 review) -, the whole screen, or off. Gone after
- * FLASH_DURATION_MS.
+ * the device's display time (Einstellungen, 3-20 s, default 8).
  */
 export function FlashOverlay() {
   const mode = useFlashPrefsStore((state) => state.mode)
+  const seconds = useFlashPrefsStore((state) => state.seconds)
   const enabled = mode !== 'off'
   const profileId = useActiveProfile()?.id
   const remote = usePresenceStore((state) => state.presence.flash)
@@ -45,9 +46,9 @@ export function FlashOverlay() {
 
   useEffect(() => {
     if (!shown) return
-    const timer = setTimeout(() => setShown(null), FLASH_DURATION_MS)
+    const timer = setTimeout(() => setShown(null), (seconds || FLASH_DURATION_MS / 1000) * 1000)
     return () => clearTimeout(timer)
-  }, [shown])
+  }, [shown, seconds])
 
   if (!shown) return null
   if (mode === 'banner') {

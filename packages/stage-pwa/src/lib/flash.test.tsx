@@ -71,6 +71,17 @@ describe('FlashOverlay (#26)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('stays as long as set on this device', () => {
+    useFlashPrefsStore.setState({ mode: 'banner', seconds: 15 })
+    render(<FlashOverlay />)
+    act(() => showLocalFlash('Lang'))
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(screen.getByRole('alert')).toHaveTextContent('Lang')
+    act(() => vi.advanceTimersByTime(5_100))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    useFlashPrefsStore.setState({ seconds: 8 })
+  })
+
   it('a message for someone else stays on their tablet only', () => {
     render(<FlashOverlay />)
     act(() => usePresenceStore.setState({ presence: { devices: {}, flash: { id: 'f4', text: 'Bass stimmen', to: ['p-bass'], at: Date.now() } } }))
