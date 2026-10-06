@@ -24,8 +24,22 @@ import {
 function toShowLogEvent(doc: ShowLogEventDoc): ShowLogEvent | null {
   const parsed = ShowLogEventSchema.safeParse(doc)
   if (parsed.success) return parsed.data
+  // Events written with fractional timestamps (server-clock values, before the rounding fix,
+  // 2026-10-05) are otherwise fine - read them with the numbers rounded instead of dropping them.
+  const rounded = ShowLogEventSchema.safeParse(roundTimes(doc))
+  if (rounded.success) return rounded.data
   console.error('Dropping malformed ShowLog event', doc, parsed.error)
   return null
+}
+
+const TIME_FIELDS = ['at', 'endedAt', 'activeMs'] as const
+
+function roundTimes(doc: ShowLogEventDoc): Record<string, unknown> {
+  const copy: Record<string, unknown> = { ...doc }
+  for (const field of TIME_FIELDS) {
+    if (typeof copy[field] === 'number') copy[field] = Math.round(copy[field] as number)
+  }
+  return copy
 }
 
 /**

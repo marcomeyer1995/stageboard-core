@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type SystemTab = 'band' | 'plugins' | 'hardware' | 'devices' | 'backup' | 'post-show' | 'settings'
+export type SystemTab = 'band' | 'plugins' | 'hardware' | 'devices' | 'backup' | 'post-show' | 'settings' | 'debug'
 
 interface ActiveSystemTabState {
   /** `null` whenever `SystemView.tsx` isn't mounted at all (Live/Bibliothek showing, or the
