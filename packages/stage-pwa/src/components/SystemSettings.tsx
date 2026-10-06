@@ -9,6 +9,7 @@ import { TextSizeSettings } from './TextSizeSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
+import { FlashSettings } from './FlashSettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -76,6 +77,12 @@ export function SystemSettings() {
       <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur für Weiter, Zurück, Play und den Prompter - gilt nur für dieses Gerät.">
         <Section title="Zuordnung">
           <KeybindingSettings />
+        </Section>
+      </Group>
+
+      <Group title="Blitzmeldungen" description="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
+        <Section title="Auf diesem Gerät">
+          <FlashSettings />
         </Section>
       </Group>
 
