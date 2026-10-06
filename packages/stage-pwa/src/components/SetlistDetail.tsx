@@ -75,7 +75,9 @@ function VariantPicker({
         title="Variante wählen"
         // The whole name, wrapping onto more lines - it used to be cut to "Auto: music-tem…",
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
-        className="min-h-12 w-36 min-w-0 flex-shrink-0 whitespace-normal break-words rounded-sb-sm bg-control-strong px-2 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
+        // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
+        // title 0 px wide.
+        className="min-h-12 max-w-full self-start whitespace-normal break-words rounded-sb-sm bg-control-strong px-3 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
       >
         {selectedLabel}
       </button>
@@ -303,25 +305,27 @@ function EntryRow({
       >
         ⠿
       </button>
-      <button
-        type="button"
-        onClick={() => onSelectSong(entry.songId, entry.variantId)}
-        className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline"
-      >
-        {songNumber}. {title}
-      </button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => onSelectSong(entry.songId, entry.variantId)}
+          className="min-h-12 min-w-0 truncate text-left hover:underline"
+        >
+          {songNumber}. {title}
+        </button>
+        {songVariants.length > 1 && (
+          <VariantPicker
+            variants={songVariants}
+            selectedId={selectedVariantId}
+            onSelect={(variantId) => onSetVariant(entry.id, variantId)}
+          />
+        )}
+      </div>
       {onSetTransition && (
         <TransitionPicker
           type={entry.transitionType ?? 'manual'}
           delayMs={entry.transitionDelayMs ?? DEFAULT_TRANSITION_DELAY_MS}
           onChange={(type, delayMs) => onSetTransition(entry.id, type, delayMs)}
-        />
-      )}
-      {songVariants.length > 1 && (
-        <VariantPicker
-          variants={songVariants}
-          selectedId={selectedVariantId}
-          onSelect={(variantId) => onSetVariant(entry.id, variantId)}
         />
       )}
       {/* flat, not the default boxed pill - same unboxed treatment LibraryView.tsx's own song
@@ -781,24 +785,28 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           </ul>
         </SortableContext>
       </DndContext>
-      <div className="flex items-start gap-2">
+      {/* Phone (#414): search field across the full width, the two buttons below it - in one row
+          the buttons squeezed the search field to "Sor…". Wide screens keep one row. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
-        <button
-          type="button"
-          onClick={() => void addTransition('announcement')}
-          className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover"
-        >
-          + Ansage / Pause
-        </button>
-        <button
-          type="button"
-          onClick={() => void addTransition('heading')}
-          className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover"
-        >
-          + Abschnitt
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void addTransition('announcement')}
+            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
+          >
+            + Ansage / Pause
+          </button>
+          <button
+            type="button"
+            onClick={() => void addTransition('heading')}
+            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
+          >
+            + Abschnitt
+          </button>
+        </div>
       </div>
     </div>
   )
