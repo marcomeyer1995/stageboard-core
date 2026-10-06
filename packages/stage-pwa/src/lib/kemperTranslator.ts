@@ -5,6 +5,7 @@ import { KEMPER_CAPABILITY, KEMPER_CC, KEMPER_STOMP_CC as STOMP_CC, KEMPER_STOMP
 import { getMidiOutputById, sendControlChange } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { resolveTargetDevice } from './hardwareRouting'
 
 /**
  * A real, installable plugin (PluginManager.tsx's CATALOG) rather than a mock - its own
@@ -26,8 +27,8 @@ interface KemperOutput {
  * codebase for the analogous "usually exactly one instance per tablet" case; a `ShowControlEvent`
  * carries no logicalDeviceId to disambiguate further (clientTranslator.ts's Translator contract).
  */
-async function resolveKemperOutput(): Promise<KemperOutput | null> {
-  const logicalDevice = useLogicalDevicesStore.getState().devices.find((d) => d.capability === KEMPER_CAPABILITY)
+async function resolveKemperOutput(logicalDeviceId?: string): Promise<KemperOutput | null> {
+  const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, KEMPER_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
   const deviceId = getDeviceId()
@@ -77,7 +78,7 @@ async function test(kemper: KemperOutput): Promise<ShowControlResult> {
 }
 
 export const kemperTranslator: Translator = async (event) => {
-  const kemper = await resolveKemperOutput()
+  const kemper = await resolveKemperOutput(event.logicalDeviceId)
   if (!kemper) return { status: 'error', message: 'Kemper: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

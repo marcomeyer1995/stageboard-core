@@ -90,10 +90,10 @@ describe('CustomTriggerWidget', () => {
     const button = screen.getByRole('button')
 
     fireEvent.pointerDown(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: true } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: true }, logicalDeviceId: mixer.id })
 
     fireEvent.pointerUp(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id })
   })
 
   it('momentary: releases on pointer-leave too, so a drag-off never leaves it stuck on', () => {
@@ -110,7 +110,7 @@ describe('CustomTriggerWidget', () => {
 
     fireEvent.pointerDown(button)
     fireEvent.pointerLeave(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id })
   })
 
   it('momentary: switches to the active color while held, and back on release', () => {
@@ -146,10 +146,10 @@ describe('CustomTriggerWidget', () => {
     const button = screen.getByRole('button')
 
     fireEvent.click(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id })
 
     fireEvent.click(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: false } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: false }, logicalDeviceId: mixer.id })
   })
 
   it('merges the configured JSON payload into the fired event', () => {
@@ -171,6 +171,7 @@ describe('CustomTriggerWidget', () => {
     expect(localMixerApplyEvent).toHaveBeenLastCalledWith({
       type: 'blinder',
       payload: { channel: 'DMX-1', on: true },
+      logicalDeviceId: mixer.id,
     })
   })
 
@@ -190,7 +191,7 @@ describe('CustomTriggerWidget', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true } })
+    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id })
   })
 
   it('routes through the relay when the device is bound to a different tablet', async () => {
@@ -209,6 +210,7 @@ describe('CustomTriggerWidget', () => {
       expect(triggerDeviceControl).toHaveBeenCalledWith('ws-1', 'some-other-tablet', 'mixer', {
         type: 'blinder',
         payload: { on: true },
+        logicalDeviceId: mixer.id,
       }),
     )
     expect(localMixerApplyEvent).not.toHaveBeenCalled()
@@ -229,7 +231,7 @@ describe('CustomTriggerWidget', () => {
     fireEvent.click(screen.getByRole('button'))
 
     await vi.waitFor(() =>
-      expect(triggerShowControl).toHaveBeenCalledWith('mock-lighting', { type: 'blackout', payload: { on: true } }),
+      expect(triggerShowControl).toHaveBeenCalledWith('mock-lighting', { type: 'blackout', payload: { on: true }, logicalDeviceId: mixer.id }),
     )
   })
 })

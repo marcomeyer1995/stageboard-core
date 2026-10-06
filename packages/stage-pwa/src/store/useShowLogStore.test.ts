@@ -20,6 +20,28 @@ beforeEach(() => {
   switchShowLogWorkspace.mockReset()
 })
 
+describe('init - events with fractional times (2026-10-05)', () => {
+  it('keeps them with the times rounded instead of dropping them', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getAllShowLogEvents.mockResolvedValue([
+      // Exactly the shapes the Live-Debug-Console showed on the Fire: server-clock timestamps.
+      { id: 's', showId: 's1', type: 'show-started', at: 1791099820556.1738 },
+      { id: 'p', showId: 's1', type: 'song-played', songId: 'x', songTitle: 'All the small things', at: 1791058578696, endedAt: 1791058631992.2031, activeMs: 51860 },
+      { id: 'q', showId: 's1', type: 'song-played', songId: 'y', songTitle: 'Song', at: 200, endedAt: 300, activeMs: 25_468.75 },
+    ])
+
+    await useShowLogStore.getState().init('band-a')
+
+    const events = useShowLogStore.getState().events
+    expect(events).toHaveLength(3)
+    expect(events.find((e) => e.id === 's')?.at).toBe(1791099820556)
+    expect(events.find((e) => e.id === 'p')).toMatchObject({ endedAt: 1791058631992 })
+    expect(events.find((e) => e.id === 'q')).toMatchObject({ activeMs: 25_469 })
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+})
+
 describe('init', () => {
   it('loads every well-formed event, sorted by time', async () => {
     getAllShowLogEvents.mockResolvedValue([
@@ -37,18 +59,15 @@ describe('init', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     getAllShowLogEvents.mockResolvedValue([
       { id: 'good', showId: 's1', type: 'show-started', at: 100 },
-      // A fractional activeMs, exactly the real-world shape that used to throw uncaught out
-      // of Array.map (found live, 2026-09-14: a count-in-seeded activeMs was never rounded
-      // before being persisted, see showLogTracking.ts's finalizeSongPlay).
+      // Genuinely broken (no songId, a text where a number belongs) - rounding can't save it.
       {
         id: 'bad',
         showId: 's1',
         type: 'song-played',
-        songId: 'song-1',
         songTitle: 'Song',
-        at: 200,
+        at: 'yesterday',
         endedAt: 300,
-        activeMs: 25_468.75,
+        activeMs: 25_000,
       },
     ])
 
