@@ -10,6 +10,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { canEditDashboard } from '../lib/dashboardLayout'
 
 interface DashboardManagerProps {
   onClose: () => void
@@ -47,6 +48,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
   const setActive = useActiveDashboardStore((state) => state.setActive)
   const profiles = useProfilesStore((state) => state.profiles)
   const activeProfile = useActiveProfile()
+  const roles = activeProfile?.stageRoles ?? []
+  const isAdmin = roles.includes('admin')
 
   const [newName, setNewName] = useState('')
   const [newOwner, setNewOwner] = useState(activeProfile ? `profile:${activeProfile.id}` : 'public')
@@ -74,7 +77,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
   function move(list: Dashboard[], dashboard: Dashboard, direction: -1 | 1) {
     const index = list.findIndex((item) => item.id === dashboard.id)
     const neighbor = list[index + direction]
-    if (!neighbor) return
+    // Swapping writes both orders - a template's included, which only admins may change (#16).
+    if (!neighbor || !canEditDashboard(dashboard, roles) || !canEditDashboard(neighbor, roles)) return
     void save({ ...dashboard, order: neighbor.order })
     void save({ ...neighbor, order: dashboard.order })
   }
@@ -95,6 +99,13 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
 
   function row(dashboard: Dashboard, list: Dashboard[]) {
     const locked = isLastPublic(dashboard)
+    // #16: a template is read-only for everyone but admins.
+    const editable = canEditDashboard(dashboard, roles)
+    const index = list.findIndex((item) => item.id === dashboard.id)
+    const canMove = (direction: -1 | 1) => {
+      const neighbor = list[index + direction]
+      return !!neighbor && editable && canEditDashboard(neighbor, roles)
+    }
     return (
       <div
         key={dashboard.id}
@@ -104,7 +115,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           <button
             type="button"
             onClick={() => move(list, dashboard, -1)}
-            className="px-1 py-0.5 hover:text-ink-soft"
+            disabled={!canMove(-1)}
+            className="px-1 py-0.5 hover:text-ink-soft disabled:opacity-30"
             title="Nach oben"
           >
             <Icon name="up" size="1.25rem" />
@@ -112,7 +124,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           <button
             type="button"
             onClick={() => move(list, dashboard, 1)}
-            className="px-1 py-0.5 hover:text-ink-soft"
+            disabled={!canMove(1)}
+            className="px-1 py-0.5 hover:text-ink-soft disabled:opacity-30"
             title="Nach unten"
           >
             <Icon name="down" size="1.25rem" />
@@ -121,6 +134,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
 
         <input
           value={dashboard.name}
+          disabled={!editable}
+          title={editable ? undefined : 'Vorlage - nur Admins können sie umbenennen'}
           onChange={(e) => void rename(dashboard.id, e.target.value)}
           className="min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink"
         />
@@ -146,8 +161,14 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
                 key={mode}
                 type="button"
                 aria-pressed={on}
-                disabled={lockedOn}
-                title={lockedOn ? `Einziges Dashboard für ${MODE_LABEL[mode]} - bleibt dort verfügbar` : `Im Modus ${MODE_LABEL[mode]} anbieten`}
+                disabled={lockedOn || !editable}
+                title={
+                  !editable
+                    ? 'Vorlage - nur Admins ändern sie'
+                    : lockedOn
+                      ? `Einziges Dashboard für ${MODE_LABEL[mode]} - bleibt dort verfügbar`
+                      : `Im Modus ${MODE_LABEL[mode]} anbieten`
+                }
                 onClick={() => void save({ ...dashboard, modes: toggleDashboardMode(dashboard, mode) })}
                 className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed ${
                   on ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
@@ -163,14 +184,42 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         <button
           type="button"
           aria-pressed={dashboard.statusBar !== false}
-          title={dashboard.statusBar === false ? 'Statusleiste auf diesem Dashboard anzeigen' : 'Statusleiste auf diesem Dashboard ausblenden'}
+          disabled={!editable}
+          title={
+            !editable
+              ? 'Vorlage - nur Admins ändern sie'
+              : dashboard.statusBar === false
+                ? 'Statusleiste auf diesem Dashboard anzeigen'
+                : 'Statusleiste auf diesem Dashboard ausblenden'
+          }
           onClick={() => void save({ ...dashboard, statusBar: dashboard.statusBar === false })}
-          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide ${
+          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed ${
             dashboard.statusBar !== false ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
           }`}
         >
           Statusleiste
         </button>
+
+        {(isAdmin || dashboard.isReadOnly) && (
+          <button
+            type="button"
+            aria-pressed={dashboard.isReadOnly === true}
+            disabled={!isAdmin}
+            title={
+              isAdmin
+                ? dashboard.isReadOnly
+                  ? 'Vorlage: nur Admins ändern sie - hier wieder freigeben'
+                  : 'Als Vorlage schützen: nur Admins können sie ändern, alle können sie duplizieren'
+                : 'Vorlage - nur Admins ändern sie; duplizieren für eine eigene Kopie'
+            }
+            onClick={() => void save({ ...dashboard, isReadOnly: dashboard.isReadOnly ? undefined : true })}
+            className={`flex items-center gap-1 whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-default ${
+              dashboard.isReadOnly ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint hover:bg-control-hover'
+            }`}
+          >
+            <Icon name="locked" /> Vorlage
+          </button>
+        )}
 
         <button
           type="button"
@@ -182,7 +231,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         <button
           type="button"
           onClick={async () => {
-            const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`)
+            // A template's copy becomes the musician's own, editable dashboard (#16).
+            const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`, !editable ? activeProfile?.id : undefined)
             if (copy) setActive(workspaceId, copy.id)
           }}
           className="rounded-sb-sm bg-control px-2 py-1 text-xs text-ink-soft hover:bg-control-hover"
@@ -191,8 +241,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         </button>
         <button
           type="button"
-          disabled={locked}
-          title={locked ? 'Das letzte öffentliche Dashboard bleibt bestehen' : undefined}
+          disabled={locked || !editable}
+          title={locked ? 'Das letzte öffentliche Dashboard bleibt bestehen' : !editable ? 'Vorlage - nur Admins können sie löschen' : undefined}
           onClick={async () => {
             if (await confirm(`"${dashboard.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
               void remove(dashboard.id)

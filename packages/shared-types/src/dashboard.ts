@@ -77,5 +77,8 @@ export const DashboardSchema = z.object({
    * dashboard. Unset means shown; `false` hides it - e.g. a pure prompter screen that needs every
    * row - and brings back the floating menu button instead (Marco, 2026-09-27). */
   statusBar: z.boolean().optional(),
+  /** A protected template (#16): only admins can move, resize, add or remove widgets, rename or
+   * delete it. Everyone can duplicate it into their own editable copy. Unset = editable. */
+  isReadOnly: z.boolean().optional(),
 })
 export type Dashboard = z.infer<typeof DashboardSchema>

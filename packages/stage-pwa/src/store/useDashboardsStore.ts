@@ -29,6 +29,9 @@ function toDashboard(doc: DashboardDoc): Dashboard {
     // (found live 2026-09-27: the Gig/Solo chips saved, then snapped back).
     modes: doc.modes,
     statusBar: doc.statusBar,
+    // Same trap (#16, found live on the Xiaomi): without it a template looked editable and the
+    // next save would have erased the protection.
+    isReadOnly: doc.isReadOnly,
   }
 }
 
@@ -66,7 +69,9 @@ interface DashboardsState {
     name: string,
     owner?: { ownerProfileId?: string; ownerRole?: string; visibility?: Dashboard['visibility'] },
   ) => Promise<Dashboard>
-  duplicate: (id: string, newName: string) => Promise<Dashboard | null>
+  /** `personalFor`: the copy becomes that profile's own editable dashboard (duplicating a
+   * read-only template, #16). */
+  duplicate: (id: string, newName: string, personalFor?: string) => Promise<Dashboard | null>
   rename: (id: string, name: string) => Promise<void>
   /**
    * Refuses to delete the last *public* dashboard - a device with no profile picked (or a
@@ -152,7 +157,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     await putDashboard(dashboard)
     return dashboard
   },
-  duplicate: async (id, newName) => {
+  duplicate: async (id, newName, personalFor) => {
     const source = get().dashboards.find((dashboard) => dashboard.id === id)
     if (!source) return null
     const order = get().dashboards.reduce((max, item) => Math.max(max, item.order), -1) + 1
@@ -161,6 +166,9 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
       id: randomId(),
       name: newName,
       order,
+      // A copy is always editable; of a template it is the musician's own (#16).
+      isReadOnly: undefined,
+      ...(personalFor ? { visibility: 'private' as const, ownerProfileId: personalFor } : {}),
     }
     await putDashboard(copy)
     return copy

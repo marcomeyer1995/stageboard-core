@@ -72,6 +72,7 @@ import {
   provisionDevice,
   provisionMember,
   provisionWorkspace,
+  updateRosterValidators,
   renameWorkspace,
   setMasterMode,
   resetAdminPin,
@@ -1365,7 +1366,7 @@ function detectLanIp(): string | null {
 }
 
 async function main() {
-  const { app, lookupRegistry, workspaceHardware, pluginLog } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch } = await buildApp()
 
   try {
     // Which plugins run is not configured here: the band installs them in the PWA, and the
@@ -1386,6 +1387,15 @@ async function main() {
     // persisted choice (activeWorkspaceStateStore.ts) wins, surviving restarts on its own. The
     // env var is only the first-boot bootstrap for a truly fresh box that's never activated
     // anything yet.
+    // Validator rules added after a band was founded (protected dashboard templates, #16) reach
+    // its database here. A failure must not keep the server from starting.
+    try {
+      const updated = await updateRosterValidators(couch)
+      if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
+    } catch (err) {
+      app.log.error({ err }, 'Could not update roster validators')
+    }
+
     const bootWorkspaceId = readPersistedActiveWorkspace() ?? process.env.STAGEBOARD_WORKSPACE ?? null
     if (bootWorkspaceId) {
       await workspaceHardware.activate(bootWorkspaceId)
