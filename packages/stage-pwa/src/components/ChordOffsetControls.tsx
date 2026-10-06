@@ -58,12 +58,13 @@ export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offset
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={shown ? `Tonart ${shown}` : 'Tonart'}
+
         className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 font-sans text-base font-bold normal-case tracking-normal ${
           changed ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
         }`}
       >
-        {shown || 'Tonart'}
+        {/* "Tonart: A" (Marco) - a lone "A" didn't say that tapping changes the key. */}
+        {baseKey ? `Tonart: ${shown}` : shown ? `Tonart ${shown}` : 'Tonart'}
       </button>
       {open && <ChordOffsetDialog offsets={offsets} authoredCapo={authoredCapo} onClose={() => setOpen(false)} />}
     </>

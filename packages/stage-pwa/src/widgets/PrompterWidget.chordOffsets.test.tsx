@@ -58,10 +58,10 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     render(<PrompterWidget config={config} />)
     expect(screen.queryByLabelText('Transpose erhöhen')).not.toBeInTheDocument()
     // The button shows the key; capo is a chip next to it.
-    expect(screen.getByRole('button', { name: 'Tonart G' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
     step('Transpose erhöhen', 2)
     step('Capo erhöhen')
-    expect(screen.getByRole('button', { name: 'Tonart A (+2)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: A (+2)' })).toBeInTheDocument()
     expect(screen.getByText('Capo 1')).toBeInTheDocument()
   })
 
@@ -72,7 +72,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     step('Transpose verringern')
 
     expect(screen.getByText('Gb')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tonart Gb (-1)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: Gb (-1)' })).toBeInTheDocument()
   })
 
   it('capo only: chords shift down but the sounding key stays', () => {
@@ -82,7 +82,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     step('Capo erhöhen')
 
     expect(screen.getByText('Gb')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tonart G' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
     expect(screen.getByText('Capo 1')).toBeInTheDocument()
   })
 
@@ -95,7 +95,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
 
     expect(screen.getByText('G')).toBeInTheDocument()
     expect(screen.getByText('C')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tonart A (+2)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: A (+2)' })).toBeInTheDocument()
   })
 
   it('resets when the queue moves to another entry', () => {
@@ -107,7 +107,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     mockShowMode('e2', { key: 'G' })
     rerender(<PrompterWidget config={config} />)
 
-    expect(screen.getByRole('button', { name: 'Tonart G' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
   })
 
   it('counts the authored capo: the written chords already assume it', () => {
