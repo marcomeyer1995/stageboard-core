@@ -131,11 +131,12 @@ export function OverflowMenu({
                     <button
                       key={action.label}
                       type="button"
+                      disabled={action.disabled}
                       onClick={() => {
                         setOpen(false)
                         action.onClick()
                       }}
-                      className="h-11 w-full rounded-sb bg-control text-base text-red-400 hover:bg-control-hover hover:text-red-300"
+                      className="h-11 w-full rounded-sb bg-control text-base text-red-400 hover:bg-control-hover hover:text-red-300 disabled:opacity-40"
                     >
                       {action.label}
                     </button>
