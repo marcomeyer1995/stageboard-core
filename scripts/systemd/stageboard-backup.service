@@ -7,9 +7,9 @@ Description=StageBoard backup to a second medium
 [Service]
 Type=oneshot
 WorkingDirectory=%h/stageboard-deploy
-# Same folders as stageboard.service. CouchDB access: if stageboard.service sets COUCHDB_USER /
-# COUCHDB_PASSWORD, put the same lines into this optional file (it is not in the repo).
-EnvironmentFile=-%h/.config/stageboard/backup.env
+# Same folders as stageboard.service; the CouchDB login from the same file the server uses
+# (docs/03 "CouchDB-Zugang").
+EnvironmentFile=%h/.config/stageboard/couchdb.env
 Environment=STAGEBOARD_DATA_DIR=%h/stageboard-data
 Environment=STAGEBOARD_STATE_DIR=%h/stageboard-data
 # CHANGE: the folder on the second medium (USB disk, NAS mount). A missing folder fails loudly.

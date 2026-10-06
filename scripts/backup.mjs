@@ -117,6 +117,11 @@ async function main() {
   if (!existsSync(target) || !statSync(target).isDirectory()) {
     throw new Error(`Backup target is not there (not mounted?): ${target}`)
   }
+  // A target inside the data folder would archive itself ("file changed while reading") and
+  // sit on the same disk anyway - the second medium is the point.
+  if (resolve(target).startsWith(resolve(dataDir) + '/')) {
+    throw new Error(`Backup target lies inside the data folder ${dataDir} - choose a folder on the second medium`)
+  }
   const stamp = startedAt.toISOString().slice(0, 16).replace('T', '_').replace(':', '')
   const dir = join(target, `stageboard-${stamp}`)
   mkdirSync(join(dir, 'couchdb'), { recursive: true, mode: 0o700 })
