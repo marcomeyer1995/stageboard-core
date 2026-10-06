@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { MASTER_HEARTBEAT_INTERVAL_MS } from 'shared-types'
-import { getDeviceId } from './deviceId'
+import { useShowStateStore } from '../store/useShowStateStore'
 import { reportMasterHeartbeat } from './reportMasterHeartbeat'
 
 /**
@@ -10,12 +10,14 @@ import { reportMasterHeartbeat } from './reportMasterHeartbeat'
  * usePresenceReporter.ts.
  */
 export function useMasterHeartbeatReporter(workspaceId: string, isMaster: boolean): void {
+  // Beats under the master identity (#85): the device id, or `profile:<id>` in 'account' mode -
+  // several devices of one person then confirm the same holder instead of pushing each other out.
+  const identity = useShowStateStore((state) => state.masterIdentity)
   useEffect(() => {
     if (!workspaceId || !isMaster) return
-    const deviceId = getDeviceId()
-    const beat = () => void reportMasterHeartbeat(workspaceId, deviceId)
+    const beat = () => void reportMasterHeartbeat(workspaceId, identity)
     beat()
     const interval = setInterval(beat, MASTER_HEARTBEAT_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [workspaceId, isMaster])
+  }, [workspaceId, isMaster, identity])
 }

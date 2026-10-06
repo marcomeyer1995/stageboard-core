@@ -63,6 +63,22 @@ describe('kemperTranslator', () => {
     expect(sendControlChange).not.toHaveBeenCalled()
   })
 
+  it('#149: with two Kempers, an event for the second one goes out on its own MIDI port and channel', async () => {
+    const backup: LogicalDevice = { ...LOGICAL_DEVICE, id: 'kemper-2', name: 'Backup Kemper' }
+    const backupOutput = { id: 'midi-out-2' } as MIDIOutput
+    useLogicalDevicesStore.setState({ devices: [LOGICAL_DEVICE, backup] })
+    useDeviceTransportConfigStore.setState({
+      configs: [
+        configWith({ midiOutputId: 'midi-out-1', midiChannel: '1' }),
+        { id: `${getDeviceId()}:kemper-2`, deviceId: getDeviceId(), logicalDeviceId: 'kemper-2', transportId: 'usb-midi', values: { midiOutputId: 'midi-out-2', midiChannel: '3' } },
+      ],
+    })
+    vi.mocked(getMidiOutputById).mockImplementation(async (id: string) => (id === 'midi-out-2' ? backupOutput : OUTPUT))
+    await kemperTranslator({ type: 'kemper.selectRig', payload: { performance: 0, slot: 1 }, logicalDeviceId: 'kemper-2' })
+    expect(getMidiOutputById).toHaveBeenCalledWith('midi-out-2')
+    expect(sendControlChange).toHaveBeenNthCalledWith(1, backupOutput, 2, 47, 0)
+  })
+
   describe('kemper.selectRig', () => {
     it('sends performance-preselect then the matching slot CC, 0-indexed channel', async () => {
       const result = await kemperTranslator({ type: 'kemper.selectRig', payload: { performance: 12, slot: 3 } })

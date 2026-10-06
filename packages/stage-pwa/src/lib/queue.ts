@@ -67,7 +67,7 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
 function showBookkeepingPatch(state: ShowState, now: number): Partial<ShowState> {
   if (!shouldStartNewShow(state.lastActivityAt, now)) return { lastActivityAt: now }
   const showId = randomId()
-  void useShowLogStore.getState().append({ id: randomId(), showId, type: 'show-started', at: now })
+  void useShowLogStore.getState().append({ id: randomId(), showId, type: 'show-started', at: Math.round(now) })
   return { currentShowId: showId, lastActivityAt: now }
 }
 

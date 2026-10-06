@@ -26,6 +26,9 @@ export const ShowControlEventSchema = z.object({
    * per-device network jitter instead of every tablet firing the instant its own packet
    * arrives. Gateway-only concern: stripped before the event reaches `IShowControlPlugin`. */
   scheduledAt: z.number().int().nonnegative().optional(),
+  /** The Logical Device this event is meant for (#149) - picks the right one when several share a
+   * capability (two Kempers). Absent: the first device with the capability, as before. */
+  logicalDeviceId: z.string().min(1).optional(),
 })
 export type ShowControlEvent = z.infer<typeof ShowControlEventSchema>
 

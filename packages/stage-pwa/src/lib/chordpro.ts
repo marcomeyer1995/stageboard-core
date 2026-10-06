@@ -204,6 +204,27 @@ export function listTabBlocks(content: string): TabBlockOccurrence[] {
  * comment directives, and everything belonging to a tab block are skipped - a time tag in front
  * of a directive turns it into plain lyric text, and inside a tab block it corrupts the staff.
  */
+/**
+ * A Stage-Messenger alert authored into the song (#26): `{alert: VAMP}`, usually with a time tag
+ * in front (`[02:14.00] {alert: Noch 4 Takte}`) - at that moment every playing device flashes
+ * the text. Not a lyric line: the prompter skips it, Tap-to-Sync never stamps it.
+ */
+export function parseAlertDirective(line: string): { text: string; timeMs: number | null } | null {
+  const { timeMs, rest } = parseTimeTag(line.trim())
+  const match = rest.match(/^\{\s*alert\s*:\s*(.*?)\s*\}$/i)
+  return match && match[1] ? { text: match[1], timeMs } : null
+}
+
+/** Every timed alert of a song, in time order (lines without a time tag are ignored). */
+export function songAlerts(content: string): Array<{ timeMs: number; text: string }> {
+  const alerts: Array<{ timeMs: number; text: string }> = []
+  for (const line of content.split('\n')) {
+    const alert = parseAlertDirective(line)
+    if (alert && alert.timeMs !== null) alerts.push({ timeMs: alert.timeMs, text: alert.text })
+  }
+  return alerts.sort((a, b) => a.timeMs - b.timeMs)
+}
+
 export function tappableLines(rawLines: readonly string[]): boolean[] {
   const tappable = rawLines.map(() => false)
   for (let i = 0; i < rawLines.length; i++) {
@@ -217,6 +238,7 @@ export function tappableLines(rawLines: readonly string[]): boolean[] {
       line.trim().length > 0 &&
       parsePartDirective(line) === null &&
       parseCommentDirective(line) === null &&
+      parseAlertDirective(line) === null &&
       !isTabEndDirective(line)
   }
   return tappable
@@ -347,6 +369,9 @@ export function parseChordPro(content: string): ChordProLine[] {
       partStarted = false
       continue
     }
+
+    // Stage-Messenger alerts (#26) are cues for the flash overlay, not lyrics.
+    if (parseAlertDirective(raw)) continue
 
     // Checked after stripping a time tag too: Tap-to-Sync used to stamp comment lines
     // (`[00:12.00] {c: ...}`), which then rendered as literal lyric text.

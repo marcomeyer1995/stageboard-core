@@ -25,6 +25,7 @@ import {
   ReadyReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
+  SetMasterModeRequestSchema,
   ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
   RosterRequestSchema,
@@ -37,6 +38,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
+import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
@@ -72,6 +74,7 @@ import {
   provisionWorkspace,
   updateRosterValidators,
   renameWorkspace,
+  setMasterMode,
   resetAdminPin,
   rotateAccessCode,
   setMemberAdmin,
@@ -99,6 +102,15 @@ const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
   'https://localhost',
 ].join(',')
+
+/** Username and password from an `Authorization: Basic …` header, or null. */
+export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
+  if (!header?.startsWith('Basic ')) return null
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
+  const colon = decoded.indexOf(':')
+  if (colon <= 0) return null
+  return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) }
+}
 
 /** SHA-256 fingerprint of the server's certificate (lowercase hex, no separators), or null
  * without HTTPS. The native app pins exactly this certificate when pairing (#348) - the invite
@@ -485,6 +497,26 @@ export async function buildApp() {
 
     presenceStore.setMasterHeartbeat(workspaceId, parsed.data.deviceId)
     return reply.status(204).send()
+  })
+
+  // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
+  // stream like the Ready Check. In memory only - a message is only meaningful for seconds.
+  app.post('/workspaces/:workspaceId/flash', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = FlashReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
+    // device signed in to this band may send one (its own CouchDB login, as Basic auth).
+    const login = basicAuthCredentials(request.headers.authorization)
+    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`) || (await verifyUser(couch, login.username, login.password)) === null) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
+      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
+    }
+    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
+    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
+    return reply.status(201).send(flash)
   })
 
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
@@ -1175,6 +1207,21 @@ export async function buildApp() {
     }
 
     await renameWorkspace(couch, workspaceId, parsed.data.name)
+    return reply.status(200).send({ status: 'ok' })
+  })
+
+  // Who holds the Master-Token (#85): admin-only, stored with the band name.
+  app.post('/workspaces/:workspaceId/master-mode', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = SetMasterModeRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
+    }
+    await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
     return reply.status(200).send({ status: 'ok' })
   })
 

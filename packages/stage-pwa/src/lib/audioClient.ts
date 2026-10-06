@@ -1,4 +1,4 @@
-import { getStageServerUrl } from './stageServer'
+import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
 
 /**
  * Talks to core-backend's `/audio/:variantId/:trackId` routes (see #30) - the canonical
@@ -21,7 +21,7 @@ export async function uploadTrack(
   file: Blob,
 ): Promise<AudioUploadResult> {
   const url = audioUrl(variantId, trackId)
-  if (!url) return { status: 'error', message: 'VITE_STAGE_SERVER_URL is not configured' }
+  if (!url) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
 
   try {
     const response = await fetch(url, {

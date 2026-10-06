@@ -17,7 +17,7 @@ export interface MasterTakeover {
 
 /** Master-Token claim rules (#32) shared by every "Master übernehmen" button. */
 export function useMasterTakeover(): MasterTakeover {
-  const deviceId = useShowStateStore((state) => state.deviceId)
+  const deviceId = useShowStateStore((state) => state.masterIdentity)
   const holderId = useShowStateStore((state) => state.state.masterHolderId)
   const claimMaster = useShowStateStore((state) => state.claimMaster)
   const heartbeat = usePresenceStore((state) => state.presence.masterHeartbeat)

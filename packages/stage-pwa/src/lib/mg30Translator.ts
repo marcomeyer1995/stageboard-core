@@ -6,6 +6,7 @@ import { getMidiOutputById, sendSysEx } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { MG30_CAPABILITY, MG30_KNOBS } from './midiDeviceProtocols'
+import { resolveTargetDevice } from './hardwareRouting'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock - own dedicated capability,
@@ -41,8 +42,8 @@ interface Mg30Output {
 
 /** Same "first Logical Device with this capability, bound on this device" resolution as
  * kemperTranslator.ts/cq18tTranslator.ts - see their own doc comments for why. */
-async function resolveMg30Output(): Promise<Mg30Output | null> {
-  const logicalDevice = useLogicalDevicesStore.getState().devices.find((d) => d.capability === MG30_CAPABILITY)
+async function resolveMg30Output(logicalDeviceId?: string): Promise<Mg30Output | null> {
+  const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, MG30_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
   const deviceId = getDeviceId()
@@ -163,7 +164,7 @@ async function test(mg30: Mg30Output): Promise<ShowControlResult> {
 
 export const mg30Translator: Translator = async (event) => {
   if (!isWebMidiSupported()) return { status: 'error', message: 'MG-30: WebMIDI nicht unterstützt.' }
-  const mg30 = await resolveMg30Output()
+  const mg30 = await resolveMg30Output(event.logicalDeviceId)
   if (!mg30) return { status: 'error', message: 'MG-30: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

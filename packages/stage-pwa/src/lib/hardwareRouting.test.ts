@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LogicalDevice } from 'shared-types'
-import { resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
+import { resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
 
 function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'midi-input', pluginId: null, executionTarget: null, ...overrides }
@@ -34,6 +34,18 @@ describe('resolveHardwareBinding', () => {
   it('resolves the first Logical Device providing the capability', () => {
     const kemper1 = kemper({ id: 'kemper-1', name: "Marco's Kemper", executionTarget: 'tablet-1' })
     expect(resolveHardwareBinding([kemper1], 'midi-input')).toBe(kemper1)
+  })
+})
+
+describe('resolveTargetDevice (#149)', () => {
+  const k1 = { id: 'k1', name: "Marco's Kemper", capability: 'kemper-control', pluginId: null, executionTarget: null } as LogicalDevice
+  const k2 = { id: 'k2', name: 'Backup Kemper', capability: 'kemper-control', pluginId: null, executionTarget: null } as LogicalDevice
+  it('takes the device an event names, not just the first with the capability', () => {
+    expect(resolveTargetDevice([k1, k2], 'kemper-control', 'k2')).toBe(k2)
+  })
+  it('falls back to the first match without a name, or for a name of another capability', () => {
+    expect(resolveTargetDevice([k1, k2], 'kemper-control')).toBe(k1)
+    expect(resolveTargetDevice([k1, k2], 'mixer', 'k2')).toBeNull()
   })
 })
 
