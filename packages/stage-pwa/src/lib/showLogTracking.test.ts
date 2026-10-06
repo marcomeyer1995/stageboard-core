@@ -29,6 +29,11 @@ describe('shouldStartNewShow', () => {
 })
 
 describe('finalizeSongPlay', () => {
+  it('rounds the server-clock timestamps too, so the event validates (2026-10-05)', () => {
+    const result = finalizeSongPlay({ songId: 's', songTitle: 'T' }, 1791058578696.4, 60_000.5, 1791058631992.2031, 'show')
+    expect(result).toMatchObject({ at: 1791058578696, endedAt: 1791058631992, activeMs: 60_001 })
+  })
+
   const entry = { songId: 'a', songTitle: 'A' }
 
   it('logs a play-through whose active time met the threshold', () => {
