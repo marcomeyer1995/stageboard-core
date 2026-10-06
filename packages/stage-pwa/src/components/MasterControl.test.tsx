@@ -80,6 +80,22 @@ describe('MasterControl (#378: master self-check)', () => {
       expect(claim).toHaveBeenCalledTimes(1)
     })
 
+    it('after the hold the row stays in the new state while the change goes through - no jump back', () => {
+      queue.isMaster = false
+      show.holdsToken = false
+      show.holder = ''
+      render(<MasterControl />)
+      const button = screen.getByRole('button', { name: 'Master' })
+      fireEvent.pointerDown(button)
+      act(() => vi.advanceTimersByTime(650))
+      // The token hasn't changed yet (the mock never does), the row already shows it.
+      expect(button).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByTestId('master-progress').style.width).toBe('100%')
+      // If the change never happens, it falls back after a few seconds.
+      act(() => vi.advanceTimersByTime(4100))
+      expect(button).toHaveAttribute('aria-pressed', 'false')
+    })
+
     it('holding hands it over', async () => {
       render(<MasterControl />)
       fireEvent.pointerDown(screen.getByRole('button', { name: 'Master' }))

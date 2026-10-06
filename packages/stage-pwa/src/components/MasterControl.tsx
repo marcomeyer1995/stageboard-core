@@ -20,6 +20,8 @@ import { useProfilesStore } from '../store/useProfilesStore'
 const HOLD_MS = 600
 /** How long the "hold it" hint stays after a too-short tap, ms. */
 const HINT_MS = 2500
+/** How long a completed hold's new state is shown before falling back if the token didn't change. */
+const PENDING_MS = 4000
 
 const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
   ok: '',
@@ -67,20 +69,32 @@ export function MasterControl() {
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [holding, setHolding] = useState(false)
   const [hint, setHint] = useState(false)
+  // The state a completed hold asked for, shown until the token actually changes - without it the
+  // row fell back to the old state for a moment and then jumped (Marco, #409). Given up after a
+  // few seconds if the change doesn't happen (refused, or "Abgeben" cancelled mid-song).
+  const [pending, setPending] = useState<boolean | null>(null)
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (pending !== null && pending === mine) setPending(null)
+  }, [pending, mine])
   useEffect(
     () => () => {
       if (holdTimer.current) clearTimeout(holdTimer.current)
       if (hintTimer.current) clearTimeout(hintTimer.current)
+      if (pendingTimer.current) clearTimeout(pendingTimer.current)
     },
     [],
   )
   function startHold() {
-    if (blocked) return
+    if (blocked || pending !== null) return
     setHolding(true)
     setHint(false)
     holdTimer.current = setTimeout(() => {
       holdTimer.current = null
       setHolding(false)
+      setPending(!mine)
+      if (pendingTimer.current) clearTimeout(pendingTimer.current)
+      pendingTimer.current = setTimeout(() => setPending(null), PENDING_MS)
       void (mine ? release() : claim())
     }, HOLD_MS)
   }
@@ -107,14 +121,15 @@ export function MasterControl() {
           }`
         : 'Niemand ist Master.'
   // Full while it's yours, empty otherwise; holding animates towards the other state.
-  const fill = holding ? (mine ? '0%' : '100%') : mine ? '100%' : '0%'
-  const darkText = holding ? !mine : mine
+  const shown = pending ?? mine
+  const fill = holding ? (shown ? '0%' : '100%') : shown ? '100%' : '0%'
+  const darkText = holding ? !shown : shown
 
   return (
     <div className="flex flex-col gap-2">
       <button
         type="button"
-        aria-pressed={mine}
+        aria-pressed={shown}
         aria-label="Master"
         disabled={blocked}
         title={mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
