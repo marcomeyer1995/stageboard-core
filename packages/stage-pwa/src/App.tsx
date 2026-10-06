@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useMasterIdentity } from './lib/useMasterIdentity'
 import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
@@ -184,6 +185,7 @@ function App() {
     useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
   )
   useMasterSelfCheck()
+  useMasterIdentity()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not
