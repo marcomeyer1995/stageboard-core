@@ -94,6 +94,23 @@ describe('DashboardManager - read-only templates (#16)', () => {
     expect(screen.getByDisplayValue('Probe')).not.toBeDisabled()
   })
 
+  it('a musician cannot switch modes, status bar or order of a template either (found live on the Fire)', () => {
+    me.profile.stageRoles = []
+    useDashboardsStore.setState({ dashboards: [dashboard('Bühne', { isReadOnly: true }), dashboard('Probe', { order: 1 }), dashboard('Pause', { order: 2 })] })
+    render(<DashboardManager onClose={vi.fn()} />)
+    const row = (name: string) => screen.getByDisplayValue(name).closest('div.flex-wrap') as HTMLElement
+    expect(chips('Bühne').gig).toBeDisabled()
+    expect(chips('Bühne').solo).toBeDisabled()
+    expect(within(row('Bühne')).getByRole('button', { name: 'Statusleiste' })).toBeDisabled()
+    expect(within(row('Bühne')).getByTitle('Nach unten')).toBeDisabled()
+    // Moving a normal dashboard past the template would rewrite the template's order too.
+    expect(within(row('Probe')).getByTitle('Nach oben')).toBeDisabled()
+    expect(within(row('Probe')).getByTitle('Nach unten')).not.toBeDisabled()
+    expect(chips('Probe').gig).not.toBeDisabled()
+    fireEvent.click(chips('Bühne').gig)
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('an admin protects a dashboard as template and can still edit it', () => {
     me.profile.stageRoles = ['admin']
     useDashboardsStore.setState({ dashboards: [dashboard('Bühne'), dashboard('Probe', { order: 1 })] })

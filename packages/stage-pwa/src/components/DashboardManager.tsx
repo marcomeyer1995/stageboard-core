@@ -77,7 +77,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
   function move(list: Dashboard[], dashboard: Dashboard, direction: -1 | 1) {
     const index = list.findIndex((item) => item.id === dashboard.id)
     const neighbor = list[index + direction]
-    if (!neighbor) return
+    // Swapping writes both orders - a template's included, which only admins may change (#16).
+    if (!neighbor || !canEditDashboard(dashboard, roles) || !canEditDashboard(neighbor, roles)) return
     void save({ ...dashboard, order: neighbor.order })
     void save({ ...neighbor, order: dashboard.order })
   }
@@ -100,6 +101,11 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
     const locked = isLastPublic(dashboard)
     // #16: a template is read-only for everyone but admins.
     const editable = canEditDashboard(dashboard, roles)
+    const index = list.findIndex((item) => item.id === dashboard.id)
+    const canMove = (direction: -1 | 1) => {
+      const neighbor = list[index + direction]
+      return !!neighbor && editable && canEditDashboard(neighbor, roles)
+    }
     return (
       <div
         key={dashboard.id}
@@ -109,7 +115,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           <button
             type="button"
             onClick={() => move(list, dashboard, -1)}
-            className="px-1 py-0.5 hover:text-ink-soft"
+            disabled={!canMove(-1)}
+            className="px-1 py-0.5 hover:text-ink-soft disabled:opacity-30"
             title="Nach oben"
           >
             <Icon name="up" size="1.25rem" />
@@ -117,7 +124,8 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
           <button
             type="button"
             onClick={() => move(list, dashboard, 1)}
-            className="px-1 py-0.5 hover:text-ink-soft"
+            disabled={!canMove(1)}
+            className="px-1 py-0.5 hover:text-ink-soft disabled:opacity-30"
             title="Nach unten"
           >
             <Icon name="down" size="1.25rem" />
@@ -153,8 +161,14 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
                 key={mode}
                 type="button"
                 aria-pressed={on}
-                disabled={lockedOn}
-                title={lockedOn ? `Einziges Dashboard für ${MODE_LABEL[mode]} - bleibt dort verfügbar` : `Im Modus ${MODE_LABEL[mode]} anbieten`}
+                disabled={lockedOn || !editable}
+                title={
+                  !editable
+                    ? 'Vorlage - nur Admins ändern sie'
+                    : lockedOn
+                      ? `Einziges Dashboard für ${MODE_LABEL[mode]} - bleibt dort verfügbar`
+                      : `Im Modus ${MODE_LABEL[mode]} anbieten`
+                }
                 onClick={() => void save({ ...dashboard, modes: toggleDashboardMode(dashboard, mode) })}
                 className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed ${
                   on ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
@@ -170,9 +184,16 @@ export function DashboardManager({ onClose }: DashboardManagerProps) {
         <button
           type="button"
           aria-pressed={dashboard.statusBar !== false}
-          title={dashboard.statusBar === false ? 'Statusleiste auf diesem Dashboard anzeigen' : 'Statusleiste auf diesem Dashboard ausblenden'}
+          disabled={!editable}
+          title={
+            !editable
+              ? 'Vorlage - nur Admins ändern sie'
+              : dashboard.statusBar === false
+                ? 'Statusleiste auf diesem Dashboard anzeigen'
+                : 'Statusleiste auf diesem Dashboard ausblenden'
+          }
           onClick={() => void save({ ...dashboard, statusBar: dashboard.statusBar === false })}
-          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide ${
+          className={`whitespace-nowrap rounded-sb-sm px-2 py-1 text-xs font-bold uppercase tracking-wide disabled:cursor-not-allowed ${
             dashboard.statusBar !== false ? 'bg-accent text-accent-ink' : 'bg-control text-ink-faint line-through hover:bg-control-hover'
           }`}
         >
