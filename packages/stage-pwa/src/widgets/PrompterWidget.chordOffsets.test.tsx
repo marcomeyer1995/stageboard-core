@@ -38,8 +38,11 @@ function mockShowMode(entryId: string, variant: Partial<SongVariant>) {
   } as never)
 }
 
+// Transpose/capo sit behind the "Tonart" button (#410): open, step, close again.
 const step = (label: string, times = 1) => {
+  fireEvent.click(screen.getByRole('button', { name: /^Tonart/ }))
   for (let i = 0; i < times; i++) fireEvent.click(screen.getByLabelText(label))
+  fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
 }
 
 describe('PrompterWidget - transpose and capo (#59)', () => {
@@ -50,6 +53,18 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
       selector({ profiles: [] })) as never)
   })
 
+  it('#410: no steppers above the lyrics - one "Tonart" button that shows what is changed', () => {
+    mockShowMode('e1', { key: 'G' })
+    render(<PrompterWidget config={config} />)
+    expect(screen.queryByLabelText('Transpose erhöhen')).not.toBeInTheDocument()
+    // The button shows the key; capo is a chip next to it.
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
+    step('Transpose erhöhen', 2)
+    step('Capo erhöhen')
+    expect(screen.getByRole('button', { name: 'Tonart: A (+2)' })).toBeInTheDocument()
+    expect(screen.getByText('Capo 1')).toBeInTheDocument()
+  })
+
   it('transposition only: chords shift and the sounding key follows', () => {
     mockShowMode('e1', { key: 'G' })
     render(<PrompterWidget config={config} />)
@@ -57,7 +72,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     step('Transpose verringern')
 
     expect(screen.getByText('Gb')).toBeInTheDocument()
-    expect(screen.getByText(/Klingende Tonart: Gb/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: Gb (-1)' })).toBeInTheDocument()
   })
 
   it('capo only: chords shift down but the sounding key stays', () => {
@@ -67,8 +82,8 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     step('Capo erhöhen')
 
     expect(screen.getByText('Gb')).toBeInTheDocument()
-    expect(screen.getByText(/Klingende Tonart: G\b/)).toBeInTheDocument()
-    expect(screen.getByText(/Capo: 1\. Bund/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
+    expect(screen.getByText('Capo 1')).toBeInTheDocument()
   })
 
   it('combined: +2 transpose with capo 2 reads as the written chords, sounding a tone higher', () => {
@@ -80,7 +95,7 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
 
     expect(screen.getByText('G')).toBeInTheDocument()
     expect(screen.getByText('C')).toBeInTheDocument()
-    expect(screen.getByText(/Klingende Tonart: A/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: A (+2)' })).toBeInTheDocument()
   })
 
   it('resets when the queue moves to another entry', () => {
@@ -92,19 +107,17 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     mockShowMode('e2', { key: 'G' })
     rerender(<PrompterWidget config={config} />)
 
-    expect(screen.getByText('G')).toBeInTheDocument()
-    expect(screen.queryByText(/Klingende Tonart/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: G' })).toBeInTheDocument()
   })
 
   it('counts the authored capo: the written chords already assume it', () => {
     mockShowMode('e1', { key: 'G', capo: 2 })
     render(<PrompterWidget config={config} />)
 
-    expect(screen.getByText(/Capo: 2\. Bund/)).toBeInTheDocument()
-    expect(screen.getByText('G')).toBeInTheDocument()
+    expect(screen.getByText('Capo 2')).toBeInTheDocument()
     step('Capo verringern', 3)
-    // Cannot go below fret 0: authored 2 + offset -2.
-    expect(screen.getByText(/Capo: 0\. Bund/)).toBeInTheDocument()
+    // Cannot go below fret 0: authored 2 + offset -2 - and fret 0 needs no chip.
+    expect(screen.queryByText(/^Capo \d/)).not.toBeInTheDocument()
   })
 
   it('still transposes chords for a song without a key, just without a sounding-key label', () => {
@@ -114,6 +127,15 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     step('Transpose erhöhen', 2)
 
     expect(screen.getByText('A')).toBeInTheDocument()
-    expect(screen.queryByText(/Klingende Tonart/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart +2' })).toBeInTheDocument()
+  })
+
+  it('#410: standard tuning takes no room, another tuning gets a chip', () => {
+    mockShowMode('e1', { key: 'G', tuning: 'E A D G B E' })
+    const { rerender } = render(<PrompterWidget config={config} />)
+    expect(screen.queryByText(/E A D G B E|Tuning/)).not.toBeInTheDocument()
+    mockShowMode('e1', { key: 'G', tuning: 'Drop D' })
+    rerender(<PrompterWidget config={config} />)
+    expect(screen.getByText('Drop D')).toBeInTheDocument()
   })
 })

@@ -986,6 +986,27 @@ describe('Fastify routes', () => {
       return { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
     }
 
+    it("refuses an admin of another band - the CouchDB role 'admin' alone is shared by every band", async () => {
+      const fetchMock = stubFetch([{ ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-b-p9', roles: ['member', 'admin'] } }) }])
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/members',
+        payload: { adminUsername: 'stageboard-band-b-p9', adminPassword: 'their-own-pw', profileId: 'p2' },
+      })
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('locks an admin account after 5 wrong logins, even for the right password afterwards (4-digit PINs)', async () => {
+      const wrong = { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) }
+      const fetchMock = stubFetch([wrong, wrong, wrong, wrong, wrong, stubAdminVerify()])
+      const attempt = (pw: string) =>
+        app.inject({ method: 'POST', url: '/workspaces/band-a/members', payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: pw, profileId: 'p2' } })
+      for (const pin of ['0000', '0001', '0002', '0003', '0004']) expect((await attempt(pin)).statusCode).toBe(403)
+      expect((await attempt('correct-pw')).statusCode).toBe(403)
+      expect(fetchMock).toHaveBeenCalledTimes(5)
+    })
+
     it('provisions a new member with a server-generated password when none is given', async () => {
       const fetchMock = stubFetch([stubAdminVerify(), { ok: true, status: 201 }])
 
