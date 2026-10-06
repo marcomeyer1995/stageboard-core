@@ -97,15 +97,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   ]
     .filter((part): part is string => Boolean(part))
     .join('  ·  ')
-  // One line: key/tuning/capo info plus the "Tonart" button (#410) - transpose and capo open in
-  // a popup, so they no longer take two rows above the lyrics.
-  const arrangementInfoNode = (arrangementInfo || queue.currentEntry) && (
-    <div className="mb-2 flex items-center gap-3">
-      <p style={{ fontSize: arrangementInfoFontSize }} className="min-w-0 flex-1 uppercase tracking-widest text-ink-faint">
-        {arrangementInfo}
-      </p>
-      {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} />}
-    </div>
+  const arrangementInfoNode = arrangementInfo && (
+    <p style={{ fontSize: arrangementInfoFontSize }} className="mb-2 uppercase tracking-widest text-ink-faint">
+      {arrangementInfo}
+    </p>
   )
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
@@ -181,19 +176,24 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-2 min-w-0">
-        <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
-        <h1
-          style={{ fontSize: titleFontSize }}
-          className="overflow-hidden break-words font-bold leading-tight text-ink"
-        >
-          {currentSong.title}
-        </h1>
-        {currentSong.artist && (
-          <p style={{ fontSize: artistFontSize }} className="overflow-hidden break-words text-ink-muted">
-            {currentSong.artist}
-          </p>
-        )}
+      {/* Song on the left, "Tonart" (transpose/capo, #410) in the free top right corner - so it
+          takes no extra line above the lyrics. */}
+      <div className="mb-2 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
+          <h1
+            style={{ fontSize: titleFontSize }}
+            className="overflow-hidden break-words font-bold leading-tight text-ink"
+          >
+            {currentSong.title}
+          </h1>
+          {currentSong.artist && (
+            <p style={{ fontSize: artistFontSize }} className="overflow-hidden break-words text-ink-muted">
+              {currentSong.artist}
+            </p>
+          )}
+        </div>
+        {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} />}
       </div>
 
       {config.viewMode === 'paginated' && page ? (
