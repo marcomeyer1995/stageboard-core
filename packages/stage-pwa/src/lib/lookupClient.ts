@@ -1,11 +1,11 @@
 import type { LookupResult } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE, STAGE_SERVER_UNREACHABLE_MESSAGE } from './stageServer'
 
 export type LookupClientResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string }
 
 async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
   const base = getStageServerUrl()
-  if (!base) return { status: 'error', message: 'VITE_STAGE_SERVER_URL is not configured' }
+  if (!base) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
 
   try {
     const response = await fetch(`${base}${url}`)
@@ -16,6 +16,8 @@ async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
     }
     return { status: 'ok', data: body as T }
   } catch (err) {
+    // fetch() only throws when no answer came at all (offline, server down, other network).
+    if (err instanceof TypeError) return { status: 'error', message: STAGE_SERVER_UNREACHABLE_MESSAGE }
     return { status: 'error', message: err instanceof Error ? err.message : String(err) }
   }
 }

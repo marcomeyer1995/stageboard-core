@@ -14,7 +14,7 @@ import { deriveSyncStatus, useSyncStore } from '../store/useSyncStore'
  */
 export function useMasterSelfCheck(): void {
   const holdsToken = useShowStateStore((state) => state.holdsToken)
-  const deviceId = useShowStateStore((state) => state.deviceId)
+  const deviceId = useShowStateStore((state) => state.masterIdentity)
   const setSelfCheck = useShowStateStore((state) => state.setSelfCheck)
   const heartbeat = usePresenceStore((state) => state.presence.masterHeartbeat)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))

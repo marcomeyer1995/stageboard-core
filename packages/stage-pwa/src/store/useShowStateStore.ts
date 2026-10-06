@@ -13,7 +13,12 @@ interface ShowStateStore {
    * device is currently online" must mean the same device, not two coincidentally-similar
    * ones (found live, 2026-09-04, while scoping the DeviceRegistry slice of #10). */
   deviceId: string
-  /** The replicated token names this device (`state.masterHolderId === deviceId`). */
+  /** Who holds the token when this device does (#85): the device id in the band's 'device'
+   * master mode (default), `profile:<id>` in 'account' mode - then every device of that person
+   * is master together. Set by useMasterIdentity. */
+  masterIdentity: string
+  setMasterIdentity: (identity: string) => void
+  /** The replicated token names this device (`state.masterHolderId === masterIdentity`). */
   holdsToken: boolean
   /** Result of the holder's self-check (#378 option B, set by useMasterSelfCheck). */
   selfCheck: MasterSelfCheck
@@ -48,9 +53,14 @@ function mastership(holdsToken: boolean, selfCheck: MasterSelfCheck): { holdsTok
 export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   state: DEFAULT_SHOW_STATE,
   deviceId: getDeviceId(),
+  masterIdentity: getDeviceId(),
   holdsToken: false,
   selfCheck: 'ok',
   isMaster: false,
+  setMasterIdentity: (identity) => {
+    if (identity === get().masterIdentity) return
+    set({ masterIdentity: identity, ...mastership(get().state.masterHolderId === identity, get().selfCheck) })
+  },
   setSelfCheck: (check) => {
     if (check === get().selfCheck) return
     set({ selfCheck: check, isMaster: get().holdsToken && check === 'ok' })
@@ -62,27 +72,27 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     set({ state: DEFAULT_SHOW_STATE, holdsToken: false, isMaster: false })
 
     const state = await getShowState()
-    set({ state, ...mastership(state.masterHolderId === get().deviceId, get().selfCheck) })
+    set({ state, ...mastership(state.masterHolderId === get().masterIdentity, get().selfCheck) })
 
     changesHandle = showStateChanges()
     changesHandle.on('change', async () => {
       const fresh = await getShowState()
-      set({ state: fresh, ...mastership(fresh.masterHolderId === get().deviceId, get().selfCheck) })
+      set({ state: fresh, ...mastership(fresh.masterHolderId === get().masterIdentity, get().selfCheck) })
     })
   },
   claimMaster: async () => {
-    const { deviceId } = get()
-    await putShowState({ masterHolderId: deviceId, masterClaimedAt: Date.now() })
+    const { masterIdentity } = get()
+    await putShowState({ masterHolderId: masterIdentity, masterClaimedAt: Date.now() })
     const fresh = await getShowState()
-    set({ state: fresh, ...mastership(fresh.masterHolderId === deviceId, get().selfCheck) })
+    set({ state: fresh, ...mastership(fresh.masterHolderId === masterIdentity, get().selfCheck) })
   },
   releaseMaster: async () => {
-    const { deviceId, holdsToken } = get()
+    const { masterIdentity, holdsToken } = get()
     // Handing back works even while the self-check fails - giving the token up is always safe.
     if (!holdsToken) return
     await putShowState({ masterHolderId: null, masterClaimedAt: null })
     const fresh = await getShowState()
-    set({ state: fresh, ...mastership(fresh.masterHolderId === deviceId, get().selfCheck) })
+    set({ state: fresh, ...mastership(fresh.masterHolderId === masterIdentity, get().selfCheck) })
   },
   startReadyCheck: async () => {
     if (!get().isMaster) return

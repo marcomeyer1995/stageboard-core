@@ -11,10 +11,8 @@
  * band whose hardware the server currently serves can't be deleted. CouchDB keeps deleted
  * databases recoverable (docs/03 §0b).
  */
-import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import type { CouchConfig } from '../couch.js'
+import { serverCouchConfig } from './serviceEnv.js'
 
 export interface Band {
   workspaceId: string
@@ -50,43 +48,8 @@ export function planDeletion(args: string[], bands: Band[], activeWorkspaceId: s
   return { kind: 'delete', band }
 }
 
-/** The service's environment (COUCHDB_*, STAGEBOARD_STATE_DIR) when the command isn't started
- * with it already - read from the systemd user unit, kept in this process only. */
-function serviceEnvironment(): Record<string, string> {
-  try {
-    const out = execFileSync('systemctl', ['--user', 'show', 'stageboard', '--property=Environment', '--value'], {
-      encoding: 'utf8',
-    })
-    const env: Record<string, string> = {}
-    for (const match of out.matchAll(/(?:^|\s)([A-Z_][A-Z0-9_]*)=("[^"]*"|\S*)/g)) {
-      env[match[1]] = match[2].replace(/^"|"$/g, '')
-    }
-    // The CouchDB login lives in an EnvironmentFile (~/.config/stageboard/couchdb.env), not in the
-    // unit itself - read those files too (systemctl lists them as "path (ignore_errors=…)").
-    const files = execFileSync('systemctl', ['--user', 'show', 'stageboard', '--property=EnvironmentFiles', '--value'], { encoding: 'utf8' })
-    for (const path of files.split('\n').map((line) => line.replace(/\s*\(.*\)\s*$/, '').trim()).filter(Boolean)) {
-      if (!existsSync(path)) continue
-      for (const line of readFileSync(path, 'utf8').split('\n')) {
-        const match = /^\s*([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line)
-        if (match) env[match[1]] = match[2].trim().replace(/^"|"$/g, '')
-      }
-    }
-    return env
-  } catch {
-    return {}
-  }
-}
-
 async function main(): Promise<void> {
-  const service = serviceEnvironment()
-  for (const key of ['COUCHDB_URL', 'COUCHDB_USER', 'COUCHDB_PASSWORD', 'STAGEBOARD_STATE_DIR']) {
-    if (!process.env[key] && service[key]) process.env[key] = service[key]
-  }
-  const couch: CouchConfig = {
-    url: process.env.COUCHDB_URL ?? 'http://localhost:5984',
-    user: process.env.COUCHDB_USER ?? 'admin',
-    password: process.env.COUCHDB_PASSWORD ?? 'admin',
-  }
+  const couch = serverCouchConfig()
   // Imported after the environment is set, like the server itself.
   const { listWorkspaces, deprovisionWorkspace } = await import('../workspaceProvisioning.js')
   const { readPersistedActiveWorkspace } = await import('../activeWorkspaceStateStore.js')

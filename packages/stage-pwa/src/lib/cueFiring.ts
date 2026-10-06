@@ -35,8 +35,8 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<void> {
   )
 
   if (engine === 'local-mine') {
-    await getTranslator(logicalDevice.capability)?.({ type: cue.type, payload: cue.payload })
+    await getTranslator(logicalDevice.capability)?.({ type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id })
   } else if (engine === 'plugin' && pluginId) {
-    await triggerShowControl(pluginId, { type: cue.type, payload: cue.payload })
+    await triggerShowControl(pluginId, { type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id })
   }
 }

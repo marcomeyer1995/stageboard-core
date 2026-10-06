@@ -1,4 +1,5 @@
-import type { MasterHeartbeat, Presence, PresenceEntry, ReadyCheck } from 'shared-types'
+import { randomUUID } from 'node:crypto'
+import type { FlashMessage, MasterHeartbeat, Presence, PresenceEntry, ReadyCheck } from 'shared-types'
 
 type Subscriber = (snapshot: Presence) => void
 
@@ -16,6 +17,8 @@ const stateByWorkspace = new Map<string, Map<string, PresenceEntry>>()
 const masterHeartbeatByWorkspace = new Map<string, MasterHeartbeat>()
 /** The open Ready Check's answers (#60), one slot per workspace. Kept as a Set while running. */
 const readyCheckByWorkspace = new Map<string, { checkId: string; readyProfileIds: Set<string> }>()
+/** The latest Stage-Messenger message (#26) per workspace - devices show it if it is fresh. */
+const flashByWorkspace = new Map<string, FlashMessage>()
 const subscribersByWorkspace = new Map<string, Set<Subscriber>>()
 
 function readyCheckSnapshot(workspaceId: string): ReadyCheck | undefined {
@@ -29,6 +32,7 @@ function snapshotFor(workspaceId: string): Presence {
     devices: devices ? Object.fromEntries(devices) : {},
     masterHeartbeat: masterHeartbeatByWorkspace.get(workspaceId),
     readyCheck: readyCheckSnapshot(workspaceId),
+    flash: flashByWorkspace.get(workspaceId),
   }
 }
 
@@ -59,6 +63,18 @@ export function setMasterHeartbeat(workspaceId: string, deviceId: string): void 
   for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {
     subscriber(snapshot)
   }
+}
+
+/** Broadcasts a Stage-Messenger flash message (#26) to every device of the band; `to` (profile
+ * ids) narrows who shows it - every device gets it, only the addressed ones display it. */
+export function setFlash(workspaceId: string, text: string, from: string | undefined, to?: string[]): FlashMessage {
+  const flash: FlashMessage = { id: randomUUID(), text, from, ...(to && to.length ? { to } : {}), at: Date.now() }
+  flashByWorkspace.set(workspaceId, flash)
+  const snapshot = snapshotFor(workspaceId)
+  for (const subscriber of subscribersByWorkspace.get(workspaceId) ?? []) {
+    subscriber(snapshot)
+  }
+  return flash
 }
 
 /** Records that `profileId` is ready for Ready Check `checkId` (#60) and pushes the snapshot. A
@@ -97,6 +113,7 @@ export function subscribe(workspaceId: string, subscriber: Subscriber): () => vo
 export function __resetPresenceStoreForTests(): void {
   stateByWorkspace.clear()
   masterHeartbeatByWorkspace.clear()
+  flashByWorkspace.clear()
   readyCheckByWorkspace.clear()
   subscribersByWorkspace.clear()
 }

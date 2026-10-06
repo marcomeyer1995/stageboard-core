@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useMasterIdentity } from './lib/useMasterIdentity'
 import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
@@ -48,6 +49,8 @@ import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { useFootswitch } from './lib/useFootswitch'
+import { useSongAlerts } from './lib/useSongAlerts'
+import { FlashOverlay } from './components/FlashOverlay'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -109,6 +112,8 @@ function App() {
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
   useFootswitch(mode === 'boards' && !isEditingDashboard)
+  // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
+  useSongAlerts()
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
@@ -184,6 +189,7 @@ function App() {
     useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
   )
   useMasterSelfCheck()
+  useMasterIdentity()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not
@@ -311,6 +317,7 @@ function App() {
       )}
 
       <DialogHost />
+      <FlashOverlay />
       <DiscoveryBanner />
       {isNativeApp() && <AppUpdateBanner />}
       <AudioResumeOverlay />
