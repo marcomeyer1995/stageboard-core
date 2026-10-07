@@ -32,7 +32,7 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | D5 An/Aus | Echter Schalter (Knopf auf Schiene) | Regel |
 | D6 Dialoge | Der Ausweg ist immer an derselben Stelle: die feste Zeile unten (scrollt nie weg, liegt unter dem Daumen). Mit etwas zu bestätigen: „Abbrechen“ links, Hauptaktion rechts. Ohne Bestätigung (wirkt sofort: Einstellungen, Tonart): ein „Fertig“ rechts; ⋯-Menüs: „Abbrechen“. Die Titelzeile nennt nur den Dialog. Daneben tippen und Zurück-Geste schließen ebenfalls (präzisiert 2026-10-07: nie zwei Auswege, nie mal oben, mal unten) | Regel |
 | D7 Eins vs. mehrere | Eins = zusammenhängende Leiste, gewähltes Segment gefüllt; mehrere = einzelne Chips mit Kästchen vorn (leer + Umriss = nicht gewählt, angehakt + gefüllt = gewählt; das Kästchen ist immer da, damit die Breite nie springt - präzisiert 2026-10-07) | Regel |
-| Tabs | Seiten-Navigation (System-Tabs, Editor-Tabs) = Text mit gelber Unterstreichung. Ausnahme: „Ansicht“ im Burger-Menü bleibt große Buttons im Leisten-Stil | Regel |
+| Tabs | Seiten-Navigation (System-Tabs, Editor-Tabs) = Text mit gelber Unterstreichung. „Ansicht“ im Burger-Menü ist eine zusammenhängende Leiste wie „Modus“ (präzisiert 2026-10-07: getrennte Buttons über einer Leiste wirkten wie zwei Systeme) | Regel |
 | Themes | Wie Dashboards: in der Band gespeichert, bandweit oder privat, Admins schützen Vorlagen, andere duplizieren; jedes Gerät wählt sein Theme. Theme-Editor = eigenes Projekt danach | - |
 
 ## 4. Welches Element wann
