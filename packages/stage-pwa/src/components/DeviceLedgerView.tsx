@@ -10,6 +10,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
 import { ActionMenu, Badge, Button } from './ui'
 
+/** Seen this recently = not removed by "Inaktive entfernen", live signal or not. */
+const RECENT_MS = 24 * 60 * 60 * 1000
+
 const ENVIRONMENT_LABEL: Record<string, string> = { browser: 'Browser', pwa: 'PWA', native: 'Nativ' }
 const SYNC_STATUS_LABEL: Record<string, string> = { idle: 'Synchronisiert', syncing: 'Synchronisiert…', offline: 'Offline', error: 'Fehler' }
 
@@ -85,14 +88,19 @@ export function DeviceLedgerView() {
   /** Hardware that runs on a device (Hardware tab, `executionTarget`) - such a device is never
    * removed (Marco, 2026-10-07); the row names what has to move first. */
   const usedBy = (deviceId: string) => logicalDevices.filter((d) => d.executionTarget === deviceId).map((d) => d.name)
-  const isActive = (deviceId: string) => {
-    const info = deviceInfo.devices[deviceId]
-    return !!info && (now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)
+  /** Live signal (app open or reachable) or seen within the last day. The day matters: right
+   * after a Stage-Server restart no device has reported yet, and every device would look
+   * inactive - "Inaktive entfernen" then also took the phone in use minutes ago and lost its
+   * own name (found on the real server, 2026-10-07). */
+  const isActive = (device: Device) => {
+    const info = deviceInfo.devices[device.id]
+    if (info && (now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
+    return now - device.lastSeenAt < RECENT_MS
   }
   /** What "Inaktive entfernen" takes: no app open and not reachable, not blocked (the block lives
    * on the entry), not this device, not in use by hardware. */
-  const inactive = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d.id) && usedBy(d.id).length === 0)
-  const skippedInUse = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d.id) && usedBy(d.id).length > 0)
+  const inactive = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length === 0)
+  const skippedInUse = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length > 0)
 
   async function forgetOne(device: Device) {
     if (!(await confirm(`„${device.name}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.`, { confirmLabel: 'Entfernen' }))) return
@@ -157,7 +165,7 @@ export function DeviceLedgerView() {
             Inaktive entfernen ({inactive.length})
           </Button>
           <p className="text-sm text-ink-faint">
-            Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder.
+            Entfernt Geräte ohne offene App, ohne Netzwerk und seit über einem Tag nicht gesehen - kein Blockieren, sie erscheinen beim nächsten Start wieder.
             {skippedInUse.length > 0 && ` ${skippedInUse.length} inaktive bleiben, weil Hardware sie verwendet.`}
           </p>
         </div>

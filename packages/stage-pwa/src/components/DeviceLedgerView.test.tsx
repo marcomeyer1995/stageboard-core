@@ -170,7 +170,7 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
   })
 
-  it('"Inaktive entfernen" takes only inactive, unblocked, unused devices', async () => {
+  it('"Inaktive entfernen" takes only inactive, unblocked, unused devices not seen for a day', async () => {
     const forget = vi.fn().mockResolvedValue('removed')
     const old = Date.now() - 10 * 86_400_000
     useDevicesStore.setState({
@@ -181,6 +181,8 @@ describe('DeviceLedgerView', () => {
         { id: 'old-2', name: 'Doppeltes Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
         { id: 'old-blocked', name: 'Gesperrt', lastSeenAt: old, firstSeenAt: 1, revoked: true },
         { id: 'old-used', name: 'Kemper-Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
+        // No live data (e.g. just after a server restart) but seen an hour ago: stays.
+        { id: 'recent', name: 'Handy', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
       ],
     })
     useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'old-used' }] as never })
