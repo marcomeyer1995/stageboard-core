@@ -105,6 +105,23 @@ describe('UI system (docs/15)', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it('Dialog: while typing on a touchscreen it moves up to half the screen, so the bottom row stays above the keyboard', () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({ matches: query === '(pointer: coarse)' }) as MediaQueryList)
+    render(
+      <Dialog title="Neue Setlist" onClose={vi.fn()} actions={<Button variant="primary">Anlegen</Button>}>
+        <Field label="Name" />
+      </Dialog>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Neue Setlist' })
+    expect(dialog).not.toHaveAttribute('data-typing')
+    fireEvent.focus(screen.getByLabelText('Name'))
+    expect(dialog).toHaveAttribute('data-typing', 'true')
+    expect(dialog).toHaveClass('max-h-[38vh]')
+    fireEvent.blur(screen.getByLabelText('Name'))
+    expect(dialog).not.toHaveAttribute('data-typing')
+    matchMedia.mockRestore()
+  })
+
   it('Dialog (D6) with something to confirm: only the bottom row - one way out', () => {
     const onClose = vi.fn()
     render(

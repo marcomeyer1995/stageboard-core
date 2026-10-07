@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type FocusEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
@@ -27,14 +27,21 @@ export interface DialogProps {
  */
 export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm' }: DialogProps) {
   useBackHandler(onClose)
+  const typing = useTypingOnTouch()
   return createPortal(
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className={`fixed inset-0 z-dialog flex justify-center bg-black/60 p-4 ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-typing={typing.active || undefined}
         onClick={(e) => e.stopPropagation()}
-        className={`flex max-h-[min(90vh,90dvh)] w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
+        onFocus={typing.onFocus}
+        onBlur={typing.onBlur}
+        // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
+        // so its bottom row stays above the on-screen keyboard: the tablet browser lays the
+        // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
+        className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-[min(90vh,90dvh)]'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
       >
         <div className="flex flex-shrink-0 items-center border-b border-line px-4 py-3">
           <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
@@ -51,4 +58,24 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
     </div>,
     document.body,
   )
+}
+
+const TEXT_INPUT = /^(text|search|email|url|tel|password|number|time|date|datetime-local)$/
+
+/** True while a text field inside the dialog has focus on a touch device (= the on-screen
+ * keyboard is up). */
+function useTypingOnTouch() {
+  const [active, setActive] = useState(false)
+  const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  const isText = (el: EventTarget | null) =>
+    el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_INPUT.test(el.type))
+  return {
+    active,
+    onFocus: (e: FocusEvent<HTMLElement>) => {
+      if (coarse && isText(e.target)) setActive(true)
+    },
+    onBlur: (e: FocusEvent<HTMLElement>) => {
+      if (!isText(e.relatedTarget)) setActive(false)
+    },
+  }
 }
