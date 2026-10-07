@@ -2,7 +2,7 @@ import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
-import { Switch } from './ui'
+import { Button, Switch } from './ui'
 
 export function PluginManager() {
   const installed = usePluginsStore((state) => state.installed)
@@ -38,28 +38,24 @@ export function PluginManager() {
           <p className="text-sm text-ink-faint">Noch keine Plugins installiert.</p>
         )}
         {installed.map((plugin) => (
-          <div
-            key={plugin.id}
-            className="flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
-          >
-            <div className="flex-1">
+          <div key={plugin.id} className="flex flex-col gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
+            {/* Text across the full width, the controls in one row below - beside the text they
+                squeezed name and description into a narrow column on the phone (Marco, 2026-10-07). */}
+            <div className="min-w-0">
               <p className="font-semibold">
-                {plugin.name}{' '}
-                <span className="text-xs font-normal text-ink-faint">v{plugin.version}</span>
+                {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>
               </p>
-              <p className="text-xs text-ink-muted">
+              <p className="text-sm text-ink-muted">
                 {plugin.capabilities.join(', ') || 'keine Capabilities'} · {healthLabel(plugin)}
               </p>
             </div>
-            {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
-            <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
-            <button
-              type="button"
-              onClick={() => void uninstall(plugin.id)}
-              className="ml-2 min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-            >
-              Entfernen
-            </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
+              <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
+              <Button variant="danger" onClick={() => void uninstall(plugin.id)}>
+                Entfernen
+              </Button>
+            </div>
           </div>
         ))}
       </div>
@@ -76,9 +72,9 @@ export function PluginManager() {
             key={candidate.id}
             className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="font-semibold">{candidate.name}</p>
-              <p className="text-xs text-ink-muted">{candidate.capabilities.join(', ')}</p>
+              <p className="text-sm text-ink-muted">{candidate.capabilities.join(', ')}</p>
             </div>
             <button
               type="button"
