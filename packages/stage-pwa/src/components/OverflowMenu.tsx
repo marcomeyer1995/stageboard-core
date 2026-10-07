@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useBackHandler } from '../lib/backNavigation'
 import { Icon, type IconName } from './Icon'
+import { ActionMenuDialog } from './ui'
 
 interface OverflowMenuAction {
   label: string
@@ -62,13 +61,10 @@ export function OverflowMenu({
   hideTrigger = false,
   triggerSize = 'default',
 }: OverflowMenuProps) {
-  const size = triggerSize === 'touch' ? 'h-touch w-touch' : 'h-12 w-12'
+  const size = triggerSize === 'touch' ? 'h-touch w-touch' : 'h-form w-form'
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
-  useBackHandler(open ? () => setOpen(false) : null)
-  const normal = actions.filter((a) => !a.danger)
-  const danger = actions.filter((a) => a.danger)
 
   return (
     <>
@@ -86,67 +82,7 @@ export function OverflowMenu({
           <Icon name={glyph} size="1.4rem" />
         </button>
       )}
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
-            onClick={() => setOpen(false)}
-          >
-            <div
-              className="flex w-full max-w-[min(260px,85vw)] flex-col gap-3 rounded-container border border-line bg-surface p-3 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
-                >
-                  <Icon name="close" size="1.25rem" />
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {normal.map((action) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    disabled={action.disabled}
-                    onClick={() => {
-                      setOpen(false)
-                      action.onClick()
-                    }}
-                    className="h-11 w-full rounded-control bg-control text-base text-ink [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-
-              {danger.length > 0 && (
-                <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
-                  {danger.map((action) => (
-                    <button
-                      key={action.label}
-                      type="button"
-                      disabled={action.disabled}
-                      onClick={() => {
-                        setOpen(false)
-                        action.onClick()
-                      }}
-                      className="h-11 w-full rounded-control bg-control text-base text-red-400 [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-red-300 disabled:opacity-40"
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {open && <ActionMenuDialog title={title} actions={actions} onClose={() => setOpen(false)} />}
     </>
   )
 }

@@ -126,7 +126,7 @@ describe('BandManagementView', () => {
     openBandMenu('Band A')
     expect(screen.getByText('Einladen')).toBeInTheDocument()
     expect(screen.getByText('Band für alle löschen …')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Schließen'))
+    fireEvent.click(screen.getByText('Abbrechen'))
 
     openMemberMenu('Marco')
     expect(screen.getByText('Umbenennen')).toBeInTheDocument()
@@ -430,12 +430,12 @@ describe('BandManagementView', () => {
       expect(screen.queryByRole('button', { name: 'Weitere Optionen für Marco' })).not.toBeInTheDocument()
     })
 
-    it('"Schließen" dismisses the popup', () => {
+    it('"Abbrechen" dismisses the popup', () => {
       render(<BandManagementView />)
 
       openMemberMenu('Marco')
       expect(screen.getByText('Umbenennen')).toBeInTheDocument()
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Abbrechen'))
       expect(screen.queryByText('Umbenennen')).not.toBeInTheDocument()
     })
 
@@ -443,8 +443,7 @@ describe('BandManagementView', () => {
       render(<BandManagementView />)
       openMemberMenu('Marco')
 
-      const heading = screen.getByText('Marco', { selector: 'h3' })
-      const card = heading.parentElement!
+      const card = screen.getByRole('dialog', { name: 'Marco' })
       const backdrop = card.parentElement!
 
       fireEvent.click(card)
@@ -918,7 +917,7 @@ describe('BandManagementView', () => {
       // self-PIN option in his own menu.
       openMemberMenu('Marco')
       expect(screen.getByText('Meinen PIN setzen')).toBeInTheDocument()
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Abbrechen'))
 
       openMemberMenu('Chris')
       expect(screen.queryByText('Meinen PIN setzen')).not.toBeInTheDocument()

@@ -78,17 +78,20 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
           </span>
         </div>
       )}
-      <div className={`grid grid-cols-3 gap-2 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}>
+      {/* Pick one (docs/15 D7): one joined bar, the chosen segment filled. */}
+      <div role="radiogroup" aria-label="Klick" className={`grid grid-cols-3 gap-0 rounded-control border border-line bg-control p-1 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}>
         {OVERRIDE_OPTIONS.map((option) => (
           <button
             key={option.label}
             type="button"
+            role="radio"
+            aria-checked={clickTrackOverride === option.value}
             disabled={!canControl}
             onClick={() => setClickTrackOverride(option.value)}
             className={`h-full ${layout.showState ? 'min-h-touch' : 'min-h-0'} rounded-control px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
               clickTrackOverride === option.value
                 ? 'bg-accent text-accent-ink'
-                : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
+                : 'text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
             }`}
           >
             {layout.shortLabels && option.label === 'Standard' ? 'Std.' : option.label}

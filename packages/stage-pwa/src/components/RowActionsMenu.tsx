@@ -1,6 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { useBackHandler } from '../lib/backNavigation'
-import { Icon } from './Icon'
+import { Dialog, IconButton, MENU_ROW } from './ui'
 
 /**
  * The "⋮ opens a popup of actions" pattern (see BandManagementView.tsx's member-row follow-up,
@@ -15,59 +14,19 @@ import { Icon } from './Icon'
  * needing a "Auswählen" entry in this popup at all.
  */
 export function RowMenuButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return <IconButton icon="moreVertical" variant="quiet" label={label} onClick={onClick} />
+}
+
+/** The popup shell - the shared dialog (docs/15 D6): "Abbrechen" at the bottom, since picking
+ * an action already closes it. */
+export function RowActionsMenu({ title, onClose, children }: { title: string; onClose: () => void; children?: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink-soft"
-    >
-      <Icon name="moreVertical" size="1.25rem" />
-    </button>
+    <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={onClose}>
+      <div className="flex flex-col gap-2">{children}</div>
+    </Dialog>
   )
 }
 
-export function RowActionsMenu({
-  title,
-  onClose,
-  children,
-}: {
-  title: string
-  onClose: () => void
-  children?: ReactNode
-}) {
-  useBackHandler(onClose)
-  return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
-      {/* Stops the overlay's own onClick (which closes the popup) from firing when the tap
-          lands on the card itself, not the backdrop around it. */}
-      <div className="w-full max-w-sm space-y-2 rounded-control border border-line bg-surface p-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-1 font-semibold">{title}</h3>
-        {children}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-control bg-control px-4 py-2 text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          Schließen
-        </button>
-      </div>
-    </div>
-  )
-}
-
-export function RowActionButton({
-  danger,
-  className,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={`w-full rounded-control border border-line px-4 py-2 text-left [@media(hover:hover)]:hover:bg-control-hover disabled:cursor-not-allowed disabled:text-ink-faint disabled:hover:bg-transparent ${
-        danger ? 'text-red-400' : ''
-      } ${className ?? ''}`}
-    />
-  )
+export function RowActionButton({ danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
+  return <button type="button" {...props} className={`${MENU_ROW} ${danger ? 'text-red-400' : 'text-ink'} ${className ?? ''}`} />
 }

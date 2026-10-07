@@ -15,7 +15,7 @@ describe('RowMenuButton', () => {
 })
 
 describe('RowActionsMenu', () => {
-  it('renders the title, children, and a "Schließen" button', () => {
+  it('renders the title, children, and an "Abbrechen" at the bottom (docs/15 D6)', () => {
     render(
       <RowActionsMenu title="Marco" onClose={vi.fn()}>
         <RowActionButton>Umbenennen</RowActionButton>
@@ -24,14 +24,14 @@ describe('RowActionsMenu', () => {
 
     expect(screen.getByText('Marco')).toBeInTheDocument()
     expect(screen.getByText('Umbenennen')).toBeInTheDocument()
-    expect(screen.getByText('Schließen')).toBeInTheDocument()
+    expect(screen.getByText('Abbrechen')).toBeInTheDocument()
   })
 
-  it('"Schließen" calls onClose', () => {
+  it('"Abbrechen" calls onClose', () => {
     const onClose = vi.fn()
     render(<RowActionsMenu title="Marco" onClose={onClose} />)
 
-    fireEvent.click(screen.getByText('Schließen'))
+    fireEvent.click(screen.getByText('Abbrechen'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -43,7 +43,7 @@ describe('RowActionsMenu', () => {
       </RowActionsMenu>,
     )
 
-    const card = screen.getByText('Marco').parentElement!
+    const card = screen.getByRole('dialog', { name: 'Marco' })
     const backdrop = card.parentElement!
 
     fireEvent.click(card)
