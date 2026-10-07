@@ -57,14 +57,27 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
             Alle neuen Bausteine nach docs/15, zum Ausprobieren. Das Theme oben gilt nur hier; beim Schließen kommt das eigene zurück.
           </p>
 
-          <Section title="Aktionen · Button" hint="Hauptaktion gelb, sekundär helles Grau (D3), Gefahr rot, leise ohne Fläche. Größen: Show 72 · Bühne 56 · Formular 48 (D2).">
+          <Section title="Aktionen · Button" hint="Hauptaktion gelb, sekundär helles Grau (D3), Gefahr rot, leise ohne Fläche. Innerhalb einer Zeile immer dieselbe Größe; die Größe hängt am Ort (D2).">
+            <p className="text-sm font-semibold text-ink-soft">Show-Aktionen · 72 px (Play, Weiter auf dem Show-Dashboard)</p>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" size="show" icon="play">
                 Play
               </Button>
-              <Button variant="primary" size="stage">
+              <Button size="show" icon="next">
                 Weiter
               </Button>
+            </div>
+            <p className="text-sm font-semibold text-ink-soft">Bühne · 56 px (Dashboards, Burger-Menü)</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="primary" size="stage">
+                Ready-Check
+              </Button>
+              <Button size="stage">Zurück</Button>
+              <IconButton icon="previous" label="Vorheriger Song" size="stage" />
+              <IconButton icon="next" label="Nächster Song" size="stage" />
+            </div>
+            <p className="text-sm font-semibold text-ink-soft">Formular · 48 px (Einstellungen, Editoren, Dialoge)</p>
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary">Speichern</Button>
               <Button>Abbrechen</Button>
               <Button variant="danger">Löschen</Button>
@@ -72,9 +85,8 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
               <Button disabled>Deaktiviert</Button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <IconButton icon="previous" label="Zurück" size="stage" />
-              <IconButton icon="next" label="Weiter" size="stage" />
               <IconButton icon="up" label="Nach oben" />
+              <IconButton icon="down" label="Nach unten" />
               <IconButton icon="close" label="Entfernen" variant="quiet" />
               <ActionMenu title="Bohemian Rhapsody" actions={[{ label: 'Bearbeiten', onClick: () => {} }, { label: 'Zur Setlist hinzufügen', onClick: () => {} }, { label: 'Löschen', onClick: () => {}, danger: true }]} />
             </div>

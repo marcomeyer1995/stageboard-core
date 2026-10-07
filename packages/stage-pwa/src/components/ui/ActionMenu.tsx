@@ -28,7 +28,7 @@ export function ActionMenu({ title, actions, size = 'form' }: { title: string; a
         setOpen(false)
         action.onClick()
       }}
-      className={`flex min-h-form w-full items-center bg-control px-4 text-left text-base hover:bg-control-hover ${CONTROL} ${FOCUS} ${DISABLED} ${action.danger ? 'text-red-400' : 'text-ink'}`}
+      className={`flex min-h-form w-full items-center bg-control px-4 text-left text-base [@media(hover:hover)]:hover:bg-control-hover ${CONTROL} ${FOCUS} ${DISABLED} ${action.danger ? 'text-red-400' : 'text-ink'}`}
     >
       {action.label}
     </button>

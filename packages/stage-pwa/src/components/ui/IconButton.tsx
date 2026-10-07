@@ -11,9 +11,9 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 }
 
 const VARIANT = {
-  secondary: 'bg-control-strong text-ink hover:bg-control-strong-hover',
-  quiet: 'bg-transparent text-ink-soft hover:bg-control-hover',
-  primary: 'bg-accent text-accent-ink hover:bg-accent-hover',
+  secondary: 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover',
+  quiet: 'bg-transparent text-ink-soft [@media(hover:hover)]:hover:bg-control-hover',
+  primary: 'bg-accent text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover',
 } as const
 
 /** ⋯, ×, ↑↓, steppers - never smaller than the form height (48 px). */

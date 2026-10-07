@@ -35,7 +35,7 @@ export function Dialog({ title, onClose, children, actions, size = 'm' }: Dialog
           <button
             type="button"
             onClick={onClose}
-            className={`flex min-h-form flex-shrink-0 items-center gap-2 bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover ${CONTROL} ${FOCUS}`}
+            className={`flex min-h-form flex-shrink-0 items-center gap-2 bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${CONTROL} ${FOCUS}`}
           >
             <Icon name="close" size="1.25rem" />
             Schließen

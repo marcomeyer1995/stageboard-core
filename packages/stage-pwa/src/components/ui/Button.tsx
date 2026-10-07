@@ -4,15 +4,16 @@ import { CONTROL, DISABLED, FOCUS, SIZE, type ControlSize } from './styles'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'quiet'
 
+// Hover only where a mouse hovers - on touch it stuck after the tap (Play stayed lighter).
 const VARIANT: Record<ButtonVariant, string> = {
   // The one main action of a place.
-  primary: 'bg-accent text-accent-ink font-semibold hover:bg-accent-hover',
+  primary: 'bg-accent text-accent-ink font-semibold [@media(hover:hover)]:hover:bg-accent-hover',
   // D3: the lighter grey, so a button never looks like an unselected segment.
-  secondary: 'bg-control-strong text-ink hover:bg-control-strong-hover',
+  secondary: 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Red only for faults and danger.
-  danger: 'bg-control-strong text-red-400 hover:bg-control-strong-hover hover:text-red-300',
+  danger: 'bg-control-strong text-red-400 [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Inline, without a fill - still a full-height touch target.
-  quiet: 'bg-transparent text-ink-soft hover:bg-control-hover',
+  quiet: 'bg-transparent text-ink-soft [@media(hover:hover)]:hover:bg-control-hover',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
