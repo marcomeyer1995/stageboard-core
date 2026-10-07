@@ -257,8 +257,10 @@ function App() {
   // why nothing more (no credential wipe, no forced logout) is needed here.
   if (myDeviceRevoked) return <DeviceRevokedScreen />
 
+  // h-full, not h-dvh: #root already keeps the notch area free with its padding - a full
+  // screen height on top of that pushed the bottom of the dashboard off the screen.
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-full flex-col">
       {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
           dashboard that hides the status bar - so the grid keeps its show-mode size. */}
       {mode === 'boards' && isEditingDashboard && !inOnboarding ? (

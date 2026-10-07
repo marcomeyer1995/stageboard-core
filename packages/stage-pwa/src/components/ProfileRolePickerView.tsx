@@ -20,7 +20,7 @@ export function ProfileRolePickerView() {
   const setActive = useActiveProfileStore((state) => state.setActive)
 
   return (
-    <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm py-4">
         <BackToWorkingBandLink />
 

@@ -120,7 +120,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
 
   return (
     <div
-      className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 sb-pad-safe [--sb-pad:0.75rem]"
       onClick={onClose}
     >
       {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
