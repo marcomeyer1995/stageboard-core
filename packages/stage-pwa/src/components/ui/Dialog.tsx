@@ -1,4 +1,4 @@
-import { useState, type FocusEvent, type ReactNode } from 'react'
+import { useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
@@ -36,6 +36,7 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
         aria-label={title}
         data-typing={typing.active || undefined}
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={typing.onPointerDown}
         onFocus={typing.onFocus}
         onBlur={typing.onBlur}
         // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
@@ -62,20 +63,30 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
 
 const TEXT_INPUT = /^(text|search|email|url|tel|password|number|time|date|datetime-local)$/
 
-/** True while a text field inside the dialog has focus on a touch device (= the on-screen
- * keyboard is up). */
+/** True while a text field inside the dialog has focus on a touch device after a tap on it (= the
+ * on-screen keyboard is up). A field focused by `autoFocus` alone doesn't count: Android opens the
+ * keyboard only on a real tap, and shrinking for nothing hid "Neue Setlist"'s song list (Fire,
+ * 2026-10-07). */
 function useTypingOnTouch() {
   const [active, setActive] = useState(false)
+  const tapped = useRef(false)
   const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
   const isText = (el: EventTarget | null) =>
     el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_INPUT.test(el.type))
   return {
     active,
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      tapped.current = isText(e.target)
+      if (coarse && tapped.current && document.activeElement === e.target) setActive(true)
+    },
     onFocus: (e: FocusEvent<HTMLElement>) => {
-      if (coarse && isText(e.target)) setActive(true)
+      if (coarse && tapped.current && isText(e.target)) setActive(true)
     },
     onBlur: (e: FocusEvent<HTMLElement>) => {
-      if (!isText(e.relatedTarget)) setActive(false)
+      if (!isText(e.relatedTarget)) {
+        tapped.current = false
+        setActive(false)
+      }
     },
   }
 }

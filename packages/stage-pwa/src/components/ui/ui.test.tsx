@@ -114,6 +114,11 @@ describe('UI system (docs/15)', () => {
     )
     const dialog = screen.getByRole('dialog', { name: 'Neue Setlist' })
     expect(dialog).not.toHaveAttribute('data-typing')
+    // Focus alone (autoFocus) doesn't open a keyboard - only a tap on the field does.
+    fireEvent.focus(screen.getByLabelText('Name'))
+    expect(dialog).not.toHaveAttribute('data-typing')
+    fireEvent.blur(screen.getByLabelText('Name'))
+    fireEvent.pointerDown(screen.getByLabelText('Name'))
     fireEvent.focus(screen.getByLabelText('Name'))
     expect(dialog).toHaveAttribute('data-typing', 'true')
     expect(dialog).toHaveClass('max-h-[38vh]')
