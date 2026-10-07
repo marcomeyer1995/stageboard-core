@@ -288,6 +288,42 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
     expect(within(row).queryByRole('button', { name: /Zur aktiven Setlist hinzufügen|Keine aktive Setlist/ })).not.toBeInTheDocument()
   })
 
+  it('a song already in the active setlist: the swipe strip says it takes it out; the ⋯ menu removes its last entry, never the loaded one', async () => {
+    const before = useSetlistsStore.getState()
+    const saveSetlist = vi.fn()
+    const gig = {
+      ...setlist('new', 'Newer Gig', 2000),
+      entries: [
+        { id: 'e1', songId: 'b', variantId: null, trackId: null },
+        { id: 'e2', songId: 'b', variantId: null, trackId: null },
+        { id: 'e3', songId: 'c', variantId: null, trackId: null },
+      ],
+    }
+    useSetlistsStore.setState({ setlists: [gig], saveSetlist })
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'new', activeEntryId: 'e3' } })
+
+    stubTouchLane()
+    const { unmount } = render(<LibraryView />)
+    expect(within(screen.getByText('Bravo').closest('li')!).getByText('− Aus aktiver Setlist')).toBeInTheDocument()
+    expect(within(screen.getByText('Alpha').closest('li')!).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
+    unmount()
+    vi.unstubAllGlobals()
+
+    render(<LibraryView />) // pointer lane: the same through the ⋯ menu
+    fireEvent.contextMenu(screen.getByText('Bravo').closest('div.relative')!)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Aus aktiver Setlist entfernen' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [gig.entries[0], gig.entries[2]] })))
+
+    // Charlie is loaded right now - it stays, with a hint.
+    saveSetlist.mockClear()
+    fireEvent.contextMenu(screen.getByText('Charlie').closest('div.relative')!)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Aus aktiver Setlist entfernen' }))
+    expect(saveSetlist).not.toHaveBeenCalled()
+    expect(await screen.findByText('Gerade geladen - erst weiterschalten')).toBeInTheDocument()
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+    useSetlistsStore.setState({ setlists: before.setlists, saveSetlist: before.saveSetlist })
+  })
+
   it('pointer lane (happy-dom default): "+" button present, no swipe reveal', () => {
     render(<LibraryView />)
 

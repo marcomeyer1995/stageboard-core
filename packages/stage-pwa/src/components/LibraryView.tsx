@@ -34,6 +34,7 @@ import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowMode } from '../lib/showMode'
+import { useShowStateStore } from '../store/useShowStateStore'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -64,6 +65,9 @@ function songEntry(songId: string) {
 }
 
 interface DraggableSongRowProps {
+  /** In the active setlist (not the no-setlist fallback) - then a swipe takes it out again. */
+  inActiveSetlist?: boolean
+  onRemoveFromActiveSetlist?: () => void
   /** The song currently loaded in the show - the "Aktuell" badge. */
   current?: boolean
   /** Part of the active setlist (or the current song when there is none) - the yellow outline, so the
@@ -119,6 +123,8 @@ function DraggableSongRow({
   keyboardFocused,
   current = false,
   inSetlist = false,
+  inActiveSetlist = false,
+  onRemoveFromActiveSetlist,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
@@ -139,6 +145,7 @@ function DraggableSongRow({
           onClick: () => onAddToActiveSetlist?.(),
           disabled: !onAddToActiveSetlist,
         },
+        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ label: 'Aus aktiver Setlist entfernen', onClick: onRemoveFromActiveSetlist }] : []),
         { label: 'Duplizieren', onClick: onDuplicate },
         { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
         { label: 'Löschen', danger: true, onClick: onDelete },
@@ -160,8 +167,8 @@ function DraggableSongRow({
           shade distinct from both bg-control (an unselected row) and bg-accent (a selected
           one), so the reveal stays visible either way. */}
       {showSwipeReveal && (
-        <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-sm font-medium text-ink">
-          + Zur aktiven Setlist
+        <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-base font-medium text-ink">
+          {inActiveSetlist ? '− Aus aktiver Setlist' : '+ Zur aktiven Setlist'}
         </div>
       )}
       {/* The listeners/ref live on this row surface itself, not just the title button inside it
@@ -471,6 +478,21 @@ export function LibraryView() {
     showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
   }
 
+  /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
+   * it out again - its last entry there. Never the entry that is loaded right now: that would
+   * move the show on under the band's feet. */
+  function removeFromActiveSetlist(songId: string) {
+    if (!activeSetlist) return
+    const loadedEntryId = useShowStateStore.getState().state.activeEntryId
+    const entry = [...activeSetlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
+    if (!entry) {
+      showTransientMessage('Gerade geladen - erst weiterschalten')
+      return
+    }
+    saveSetlist({ ...activeSetlist, entries: activeSetlist.entries.filter((e) => e.id !== entry.id) })
+    showTransientMessage(`Aus "${activeSetlist.name}" entfernt`)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const songId = typeof event.active.id === 'string' ? event.active.id.replace('song:', '') : ''
     if (!songId) return
@@ -485,7 +507,8 @@ export function LibraryView() {
     // on useDraggable), not here, so there's exactly one place deciding whether dragging is
     // even possible rather than two checks that could drift apart.
     if (event.delta.x >= SWIPE_THRESHOLD_PX) {
-      addToActiveSetlist(songId)
+      if (setlistSongIds.has(songId)) removeFromActiveSetlist(songId)
+      else addToActiveSetlist(songId)
     }
   }
 
@@ -620,6 +643,8 @@ export function LibraryView() {
                     selected={selection?.type === 'song' && selection.songId === song.id}
                     current={song.id === currentSongId}
                     inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
+                    inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
+                    onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}
