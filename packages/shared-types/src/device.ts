@@ -42,3 +42,10 @@ export const RevokeDeviceRequestSchema = AdminProofSchema.extend({
   revoked: z.boolean(),
 })
 export type RevokeDeviceRequest = z.infer<typeof RevokeDeviceRequestSchema>
+
+/** Body an admin POSTs to `/workspaces/:workspaceId/devices/:deviceId/forget` - removes a
+ * device from the ledger (Marco, 2026-10-07: old/duplicate entries flooded the Geräte tab).
+ * Not a block: the device simply registers again on its next start. Refused for a blocked
+ * device (the block lives on this very entry) and for one a hardware device runs on. */
+export const ForgetDeviceRequestSchema = AdminProofSchema
+export type ForgetDeviceRequest = z.infer<typeof ForgetDeviceRequestSchema>

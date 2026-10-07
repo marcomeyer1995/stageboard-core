@@ -28,6 +28,7 @@ import {
   SetMasterModeRequestSchema,
   ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
+  ForgetDeviceRequestSchema,
   RosterRequestSchema,
   RotateAccessCodeRequestSchema,
   SetMemberAdminRequestSchema,
@@ -42,7 +43,7 @@ import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, getDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
@@ -593,6 +594,43 @@ export async function buildApp() {
       _id: docId,
       _rev: current?._rev ?? existing._rev,
     }))
+    return reply.status(204).send()
+  })
+
+  // Device Ledger cleanup (Marco, 2026-10-07): removes an entry - old and duplicate devices
+  // flooded the Geräte tab. Unlike revoke this is no block: the device registers again on its
+  // next start. Refused (409) for a blocked device - the block lives on this very doc, deleting
+  // it would lift the block - and for a device a hardware device runs on (`executionTarget`):
+  // that must first move to another device in the Hardware tab (Marco's call: never remove a
+  // device in use).
+  app.post('/workspaces/:workspaceId/devices/:deviceId/forget', async (request, reply) => {
+    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
+    const parsed = ForgetDeviceRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+    const db = workspaceDbName(workspaceId)
+    const docId = `devices:${deviceId}`
+    const existing = await getDoc<Device & CouchDoc>(couch, db, docId)
+    if (!existing) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
+    }
+    if (existing.revoked) {
+      return reply.status(409).send({ status: 'error', message: 'blocked' })
+    }
+    const hardware = await allDocs<CouchDoc & { name?: string; executionTarget?: string | null }>(couch, db, {
+      startkey: 'logical-devices:',
+      endkey: 'logical-devices:\ufff0',
+    })
+    const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
+    if (usedBy.length > 0) {
+      return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
+    }
+    await putDoc(couch, db, { _id: docId, _rev: existing._rev, _deleted: true })
+    request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
     return reply.status(204).send()
   })
 

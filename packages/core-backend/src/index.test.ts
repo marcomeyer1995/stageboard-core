@@ -685,6 +685,54 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('POST /workspaces/:workspaceId/devices/:deviceId/forget', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+    const admin = { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    const payload = { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' }
+    const device = (extra: object = {}) => ({ _id: 'devices:device-1', _rev: '3-c', id: 'device-1', name: 'Altes Tablet', lastSeenAt: 100, revoked: false, ...extra })
+    const hardware = (docs: object[]) => ({ ok: true, status: 200, json: async () => ({ rows: docs.map((doc) => ({ doc })) }) })
+
+    it('deletes an unused, unblocked device from the ledger', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]), { ok: true, status: 200 }])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(204)
+      const [url, init] = fetchMock.mock.calls[3]
+      expect(String(url)).toContain('devices%3Adevice-1')
+      expect(JSON.parse(init.body)).toEqual({ _id: 'devices:device-1', _rev: '3-c', _deleted: true })
+    })
+
+    it('refuses a blocked device - deleting the entry would lift the block', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device({ revoked: true }) }])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'blocked' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('refuses a device a hardware device runs on, and names it', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'device-1' }, { _id: 'logical-devices:c', name: 'Click', executionTarget: 'device-1' }])])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'in-use', usedBy: ['Kemper', 'Click'] })
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('returns 403 for a non-admin and 404 for an unknown device', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })).statusCode).toBe(403)
+      stubFetch([admin, { ok: false, status: 404 }])
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/nope/forget', payload })).statusCode).toBe(404)
+    })
+  })
+
   describe('Discovery Mode routes', () => {
     beforeEach(() => {
       __resetDiscoverySessionStoreForTests()
