@@ -11,8 +11,10 @@ export interface ToggleChipProps {
   size?: ControlSize
 }
 
-/** Pick several (D7): a separate chip, ✓ and filled when chosen, outlined when not. Tapping a
- * chosen chip removes it. */
+/** Pick several (D7): a separate chip with a checkbox in front - empty box and outline when not
+ * chosen, ticked box and fill when chosen. Tapping a chosen chip removes it. The box is always
+ * there, so the chip never changes width (Marco, 2026-10-07: no shifting, but also no empty gap
+ * in front of the text - the checkbox gives that room a meaning). */
 export function ToggleChip({ label, selected, onToggle, disabled, title, size = 'form' }: ToggleChipProps) {
   return (
     <button
@@ -21,14 +23,20 @@ export function ToggleChip({ label, selected, onToggle, disabled, title, size = 
       disabled={disabled}
       title={title}
       onClick={() => onToggle(!selected)}
-      // Same width selected or not (Marco, 2026-10-07: the row shifted on every tap): the ✓ always
-      // keeps its room and the weight never changes. Hover only where a mouse hovers - on touch it
-      // stuck after the tap.
+      // Hover only where a mouse hovers - on touch it stuck after the tap.
       className={`inline-flex items-center gap-2 border font-semibold ${SIZE[size]} ${CONTROL} ${FOCUS} ${DISABLED} ${
         selected ? 'border-accent bg-accent text-accent-ink' : `border-ink-faint bg-transparent text-ink-soft ${HOVER}`
       }`}
     >
-      <Icon name="check" size="1.1em" className={selected ? '' : 'invisible'} />
+      <span
+        aria-hidden="true"
+        data-checkbox={selected ? 'checked' : 'empty'}
+        className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[min(var(--sb-radius-sm),0.25rem)] border-2 ${
+          selected ? 'border-accent-ink bg-accent-ink text-accent' : 'border-current'
+        }`}
+      >
+        {selected && <Icon name="check" size="0.9rem" />}
+      </span>
       {label}
     </button>
   )

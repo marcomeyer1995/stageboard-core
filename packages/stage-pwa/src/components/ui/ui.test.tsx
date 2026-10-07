@@ -41,9 +41,11 @@ describe('UI system (docs/15)', () => {
       </ChipGroup>,
     )
     expect(screen.getByRole('button', { name: 'Caro' })).toHaveAttribute('aria-pressed', 'true')
-    // The ✓ keeps its room in both states, so the chip never changes width (only visibility).
-    expect(container.querySelectorAll('button')[0]!.querySelector('svg')).not.toHaveClass('invisible')
-    expect(container.querySelectorAll('button')[1]!.querySelector('svg')).toHaveClass('invisible')
+    // A checkbox in front of every chip (so the width never changes): ticked when chosen, empty when not.
+    expect(container.querySelectorAll('button')[0]!.querySelector('[data-checkbox]')).toHaveAttribute('data-checkbox', 'checked')
+    expect(container.querySelectorAll('button')[0]!.querySelector('svg')).not.toBeNull()
+    expect(container.querySelectorAll('button')[1]!.querySelector('[data-checkbox]')).toHaveAttribute('data-checkbox', 'empty')
+    expect(container.querySelectorAll('button')[1]!.querySelector('svg')).toBeNull()
     expect(screen.getByRole('button', { name: 'Kapper' })).toHaveClass('font-semibold')
     fireEvent.click(screen.getByRole('button', { name: 'Caro' }))
     expect(onToggle).toHaveBeenCalledWith(false)
