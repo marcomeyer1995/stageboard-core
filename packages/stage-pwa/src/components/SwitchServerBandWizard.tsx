@@ -116,7 +116,7 @@ export function SwitchServerBandWizard({
                         setTarget(band)
                         setStep('target')
                       }}
-                      className={`${MENU_ROW} justify-between font-semibold text-ink`}
+                      className={`${MENU_ROW} justify-between font-semibold text-ink ${isActive ? 'outline outline-2 -outline-offset-2 outline-accent disabled:opacity-100' : ''}`}
                     >
                       <span>{band.workspaceName}</span>
                       {isActive && <Badge tone="accent">Aktiv</Badge>}

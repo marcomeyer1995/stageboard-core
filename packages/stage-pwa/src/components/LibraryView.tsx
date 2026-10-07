@@ -545,7 +545,10 @@ export function LibraryView() {
                         selection?.type === 'setlist' && selection.id === setlist.id
                           ? 'bg-accent text-accent-ink'
                           : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
-                      } ${focusedIndex === idx ? 'ring-2 ring-inset ring-accent' : ''}`}
+                      } ${focusedIndex === idx ? 'ring-2 ring-inset ring-accent' : ''} ${
+                        // Active = yellow outline + badge, like the active band (docs/15 D4).
+                        activeSetlist?.id === setlist.id ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
+                      }`}
                     >
                       {setlist.name}{' '}
                       <span
