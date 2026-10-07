@@ -53,6 +53,8 @@ Alle drei Auswahl-Elemente teilen Höhe, Ecke, Gelb für „an/gewählt“ und S
 
 Bibliothek: kein Filter „Alle / Setlists / Songs“ mehr - die Überschriften „Setlists“ und „Songs“ klappen ihre Liste ein (pro Gerät gemerkt), beim Suchen sind beide immer offen (2026-10-07).
 
+Neuer Eintrag: immer `AddRow` - gestrichelter Umriss, gelbes „+ Text“, am Ende der Liste, zu der er hinzufügt (volle Breite); neben einer Überschrift (Bibliothek) gleiches Aussehen, nur textbreit. Ausnahmen: „+ Widget“ (Hauptaktion der Edit-Leiste) und Einfüge-Werkzeuge im Editor („+ Kommentar“, „+ Tab“). Festgelegt 2026-10-07, abgesichert im Guard-Test.
+
 ## 5. Tokens (Phase 1)
 
 Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in `tailwind.config.js` verdrahtet:
