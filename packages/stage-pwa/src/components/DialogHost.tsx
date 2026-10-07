@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { useVisualViewport } from '../lib/useVisualViewport'
-import { Button } from './ui'
-import { INPUT } from './ui/styles'
+import { Button, CheckRow, MENU_ROW } from './ui'
+import { INPUT, SELECTED } from './ui/styles'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
@@ -110,20 +110,24 @@ function PromptFields({
         field.type === 'radio' ? (
           <fieldset key={field.key} className="text-sm">
             <legend className="mb-1 font-semibold text-ink-soft">{field.label}</legend>
-            <div className="flex flex-col gap-1">
-              {(field.options ?? []).map((option, optionIndex) => (
-                <label key={option.value} className="flex min-h-12 items-center gap-3 text-base text-ink-soft">
-                  <input
+            {/* Pick one (docs/15 D7): full-width rows, the chosen one yellow. */}
+            <div className="flex flex-col gap-1" role="radiogroup" aria-label={field.label}>
+              {(field.options ?? []).map((option, optionIndex) => {
+                const chosen = values[field.key] === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={chosen}
                     autoFocus={index === 0 && optionIndex === 0}
-                    type="radio"
-                    name={field.key}
-                    checked={values[field.key] === option.value}
-                    onChange={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
-                    className="h-6 w-6 flex-shrink-0 accent-accent"
-                  />
-                  {option.label}
-                </label>
-              ))}
+                    onClick={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
+                    className={`${MENU_ROW} ${chosen ? SELECTED : 'text-ink-soft'}`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
             </div>
           </fieldset>
         ) : field.type === 'checkboxes' ? (
@@ -134,23 +138,19 @@ function PromptFields({
                 const selected = values[field.key].split(',').filter(Boolean)
                 const checked = selected.includes(option.value)
                 return (
-                  <label key={option.value} className="flex min-h-12 items-center gap-3 text-base text-ink-soft">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setValues((prev) => {
-                          const current = prev[field.key].split(',').filter(Boolean)
-                          const next = checked
-                            ? current.filter((v) => v !== option.value)
-                            : [...current, option.value]
-                          return { ...prev, [field.key]: next.join(',') }
-                        })
-                      }
-                      className="h-6 w-6 flex-shrink-0 accent-accent"
-                    />
+                  <CheckRow
+                    key={option.value}
+                    checked={checked}
+                    onToggle={() =>
+                      setValues((prev) => {
+                        const current = prev[field.key].split(',').filter(Boolean)
+                        const next = checked ? current.filter((v) => v !== option.value) : [...current, option.value]
+                        return { ...prev, [field.key]: next.join(',') }
+                      })
+                    }
+                  >
                     {option.label}
-                  </label>
+                  </CheckRow>
                 )
               })}
             </div>

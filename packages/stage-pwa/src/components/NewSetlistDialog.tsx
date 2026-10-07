@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Song } from 'shared-types'
-import { Icon } from './Icon'
-import { Button, Dialog, Field, MENU_ROW } from './ui'
+import { Button, CheckRow, Dialog, Field } from './ui'
 
 interface NewSetlistDialogProps {
   /** In the order the library shows them - picked songs keep this order. */
@@ -83,26 +82,10 @@ function SongPicker({ songs, picked, onToggle }: { songs: Song[]; picked: Set<st
           const on = picked.has(song.id)
           return (
             <li key={song.id}>
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={on}
-                onClick={() => onToggle(song.id)}
-                className={`${MENU_ROW} gap-3 ${on ? 'text-ink' : 'text-ink-soft'}`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[min(var(--sb-radius-sm),0.25rem)] border-2 ${
-                    on ? 'border-accent bg-accent text-accent-ink' : 'border-current'
-                  }`}
-                >
-                  {on && <Icon name="check" size="0.9rem" />}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {song.title || '(ohne Titel)'}
-                  {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
-                </span>
-              </button>
+              <CheckRow checked={on} onToggle={() => onToggle(song.id)}>
+                {song.title || '(ohne Titel)'}
+                {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
+              </CheckRow>
             </li>
           )
         })}
