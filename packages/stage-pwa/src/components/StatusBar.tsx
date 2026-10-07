@@ -1,4 +1,7 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ScrollOnceText } from './ScrollOnceText'
+import { fitStatusBarItems, type StatusBarItem } from '../lib/statusBarItems'
+import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -11,6 +14,7 @@ import {
   type CountInPosition,
   formatSongTime,
   STATUS_BAR_CLASS,
+  type StatusBarKind,
   statusBarState,
 } from '../lib/statusBar'
 import { transitionItemEndMs } from '../lib/trackEndTransition'
@@ -22,6 +26,19 @@ import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyn
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
 import { stageVariantLabel } from '../lib/variantLabel'
+
+/** Gap between the bar's items (gap-3) - part of each item's room. */
+const GAP_PX = 12
+
+/** The state as an icon (Marco, 2026-10-07: a word took the song title's room on narrow screens). */
+const STATE_ICON: Record<StatusBarKind, IconName> = {
+  ready: 'stop',
+  'count-in': 'play',
+  playing: 'play',
+  paused: 'pause',
+  finished: 'check',
+  fault: 'warning',
+}
 
 const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchron' },
@@ -120,10 +137,55 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
   const sync = SYNC_TEXT[syncStatus]
 
+  // Ranked items (lib/statusBarItems.ts, per device in Einstellungen): each one is measured -
+  // also while it doesn't fit (then invisible and out of the flow) - and the bar keeps as many
+  // as leave the song title its minimum room. Faults and a sync problem are never given up.
+  const order = useStatusBarPrefsStore((s) => s.order)
+  const hiddenItems = useStatusBarPrefsStore((s) => s.hidden)
+  const wanted = order.filter((item) => !hiddenItems.includes(item))
+  const headerRef = useRef<HTMLElement>(null)
+  const titleRef = useRef<HTMLSpanElement>(null)
+  const [shownKey, setShownKey] = useState(wanted.join(','))
+  const shown = new Set(shownKey.split(',').filter(Boolean) as StatusBarItem[])
+  const fault = state.kind === 'fault'
+  const syncProblem = syncStatus !== 'idle'
+  const isShown = (item: StatusBarItem) => (item === 'stateText' && fault) || (item === 'sync' && syncProblem) || shown.has(item)
+  const item = (id: StatusBarItem) => ({
+    'data-sbitem': id,
+    className: isShown(id) ? '' : 'pointer-events-none invisible absolute',
+  })
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    const title = titleRef.current
+    if (!header || !title) return
+    const widths: Partial<Record<StatusBarItem, number>> = {}
+    let used = 0
+    for (const el of header.querySelectorAll<HTMLElement>('[data-sbitem]')) {
+      const id = el.dataset.sbitem as StatusBarItem
+      const width = el.offsetWidth + GAP_PX
+      widths[id] = width
+      if (isShown(id)) used += width
+    }
+    // Always-shown items (a fault's word, a sync problem) take their room off the top.
+    const pinned = wanted.filter((id) => (id === 'stateText' && fault) || (id === 'sync' && syncProblem))
+    const room = title.clientWidth + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
+    const next = [...fitStatusBarItems(wanted.filter((id) => !pinned.includes(id)), widths, room)].join(',')
+    if (next !== shownKey) setShownKey(next)
+  })
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    // A narrower or wider bar (rotation, split screen): start from everything again and fit.
+    const observer = new ResizeObserver(() => setShownKey(useStatusBarPrefsStore.getState().order.join(',')))
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <header
+      ref={headerRef}
       data-status={state.kind}
-      className={`flex h-14 flex-shrink-0 items-center gap-3 px-2 ${STATUS_BAR_CLASS[state.kind]} ${
+      className={`relative flex h-14 flex-shrink-0 items-center gap-3 overflow-hidden px-2 ${STATUS_BAR_CLASS[state.kind]} ${
         state.kind === 'ready' ? 'border-b border-line' : ''
       }`}
     >
@@ -134,53 +196,70 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-black/15"
       >
         <Icon name="menu" size="1.75rem" />
-        <span className="hidden text-base md:inline">{MODE_LABEL[screen]}</span>
+        <span {...item('screen')}>
+          <span className="text-base">{MODE_LABEL[screen]}</span>
+        </span>
       </button>
 
       {position ? (
         <CountBlock position={position} flash={flash} />
       ) : (
-        // On a phone the song title needs the room (#373: it was cut to "Wie …"); "Bereit" is the
-        // resting state and the only one the bar can drop there - every other state stays visible.
-        <span
-          className={`flex-shrink-0 whitespace-nowrap text-lg font-black uppercase tracking-wide ${
-            state.kind === 'ready' ? 'hidden sm:inline' : ''
-          }`}
-        >
-          {state.label}
+        // The state as an icon - always there; its word is a ranked item (a fault keeps it:
+        // the icon alone wouldn't say what is wrong).
+        <span className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap text-lg font-black uppercase tracking-wide" aria-label={state.label} title={state.label}>
+          <Icon name={STATE_ICON[state.kind]} size="1.5rem" filled={['ready', 'playing', 'count-in', 'paused'].includes(state.kind)} />
+          <span {...item('stateText')}>{state.label}</span>
         </span>
       )}
 
-      <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 flex-1 text-lg font-semibold">
-        {title}
-        {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
-      </ScrollOnceText>
+      <span ref={titleRef} className="min-w-0 flex-1">
+        <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 text-lg font-semibold">
+          {title}
+          {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
+        </ScrollOnceText>
+      </span>
 
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
           {formatSongTime(elapsedMs ?? 0)}
-          {durationMs !== null && <span className="hidden font-normal opacity-80 sm:inline"> / {formatSongTime(durationMs)}</span>}
+          {durationMs !== null && (
+            <span {...item('duration')}>
+              <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>
+            </span>
+          )}
         </span>
       )}
 
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
-        <span className="rounded-control bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
+        <span {...item('mode')}>
+          <span className="rounded-control bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
+        </span>
         {mode === 'gig' && (canControl || holdsToken) && (
-          <span
-            title={canControl ? 'Dieses Gerät hat das Master-Token' : 'Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht'}
-            aria-label={canControl ? 'Master' : 'Master, nicht bestätigt'}
-            className={`flex items-center ${canControl ? '' : 'opacity-60'}`}
-          >
-            <Icon name="master" size="1.4rem" />
+          <span {...item('master')}>
+            <span
+              title={canControl ? 'Dieses Gerät hat das Master-Token' : 'Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht'}
+              aria-label={canControl ? 'Master' : 'Master, nicht bestätigt'}
+              className={`flex items-center ${canControl ? '' : 'opacity-60'}`}
+            >
+              <Icon name="master" size="1.4rem" />
+            </span>
           </span>
         )}
-        <span className="hidden font-bold tabular-nums sm:inline">
-          {new Date(now).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+        <span {...item('clock')}>
+          <span className="font-bold tabular-nums">{new Date(now).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
         </span>
-        {profile && <span className="hidden max-w-32 truncate md:inline">{profile.name}</span>}
-        <span title={sync.label} aria-label={sync.label} className="flex items-center font-bold">
-          <Icon name={sync.icon} size="1.3rem" />
-          <span className="ml-1 hidden font-normal lg:inline">{sync.label}</span>
+        {profile && (
+          <span {...item('profile')}>
+            <span className="inline-block max-w-32 truncate align-middle">{profile.name}</span>
+          </span>
+        )}
+        <span {...item('sync')}>
+          <span title={sync.label} aria-label={sync.label} className="flex items-center font-bold">
+            <Icon name={sync.icon} size="1.3rem" />
+          </span>
+        </span>
+        <span {...item('syncText')}>
+          <span className="font-normal">{sync.label}</span>
         </span>
       </span>
     </header>

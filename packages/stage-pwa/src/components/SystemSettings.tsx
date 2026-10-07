@@ -6,6 +6,7 @@ import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
+import { StatusBarSettings } from './StatusBarSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
@@ -71,6 +72,12 @@ export function SystemSettings() {
         </Section>
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
+        </Section>
+      </Group>
+
+      <Group title="Statusleiste" description="Was die Leiste oben zeigt und was zuerst weichen darf, wenn der Platz knapp wird - nur auf diesem Gerät.">
+        <Section title="Reihenfolge">
+          <StatusBarSettings />
         </Section>
       </Group>
 

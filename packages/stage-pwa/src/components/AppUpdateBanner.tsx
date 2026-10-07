@@ -27,7 +27,7 @@ export function AppUpdateBanner() {
   if (!update || dismissed) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-center justify-center gap-3 bg-accent px-4 py-3 text-accent-ink shadow-sb" role="status">
+    <div className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-center justify-center gap-3 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-bottom text-accent-ink shadow-sb" role="status">
       <span className="text-base font-semibold">{error ?? `Neue App-Version ${update.versionName} auf dem Stage-Server`}</span>
       <button
         type="button"

@@ -332,3 +332,24 @@ button,
     background: #fff !important;
   }
 }
+
+/* Camera notch / rounded corners (safe area): full-screen overlays keep their content clear of
+   it - at least their usual padding (--sb-pad), more where the notch is. #root does the same
+   for the app itself; overlays are `fixed` and don't get #root's padding (2026-10-07: content
+   was cut on Marco's phone, in the app and in the browser's full-screen mode). */
+.sb-pad-safe {
+  --sb-pad: 1rem;
+  padding: max(var(--sb-pad), env(safe-area-inset-top)) max(var(--sb-pad), env(safe-area-inset-right))
+    max(var(--sb-pad), env(safe-area-inset-bottom)) max(var(--sb-pad), env(safe-area-inset-left));
+}
+/* Bars glued to an edge: background to the edge, content clear of the notch. */
+.sb-pad-safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.sb-pad-safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.sb-pad-safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
