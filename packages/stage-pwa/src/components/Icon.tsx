@@ -84,6 +84,8 @@ const ICONS = {
 export type IconName = keyof typeof ICONS
 
 interface IconProps {
+  /** Solid shape - for transport states (■ ▶ ❚❚), which read as states, not outlines like a checkbox. */
+  filled?: boolean
   name: IconName
   /** CSS size; defaults to the surrounding font size so the icon scales with its label. */
   size?: string
@@ -92,13 +94,14 @@ interface IconProps {
   label?: string
 }
 
-export function Icon({ name, size = '1.1em', className = '', label }: IconProps) {
+export function Icon({ name, size = '1.1em', className = '', label, filled = false }: IconProps) {
   const Glyph = ICONS[name]
   return (
     <Glyph
       width={size}
       height={size}
       strokeWidth={2.25}
+      fill={filled ? 'currentColor' : 'none'}
       className={`inline-block flex-shrink-0 align-[-0.15em] ${className}`}
       aria-hidden={label ? undefined : true}
       aria-label={label}
