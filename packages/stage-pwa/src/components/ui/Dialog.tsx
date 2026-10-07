@@ -16,8 +16,12 @@ export interface DialogProps {
 }
 
 /**
- * Every dialog (D6): title left and "× Schließen" right in the header, the content scrolls, the
- * actions sit at the bottom. Back gesture and a tap beside the dialog close it.
+ * Every dialog (D6), with exactly one way out (Marco, 2026-10-07: "Schließen" and "Abbrechen" did
+ * the same):
+ * - with `actions` (something to confirm - Anlegen, Speichern): the bottom row only, "Abbrechen"
+ *   left and the main action right; no "Schließen" in the header;
+ * - without (changes apply at once - settings, menus, Tonart): "× Schließen" top right only.
+ * Back gesture and a tap beside the dialog close it either way (= Abbrechen).
  */
 export function Dialog({ title, onClose, children, actions, size = 'm' }: DialogProps) {
   useBackHandler(onClose)
@@ -30,8 +34,9 @@ export function Dialog({ title, onClose, children, actions, size = 'm' }: Dialog
         onClick={(e) => e.stopPropagation()}
         className={`flex max-h-[min(90vh,90dvh)] w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
       >
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-2">
+        <div className={`flex flex-shrink-0 items-center justify-between gap-3 border-b border-line px-4 ${actions ? 'py-3' : 'py-2'}`}>
           <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
+          {!actions && (
           <button
             type="button"
             onClick={onClose}
@@ -40,6 +45,7 @@ export function Dialog({ title, onClose, children, actions, size = 'm' }: Dialog
             <Icon name="close" size="1.25rem" />
             Schließen
           </button>
+          )}
         </div>
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">{children}</div>
         {actions && <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3">{actions}</div>}

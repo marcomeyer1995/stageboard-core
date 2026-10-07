@@ -87,20 +87,31 @@ describe('UI system (docs/15)', () => {
     expect(onSlide).toHaveBeenCalledWith(12)
   })
 
-  it('Dialog (D6): "Schließen" top right, actions at the bottom, a tap beside it closes', () => {
+  it('Dialog (D6) without anything to confirm: only "× Schließen" top right; a tap beside it closes', () => {
     const onClose = vi.fn()
     render(
-      <Dialog title="Neue Setlist" onClose={onClose} actions={<Button variant="primary">Anlegen</Button>}>
-        <Field label="Name" />
+      <Dialog title="Tonart" onClose={onClose}>
+        <p>Transpose</p>
       </Dialog>,
     )
-    const dialog = screen.getByRole('dialog', { name: 'Neue Setlist' })
+    const dialog = screen.getByRole('dialog', { name: 'Tonart' })
     expect(dialog).toHaveClass('rounded-container')
     fireEvent.click(screen.getByRole('button', { name: 'Schließen' }))
     expect(onClose).toHaveBeenCalledTimes(1)
     fireEvent.click(dialog.parentElement!)
     expect(onClose).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole('button', { name: 'Anlegen' })).toBeInTheDocument()
+  })
+
+  it('Dialog (D6) with something to confirm: only the bottom row, no second way out at the top', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog title="Neue Setlist" onClose={onClose} actions={<><Button onClick={onClose}>Abbrechen</Button><Button variant="primary">Anlegen</Button></>}>
+        <Field label="Name" />
+      </Dialog>,
+    )
+    expect(screen.queryByRole('button', { name: 'Schließen' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('ActionMenu: opens from a wide ⋯, runs an action and closes; red actions apart, disabled stays disabled', () => {

@@ -32,6 +32,8 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
   const [seconds, setSeconds] = useState(8)
   const [visibility, setVisibility] = useState<'band' | 'me'>('band')
   const [dialog, setDialog] = useState(false)
+  const [infoDialog, setInfoDialog] = useState(false)
+  const [transpose, setTranspose] = useState(0)
   const toggle = (list: string[], set: (next: string[]) => void, item: string, on: boolean) => set(on ? [...list, item] : list.filter((x) => x !== item))
 
   return createPortal(
@@ -181,9 +183,10 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
             </div>
           </Section>
 
-          <Section title="Dialog (D6)" hint="„× Schließen“ oben rechts, Aktionen unten: sekundär links, Hauptaktion rechts.">
-            <div>
-              <Button onClick={() => setDialog(true)}>Dialog öffnen</Button>
+          <Section title="Dialog (D6)" hint="Immer genau ein Ausweg: mit Bestätigung nur unten „Abbrechen“ und die Hauptaktion; ohne Bestätigung (wirkt sofort) nur oben „× Schließen“.">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setDialog(true)}>Mit Bestätigung</Button>
+              <Button onClick={() => setInfoDialog(true)}>Ohne Bestätigung</Button>
             </div>
           </Section>
 
@@ -209,6 +212,20 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
           </Section>
         </div>
       </div>
+
+      {infoDialog && (
+        <Dialog title="Tonart" size="s" onClose={() => setInfoDialog(false)}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-base text-ink-soft">Transpose</span>
+            <div className="flex items-center gap-2">
+              <IconButton icon="down" label="Tiefer" onClick={() => setTranspose(transpose - 1)} />
+              <span className="w-10 text-center text-lg font-bold text-ink">{transpose > 0 ? `+${transpose}` : transpose}</span>
+              <IconButton icon="up" label="Höher" onClick={() => setTranspose(transpose + 1)} />
+            </div>
+          </div>
+          <p className="text-sm text-ink-faint">Wirkt sofort - nichts zu bestätigen.</p>
+        </Dialog>
+      )}
 
       {dialog && (
         <Dialog
