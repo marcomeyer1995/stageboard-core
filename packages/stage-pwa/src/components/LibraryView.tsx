@@ -342,13 +342,24 @@ export function LibraryView() {
   const practiceLog = usePracticeLogStore((state) => state.entries)
   const myProfileId = useActiveProfile()?.id ?? null
   const stats = useMemo(() => practiceStats(practiceLog, myProfileId, Date.now()), [practiceLog, myProfileId])
-  const [selection, setSelection] = useState<Selection>(null)
+  const [selection, setSelectionNow] = useState<Selection>(null)
+  // An open setlist with unsaved changes (SetlistDetail reports it): leaving it asks first.
+  const [setlistDirty, setSetlistDirty] = useState(false)
+  const setSelection = useCallback(
+    async (next: Selection): Promise<boolean> => {
+      const leavingSetlist = selection?.type === 'setlist' && !(next?.type === 'setlist' && next.id === selection.id)
+      if (leavingSetlist && setlistDirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return false
+      setSelectionNow(next)
+      return true
+    },
+    [selection, setlistDirty, confirm],
+  )
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
   // SheetEditor. Irrelevant while selection isn't a song.
   const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
   // Back closes an open song preview or setlist (#341) - the song editor handles its own Back.
-  useBackHandler(selection && songMode !== 'edit' ? () => setSelection(null) : null)
+  useBackHandler(selection && songMode !== 'edit' ? () => void setSelection(null) : null)
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
   // Keyboard row navigation (#178, pointer lane only) - a separate "which row is arrow-keyed"
   // cursor from `selection` itself (see keyboardFocused's own doc comment on DraggableSongRow).
@@ -396,11 +407,10 @@ export function LibraryView() {
   const selectSong = useCallback(
     (songId: string, variantId: string | null) => {
       if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
-        setSelection(null)
+        void setSelection(null)
         return
       }
-      setSelection({ type: 'song', songId, variantId })
-      setSongMode('preview')
+      void setSelection({ type: 'song', songId, variantId }).then((ok) => ok && setSongMode('preview'))
     },
     [selection],
   )
@@ -486,8 +496,7 @@ export function LibraryView() {
     await saveSong(song)
     await putVariant(variant)
     // Straight to edit mode (Text), not the preview - the normal editor, like any other song.
-    setSelection({ type: 'song', songId: song.id, variantId: null })
-    setSongMode('edit')
+    void setSelection({ type: 'song', songId: song.id, variantId: null }).then((ok) => ok && setSongMode('edit'))
   }
 
   async function handleDeleteSong(song: Song) {
@@ -770,9 +779,11 @@ export function LibraryView() {
                 Bibliothek
               </button>
               <SetlistDetail
+                key={selection.id}
                 setlistId={selection.id}
+                onDirtyChange={setSetlistDirty}
                 onSelectSong={selectSong}
-                onDeleted={() => setSelection(null)}
+                onDeleted={() => setSelectionNow(null)}
               />
             </>
           ) : selection?.type === 'song' ? (

@@ -44,7 +44,8 @@ interface SetlistsState {
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   saveSetlist: (setlist: Setlist) => Promise<void>
-  duplicateSetlist: (id: string, newName: string) => Promise<Setlist | null>
+  /** Copies `source` as given - SetlistDetail passes what is shown, unsaved changes included. */
+  duplicateSetlist: (source: Setlist, newName: string) => Promise<Setlist | null>
   remove: (id: string) => Promise<void>
 }
 
@@ -55,7 +56,7 @@ async function refresh(set: (partial: Partial<SetlistsState>) => void) {
   set({ setlists: docs.map(toSetlist) })
 }
 
-export const useSetlistsStore = create<SetlistsState>((set, get) => ({
+export const useSetlistsStore = create<SetlistsState>((set) => ({
   setlists: [],
   loaded: false,
   init: async (workspaceId) => {
@@ -73,10 +74,10 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
   saveSetlist: async (setlist) => {
     await putSetlist(setlist)
   },
-  duplicateSetlist: async (id, newName) => {
-    const source = get().setlists.find((setlist) => setlist.id === id)
-    if (!source) return null
+  duplicateSetlist: async (source, newName) => {
+    // Everything of the source (gig date, Festival-Uhr schedule too) - entries get new ids.
     const copy: Setlist = {
+      ...source,
       id: randomId(),
       name: newName,
       entries: source.entries.map((entry) => ({ ...entry, id: randomId() })),

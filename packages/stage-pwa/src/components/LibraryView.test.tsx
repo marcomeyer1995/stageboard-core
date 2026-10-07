@@ -153,6 +153,25 @@ describe('LibraryView', () => {
     localStorage.removeItem('stageboard-library-sort')
   })
 
+  it('leaving a setlist with unsaved changes asks first - "Abbrechen" there keeps the editor', async () => {
+    const confirm = vi.fn(async () => false)
+    useDialogStore.setState({ confirm })
+    render(<LibraryView />)
+    openTab('Setlists')
+    const row = (name: string) => screen.getAllByRole('button').find((el) => el.textContent?.startsWith(name))!
+    fireEvent.click(row('Newer Gig'))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Umbenannt' } })
+
+    fireEvent.click(row('Older Gig'))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith('Ungespeicherte Änderungen verwerfen?', expect.anything()))
+    expect(screen.getByLabelText('Name')).toHaveValue('Umbenannt')
+
+    confirm.mockResolvedValue(true)
+    fireEvent.click(row('Older Gig'))
+    expect(await screen.findByRole('heading', { name: /Older Gig/ })).toBeInTheDocument()
+  })
+
   it('tapping the chosen order again reverses it - Z-A, and back', () => {
     localStorage.removeItem('stageboard-library-sort')
     render(<LibraryView />)

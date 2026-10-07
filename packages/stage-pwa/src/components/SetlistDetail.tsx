@@ -25,12 +25,14 @@ import {
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
+import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
+import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
 import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
 import { INPUT, SELECTED } from './ui/styles'
@@ -43,6 +45,27 @@ interface SetlistDetailProps {
   /** Called after the setlist is actually deleted, so LibraryView can clear a selection
    * that would otherwise point at a setlist that no longer exists. */
   onDeleted: () => void
+  /** Whether there are unsaved changes - LibraryView asks before leaving the setlist then. */
+  onDirtyChange?: (dirty: boolean) => void
+}
+
+/** Same content, regardless of key order or fields set to undefined. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return Object.fromEntries(
+      Object.keys(record)
+        .filter((key) => record[key] !== undefined)
+        .sort()
+        .map((key) => [key, canonical(record[key])]),
+    )
+  }
+  return value
+}
+
+export function sameSetlist(a: Setlist, b: Setlist): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
 }
 
 /**
@@ -503,7 +526,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
  */
-export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
+export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onDirtyChange }: SetlistDetailProps) {
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
@@ -517,14 +540,42 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const setlist = setlists.find((s) => s.id === setlistId) ?? null
+  const stored = setlists.find((s) => s.id === setlistId) ?? null
+  // Edits go to a draft, like in the song editor (Marco, 2026-10-07): "Speichern" takes them
+  // over, leaving without saving throws them away (after asking). Activating and deleting stay
+  // immediate - they aren't changes to the setlist itself.
+  const [draft, setDraft] = useState<Setlist | null>(stored)
+  const dirty = draft !== null && stored !== null && !sameSetlist(draft, stored)
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  // Follows the stored setlist (another device, or our own save) as long as nothing is pending.
+  useEffect(() => {
+    if (!dirtyRef.current) setDraft(stored)
+  }, [stored])
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+    return () => onDirtyChange?.(false)
+  }, [dirty, onDirtyChange])
+  useUnsavedChangesWarning(dirty)
+  const setlist = draft
+  const update = (next: Setlist) => setDraft(next)
+  // Opens as a clean preview (SetlistPreview); "Bearbeiten" switches to the editor below.
+  const [editing, setEditing] = useState(false)
 
-  async function handleRename() {
-    if (!setlist) return
-    const name = await promptText('Setlist umbenennen', { label: 'Neuer Name', defaultValue: setlist.name })
-    if (!name?.trim()) return
-    saveSetlist({ ...setlist, name: name.trim() })
+  async function handleSave() {
+    if (!draft) return
+    if (!draft.name.trim()) return
+    await saveSetlist({ ...draft, name: draft.name.trim() })
+    setEditing(false)
   }
+
+  /** "Abbrechen" / Back in the editor: back to the preview, asking first if something changed. */
+  async function leaveEditing() {
+    if (dirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return
+    setDraft(stored)
+    setEditing(false)
+  }
+  useBackHandler(editing ? () => void leaveEditing() : null)
 
   async function handleDuplicate() {
     if (!setlist) return
@@ -533,11 +584,13 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       defaultValue: `${setlist.name} (Kopie)`,
     })
     if (!name?.trim()) return
-    await duplicateSetlist(setlist.id, name.trim())
+    // Copies what is shown, unsaved changes included.
+    await duplicateSetlist(setlist, name.trim())
   }
 
   async function handleDelete() {
-    if (!setlist) return
+    if (!stored) return
+    const setlist = stored
     const confirmed = await confirm(
       `"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
       { confirmLabel: 'Löschen', danger: true },
@@ -561,12 +614,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     const from = setlist.entries.findIndex((e) => e.id === event.active.id)
     const to = setlist.entries.findIndex((e) => e.id === event.over?.id)
     if (from === -1 || to === -1) return
-    saveSetlist({ ...setlist, entries: arrayMove(setlist.entries, from, to) })
+    update({ ...setlist, entries: arrayMove(setlist.entries, from, to) })
   }
 
   function removeSong(index: number) {
     if (!setlist) return
-    saveSetlist({ ...setlist, entries: setlist.entries.filter((_, i) => i !== index) })
+    update({ ...setlist, entries: setlist.entries.filter((_, i) => i !== index) })
   }
 
   /** Adds a new occurrence of a song - deliberately allowed even if the song is already in
@@ -574,7 +627,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
    * already played earlier in its full-length variant. */
   function addSong(songId: string) {
     if (!setlist || !songId) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: [...setlist.entries, { id: randomId(), songId, variantId: null, trackId: null }],
     })
@@ -614,7 +667,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       notes: result.notes ?? '',
       estimatedDurationMs: parseSeconds(result.seconds),
     }
-    saveSetlist({ ...setlist, entries: [...setlist.entries, item] })
+    update({ ...setlist, entries: [...setlist.entries, item] })
   }
 
   async function editTransition(entry: TransitionEntry) {
@@ -628,12 +681,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       notes: result.notes ?? '',
       estimatedDurationMs: parseSeconds(result.seconds),
     }
-    saveSetlist({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
+    update({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
   }
 
   function setVariant(entryId: string, variantId: string) {
     if (!setlist) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: setlist.entries.map((entry) =>
         entry.id === entryId && isSongEntry(entry) ? { ...entry, variantId } : entry,
@@ -643,7 +696,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
 
   function setTransition(entryId: string, transitionType: TransitionType, transitionDelayMs: number) {
     if (!setlist) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: setlist.entries.map((entry) =>
         entry.id === entryId ? { ...entry, transitionType, transitionDelayMs } : entry,
@@ -651,8 +704,29 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     })
   }
 
-  if (!setlist) {
+  if (!setlist || !stored) {
     return <p className="text-ink-faint">Setlist wurde entfernt.</p>
+  }
+
+  if (!editing) {
+    return (
+      <SetlistPreview
+        setlist={stored}
+        active={activeSetlist?.id === stored.id}
+        canActivate={isMaster}
+        onActivate={() => void setActiveSetlist(stored.id)}
+        onDeactivate={() => void setActiveSetlist(null)}
+        onEdit={() => {
+          setDraft(stored)
+          setEditing(true)
+        }}
+        menu={[
+          { label: 'Duplizieren', onClick: () => void handleDuplicate() },
+          { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
+        ]}
+        onSelectSong={onSelectSong}
+      />
+    )
   }
 
   return (
@@ -662,58 +736,35 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     // that button is actually visible (Marco: the whole page was scrolling in portrait mode,
     // not just this list) - flex-1 instead claims only what's left after the button.
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
-          {setlist.name}
-          {activeSetlist?.id === setlist.id && (
-            <span className="normal-case tracking-normal">
-              <Badge tone="accent">Aktiv</Badge>
-            </span>
-          )}
-        </h2>
-        <span className="flex flex-shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveSetlist(setlist.id)}
-            disabled={!isMaster}
-            className="h-form rounded-control bg-accent px-4 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-          >
-            Aktivieren
-          </button>
-          {/* Duplizieren/Löschen behind one menu, same pattern as a song row's own ⋯ in
-              LibraryView.tsx - harmonizing how a song vs. a setlist gets deleted (Marco,
-              explicit request). Aktivieren stays its own always-visible button: it's the one
-              action reached for constantly during a show, unlike the other two. */}
-          <OverflowMenu
-            title={setlist.name}
-            actions={[
-              { label: 'Umbenennen', onClick: () => void handleRename() },
-              { label: 'Duplizieren', onClick: () => void handleDuplicate() },
-              { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
-            ]}
-          />
-        </span>
-      </div>
-      {activeSetlist?.id === setlist.id && (
+      {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
+      <div className="flex items-center justify-end gap-2">
         <button
           type="button"
-          onClick={() => setActiveSetlist(null)}
-          disabled={!isMaster}
-          className="h-form self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+          onClick={() => void leaveEditing()}
+          className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
-          Setlist deaktivieren (alle Songs)
+          Abbrechen
         </button>
-      )}
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={!setlist.name.trim()}
+          className="h-form rounded-control bg-accent px-5 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
+        >
+          Speichern
+        </button>
+      </div>
+      <Field label="Name" value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
       <div className="max-w-56">
         <Field
           label="Auftrittsdatum"
           type="date"
           value={setlist.performanceDate ?? ''}
-          onChange={(e) => void saveSetlist({ ...setlist, performanceDate: e.target.value || undefined })}
+          onChange={(e) => update({ ...setlist, performanceDate: e.target.value || undefined })}
         />
       </div>
-      <ScheduleSettings setlist={setlist} onSave={(next) => void saveSetlist(next)} />
+      <ScheduleSettings setlist={setlist} onSave={update} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">
