@@ -84,11 +84,11 @@ describe('AppMenu', () => {
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
-  it('no separate "Bearbeiten" row any more - editing starts by holding a dashboard in the list', () => {
+  it('no separate "Bearbeiten" row any more - editing starts with the pen beside a dashboard', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
     expect(screen.queryByRole('button', { name: /^Bearbeiten/ })).not.toBeInTheDocument()
-    expect(screen.getByText('Tippen wechselt, gedrückt halten bearbeitet.')).toBeInTheDocument()
+    expect(screen.getByText('Tippen wechselt, der Stift bearbeitet.')).toBeInTheDocument()
   })
 })
 
@@ -109,7 +109,7 @@ describe('AppMenu dashboard picker (#35)', () => {
 
     render(<AppMenu mode="system" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    const active = screen.getByRole('button', { name: /Monitor/ })
+    const active = screen.getByRole('button', { name: /^Monitor/ })
     const inactive = screen.getByRole('button', { name: 'Bühne' })
     expect(active).toHaveClass('bg-accent')
     expect(inactive).not.toHaveClass('bg-accent')

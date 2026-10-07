@@ -18,7 +18,7 @@ const { useActiveDashboardStore } = await import('../store/useActiveDashboardSto
 const { useEditModeStore } = await import('../store/useEditModeStore')
 const { useDashboardMenuStore } = await import('../store/useDashboardMenuStore')
 const { useDialogStore } = await import('../store/useDialogStore')
-const { DashboardMenuList, HOLD_MS, FILL_DELAY_MS } = await import('./DashboardMenuList')
+const { DashboardMenuList } = await import('./DashboardMenuList')
 
 const board = (id: string, order: number, extra: Partial<Dashboard> = {}): Dashboard => ({ id, name: id, order, widgets: [], layouts: {}, visibility: 'public', ...extra })
 
@@ -34,52 +34,29 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 const entry = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) })
-function hold(el: HTMLElement) {
-  fireEvent.pointerDown(el)
-  act(() => vi.advanceTimersByTime(HOLD_MS + 50))
-}
+const pen = (name: string) => screen.getByRole('button', { name: `„${name}“ bearbeiten` })
 
 describe('DashboardMenuList', () => {
-  it('a tap switches, holding opens the dashboard in edit mode', () => {
+  it('a tap on the name switches, the pen opens the dashboard in edit mode', () => {
     const onSelect = vi.fn()
     const onEdit = vi.fn()
     render(<DashboardMenuList onSelect={onSelect} onEdit={onEdit} />)
-    fireEvent.pointerDown(entry('Monitor'))
-    fireEvent.pointerUp(entry('Monitor'))
+    fireEvent.click(entry('Monitor'))
     expect(onSelect).toHaveBeenCalledWith('Monitor')
-    hold(entry('Pause'))
+    expect(useEditModeStore.getState().isEditing).toBe(false)
+    fireEvent.click(pen('Pause'))
     expect(useEditModeStore.getState().isEditing).toBe(true)
     expect(useActiveDashboardStore.getState().byWorkspace.band).toBe('Pause')
     expect(onEdit).toHaveBeenCalled()
   })
 
-  it('a short tap shows no fill - it only starts after a moment of holding', () => {
-    render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
-    const fill = () => screen.getAllByTestId('dashboard-hold-progress')[1]!.style.width
-    fireEvent.pointerDown(entry('Monitor'))
-    act(() => vi.advanceTimersByTime(FILL_DELAY_MS - 50))
-    expect(fill()).toBe('0%')
-    act(() => vi.advanceTimersByTime(100))
-    expect(fill()).toBe('100%')
-  })
-
-  it('sliding off while holding (scrolling the menu) does nothing', () => {
-    const onSelect = vi.fn()
-    render(<DashboardMenuList onSelect={onSelect} onEdit={vi.fn()} />)
-    fireEvent.pointerDown(entry('Monitor'))
-    fireEvent.pointerLeave(entry('Monitor'))
-    act(() => vi.advanceTimersByTime(HOLD_MS + 50))
-    expect(onSelect).not.toHaveBeenCalled()
-    expect(useEditModeStore.getState().isEditing).toBe(false)
-  })
-
-  it('a template shows a lock for a musician; holding it offers an own copy instead of editing it', async () => {
+  it('a template shows a lock for a musician; its pen offers an own copy instead of editing it', async () => {
     useDashboardsStore.setState({ dashboards: [board('Bühne', 0, { isReadOnly: true }), board('Monitor', 1)] })
     const duplicate = vi.fn(async () => board('Bühne Kopie', 2, { visibility: 'private', ownerProfileId: 'p-caro' }))
     useDashboardsStore.setState({ duplicate })
     render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
     expect(screen.getByLabelText('Vorlage')).toBeInTheDocument()
-    hold(entry('Bühne'))
+    fireEvent.click(pen('Bühne'))
     expect(useDialogStore.getState().request).toMatchObject({ kind: 'confirm', confirmLabel: 'Eigene Kopie bearbeiten' })
     await act(async () => useDialogStore.getState().acceptConfirm())
     expect(duplicate).toHaveBeenCalledWith('Bühne', 'Bühne Kopie', 'p-caro')

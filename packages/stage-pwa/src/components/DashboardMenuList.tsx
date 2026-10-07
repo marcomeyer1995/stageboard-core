@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -13,25 +13,17 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
-import { Button } from './ui'
+import { Button, IconButton } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
-
-/** A tap stays a tap: the fill only starts after this long (Marco: filling on every short tap
- * looked ugly). */
-export const FILL_DELAY_MS = 200
-/** How long the visible fill then runs until edit mode opens. */
-export const FILL_MS = 600
-/** Total time an entry is held to edit it. */
-export const HOLD_MS = FILL_DELAY_MS + FILL_MS
-/** How long the "hold it" hint stays after a tap that was meant as a hold, ms. */
-const HINT_MS = 2500
 
 /**
  * The dashboards in the main menu (Marco's dashboard editing redesign, replacing "Dashboards
  * verwalten" and the separate "Bearbeiten" lock):
  * - tap an entry: switch to it;
- * - hold it (it fills up): open it in edit mode - the bar at the top then has everything else;
- * - a template a musician can't change (#16) shows a lock; holding it offers an own copy instead;
+ * - the pen beside it: open it in edit mode - the bar at the top then has everything else (Marco,
+ *   2026-10-07: replaces holding until it filled up, which nobody could see and the browser's
+ *   long-press kept interrupting);
+ * - a template a musician can't change (#16) shows a lock; its pen offers an own copy instead;
  * - "Ordnen": drag to reorder, eye to hide - per device, every musician arranges their own menu;
  * - "+ Neues Dashboard" at the end.
  */
@@ -118,7 +110,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
             active={dashboard.id === active?.id}
             locked={!canEditDashboard(dashboard, roles)}
             onSelect={() => onSelect(dashboard.id)}
-            onHold={() => void edit(dashboard)}
+            onEdit={() => void edit(dashboard)}
           />
         ))
       )}
@@ -132,84 +124,28 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
           {arranging ? 'Ordnen beenden' : 'Ordnen'}
         </Button>
       </div>
-      {!arranging && <p className="text-sm text-ink-faint">Tippen wechselt, gedrückt halten bearbeitet.</p>}
+      {!arranging && <p className="text-sm text-ink-faint">Tippen wechselt, der Stift bearbeitet.</p>}
       {arranging && <p className="text-sm text-ink-faint">Ziehen sortiert, das Auge blendet aus - nur auf diesem Gerät.</p>}
     </div>
   )
 }
 
-/** One dashboard in the menu: a tap switches, holding fills it up and opens it for editing. */
-function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void; onHold: () => void }) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fillTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [holding, setHolding] = useState(false)
-  const [hint, setHint] = useState(false)
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current)
-      if (fillTimer.current) clearTimeout(fillTimer.current)
-      if (hintTimer.current) clearTimeout(hintTimer.current)
-    },
-    [],
-  )
-
-  function start() {
-    setHint(false)
-    fillTimer.current = setTimeout(() => setHolding(true), FILL_DELAY_MS)
-    timer.current = setTimeout(() => {
-      timer.current = null
-      setHolding(false)
-      onHold()
-    }, HOLD_MS)
-  }
-  /** Released: before the hold completed it was a tap (switch); sliding off cancels (a scroll). */
-  function end(asTap: boolean) {
-    const wasPending = timer.current !== null
-    if (timer.current) clearTimeout(timer.current)
-    if (fillTimer.current) clearTimeout(fillTimer.current)
-    timer.current = null
-    setHolding(false)
-    if (wasPending && asTap) onSelect()
-  }
-
+/** One dashboard in the menu: a tap on the name switches, the pen opens it for editing. */
+function DashboardEntry({ dashboard, active, locked, onSelect, onEdit }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void; onEdit: () => void }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex items-stretch gap-2">
       <button
         type="button"
-        onPointerDown={start}
-        onPointerUp={() => end(true)}
-        onPointerLeave={() => end(false)}
-        onPointerCancel={() => end(false)}
-        // Keyboard: Enter/Space switch, like a tap.
-        onClick={(e) => {
-          if (e.detail === 0) onSelect()
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setHint(true)
-          if (hintTimer.current) clearTimeout(hintTimer.current)
-          hintTimer.current = setTimeout(() => setHint(false), HINT_MS)
-        }}
+        onClick={onSelect}
         aria-current={active ? 'true' : undefined}
-        className={`relative flex h-stage items-center justify-between overflow-hidden px-4 text-lg ${CONTROL} ${FOCUS} ${
+        className={`flex h-stage min-w-0 flex-1 items-center gap-2 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${
           active ? SELECTED : `bg-control text-ink-soft ${HOVER}`
         }`}
       >
-        {/* Fills over the hold time - the press visibly "loads" towards editing. */}
-        <span
-          aria-hidden
-          data-testid="dashboard-hold-progress"
-          className={`absolute inset-y-0 left-0 ${active ? 'bg-black/20' : 'bg-accent'}`}
-          style={{ width: holding ? '100%' : '0%', transition: holding ? `width ${FILL_MS}ms linear` : 'none' }}
-        />
-        <span className={`relative truncate ${holding && !active ? 'text-accent-ink' : ''}`}>{dashboard.name}</span>
-        <span className="relative flex items-center gap-2">
-          {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
-          {active && <Icon name="check" size="1.25rem" />}
-        </span>
+        <span className="truncate">{dashboard.name}</span>
+        {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
       </button>
-      {hint && <p className="text-sm text-accent">Zum Bearbeiten gedrückt halten</p>}
+      <IconButton icon="edit" size="stage" variant="secondary" label={`„${dashboard.name}“ bearbeiten`} onClick={onEdit} />
     </div>
   )
 }
