@@ -32,7 +32,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { Icon } from './Icon'
-import { Badge, Dialog, Field, MENU_ROW } from './ui'
+import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
 import { INPUT, SELECTED } from './ui/styles'
 
 interface SetlistDetailProps {
@@ -741,20 +741,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void addTransition('announcement')}
-            className="h-form flex-1 rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Ansage / Pause
-          </button>
-          <button
-            type="button"
-            onClick={() => void addTransition('heading')}
-            className="h-form flex-1 rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Abschnitt
-          </button>
+          <AddRow inline label="Ansage / Pause" onClick={() => void addTransition('announcement')} />
+          <AddRow inline label="Abschnitt" onClick={() => void addTransition('heading')} />
         </div>
       </div>
     </div>

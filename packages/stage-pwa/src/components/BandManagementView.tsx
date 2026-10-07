@@ -14,7 +14,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { ActionMenuDialog, Badge, Button } from './ui'
+import { ActionMenuDialog, AddRow, Badge } from './ui'
 import { INPUT_FREE } from './ui/styles'
 
 /**
@@ -413,9 +413,7 @@ export function BandManagementView() {
             )}
           </div>
         ))}
-        <Button icon="add" onClick={() => setShowAddBandChoice(true)}>
-          Band
-        </Button>
+        <AddRow label="Band hinzufügen" onClick={() => setShowAddBandChoice(true)} />
       </section>
 
       {activeWorkspace && (
@@ -630,15 +628,13 @@ export function BandManagementView() {
             )
           })}
           {activeWorkspace.isAdmin && (
-            <Button
-              icon="add"
+            <AddRow
+              label="Neues Mitglied"
               onClick={async () => {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-            >
-              Neues Mitglied
-            </Button>
+            />
           )}
         </section>
       )}

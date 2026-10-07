@@ -1,4 +1,4 @@
-import { Button, IconButton, ToggleChip } from '../components/ui'
+import { AddRow, Button, IconButton, ToggleChip } from '../components/ui'
 import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import { FLASH_PRESETS, sendFlash } from '../lib/flash'
@@ -120,9 +120,7 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <Button icon="add" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])}>
-          Nachricht
-        </Button>
+        <AddRow label="Neue Nachricht" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} />
         {config.presets && (
           <Button variant="quiet" onClick={() => onChange({ ...config, presets: undefined })}>
             Standard wiederherstellen

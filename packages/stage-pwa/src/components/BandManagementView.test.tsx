@@ -145,30 +145,30 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
   })
 
-  it('"+ Band" offers a choice, and "Neue Band gründen" prompts for a name and calls addWorkspace (#68)', async () => {
+  it('"Band hinzufügen" offers a choice, and "Neue Band gründen" prompts for a name and calls addWorkspace (#68)', async () => {
     const addWorkspace = vi.fn().mockResolvedValue({ id: 'new-id', name: 'Band C' })
     useWorkspaceStore.setState({ addWorkspace })
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Band C') })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
     fireEvent.click(await screen.findByText('Neue Band gründen'))
 
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('Band C'))
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
   })
 
-  it('"+ Band" → "Bestehender Band beitreten" opens JoinBandView as a closable overlay (#68)', async () => {
+  it('"Band hinzufügen" → "Bestehender Band beitreten" opens JoinBandView as a closable overlay (#68)', async () => {
     useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue([]) })
 
     render(<BandManagementView />)
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
     fireEvent.click(await screen.findByText('Bestehender Band beitreten'))
 
     expect(await screen.findByText('Band beitreten')).toBeInTheDocument()
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
     // Opened voluntarily (a device with band-a already exists), not the forced onboarding
     // gate - JoinBandView.tsx only renders an "Abbrechen" escape hatch in that case.
     expect(screen.getByText('Abbrechen')).toBeInTheDocument()
@@ -177,17 +177,17 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
   })
 
-  it('"+ Band" → "Abbrechen" closes the choice without opening either flow', async () => {
+  it('"Band hinzufügen" → "Abbrechen" closes the choice without opening either flow', async () => {
     const addWorkspace = vi.fn()
     useWorkspaceStore.setState({ addWorkspace })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
-    await screen.findByText('Band hinzufügen')
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
+    await screen.findByRole('dialog', { name: 'Band hinzufügen' })
 
     fireEvent.click(screen.getByText('Abbrechen'))
 
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
     expect(addWorkspace).not.toHaveBeenCalled()
   })

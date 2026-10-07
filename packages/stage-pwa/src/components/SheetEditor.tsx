@@ -30,7 +30,7 @@ import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Switch } from './ui'
+import { AddRow, Switch } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -856,13 +856,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              onClick={addVariant}
-                className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-              >
-                + Neue Variante
-              </button>
+              <AddRow inline label="Neue Variante" onClick={addVariant} />
             </div>
           </label>
         {!draft.isDefaultVariant && (

@@ -97,7 +97,7 @@ describe('KeybindingSettings (#27)', () => {
   it('starts empty; a new mapping is made in the popup: press the pedal, choose, save', () => {
     render(<KeybindingSettings />)
     expect(screen.getByText('Noch keine Zuordnung.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '+ Neue Zuordnung' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Zuordnung' }))
     const dialog = screen.getByRole('dialog', { name: 'Neue Zuordnung' })
     expect(within(dialog).getByText('Jetzt Pedal drücken …')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'PageDown' })

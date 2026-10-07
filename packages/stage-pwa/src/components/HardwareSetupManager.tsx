@@ -10,6 +10,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
+import { AddRow } from './ui'
 
 const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
   complete: 'vollständig',
@@ -83,13 +84,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
         )
       })}
 
-      <button
-        type="button"
-        onClick={onAdd}
-        className="h-form rounded-control border border-dashed border-line text-base font-medium text-accent [@media(hover:hover)]:hover:bg-control-hover"
-      >
-        + Neues Gerät
-      </button>
+      <AddRow label="Neues Gerät" onClick={onAdd} />
     </div>
   )
 }

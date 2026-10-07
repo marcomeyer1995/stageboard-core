@@ -28,7 +28,7 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Badge, Button } from './ui'
+import { AddRow, Badge } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
@@ -550,9 +550,7 @@ export function LibraryView() {
           <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <SectionToggle title="Setlists" folded={!showSetlists} onToggle={() => toggleFolded('setlists')} />
-                <Button icon="add" aria-label="Neue Setlist" onClick={createSetlist}>
-                  Neu
-                </Button>
+                <AddRow inline label="Neue Setlist" onClick={createSetlist} />
               </div>
               {showSetlists && <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
@@ -600,9 +598,7 @@ export function LibraryView() {
           <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <SectionToggle title="Songs" folded={!showSongs} onToggle={() => toggleFolded('songs')} />
-                <Button icon="add" aria-label="Neuer Song" onClick={() => void createSong()}>
-                  Neu
-                </Button>
+                <AddRow inline label="Neuer Song" onClick={() => void createSong()} />
               </div>
               {showSongs && <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (

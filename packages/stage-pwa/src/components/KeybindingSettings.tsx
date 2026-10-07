@@ -18,7 +18,7 @@ import {
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { Icon } from './Icon'
-import { Button, Dialog, MENU_ROW } from './ui'
+import { AddRow, Button, Dialog, MENU_ROW } from './ui'
 import { INPUT_FREE, SELECTED } from './ui/styles'
 
 /**
@@ -64,13 +64,7 @@ export function KeybindingSettings() {
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        onClick={() => setEditing('new')}
-        className="min-h-form self-start rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-      >
-        + Neue Zuordnung
-      </button>
+      <AddRow label="Neue Zuordnung" onClick={() => setEditing('new')} />
       {editing && (
         <KeyMappingDialog
           initial={editing === 'new' ? null : editing}

@@ -52,6 +52,11 @@ describe('UI system guard (docs/15)', () => {
     expect(offending(/(?<![\w-])(min-)?h-(7|8|9|10|11)(?![\w-]).*(rounded-control|bg-control|bg-accent)|(rounded-control|bg-control|bg-accent).*(?<![\w-])(min-)?h-(7|8|9|10|11)(?![\w-])/)).toEqual([])
   })
 
+  it('adding a new entry is an AddRow - no add buttons in their own style (only "+ Widget", the edit bar\'s main action)', () => {
+    expect(offending(/icon="add"/).filter((hit) => !hit.includes('DashboardEditBar'))).toEqual([])
+    expect(offending(/^\s*\+ (Neue|Neuer|Neues)\b/)).toEqual([])
+  })
+
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {
     expect(offending(/>\s*Schließen\s*</)).toEqual([])
   })

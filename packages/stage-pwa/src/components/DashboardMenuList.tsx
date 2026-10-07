@@ -13,7 +13,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
-import { Button } from './ui'
+import { AddRow, Button } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 /**
@@ -121,9 +121,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
           normally the list only switches. "Bearbeiten beenden", not "Fertig" - "Fertig" is the
           menu's own way out (docs/15 D6). */}
       {arranging && (
-        <Button size="stage" icon="add" fullWidth onClick={() => void createNew()}>
-          Neues Dashboard
-        </Button>
+        <AddRow label="Neues Dashboard" onClick={() => void createNew()} />
       )}
       <Button size="stage" icon={arranging ? undefined : 'edit'} variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} fullWidth onClick={() => setArranging(!arranging)} className="mt-1">
         {arranging ? 'Bearbeiten beenden' : 'Bearbeiten'}
