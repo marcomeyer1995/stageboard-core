@@ -30,7 +30,7 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | D3 Grau | Sekundäre Buttons im helleren Grau (`control-strong`) - hebt sich von Karten und nicht gewählten Segmenten ab | Theme-Wert |
 | D4 Aktiv | „Aktiv / das bist du“ = gelbe Umrandung + Badge „Du“ / „Aktiv“; gelbe Füllung bleibt für einen gewählten Wert reserviert | Regel |
 | D5 An/Aus | Echter Schalter (Knopf auf Schiene) | Regel |
-| D6 Dialoge | „× Schließen“ oben rechts; Aktionszeile unten: sekundär links (Abbrechen), Hauptaktion rechts | Regel |
+| D6 Dialoge | Immer genau ein Ausweg. Mit etwas zu bestätigen (Anlegen, Speichern): nur die Zeile unten, „Abbrechen“ links, Hauptaktion rechts. Ohne Bestätigung (wirkt sofort: Einstellungen, Menüs, Tonart): nur „× Schließen“ oben rechts. Daneben tippen und die Zurück-Geste = Abbrechen/Schließen (präzisiert 2026-10-07) | Regel |
 | D7 Eins vs. mehrere | Eins = zusammenhängende Leiste, gewähltes Segment gefüllt; mehrere = einzelne Chips mit ✓, nicht gewählt mit Umriss | Regel |
 | Tabs | Seiten-Navigation (System-Tabs, Editor-Tabs) = Text mit gelber Unterstreichung. Ausnahme: „Ansicht“ im Burger-Menü bleibt große Buttons im Leisten-Stil | Regel |
 | Themes | Wie Dashboards: in der Band gespeichert, bandweit oder privat, Admins schützen Vorlagen, andere duplizieren; jedes Gerät wählt sein Theme. Theme-Editor = eigenes Projekt danach | - |
