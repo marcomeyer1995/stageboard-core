@@ -8,8 +8,7 @@ import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
-import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
-import { Dialog, Section, Switch } from './ui'
+import { Dialog, Section, Segmented, Switch } from './ui'
 
 interface AppMenuProps {
   mode: Mode
@@ -55,25 +54,19 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   // bottom row never scrolls away (#376: on the phone the old end-of-list close was cut off).
   return (
     <Dialog title="Menü" size="s" onClose={onClose}>
-      {/* Ansicht stays three large buttons (Marco, 2026-10-07) - jumping to another screen, not a
-          setting; stage size like everything in this menu. */}
+      {/* Ansicht as the same joined bar as Modus (Marco, 2026-10-07: separate buttons above a bar
+          looked like two systems). Choosing a screen closes the menu. */}
       <Section title="Ansicht">
-        <div className="grid grid-cols-3 gap-2">
-          {MODES.map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              aria-current={mode === candidate ? 'page' : undefined}
-              onClick={() => {
-                onSelectMode(candidate)
-                onClose()
-              }}
-              className={`h-stage text-lg ${CONTROL} ${FOCUS} ${mode === candidate ? SELECTED : `bg-control text-ink-soft ${HOVER}`}`}
-            >
-              {MODE_LABEL[candidate]}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Ansicht"
+          size="stage"
+          value={mode}
+          onChange={(candidate) => {
+            onSelectMode(candidate)
+            onClose()
+          }}
+          options={MODES.map((candidate) => ({ value: candidate, label: MODE_LABEL[candidate] }))}
+        />
       </Section>
 
       {/* Tap switches, holding opens it for editing; order, hiding and new ones right here

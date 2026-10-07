@@ -36,9 +36,9 @@ describe('AppMenu', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'Boards' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bibliothek' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Boards' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Bibliothek' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'System' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plugins' })).not.toBeInTheDocument()
   })
 
@@ -133,7 +133,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     const onClose = vi.fn()
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
     const done = screen.getByRole('button', { name: 'Fertig' })
-    const firstMode = screen.getByRole('button', { name: 'Boards' })
+    const firstMode = screen.getByRole('radio', { name: 'Boards' })
     // Never scrolls away: outside the scroll container that holds the entries.
     expect(done.closest('.overflow-y-auto')).toBeNull()
     expect(firstMode.closest('.overflow-y-auto')).not.toBeNull()
