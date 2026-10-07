@@ -313,3 +313,22 @@ button,
   user-select: none;
   -webkit-touch-callout: none;
 }
+
+/* Print sheets (e.g. the band invite): while one is on the page (body.sb-has-print-sheet, set
+   by the sheet itself - :has() isn't supported by every tablet browser), only it is printed and
+   the app behind it stays off the paper. On screen it is never shown. */
+.sb-print-sheet {
+  display: none;
+}
+@media print {
+  body.sb-has-print-sheet > :not(.sb-print-sheet) {
+    display: none !important;
+  }
+  .sb-print-sheet {
+    display: block !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+}

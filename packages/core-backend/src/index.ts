@@ -970,6 +970,12 @@ export async function buildApp() {
     if (!parsed.data.isAdmin && (await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
       return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
     }
+    // No admin takes away their own admin rights (Marco, 2026-10-07) - only another admin can.
+    // The caller's profile is in its username: `<band db>-<profileId>` or `…-<profileId>~<deviceId>`.
+    const callerProfileId = parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0]
+    if (!parsed.data.isAdmin && callerProfileId === profileId) {
+      return reply.status(400).send({ status: 'error', message: 'An admin cannot revoke their own admin rights' })
+    }
 
     await setMemberAdmin(couch, workspaceId, profileId, parsed.data.isAdmin)
     return reply.status(204).send()

@@ -603,7 +603,7 @@ describe('Fastify routes', () => {
     it('returns an empty snapshot when nothing has reported yet', async () => {
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
 
     it('returns the current snapshot, scoped to the requested workspace', async () => {
@@ -619,8 +619,8 @@ describe('Fastify routes', () => {
       setDeviceInfoEntry('band-a', 'device-1', entry)
 
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
-      expect(response.json()).toEqual({ devices: { 'device-1': entry } })
-      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: { 'device-1': entry }, collectingSince: expect.any(Number) })
+      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
   })
 
@@ -1132,6 +1132,25 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
+    })
+
+    it('rejects an admin revoking their own admin rights - also from a device account', async () => {
+      const roster = stubRoster([
+        { id: 'p1', stageRoles: ['admin'] },
+        { id: 'p2', stageRoles: ['admin'] },
+      ])
+      for (const adminUsername of ['stageboard-band-a-p1', 'stageboard-band-a-p1~device-7']) {
+        const verify = { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: adminUsername, roles: ['member', 'admin'] } }) }
+        const fetchMock = stubFetch([verify, roster])
+        const response = await app.inject({
+          method: 'POST',
+          url: '/workspaces/band-a/members/p1/admin',
+          payload: { adminUsername, adminPassword: 'correct-pw', isAdmin: false },
+        })
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toMatchObject({ message: 'An admin cannot revoke their own admin rights' })
+        expect(fetchMock).toHaveBeenCalledTimes(2) // nothing written
+      }
     })
 
     it('rejects revoking the sole remaining admin', async () => {
