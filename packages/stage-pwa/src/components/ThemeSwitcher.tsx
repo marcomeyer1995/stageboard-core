@@ -1,5 +1,6 @@
 import { THEMES, useThemeStore } from '../store/useThemeStore'
 import { INPUT_FREE } from './ui/styles'
+import { Segmented } from './ui'
 
 /**
  * Lets a musician pick their own visual language for this device - see "StageBoard Look
@@ -28,14 +29,17 @@ export function ThemeSwitcher() {
         ))}
       </select>
       {themeId === 'default' && (
-        <button
-          type="button"
-          onClick={toggleLightDark}
-          title={lightDark === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          className="h-form flex-shrink-0 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          {lightDark === 'dark' ? 'Light' : 'Dark'}
-        </button>
+        <div className="w-44 flex-shrink-0">
+          <Segmented
+            label="Hell oder dunkel"
+            value={lightDark}
+            onChange={(next) => next !== lightDark && toggleLightDark()}
+            options={[
+              { value: 'dark', label: 'Dunkel' },
+              { value: 'light', label: 'Hell' },
+            ]}
+          />
+        </div>
       )}
     </div>
   )

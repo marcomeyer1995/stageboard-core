@@ -123,8 +123,9 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
         ))
       )}
       <div className="mt-1 grid grid-cols-2 gap-2">
-        <Button size="stage" icon="add" onClick={() => void createNew()} disabled={arranging}>
-          Neues Dashboard
+        {/* Just "Neu" under the "Dashboards" heading - the long label wrapped at stage size. */}
+        <Button size="stage" icon="add" aria-label="Neues Dashboard" onClick={() => void createNew()} disabled={arranging}>
+          Neu
         </Button>
         {/* "Ordnen beenden", not "Fertig": "Fertig" is the menu's own way out (docs/15 D6). */}
         <Button size="stage" variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>
