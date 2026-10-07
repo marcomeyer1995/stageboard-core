@@ -43,7 +43,7 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
   }
 
   const chip = (selected: boolean) =>
-    `min-h-12 rounded-sb-sm px-3 font-semibold ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`
+    `min-h-12 rounded-control px-3 font-semibold ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft" style={{ fontSize }}>
@@ -64,7 +64,7 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
             key={`${i}-${preset}`}
             type="button"
             onClick={() => void send(preset)}
-            className="min-h-12 rounded-sb-sm bg-control-strong px-3 font-bold text-ink hover:bg-control-strong-hover"
+            className="min-h-12 rounded-control bg-control-strong px-3 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             {preset}
           </button>
@@ -83,9 +83,9 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
           onChange={(e) => setText(e.target.value)}
           placeholder="Eigene Nachricht…"
           aria-label={`Nachricht an ${recipients}`}
-          className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-ink"
+          className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-ink"
         />
-        <button type="submit" disabled={!text.trim()} className="min-h-12 rounded-sb-sm bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
+        <button type="submit" disabled={!text.trim()} className="min-h-12 rounded-control bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
           Senden
         </button>
       </form>
@@ -108,7 +108,7 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
     next.splice(i + by, 0, item!)
     set(next)
   }
-  const iconButton = 'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control text-ink-soft hover:bg-control-hover disabled:opacity-30'
+  const iconButton = 'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-30'
   return (
     <div className="flex flex-col gap-3">
       <ContentFontSizeConfigPanel config={config} onChange={onChange} />
@@ -122,7 +122,7 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
               aria-label={`Nachricht ${i + 1}`}
               onChange={(e) => set(presets.map((p, j) => (j === i ? e.target.value : p)))}
               onBlur={() => set(presets.map((p) => p.trim()).filter(Boolean))}
-              className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-base text-ink"
+              className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink"
             />
             <button type="button" aria-label={`„${preset}“ nach oben`} disabled={i === 0} onClick={() => move(i, -1)} className={iconButton}>
               <Icon name="up" />
@@ -137,11 +137,11 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} className="min-h-12 rounded-sb-sm bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
+        <button type="button" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} className="min-h-12 rounded-control bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
           + Nachricht
         </button>
         {config.presets && (
-          <button type="button" onClick={() => onChange({ ...config, presets: undefined })} className="min-h-12 rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover">
+          <button type="button" onClick={() => onChange({ ...config, presets: undefined })} className="min-h-12 rounded-control bg-control px-4 text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
             Standard wiederherstellen
           </button>
         )}

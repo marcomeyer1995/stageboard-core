@@ -61,7 +61,7 @@ export function StageServerSettings() {
       </p>
 
       {override && (
-        <div className="flex flex-col gap-2 rounded-sb border border-line bg-surface p-3 text-sm">
+        <div className="flex flex-col gap-2 rounded-container border border-line bg-surface p-3 text-sm">
           <p className="text-amber-500">
             Diese manuelle Adresse ersetzt auf diesem Gerät die automatische
             {automatic ? ` (${automatic})` : ''}. Stimmt sie nicht mehr, erreicht dieses Gerät den Stage-Server
@@ -70,14 +70,14 @@ export function StageServerSettings() {
           <button
             type="button"
             onClick={reset}
-            className="h-12 self-start rounded-sb bg-control px-4 font-semibold text-ink-soft hover:bg-control-hover"
+            className="h-12 self-start rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
           >
             Zurücksetzen auf automatisch
           </button>
         </div>
       )}
 
-      <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+      <details className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">Erweitert: andere Adresse verwenden</summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-ink-faint">
@@ -90,7 +90,7 @@ export function StageServerSettings() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="z.B. https://stageboard.local"
               aria-label="Stage-Server-Adresse"
-              className="h-12 min-w-0 flex-1 rounded-sb bg-surface px-3 text-ink-soft"
+              className="h-12 min-w-0 flex-1 rounded-control bg-surface px-3 text-ink-soft"
             />
             <button
               type="button"
@@ -99,7 +99,7 @@ export function StageServerSettings() {
                 setDraft(draftOverride ?? '')
               }}
               disabled={draftOverride === override}
-              className="h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-50"
+              className="h-12 flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-50"
             >
               Speichern
             </button>

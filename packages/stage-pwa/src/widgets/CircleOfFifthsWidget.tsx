@@ -117,7 +117,7 @@ export function CircleOfFifthsConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Notenname
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.noteNaming ?? 'sharp'}
           onChange={(e) => onChange({ ...config, noteNaming: e.target.value as CircleOfFifthsConfig['noteNaming'] })}
         >

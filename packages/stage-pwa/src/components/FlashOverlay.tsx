@@ -59,7 +59,7 @@ export function FlashOverlay() {
         role="alert"
         style={{ top }}
         onClick={() => setShown(null)}
-        className="fixed inset-x-2 cursor-pointer z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-sb bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
+        className="fixed inset-x-2 cursor-pointer z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-control bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
       >
         <p className="max-w-full break-words text-[clamp(2rem,6vw,4.5rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
         {shown.from && <p className="text-lg font-bold">— {shown.from}</p>}

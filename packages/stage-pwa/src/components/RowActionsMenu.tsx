@@ -20,7 +20,7 @@ export function RowMenuButton({ label, onClick }: { label: string; onClick: () =
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink-soft"
+      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink-soft"
     >
       <Icon name="moreVertical" size="1.25rem" />
     </button>
@@ -41,13 +41,13 @@ export function RowActionsMenu({
     <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
       {/* Stops the overlay's own onClick (which closes the popup) from firing when the tap
           lands on the card itself, not the backdrop around it. */}
-      <div className="w-full max-w-sm space-y-2 rounded-sb border border-line bg-surface p-4" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-sm space-y-2 rounded-control border border-line bg-surface p-4" onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-1 font-semibold">{title}</h3>
         {children}
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-sb bg-control px-4 py-2 text-ink-soft hover:bg-control-hover"
+          className="w-full rounded-control bg-control px-4 py-2 text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
         >
           Schließen
         </button>
@@ -65,7 +65,7 @@ export function RowActionButton({
     <button
       type="button"
       {...props}
-      className={`w-full rounded-sb border border-line px-4 py-2 text-left hover:bg-control-hover disabled:cursor-not-allowed disabled:text-ink-faint disabled:hover:bg-transparent ${
+      className={`w-full rounded-control border border-line px-4 py-2 text-left [@media(hover:hover)]:hover:bg-control-hover disabled:cursor-not-allowed disabled:text-ink-faint disabled:hover:bg-transparent ${
         danger ? 'text-red-400' : ''
       } ${className ?? ''}`}
     />

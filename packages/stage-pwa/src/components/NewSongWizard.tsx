@@ -78,9 +78,9 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
     onFinish(song, variant)
   }
 
-  const field = 'h-12 w-full rounded-sb-sm bg-control px-3 text-base text-ink'
-  const secondary = 'min-h-12 rounded-sb bg-control px-4 font-semibold text-ink-soft hover:bg-control-hover'
-  const primary = 'min-h-12 rounded-sb bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
+  const field = 'h-12 w-full rounded-control bg-control px-3 text-base text-ink'
+  const secondary = 'min-h-12 rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
+  const primary = 'min-h-12 rounded-control bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
 
   return (
     <div
@@ -89,7 +89,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
       className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-6"
       onKeyDown={(e) => e.key === 'Escape' && !importing && onCancel()}
     >
-      <div className="flex max-h-[min(90vh,90dvh)] w-full max-w-xl flex-col overflow-hidden rounded-sb border border-line bg-surface text-ink shadow-sb">
+      <div className="flex max-h-[min(90vh,90dvh)] w-full max-w-xl flex-col overflow-hidden rounded-container border border-line bg-surface text-ink shadow-sb">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
           <div>
             <h2 className="text-lg font-bold">Neuer Song</h2>
@@ -97,7 +97,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
               Schritt {step}/3 · {STEP_TITLE[step]}
             </p>
           </div>
-          <button type="button" onClick={onCancel} className="flex h-12 w-12 items-center justify-center rounded-sb text-ink-muted hover:bg-control-hover hover:text-ink" aria-label="Fenster schließen">
+          <button type="button" onClick={onCancel} className="flex h-12 w-12 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
             <Icon name="close" size="1.5rem" />
           </button>
         </div>
@@ -126,7 +126,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
           {step === 2 && (
             <div className="flex flex-col gap-3">
               <p className="text-base text-ink-soft">Woher kommt der Text?</p>
-              <button type="button" onClick={() => setImporting(true)} className="flex min-h-16 flex-col items-start justify-center rounded-sb bg-control-strong px-4 py-3 text-left hover:bg-control-strong-hover">
+              <button type="button" onClick={() => setImporting(true)} className="flex min-h-16 flex-col items-start justify-center rounded-control bg-control-strong px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-strong-hover">
                 <span className="text-base font-bold text-ink">Von Ultimate Guitar importieren</span>
                 <span className="text-sm text-ink-muted">Suchen, Vorschau ansehen, übernehmen - Akkorde, Text, Key und Tempo.</span>
               </button>
@@ -136,7 +136,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                   setImported(null)
                   setStep(3)
                 }}
-                className="flex min-h-16 flex-col items-start justify-center rounded-sb bg-control-strong px-4 py-3 text-left hover:bg-control-strong-hover"
+                className="flex min-h-16 flex-col items-start justify-center rounded-control bg-control-strong px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-strong-hover"
               >
                 <span className="text-base font-bold text-ink">Leer beginnen</span>
                 <span className="text-sm text-ink-muted">Text später im Editor schreiben oder einfügen.</span>

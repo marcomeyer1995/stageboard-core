@@ -60,7 +60,7 @@ export function SyncIndicator() {
   return (
     <div className="flex flex-col gap-2">
       <div
-        className="flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft"
+        className="flex h-12 items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft"
         title={displayLabel}
       >
         <span data-testid="sync-icon" className={`flex items-center text-lg leading-none ${status === 'syncing' ? 'animate-pulse' : ''}`}>
@@ -72,7 +72,7 @@ export function SyncIndicator() {
         <button
           type="button"
           onClick={() => void repair()}
-          className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
+          className="h-12 rounded-control bg-control-strong px-4 text-sm font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           Reparieren
         </button>

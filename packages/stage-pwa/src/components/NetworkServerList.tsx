@@ -48,7 +48,7 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-ink-muted">Stage-Server im Netzwerk</span>
-        <button type="button" disabled={searching} onClick={() => void search()} className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink disabled:opacity-50">
+        <button type="button" disabled={searching} onClick={() => void search()} className="min-h-12 rounded-control bg-control-strong px-3 text-sm font-semibold text-ink disabled:opacity-50">
           {searching ? 'Sucht…' : 'Suchen'}
         </button>
       </div>
@@ -58,7 +58,7 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
           key={`${server.name}@${server.host}`}
           type="button"
           onClick={() => void connect(server)}
-          className="flex min-h-12 items-center justify-between gap-2 rounded-sb bg-control px-3 text-left text-base text-ink hover:bg-control-hover"
+          className="flex min-h-12 items-center justify-between gap-2 rounded-control bg-control px-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
         >
           <span className="font-semibold">{server.name}</span>
           <span className="text-sm text-ink-muted">{server.host}</span>

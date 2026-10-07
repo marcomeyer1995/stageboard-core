@@ -116,10 +116,10 @@ export function SystemView() {
               key={candidate}
               type="button"
               onClick={() => setTab(candidate)}
-              className={`min-h-12 rounded-sb px-4 text-left text-base font-semibold ${
+              className={`min-h-12 rounded-control px-4 text-left text-base font-semibold ${
                 activeTab === candidate
                   ? 'bg-accent text-accent-ink'
-                  : 'bg-control text-ink-soft hover:bg-control-hover'
+                  : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
               }`}
             >
               {TAB_LABEL[candidate]}
@@ -141,8 +141,8 @@ export function SystemView() {
             key={candidate}
             type="button"
             onClick={() => setTab(candidate)}
-            className={`min-h-12 flex-grow rounded-sb px-4 text-sm font-semibold ${
-              activeTab === candidate ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
+            className={`min-h-12 flex-grow rounded-control px-4 text-sm font-semibold ${
+              activeTab === candidate ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
             }`}
           >
             {TAB_LABEL[candidate]}

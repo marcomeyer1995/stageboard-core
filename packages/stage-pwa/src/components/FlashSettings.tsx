@@ -21,7 +21,7 @@ export function FlashSettings() {
             type="button"
             aria-pressed={mode === option.mode}
             onClick={() => setMode(option.mode)}
-            className={`h-12 rounded-sb text-base font-semibold ${mode === option.mode ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
+            className={`h-12 rounded-control text-base font-semibold ${mode === option.mode ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
           >
             {option.label}
           </button>

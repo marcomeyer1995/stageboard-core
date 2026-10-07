@@ -36,7 +36,7 @@ export function ProfileRolePickerView() {
               key={profile.id}
               type="button"
               onClick={() => setActive(workspaceId, profile.id)}
-              className="flex w-full items-center justify-between rounded-sb border border-line bg-surface px-4 py-3 text-left hover:bg-control-hover"
+              className="flex w-full items-center justify-between rounded-control border border-line bg-surface px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-hover"
             >
               <span className="font-semibold">{profile.name}</span>
             </button>
@@ -46,7 +46,7 @@ export function ProfileRolePickerView() {
         <button
           type="button"
           onClick={() => setActive(workspaceId, null)}
-          className="mt-4 w-full rounded-sb bg-control px-4 py-2 text-sm text-ink-soft hover:bg-control-hover"
+          className="mt-4 w-full rounded-control bg-control px-4 py-2 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
         >
           Ohne Profil fortfahren
         </button>

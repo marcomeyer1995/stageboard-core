@@ -65,19 +65,19 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
           {occurrences.map((occurrence) => (
             <div
               key={occurrence.lineNumber}
-              className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+              className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft"
             >
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={occurrence.text}
                   onChange={(e) => patchLine(occurrence.lineNumber, e.target.value, occurrence.targets)}
-                  className="flex-1 rounded-sb-sm bg-control-strong px-2 py-1 text-sm text-ink"
+                  className="flex-1 rounded-control bg-control-strong px-2 py-1 text-sm text-ink"
                 />
                 <button
                   type="button"
                   onClick={() => remove(occurrence.lineNumber)}
-                  className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
+                  className="rounded-control bg-control-strong px-2 py-1 text-xs text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Entfernen
                 </button>
@@ -102,7 +102,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
           {tabBlocks.map((block, index) => (
             <div
               key={block.lineNumber}
-              className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+              className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft"
             >
               <span>
                 {block.label ?? `Tab ${index + 1}`}{' '}
@@ -156,8 +156,8 @@ export function TargetPicker({
                 key={profile.id}
                 type="button"
                 onClick={() => toggle(profile)}
-                className={`rounded-sb-sm px-2 py-0.5 ${
-                  checked ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink-soft hover:bg-control-strong-hover'
+                className={`rounded-control px-2 py-0.5 ${
+                  checked ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover'
                 }`}
               >
                 {profile.name}

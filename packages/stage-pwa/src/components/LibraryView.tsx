@@ -135,7 +135,7 @@ function DraggableSongRow({
       ]
 
   return (
-    <li className="relative overflow-hidden rounded-sb-sm">
+    <li className="relative overflow-hidden rounded-control">
       {/* Revealed by the row above sliding right - a solid row background at rest fully
           covers this, so no opacity/width math is needed to fake the Spotify swipe-reveal.
           Touch lane only - a mouse user dragging onto an open setlist pane isn't "swiping to
@@ -179,8 +179,8 @@ function DraggableSongRow({
           // scrolling working natively; only the horizontal swipe/drag is JS-driven.
           touchAction: 'pan-y',
         }}
-        className={`relative z-10 flex items-center gap-1 rounded-sb-sm py-1 pl-2 pr-1 ${
-          selected ? 'bg-accent text-accent-ink' : 'bg-control hover:bg-control-hover'
+        className={`relative z-10 flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
+          selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
         } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''}`}
       >
         <button
@@ -197,7 +197,7 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm text-xl text-ink-faint hover:bg-control-hover hover:text-ink disabled:opacity-40"
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control text-xl text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink disabled:opacity-40"
           >
             +
           </button>
@@ -495,7 +495,7 @@ export function LibraryView() {
         className={`flex h-full gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
       >
         <div
-          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb ${
+          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-control border border-line bg-surface p-4 shadow-sb ${
             isPanel || !selection ? 'flex' : 'hidden'
           }`}
         >
@@ -505,7 +505,7 @@ export function LibraryView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Songs & Setlists durchsuchen…"
-            className="h-12 flex-shrink-0 rounded-sb-sm bg-control px-4 text-base text-ink"
+            className="h-12 flex-shrink-0 rounded-control bg-control px-4 text-base text-ink"
           />
 
           <div className="flex gap-2">
@@ -517,7 +517,7 @@ export function LibraryView() {
                 className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${
                   filterMode === mode
                     ? 'bg-accent text-accent-ink'
-                    : 'bg-control text-ink-soft hover:bg-control-hover'
+                    : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
                 }`}
               >
                 {FILTER_LABEL[mode]}
@@ -534,7 +534,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={createSetlist}
-                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
+                  className="h-12 rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -551,10 +551,10 @@ export function LibraryView() {
                             : { type: 'setlist', id: setlist.id },
                         )
                       }
-                      className={`h-14 w-full rounded-sb-sm px-4 text-left text-base ${
+                      className={`h-14 w-full rounded-control px-4 text-left text-base ${
                         selection?.type === 'setlist' && selection.id === setlist.id
                           ? 'bg-accent text-accent-ink'
-                          : 'bg-control hover:bg-control-hover'
+                          : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
                       } ${focusedIndex === idx ? 'ring-2 ring-inset ring-accent' : ''}`}
                     >
                       {setlist.name}{' '}
@@ -592,7 +592,7 @@ export function LibraryView() {
                 <button
                   type="button"
                   onClick={() => void createSong()}
-                  className="h-12 rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover"
+                  className="h-12 rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   + Neu
                 </button>
@@ -623,7 +623,7 @@ export function LibraryView() {
 
         <div
           ref={setDropzoneRef}
-          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-sb border p-4 shadow-sb ${
+          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-control border p-4 shadow-sb ${
             isPanel || selection ? 'flex' : 'hidden'
           } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
         >
@@ -632,7 +632,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
@@ -650,7 +650,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover ${
+                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >

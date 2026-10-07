@@ -81,7 +81,7 @@ export function SwitchServerBandWizard({
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm space-y-4 rounded-sb border border-line bg-surface p-6 text-ink">
+      <div className="w-full max-w-sm space-y-4 rounded-container border border-line bg-surface p-6 text-ink">
         {step === 'closing' && closingBand && (
           <VerifyWorkspaceAdmin
             key={`closing-${closingBand.workspaceId}`}
@@ -115,7 +115,7 @@ export function SwitchServerBandWizard({
                         setTarget(band)
                         setStep('target')
                       }}
-                      className="flex w-full items-center justify-between rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover disabled:opacity-50"
+                      className="flex w-full items-center justify-between rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
                     >
                       <span>{band.workspaceName}</span>
                       {isActive && <span className="text-xs font-normal text-ink-faint">Aktiv</span>}

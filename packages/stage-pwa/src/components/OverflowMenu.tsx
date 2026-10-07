@@ -79,8 +79,8 @@ export function OverflowMenu({
           title="Menü öffnen"
           className={
             variant === 'flat'
-              ? `flex ${size} flex-shrink-0 items-center justify-center rounded-sb-sm text-lg leading-none text-ink-faint hover:bg-control-hover hover:text-ink`
-              : `flex ${size} flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-lg leading-none text-ink-soft hover:bg-control-strong-hover`
+              ? `flex ${size} flex-shrink-0 items-center justify-center rounded-control text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink`
+              : `flex ${size} flex-shrink-0 items-center justify-center rounded-control bg-control-strong text-lg leading-none text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover`
           }
         >
           <Icon name={glyph} size="1.4rem" />
@@ -93,7 +93,7 @@ export function OverflowMenu({
             onClick={() => setOpen(false)}
           >
             <div
-              className="flex w-full max-w-[min(260px,85vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
+              className="flex w-full max-w-[min(260px,85vw)] flex-col gap-3 rounded-container border border-line bg-surface p-3 shadow-sb"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-2">
@@ -102,7 +102,7 @@ export function OverflowMenu({
                   type="button"
                   onClick={() => setOpen(false)}
                   title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
                 >
                   <Icon name="close" size="1.25rem" />
                 </button>
@@ -118,7 +118,7 @@ export function OverflowMenu({
                       setOpen(false)
                       action.onClick()
                     }}
-                    className="h-11 w-full rounded-sb bg-control text-base text-ink hover:bg-control-hover disabled:opacity-40"
+                    className="h-11 w-full rounded-control bg-control text-base text-ink [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
                   >
                     {action.label}
                   </button>
@@ -136,7 +136,7 @@ export function OverflowMenu({
                         setOpen(false)
                         action.onClick()
                       }}
-                      className="h-11 w-full rounded-sb bg-control text-base text-red-400 hover:bg-control-hover hover:text-red-300 disabled:opacity-40"
+                      className="h-11 w-full rounded-control bg-control text-base text-red-400 [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-red-300 disabled:opacity-40"
                     >
                       {action.label}
                     </button>

@@ -184,7 +184,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
           {chips.map((chip) => (
-            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-sb-sm bg-control px-2 py-1 font-semibold text-ink-soft">
+            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-control bg-control px-2 py-1 font-semibold text-ink-soft">
               {chip}
             </span>
           ))}
@@ -251,7 +251,7 @@ export function PrompterConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Ansicht
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.viewMode}
           onChange={(e) => onChange({ ...config, viewMode: e.target.value as PrompterConfig['viewMode'] })}
         >

@@ -146,7 +146,7 @@ function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onli
           {profile.stageRoles.map((role) => (
             <span
               key={role}
-              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink-soft"
+              className="rounded-control bg-control px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink-soft"
             >
               {STAGE_ROLE_LABELS[role]}
             </span>
@@ -278,7 +278,7 @@ export function BandManagementView() {
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
 
       {(hardwareStatus !== 'loading' || hardwareSlow) && (
-        <p className="rounded-sb border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
+        <p className="rounded-container border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
           {hardwareStatus === 'loading' && 'Stage-Server antwortet langsam…'}
           {hardwareStatus === 'unreachable' && 'Stage-Server nicht erreichbar.'}
           {hardwareStatus === 'unpaired' && 'Noch mit keinem Stage-Server gekoppelt - unter System → Einstellungen → Stage-Server suchen.'}
@@ -297,7 +297,7 @@ export function BandManagementView() {
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
-            className={`flex items-center justify-between gap-2 rounded-sb border px-4 py-3 ${
+            className={`flex items-center justify-between gap-2 rounded-container border px-4 py-3 ${
               workspace.id === activeWorkspaceId ? 'border-accent bg-accent/10' : 'border-line bg-surface'
             }`}
           >
@@ -305,7 +305,7 @@ export function BandManagementView() {
               type="button"
               onClick={() => setActiveWorkspace(workspace.id)}
               disabled={workspace.id === activeWorkspaceId}
-              className="text-left font-semibold hover:underline disabled:hover:no-underline"
+              className="text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
             >
               {workspace.name}
             </button>
@@ -412,7 +412,7 @@ export function BandManagementView() {
         <button
           type="button"
           onClick={() => setShowAddBandChoice(true)}
-          className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
+          className="min-h-12 w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
         >
           + Band
         </button>
@@ -427,7 +427,7 @@ export function BandManagementView() {
             <p className="text-sm text-ink-faint">Nur der Band-Admin kann Mitglieder verwalten.</p>
           )}
           {activeWorkspace.isAdmin && !activeWorkspace.username && (
-            <div className="space-y-2 rounded-sb border border-line bg-surface p-4">
+            <div className="space-y-2 rounded-container border border-line bg-surface p-4">
               <p className="text-sm text-ink-soft">
                 Diese Band läuft bisher nur lokal auf diesem Gerät. Sobald ein Stage-Server bereitsteht (z.B. beim
                 nächsten Bandtreffen), verbindet "Verbinden" diese Band damit - danach kann jedes Mitglied sich über
@@ -448,7 +448,7 @@ export function BandManagementView() {
                   setStageServerUrl(overrideForTypedUrl(serverUrl))
                   await connectToServer(normalizeStageServerUrl(serverUrl))
                 }}
-                className="rounded-sb border border-line bg-control px-4 py-2 font-semibold hover:bg-control-hover"
+                className="rounded-control border border-line bg-control px-4 py-2 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
               >
                 Verbinden
               </button>
@@ -461,7 +461,7 @@ export function BandManagementView() {
             return (
               <div
                 key={profile.id}
-                className={`flex flex-col gap-2 rounded-sb border px-4 py-3 ${
+                className={`flex flex-col gap-2 rounded-container border px-4 py-3 ${
                   isActiveProfile ? 'border-accent bg-accent/10' : 'border-line bg-surface'
                 }`}
               >
@@ -474,7 +474,7 @@ export function BandManagementView() {
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left hover:opacity-80">
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}
@@ -602,12 +602,12 @@ export function BandManagementView() {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
                       />
                       <button
                         type="submit"
                         disabled={activating || activatePasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {activating ? '…' : 'Wechseln'}
                       </button>
@@ -635,7 +635,7 @@ export function BandManagementView() {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-              className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
+              className="min-h-12 w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
             >
               + Neues Mitglied
             </button>
@@ -659,7 +659,7 @@ export function BandManagementView() {
                   type="button"
                   aria-pressed={selected}
                   onClick={() => !selected && void setMasterMode(activeWorkspace.id, mode)}
-                  className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
+                  className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
                 >
                   {mode === 'device' ? 'Pro Gerät' : 'Pro Person'}
                 </button>
@@ -675,7 +675,7 @@ export function BandManagementView() {
       {showJoinAnotherBand && <JoinBandView onClose={() => setShowJoinAnotherBand(false)} />}
       {showAddBandChoice && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm space-y-3 rounded-sb border border-line bg-surface p-6 text-ink">
+          <div className="w-full max-w-sm space-y-3 rounded-container border border-line bg-surface p-6 text-ink">
             <h2 className="text-xl font-bold">Band hinzufügen</h2>
             <button
               type="button"
@@ -683,7 +683,7 @@ export function BandManagementView() {
                 setShowAddBandChoice(false)
                 setShowJoinAnotherBand(true)
               }}
-              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
+              className="w-full rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
             >
               Bestehender Band beitreten
             </button>
@@ -694,7 +694,7 @@ export function BandManagementView() {
                 const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
                 if (name?.trim()) void addWorkspace(name.trim())
               }}
-              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
+              className="w-full rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
             >
               Neue Band gründen
             </button>

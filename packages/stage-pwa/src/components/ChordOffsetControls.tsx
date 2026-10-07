@@ -19,7 +19,7 @@ function Stepper({
   onStep: (delta: number) => void
 }) {
   const buttonClass =
-    'flex h-touch w-touch items-center justify-center rounded-sb-sm bg-control-strong text-2xl font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+    'flex h-touch w-touch items-center justify-center rounded-control bg-control-strong text-2xl font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
   // One grid row per stepper (label column of fixed width), so the buttons of both rows line up
   // whatever the label's length (#410: "Transpose" pushed its buttons further right than "Capo").
   return (
@@ -59,8 +59,8 @@ export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offset
         type="button"
         onClick={() => setOpen(true)}
 
-        className={`min-h-12 flex-shrink-0 rounded-sb-sm px-4 font-sans text-base font-bold normal-case tracking-normal ${
-          changed ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+        className={`min-h-12 flex-shrink-0 rounded-control px-4 font-sans text-base font-bold normal-case tracking-normal ${
+          changed ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
         }`}
       >
         {/* "Tonart: A" (Marco) - a lone "A" didn't say that tapping changes the key. */}
@@ -80,7 +80,7 @@ function ChordOffsetDialog({ offsets, authoredCapo, onClose }: { offsets: ChordO
       <div
         role="dialog"
         aria-label="Tonart"
-        className="flex w-full max-w-sm flex-col gap-4 rounded-sb border border-line bg-surface p-4 shadow-sb"
+        className="flex w-full max-w-sm flex-col gap-4 rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-ink">Tonart</h2>
@@ -104,11 +104,11 @@ function ChordOffsetDialog({ offsets, authoredCapo, onClose }: { offsets: ChordO
         <p className="text-sm text-ink-faint">Gilt nur auf diesem Gerät und nur für diesen Song.</p>
         <div className="flex justify-end gap-2">
           {dirty && (
-            <button type="button" onClick={offsets.reset} className="min-h-12 rounded-sb-sm bg-control px-4 text-base text-ink-soft hover:bg-control-hover">
+            <button type="button" onClick={offsets.reset} className="min-h-12 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
               Zurücksetzen
             </button>
           )}
-          <button type="button" onClick={onClose} className="min-h-12 rounded-sb-sm bg-accent px-6 text-base font-bold text-accent-ink hover:bg-accent-hover">
+          <button type="button" onClick={onClose} className="min-h-12 rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
             Fertig
           </button>
         </div>

@@ -69,7 +69,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="z.B. „Marcos Kemper“"
-          className="h-11 rounded-sb-sm bg-control px-3 text-sm text-ink placeholder:text-ink-faint"
+          className="h-11 rounded-control bg-control px-3 text-sm text-ink placeholder:text-ink-faint"
         />
       </label>
 
@@ -79,7 +79,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
           {existing.map((device) => {
             const usage = findLogicalDeviceUsage(device.id, variants, songs)
             return (
-              <div key={device.id} className="rounded-sb-sm bg-control px-3 py-2 text-xs text-ink-soft">
+              <div key={device.id} className="rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
                 <span className="font-medium">{device.name}</span> · {pluginNameOf(device.pluginId)}
                 {usage.length > 0 && (
                   <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>
@@ -94,7 +94,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
         type="button"
         onClick={onNext}
         disabled={!draft.name.trim()}
-        className="h-11 self-end rounded-sb-sm bg-accent px-6 text-sm font-semibold text-accent-ink hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-11 self-end rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
       >
         Weiter
       </button>
@@ -136,8 +136,8 @@ function TypeStep({
               key={candidate.id}
               type="button"
               onClick={() => onChange({ ...draft, pluginId: candidate.id, capability: candidate.capabilities[0] ?? null })}
-              className={`flex items-center justify-between gap-3 rounded-sb-sm border px-3 py-3 text-left text-sm ${
-                selected ? 'border-accent bg-control-strong text-ink' : 'border-transparent bg-control text-ink-soft hover:bg-control-hover'
+              className={`flex items-center justify-between gap-3 rounded-control border px-3 py-3 text-left text-sm ${
+                selected ? 'border-accent bg-control-strong text-ink' : 'border-transparent bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
               }`}
             >
               <span>
@@ -150,14 +150,14 @@ function TypeStep({
         })}
       </div>
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-sb-sm bg-control-strong px-4 text-sm text-ink-soft hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
         <button
           type="button"
           onClick={() => void next()}
           disabled={!draft.pluginId || saving}
-          className="h-11 rounded-sb-sm bg-accent px-6 text-sm font-semibold text-accent-ink hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? 'Speichere…' : 'Weiter'}
         </button>
@@ -273,7 +273,7 @@ function ConnectionStep({
   return (
     <div className="flex flex-col gap-4">
       {resolvedTarget && (
-        <p className="rounded-sb-sm bg-control-strong px-3 py-2 text-sm text-ink">
+        <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
           Verbunden mit {reporterLabel(resolvedTarget)}
           {resolvedTarget !== getDeviceId() && (
             <span className="text-ink-faint"> · wartet darauf, dass sich dieses Gerät selbst einträgt</span>
@@ -282,12 +282,12 @@ function ConnectionStep({
       )}
 
       {identifyingHere && (
-        <div className="flex flex-col gap-2 rounded-sb-sm border border-accent/40 bg-control px-3 py-3">
+        <div className="flex flex-col gap-2 rounded-control border border-accent/40 bg-control px-3 py-3">
           <p className="text-sm font-semibold text-ink">{identifyingHere.instruction}</p>
           {candidates
             .filter((c) => c.status === 'identifying')
             .map((c) => (
-              <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-sb-sm bg-control-strong px-2 py-2 text-xs">
+              <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-control bg-control-strong px-2 py-2 text-xs">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-ink-soft">
                     {c.name || c.hardwareKey} <span className="text-ink-faint">via {reporterLabel(c.reporterId)}</span>
@@ -299,7 +299,7 @@ function ConnectionStep({
                     type="button"
                     onClick={() => void sendTrigger(c.hardwareKey)}
                     disabled={sendingKey === c.hardwareKey}
-                    className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                    className="h-7 shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
                   >
                     {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
                   </button>
@@ -313,7 +313,7 @@ function ConnectionStep({
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Automatisch erkannt</p>
         {candidates.length === 0 && <p className="text-xs text-ink-faint">Noch keine passenden Geräte erkannt…</p>}
         {candidates.map((c) => (
-          <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-3 py-2 text-xs">
+          <div key={`${c.reporterId}:${c.hardwareKey}`} className="flex items-center justify-between gap-2 rounded-control bg-control px-3 py-2 text-xs">
             <div className="flex flex-col gap-0.5">
               <span className="text-ink-soft">
                 {c.name || c.hardwareKey} <span className="text-ink-faint">via {reporterLabel(c.reporterId)}</span>
@@ -327,7 +327,7 @@ function ConnectionStep({
                 type="button"
                 onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
                 disabled={assigningKey === c.hardwareKey}
-                className="h-7 shrink-0 rounded-sb-sm bg-accent px-2 text-xs font-medium text-accent-ink hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                className="h-7 shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
               >
                 {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
               </button>
@@ -336,12 +336,12 @@ function ConnectionStep({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-sb-sm border border-dashed border-line px-3 py-3">
+      <div className="flex flex-col gap-2 rounded-control border border-dashed border-line px-3 py-3">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Manuell festlegen</p>
         <select
           value={manualTarget}
           onChange={(e) => setManualTarget(e.target.value)}
-          className="h-12 rounded-sb-sm bg-control px-3 text-base text-ink"
+          className="h-12 rounded-control bg-control px-3 text-base text-ink"
         >
           <option value="">— nicht festgelegt —</option>
           <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
@@ -359,7 +359,7 @@ function ConnectionStep({
                 setManualTransportId(e.target.value)
                 setManualValues({})
               }}
-              className="h-12 rounded-sb-sm bg-control px-3 text-base text-ink"
+              className="h-12 rounded-control bg-control px-3 text-base text-ink"
             >
               <option value="">Anschlussart wählen…</option>
               {plugin.transports.map((t) => (
@@ -377,7 +377,7 @@ function ConnectionStep({
                       type={field.type}
                       value={manualValues[field.key] ?? ''}
                       onChange={(e) => setManualValues({ ...manualValues, [field.key]: e.target.value })}
-                      className="w-32 rounded-sb-sm bg-control-strong px-2 py-1 text-sm text-ink"
+                      className="w-32 rounded-control bg-control-strong px-2 py-1 text-sm text-ink"
                     />
                   </label>
                 ))}
@@ -388,17 +388,17 @@ function ConnectionStep({
         <button
           type="button"
           onClick={() => void saveManual()}
-          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover"
+          className="h-12 self-start rounded-control bg-control-strong px-4 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           Speichern
         </button>
       </div>
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-sb-sm bg-control-strong px-4 text-sm text-ink-soft hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
-        <button type="button" onClick={onNext} className="h-11 rounded-sb-sm bg-accent px-6 text-sm font-semibold text-accent-ink hover:bg-accent-hover">
+        <button type="button" onClick={onNext} className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
           {resolvedTarget ? 'Weiter' : 'Später verbinden'}
         </button>
       </div>
@@ -428,7 +428,7 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
           <button
             type="button"
             onClick={() => void runTest()}
-            className="h-11 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink-soft hover:bg-control-strong-hover"
+            className="h-11 rounded-control bg-control-strong px-4 text-sm font-medium text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             Testen
           </button>
@@ -443,10 +443,10 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
       )}
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-sb-sm bg-control-strong px-4 text-sm text-ink-soft hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
-        <button type="button" onClick={onFinish} className="h-11 rounded-sb-sm bg-accent px-6 text-sm font-semibold text-accent-ink hover:bg-accent-hover">
+        <button type="button" onClick={onFinish} className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
           Fertig
         </button>
       </div>
@@ -510,7 +510,7 @@ export function DeviceSetupWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-sb border border-line bg-surface shadow-sb">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-widest text-ink-muted">Gerät einrichten</h2>
@@ -518,7 +518,7 @@ export function DeviceSetupWizard({
               Schritt {step}/{TOTAL_STEPS} · {STEP_TITLE[step]}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="text-lg leading-none text-ink-faint hover:text-ink" aria-label="Fenster schließen">
+          <button type="button" onClick={onClose} className="text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
             ×
           </button>
         </div>

@@ -66,7 +66,7 @@ function ScaledPreview({ definition }: { definition: WidgetDefinition }) {
   const scale = Math.min(PREVIEW_W / width, PREVIEW_H / height, 1)
   return (
     <div
-      className="absolute left-1/2 top-1/2 flex flex-col overflow-hidden rounded-sb border border-line bg-surface p-4"
+      className="absolute left-1/2 top-1/2 flex flex-col overflow-hidden rounded-container border border-line bg-surface p-4"
       style={{ width, height, transform: `translate(-50%, -50%) scale(${scale})` }}
     >
       <div className="min-h-0 flex-1">
@@ -160,7 +160,7 @@ export function WidgetLibrary({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-sb border border-line bg-surface p-4 shadow-sb"
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -169,7 +169,7 @@ export function WidgetLibrary({
             type="button"
             onClick={onClose}
             title="Schließen"
-            className="flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+            className="flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
           >
             <Icon name="close" size="1.5rem" />
           </button>
@@ -182,7 +182,7 @@ export function WidgetLibrary({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Widget suchen…"
-          className="h-touch flex-shrink-0 rounded-sb-sm bg-control px-3 text-ink placeholder:text-ink-faint"
+          className="h-touch flex-shrink-0 rounded-control bg-control px-3 text-ink placeholder:text-ink-faint"
         />
 
         {noRoom && (
@@ -190,7 +190,7 @@ export function WidgetLibrary({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setNoRoom(null)}>
             <div
               role="alert"
-              className="flex w-full max-w-lg flex-col gap-3 rounded-sb border border-amber-500 bg-surface p-4 shadow-sb"
+              className="flex w-full max-w-lg flex-col gap-3 rounded-container border border-amber-500 bg-surface p-4 shadow-sb"
               onClick={(e) => e.stopPropagation()}
             >
               <p className="text-ink">
@@ -202,21 +202,21 @@ export function WidgetLibrary({
                 <button
                   type="button"
                   onClick={() => onAddToNewDashboard(noRoom)}
-                  className="h-touch rounded-sb-sm bg-accent px-4 font-bold text-accent-ink hover:bg-accent-hover"
+                  className="h-touch rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
                 >
                   Neues Dashboard mit diesem Widget
                 </button>
                 <button
                   type="button"
                   onClick={() => addHere(noRoom)}
-                  className="h-touch rounded-sb-sm bg-control-strong px-4 text-ink hover:bg-control-strong-hover"
+                  className="h-touch rounded-control bg-control-strong px-4 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Trotzdem hier hinzufügen
                 </button>
                 <button
                   type="button"
                   onClick={() => setNoRoom(null)}
-                  className="h-touch rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover"
+                  className="h-touch rounded-control bg-control px-4 text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   Abbrechen
                 </button>
@@ -244,7 +244,7 @@ export function WidgetLibrary({
                       add(definition)
                     }
                   }}
-                  className="flex w-44 cursor-pointer flex-col overflow-hidden rounded-sb border border-line bg-control text-left hover:bg-control-hover"
+                  className="flex w-44 cursor-pointer flex-col overflow-hidden rounded-control border border-line bg-control text-left [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   {/* `inert`, not just pointer-events-none: a live preview can render a
                       widget's own real controls (e.g. TunerWidget's "An" button) - inert
@@ -271,7 +271,7 @@ export function WidgetLibrary({
                     <span className="flex items-start justify-between gap-2">
                       <span className="font-semibold">{definition.title}</span>
                       {TIER_BADGE[definition.stageTier] && (
-                        <span className="whitespace-nowrap rounded-sb-sm bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
+                        <span className="whitespace-nowrap rounded-control bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
                           {TIER_BADGE[definition.stageTier]}
                         </span>
                       )}

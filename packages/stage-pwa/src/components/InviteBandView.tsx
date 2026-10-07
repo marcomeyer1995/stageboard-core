@@ -96,7 +96,7 @@ export function InviteBandView({
           bottom (including the only way to close it) would be unreachable. print: overrides
           escape all of that for the printed page itself - a fixed/clipped/scrollable modal
           would otherwise print blank or cropped. */}
-      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink print:max-h-none print:w-full print:max-w-none print:overflow-visible print:border-0 print:p-0">
+      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink print:max-h-none print:w-full print:max-w-none print:overflow-visible print:border-0 print:p-0">
         <h2 className="text-xl font-bold">{isFoundingSummary ? 'Code speichern!' : 'Band einladen'}</h2>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -128,7 +128,7 @@ export function InviteBandView({
             <button
               type="button"
               onClick={() => window.print()}
-              className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover print:hidden"
+              className="w-full rounded-control border border-line bg-surface px-4 py-2 font-semibold [@media(hover:hover)]:hover:bg-control-hover print:hidden"
             >
               Drucken / als PDF speichern
             </button>
@@ -158,7 +158,7 @@ export function InviteBandView({
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover print:hidden"
+          className="w-full rounded-control bg-control px-4 py-2 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover print:hidden"
         >
           {isFoundingSummary ? 'Fertig' : 'Schließen'}
         </button>

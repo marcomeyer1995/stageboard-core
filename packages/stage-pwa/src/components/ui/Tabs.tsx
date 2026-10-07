@@ -21,7 +21,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: TabsPro
             aria-selected={selected}
             onClick={() => onChange(tab.value)}
             className={`-mb-px min-h-form border-b-[3px] px-4 text-base ${FOCUS} ${
-              selected ? 'border-accent font-semibold text-ink' : 'border-transparent text-ink-muted hover:text-ink-soft'
+              selected ? 'border-accent font-semibold text-ink' : 'border-transparent text-ink-soft [@media(hover:hover)]:hover:text-ink'
             }`}
           >
             {tab.label}

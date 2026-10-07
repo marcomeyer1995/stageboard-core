@@ -136,7 +136,7 @@ export function RosterSetupView() {
               {profiles.map((profile) => (
                 <li
                   key={profile.id}
-                  className="flex items-center justify-between rounded-sb border border-line bg-surface px-4 py-2"
+                  className="flex items-center justify-between rounded-container border border-line bg-surface px-4 py-2"
                 >
                   <span className="font-semibold">
                     {profile.name}
@@ -162,12 +162,12 @@ export function RosterSetupView() {
               onChange={(e) => setMemberName(e.target.value)}
               placeholder="Name"
               autoFocus
-              className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
+              className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
             />
             <button
               type="submit"
               disabled={!memberName.trim()}
-              className="flex-shrink-0 rounded-sb border border-line bg-surface px-4 py-2 font-semibold disabled:opacity-50"
+              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 py-2 font-semibold disabled:opacity-50"
             >
               Hinzufügen
             </button>
@@ -176,7 +176,7 @@ export function RosterSetupView() {
           <button
             type="button"
             onClick={handleMembersDone}
-            className="w-full rounded-sb bg-accent px-4 py-3 font-semibold text-accent-ink"
+            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink"
           >
             Weiter
           </button>
@@ -204,19 +204,19 @@ export function RosterSetupView() {
             onChange={(e) => setFounderName(e.target.value)}
             placeholder="Dein Name"
             autoFocus
-            className="h-12 min-w-0 rounded-sb bg-control px-3 text-ink-soft"
+            className="h-12 min-w-0 rounded-control bg-control px-3 text-ink-soft"
           />
           <input
             value={founderPin}
             onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
             placeholder="4-stelliger PIN"
             inputMode="numeric"
-            className="h-12 min-w-0 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className="h-12 min-w-0 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
           />
           <button
             type="submit"
             disabled={busy || !founderName.trim() || founderPin.length !== 4}
-            className="w-full rounded-sb bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-50"
+            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Weiter'}
           </button>

@@ -48,7 +48,7 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
       {entries.map(([capability, status]) => (
         <div
           key={capability}
-          className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-2 py-1"
+          className="flex items-center justify-between gap-2 rounded-control bg-control px-2 py-1"
         >
           <span className="text-ink">{capability}</span>
           <span className="flex items-center gap-[0.4em]">
@@ -62,7 +62,7 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
       ))}
 
       <p className="mt-2 text-xs font-bold uppercase tracking-widest text-ink-faint">Uhrzeit-Sync</p>
-      <div className="flex items-center justify-between gap-2 rounded-sb-sm bg-control px-2 py-1">
+      <div className="flex items-center justify-between gap-2 rounded-control bg-control px-2 py-1">
         <span className="text-ink">Stage-Server</span>
         {lastSyncedAt === null ? (
           <span className="flex items-center gap-[0.4em]">

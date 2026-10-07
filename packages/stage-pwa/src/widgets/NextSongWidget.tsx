@@ -29,7 +29,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const layout = nextSongLayout(box.width, box.height, lineHeightFor(fontSize))
   // Buttons fill the widget's height (or the row under the info when stacked), at least the
   // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
-  const buttonClass = `h-full min-h-touch min-w-touch rounded-sb bg-control-strong px-4 font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
+  const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
 
   const current = currentItem ? (
     <>
@@ -99,7 +99,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
           </button>
         </div>
       ) : (
-        <MasterTakeoverButton className="min-h-touch rounded-sb bg-control-strong px-4 font-bold text-accent hover:bg-control-strong-hover" />
+        <MasterTakeoverButton className="min-h-touch rounded-control bg-control-strong px-4 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover" />
       )}
     </div>
   )

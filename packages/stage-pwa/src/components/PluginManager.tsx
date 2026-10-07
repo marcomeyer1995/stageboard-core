@@ -39,7 +39,7 @@ export function PluginManager() {
         {installed.map((plugin) => (
           <div
             key={plugin.id}
-            className="flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
+            className="flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">
@@ -53,10 +53,10 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void setEnabled(plugin.id, !plugin.enabled)}
-              className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
+              className={`min-h-12 rounded-control px-4 text-sm font-medium ${
                 plugin.enabled
-                  ? 'bg-accent text-accent-ink hover:bg-accent-hover'
-                  : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+                  ? 'bg-accent text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover'
+                  : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
               }`}
             >
               {plugin.enabled ? 'Aktiv' : 'Deaktiviert'}
@@ -64,7 +64,7 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}
-              className="ml-2 min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
+              className="ml-2 min-h-12 rounded-control bg-control px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -82,7 +82,7 @@ export function PluginManager() {
         {notInstalled.map((candidate) => (
           <div
             key={candidate.id}
-            className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
+            className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">{candidate.name}</p>
@@ -93,7 +93,7 @@ export function PluginManager() {
               onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }
-              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
+              className="min-h-12 rounded-control bg-control-strong px-4 text-sm font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Installieren
             </button>

@@ -89,7 +89,7 @@ export function DeviceLedgerView() {
       {/* The Stage-Server itself, not a roster `Device` (it never joins a band, it hosts one) -
           its own row, same visual language as the tablets below, so "is anything down" reads
           the same way for the box everything else here depends on. */}
-      <div className="mb-2 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
+      <div className="mb-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <p className="font-semibold">Stage-Server</p>
@@ -125,7 +125,7 @@ export function DeviceLedgerView() {
           const appOpen = info ? now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
 
           return (
-            <div key={device.id} className={`rounded-sb border px-4 py-3 shadow-sb ${device.revoked ? 'border-red-500/40 bg-red-500/5' : 'border-line bg-surface'}`}>
+            <div key={device.id} className={`rounded-container border px-4 py-3 shadow-sb ${device.revoked ? 'border-red-500/40 bg-red-500/5' : 'border-line bg-surface'}`}>
               <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <p className="font-semibold">
@@ -140,8 +140,8 @@ export function DeviceLedgerView() {
                   <button
                     type="button"
                     onClick={() => void toggleRevoked(device)}
-                    className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
-                      device.revoked ? 'bg-control-strong text-accent hover:bg-control-strong-hover' : 'bg-control text-ink-soft hover:bg-control-hover'
+                    className={`min-h-12 rounded-control px-4 text-sm font-medium ${
+                      device.revoked ? 'bg-control-strong text-accent [@media(hover:hover)]:hover:bg-control-strong-hover' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
                     }`}
                   >
                     {device.revoked ? 'Wieder zulassen' : 'Entfernen'}

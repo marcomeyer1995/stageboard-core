@@ -68,7 +68,7 @@ export function DebugConsoleView() {
             type="button"
             aria-pressed={level === l.id}
             onClick={() => setLevel(l.id)}
-            className={`min-h-12 rounded-sb-sm px-4 text-sm font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
+            className={`min-h-12 rounded-control px-4 text-sm font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
           >
             {l.label}
             {l.id !== 'all' && ` (${entries.filter((e) => e.level === l.id).length})`}
@@ -81,12 +81,12 @@ export function DebugConsoleView() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Suchen…"
           aria-label="Log durchsuchen"
-          className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-base text-ink"
+          className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink"
         />
-        <button type="button" onClick={() => void copy()} className="min-h-12 rounded-sb-sm bg-control-strong px-4 font-semibold text-ink hover:bg-control-strong-hover">
+        <button type="button" onClick={() => void copy()} className="min-h-12 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Kopieren
         </button>
-        <button type="button" onClick={clear} className="min-h-12 rounded-sb-sm bg-control px-4 font-semibold text-ink-soft hover:bg-control-hover">
+        <button type="button" onClick={clear} className="min-h-12 rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
           Leeren
         </button>
       </div>
@@ -96,7 +96,7 @@ export function DebugConsoleView() {
         </p>
       )}
 
-      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-sb border border-line bg-surface font-sb-mono text-sm" aria-label="Log">
+      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-container border border-line bg-surface font-sb-mono text-sm" aria-label="Log">
         {shown.length === 0 && <li className="p-3 text-ink-faint">Keine Einträge.</li>}
         {shown.map((e) => (
           <li key={e.id} className={`border-b border-line px-3 py-2 ${LEVEL_CLASS[e.level]}`}>
@@ -106,7 +106,7 @@ export function DebugConsoleView() {
         ))}
       </ol>
 
-      <section className="flex flex-col gap-2 rounded-sb border border-line bg-surface p-4">
+      <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4">
         <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
         <p className="text-sm text-ink-muted">Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten.</p>
         {DEBUG_FLAGS.map((flag) => (

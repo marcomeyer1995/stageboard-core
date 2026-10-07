@@ -77,7 +77,7 @@ function VariantPicker({
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
         // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
         // title 0 px wide.
-        className="min-h-12 max-w-full self-start whitespace-normal break-words rounded-sb-sm bg-control-strong px-3 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
+        className="min-h-12 max-w-full self-start whitespace-normal break-words rounded-control bg-control-strong px-3 py-1 text-left text-sm leading-tight text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
       >
         {selectedLabel}
       </button>
@@ -88,7 +88,7 @@ function VariantPicker({
             onClick={() => setOpen(false)}
           >
             <div
-              className="flex w-full max-w-[min(320px,85vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
+              className="flex w-full max-w-[min(320px,85vw)] flex-col gap-3 rounded-container border border-line bg-surface p-3 shadow-sb"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-2">
@@ -97,7 +97,7 @@ function VariantPicker({
                   type="button"
                   onClick={() => setOpen(false)}
                   title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
                 >
                   <Icon name="close" size="1.25rem" />
                 </button>
@@ -111,10 +111,10 @@ function VariantPicker({
                       setOpen(false)
                       onSelect(variant.id)
                     }}
-                    className={`h-11 w-full rounded-sb px-3 text-left text-base ${
+                    className={`h-11 w-full rounded-control px-3 text-left text-base ${
                       variant.id === selectedId
                         ? 'bg-accent text-accent-ink'
-                        : 'bg-control text-ink hover:bg-control-hover'
+                        : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'
                     }`}
                   >
                     {variant.label}
@@ -182,7 +182,7 @@ function TransitionPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`Übergang zum nächsten Eintrag: ${current.label}`}
-        className={`h-12 min-w-12 flex-shrink-0 rounded-sb-sm px-3 text-sm hover:bg-control-strong-hover ${
+        className={`h-12 min-w-12 flex-shrink-0 rounded-control px-3 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover ${
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
         }`}
       >
@@ -198,7 +198,7 @@ function TransitionPicker({
             onClick={() => setOpen(false)}
           >
             <div
-              className="flex w-full max-w-[min(360px,90vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
+              className="flex w-full max-w-[min(360px,90vw)] flex-col gap-3 rounded-container border border-line bg-surface p-3 shadow-sb"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-2">
@@ -209,7 +209,7 @@ function TransitionPicker({
                   type="button"
                   onClick={() => setOpen(false)}
                   title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
                 >
                   <Icon name="close" size="1.25rem" />
                 </button>
@@ -220,8 +220,8 @@ function TransitionPicker({
                     key={option.type}
                     type="button"
                     onClick={() => onChange(option.type, delayMs)}
-                    className={`flex flex-col rounded-sb px-3 py-2 text-left ${
-                      option.type === type ? 'bg-accent text-accent-ink' : 'bg-control text-ink hover:bg-control-hover'
+                    className={`flex flex-col rounded-control px-3 py-2 text-left ${
+                      option.type === type ? 'bg-accent text-accent-ink' : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'
                     }`}
                   >
                     <span className="text-base font-semibold">{option.label}</span>
@@ -238,7 +238,7 @@ function TransitionPicker({
                     step={1}
                     value={Math.round(delayMs / 1000)}
                     onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
-                    className="h-12 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
+                    className="h-12 w-20 rounded-control bg-control px-2 text-right text-ink"
                   />
                 </label>
               )}
@@ -291,7 +291,7 @@ function EntryRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-sb-sm bg-control px-3 py-3 text-base ${
+      className={`flex items-center gap-2 rounded-control bg-control px-3 py-3 text-base ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
@@ -309,7 +309,7 @@ function EntryRow({
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-12 min-w-0 truncate text-left hover:underline"
+          className="min-h-12 min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -342,14 +342,14 @@ function EntryRow({
 /** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
  * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
 function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
-  const inputClass = 'h-12 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
+  const inputClass = 'h-12 w-24 rounded-control bg-control px-2 text-right text-ink'
   function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
     const seconds = Number(text.trim().replace(',', '.'))
     const value = text.trim() === '' || !Number.isFinite(seconds) || seconds < 0 ? undefined : Math.round(seconds) * 1000
     if (value !== setlist[field]) onSave({ ...setlist, [field]: value })
   }
   return (
-    <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+    <details className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
       <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
@@ -360,7 +360,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
             type="time"
             value={setlist.targetEndTime ?? ''}
             onChange={(e) => onSave({ ...setlist, targetEndTime: e.target.value || undefined })}
-            className="h-12 rounded-sb-sm bg-surface px-2 text-ink"
+            className="h-12 rounded-control bg-surface px-2 text-ink"
           />
         </label>
         <label className="flex items-center justify-between gap-2">
@@ -423,7 +423,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`flex items-center gap-2 px-3 py-3 text-base ${
-        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-sb-sm border border-dashed border-line bg-control'
+        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-control border border-dashed border-line bg-control'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
@@ -436,7 +436,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
@@ -517,14 +517,14 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
           if (e.key === 'Escape') setOpen(false)
         }}
         placeholder="Songs durchsuchen…"
-        className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+        className="h-12 rounded-control bg-control px-4 text-base text-ink placeholder:text-ink-faint"
       />
       {open && (
         // Opens upward, not down (Marco, explicit request) - this control sits at the bottom
         // of the pane, below the entry list, so a downward dropdown pushed itself off-screen
         // and needed a scroll to reach; anchoring to the input's top edge instead opens into
         // the room the entry list already occupies.
-        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-sb border border-line bg-surface shadow-sb">
+        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
           ) : (
@@ -533,7 +533,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
                 <button
                   type="button"
                   onClick={() => pick(song.id)}
-                  className="block w-full truncate px-4 py-3 text-left text-base text-ink hover:bg-control-hover"
+                  className="block w-full truncate px-4 py-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   {song.title || '(ohne Titel)'}
                   {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
@@ -725,7 +725,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
             type="button"
             onClick={() => setActiveSetlist(setlist.id)}
             disabled={!isMaster}
-            className="h-12 rounded-sb-sm bg-accent-2 px-4 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
+            className="h-12 rounded-control bg-accent-2 px-4 text-sm font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover disabled:opacity-40"
           >
             Aktivieren
           </button>
@@ -748,7 +748,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           type="button"
           onClick={() => setActiveSetlist(null)}
           disabled={!isMaster}
-          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover disabled:opacity-40"
+          className="h-12 self-start rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
         >
           Setlist deaktivieren (alle Songs)
         </button>
@@ -795,14 +795,14 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <button
             type="button"
             onClick={() => void addTransition('announcement')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
+            className="h-12 flex-1 rounded-control bg-control-strong px-3 text-sm font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover sm:flex-none"
           >
             + Ansage / Pause
           </button>
           <button
             type="button"
             onClick={() => void addTransition('heading')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
+            className="h-12 flex-1 rounded-control bg-control-strong px-3 text-sm font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover sm:flex-none"
           >
             + Abschnitt
           </button>

@@ -1300,9 +1300,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const button = 'min-h-12 min-w-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const button = 'min-h-12 min-w-12 rounded-control bg-control-strong px-3 text-sm font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
-  const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-control bg-control-strong px-3 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
   const viewBar = timeline.barOf(Math.max(0, timeline.beatAtOrBefore(view.startMs)))
   const barsGrabbable = (timeline.timeOfBeat(timeline.barStartBeat(viewBar + 1)) - timeline.timeOfBeat(timeline.barStartBeat(viewBar))) / view.msPerPx >= 2 * TOLERANCE_PX
@@ -1333,7 +1333,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const lanesGroup = (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2" role="group" aria-label="Spuren">
           {TIMELINE_LANES.map((lane) => (
             <button
               key={lane}
@@ -1402,7 +1402,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         aria-label={compactTools ? 'Werkzeuge' : undefined}
         className={
           compactTools
-            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-sb border border-line bg-surface p-3 shadow-sb'
+            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
             : 'flex flex-wrap items-center gap-2'
         }
         style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
@@ -1482,7 +1482,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       <div
         ref={boxRef}
-        className={`relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
+        className={`relative w-full select-none overflow-hidden rounded-control border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
         style={{ height: fill ? undefined : lanesH, touchAction: 'none', cursor: drag ? 'grabbing' : hoverGrab ? 'grab' : undefined }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -1500,7 +1500,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         )}
         {fine && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-sb-sm bg-accent px-3 py-1 text-base font-semibold text-black shadow"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-black shadow"
             style={{ left: Math.min(Math.max(fine.x, 60), width - 60), top: Math.max(fine.y - 72, 4) }}
             role="status"
           >
@@ -1510,7 +1510,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       </div>
 
       {tapMode === 'lines' && (
-        <div className="flex flex-col gap-2 rounded-sb bg-control p-2" data-testid="tap-lines-panel">
+        <div className="flex flex-col gap-2 rounded-control bg-control p-2" data-testid="tap-lines-panel">
           <div className="flex flex-col gap-1 px-2 text-base">
             <span className="truncate text-ink-faint" data-testid="tap-prev-line">
               {prevTapLine ? (
@@ -1534,7 +1534,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
             </span>
             <span className="truncate text-ink-faint">{afterTapLine ? afterTapLine.text : ' '}</span>
           </div>
-          <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+          <button type="button" className="h-touch-primary rounded-control bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
             {clock.isPlaying ? (nextTapLine ? 'TIPP' : 'Fertig') : 'Abspielen, dann zu jeder Zeile tippen'}
           </button>
           <div className="flex flex-wrap items-center gap-2">
@@ -1549,13 +1549,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         </div>
       )}
       {tapMode === 'tempo' && (
-        <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+        <button type="button" className="h-touch-primary rounded-control bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
           {clock.isPlaying ? `TIPP (${tapCount})` : 'Abspielen, dann im Takt tippen'}
         </button>
       )}
 
       {selectedBar !== null && selectedBarMs !== null && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             Takt {selectedBar} · {formatTimelineTime(selectedBarMs)} · {selectedTempo!.toFixed(1)} BPM{selectedPoint ? ' · Ausrichtungspunkt' : ''}
           </span>
@@ -1590,7 +1590,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedLineInfo && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             „{fitText(selectedLineInfo.text, 320)}“ · {selectedLineInfo.timeMs !== null ? formatTimelineTime(selectedLineInfo.timeMs) : 'ohne Zeit'}
           </span>
@@ -1621,7 +1621,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {ripple && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Verschieben">
+        <div className="flex flex-wrap items-center gap-2 rounded-control border border-accent bg-control p-2" role="status" aria-label="Verschieben">
           <span className="font-semibold">
             Verschieben: {ripple.label} - in der Timeline ziehen, alles ab {formatTimelineTime(ripple.fromMs)} wandert mit
             {rippleDelta ? ` (${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s)` : ''}.
@@ -1636,7 +1636,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedCue && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             {selectedCueDevice?.name ?? 'Unbekanntes Gerät'} · {describeCue(selectedCue, selectedCueDevice?.capability)} · {formatTimelineTime(selectedCue.timeMs)}
           </span>
@@ -1669,7 +1669,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedNote && (
-        <div className="flex flex-col gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-col gap-2 rounded-control bg-control p-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">
               {selectedNote.kind === 'tab' ? `Tab${selectedNote.text ? `: ${selectedNote.text}` : ''}` : `„${selectedNote.text ?? ''}“`}

@@ -85,10 +85,10 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
             type="button"
             disabled={!canControl}
             onClick={() => setClickTrackOverride(option.value)}
-            className={`h-full ${layout.showState ? 'min-h-touch' : 'min-h-0'} rounded-sb px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`h-full ${layout.showState ? 'min-h-touch' : 'min-h-0'} rounded-control px-1 font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
               clickTrackOverride === option.value
                 ? 'bg-accent text-accent-ink'
-                : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+                : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
             }`}
           >
             {layout.shortLabels && option.label === 'Standard' ? 'Std.' : option.label}

@@ -93,7 +93,7 @@ export function DeviceStatusConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Gerät
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.logicalDeviceId ?? ''}
           onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
         >

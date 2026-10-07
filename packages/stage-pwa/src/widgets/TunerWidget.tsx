@@ -130,7 +130,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
           <button
             type="button"
             onClick={stopListening}
-            className="rounded-sb-sm bg-control-strong px-[4cqw] py-[2cqh] text-[5.5cqh] font-medium text-ink hover:bg-control-strong-hover"
+            className="rounded-control bg-control-strong px-[4cqw] py-[2cqh] text-[5.5cqh] font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             Aus
           </button>
@@ -194,7 +194,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             <button
               type="button"
               onClick={() => void start()}
-              className="rounded-sb-sm bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink hover:bg-control-strong-hover"
+              className="rounded-control bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Mikrofon aktivieren
             </button>
@@ -318,7 +318,7 @@ export function TunerConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Notennamen
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.noteNaming}
           onChange={(e) =>
             onChange({ ...config, noteNaming: e.target.value as TunerConfig['noteNaming'] })

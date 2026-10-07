@@ -68,7 +68,7 @@ export function AudioSyncSettings() {
               className={`h-12 flex-1 rounded-sb-pill text-base font-medium disabled:opacity-40 ${
                 mode === candidate
                   ? 'bg-accent text-accent-ink'
-                  : 'bg-control text-ink-soft hover:bg-control-hover'
+                  : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
               }`}
             >
               {MODE_LABEL[candidate]}

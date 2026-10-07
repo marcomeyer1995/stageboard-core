@@ -49,7 +49,7 @@ export function DialogHost() {
         if (e.key === 'Escape') cancel()
       }}
     >
-      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink">
+      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink">
         <h2 className="text-lg font-bold">{request.title}</h2>
 
         {request.kind === 'prompt' && (
@@ -161,7 +161,7 @@ function PromptFields({
               rows={5}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="w-full resize-y rounded-sb bg-control px-3 py-2 text-ink-soft"
+              className="w-full resize-y rounded-control bg-control px-3 py-2 text-ink-soft"
             />
           </label>
         ) : (
@@ -177,7 +177,7 @@ function PromptFields({
               pattern={field.type === 'pin' ? '[0-9]*' : undefined}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="h-touch w-full rounded-sb bg-control px-3 text-lg text-ink-soft"
+              className="h-touch w-full rounded-control bg-control px-3 text-lg text-ink-soft"
             />
           </label>
         ),
@@ -186,11 +186,11 @@ function PromptFields({
         <button
           type="button"
           onClick={onCancel}
-          className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover"
+          className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
         >
           Abbrechen
         </button>
-        <button type="submit" className="h-touch rounded-sb bg-accent px-5 font-semibold text-accent-ink">
+        <button type="submit" className="h-touch rounded-control bg-accent px-5 font-semibold text-accent-ink">
           {submitLabel}
         </button>
       </div>
@@ -206,7 +206,7 @@ function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge
         <button
           type="button"
           onClick={onAcknowledge}
-          className="h-touch rounded-sb bg-accent px-5 font-semibold text-accent-ink"
+          className="h-touch rounded-control bg-accent px-5 font-semibold text-accent-ink"
         >
           OK
         </button>
@@ -235,15 +235,15 @@ function ConfirmBody({
         <button
           type="button"
           onClick={onCancel}
-          className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover"
+          className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
         >
           Abbrechen
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className={`rounded-sb px-4 py-2 font-semibold ${
-            danger ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-accent text-accent-ink'
+          className={`rounded-control px-4 py-2 font-semibold ${
+            danger ? 'bg-red-600 text-white [@media(hover:hover)]:hover:bg-red-500' : 'bg-accent text-accent-ink'
           }`}
         >
           {confirmLabel}
@@ -276,7 +276,7 @@ function DestructiveBody({
     <div className="space-y-3">
       <p className="text-base text-ink-muted">{message}</p>
       {alternativeLabel && (
-        <button type="button" onClick={() => onResolve('alternative')} className="h-touch w-full rounded-sb bg-accent px-4 font-semibold text-accent-ink">
+        <button type="button" onClick={() => onResolve('alternative')} className="h-touch w-full rounded-control bg-accent px-4 font-semibold text-accent-ink">
           {alternativeLabel}
         </button>
       )}
@@ -286,19 +286,19 @@ function DestructiveBody({
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"
-          className="h-12 rounded-sb bg-control px-3 text-base text-ink"
+          className="h-12 rounded-control bg-control px-3 text-base text-ink"
           aria-label={`Zum Bestätigen „${typeToConfirm}“ eingeben`}
         />
       </label>
       <div className="flex justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover">
+        <button type="button" onClick={onCancel} className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
           Abbrechen
         </button>
         <button
           type="button"
           disabled={!matches}
           onClick={() => onResolve('confirm')}
-          className="h-touch rounded-sb bg-red-600 px-4 font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-touch rounded-control bg-red-600 px-4 font-semibold text-white [@media(hover:hover)]:hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {confirmLabel}
         </button>

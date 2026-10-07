@@ -42,10 +42,10 @@ export function CueGrid({
             setLastFired(action.type)
             onFire(action.type)
           }}
-          className={`overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors ${
+          className={`overflow-hidden rounded-control font-bold uppercase tracking-wide transition-colors ${
             lastFired === action.type
               ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
           }`}
         >
           <span style={{ fontSize }} className="whitespace-nowrap">

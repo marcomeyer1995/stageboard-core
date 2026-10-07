@@ -29,13 +29,13 @@ export function DeviceNameSettings() {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Name dieses Geräts"
-        className="h-12 flex-1 rounded-sb bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+        className="h-12 flex-1 rounded-control bg-control px-4 text-base text-ink placeholder:text-ink-faint"
       />
       <button
         type="button"
         onClick={() => void rename(deviceId, draft.trim())}
         disabled={!dirty}
-        className="h-12 rounded-sb bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-12 rounded-control bg-control-strong px-4 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
       >
         Speichern
       </button>

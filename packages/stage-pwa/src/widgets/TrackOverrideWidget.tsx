@@ -59,7 +59,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker ? 2 : 1)
   const variantPrefix = showLabels ? '' : 'Variante: '
   const trackPrefix = showLabels ? '' : 'Track: '
-  const selectClass = 'min-h-touch w-full rounded-sb-sm bg-control px-2 py-1 text-ink'
+  const selectClass = 'min-h-touch w-full rounded-control bg-control px-2 py-1 text-ink'
 
   if (!showVariantPicker && trackMessage) {
     return <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">{trackMessage}</div>

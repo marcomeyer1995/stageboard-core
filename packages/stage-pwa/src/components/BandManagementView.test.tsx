@@ -262,8 +262,8 @@ describe('BandManagementView', () => {
   it('highlights the active band with the same accent treatment as the active profile row, and no other band', () => {
     render(<BandManagementView />)
 
-    const activeBandRow = screen.getByText('Band A').closest('div.rounded-sb')
-    const otherBandRow = screen.getByText('Band B').closest('div.rounded-sb')
+    const activeBandRow = screen.getByText('Band A').closest('div.rounded-container')
+    const otherBandRow = screen.getByText('Band B').closest('div.rounded-container')
     expect(activeBandRow?.className).toMatch(/border-accent/)
     expect(otherBandRow?.className).not.toMatch(/border-accent/)
   })
@@ -525,8 +525,8 @@ describe('BandManagementView', () => {
 
       // p2 (Chris) is active - the accent border is the only "this is you" signal now
       // (2026-09-02 thirteenth follow-up: the "(du)" text label was redundant with it).
-      const chrisRow = screen.getByText('Chris').closest('div.rounded-sb')
-      const marcoRow = screen.getByText('Marco').closest('div.rounded-sb')
+      const chrisRow = screen.getByText('Chris').closest('div.rounded-container')
+      const marcoRow = screen.getByText('Marco').closest('div.rounded-container')
       expect(chrisRow?.className).toMatch(/border-accent/)
       expect(marcoRow?.className).not.toMatch(/border-accent/)
     })

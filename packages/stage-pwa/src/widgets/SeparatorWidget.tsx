@@ -27,7 +27,7 @@ export function SeparatorConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Ausrichtung
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.orientation}
           onChange={(e) =>
             onChange({ ...config, orientation: e.target.value as SeparatorConfig['orientation'] })
@@ -40,7 +40,7 @@ export function SeparatorConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Farbe
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.color}
           onChange={(e) => onChange({ ...config, color: e.target.value as SeparatorConfig['color'] })}
         >

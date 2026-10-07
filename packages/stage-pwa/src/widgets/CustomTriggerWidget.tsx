@@ -16,7 +16,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
 import { stageFontSize } from '../lib/stageSize'
 
-const INACTIVE_CLASS = 'bg-control-strong text-ink hover:bg-control-strong-hover'
+const INACTIVE_CLASS = 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
 
 function parsePayload(json: string): Record<string, unknown> {
   try {
@@ -120,7 +120,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
         onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
         onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-control font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
@@ -158,7 +158,7 @@ export function CustomTriggerConfigPanel({
         Beschriftung
         <input
           type="text"
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.label}
           onChange={(e) => onChange({ ...config, label: e.target.value })}
         />
@@ -166,7 +166,7 @@ export function CustomTriggerConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Farbe
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.color}
           onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
         >
@@ -180,7 +180,7 @@ export function CustomTriggerConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Verhalten
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.behavior}
           onChange={(e) => onChange({ ...config, behavior: e.target.value as CustomTriggerConfig['behavior'] })}
         >
@@ -191,7 +191,7 @@ export function CustomTriggerConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Zielgerät
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.targetLogicalDeviceId ?? ''}
           onChange={(e) => onChange({ ...config, targetLogicalDeviceId: e.target.value || undefined })}
         >
@@ -207,7 +207,7 @@ export function CustomTriggerConfigPanel({
         Command-Type
         <input
           type="text"
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.commandType}
           onChange={(e) => onChange({ ...config, commandType: e.target.value })}
         />
@@ -215,7 +215,7 @@ export function CustomTriggerConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Payload (JSON)
         <textarea
-          className="rounded-sb-sm bg-control px-2 py-1 font-mono text-xs text-ink"
+          className="rounded-control bg-control px-2 py-1 font-mono text-xs text-ink"
           rows={3}
           value={config.commandPayloadJson}
           onChange={(e) => onChange({ ...config, commandPayloadJson: e.target.value })}
@@ -229,7 +229,7 @@ export function CustomTriggerConfigPanel({
             type="number"
             min={1}
             step={1}
-            className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+            className="rounded-control bg-control px-2 py-1 text-sm text-ink"
             value={String(parsePayload(config.commandPayloadJson).bars ?? 1)}
             onChange={(e) => {
               const bars = Math.max(1, Math.round(Number(e.target.value) || 1))

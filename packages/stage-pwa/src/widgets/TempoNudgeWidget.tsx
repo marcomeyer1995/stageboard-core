@@ -49,7 +49,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   // at most 96px wide), so a bigger widget means bigger - / + targets without squeezing the
   // value out of a narrow one (lib/gigWidgetLayout.ts).
   const stepClass =
-    'h-full min-h-touch w-[30%] min-w-touch max-w-[96px] flex-none rounded-sb bg-control-strong text-3xl font-bold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+    'h-full min-h-touch w-[30%] min-w-touch max-w-[96px] flex-none rounded-control bg-control-strong text-3xl font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
 
   return (
     <div ref={boxRef} className="flex h-full flex-col items-center gap-2 text-ink-soft">
@@ -99,7 +99,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
           type="button"
           disabled={!canControl}
           onClick={() => setLiveTempoAdjustPercent(0)}
-          className="h-12 flex-none rounded-sb bg-control-strong px-4 font-bold text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-12 flex-none rounded-control bg-control-strong px-4 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Zurücksetzen
         </button>

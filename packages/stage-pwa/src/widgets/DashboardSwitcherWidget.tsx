@@ -49,10 +49,10 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
           key={dashboard.id}
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`min-h-touch min-w-max flex-1 rounded-sb px-4 font-bold uppercase tracking-wide transition-colors ${
+          className={`min-h-touch min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
             dashboard.id === activeId
               ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
           }`}
         >
           <span style={{ fontSize }} className="whitespace-nowrap">
@@ -80,7 +80,7 @@ export function DashboardSwitcherConfigPanel({
       <label className="flex flex-col gap-1 text-xs text-ink-muted">
         Ausrichtung
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
           value={config.orientation}
           onChange={(e) =>
             onChange({ ...config, orientation: e.target.value as DashboardSwitcherConfig['orientation'] })

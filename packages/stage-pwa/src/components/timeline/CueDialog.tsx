@@ -63,13 +63,13 @@ export function CueDialog({
     onSubmit({ targetLogicalDeviceId: device.id, type: command.type, payload: command.fields.length > 0 ? parsed.payload : undefined })
   }
 
-  const select = 'h-touch w-full rounded-sb bg-control px-3 text-lg text-ink-soft disabled:opacity-40'
+  const select = 'h-touch w-full rounded-control bg-control px-3 text-lg text-ink-soft disabled:opacity-40'
   const label = 'block text-sm text-ink-muted'
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onKeyDown={(e) => e.key === 'Escape' && onCancel()}>
       <form
-        className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink"
+        className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink"
         onSubmit={(e) => {
           e.preventDefault()
           submit()
@@ -108,7 +108,7 @@ export function CueDialog({
             </label>
             <label className={label}>
               <span className="mb-1 block">Payload (JSON, optional)</span>
-              <textarea rows={3} className="w-full rounded-sb bg-control px-3 py-2 text-ink-soft" value={freePayload} onChange={(e) => setFreePayload(e.target.value)} />
+              <textarea rows={3} className="w-full rounded-control bg-control px-3 py-2 text-ink-soft" value={freePayload} onChange={(e) => setFreePayload(e.target.value)} />
             </label>
           </>
         ) : (
@@ -168,10 +168,10 @@ export function CueDialog({
 
         {error && <p className="text-sm text-red-500">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} className="h-touch rounded-sb bg-control px-5 font-semibold text-ink-soft hover:bg-control-hover">
+          <button type="button" onClick={onCancel} className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
             Abbrechen
           </button>
-          <button type="submit" disabled={!complete} className="h-touch rounded-sb bg-accent px-5 font-semibold text-accent-ink disabled:opacity-40">
+          <button type="submit" disabled={!complete} className="h-touch rounded-control bg-accent px-5 font-semibold text-accent-ink disabled:opacity-40">
             Übernehmen
           </button>
         </div>
