@@ -47,6 +47,15 @@
   --sb-touch: 3.5rem;
   --sb-touch-primary: 4.5rem;
   --sb-text-min: 1rem;
+  /* UI system (docs/15 §5): semantic roles over the per-theme values above. Every control
+     takes --sb-radius-control, every card/dialog/menu --sb-radius-container; the three
+     heights are the only control heights (show actions, stage, forms). Aliases, so each theme
+     keeps its own corners and a later theme editor can tune role by role. */
+  --sb-radius-control: var(--sb-radius-sm);
+  --sb-radius-container: var(--sb-radius);
+  --sb-h-show: var(--sb-touch-primary);
+  --sb-h-stage: var(--sb-touch);
+  --sb-h-form: 3rem;
   --sb-shadow: none;
   --sb-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
   --sb-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
