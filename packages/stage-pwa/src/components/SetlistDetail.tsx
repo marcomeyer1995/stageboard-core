@@ -25,7 +25,8 @@ import {
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
-import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
+import { useBackHandler } from '../lib/backNavigation'
+import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
@@ -45,8 +46,6 @@ interface SetlistDetailProps {
   /** Called after the setlist is actually deleted, so LibraryView can clear a selection
    * that would otherwise point at a setlist that no longer exists. */
   onDeleted: () => void
-  /** Whether there are unsaved changes - LibraryView asks before leaving the setlist then. */
-  onDirtyChange?: (dirty: boolean) => void
 }
 
 /** Same content, regardless of key order or fields set to undefined. */
@@ -526,7 +525,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
  */
-export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onDirtyChange }: SetlistDetailProps) {
+export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
@@ -552,26 +551,23 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onDirtyChang
   useEffect(() => {
     if (!dirtyRef.current) setDraft(stored)
   }, [stored])
-  useEffect(() => {
-    onDirtyChange?.(dirty)
-    return () => onDirtyChange?.(false)
-  }, [dirty, onDirtyChange])
-  useUnsavedChangesWarning(dirty)
+  // Every way out asks "Speichern / Verwerfen / Weiter bearbeiten" while dirty (lib/unsavedChanges).
+  useUnsavedChangesGuard(dirty, () => handleSave())
   const setlist = draft
   const update = (next: Setlist) => setDraft(next)
   // Opens as a clean preview (SetlistPreview); "Bearbeiten" switches to the editor below.
   const [editing, setEditing] = useState(false)
 
-  async function handleSave() {
-    if (!draft) return
-    if (!draft.name.trim()) return
+  async function handleSave(): Promise<boolean> {
+    if (!draft || !draft.name.trim()) return false
     await saveSetlist({ ...draft, name: draft.name.trim() })
     setEditing(false)
+    return true
   }
 
   /** "Abbrechen" / Back in the editor: back to the preview, asking first if something changed. */
   async function leaveEditing() {
-    if (dirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return
+    if (!(await confirmLeave())) return
     setDraft(stored)
     setEditing(false)
   }

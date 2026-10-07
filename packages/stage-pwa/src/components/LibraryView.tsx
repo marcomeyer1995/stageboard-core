@@ -27,6 +27,7 @@ import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
+import { confirmLeave, hasUnsavedChanges } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
 import { AddRow, Badge, Segmented, Tabs } from './ui'
 import { INPUT } from './ui/styles'
@@ -362,23 +363,22 @@ export function LibraryView() {
     [showLogEvents, JSON.stringify(rehearsalWindow)],
   )
   const [selection, setSelectionNow] = useState<Selection>(null)
-  // An open setlist with unsaved changes (SetlistDetail reports it): leaving it asks first.
-  const [setlistDirty, setSetlistDirty] = useState(false)
-  const setSelection = useCallback(
-    async (next: Selection): Promise<boolean> => {
-      const leavingSetlist = selection?.type === 'setlist' && !(next?.type === 'setlist' && next.id === selection.id)
-      if (leavingSetlist && setlistDirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return false
+  // Opening something else closes the open editor - asks first if it has unsaved changes.
+  // Without unsaved changes it switches right away; `after` runs only once switched.
+  const setSelection = useCallback((next: Selection, after?: () => void): void => {
+    const go = () => {
       setSelectionNow(next)
-      return true
-    },
-    [selection, setlistDirty, confirm],
-  )
+      after?.()
+    }
+    if (!hasUnsavedChanges()) return go()
+    void confirmLeave().then((ok) => ok && go())
+  }, [])
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
   // SheetEditor. Irrelevant while selection isn't a song.
   const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
   // Back closes an open song preview or setlist (#341) - the song editor handles its own Back.
-  useBackHandler(selection && songMode !== 'edit' ? () => void setSelection(null) : null)
+  useBackHandler(selection && songMode !== 'edit' ? () => setSelection(null) : null)
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
   // Keyboard row navigation (#178, pointer lane only) - a separate "which row is arrow-keyed"
   // cursor from `selection` itself (see keyboardFocused's own doc comment on DraggableSongRow).
@@ -426,10 +426,10 @@ export function LibraryView() {
   const selectSong = useCallback(
     (songId: string, variantId: string | null) => {
       if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
-        void setSelection(null)
+        setSelection(null)
         return
       }
-      void setSelection({ type: 'song', songId, variantId }).then((ok) => ok && setSongMode('preview'))
+      setSelection({ type: 'song', songId, variantId }, () => setSongMode('preview'))
     },
     [selection],
   )
@@ -515,7 +515,7 @@ export function LibraryView() {
     await saveSong(song)
     await putVariant(variant)
     // Straight to edit mode (Text), not the preview - the normal editor, like any other song.
-    void setSelection({ type: 'song', songId: song.id, variantId: null }).then((ok) => ok && setSongMode('edit'))
+    setSelection({ type: 'song', songId: song.id, variantId: null }, () => setSongMode('edit'))
   }
 
   async function handleDeleteSong(song: Song) {
@@ -606,7 +606,8 @@ export function LibraryView() {
       <SheetEditor
         songId={selection.songId}
         variantId={selection.variantId}
-        onBack={() => setSelection(null)}
+        // The editor already asked about unsaved changes before calling this.
+        onBack={() => setSelectionNow(null)}
       />
     )
   }
@@ -806,7 +807,6 @@ export function LibraryView() {
               <SetlistDetail
                 key={selection.id}
                 setlistId={selection.id}
-                onDirtyChange={setSetlistDirty}
                 onSelectSong={selectSong}
                 onDeleted={() => setSelectionNow(null)}
               />

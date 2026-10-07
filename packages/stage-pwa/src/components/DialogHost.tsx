@@ -34,6 +34,7 @@ export function DialogHost() {
   const acceptAlert = useDialogStore((state) => state.acceptAlert)
   const cancel = useDialogStore((state) => state.cancel)
   const resolveDestructive = useDialogStore((state) => state.resolveDestructive)
+  const resolveUnsaved = useDialogStore((state) => state.resolveUnsaved)
   useBackHandler(request ? cancel : null)
   const visible = useVisualViewport()
 
@@ -77,6 +78,7 @@ export function DialogHost() {
             onCancel={cancel}
           />
         )}
+        {request.kind === 'unsaved' && <UnsavedBody onResolve={resolveUnsaved} onCancel={cancel} />}
         {request.kind === 'alert' && <AlertBody message={request.message} onAcknowledge={acceptAlert} />}
       </div>
     </div>
@@ -228,6 +230,25 @@ function ConfirmBody({
         <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
           {confirmLabel}
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Leaving an editor with unsaved changes: save them, throw them away, or stay. Saving is the
+ * big main action - losing work should never be the easy tap (Marco, 2026-10-07). */
+function UnsavedBody({ onResolve, onCancel }: { onResolve: (value: 'save' | 'discard') => void; onCancel: () => void }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-base text-ink-soft">Du hast Änderungen, die noch nicht gespeichert sind.</p>
+      <Button variant="primary" fullWidth onClick={() => onResolve('save')}>
+        Speichern
+      </Button>
+      <Button variant="danger" fullWidth onClick={() => onResolve('discard')}>
+        Verwerfen
+      </Button>
+      <div className="flex border-t border-line pt-3">
+        <Button onClick={onCancel}>Weiter bearbeiten</Button>
       </div>
     </div>
   )
