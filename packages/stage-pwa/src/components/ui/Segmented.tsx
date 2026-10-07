@@ -37,7 +37,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
             disabled={option.disabled}
             title={option.title}
             onClick={() => !selected && onChange(option.value)}
-            className={`flex flex-1 items-center justify-center ${SIZE[size]} !px-3 ${CONTROL} ${FOCUS} ${DISABLED} ${
+            className={`flex flex-1 items-center justify-center whitespace-nowrap ${SIZE[size]} !px-3 ${CONTROL} ${FOCUS} ${DISABLED} ${
               selected ? SELECTED : `text-ink-soft ${HOVER}`
             }`}
           >

@@ -28,13 +28,15 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { AddRow, Badge, Tabs } from './ui'
+import { AddRow, Badge, Segmented, Tabs } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { playStats, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
+import { useShowLogStore } from '../store/useShowLogStore'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -44,7 +46,38 @@ type Selection =
 type LibraryTab = 'setlists' | 'songs'
 const TAB_KEY = 'stageboard-library-tab'
 
+const SORT_KEY = 'stageboard-library-sort'
+interface LibrarySortChoice {
+  setlists: SetlistSort
+  songs: SongSort
+}
+/** The sort per tab this device last chose (a convenience - the defaults when storage fails). */
+function readSort(): LibrarySortChoice {
+  const fallback: LibrarySortChoice = { setlists: 'newest', songs: 'title' }
+  try {
+    const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? '{}') as Partial<LibrarySortChoice>
+    return {
+      setlists: raw.setlists && raw.setlists in SETLIST_SORT_LABEL ? raw.setlists : fallback.setlists,
+      songs: raw.songs && raw.songs in SONG_SORT_LABEL ? raw.songs : fallback.songs,
+    }
+  } catch {
+    return fallback
+  }
+}
+
 /** The tab this device last had open (a convenience - Setlists when storage fails). */
+/** Today as "YYYY-MM-DD" in local time - the format of Setlist.performanceDate. */
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** "2026-12-24" → "24.12.2026". */
+function formatGigDate(date: string): string {
+  const [y, m, d] = date.split('-')
+  return `${d}.${m}.${y}`
+}
+
 function readTab(): LibraryTab {
   try {
     return localStorage.getItem(TAB_KEY) === 'songs' ? 'songs' : 'setlists'
@@ -286,6 +319,17 @@ export function LibraryView() {
   }
   const showSetlists = tab === 'setlists'
   const showSongs = tab === 'songs'
+  const [sort, setSortState] = useState<LibrarySortChoice>(readSort)
+  function setSort(next: LibrarySortChoice) {
+    setSortState(next)
+    try {
+      localStorage.setItem(SORT_KEY, JSON.stringify(next))
+    } catch {
+      // Remembering is a convenience only.
+    }
+  }
+  const showLogEvents = useShowLogStore((state) => state.events)
+  const stats = useMemo(() => playStats(showLogEvents), [showLogEvents])
   const [selection, setSelection] = useState<Selection>(null)
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
@@ -308,16 +352,16 @@ export function LibraryView() {
   const term = search.trim().toLowerCase()
   const filteredSetlists = useMemo(() => {
     const matches = term ? setlists.filter((s) => s.name.toLowerCase().includes(term)) : setlists
-    return [...matches].sort((a, b) => b.createdAt - a.createdAt)
-  }, [setlists, term])
+    return sortSetlists(matches, sort.setlists, todayIso())
+  }, [setlists, term, sort.setlists])
   const filteredSongs = useMemo(() => {
     const matches = term
       ? songs.filter(
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return [...matches].sort((a, b) => a.title.localeCompare(b.title))
-  }, [songs, term])
+    return sortSongs(matches, sort.songs, { activeSetlist: activeSetlist ?? null, stats })
+  }, [songs, term, sort.songs, activeSetlist, stats])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
   // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
@@ -586,6 +630,22 @@ export function LibraryView() {
                 {showSetlists ? `${filteredSongs.length} Treffer unter Songs` : `${filteredSetlists.length} Treffer unter Setlists`}
               </button>
             )}
+            {/* Sorting, per tab (Marco, 2026-10-07) - pick one, so a joined bar. */}
+            {showSetlists ? (
+              <Segmented
+                label="Setlists sortieren"
+                value={sort.setlists}
+                onChange={(setlists) => setSort({ ...sort, setlists })}
+                options={(Object.keys(SETLIST_SORT_LABEL) as SetlistSort[]).map((value) => ({ value, label: SETLIST_SORT_LABEL[value] }))}
+              />
+            ) : (
+              <Segmented
+                label="Songs sortieren"
+                value={sort.songs}
+                onChange={(songs) => setSort({ ...sort, songs })}
+                options={(Object.keys(SONG_SORT_LABEL) as SongSort[]).map((value) => ({ value, label: SONG_SORT_LABEL[value] }))}
+              />
+            )}
             {showSetlists ? (
               <>
                 <ul className="flex flex-col gap-1">
@@ -618,6 +678,7 @@ export function LibraryView() {
                         }
                       >
                         ({setlist.entries.filter(isSongEntry).length})
+                        {setlist.performanceDate && ` · ${formatGigDate(setlist.performanceDate)}`}
                       </span>
                       {/* "Aktiv" = a badge (docs/15 D4), never the yellow fill a selection has. */}
                       {activeSetlist?.id === setlist.id && (

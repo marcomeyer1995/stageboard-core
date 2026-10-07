@@ -666,7 +666,9 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
           {setlist.name}
           {activeSetlist?.id === setlist.id && (
-            <span className="flex items-center gap-1 text-xs font-semibold normal-case text-accent"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aktiv</span>
+            <span className="normal-case tracking-normal">
+              <Badge tone="accent">Aktiv</Badge>
+            </span>
           )}
         </h2>
         <span className="flex flex-shrink-0 gap-1">
@@ -702,6 +704,15 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           Setlist deaktivieren (alle Songs)
         </button>
       )}
+      {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
+      <div className="max-w-56">
+        <Field
+          label="Auftrittsdatum"
+          type="date"
+          value={setlist.performanceDate ?? ''}
+          onChange={(e) => void saveSetlist({ ...setlist, performanceDate: e.target.value || undefined })}
+        />
+      </div>
       <ScheduleSettings setlist={setlist} onSave={(next) => void saveSetlist(next)} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>

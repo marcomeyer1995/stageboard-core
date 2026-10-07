@@ -133,6 +133,26 @@ describe('LibraryView', () => {
     useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
   })
 
+  it('sorting: a joined bar per tab - songs by artist, setlists A-Z; the choice is remembered', () => {
+    localStorage.removeItem('stageboard-library-sort')
+    useSongsStore.setState({ songs: [song('c', 'Charlie'), { ...song('a', 'Alpha'), artist: 'Zappa' }, { ...song('b', 'Bravo'), artist: 'Abba' }] })
+    const { unmount } = render(<LibraryView />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Interpret' }))
+    const titles = () => screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /^(Alpha|Bravo|Charlie)/.test(t))
+    expect([...new Set(titles().map((t) => t.slice(0, 5)))]).toEqual(['Bravo', 'Alpha', 'Charl'])
+    openTab('Setlists')
+    fireEvent.click(screen.getByRole('radio', { name: 'A–Z' }))
+    const names = screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /Gig/.test(t))
+    expect(names[0]).toMatch(/^Newer/)
+    expect(names[1]).toMatch(/^Older/)
+    unmount()
+    render(<LibraryView />)
+    expect(screen.getByRole('radio', { name: 'A–Z' })).toHaveAttribute('aria-checked', 'true')
+    openTab('Songs')
+    expect(screen.getByRole('radio', { name: 'Interpret' })).toHaveAttribute('aria-checked', 'true')
+    localStorage.removeItem('stageboard-library-sort')
+  })
+
   it('search looks into the open tab and points to hits in the other one', () => {
     render(<LibraryView />)
     openTab('Setlists')
