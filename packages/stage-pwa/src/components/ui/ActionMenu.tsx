@@ -37,7 +37,7 @@ export function ActionMenu({ title, actions, size = 'form' }: { title: string; a
     <>
       <IconButton icon="more" label={`Menü: ${title}`} size={size} onClick={() => setOpen(true)} className="!w-16" />
       {open && (
-        <Dialog title={title} size="s" onClose={() => setOpen(false)}>
+        <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={() => setOpen(false)}>
           <div className="flex flex-col gap-2">{normal.map(row)}</div>
           {danger.length > 0 && <div className="flex flex-col gap-2 border-t border-line pt-3">{danger.map(row)}</div>}
         </Dialog>

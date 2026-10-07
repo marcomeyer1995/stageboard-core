@@ -183,7 +183,7 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
             </div>
           </Section>
 
-          <Section title="Dialog (D6)" hint="Immer genau ein Ausweg: mit Bestätigung nur unten „Abbrechen“ und die Hauptaktion; ohne Bestätigung (wirkt sofort) nur oben „× Schließen“.">
+          <Section title="Dialog (D6)" hint="Der Ausweg ist immer unten: mit Bestätigung „Abbrechen“ links und die Hauptaktion rechts; ohne Bestätigung (wirkt sofort) ein „Fertig“ rechts.">
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => setDialog(true)}>Mit Bestätigung</Button>
               <Button onClick={() => setInfoDialog(true)}>Ohne Bestätigung</Button>
