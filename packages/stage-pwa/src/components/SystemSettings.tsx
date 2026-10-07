@@ -11,6 +11,7 @@ import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
 import { FlashSettings } from './FlashSettings'
+import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -73,6 +74,9 @@ export function SystemSettings() {
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
         </Section>
+        <Section title="Bibliothek - Geübt">
+          <PracticeWindowSettings />
+        </Section>
       </Group>
 
       <Group title="Statusleiste" description="Was die Leiste oben zeigt und was zuerst weichen darf, wenn der Platz knapp wird - nur auf diesem Gerät.">
@@ -112,11 +116,14 @@ export function SystemSettings() {
 
       <Group
         title="Band & Server - gilt für alle"
-        description="Welche Band die Hardware des Stage-Servers gerade nutzt. Eine Änderung wirkt auf alle Geräte der Band."
+        description="Welche Band die Hardware des Stage-Servers gerade nutzt, und was die Bibliothek als „Geprobt“ zählt. Eine Änderung wirkt auf alle Geräte der Band."
         shared
       >
         <Section title="Aktive Band (Hardware)">
           <WorkspaceHardwareSettings />
+        </Section>
+        <Section title="Bibliothek - Geprobt">
+          <RehearsalWindowSettings />
         </Section>
       </Group>
     </div>

@@ -26,3 +26,14 @@ describe('updateRosterValidators (#16)', () => {
     expect(writes).toEqual(['http://couch/stageboard-old/_design%2Froster'])
   })
 })
+
+describe('roster validator - band settings', () => {
+  // The validator is plain ES5 source for CouchDB; evaluated here the same way.
+  const validate = new Function(`return ${ROSTER_VALIDATOR_SOURCE}`)() as (doc: { _id: string }, old: unknown, ctx: { roles: string[] }) => void
+
+  it('only a band admin may change the band settings (Geprobt period, 2026-10-07)', () => {
+    expect(() => validate({ _id: 'band-settings:band' }, null, { roles: ['member'] })).toThrow()
+    expect(() => validate({ _id: 'band-settings:band' }, null, { roles: ['admin'] })).not.toThrow()
+    expect(() => validate({ _id: 'setlists:x' }, null, { roles: ['member'] })).not.toThrow()
+  })
+})

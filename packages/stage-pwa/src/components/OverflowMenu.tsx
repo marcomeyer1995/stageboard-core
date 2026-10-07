@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Icon, type IconName } from './Icon'
 import { ActionMenuDialog } from './ui'
 
-interface OverflowMenuAction {
+export interface OverflowMenuAction {
   label: string
   onClick: () => void
   /** Styled in red with extra spacing above, isolated from the rest of the menu - the safety

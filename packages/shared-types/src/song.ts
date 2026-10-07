@@ -28,3 +28,19 @@ export const SongSchema = z.object({
   artist: z.string().optional(),
 })
 export type Song = z.infer<typeof SongSchema>
+
+/**
+ * One practice take in Solo Üben (Marco, 2026-10-07: "when did I last train this song, and how
+ * often this month"): the song ran at least MIN_SONG_DURATION_MS (unpaused) before it was stopped,
+ * reset or left. Per person - synced through the band database so every device of that person
+ * counts together; the Bibliothek sorts by it.
+ */
+export const PracticeLogEntrySchema = z.object({
+  id: z.string().min(1),
+  profileId: z.string().min(1),
+  songId: z.string().min(1),
+  /** When the take ended (ms). */
+  at: z.number().int().nonnegative(),
+  activeMs: z.number().int().nonnegative(),
+})
+export type PracticeLogEntry = z.infer<typeof PracticeLogEntrySchema>

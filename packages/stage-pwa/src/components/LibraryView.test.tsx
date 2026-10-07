@@ -42,6 +42,7 @@ const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { useAudioPinsStore } = await import('../store/useAudioPinsStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
+const openTab = (name: 'Setlists' | 'Songs') => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
 const { LibraryView } = await import('./LibraryView')
 
 function song(id: string, title: string): Song {
@@ -78,6 +79,8 @@ function stubMedia(opts: { pointer: boolean; width1024: boolean; width768: boole
 
 describe('LibraryView', () => {
   beforeEach(() => {
+    // Most of these are about songs - start on that tab; setlist tests switch (openTab).
+    localStorage.setItem('stageboard-library-tab', 'songs')
     useSongsStore.setState({
       songs: [song('c', 'Charlie'), song('a', 'Alpha'), song('b', 'Bravo')],
     })
@@ -86,54 +89,115 @@ describe('LibraryView', () => {
     })
   })
 
-  it('lists setlists newest-first and songs alphabetically by default', () => {
-    render(<LibraryView />)
-    const items = screen.getAllByRole('button').map((el) => el.textContent)
-    const newerIndex = items.findIndex((t) => t?.includes('Newer Gig'))
-    const olderIndex = items.findIndex((t) => t?.includes('Older Gig'))
-    const alphaIndex = items.findIndex((t) => t?.includes('Alpha'))
-    const bravoIndex = items.findIndex((t) => t?.includes('Bravo'))
-    const charlieIndex = items.findIndex((t) => t?.includes('Charlie'))
+  it('Setlists | Songs are page tabs: songs alphabetically, setlists by gig date (undated by name); the tab is remembered', () => {
+    const { unmount } = render(<LibraryView />)
+    const order = (names: string[]) => names.map((n) => screen.getAllByRole('button').findIndex((el) => el.textContent?.includes(n)))
+    const [alpha, bravo, charlie] = order(['Alpha', 'Bravo', 'Charlie'])
+    expect(alpha).toBeLessThan(bravo)
+    expect(bravo).toBeLessThan(charlie)
+    expect(screen.queryByText(/Newer Gig/)).not.toBeInTheDocument()
 
-    expect(newerIndex).toBeGreaterThanOrEqual(0)
-    expect(newerIndex).toBeLessThan(olderIndex)
-    expect(alphaIndex).toBeLessThan(bravoIndex)
-    expect(bravoIndex).toBeLessThan(charlieIndex)
+    openTab('Setlists')
+    const [newer, older] = order(['Newer Gig', 'Older Gig'])
+    expect(newer).toBeGreaterThanOrEqual(0)
+    expect(newer).toBeLessThan(older)
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    unmount()
+
+    render(<LibraryView />)
+    expect(screen.getByRole('tab', { name: /^Setlists/ })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('tapping a section heading folds it away and back; remembered on this device', () => {
-    localStorage.removeItem('stageboard-library-folded')
+  it('songs of the active setlist get the yellow outline, the loaded one also "Aktuell"; songs outside it stay plain', () => {
+    useSetlistsStore.setState({
+      setlists: [{ ...setlist('new', 'Newer Gig', 2000), entries: [{ id: 'e1', songId: 'b', variantId: null, trackId: null }, { id: 'e2', songId: 'c', variantId: null, trackId: null }] }],
+    })
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'new', activeEntryId: 'e2' } })
+    render(<LibraryView />)
+    const row = (name: string) => screen.getByText(name).closest('div.relative') as HTMLElement
+    expect(row('Bravo')).toHaveClass('outline-accent')
+    expect(row('Charlie')).toHaveClass('outline-accent')
+    expect(row('Alpha')).not.toHaveClass('outline-accent')
+    expect(within(row('Charlie')).getByText('Aktuell')).toBeInTheDocument()
+    expect(within(row('Bravo')).queryByText('Aktuell')).not.toBeInTheDocument()
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+  })
+
+  it('without an active setlist the loaded song alone gets outline and "Aktuell"', () => {
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: null, activeEntryId: 'b' } })
+    render(<LibraryView />)
+    const row = (name: string) => screen.getByText(name).closest('div.relative') as HTMLElement
+    expect(row('Bravo')).toHaveClass('outline-accent')
+    expect(within(row('Bravo')).getByText('Aktuell')).toBeInTheDocument()
+    expect(row('Alpha')).not.toHaveClass('outline-accent')
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+  })
+
+  it('sorting: a joined bar per tab - songs by artist, setlists A-Z; the choice is remembered', () => {
+    localStorage.removeItem('stageboard-library-sort')
+    useSongsStore.setState({ songs: [song('c', 'Charlie'), { ...song('a', 'Alpha'), artist: 'Zappa' }, { ...song('b', 'Bravo'), artist: 'Abba' }] })
     const { unmount } = render(<LibraryView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
-    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
-    expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Songs' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('radio', { name: 'Interpret' }))
+    const titles = () => screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /^(Alpha|Bravo|Charlie)/.test(t))
+    expect([...new Set(titles().map((t) => t.slice(0, 5)))]).toEqual(['Bravo', 'Alpha', 'Charl'])
+    openTab('Setlists')
+    fireEvent.click(screen.getByRole('radio', { name: 'Name' }))
+    const names = screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /Gig/.test(t))
+    expect(names[0]).toMatch(/^Newer/)
+    expect(names[1]).toMatch(/^Older/)
     unmount()
     render(<LibraryView />)
-    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
-    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Name ↑' })).toHaveAttribute('aria-checked', 'true')
+    openTab('Songs')
+    expect(screen.getByRole('radio', { name: 'Interpret ↑' })).toHaveAttribute('aria-checked', 'true')
+    localStorage.removeItem('stageboard-library-sort')
   })
 
-  it('a folded section opens while searching - a hit never hides in it', () => {
-    localStorage.removeItem('stageboard-library-folded')
+  it('leaving a setlist with unsaved changes asks first - "Abbrechen" there keeps the editor', async () => {
+    const confirm = vi.fn(async () => false)
+    useDialogStore.setState({ confirm })
     render(<LibraryView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Setlists' }))
+    openTab('Setlists')
+    const row = (name: string) => screen.getAllByRole('button').find((el) => el.textContent?.startsWith(name))!
+    fireEvent.click(row('Newer Gig'))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Umbenannt' } })
+
+    fireEvent.click(row('Older Gig'))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith('Ungespeicherte Änderungen verwerfen?', expect.anything()))
+    expect(screen.getByLabelText('Name')).toHaveValue('Umbenannt')
+
+    confirm.mockResolvedValue(true)
+    fireEvent.click(row('Older Gig'))
+    expect(await screen.findByRole('heading', { name: /Older Gig/ })).toBeInTheDocument()
+  })
+
+  it('first tap ↑ ascending, tapping again ↓ descending, and back', () => {
+    localStorage.removeItem('stageboard-library-sort')
+    render(<LibraryView />)
+    const first = () => [...new Set(screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /^(Alpha|Bravo|Charlie)/.test(t)))][0]
+    expect(first()).toMatch(/^Alpha/)
+    expect(screen.getByRole('radio', { name: 'Titel ↑' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: 'Titel ↑' }))
+    expect(screen.getByRole('radio', { name: 'Titel ↓' })).toHaveAttribute('aria-checked', 'true')
+    expect(first()).toMatch(/^Charlie/)
+    fireEvent.click(screen.getByRole('radio', { name: 'Titel ↓' }))
+    expect(first()).toMatch(/^Alpha/)
+    localStorage.removeItem('stageboard-library-sort')
+  })
+
+  it('search looks into the open tab and points to hits in the other one', () => {
+    render(<LibraryView />)
+    openTab('Setlists')
+    fireEvent.change(screen.getByPlaceholderText('Setlists durchsuchen…'), { target: { value: 'av' } })
     expect(screen.queryByText(/Newer Gig/)).not.toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText('Songs & Setlists durchsuchen…'), { target: { value: 'new' } })
-    expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
-    localStorage.removeItem('stageboard-library-folded')
-  })
-
-  it('search filters both sections at once', () => {
-    render(<LibraryView />)
-    fireEvent.change(screen.getByPlaceholderText('Songs & Setlists durchsuchen…'), { target: { value: 'new' } })
-    expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
-    expect(screen.queryByText(/Older Gig/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '1 Treffer unter Songs' }))
+    expect(screen.getByText('Bravo')).toBeInTheDocument()
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
   })
 
   it('"Neue Setlist" below the list opens one dialog with name and optional songs; picked songs become the entries (#183)', async () => {
+    localStorage.setItem('stageboard-library-tab', 'setlists')
     const saveSetlist = vi.fn(async () => {})
     useSetlistsStore.setState({ saveSetlist })
     render(<LibraryView />)
@@ -195,6 +259,7 @@ describe('LibraryView', () => {
 
   it('clicking an already-selected setlist again deselects it, same toggle as a song', () => {
     render(<LibraryView />)
+    openTab('Setlists')
     const placeholder = 'Wähle links eine Setlist oder einen Song aus.'
     const newerButton = screen.getByRole('button', { name: /Newer Gig/ })
 
@@ -274,6 +339,42 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
     const row = screen.getByText('Alpha').closest('li')!
     expect(within(row).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: /Zur aktiven Setlist hinzufügen|Keine aktive Setlist/ })).not.toBeInTheDocument()
+  })
+
+  it('a song already in the active setlist: the swipe strip says it takes it out; the ⋯ menu removes its last entry, never the loaded one', async () => {
+    const before = useSetlistsStore.getState()
+    const saveSetlist = vi.fn()
+    const gig = {
+      ...setlist('new', 'Newer Gig', 2000),
+      entries: [
+        { id: 'e1', songId: 'b', variantId: null, trackId: null },
+        { id: 'e2', songId: 'b', variantId: null, trackId: null },
+        { id: 'e3', songId: 'c', variantId: null, trackId: null },
+      ],
+    }
+    useSetlistsStore.setState({ setlists: [gig], saveSetlist })
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'new', activeEntryId: 'e3' } })
+
+    stubTouchLane()
+    const { unmount } = render(<LibraryView />)
+    expect(within(screen.getByText('Bravo').closest('li')!).getByText('− Aus aktiver Setlist')).toBeInTheDocument()
+    expect(within(screen.getByText('Alpha').closest('li')!).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
+    unmount()
+    vi.unstubAllGlobals()
+
+    render(<LibraryView />) // pointer lane: the same through the ⋯ menu
+    fireEvent.contextMenu(screen.getByText('Bravo').closest('div.relative')!)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Aus aktiver Setlist entfernen' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [gig.entries[0], gig.entries[2]] })))
+
+    // Charlie is loaded right now - it stays, with a hint.
+    saveSetlist.mockClear()
+    fireEvent.contextMenu(screen.getByText('Charlie').closest('div.relative')!)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Aus aktiver Setlist entfernen' }))
+    expect(saveSetlist).not.toHaveBeenCalled()
+    expect(await screen.findByText('Gerade geladen - erst weiterschalten')).toBeInTheDocument()
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+    useSetlistsStore.setState({ setlists: before.setlists, saveSetlist: before.saveSetlist })
   })
 
   it('pointer lane (happy-dom default): "+" button present, no swipe reveal', () => {
@@ -414,13 +515,10 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
     await waitFor(() => expect(duplicateSong).toHaveBeenCalledWith('a', 'Alpha (Kopie)'))
   })
 
-  it('ArrowDown moves keyboard focus through setlists-then-songs, Enter opens the focused song', () => {
+  it('ArrowDown moves keyboard focus through the open tab\'s list, Enter opens the focused song', () => {
     render(<LibraryView />)
 
-    // Order: Newer Gig, Older Gig, then songs alphabetically (Alpha, Bravo, Charlie) - three
-    // ArrowDowns lands on Alpha.
-    fireEvent.keyDown(window, { key: 'ArrowDown' })
-    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    // Songs tab, alphabetically (Alpha, Bravo, Charlie) - the first ArrowDown lands on Alpha.
     fireEvent.keyDown(window, { key: 'ArrowDown' })
     fireEvent.keyDown(window, { key: 'Enter' })
 
@@ -429,6 +527,7 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
 
   it('ArrowUp moves focus back up the list', () => {
     render(<LibraryView />)
+    openTab('Setlists')
 
     fireEvent.keyDown(window, { key: 'ArrowDown' }) // Newer Gig
     fireEvent.keyDown(window, { key: 'ArrowDown' }) // Older Gig
@@ -469,6 +568,6 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
 
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
 
-    expect(screen.getByPlaceholderText('Songs & Setlists durchsuchen…')).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: 'Suche' })).toHaveFocus()
   })
 })

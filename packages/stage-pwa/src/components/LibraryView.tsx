@@ -11,7 +11,7 @@ import {
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isSongEntry, type Setlist, type Song, type SongVariant } from 'shared-types'
+import { DEFAULT_REHEARSAL_WINDOW, isSongEntry, type RehearsalWindow, type Setlist, type Song, type SongVariant } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
@@ -28,46 +28,78 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { AddRow, Badge } from './ui'
+import { AddRow, Badge, Segmented, Tabs } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
+import { useShowMode } from '../lib/showMode'
+import { useShowStateStore } from '../store/useShowStateStore'
+import { practiceStats, rehearsalStats, sortLabel, type PlayCount, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
+import { usePracticeLogStore } from '../store/usePracticeLogStore'
+import { useShowLogStore } from '../store/useShowLogStore'
+import { useBandSettingsStore } from '../store/useBandSettingsStore'
+import { useLibraryPrefsStore } from '../store/useLibraryPrefsStore'
+import { useActiveProfile } from '../lib/useActiveProfile'
 
 type Selection =
   | { type: 'setlist'; id: string }
   | { type: 'song'; songId: string; variantId: string | null }
   | null
 
-type Section = 'setlists' | 'songs'
-const FOLDED_KEY = 'stageboard-library-folded'
+type LibraryTab = 'setlists' | 'songs'
+const TAB_KEY = 'stageboard-library-tab'
 
-/** Which list sections are folded on this device (a convenience - empty when storage fails). */
-function readFolded(): Record<Section, boolean> {
+const SORT_KEY = 'stageboard-library-sort'
+interface LibrarySortChoice {
+  // reversed = descending (↓), the second tap.
+  setlists: { by: SetlistSort; reversed: boolean }
+  songs: { by: SongSort; reversed: boolean }
+}
+/** The sort per tab this device last chose (a convenience - the defaults when storage fails). */
+function readSort(): LibrarySortChoice {
+  const fallback: LibrarySortChoice = { setlists: { by: 'performance', reversed: false }, songs: { by: 'title', reversed: false } }
   try {
-    const raw = JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}') as Partial<Record<Section, boolean>>
-    return { setlists: raw.setlists === true, songs: raw.songs === true }
+    const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? '{}') as Partial<LibrarySortChoice>
+    return {
+      setlists: raw.setlists && raw.setlists.by in SETLIST_SORT_LABEL ? { by: raw.setlists.by, reversed: raw.setlists.reversed === true } : fallback.setlists,
+      songs: raw.songs && raw.songs.by in SONG_SORT_LABEL ? { by: raw.songs.by, reversed: raw.songs.reversed === true } : fallback.songs,
+    }
   } catch {
-    return { setlists: false, songs: false }
+    return fallback
   }
 }
 
-/** A section heading that folds its list away (replaces the Alle/Setlists/Songs filter bar -
- * Marco, 2026-10-07: the search already narrows both lists). */
-function SectionToggle({ title, folded, onToggle }: { title: string; folded: boolean; onToggle: () => void }) {
-  return (
-    <h2>
-      <button
-        type="button"
-        aria-expanded={!folded}
-        onClick={onToggle}
-        className="flex min-h-form items-center gap-2 text-xs font-bold uppercase tracking-widest text-ink-faint [@media(hover:hover)]:hover:text-ink-soft"
-      >
-        {title}
-        <Icon name={folded ? 'expand' : 'collapse'} size="1.1rem" />
-      </button>
-    </h2>
-  )
+/** The tab this device last had open (a convenience - Setlists when storage fails). */
+/** "2026-12-24" → "24.12.2026". */
+function formatGigDate(date: string): string {
+  const [y, m, d] = date.split('-')
+  return `${d}.${m}.${y}`
+}
+
+/** "heute / gestern / vor 12 Tagen". */
+function ago(at: number): string {
+  const days = Math.floor((Date.now() - at) / 86_400_000)
+  return days <= 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`
+}
+
+/** "30 Tagen" / "den letzten 5 Shows" - the period in "2× in …". */
+function windowText(window: RehearsalWindow): string {
+  return window.kind === 'days' ? `${window.days} Tagen` : `den letzten ${window.shows} Shows`
+}
+
+/** While sorting by Geübt / Geprobt: "2× in 30 Tagen · zuletzt vor 3 Tagen", or "nie geübt". */
+function playNote(stat: PlayCount | undefined, period: string, verb: string): string {
+  if (!stat || stat.last === 0) return `nie ${verb}`
+  return `${stat.count}× in ${period} · zuletzt ${ago(stat.last)}`
+}
+
+function readTab(): LibraryTab {
+  try {
+    return localStorage.getItem(TAB_KEY) === 'songs' ? 'songs' : 'setlists'
+  } catch {
+    return 'setlists'
+  }
 }
 
 /** How far right a song has to travel, with nowhere to drop, before it counts as a swipe
@@ -82,6 +114,16 @@ function songEntry(songId: string) {
 }
 
 interface DraggableSongRowProps {
+  /** Extra info after the artist - e.g. when it was last practised, while sorting by that. */
+  note?: string
+  /** In the active setlist (not the no-setlist fallback) - then a swipe takes it out again. */
+  inActiveSetlist?: boolean
+  onRemoveFromActiveSetlist?: () => void
+  /** The song currently loaded in the show - the "Aktuell" badge. */
+  current?: boolean
+  /** Part of the active setlist (or the current song when there is none) - the yellow outline, so the
+   * songs not in the setlist stand out (Marco, 2026-10-07). */
+  inSetlist?: boolean
   song: Song
   onClick: () => void
   /** Same selected-state treatment the Setlists list already has (Marco: "why is the setlist
@@ -130,6 +172,11 @@ function DraggableSongRow({
   onDuplicate,
   onDelete,
   keyboardFocused,
+  current = false,
+  inSetlist = false,
+  inActiveSetlist = false,
+  note,
+  onRemoveFromActiveSetlist,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
@@ -150,6 +197,7 @@ function DraggableSongRow({
           onClick: () => onAddToActiveSetlist?.(),
           disabled: !onAddToActiveSetlist,
         },
+        ...(inActiveSetlist && onRemoveFromActiveSetlist ? [{ label: 'Aus aktiver Setlist entfernen', onClick: onRemoveFromActiveSetlist }] : []),
         { label: 'Duplizieren', onClick: onDuplicate },
         { label: pinned ? 'Offline-Pin entfernen' : 'Offline anheften', onClick: onTogglePin },
         { label: 'Löschen', danger: true, onClick: onDelete },
@@ -171,8 +219,8 @@ function DraggableSongRow({
           shade distinct from both bg-control (an unselected row) and bg-accent (a selected
           one), so the reveal stays visible either way. */}
       {showSwipeReveal && (
-        <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-sm font-medium text-ink">
-          + Zur aktiven Setlist
+        <div className="absolute inset-0 flex items-center bg-control-strong px-4 text-base font-medium text-ink">
+          {inActiveSetlist ? '− Aus aktiver Setlist' : '+ Zur aktiven Setlist'}
         </div>
       )}
       {/* The listeners/ref live on this row surface itself, not just the title button inside it
@@ -206,7 +254,7 @@ function DraggableSongRow({
         }}
         className={`relative z-10 flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
-        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''}`}
+        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${inSetlist ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
       >
         <button
           type="button"
@@ -215,7 +263,9 @@ function DraggableSongRow({
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
+          {note && <span className={selected ? '' : 'text-ink-faint'}> · {note}</span>}
         </button>
+        {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
         {showAddButton && (
           <button
             type="button"
@@ -259,6 +309,9 @@ export function LibraryView() {
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
+  // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
+  const currentSongId = useShowMode().queue.currentSong?.id ?? null
+  const setlistSongIds = useMemo(() => new Set(activeSetlist?.entries.filter(isSongEntry).map((entry) => entry.songId) ?? []), [activeSetlist])
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const togglePin = useAudioPinsStore((state) => state.togglePin)
@@ -273,27 +326,59 @@ export function LibraryView() {
   // below 1024px, same threshold SheetEditor.tsx's own 'panel' tier already uses.
   const isPanel = useIsPanelLayout()
   const [search, setSearch] = useState('')
-  const [folded, setFolded] = useState(readFolded)
-  function toggleFolded(section: Section) {
-    const next = { ...folded, [section]: !folded[section] }
-    setFolded(next)
+  // Setlists | Songs as page tabs, like System (Marco, 2026-10-07) - replaces the foldable
+  // sections. The search searches the open tab; hits in the other one are pointed out.
+  const [tab, setTabState] = useState<LibraryTab>(readTab)
+  function setTab(next: LibraryTab) {
+    setTabState(next)
     try {
-      localStorage.setItem(FOLDED_KEY, JSON.stringify(next))
+      localStorage.setItem(TAB_KEY, next)
     } catch {
       // Remembering is a convenience only.
     }
   }
-  // While searching, both sections stay open - a hit must never hide in a folded one.
-  const searching = search.trim() !== ''
-  const showSetlists = searching || !folded.setlists
-  const showSongs = searching || !folded.songs
-  const [selection, setSelection] = useState<Selection>(null)
+  const showSetlists = tab === 'setlists'
+  const showSongs = tab === 'songs'
+  const [sort, setSortState] = useState<LibrarySortChoice>(readSort)
+  function setSort(next: LibrarySortChoice) {
+    setSortState(next)
+    try {
+      localStorage.setItem(SORT_KEY, JSON.stringify(next))
+    } catch {
+      // Remembering is a convenience only.
+    }
+  }
+  // "Geübt": this person's own Solo-Üben takes in the device's period; "Geprobt": the band's
+  // Gig-mode plays in the band's period (Marco, 2026-10-07).
+  const practiceLog = usePracticeLogStore((state) => state.entries)
+  const practiceDays = useLibraryPrefsStore((state) => state.practiceDays)
+  const showLogEvents = useShowLogStore((state) => state.events)
+  const rehearsalWindow = useBandSettingsStore((state) => state.settings.rehearsalWindow) ?? DEFAULT_REHEARSAL_WINDOW
+  const myProfileId = useActiveProfile()?.id ?? null
+  const practice = useMemo(() => practiceStats(practiceLog, myProfileId, Date.now(), practiceDays), [practiceLog, myProfileId, practiceDays])
+  const rehearsal = useMemo(
+    () => rehearsalStats(showLogEvents, rehearsalWindow, Date.now()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showLogEvents, JSON.stringify(rehearsalWindow)],
+  )
+  const [selection, setSelectionNow] = useState<Selection>(null)
+  // An open setlist with unsaved changes (SetlistDetail reports it): leaving it asks first.
+  const [setlistDirty, setSetlistDirty] = useState(false)
+  const setSelection = useCallback(
+    async (next: Selection): Promise<boolean> => {
+      const leavingSetlist = selection?.type === 'setlist' && !(next?.type === 'setlist' && next.id === selection.id)
+      if (leavingSetlist && setlistDirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return false
+      setSelectionNow(next)
+      return true
+    },
+    [selection, setlistDirty, confirm],
+  )
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
   // SheetEditor. Irrelevant while selection isn't a song.
   const [songMode, setSongMode] = useState<'preview' | 'edit'>('preview')
   // Back closes an open song preview or setlist (#341) - the song editor handles its own Back.
-  useBackHandler(selection && songMode !== 'edit' ? () => setSelection(null) : null)
+  useBackHandler(selection && songMode !== 'edit' ? () => void setSelection(null) : null)
   const [swipeMessage, setSwipeMessage] = useState<string | null>(null)
   // Keyboard row navigation (#178, pointer lane only) - a separate "which row is arrow-keyed"
   // cursor from `selection` itself (see keyboardFocused's own doc comment on DraggableSongRow).
@@ -309,16 +394,16 @@ export function LibraryView() {
   const term = search.trim().toLowerCase()
   const filteredSetlists = useMemo(() => {
     const matches = term ? setlists.filter((s) => s.name.toLowerCase().includes(term)) : setlists
-    return [...matches].sort((a, b) => b.createdAt - a.createdAt)
-  }, [setlists, term])
+    return sortSetlists(matches, sort.setlists.by, sort.setlists.reversed)
+  }, [setlists, term, sort.setlists])
   const filteredSongs = useMemo(() => {
     const matches = term
       ? songs.filter(
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return [...matches].sort((a, b) => a.title.localeCompare(b.title))
-  }, [songs, term])
+    return sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, practice, rehearsal }, sort.songs.reversed)
+  }, [songs, term, sort.songs, activeSetlist, practice, rehearsal])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
   // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
@@ -341,11 +426,10 @@ export function LibraryView() {
   const selectSong = useCallback(
     (songId: string, variantId: string | null) => {
       if (selection?.type === 'song' && selection.songId === songId && selection.variantId === variantId) {
-        setSelection(null)
+        void setSelection(null)
         return
       }
-      setSelection({ type: 'song', songId, variantId })
-      setSongMode('preview')
+      void setSelection({ type: 'song', songId, variantId }).then((ok) => ok && setSongMode('preview'))
     },
     [selection],
   )
@@ -431,8 +515,7 @@ export function LibraryView() {
     await saveSong(song)
     await putVariant(variant)
     // Straight to edit mode (Text), not the preview - the normal editor, like any other song.
-    setSelection({ type: 'song', songId: song.id, variantId: null })
-    setSongMode('edit')
+    void setSelection({ type: 'song', songId: song.id, variantId: null }).then((ok) => ok && setSongMode('edit'))
   }
 
   async function handleDeleteSong(song: Song) {
@@ -479,6 +562,21 @@ export function LibraryView() {
     showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
   }
 
+  /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
+   * it out again - its last entry there. Never the entry that is loaded right now: that would
+   * move the show on under the band's feet. */
+  function removeFromActiveSetlist(songId: string) {
+    if (!activeSetlist) return
+    const loadedEntryId = useShowStateStore.getState().state.activeEntryId
+    const entry = [...activeSetlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
+    if (!entry) {
+      showTransientMessage('Gerade geladen - erst weiterschalten')
+      return
+    }
+    saveSetlist({ ...activeSetlist, entries: activeSetlist.entries.filter((e) => e.id !== entry.id) })
+    showTransientMessage(`Aus "${activeSetlist.name}" entfernt`)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const songId = typeof event.active.id === 'string' ? event.active.id.replace('song:', '') : ''
     if (!songId) return
@@ -493,7 +591,8 @@ export function LibraryView() {
     // on useDraggable), not here, so there's exactly one place deciding whether dragging is
     // even possible rather than two checks that could drift apart.
     if (event.delta.x >= SWIPE_THRESHOLD_PX) {
-      addToActiveSetlist(songId)
+      if (setlistSongIds.has(songId)) removeFromActiveSetlist(songId)
+      else addToActiveSetlist(songId)
     }
   }
 
@@ -529,29 +628,76 @@ export function LibraryView() {
           something is picked, then swap to just the detail pane with a way back. At/above the
           panel threshold (desktop-wide, or a landscape tablet already wide enough), both stay
           visible at once - no need to hide either. */}
-      <div
-        className={`flex h-full gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
-      >
+      {/* Like System (Marco, 2026-10-07): no cards on the black background. Wide: the list column
+          on the left (surface, divider) with Setlists | Songs as page tabs, the detail on the
+          right. Narrow: tabs on top, the list - picking an entry swaps to the detail with a way
+          back (#178). */}
+      <div className={`flex h-full sb-app-bg text-ink ${isPanel ? '' : 'flex-col'}`}>
         <div
-          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb ${
-            isPanel || !selection ? 'flex' : 'hidden'
-          }`}
+          className={`min-h-0 flex-col ${isPanel ? 'flex w-[min(26rem,40%)] flex-shrink-0 border-r border-line bg-surface' : selection ? 'hidden' : 'flex flex-1'}`}
         >
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Songs & Setlists durchsuchen…"
-            aria-label="Suche"
-            className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
-          />
-
-          <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <SectionToggle title="Setlists" folded={!showSetlists} onToggle={() => toggleFolded('setlists')} />
-              </div>
-              {showSetlists && <ul className="flex flex-col gap-1">
+          <div className={`flex-shrink-0 px-2 pt-1 ${isPanel ? '' : 'border-b border-line bg-surface'}`}>
+            <Tabs
+              label="Bibliothek"
+              value={tab}
+              onChange={(next) => {
+                setTab(next)
+                setFocusedIndex(null)
+              }}
+              tabs={[
+                { value: 'setlists', label: `Setlists (${filteredSetlists.length})` },
+                { value: 'songs', label: `Songs (${filteredSongs.length})` },
+              ]}
+            />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={showSetlists ? 'Setlists durchsuchen…' : 'Songs durchsuchen…'}
+              aria-label="Suche"
+              className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
+            />
+            {/* The search looks into the open tab; hits in the other one shouldn't go unseen. */}
+            {search.trim() !== '' && (showSetlists ? filteredSongs.length : filteredSetlists.length) > 0 && (
+              <button
+                type="button"
+                onClick={() => setTab(showSetlists ? 'songs' : 'setlists')}
+                className="min-h-form self-start text-left text-base text-accent underline"
+              >
+                {showSetlists ? `${filteredSongs.length} Treffer unter Songs` : `${filteredSetlists.length} Treffer unter Setlists`}
+              </button>
+            )}
+            {/* Sorting, per tab (Marco, 2026-10-07) - pick one, so a joined bar. */}
+            {showSetlists ? (
+              <Segmented
+                label="Setlists sortieren"
+                value={sort.setlists.by}
+                onChange={(by) => setSort({ ...sort, setlists: { by, reversed: false } })}
+                // Tapping the chosen order again reverses it (Marco, 2026-10-07).
+                onSelectedTap={() => setSort({ ...sort, setlists: { ...sort.setlists, reversed: !sort.setlists.reversed } })}
+                options={(Object.keys(SETLIST_SORT_LABEL) as SetlistSort[]).map((value) => ({
+                  value,
+                  label: sortLabel(SETLIST_SORT_LABEL[value], value === sort.setlists.by, sort.setlists.reversed),
+                }))}
+              />
+            ) : (
+              <Segmented
+                label="Songs sortieren"
+                value={sort.songs.by}
+                onChange={(by) => setSort({ ...sort, songs: { by, reversed: false } })}
+                onSelectedTap={() => setSort({ ...sort, songs: { ...sort.songs, reversed: !sort.songs.reversed } })}
+                options={(Object.keys(SONG_SORT_LABEL) as SongSort[]).map((value) => ({
+                  value,
+                  label: sortLabel(SONG_SORT_LABEL[value], value === sort.songs.by, sort.songs.reversed),
+                }))}
+              />
+            )}
+            {showSetlists ? (
+              <>
+                <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
                   <li key={setlist.id}>
                     <button
@@ -582,6 +728,10 @@ export function LibraryView() {
                       >
                         ({setlist.entries.filter(isSongEntry).length})
                       </span>
+                      {/* The gig date like a song's artist (Marco, 2026-10-07). */}
+                      {setlist.performanceDate && (
+                        <span className={selection?.type === 'setlist' && selection.id === setlist.id ? '' : 'text-ink-faint'}> — {formatGigDate(setlist.performanceDate)}</span>
+                      )}
                       {/* "Aktiv" = a badge (docs/15 D4), never the yellow fill a selection has. */}
                       {activeSetlist?.id === setlist.id && (
                         <span className="ml-2">
@@ -591,22 +741,30 @@ export function LibraryView() {
                     </button>
                   </li>
                 ))}
-              </ul>}
-              {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
-              {showSetlists && <AddRow label="Neue Setlist" onClick={createSetlist} />}
-            </div>
-
-          <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <SectionToggle title="Songs" folded={!showSongs} onToggle={() => toggleFolded('songs')} />
-              </div>
-              {showSongs && <ul className="flex flex-col gap-1">
+              </ul>
+                {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
+                <AddRow label="Neue Setlist" onClick={createSetlist} />
+              </>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (
                   <DraggableSongRow
                     key={song.id}
                     song={song}
                     onClick={() => selectSong(song.id, null)}
                     selected={selection?.type === 'song' && selection.songId === song.id}
+                    current={song.id === currentSongId}
+                    inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
+                    inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
+                    note={
+                      sort.songs.by === 'practiced'
+                        ? playNote(practice.get(song.id), `${practiceDays} Tagen`, 'geübt')
+                        : sort.songs.by === 'rehearsed'
+                          ? playNote(rehearsal.get(song.id), windowText(rehearsalWindow), 'geprobt')
+                          : undefined
+                    }
+                    onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}
@@ -619,16 +777,19 @@ export function LibraryView() {
                     keyboardFocused={focusedIndex === (showSetlists ? filteredSetlists.length : 0) + idx}
                   />
                 ))}
-              </ul>}
-              {showSongs && <AddRow label="Neuer Song" onClick={() => void createSong()} />}
-            </div>
+              </ul>
+                <AddRow label="Neuer Song" onClick={() => void createSong()} />
+              </>
+            )}
+          </div>
         </div>
 
         <div
           ref={setDropzoneRef}
-          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-container border p-4 shadow-sb ${
-            isPanel || selection ? 'flex' : 'hidden'
-          } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
+          className={`min-h-0 flex-1 flex-col overflow-y-auto p-4 ${isPanel || selection ? 'flex' : 'hidden'} ${
+            // Dropping a song onto the open setlist: the whole detail area lights up.
+            isOver ? 'outline outline-2 -outline-offset-4 outline-accent' : ''
+          }`}
         >
           {selection?.type === 'setlist' ? (
             <>
@@ -643,9 +804,11 @@ export function LibraryView() {
                 Bibliothek
               </button>
               <SetlistDetail
+                key={selection.id}
                 setlistId={selection.id}
+                onDirtyChange={setSetlistDirty}
                 onSelectSong={selectSong}
-                onDeleted={() => setSelection(null)}
+                onDeleted={() => setSelectionNow(null)}
               />
             </>
           ) : selection?.type === 'song' ? (

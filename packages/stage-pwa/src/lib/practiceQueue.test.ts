@@ -21,6 +21,9 @@ vi.mock('../store/useSongsStore', () => ({
 }))
 vi.mock('../store/useSongVariantsStore', () => ({ useSongVariantsStore: { getState: () => ({ variants: [] }) } }))
 vi.mock('../store/useWorkspaceStore', () => ({ useWorkspaceStore: { getState: () => ({ activeWorkspaceId: 'ws-1' }) } }))
+const practiceLog = vi.hoisted(() => ({ add: vi.fn() }))
+vi.mock('../store/usePracticeLogStore', () => ({ usePracticeLogStore: { getState: () => practiceLog } }))
+vi.mock('../store/useActiveProfileStore', () => ({ useActiveProfileStore: { getState: () => ({ byWorkspace: { 'ws-1': 'p-me' } }) } }))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -118,5 +121,27 @@ describe('practiceSetVariantOverride', () => {
     await practiceAdvanceNext()
 
     expect(usePracticeStateStore.getState().get('ws-1')).toMatchObject({ activeEntryId: 's2', variantOverride: null })
+  })
+})
+
+describe('practice log (Solo Üben, "Geübt" / "30 Tage")', () => {
+  const ran = (ms: number) =>
+    usePracticeStateStore.setState({
+      byWorkspace: { 'ws-1': { ...usePracticeStateStore.getState().get('ws-1'), activeEntryId: 's1', playbackStatus: 'paused', playbackStartedAt: null, playbackAccumulatedMs: ms } },
+    })
+
+  it('records a take of the own profile when a song that really ran (20 s+) is stopped or left', async () => {
+    ran(95_000)
+    await practiceStopSong()
+    expect(practiceLog.add).toHaveBeenCalledWith(expect.objectContaining({ profileId: 'p-me', songId: 's1', activeMs: 95_000 }))
+    ran(60_000)
+    await practiceAdvanceNext()
+    expect(practiceLog.add).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not record a short check of the start', async () => {
+    ran(8_000)
+    await practiceStopSong()
+    expect(practiceLog.add).not.toHaveBeenCalled()
   })
 })
