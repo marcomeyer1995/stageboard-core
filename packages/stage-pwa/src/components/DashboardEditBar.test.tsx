@@ -36,14 +36,14 @@ beforeEach(() => {
 describe('DashboardEditBar (dashboard editing redesign)', () => {
   it('shows the name, "+ Widget" and "Fertig" right in the bar; a tap on the name renames', async () => {
     renderBar(board('Bühne'))
-    expect(screen.getByRole('button', { name: '+ Widget' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Widget' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Bearbeiten beenden' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Bühne/ }))
     await act(async () => useDialogStore.getState().submit({ value: 'Hauptbühne' }))
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Bühne', name: 'Hauptbühne' }))
   })
 
-  it('⋯ opens the settings in the menu\'s look: yellow = on, every choice a button', () => {
+  it('⋯ opens the settings: chips for the modes, a bar for the audience, switches for on/off (docs/15)', () => {
     renderBar(board('Bühne'))
     openSettings()
     expect(screen.getByRole('dialog', { name: 'Einstellungen: Bühne' })).toBeInTheDocument()
@@ -51,11 +51,11 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     expect(action('Gig')).toHaveClass('bg-accent')
     fireEvent.click(action('Gig'))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ modes: ['practice'] }))
-    fireEvent.click(action('Aus'))
+    fireEvent.click(screen.getByRole('switch', { name: /Statusleiste/ }))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ statusBar: false }))
-    fireEvent.click(action('Geschützt'))
+    fireEvent.click(screen.getByRole('switch', { name: /Vorlage/ }))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ isReadOnly: true }))
-    fireEvent.click(action('Nur ich'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Nur ich' }))
     expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'private', ownerProfileId: 'p-me' }))
   })
 
@@ -63,8 +63,7 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     me.profile.stageRoles = []
     renderBar(board('Bühne'))
     openSettings()
-    expect(screen.queryByText('Vorlage')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Geschützt' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /Vorlage/ })).not.toBeInTheDocument()
   })
 
   it('the last shared dashboard can neither be deleted nor made private, the last of a mode stays offered there', () => {
@@ -72,7 +71,7 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     renderBar(board('Bühne'))
     openSettings()
     expect(action('Dashboard löschen')).toBeDisabled()
-    expect(action('Nur ich')).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Nur ich' })).toBeDisabled()
     expect(action('Gig')).toBeDisabled()
   })
 })

@@ -99,7 +99,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     render(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.getByText('Dashboards')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ Neues Dashboard' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Neues Dashboard' })).toBeInTheDocument()
   })
 
   it('lists every dashboard, highlights the active one, and lets any mode reach it (not gated on already being in live mode)', () => {
@@ -129,16 +129,16 @@ describe('AppMenu dashboard picker (#35)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('puts "Schließen" in a fixed header above the scrolling list, not at its end (#376)', () => {
+  it('closes with "Fertig" in the fixed bottom row, outside the scrolling list (#376, docs/15 D6)', () => {
     const onClose = vi.fn()
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
-    const close = screen.getByRole('button', { name: 'Schließen' })
+    const done = screen.getByRole('button', { name: 'Fertig' })
     const firstMode = screen.getByRole('button', { name: 'Boards' })
-    // Before every menu entry in document order, and outside the scroll container.
-    expect(close.compareDocumentPosition(firstMode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(close.closest('.overflow-y-auto')).toBeNull()
+    // Never scrolls away: outside the scroll container that holds the entries.
+    expect(done.closest('.overflow-y-auto')).toBeNull()
     expect(firstMode.closest('.overflow-y-auto')).not.toBeNull()
-    fireEvent.click(close)
+    expect(screen.queryByRole('button', { name: /Schließen/ })).not.toBeInTheDocument()
+    fireEvent.click(done)
     expect(onClose).toHaveBeenCalled()
   })
 })

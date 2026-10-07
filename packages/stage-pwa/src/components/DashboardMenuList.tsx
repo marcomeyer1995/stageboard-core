@@ -13,6 +13,8 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
+import { Button } from './ui'
+import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 /** A tap stays a tap: the fill only starts after this long (Marco: filling on every short tap
  * looked ugly). */
@@ -121,27 +123,16 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
         ))
       )}
       <div className="mt-1 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => void createNew()}
-          disabled={arranging}
-          className="flex h-12 items-center justify-center rounded-sb bg-control px-3 text-base text-ink-soft hover:bg-control-hover disabled:opacity-40"
-        >
-          + Neues Dashboard
-        </button>
-        <button
-          type="button"
-          aria-pressed={arranging}
-          onClick={() => setArranging(!arranging)}
-          className={`flex h-12 items-center justify-center rounded-sb px-3 text-base font-semibold ${
-            arranging ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
-          }`}
-        >
-          {arranging ? 'Fertig' : 'Ordnen'}
-        </button>
+        <Button size="stage" icon="add" onClick={() => void createNew()} disabled={arranging}>
+          Neues Dashboard
+        </Button>
+        {/* "Ordnen beenden", not "Fertig": "Fertig" is the menu's own way out (docs/15 D6). */}
+        <Button size="stage" variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>
+          {arranging ? 'Ordnen beenden' : 'Ordnen'}
+        </Button>
       </div>
-      {!arranging && <p className="text-xs text-ink-faint">Tippen wechselt, gedrückt halten bearbeitet.</p>}
-      {arranging && <p className="text-xs text-ink-faint">Ziehen sortiert, das Auge blendet aus - nur auf diesem Gerät.</p>}
+      {!arranging && <p className="text-sm text-ink-faint">Tippen wechselt, gedrückt halten bearbeitet.</p>}
+      {arranging && <p className="text-sm text-ink-faint">Ziehen sortiert, das Auge blendet aus - nur auf diesem Gerät.</p>}
     </div>
   )
 }
@@ -200,8 +191,8 @@ function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashb
           hintTimer.current = setTimeout(() => setHint(false), HINT_MS)
         }}
         aria-current={active ? 'true' : undefined}
-        className={`relative flex h-12 items-center justify-between overflow-hidden rounded-sb px-4 text-base font-medium ${
-          active ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
+        className={`relative flex h-stage items-center justify-between overflow-hidden px-4 text-lg ${CONTROL} ${FOCUS} ${
+          active ? SELECTED : `bg-control text-ink-soft ${HOVER}`
         }`}
       >
         {/* Fills over the hold time - the press visibly "loads" towards editing. */}
@@ -217,7 +208,7 @@ function DashboardEntry({ dashboard, active, locked, onSelect, onHold }: { dashb
           {active && <Icon name="check" size="1.25rem" />}
         </span>
       </button>
-      {hint && <p className="text-xs text-accent">Zum Bearbeiten gedrückt halten</p>}
+      {hint && <p className="text-sm text-accent">Zum Bearbeiten gedrückt halten</p>}
     </div>
   )
 }
@@ -229,14 +220,14 @@ function ArrangeRow({ dashboard, hidden, canHide, onToggleHidden }: { dashboard:
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex h-12 items-center gap-2 rounded-sb bg-control pr-1 text-base ${isDragging ? 'opacity-50' : ''}`}
+      className={`flex h-stage items-center gap-2 bg-control pr-1 text-lg ${CONTROL} ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-stage w-stage flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label={`„${dashboard.name}“ ziehen zum Sortieren`}
       >
         ⠿
@@ -248,7 +239,7 @@ function ArrangeRow({ dashboard, hidden, canHide, onToggleHidden }: { dashboard:
         disabled={!hidden && !canHide}
         onClick={() => onToggleHidden(!hidden)}
         aria-label={hidden ? `„${dashboard.name}“ einblenden` : `„${dashboard.name}“ ausblenden`}
-        className="flex h-10 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-soft hover:bg-control-hover disabled:opacity-30"
+        className={`flex h-form w-form flex-shrink-0 items-center justify-center text-ink-soft ${CONTROL} ${FOCUS} ${HOVER} ${DISABLED}`}
       >
         <Icon name={hidden ? 'eyeOff' : 'eye'} size="1.3rem" />
       </button>

@@ -1,3 +1,4 @@
+import { Segmented } from './ui'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -28,28 +29,19 @@ export function SessionModeControl() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2">
-        {OPTIONS.map((option) => {
-          const blocked = isBlocked && option.mode !== mode
-          return (
-            <button
-              key={option.mode}
-              type="button"
-              onClick={() => setMode(option.mode)}
-              disabled={blocked}
-              title={blocked ? BLOCKED_TITLE : undefined}
-              className={`h-12 rounded-sb text-base font-semibold disabled:opacity-40 ${
-                mode === option.mode
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control text-ink-soft hover:bg-control-hover'
-              }`}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
-      {active && <p className="text-xs text-ink-faint">{isBlocked ? BLOCKED_TITLE : active.hint}</p>}
+      <Segmented
+        label="Modus"
+        size="stage"
+        value={mode}
+        onChange={setMode}
+        options={OPTIONS.map((option) => ({
+          value: option.mode,
+          label: option.label,
+          disabled: isBlocked && option.mode !== mode,
+          title: isBlocked && option.mode !== mode ? BLOCKED_TITLE : undefined,
+        }))}
+      />
+      {active && <p className="text-sm text-ink-faint">{isBlocked ? BLOCKED_TITLE : active.hint}</p>}
     </div>
   )
 }
