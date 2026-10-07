@@ -342,6 +342,12 @@ button,
   padding: max(var(--sb-pad), env(safe-area-inset-top)) max(var(--sb-pad), env(safe-area-inset-right))
     max(var(--sb-pad), env(safe-area-inset-bottom)) max(var(--sb-pad), env(safe-area-inset-left));
 }
+/* Low screens (tablet/phone in landscape, browser bars on): every pixel of height counts. */
+@media (max-height: 600px) {
+  .sb-pad-safe {
+    --sb-pad: 0.5rem;
+  }
+}
 /* Bars glued to an edge: background to the edge, content clear of the notch. */
 .sb-pad-safe-top {
   padding-top: max(0.75rem, env(safe-area-inset-top));

@@ -4,7 +4,7 @@ import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
 import { CONTAINER } from './styles'
 
-const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl' } as const
+const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
 export interface DialogProps {
   title: string
@@ -42,7 +42,9 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
         // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
         // so its bottom row stays above the on-screen keyboard: the tablet browser lays the
         // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
-        className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-[min(90vh,90dvh)]'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
+        // Otherwise all the height the backdrop's safe padding leaves (max-h-full) - the Xiaomi in
+        // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
+        className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
       >
         <div className="flex flex-shrink-0 items-center border-b border-line px-4 py-3">
           <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
