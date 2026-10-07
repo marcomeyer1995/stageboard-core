@@ -8,8 +8,9 @@ export type SongSort = 'title' | 'artist' | 'setlist' | 'practiced'
 /** Labels: [not chosen, chosen, chosen and reversed] - only the chosen option shows its
  * direction (tapping it again reverses), so the bar stays short enough for a phone. */
 export const SETLIST_SORT_LABEL: Record<SetlistSort, readonly [string, string, string]> = {
-  performance: ['Auftritt', 'Auftritt ↓', 'Auftritt ↑'],
+  // Bar order: A–Z left, Auftritt right (Marco, 2026-10-07).
   name: ['A–Z', 'A–Z', 'Z–A'],
+  performance: ['Auftritt', 'Auftritt ↓', 'Auftritt ↑'],
 }
 export const SONG_SORT_LABEL: Record<SongSort, readonly [string, string, string]> = {
   title: ['A–Z', 'A–Z', 'Z–A'],
