@@ -568,7 +568,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   <button
                     type="button"
                     onClick={() => setSelectedWorkspace(workspace)}
-                    className="w-full rounded-control border border-line bg-surface px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
+                    className="w-full min-h-stage rounded-control bg-control px-4 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
                   >
                     {workspace.workspaceName}
                   </button>
@@ -599,7 +599,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
               if (name?.trim()) void addWorkspace(name.trim())
             }}
-            className="w-full rounded-control border border-line bg-surface px-4 py-3 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
+            className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
           >
             Neue Band gründen
           </button>

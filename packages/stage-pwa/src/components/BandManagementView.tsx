@@ -14,6 +14,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { Badge, Button } from './ui'
 
 /**
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
@@ -298,16 +299,18 @@ export function BandManagementView() {
           <div
             key={workspace.id}
             className={`flex items-center justify-between gap-2 rounded-container border px-4 py-3 ${
-              workspace.id === activeWorkspaceId ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+              // Active = yellow outline + badge (docs/15 D4), never a fill or tint.
+              workspace.id === activeWorkspaceId ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
             }`}
           >
             <button
               type="button"
               onClick={() => setActiveWorkspace(workspace.id)}
               disabled={workspace.id === activeWorkspaceId}
-              className="text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
+              className="flex min-h-form min-w-0 flex-1 items-center gap-3 text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
             >
-              {workspace.name}
+              <span className="truncate">{workspace.name}</span>
+              {workspace.id === activeWorkspaceId && <Badge tone="accent">Aktiv</Badge>}
             </button>
             {(workspace.isAdmin || !!workspace.username) && (
               <RowMenuButton
@@ -409,13 +412,9 @@ export function BandManagementView() {
             )}
           </div>
         ))}
-        <button
-          type="button"
-          onClick={() => setShowAddBandChoice(true)}
-          className="min-h-form w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          + Band
-        </button>
+        <Button icon="add" onClick={() => setShowAddBandChoice(true)}>
+          Band
+        </Button>
       </section>
 
       {activeWorkspace && (
@@ -462,7 +461,7 @@ export function BandManagementView() {
               <div
                 key={profile.id}
                 className={`flex flex-col gap-2 rounded-container border px-4 py-3 ${
-                  isActiveProfile ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+                  isActiveProfile ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -470,8 +469,9 @@ export function BandManagementView() {
                       follow-up) - already-active has nothing to select, so it's a plain div
                       there instead of a disabled-looking button. */}
                   {isActiveProfile ? (
-                    <div>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                      <Badge tone="accent">Du</Badge>
                     </div>
                   ) : (
                     <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
@@ -629,16 +629,15 @@ export function BandManagementView() {
             )
           })}
           {activeWorkspace.isAdmin && (
-            <button
-              type="button"
+            <Button
+              icon="add"
               onClick={async () => {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-              className="min-h-form w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
             >
-              + Neues Mitglied
-            </button>
+              Neues Mitglied
+            </Button>
           )}
         </section>
       )}

@@ -128,7 +128,7 @@ export function InviteBandView({
             <button
               type="button"
               onClick={() => window.print()}
-              className="w-full rounded-control border border-line bg-surface px-4 py-2 font-semibold [@media(hover:hover)]:hover:bg-control-hover print:hidden"
+              className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover print:hidden"
             >
               Drucken / als PDF speichern
             </button>

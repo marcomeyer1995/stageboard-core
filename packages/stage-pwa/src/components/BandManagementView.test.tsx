@@ -151,7 +151,7 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Band C') })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Band'))
+    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
     fireEvent.click(await screen.findByText('Neue Band gründen'))
 
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('Band C'))
@@ -164,7 +164,7 @@ describe('BandManagementView', () => {
     render(<BandManagementView />)
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('+ Band'))
+    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
     fireEvent.click(await screen.findByText('Bestehender Band beitreten'))
 
     expect(await screen.findByText('Band beitreten')).toBeInTheDocument()
@@ -182,7 +182,7 @@ describe('BandManagementView', () => {
     useWorkspaceStore.setState({ addWorkspace })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Band'))
+    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
     await screen.findByText('Band hinzufügen')
 
     fireEvent.click(screen.getByText('Abbrechen'))
@@ -273,7 +273,7 @@ describe('BandManagementView', () => {
 
     expect(screen.getByText(/Mitglieder \(Band A\)/)).toBeInTheDocument()
     expect(screen.getByText('Marco')).toBeInTheDocument()
-    expect(screen.getByText('+ Neues Mitglied')).toBeInTheDocument()
+    expect(screen.getByText('Neues Mitglied')).toBeInTheDocument()
   })
 
   it('shows a member\'s assigned stage roles (including "Admin") as badges directly in the roster', () => {
@@ -301,7 +301,7 @@ describe('BandManagementView', () => {
     render(<BandManagementView />)
 
     expect(screen.getByText(/Nur der Band-Admin kann Mitglieder verwalten/)).toBeInTheDocument()
-    expect(screen.queryByText('+ Neues Mitglied')).not.toBeInTheDocument()
+    expect(screen.queryByText('Neues Mitglied')).not.toBeInTheDocument()
   })
 
   it('renaming a member calls update() with the new name', async () => {
@@ -601,7 +601,7 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Neues Mitglied'))
+    fireEvent.click(screen.getByText('Neues Mitglied'))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
     expect(screen.queryByText('Band einladen')).not.toBeInTheDocument()
@@ -746,7 +746,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
       render(<BandManagementView />)
-      fireEvent.click(screen.getByText('+ Neues Mitglied'))
+      fireEvent.click(screen.getByText('Neues Mitglied'))
 
       await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
     })
