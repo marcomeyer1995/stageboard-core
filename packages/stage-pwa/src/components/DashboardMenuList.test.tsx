@@ -29,7 +29,7 @@ beforeEach(() => {
   useDashboardsStore.setState({ dashboards: [board('Bühne', 0), board('Monitor', 1), board('Pause', 2)] })
   useActiveDashboardStore.setState({ byWorkspace: { band: 'Bühne' }, byWorkspaceMode: {} } as never)
   useDashboardMenuStore.setState({ byWorkspace: {} })
-  useEditModeStore.getState().setEditing(false)
+  useEditModeStore.setState({ isEditing: false, returnToMenu: false, reopenMenuEditing: false })
 })
 afterEach(() => vi.useRealTimers())
 
@@ -52,6 +52,22 @@ describe('DashboardMenuList', () => {
     expect(useEditModeStore.getState().isEditing).toBe(true)
     expect(useActiveDashboardStore.getState().byWorkspace.band).toBe('Pause')
     expect(onEdit).toHaveBeenCalled()
+  })
+
+  it('finishing an edit started here leads back to the list in "Bearbeiten"; one started elsewhere does not', () => {
+    const { unmount } = render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    openEditing()
+    fireEvent.click(pen('Pause'))
+    unmount() // the menu closes while the dashboard is edited
+    act(() => useEditModeStore.getState().setEditing(false))
+    expect(useEditModeStore.getState().reopenMenuEditing).toBe(true)
+    render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Bearbeiten beenden' })).toBeInTheDocument()
+    expect(useEditModeStore.getState().reopenMenuEditing).toBe(false)
+
+    act(() => useEditModeStore.getState().setEditing(true))
+    act(() => useEditModeStore.getState().setEditing(false))
+    expect(useEditModeStore.getState().reopenMenuEditing).toBe(false)
   })
 
   it('a template shows a lock for a musician; its pen offers an own copy instead of editing it', async () => {

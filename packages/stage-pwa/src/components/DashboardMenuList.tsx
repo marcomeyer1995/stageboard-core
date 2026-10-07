@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -39,12 +39,15 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
   const confirm = useDialogStore((state) => state.confirm)
   const profile = useActiveProfile()
   const roles = profile?.stageRoles ?? []
-  const [arranging, setArranging] = useState(false)
+  // Back from editing a dashboard that was opened here: the list comes back in "Bearbeiten".
+  const [arranging, setArranging] = useState(() => useEditModeStore.getState().reopenMenuEditing)
+  const consumeReopenMenu = useEditModeStore((state) => state.consumeReopenMenu)
+  useEffect(() => consumeReopenMenu(), [consumeReopenMenu])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function openForEditing(id: string) {
     setActive(workspaceId, id)
-    setEditing(true)
+    setEditing(true, { fromMenu: true })
     onEdit()
   }
 

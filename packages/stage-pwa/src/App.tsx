@@ -78,6 +78,11 @@ function noopStart(): TrackedSync | null {
 function App() {
   const [mode, setMode] = useState<Mode>('boards')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Finishing a dashboard edit that started in the menu leads back to the menu's list.
+  const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
+  useEffect(() => {
+    if (reopenMenuEditing) setMenuOpen(true)
+  }, [reopenMenuEditing])
   // Native app: if the paired server moved to another address (new router at the venue), find it
   // by its certificate and follow (#351) - on start and whenever the network comes back.
   useEffect(() => {
