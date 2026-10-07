@@ -108,6 +108,16 @@ describe('LibraryView', () => {
     expect(screen.getByRole('tab', { name: /^Setlists/ })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('the song loaded in the show gets the yellow outline and "Aktuell", like the active setlist', () => {
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: null, activeEntryId: 'b' } })
+    render(<LibraryView />)
+    const row = screen.getByText('Bravo').closest('div.relative')!
+    expect(row).toHaveClass('outline-accent')
+    expect(within(row as HTMLElement).getByText('Aktuell')).toBeInTheDocument()
+    expect(screen.getByText('Alpha').closest('div.relative')).not.toHaveClass('outline-accent')
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+  })
+
   it('search looks into the open tab and points to hits in the other one', () => {
     render(<LibraryView />)
     openTab('Setlists')
