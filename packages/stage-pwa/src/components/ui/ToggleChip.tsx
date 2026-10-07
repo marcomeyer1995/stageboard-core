@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Icon } from '../Icon'
-import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize } from './styles'
+import { CONTROL, DISABLED, FOCUS, HOVER, SIZE, type ControlSize } from './styles'
 
 export interface ToggleChipProps {
   label: string
@@ -21,11 +21,14 @@ export function ToggleChip({ label, selected, onToggle, disabled, title, size = 
       disabled={disabled}
       title={title}
       onClick={() => onToggle(!selected)}
-      className={`inline-flex items-center gap-2 border ${SIZE[size]} ${CONTROL} ${FOCUS} ${DISABLED} ${
-        selected ? `border-accent ${SELECTED}` : 'border-ink-faint bg-transparent text-ink-soft hover:bg-control-hover'
+      // Same width selected or not (Marco, 2026-10-07: the row shifted on every tap): the ✓ always
+      // keeps its room and the weight never changes. Hover only where a mouse hovers - on touch it
+      // stuck after the tap.
+      className={`inline-flex items-center gap-2 border font-semibold ${SIZE[size]} ${CONTROL} ${FOCUS} ${DISABLED} ${
+        selected ? 'border-accent bg-accent text-accent-ink' : `border-ink-faint bg-transparent text-ink-soft ${HOVER}`
       }`}
     >
-      {selected && <Icon name="check" size="1.1em" />}
+      <Icon name="check" size="1.1em" className={selected ? '' : 'invisible'} />
       {label}
     </button>
   )

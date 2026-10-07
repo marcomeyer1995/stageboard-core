@@ -31,3 +31,7 @@ export const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-40'
 
 /** Yellow = chosen / on, in every choice element (D7). */
 export const SELECTED = 'bg-accent text-accent-ink font-semibold'
+
+/** Hover feedback only on devices that really hover (mouse) - on a touchscreen the hover state
+ * sticks after a tap and makes an unselected control look selected. */
+export const HOVER = '[@media(hover:hover)]:hover:bg-control-hover'

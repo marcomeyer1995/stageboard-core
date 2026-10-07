@@ -1,4 +1,4 @@
-import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize } from './styles'
+import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize, HOVER } from './styles'
 
 export interface SegmentedOption<T extends string> {
   value: T
@@ -35,7 +35,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
             title={option.title}
             onClick={() => !selected && onChange(option.value)}
             className={`flex flex-1 items-center justify-center ${SIZE[size]} !px-3 ${CONTROL} ${FOCUS} ${DISABLED} ${
-              selected ? SELECTED : 'text-ink-soft hover:bg-control-hover'
+              selected ? SELECTED : `text-ink-soft ${HOVER}`
             }`}
           >
             {option.label}

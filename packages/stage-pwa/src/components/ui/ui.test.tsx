@@ -41,8 +41,10 @@ describe('UI system (docs/15)', () => {
       </ChipGroup>,
     )
     expect(screen.getByRole('button', { name: 'Caro' })).toHaveAttribute('aria-pressed', 'true')
-    expect(container.querySelectorAll('button')[0]!.querySelector('svg')).not.toBeNull()
-    expect(container.querySelectorAll('button')[1]!.querySelector('svg')).toBeNull()
+    // The ✓ keeps its room in both states, so the chip never changes width (only visibility).
+    expect(container.querySelectorAll('button')[0]!.querySelector('svg')).not.toHaveClass('invisible')
+    expect(container.querySelectorAll('button')[1]!.querySelector('svg')).toHaveClass('invisible')
+    expect(screen.getByRole('button', { name: 'Kapper' })).toHaveClass('font-semibold')
     fireEvent.click(screen.getByRole('button', { name: 'Caro' }))
     expect(onToggle).toHaveBeenCalledWith(false)
     expect(screen.getByText('Mehrere möglich')).toBeInTheDocument()

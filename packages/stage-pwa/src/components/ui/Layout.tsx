@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CONTAINER, CONTROL, FOCUS } from './styles'
+import { CONTAINER, CONTROL, FOCUS, HOVER } from './styles'
 
 /** A separate object on the page; shadow only when it floats (`raised`). */
 export function Card({ children, raised = false, className = '' }: { children: ReactNode; raised?: boolean; className?: string }) {
@@ -42,7 +42,7 @@ export function ListRow({ title, subtitle, leading, trailing, onClick, selected 
   return (
     <div className={`flex min-h-stage items-center gap-2 pr-2 ${CONTROL} ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft'}`}>
       {onClick ? (
-        <button type="button" onClick={onClick} aria-current={selected ? 'true' : undefined} className={`flex min-h-stage min-w-0 flex-1 items-center px-4 text-left ${CONTROL} ${FOCUS} ${selected ? '' : 'hover:bg-control-hover'}`}>
+        <button type="button" onClick={onClick} aria-current={selected ? 'true' : undefined} className={`flex min-h-stage min-w-0 flex-1 items-center px-4 text-left ${CONTROL} ${FOCUS} ${selected ? '' : HOVER}`}>
           {body}
         </button>
       ) : (

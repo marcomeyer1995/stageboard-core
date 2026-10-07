@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { CONTROL, DISABLED, FOCUS } from './styles'
+import { CONTROL, DISABLED, FOCUS, HOVER } from './styles'
 
 export interface SwitchProps {
   label: string
@@ -31,7 +31,7 @@ export function Switch({ label, checked, onChange, description, disabled, layout
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`flex items-center gap-3 text-left text-base text-ink-soft ${FOCUS} ${DISABLED} ${CONTROL} ${
-        layout === 'row' ? 'min-h-form w-full justify-between bg-control px-4 py-2 hover:bg-control-hover' : 'min-h-form bg-control px-3 hover:bg-control-hover'
+        layout === 'row' ? `min-h-form w-full justify-between bg-control px-4 py-2 ${HOVER}` : `min-h-form bg-control px-3 ${HOVER}`
       }`}
     >
       <span className="flex min-w-0 flex-col">
