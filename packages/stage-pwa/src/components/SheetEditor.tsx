@@ -30,7 +30,7 @@ import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { AddRow, Switch } from './ui'
+import { AddRow, Switch, Tabs } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -659,23 +659,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     />
   )
 
+  // Switching the editor's page = underline tabs (docs/15), like System and the phone tabs below.
   const viewSwitch = (
-    <div className="flex rounded-control bg-control p-1" role="group" aria-label="Ansicht">
-      {(['text', 'timeline'] as const).map((view) => (
-        <button
-          key={view}
-          type="button"
-          aria-pressed={editorView === view}
-          aria-label={view === 'text' ? 'Text-Ansicht' : 'Timeline-Ansicht'}
-          onClick={() => setEditorView(view)}
-          className={`min-h-12 rounded-control px-4 font-semibold ${
-            editorView === view ? 'bg-accent text-accent-ink' : 'text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-          }`}
-        >
-          {view === 'text' ? 'Text' : 'Timeline'}
-        </button>
-      ))}
-    </div>
+    <Tabs
+      label="Ansicht"
+      value={editorView}
+      onChange={setEditorView}
+      tabs={[
+        { value: 'text', label: 'Text' },
+        { value: 'timeline', label: 'Timeline' },
+      ]}
+    />
   )
 
   const detailSections = [
@@ -932,31 +926,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             seven tabs, not a new idiom. */}
         {layout !== 'panel' && (
           // Wraps instead of scrolling sideways - "Kommentare" was off screen on the phone (#373).
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setMobileTab('text')}
-              className={`h-12 flex-grow rounded-sb-pill px-4 text-base font-medium ${
-                mobileTab === 'text' ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-              }`}
-            >
-              Text
-            </button>
-            {detailSections.map((section) => (
-              <button
-                key={section.key}
-                type="button"
-                onClick={() => setMobileTab(section.key)}
-                className={`h-12 flex-grow rounded-sb-pill px-4 text-base font-medium ${
-                  mobileTab === section.key
-                    ? 'bg-accent text-accent-ink'
-                    : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-                }`}
-              >
-                {section.label}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            label="Bereich"
+            value={mobileTab}
+            onChange={setMobileTab}
+            tabs={[{ value: 'text', label: 'Text' }, ...detailSections.map((section) => ({ value: section.key, label: section.label }))]}
+          />
         )}
 
         {layout === 'panel' ? (

@@ -2,6 +2,7 @@ import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
+import { Switch } from './ui'
 
 export function PluginManager() {
   const installed = usePluginsStore((state) => state.installed)
@@ -50,17 +51,8 @@ export function PluginManager() {
                 {plugin.capabilities.join(', ') || 'keine Capabilities'} · {healthLabel(plugin)}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void setEnabled(plugin.id, !plugin.enabled)}
-              className={`min-h-12 rounded-control px-4 text-sm font-medium ${
-                plugin.enabled
-                  ? 'bg-accent text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover'
-                  : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
-              }`}
-            >
-              {plugin.enabled ? 'Aktiv' : 'Deaktiviert'}
-            </button>
+            {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
+            <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}

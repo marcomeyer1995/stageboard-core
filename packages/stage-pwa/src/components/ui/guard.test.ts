@@ -57,6 +57,10 @@ describe('UI system guard (docs/15)', () => {
     expect(offending(/^\s*\+ (Neue|Neuer|Neues)\b/)).toEqual([])
   })
 
+  it('pick one is a Segmented bar or Tabs - no round pills as choice buttons', () => {
+    expect(offending(/rounded-sb-pill.*(flex-1|flex-grow|aria-pressed)|aria-pressed=\{[^}]*\}.*rounded-sb-pill/)).toEqual([])
+  })
+
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {
     expect(offending(/>\s*Schließen\s*</)).toEqual([])
   })

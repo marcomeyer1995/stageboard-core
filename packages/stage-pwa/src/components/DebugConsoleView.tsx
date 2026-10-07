@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { UiPreview } from './UiPreview'
-import { Button, Switch } from './ui'
+import { Button, Segmented, Switch } from './ui'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
 
@@ -62,20 +62,12 @@ export function DebugConsoleView() {
       </div>
       {showUiPreview && <UiPreview onClose={() => setShowUiPreview(false)} />}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {LEVELS.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            aria-pressed={level === l.id}
-            onClick={() => setLevel(l.id)}
-            className={`min-h-form rounded-control px-4 text-base font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
-          >
-            {l.label}
-            {l.id !== 'all' && ` (${entries.filter((e) => e.level === l.id).length})`}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Einträge"
+        value={level}
+        onChange={setLevel}
+        options={LEVELS.map((l) => ({ value: l.id, label: l.id === 'all' ? l.label : `${l.label} (${entries.filter((e) => e.level === l.id).length})` }))}
+      />
       <div className="flex flex-wrap gap-2">
         <input
           value={query}

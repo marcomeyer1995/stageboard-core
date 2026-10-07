@@ -7,6 +7,7 @@ import {
 } from '../lib/chordpro'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { INPUT_FREE } from './ui/styles'
+import { ToggleChip } from './ui'
 
 interface CommentListEditorProps {
   content: string
@@ -153,16 +154,7 @@ export function TargetPicker({
           {profiles.map((profile) => {
             const checked = targets?.includes(profile.name.trim().toLowerCase()) ?? false
             return (
-              <button
-                key={profile.id}
-                type="button"
-                onClick={() => toggle(profile)}
-                className={`rounded-control px-2 py-0.5 ${
-                  checked ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover'
-                }`}
-              >
-                {profile.name}
-              </button>
+              <ToggleChip key={profile.id} label={profile.name} selected={checked} onToggle={() => toggle(profile)} />
             )
           })}
           {targets === null && <span className="text-ink-faint">(alle, da niemand ausgewählt)</span>}

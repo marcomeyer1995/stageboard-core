@@ -10,6 +10,7 @@ import {
   parseWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
+import { Badge } from './ui'
 
 /**
  * A focused view of just the band's backup-capability plugin(s), for the "gated built-in
@@ -95,15 +96,7 @@ export function BackupManager() {
               </p>
               <p className="text-xs text-ink-muted">{healthLabel(plugin)}</p>
             </div>
-            <span
-              className={`rounded-control px-2 py-1 text-xs font-medium ${
-                healthLabel(plugin) === 'online'
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control-strong text-ink'
-              }`}
-            >
-              {plugin.enabled ? 'Aktiv' : 'Deaktiviert'}
-            </span>
+            <Badge tone={healthLabel(plugin) === 'online' ? 'accent' : 'neutral'}>{plugin.enabled ? 'Aktiv' : 'Deaktiviert'}</Badge>
           </div>
         ))}
       </div>

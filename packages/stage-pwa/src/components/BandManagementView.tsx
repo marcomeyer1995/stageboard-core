@@ -14,7 +14,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { ActionMenuDialog, AddRow, Badge } from './ui'
+import { ActionMenuDialog, AddRow, Badge, Segmented } from './ui'
 import { INPUT_FREE } from './ui/styles'
 
 /**
@@ -646,22 +646,15 @@ export function BandManagementView() {
             Pro Gerät: genau ein Gerät steuert die Show. Pro Person: alle Geräte der Person, die Master ist (z. B. Tablet
             und Handy des Bandleaders), steuern gemeinsam.
           </p>
-          <div className="flex gap-2">
-            {(['device', 'account'] as const).map((mode) => {
-              const selected = (activeWorkspace.masterMode ?? 'device') === mode
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => !selected && void setMasterMode(activeWorkspace.id, mode)}
-                  className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
-                >
-                  {mode === 'device' ? 'Pro Gerät' : 'Pro Person'}
-                </button>
-              )
-            })}
-          </div>
+          <Segmented
+            label="Master-Kontrolle"
+            value={activeWorkspace.masterMode ?? 'device'}
+            onChange={(mode) => void setMasterMode(activeWorkspace.id, mode)}
+            options={[
+              { value: 'device', label: 'Pro Gerät' },
+              { value: 'account', label: 'Pro Person' },
+            ]}
+          />
         </section>
       )}
 

@@ -9,6 +9,7 @@ import {
 import { useAudioSyncStore, type AudioSyncMode } from '../store/useAudioSyncStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { Segmented } from './ui'
 
 const MODE_LABEL: Record<AudioSyncMode, string> = {
   none: 'Keine',
@@ -52,29 +53,20 @@ export function AudioSyncSettings() {
       </p>
 
       <div className="flex gap-2">
-        {(['none', 'selective', 'full'] as const).map((candidate) => {
-          const disabled = candidate === 'full' && !fullIsSafe
-          return (
-            <button
-              key={candidate}
-              type="button"
-              disabled={disabled}
-              onClick={() => setMode(workspaceId, candidate)}
-              title={
-                disabled
-                  ? `Katalog zu groß für "Komplett" (mehr als ${Math.round(SAFE_QUOTA_FRACTION * 100)}% des verfügbaren Speichers)`
-                  : undefined
-              }
-              className={`h-12 flex-1 rounded-sb-pill text-base font-medium disabled:opacity-40 ${
-                mode === candidate
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-              }`}
-            >
-              {MODE_LABEL[candidate]}
-            </button>
-          )
-        })}
+        <Segmented
+          label="Speicher & Sync"
+          value={mode}
+          onChange={(candidate) => setMode(workspaceId, candidate)}
+          options={(['none', 'selective', 'full'] as const).map((candidate) => {
+            const disabled = candidate === 'full' && !fullIsSafe
+            return {
+              value: candidate,
+              label: MODE_LABEL[candidate],
+              disabled,
+              title: disabled ? `Katalog zu groß für "Komplett" (mehr als ${Math.round(SAFE_QUOTA_FRACTION * 100)}% des verfügbaren Speichers)` : undefined,
+            }
+          })}
+        />
       </div>
     </div>
   )
