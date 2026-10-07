@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard } from 'shared-types'
 
@@ -19,6 +19,7 @@ const { useEditModeStore } = await import('../store/useEditModeStore')
 const { useDashboardMenuStore } = await import('../store/useDashboardMenuStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { DashboardMenuList } = await import('./DashboardMenuList')
+const { useModeDashboards } = await import('../lib/useModeDashboards')
 
 const board = (id: string, order: number, extra: Partial<Dashboard> = {}): Dashboard => ({ id, name: id, order, widgets: [], layouts: {}, visibility: 'public', ...extra })
 
@@ -68,6 +69,16 @@ describe('DashboardMenuList', () => {
     act(() => useEditModeStore.getState().setEditing(true))
     act(() => useEditModeStore.getState().setEditing(false))
     expect(useEditModeStore.getState().reopenMenuEditing).toBe(false)
+  })
+
+  it('a dashboard hidden on this device can still be edited - it is not swapped for the first visible one', () => {
+    useDashboardMenuStore.setState({ byWorkspace: { band: { order: [], hidden: ['Pause'] } } } as never)
+    render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    openEditing()
+    fireEvent.click(pen('Pause'))
+    expect(useEditModeStore.getState().isEditing).toBe(true)
+    const { result } = renderHook(() => useModeDashboards())
+    expect(result.current.active?.id).toBe('Pause')
   })
 
   it('a template shows a lock for a musician; its pen offers an own copy instead of editing it', async () => {
