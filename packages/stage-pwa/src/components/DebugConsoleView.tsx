@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { UiPreview } from './UiPreview'
-import { Button, Segmented, Switch } from './ui'
+import { Segmented, Switch } from './ui'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
 
@@ -25,7 +24,6 @@ const LEVEL_CLASS: Record<LogLevel, string> = {
  * (`localStorage.setItem('sb:debug:…')`).
  */
 export function DebugConsoleView() {
-  const [showUiPreview, setShowUiPreview] = useState(false)
   const entries = useDebugLogStore((state) => state.entries)
   const clear = useDebugLogStore((state) => state.clear)
   const [level, setLevel] = useState<LogLevel | 'all'>('all')
@@ -54,13 +52,6 @@ export function DebugConsoleView() {
         <h2 className="text-xl font-bold text-ink">Diagnose</h2>
         <p className="text-sm text-ink-muted">Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge.</p>
       </header>
-
-      {/* UI system (docs/15, phase 3): the new building blocks to look at before screens move over. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={() => setShowUiPreview(true)}>UI-Vorschau öffnen</Button>
-        <span className="text-sm text-ink-faint">Neue Bedienelemente in allen Themes ansehen.</span>
-      </div>
-      {showUiPreview && <UiPreview onClose={() => setShowUiPreview(false)} />}
 
       <Segmented
         label="Einträge"

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
  * just the ones converted in #423. Each rule names the place it was broken, so a failure says
  * what to use instead. Reads the sources as text - no rendering, so it stays fast.
  */
-const sources = import.meta.glob(['../../**/*.tsx', '!../../**/*.test.tsx', '!./**', '!../UiPreview.tsx'], {
+const sources = import.meta.glob(['../../**/*.tsx', '!../../**/*.test.tsx', '!./**'], {
   query: '?raw',
   import: 'default',
   eager: true,
