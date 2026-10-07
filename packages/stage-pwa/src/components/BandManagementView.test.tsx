@@ -331,10 +331,14 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Instrument/Funktion ändern')).not.toBeInTheDocument()
   })
 
-  it('"Stage-Rollen anpassen" offers "Admin" alongside the other stage roles, pre-filled from the current selection', async () => {
+  it('"Stage-Rollen anpassen" offers "Admin" alongside the other stage roles for another member, pre-filled from the current selection', async () => {
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['performer', 'admin'] }],
+      profiles: [
+        { id: 'p1', name: 'Marco', stageRoles: ['performer', 'admin'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+      ],
     })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
     const updateStageRoles = vi.fn()
     useProfilesStore.setState({ updateStageRoles })
     const promptFields = vi.fn().mockResolvedValue({ stageRoles: 'performer,soundtech,admin' })
@@ -350,13 +354,14 @@ describe('BandManagementView', () => {
     expect(fields[0].options).toContainEqual({ value: 'admin', label: 'Admin' })
   })
 
-  it('unchecking "Admin" for someone who is not the last admin calls updateStageRoles as normal', async () => {
+  it('unchecking "Admin" for another member who is not the last admin calls updateStageRoles as normal', async () => {
     useProfilesStore.setState({
       profiles: [
         { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
         { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
       ],
     })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
     const updateStageRoles = vi.fn()
     useProfilesStore.setState({ updateStageRoles })
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
@@ -368,10 +373,33 @@ describe('BandManagementView', () => {
     await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', []))
   })
 
+  it('your own profile: no "Admin" box, your admin role stays whatever you pick - only another admin can take it', async () => {
+    useProfilesStore.setState({
+      profiles: [
+        { id: 'p1', name: 'Marco', stageRoles: ['admin', 'performer'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+      ],
+    })
+    const updateStageRoles = vi.fn()
+    useProfilesStore.setState({ updateStageRoles })
+    const promptFields = vi.fn().mockResolvedValue({ stageRoles: 'soundtech' })
+    useDialogStore.setState({ promptFields })
+
+    render(<BandManagementView />)
+    openMemberMenu('Marco')
+    fireEvent.click(screen.getByText('Stage-Rollen anpassen'))
+
+    await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', ['admin', 'soundtech']))
+    const [, fields] = promptFields.mock.calls[0]
+    expect(fields[0].options).not.toContainEqual({ value: 'admin', label: 'Admin' })
+    expect(fields[0].label).toMatch(/nur ein anderer Admin/)
+  })
+
   it('"Stage-Rollen anpassen" calls updateStageRoles unconditionally - the last-admin block itself lives in useProfilesStore, covered by useProfilesStore.test.ts', async () => {
     const updateStageRoles = vi.fn().mockResolvedValue(false)
     useProfilesStore.setState({ updateStageRoles })
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'someone-else' } }) // another member's roles, not your own
 
     render(<BandManagementView />)
     openMemberMenu('Marco')
@@ -624,7 +652,7 @@ describe('BandManagementView', () => {
       openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
 
-      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getAllByText('11112222')[0]).toBeInTheDocument())
       expect(getAccessCode).toHaveBeenCalledWith('band-a')
     })
 
@@ -636,7 +664,7 @@ describe('BandManagementView', () => {
       render(<BandManagementView />)
       openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
-      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getAllByText('11112222')[0]).toBeInTheDocument())
 
       fireEvent.click(screen.getByText('Fertig'))
       expect(screen.queryByText('11112222')).not.toBeInTheDocument()

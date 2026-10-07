@@ -527,17 +527,23 @@ export function BandManagementView() {
                         <RowActionButton
                           onClick={async () => {
                             setActionsMenuProfileId(null)
+                            // Your own admin rights stay: only another admin can take them away
+                            // (Marco, 2026-10-07; the Stage-Server refuses it too).
+                            const keepOwnAdmin = isActiveProfile && isAdminProfile
                             const result = await promptFields('Stage-Rollen anpassen', [
                               {
                                 key: 'stageRoles',
-                                label: 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
+                                label: keepOwnAdmin
+                                  ? 'Steuert sichtbare Widgets/Dashboards. Deine Admin-Rechte kann dir nur ein anderer Admin entziehen.'
+                                  : 'Steuert sichtbare Widgets/Dashboards - "Admin" verwaltet die Band',
                                 type: 'checkboxes',
-                                options: STAGE_ROLES.map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
+                                options: STAGE_ROLES.filter((role) => !(keepOwnAdmin && role === 'admin')).map((role) => ({ value: role, label: STAGE_ROLE_LABELS[role] })),
                                 defaultValue: profile.stageRoles.join(','),
                               },
                             ])
                             if (!result) return
-                            const stageRoles = result.stageRoles.split(',').filter(Boolean) as StageRole[]
+                            const picked = result.stageRoles.split(',').filter(Boolean) as StageRole[]
+                            const stageRoles = keepOwnAdmin && !picked.includes('admin') ? (['admin', ...picked] as StageRole[]) : picked
                             void updateStageRoles(profile.id, stageRoles)
                           }}
                         >

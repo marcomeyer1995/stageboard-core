@@ -1134,6 +1134,25 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(204)
     })
 
+    it('rejects an admin revoking their own admin rights - also from a device account', async () => {
+      const roster = stubRoster([
+        { id: 'p1', stageRoles: ['admin'] },
+        { id: 'p2', stageRoles: ['admin'] },
+      ])
+      for (const adminUsername of ['stageboard-band-a-p1', 'stageboard-band-a-p1~device-7']) {
+        const verify = { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: adminUsername, roles: ['member', 'admin'] } }) }
+        const fetchMock = stubFetch([verify, roster])
+        const response = await app.inject({
+          method: 'POST',
+          url: '/workspaces/band-a/members/p1/admin',
+          payload: { adminUsername, adminPassword: 'correct-pw', isAdmin: false },
+        })
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toMatchObject({ message: 'An admin cannot revoke their own admin rights' })
+        expect(fetchMock).toHaveBeenCalledTimes(2) // nothing written
+      }
+    })
+
     it('rejects revoking the sole remaining admin', async () => {
       stubFetch([stubAdminVerify(), stubRoster([{ id: 'p1', stageRoles: ['admin'] }])])
 
