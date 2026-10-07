@@ -176,28 +176,45 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
   })
 
-  it('"Abbrechen" with changes asks first, then throws them away', async () => {
+  it('"Abbrechen" with changes asks - "Verwerfen" throws them away', async () => {
     const saveSetlist = vi.fn(async () => {})
-    const confirm = vi.fn(async () => true)
-    useDialogStore.setState({ confirm })
+    const askUnsaved = vi.fn(async () => 'discard' as const)
+    useDialogStore.setState({ askUnsaved })
     useSetlistsStore.setState({ saveSetlist })
     renderEditing()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Verworfen' } })
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
 
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith('Ungespeicherte Änderungen verwerfen?', expect.anything()))
+    await waitFor(() => expect(askUnsaved).toHaveBeenCalled())
     expect(await screen.findByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
     expect(saveSetlist).not.toHaveBeenCalled()
   })
 
+  it('"Speichern" in that question stores the changes, "Weiter bearbeiten" keeps the editor', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    const askUnsaved = vi.fn<() => Promise<'save' | 'discard' | null>>(async () => null)
+    useDialogStore.setState({ askUnsaved })
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    await waitFor(() => expect(askUnsaved).toHaveBeenCalledTimes(1))
+    expect(screen.getByLabelText('Name')).toHaveValue('Winter-Tour')
+
+    askUnsaved.mockResolvedValue('save')
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour' })))
+  })
+
   it('"Abbrechen" without changes goes straight back, no question', async () => {
-    const confirm = vi.fn(async () => true)
-    useDialogStore.setState({ confirm })
+    const askUnsaved = vi.fn(async () => 'discard' as const)
+    useDialogStore.setState({ askUnsaved })
     renderEditing()
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
-    expect(confirm).not.toHaveBeenCalled()
+    expect(askUnsaved).not.toHaveBeenCalled()
   })
 })
 
