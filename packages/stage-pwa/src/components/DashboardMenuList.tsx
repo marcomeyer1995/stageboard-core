@@ -13,19 +13,18 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
-import { Button, IconButton } from './ui'
+import { Button } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 /**
  * The dashboards in the main menu (Marco's dashboard editing redesign, replacing "Dashboards
  * verwalten" and the separate "Bearbeiten" lock):
- * - tap an entry: switch to it;
- * - the pen beside it: open it in edit mode - the bar at the top then has everything else (Marco,
- *   2026-10-07: replaces holding until it filled up, which nobody could see and the browser's
- *   long-press kept interrupting);
- * - a template a musician can't change (#16) shows a lock; its pen offers an own copy instead;
- * - "Ordnen": drag to reorder, eye to hide - per device, every musician arranges their own menu;
- * - "+ Neues Dashboard" at the end.
+ * - tap an entry: switch to it - that's all the list does normally;
+ * - "Bearbeiten" (Marco, 2026-10-07: everything that changes the list behind one barrier,
+ *   replacing hold-until-filled and a separate pen button per row): each row then shows a drag
+ *   handle (reorder), an eye (hide) - both per device, every musician arranges their own menu -
+ *   and a pen that opens it in edit mode; a template a musician can't change (#16) shows a lock
+ *   and its pen offers an own copy instead; "Neues Dashboard" appears below.
  */
 export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string) => void; onEdit: () => void }) {
   const { candidates, listed, hidden, active } = useModeDashboards()
@@ -88,11 +87,13 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
       {arranging ? (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <SortableContext items={listed.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-            <ul className="flex flex-col gap-1" aria-label="Dashboards ordnen">
+            <ul className="flex flex-col gap-1" aria-label="Dashboards bearbeiten">
               {listed.map((dashboard) => (
                 <ArrangeRow
                   key={dashboard.id}
                   dashboard={dashboard}
+                  locked={!canEditDashboard(dashboard, roles)}
+                  onEdit={() => void edit(dashboard)}
                   hidden={hidden.includes(dashboard.id)}
                   // The last shown one can't be hidden - the menu would be empty.
                   canHide={!hidden.includes(dashboard.id) && candidates.length > 1}
@@ -110,48 +111,42 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
             active={dashboard.id === active?.id}
             locked={!canEditDashboard(dashboard, roles)}
             onSelect={() => onSelect(dashboard.id)}
-            onEdit={() => void edit(dashboard)}
           />
         ))
       )}
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {/* Just "Neu" under the "Dashboards" heading - the long label wrapped at stage size. */}
-        <Button size="stage" icon="add" aria-label="Neues Dashboard" onClick={() => void createNew()} disabled={arranging}>
-          Neu
+      {/* Everything that changes the list sits behind one "Bearbeiten" (Marco, 2026-10-07):
+          normally the list only switches. "Bearbeiten beenden", not "Fertig" - "Fertig" is the
+          menu's own way out (docs/15 D6). */}
+      {arranging && (
+        <Button size="stage" icon="add" fullWidth onClick={() => void createNew()}>
+          Neues Dashboard
         </Button>
-        {/* "Ordnen beenden", not "Fertig": "Fertig" is the menu's own way out (docs/15 D6). */}
-        <Button size="stage" variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>
-          {arranging ? 'Ordnen beenden' : 'Ordnen'}
-        </Button>
-      </div>
-      {!arranging && <p className="text-sm text-ink-faint">Tippen wechselt, der Stift bearbeitet.</p>}
-      {arranging && <p className="text-sm text-ink-faint">Ziehen sortiert, das Auge blendet aus - nur auf diesem Gerät.</p>}
+      )}
+      <Button size="stage" icon={arranging ? undefined : 'edit'} variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} fullWidth onClick={() => setArranging(!arranging)} className="mt-1">
+        {arranging ? 'Bearbeiten beenden' : 'Bearbeiten'}
+      </Button>
+      {arranging && <p className="text-sm text-ink-faint">Stift öffnet ein Dashboard zum Bearbeiten. Ziehen sortiert, das Auge blendet aus - beides nur auf diesem Gerät.</p>}
     </div>
   )
 }
 
-/** One dashboard in the menu: a tap on the name switches, the pen opens it for editing. */
-function DashboardEntry({ dashboard, active, locked, onSelect, onEdit }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void; onEdit: () => void }) {
+/** One dashboard in the menu: a tap switches to it - editing sits behind "Bearbeiten". */
+function DashboardEntry({ dashboard, active, locked, onSelect }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void }) {
   return (
-    <div className="flex items-stretch gap-2">
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-current={active ? 'true' : undefined}
-        className={`flex h-stage min-w-0 flex-1 items-center gap-2 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${
-          active ? SELECTED : `bg-control text-ink-soft ${HOVER}`
-        }`}
-      >
-        <span className="truncate">{dashboard.name}</span>
-        {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
-      </button>
-      <IconButton icon="edit" size="stage" variant="secondary" label={`„${dashboard.name}“ bearbeiten`} onClick={onEdit} />
-    </div>
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'true' : undefined}
+      className={`flex h-stage min-w-0 items-center gap-2 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${active ? SELECTED : `bg-control text-ink-soft ${HOVER}`}`}
+    >
+      <span className="truncate">{dashboard.name}</span>
+      {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
+    </button>
   )
 }
 
-/** "Ordnen": drag handle, name, eye (hide on this device). */
-function ArrangeRow({ dashboard, hidden, canHide, onToggleHidden }: { dashboard: Dashboard; hidden: boolean; canHide: boolean; onToggleHidden: (hide: boolean) => void }) {
+/** "Bearbeiten": drag handle, name, eye (hide on this device), pen (open it in edit mode). */
+function ArrangeRow({ dashboard, locked, hidden, canHide, onToggleHidden, onEdit }: { dashboard: Dashboard; locked: boolean; hidden: boolean; canHide: boolean; onToggleHidden: (hide: boolean) => void; onEdit: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dashboard.id })
   return (
     <li
@@ -169,7 +164,10 @@ function ArrangeRow({ dashboard, hidden, canHide, onToggleHidden }: { dashboard:
       >
         ⠿
       </button>
-      <span className={`min-w-0 flex-1 truncate ${hidden ? 'text-ink-faint line-through' : 'text-ink-soft'}`}>{dashboard.name}</span>
+      <span className={`flex min-w-0 flex-1 items-center gap-2 ${hidden ? 'text-ink-faint line-through' : 'text-ink-soft'}`}>
+        <span className="truncate">{dashboard.name}</span>
+        {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
+      </span>
       <button
         type="button"
         aria-pressed={!hidden}
@@ -179,6 +177,14 @@ function ArrangeRow({ dashboard, hidden, canHide, onToggleHidden }: { dashboard:
         className={`flex h-form w-form flex-shrink-0 items-center justify-center text-ink-soft ${CONTROL} ${FOCUS} ${HOVER} ${DISABLED}`}
       >
         <Icon name={hidden ? 'eyeOff' : 'eye'} size="1.3rem" />
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`„${dashboard.name}“ bearbeiten`}
+        className={`flex h-form w-form flex-shrink-0 items-center justify-center text-ink-soft ${CONTROL} ${FOCUS} ${HOVER}`}
+      >
+        <Icon name="edit" size="1.3rem" />
       </button>
     </li>
   )

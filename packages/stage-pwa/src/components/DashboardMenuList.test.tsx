@@ -35,15 +35,19 @@ afterEach(() => vi.useRealTimers())
 
 const entry = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) })
 const pen = (name: string) => screen.getByRole('button', { name: `„${name}“ bearbeiten` })
+const openEditing = () => fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
 
 describe('DashboardMenuList', () => {
-  it('a tap on the name switches, the pen opens the dashboard in edit mode', () => {
+  it('normally a tap only switches; behind "Bearbeiten" the pen opens a dashboard in edit mode', () => {
     const onSelect = vi.fn()
     const onEdit = vi.fn()
     render(<DashboardMenuList onSelect={onSelect} onEdit={onEdit} />)
     fireEvent.click(entry('Monitor'))
     expect(onSelect).toHaveBeenCalledWith('Monitor')
     expect(useEditModeStore.getState().isEditing).toBe(false)
+    expect(screen.queryByRole('button', { name: '„Pause“ bearbeiten' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Neues Dashboard' })).not.toBeInTheDocument()
+    openEditing()
     fireEvent.click(pen('Pause'))
     expect(useEditModeStore.getState().isEditing).toBe(true)
     expect(useActiveDashboardStore.getState().byWorkspace.band).toBe('Pause')
@@ -56,6 +60,7 @@ describe('DashboardMenuList', () => {
     useDashboardsStore.setState({ duplicate })
     render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
     expect(screen.getByLabelText('Vorlage')).toBeInTheDocument()
+    openEditing()
     fireEvent.click(pen('Bühne'))
     expect(useDialogStore.getState().request).toMatchObject({ kind: 'confirm', confirmLabel: 'Eigene Kopie bearbeiten' })
     await act(async () => useDialogStore.getState().acceptConfirm())
@@ -63,20 +68,21 @@ describe('DashboardMenuList', () => {
     expect(useEditModeStore.getState().isEditing).toBe(true)
   })
 
-  it('"Ordnen": the eye hides a dashboard on this device; drag order is per device too', () => {
+  it('"Bearbeiten": the eye hides a dashboard on this device; drag order is per device too', () => {
     render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Ordnen' }))
+    openEditing()
     fireEvent.click(screen.getByRole('button', { name: '„Pause“ ausblenden' }))
     expect(useDashboardMenuStore.getState().byWorkspace.band?.hidden).toEqual(['Pause'])
-    fireEvent.click(screen.getByRole('button', { name: 'Ordnen beenden' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten beenden' }))
     expect(screen.queryByRole('button', { name: /^Pause/ })).not.toBeInTheDocument()
     expect(entry('Monitor')).toBeInTheDocument()
   })
 
-  it('"+ Neues Dashboard" asks for a name, creates it privately and opens it for editing', async () => {
+  it('"Neues Dashboard" (behind "Bearbeiten") asks for a name, creates it privately and opens it for editing', async () => {
     const create = vi.fn(async (name: string) => board(name, 3, { visibility: 'private', ownerProfileId: 'p-caro' }))
     useDashboardsStore.setState({ create })
     render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    openEditing()
     fireEvent.click(screen.getByRole('button', { name: 'Neues Dashboard' }))
     await act(async () => useDialogStore.getState().submit({ value: 'Drums' }))
     expect(create).toHaveBeenCalledWith('Drums', { ownerProfileId: 'p-caro', visibility: 'private' })

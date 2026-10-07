@@ -84,11 +84,11 @@ describe('AppMenu', () => {
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
-  it('no separate "Bearbeiten" row any more - editing starts with the pen beside a dashboard', () => {
+  it('changing the dashboard list (new, order, hide, edit) sits behind one "Bearbeiten"', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: /^Bearbeiten/ })).not.toBeInTheDocument()
-    expect(screen.getByText('Tippen wechselt, der Stift bearbeitet.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Neues Dashboard' })).not.toBeInTheDocument()
   })
 })
 
@@ -99,6 +99,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     render(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.getByText('Dashboards')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
     expect(screen.getByRole('button', { name: 'Neues Dashboard' })).toBeInTheDocument()
   })
 
