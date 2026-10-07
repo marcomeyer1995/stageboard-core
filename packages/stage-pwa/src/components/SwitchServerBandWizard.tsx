@@ -4,6 +4,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { VerifyWorkspaceAdmin, type VerifiedAdmin } from './VerifyWorkspaceAdmin'
 import { useBackHandler } from '../lib/backNavigation'
+import { Badge, Button, MENU_ROW } from './ui'
 
 type Step = 'closing' | 'pick-band' | 'target' | 'committing'
 
@@ -115,18 +116,18 @@ export function SwitchServerBandWizard({
                         setTarget(band)
                         setStep('target')
                       }}
-                      className="flex w-full items-center justify-between rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
+                      className={`${MENU_ROW} justify-between font-semibold text-ink`}
                     >
                       <span>{band.workspaceName}</span>
-                      {isActive && <span className="text-xs font-normal text-ink-faint">Aktiv</span>}
+                      {isActive && <Badge tone="accent">Aktiv</Badge>}
                     </button>
                   </li>
                 )
               })}
             </ul>
-            <button type="button" onClick={() => onClose(false)} className="w-full text-center text-xs text-ink-faint underline">
-              Abbrechen
-            </button>
+            <div className="flex border-t border-line pt-3">
+              <Button onClick={() => onClose(false)}>Abbrechen</Button>
+            </div>
           </div>
         )}
 

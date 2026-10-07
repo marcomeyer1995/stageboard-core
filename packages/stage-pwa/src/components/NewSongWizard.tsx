@@ -2,9 +2,9 @@ import { useState } from 'react'
 import type { Song, SongVariant } from 'shared-types'
 import { useBackHandler } from '../lib/backNavigation'
 import { randomId } from '../lib/id'
-import { Icon } from './Icon'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { INPUT } from './ui/styles'
+import { Button, Dialog } from './ui'
 
 const STEP_TITLE = { 1: 'Name', 2: 'Inhalt', 3: 'Grundeinstellungen' } as const
 type Step = keyof typeof STEP_TITLE
@@ -80,30 +80,32 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
   }
 
   const field = `h-form px-3 text-base ${INPUT}`
-  const secondary = 'min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-  const primary = 'min-h-form rounded-control bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
-
+  // The shared dialog (docs/15 D6): one way out, the bottom row - "Abbrechen"/"Zurück" left,
+  // "Weiter"/"Song anlegen" right; the × that sat in the title row is gone.
   return (
-    <div
-      role="dialog"
-      aria-label="Neuer Song"
-      className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-6"
-      onKeyDown={(e) => e.key === 'Escape' && !importing && onCancel()}
+    <Dialog
+      title="Neuer Song"
+      onClose={() => !importing && onCancel()}
+      actions={
+        <>
+          <Button onClick={step === 1 ? onCancel : () => setStep((step - 1) as Step)}>{step === 1 ? 'Abbrechen' : 'Zurück'}</Button>
+          {step === 1 && (
+            <Button type="submit" form="new-song-step" variant="primary" disabled={!title.trim()}>
+              Weiter
+            </Button>
+          )}
+          {step === 3 && (
+            <Button type="submit" form="new-song-step" variant="primary" disabled={!title.trim() || !bpmValid}>
+              Song anlegen
+            </Button>
+          )}
+        </>
+      }
     >
-      <div className="flex max-h-[min(90vh,90dvh)] w-full max-w-xl flex-col overflow-hidden rounded-container border border-line bg-surface text-ink shadow-sb">
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
-          <div>
-            <h2 className="text-lg font-bold">Neuer Song</h2>
-            <p className="text-sm text-ink-muted">
-              Schritt {step}/3 · {STEP_TITLE[step]}
-            </p>
-          </div>
-          <button type="button" onClick={onCancel} className="flex h-form w-12 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
-            <Icon name="close" size="1.5rem" />
-          </button>
-        </div>
-
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <div className="flex flex-col gap-4" onKeyDown={(e) => e.key === 'Escape' && !importing && onCancel()}>
+          <p className="text-sm font-semibold text-ink-soft">
+            Schritt {step}/3 · {STEP_TITLE[step]}
+          </p>
           {step === 1 && (
             <form
               id="new-song-step"
@@ -113,11 +115,11 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
               }}
               className="flex flex-col gap-3"
             >
-              <label className="flex flex-col gap-1 text-sm text-ink-muted">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
                 Titel
                 <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
               </label>
-              <label className="flex flex-col gap-1 text-sm text-ink-muted">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
                 Band / Interpret (optional)
                 <input value={artist} onChange={(e) => setArtist(e.target.value)} className={field} />
               </label>
@@ -161,11 +163,11 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                 Alles lässt sich später im Editor ändern.
               </p>
               <div className="grid grid-cols-3 gap-2 [&>label]:min-w-0">
-                <label className="flex flex-col gap-1 text-sm text-ink-muted">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
                   BPM
                   <input inputMode="decimal" value={bpm} onChange={(e) => setBpm(e.target.value)} className={field} aria-invalid={!bpmValid} />
                 </label>
-                <label className="flex flex-col gap-1 text-sm text-ink-muted">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
                   Takt
                   <select value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} className={field}>
                     {TIME_SIGNATURES.map((ts) => (
@@ -175,7 +177,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-1 text-sm text-ink-muted">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
                   Key
                   <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="z. B. Am" className={field} />
                 </label>
@@ -185,23 +187,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
           )}
         </div>
 
-        <div className="flex justify-between gap-2 border-t border-line px-4 py-3">
-          <button type="button" onClick={step === 1 ? onCancel : () => setStep((step - 1) as Step)} className={secondary}>
-            {step === 1 ? 'Abbrechen' : 'Zurück'}
-          </button>
-          {step === 1 && (
-            <button type="submit" form="new-song-step" disabled={!title.trim()} className={primary}>
-              Weiter
-            </button>
-          )}
-          {step === 3 && (
-            <button type="submit" form="new-song-step" disabled={!title.trim() || !bpmValid} className={primary}>
-              Song anlegen
-            </button>
-          )}
-        </div>
-      </div>
       {importing && <TabImportOverlay onImport={takeImport} onClose={() => setImporting(false)} initialQuery={[title, artist].filter((part) => part.trim()).join(' ')} />}
-    </div>
+    </Dialog>
   )
 }

@@ -50,7 +50,7 @@ function FeedLine({ events }: { events: MidiEvent[] | undefined }) {
 
 /** Step 1 - name the device, with the existing roster shown for context (so a name that
  * collides with something a song already targets is an informed choice, not a surprise). */
-function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft: Draft) => void; onNext: () => void }) {
+function NameStep({ draft, onChange, onNext, onCancel }: { draft: Draft; onChange: (draft: Draft) => void; onNext: () => void; onCancel: () => void }) {
   const existing = useLogicalDevicesStore((state) => state.devices)
   const variants = useSongVariantsStore((state) => state.variants)
   const songs = useSongsStore((state) => state.songs)
@@ -91,14 +91,19 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={!draft.name.trim()}
-        className="h-form self-end rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Weiter
-      </button>
+      <div className="flex justify-between">
+        <button type="button" onClick={onCancel} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!draft.name.trim()}
+          className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Weiter
+        </button>
+      </div>
     </div>
   )
 }
@@ -151,7 +156,7 @@ function TypeStep({
         })}
       </div>
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
         <button
@@ -396,7 +401,7 @@ function ConnectionStep({
       </div>
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
         <button type="button" onClick={onNext} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
@@ -444,7 +449,7 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
       )}
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
         <button type="button" onClick={onFinish} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
@@ -512,20 +517,16 @@ export function DeviceSetupWizard({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-ink-muted">Gerät einrichten</h2>
-            <p className="text-xs text-ink-faint">
-              Schritt {step}/{TOTAL_STEPS} · {STEP_TITLE[step]}
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
-            ×
-          </button>
+        {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
+        <div className="border-b border-line px-4 py-3">
+          <h2 className="text-lg font-bold text-ink">Gerät einrichten</h2>
+          <p className="text-sm text-ink-faint">
+            Schritt {step}/{TOTAL_STEPS} · {STEP_TITLE[step]}
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {step === 1 && <NameStep draft={draft} onChange={setDraft} onNext={() => setStep(2)} />}
+          {step === 1 && <NameStep draft={draft} onChange={setDraft} onNext={() => setStep(2)} onCancel={onClose} />}
           {step === 2 && (
             <TypeStep draft={draft} onChange={setDraft} onBack={() => setStep(1)} onNext={advanceFromType} />
           )}

@@ -14,7 +14,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { Badge, Button } from './ui'
+import { ActionMenuDialog, Badge, Button } from './ui'
 import { INPUT_FREE } from './ui/styles'
 
 /**
@@ -674,39 +674,20 @@ export function BandManagementView() {
       )}
       {showJoinAnotherBand && <JoinBandView onClose={() => setShowJoinAnotherBand(false)} />}
       {showAddBandChoice && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm space-y-3 rounded-container border border-line bg-surface p-6 text-ink">
-            <h2 className="text-xl font-bold">Band hinzufügen</h2>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddBandChoice(false)
-                setShowJoinAnotherBand(true)
-              }}
-              className="w-full rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
-            >
-              Bestehender Band beitreten
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                setShowAddBandChoice(false)
+        <ActionMenuDialog
+          title="Band hinzufügen"
+          onClose={() => setShowAddBandChoice(false)}
+          actions={[
+            { label: 'Bestehender Band beitreten', onClick: () => setShowJoinAnotherBand(true) },
+            {
+              label: 'Neue Band gründen',
+              onClick: async () => {
                 const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
                 if (name?.trim()) void addWorkspace(name.trim())
-              }}
-              className="w-full rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
-            >
-              Neue Band gründen
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddBandChoice(false)}
-              className="w-full text-center text-xs text-ink-faint underline"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
+              },
+            },
+          ]}
+        />
       )}
     </div>
   )

@@ -214,13 +214,13 @@ export function VerifyWorkspaceAdmin({
             setPickedProfileId(null)
             setPinInput('')
           }}
-          className="w-full text-center text-xs text-ink-faint underline"
+          className="min-h-form w-full text-center text-base text-ink-soft underline"
         >
           Anderer Admin wählen
         </button>
       )}
 
-      <button type="button" onClick={onCancel} className="w-full text-center text-xs text-ink-faint underline">
+      <button type="button" onClick={onCancel} className="min-h-form w-full text-center text-base text-ink-soft underline">
         Abbrechen
       </button>
     </div>

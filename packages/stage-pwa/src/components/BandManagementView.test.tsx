@@ -620,7 +620,7 @@ describe('BandManagementView', () => {
       expect(getAccessCode).toHaveBeenCalledWith('band-a')
     })
 
-    it('"Schließen" closes the invite screen', async () => {
+    it('"Fertig" closes the invite screen', async () => {
       useWorkspaceStore.setState({
         getAccessCode: vi.fn().mockResolvedValue({ code: '11112222' }),
       })
@@ -630,7 +630,7 @@ describe('BandManagementView', () => {
       fireEvent.click(screen.getByText('Einladen'))
       await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
 
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Fertig'))
       expect(screen.queryByText('11112222')).not.toBeInTheDocument()
     })
   })

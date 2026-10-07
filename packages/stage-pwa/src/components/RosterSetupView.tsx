@@ -246,7 +246,7 @@ export function RosterSetupView() {
               })
               if (confirmed) void deleteWorkspace(workspaceId)
             }}
-            className="w-full text-center text-xs text-ink-faint underline"
+            className="min-h-form w-full text-center text-base text-ink-soft underline"
           >
             Bandnamen falsch eingegeben? Neu anfangen
           </button>

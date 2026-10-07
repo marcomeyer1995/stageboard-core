@@ -4,6 +4,7 @@ import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 const PROVIDERS = [
   { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
@@ -119,25 +120,18 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 p-3"
       onClick={onClose}
     >
+      {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
+          D6): title row names it, the way out is the bottom row - Abbrechen + Importieren. */}
       <div
+        role="dialog"
+        aria-label="Song importieren"
         className="flex h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-ink-muted">
-            Song importieren
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-control px-2 min-h-form text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
-          >
-            <Icon name="close" size="1.25rem" />
-          </button>
-        </div>
+        <h2 className="border-b border-line pb-3 text-lg font-bold text-ink">Song importieren</h2>
 
         <form onSubmit={handleSearch} className="flex gap-2">
           <select
@@ -280,14 +274,12 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleImport}
-          disabled={!importableContent}
-          className="self-end rounded-control bg-accent px-4 min-h-form text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-        >
-          Importieren
-        </button>
+        <div className="flex justify-between gap-2 border-t border-line pt-3">
+          <Button onClick={onClose}>Abbrechen</Button>
+          <Button variant="primary" onClick={handleImport} disabled={!importableContent}>
+            Importieren
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { fetchServerAddress } from '../lib/serverInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { Button } from './ui'
 
 /**
  * "Band beitreten" QR/code screen (see #21, redesigned 2026-09-01 at Marco's explicit request
@@ -148,20 +149,19 @@ export function InviteBandView({
                 setCode(result.code)
                 void loadQr(result.code, server)
               }}
-              className="w-full text-center text-xs text-ink-faint underline disabled:opacity-50 print:hidden"
+              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-50 print:hidden"
             >
               {rotating ? 'Erzeuge neuen Code…' : 'Code ändern'}
             </button>
           </>
         )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-control bg-control px-4 py-2 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover print:hidden"
-        >
-          {isFoundingSummary ? 'Fertig' : 'Schließen'}
-        </button>
+        {/* Nothing to confirm here - one "Fertig" at the bottom (docs/15 D6). */}
+        <div className="flex justify-end border-t border-line pt-3 print:hidden">
+          <Button variant="primary" onClick={onClose}>
+            Fertig
+          </Button>
+        </div>
       </div>
     </div>
   )
