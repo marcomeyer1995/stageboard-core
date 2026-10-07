@@ -4,6 +4,7 @@ import { useBackHandler } from '../lib/backNavigation'
 import { randomId } from '../lib/id'
 import { Icon } from './Icon'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
+import { INPUT } from './ui/styles'
 
 const STEP_TITLE = { 1: 'Name', 2: 'Inhalt', 3: 'Grundeinstellungen' } as const
 type Step = keyof typeof STEP_TITLE
@@ -78,7 +79,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
     onFinish(song, variant)
   }
 
-  const field = 'h-form w-full rounded-control bg-control px-3 text-base text-ink'
+  const field = `h-form px-3 text-base ${INPUT}`
   const secondary = 'min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
   const primary = 'min-h-form rounded-control bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
 

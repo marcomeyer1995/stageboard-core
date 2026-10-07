@@ -6,6 +6,7 @@ import { useRosterSetupStore } from '../store/useRosterSetupStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { InviteBandView } from './InviteBandView'
+import { INPUT_FREE } from './ui/styles'
 
 type Phase = 'founder' | 'members' | 'summary'
 
@@ -162,7 +163,7 @@ export function RosterSetupView() {
               onChange={(e) => setMemberName(e.target.value)}
               placeholder="Name"
               autoFocus
-              className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
+              className={`h-form min-w-0 flex-1 px-3 ${INPUT_FREE}`}
             />
             <button
               type="submit"
@@ -204,14 +205,14 @@ export function RosterSetupView() {
             onChange={(e) => setFounderName(e.target.value)}
             placeholder="Dein Name"
             autoFocus
-            className="h-form min-w-0 rounded-control bg-control px-3 text-ink-soft"
+            className={`h-form min-w-0 px-3 ${INPUT_FREE}`}
           />
           <input
             value={founderPin}
             onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
             placeholder="4-stelliger PIN"
             inputMode="numeric"
-            className="h-form min-w-0 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"

@@ -3,6 +3,7 @@ import { getAutomaticStageServerUrl, overrideForTypedUrl } from '../lib/stageSer
 import { useStageServerStore } from '../store/useStageServerStore'
 import { isNativeApp } from '../lib/native'
 import { NetworkServerList } from './NetworkServerList'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
@@ -90,7 +91,7 @@ export function StageServerSettings() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="z.B. https://stageboard.local"
               aria-label="Stage-Server-Adresse"
-              className="h-12 min-w-0 flex-1 rounded-control bg-surface px-3 text-ink-soft"
+              className={`h-12 min-w-0 flex-1 px-3 ${INPUT_FREE}`}
             />
             <button
               type="button"

@@ -5,6 +5,7 @@ import { randomId } from '../lib/id'
 import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { putTrack, removeTrack } from '../lib/songVariantsDb'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 interface TrackManagerFieldProps {
   variantId: string
@@ -144,7 +145,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           onChange={(e) => setYoutubeUrl(e.target.value)}
           placeholder="YouTube-Link für eine Referenzaufnahme"
           disabled={disabled}
-          className="min-w-0 flex-1 rounded-control bg-control px-2 py-1 text-xs text-ink placeholder:text-ink-faint"
+          className={`min-w-0 flex-1 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
         />
         <button
           type="submit"
@@ -157,7 +158,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
       {youtubeError && <span className="text-xs text-red-500">{youtubeError}</span>}
       <div className="flex items-center gap-2">
         <select
-          className="rounded-control bg-control px-2 py-1 text-xs text-ink"
+          className={`min-h-form px-3 text-base ${INPUT}`}
           value={uploadKind}
           onChange={(e) => setUploadKind(e.target.value as TrackKind)}
           disabled={disabled}

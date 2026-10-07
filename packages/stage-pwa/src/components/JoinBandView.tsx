@@ -10,6 +10,8 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Switch } from './ui'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -335,7 +337,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <button
                         type="submit"
@@ -404,7 +406,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               placeholder="8-stelliger Code"
               inputMode="numeric"
               autoFocus
-              className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+              className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
             <button
               type="submit"
@@ -482,7 +484,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     onChange={(e) => setServerAddress(e.target.value)}
                     placeholder="192.168.178.158"
                     inputMode="url"
-                    className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+                    className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
                     aria-label="Adresse des Stage-Servers"
                   />
                   <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
@@ -502,7 +504,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setServerAddress(e.target.value)}
                   placeholder="192.168.178.158"
                   inputMode="url"
-                  className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+                  className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
                   aria-label="Adresse des Stage-Servers"
                 />
                 <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
@@ -631,7 +633,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setFallbackWorkspaceId(e.target.value)}
                 placeholder="Band-ID"
                 aria-label="Band-ID"
-                className="h-form rounded-control bg-control px-3 text-ink-soft"
+                className={`h-form px-3 ${INPUT}`}
               />
               {/* Per-person-accounts follow-up: every account has its own username now, no
                   fixed formula to derive it from - has to be typed in alongside the password. */}
@@ -640,7 +642,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Benutzername"
                 aria-label="Benutzername"
-                className="h-form rounded-control bg-control px-3 text-ink-soft"
+                className={`h-form px-3 ${INPUT}`}
               />
               <div className="flex gap-2">
                 <input
@@ -649,7 +651,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Passwort oder PIN"
                   aria-label="Passwort oder PIN"
-                  className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
+                  className={`h-form min-w-0 flex-1 px-3 ${INPUT_FREE}`}
                 />
                 <button
                   type="submit"
@@ -660,15 +662,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               </div>
               {/* Self-declared, not verified here - a wrong guess only mis-shows admin UI,
                   CouchDB's roster validator is what actually enforces admin-only writes. */}
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={isAdmin}
-                  onChange={(e) => setIsAdmin(e.target.checked)}
-                  className="h-5 w-5"
-                />
-                Dies ist ein Admin-Konto
-              </label>
+              <Switch label="Dies ist ein Admin-Konto" checked={isAdmin} onChange={setIsAdmin} />
             </form>
           )}
         </div>

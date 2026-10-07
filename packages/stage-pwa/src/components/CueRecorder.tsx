@@ -14,6 +14,8 @@ import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfig
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Switch } from './ui'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
@@ -189,7 +191,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       <div className="flex flex-wrap gap-2">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
           Gerät
-          <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} disabled={recordable.length === 0} className="rounded-control bg-control px-2 py-1 text-sm text-ink disabled:opacity-40">
+          <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} disabled={recordable.length === 0} className={`min-h-form px-3 text-base ${INPUT}`}>
             <option value="">{recordable.length === 0 ? 'Kein aufnahmefähiges Gerät eingerichtet' : 'Wählen…'}</option>
             {recordable.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
@@ -201,7 +203,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
           MIDI-Eingang
           <span className="flex gap-1">
-            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className="min-w-0 flex-1 rounded-control bg-control px-2 py-1 text-sm text-ink disabled:opacity-40">
+            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className={`min-h-form px-3 text-base min-w-0 flex-1 ${INPUT_FREE}`}>
               {(inputs ?? []).map((input) => (
                 <option key={input.id} value={input.id}>
                   {input.name}
@@ -245,16 +247,15 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           {onsets && <span className="text-xs text-ink-faint">{onsets.onsets.length} Onsets gefunden</span>}
           {onsets && (
             <>
-              <label className="ml-auto flex items-center gap-1 text-ink">
-                <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
-                Cues einrasten
-              </label>
+              <span className="ml-auto">
+                <Switch layout="inline" label="Cues einrasten" checked={snapEnabled} onChange={setSnapEnabled} />
+              </span>
               <select
                 aria-label="Einrast-Fenster"
                 value={snapWindowMs}
                 onChange={(e) => setSnapWindowMs(Number(e.target.value))}
                 disabled={!snapEnabled}
-                className="rounded-control bg-control-strong px-2 py-1 text-xs text-ink disabled:opacity-40"
+                className={`min-h-form px-3 text-base ${INPUT_FREE}`}
               >
                 {SNAP_WINDOWS_MS.map((windowMs) => (
                   <option key={windowMs} value={windowMs}>

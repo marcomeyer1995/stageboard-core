@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CAPABILITIES, type CapabilityId, type ShowCue } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 const CAPABILITY_OPTIONS = Object.values(CAPABILITIES)
 
@@ -105,7 +106,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               min={0}
               value={seconds}
               onChange={(e) => setSeconds(Number(e.target.value))}
-              className="w-20 rounded-control bg-control px-2 py-1 text-sm text-ink"
+              className={`w-20 px-2 py-1 text-base ${INPUT_FREE}`}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
@@ -116,7 +117,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
                 setCapability(e.target.value)
                 setTargetLogicalDeviceId('')
               }}
-              className="rounded-control bg-control px-2 py-1 text-sm text-ink"
+              className={`min-h-form px-3 text-base ${INPUT_FREE}`}
             >
               {CAPABILITY_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -131,7 +132,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               value={targetLogicalDeviceId}
               onChange={(e) => setTargetLogicalDeviceId(e.target.value)}
               disabled={devicesForCapability.length === 0}
-              className="rounded-control bg-control px-2 py-1 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              className={`min-h-form px-3 text-base ${INPUT_FREE}`}
             >
               <option value="">
                 {devicesForCapability.length === 0 ? 'Kein Logical Device mit dieser Capability' : 'Wählen…'}
@@ -150,7 +151,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               value={type}
               onChange={(e) => setType(e.target.value)}
               placeholder="z.B. rig_change"
-              className="rounded-control bg-control px-2 py-1 text-sm text-ink placeholder:text-ink-faint"
+              className={`px-2 py-1 text-base placeholder:text-ink-faint ${INPUT}`}
             />
           </label>
         </div>
@@ -161,7 +162,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
             onChange={(e) => setPayloadText(e.target.value)}
             placeholder='{"rigName": "Clean Chorus", "slot": 3}'
             rows={2}
-            className="rounded-control bg-control px-2 py-1 font-sb-mono text-xs text-ink placeholder:text-ink-faint"
+            className={`px-2 py-1 font-sb-mono text-base placeholder:text-ink-faint ${INPUT}`}
           />
         </label>
         {payloadError && <p className="text-xs text-red-500">{payloadError}</p>}

@@ -42,3 +42,6 @@ export const HOVER = '[@media(hover:hover)]:hover:bg-control-hover'
 /** Text inputs and dropdowns (Field, Select, TextArea) - also for the few special inputs that
  * can't use them (e.g. a widget's own scaled select). */
 export const INPUT = `w-full border border-transparent bg-control text-ink placeholder:text-ink-faint ${CONTROL} ${FOCUS} disabled:opacity-40`
+
+/** INPUT without the full width - for a field that sets its own width. */
+export const INPUT_FREE = INPUT.replace('w-full ', '')

@@ -6,6 +6,7 @@ import {
   listTabBlocks,
 } from '../lib/chordpro'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { INPUT_FREE } from './ui/styles'
 
 interface CommentListEditorProps {
   content: string
@@ -72,7 +73,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                   type="text"
                   value={occurrence.text}
                   onChange={(e) => patchLine(occurrence.lineNumber, e.target.value, occurrence.targets)}
-                  className="flex-1 rounded-control bg-control-strong px-2 py-1 text-sm text-ink"
+                  className={`flex-1 px-2 py-1 text-base ${INPUT_FREE}`}
                 />
                 <button
                   type="button"

@@ -30,6 +30,8 @@ import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Switch } from './ui'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -482,7 +484,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           BPM
           <input
             type="number"
-            className="min-h-form rounded-control bg-control px-3 text-ink"
+            className={`min-h-form px-3 ${INPUT}`}
             value={draft.bpm}
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
@@ -490,39 +492,30 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Takt
           <input
-            className="min-h-form rounded-control bg-control px-3 text-ink"
+            className={`min-h-form px-3 ${INPUT}`}
             placeholder="4/4"
             value={draft.timeSignature}
             onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
           />
         </label>
       </div>
-      <label className="flex min-h-12 items-center gap-3 text-sm text-ink-soft">
-        <input
-          type="checkbox"
-          checked={draft.clickTrackEnabled}
-          onChange={(e) => setDraft({ ...draft, clickTrackEnabled: e.target.checked })}
-          className="h-6 w-6"
-        />
-        Klick standardmäßig an (per Show überstimmbar)
-      </label>
+      <Switch
+        label="Klick standardmäßig an"
+        description="Per Show überstimmbar."
+        checked={draft.clickTrackEnabled}
+        onChange={(clickTrackEnabled) => setDraft({ ...draft, clickTrackEnabled })}
+      />
       <div className="flex items-center gap-3">
-        <label className="flex min-h-12 items-center gap-3 text-sm text-ink-soft">
-          <input
-            type="checkbox"
-            checked={draft.countInEnabled}
-            onChange={(e) => setDraft({ ...draft, countInEnabled: e.target.checked })}
-            className="h-6 w-6"
-          />
-          Count-in aktivieren
-        </label>
+        <div className="min-w-0 flex-1">
+          <Switch label="Count-in" checked={draft.countInEnabled} onChange={(countInEnabled) => setDraft({ ...draft, countInEnabled })} />
+        </div>
         <label className="flex items-center gap-1 text-sm text-ink-muted">
           Takte
           <input
             type="number"
             min={1}
             disabled={!draft.countInEnabled}
-            className="w-16 min-h-form rounded-control bg-control px-3 text-ink disabled:opacity-40"
+            className={`w-16 min-h-form px-3 ${INPUT_FREE}`}
             value={draft.countInBars}
             onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
           />
@@ -592,7 +585,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               const seconds = Math.round(Number(e.target.value))
               setDraft({ ...draft, durationMs: e.target.value === '' || !(seconds > 0) ? undefined : seconds * 1000 })
             }}
-            className="h-form w-40 rounded-control bg-control px-3 text-ink"
+            className={`h-form w-40 px-3 ${INPUT_FREE}`}
           />
           <span className="text-xs text-ink-faint">
             Ohne Track: die Länge für Festival-Uhr und automatisches Stoppen (auch bei reinem Klick). Leer = geschätzt
@@ -779,7 +772,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </div>
         <textarea
           ref={textareaRef}
-          className="min-h-[240px] flex-1 rounded-control bg-control p-2 font-sb-mono text-sm text-ink"
+          className={`min-h-[240px] flex-1 p-2 font-sb-mono text-base ${INPUT_FREE}`}
           value={draft.chordProContent}
           onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
           placeholder="[00:00.00] Come on baby [G] don't you wanna go"
@@ -850,7 +843,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               select push the whole form past the right edge on a phone (#373). */}
           <div className="flex min-w-0 items-center gap-2 [&>select]:min-w-0">
             <select
-              className="flex-1 min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 text-base flex-1 ${INPUT}`}
               value={draft.variantId}
               onChange={(e) => selectVariant(e.target.value)}
             >
@@ -876,7 +869,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Varianten-Name
             <input
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.variantLabel}
               onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
             />
@@ -892,7 +885,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
             <input
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
@@ -900,7 +893,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Band
             <input
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.artist ?? ''}
               onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
             />
@@ -910,7 +903,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.key ?? ''}
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
@@ -918,7 +911,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Tuning
             <input
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.tuning ?? ''}
               onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
@@ -928,7 +921,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <input
               type="number"
               min={0}
-              className="min-h-form rounded-control bg-control px-3 text-ink"
+              className={`min-h-form px-3 ${INPUT}`}
               value={draft.capo ?? ''}
               onChange={(e) =>
                 setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })

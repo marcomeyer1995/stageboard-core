@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getDeviceId } from '../lib/deviceId'
 import { useDevicesStore } from '../store/useDevicesStore'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * Lets this device rename itself in the workspace's DeviceRegistry (#10's first slice) - the
@@ -29,7 +30,7 @@ export function DeviceNameSettings() {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Name dieses Geräts"
-        className="h-form flex-1 rounded-control bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+        className={`h-form flex-1 px-4 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
       />
       <button
         type="button"

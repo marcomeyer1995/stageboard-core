@@ -3,6 +3,7 @@ import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { INPUT_FREE } from './ui/styles'
 
 const PROVIDERS = [
   { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
@@ -142,7 +143,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           <select
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            className="rounded-control bg-control px-2 py-1 text-sm text-ink"
+            className={`min-h-form px-3 text-base ${INPUT_FREE}`}
           >
             {PROVIDERS.map((p) => (
               <option key={p.id} value={p.id}>
@@ -154,7 +155,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Songtitel..."
-            className="flex-1 rounded-control bg-control px-2 py-1 text-sm text-ink"
+            className={`flex-1 px-2 py-1 text-base ${INPUT_FREE}`}
           />
           <button
             type="submit"

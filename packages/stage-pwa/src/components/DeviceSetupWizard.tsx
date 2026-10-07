@@ -18,6 +18,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 const TOTAL_STEPS = 4
 const STEP_TITLE: Record<number, string> = { 1: 'Name', 2: 'Typ', 3: 'Verbindung', 4: 'Prüfen' }
@@ -69,7 +70,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="z.B. „Marcos Kemper“"
-          className="h-form rounded-control bg-control px-3 text-base text-ink placeholder:text-ink-faint"
+          className={`h-form px-3 text-base placeholder:text-ink-faint ${INPUT}`}
         />
       </label>
 
@@ -341,7 +342,7 @@ function ConnectionStep({
         <select
           value={manualTarget}
           onChange={(e) => setManualTarget(e.target.value)}
-          className="h-form rounded-control bg-control px-3 text-base text-ink"
+          className={`min-h-form px-3 text-base ${INPUT}`}
         >
           <option value="">— nicht festgelegt —</option>
           <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
@@ -359,7 +360,7 @@ function ConnectionStep({
                 setManualTransportId(e.target.value)
                 setManualValues({})
               }}
-              className="h-form rounded-control bg-control px-3 text-base text-ink"
+              className={`min-h-form px-3 text-base ${INPUT}`}
             >
               <option value="">Anschlussart wählen…</option>
               {plugin.transports.map((t) => (
@@ -377,7 +378,7 @@ function ConnectionStep({
                       type={field.type}
                       value={manualValues[field.key] ?? ''}
                       onChange={(e) => setManualValues({ ...manualValues, [field.key]: e.target.value })}
-                      className="w-32 rounded-control bg-control-strong px-2 py-1 text-sm text-ink"
+                      className={`w-32 px-2 py-1 text-base ${INPUT_FREE}`}
                     />
                   </label>
                 ))}

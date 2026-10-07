@@ -16,6 +16,7 @@ import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { INPUT } from './ui/styles'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   performance: 'Performance',
@@ -182,7 +183,7 @@ export function WidgetLibrary({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Widget suchen…"
-          className="h-touch flex-shrink-0 rounded-control bg-control px-3 text-ink placeholder:text-ink-faint"
+          className={`h-touch flex-shrink-0 px-3 placeholder:text-ink-faint ${INPUT}`}
         />
 
         {noRoom && (

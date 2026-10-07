@@ -66,9 +66,9 @@ describe('DebugConsoleView (#14)', () => {
 
   it('detail-log switches set the localStorage flags the debug helpers read', () => {
     render(<DebugConsoleView />)
-    fireEvent.click(screen.getByLabelText(/Dashboard-Raster/))
+    fireEvent.click(screen.getByRole('switch', { name: /Dashboard-Raster/ }))
     expect(localStorage.getItem('sb:debug:grid')).toBe('1')
-    fireEvent.click(screen.getByLabelText(/Dashboard-Raster/))
+    fireEvent.click(screen.getByRole('switch', { name: /Dashboard-Raster/ }))
     expect(localStorage.getItem('sb:debug:grid')).toBeNull()
   })
 })

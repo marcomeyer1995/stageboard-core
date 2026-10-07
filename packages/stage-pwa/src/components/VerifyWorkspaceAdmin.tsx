@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { INPUT_FREE } from './ui/styles'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
 
@@ -144,7 +145,7 @@ export function VerifyWorkspaceAdmin({
             placeholder="8-stelliger Code"
             inputMode="numeric"
             autoFocus
-            className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"
@@ -193,7 +194,7 @@ export function VerifyWorkspaceAdmin({
             placeholder="4-stelliger PIN"
             inputMode="numeric"
             autoFocus
-            className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"

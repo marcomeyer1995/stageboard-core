@@ -1,4 +1,5 @@
 import { THEMES, useThemeStore } from '../store/useThemeStore'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * Lets a musician pick their own visual language for this device - see "StageBoard Look
@@ -18,7 +19,7 @@ export function ThemeSwitcher() {
         value={themeId}
         onChange={(e) => setThemeId(e.target.value as (typeof THEMES)[number]['id'])}
         title="Design"
-        className="h-form flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+        className={`min-h-form flex-1 px-3 text-base ${INPUT_FREE}`}
       >
         {THEMES.map((theme) => (
           <option key={theme.id} value={theme.id}>

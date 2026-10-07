@@ -20,6 +20,7 @@ import {
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { Icon } from './Icon'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -173,7 +174,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                       value={steps[id]}
                       onChange={(e) => setSteps({ ...steps, [id]: e.target.value as StepAction })}
                       aria-label={`Wenn ${label}`}
-                      className="h-form min-w-0 flex-1 rounded-control bg-control-strong px-3 text-base text-ink"
+                      className={`min-h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
                     >
                       {STEP_CHOICES[id].map((step) => (
                         <option key={step} value={step}>

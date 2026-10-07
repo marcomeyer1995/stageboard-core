@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { UiPreview } from './UiPreview'
-import { Button } from './ui'
+import { Button, Switch } from './ui'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
+import { INPUT_FREE } from './ui/styles'
 
 const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
   { id: 'all', label: 'Alles' },
@@ -81,7 +82,7 @@ export function DebugConsoleView() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Suchen…"
           aria-label="Log durchsuchen"
-          className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink"
+          className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
         />
         <button type="button" onClick={() => void copy()} className="min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Kopieren
@@ -110,18 +111,15 @@ export function DebugConsoleView() {
         <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
         <p className="text-sm text-ink-muted">Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten.</p>
         {DEBUG_FLAGS.map((flag) => (
-          <label key={flag.key} className="flex min-h-12 cursor-pointer items-center gap-3 text-base text-ink">
-            <input
-              type="checkbox"
-              checked={debugFlagOn(flag.key)}
-              onChange={(e) => {
-                setDebugFlag(flag.key, e.target.checked)
-                rerender((n) => n + 1)
-              }}
-              className="h-6 w-6"
-            />
-            {flag.label}
-          </label>
+          <Switch
+            key={flag.key}
+            label={flag.label}
+            checked={debugFlagOn(flag.key)}
+            onChange={(on) => {
+              setDebugFlag(flag.key, on)
+              rerender((n) => n + 1)
+            }}
+          />
         ))}
       </section>
     </div>

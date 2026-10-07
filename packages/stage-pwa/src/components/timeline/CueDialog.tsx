@@ -3,6 +3,7 @@ import type { LogicalDevice, ShowCue } from 'shared-types'
 import { commandsFor, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
 import { parseCuePayload } from '../../lib/timelineCues'
 import { useBackHandler } from '../../lib/backNavigation'
+import { INPUT } from '../ui/styles'
 
 export type CueContent = Omit<ShowCue, 'id' | 'timeMs'>
 
@@ -63,7 +64,7 @@ export function CueDialog({
     onSubmit({ targetLogicalDeviceId: device.id, type: command.type, payload: command.fields.length > 0 ? parsed.payload : undefined })
   }
 
-  const select = 'h-touch w-full rounded-control bg-control px-3 text-lg text-ink-soft disabled:opacity-40'
+  const select = `min-h-form px-3 text-base ${INPUT}`
   const label = 'block text-sm text-ink-muted'
 
   return (
@@ -108,7 +109,7 @@ export function CueDialog({
             </label>
             <label className={label}>
               <span className="mb-1 block">Payload (JSON, optional)</span>
-              <textarea rows={3} className="w-full rounded-control bg-control px-3 py-2 text-ink-soft" value={freePayload} onChange={(e) => setFreePayload(e.target.value)} />
+              <textarea rows={3} className={`px-3 py-2 ${INPUT}`} value={freePayload} onChange={(e) => setFreePayload(e.target.value)} />
             </label>
           </>
         ) : (
