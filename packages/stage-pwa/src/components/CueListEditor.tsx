@@ -87,7 +87,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               <button
                 type="button"
                 onClick={() => remove(cue.id)}
-                className="rounded-control bg-control-strong px-2 py-1 text-xs text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
+                className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
               >
                 Entfernen
               </button>
@@ -169,7 +169,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
           type="button"
           onClick={add}
           disabled={!targetLogicalDeviceId || !type.trim()}
-          className="self-start rounded-control bg-control-strong px-3 py-1 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="self-start rounded-control bg-control-strong px-3 min-h-form text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Cue hinzufügen
         </button>

@@ -288,7 +288,7 @@ function App() {
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="relative flex h-12 items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
+              className="relative flex h-form items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}

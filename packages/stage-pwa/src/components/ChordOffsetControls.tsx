@@ -104,11 +104,11 @@ function ChordOffsetDialog({ offsets, authoredCapo, onClose }: { offsets: ChordO
         <p className="text-sm text-ink-faint">Gilt nur auf diesem Gerät und nur für diesen Song.</p>
         <div className="flex justify-end gap-2">
           {dirty && (
-            <button type="button" onClick={offsets.reset} className="min-h-12 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
+            <button type="button" onClick={offsets.reset} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
               Zurücksetzen
             </button>
           )}
-          <button type="button" onClick={onClose} className="min-h-12 rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+          <button type="button" onClick={onClose} className="min-h-form rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
             Fertig
           </button>
         </div>

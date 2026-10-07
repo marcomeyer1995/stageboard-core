@@ -18,7 +18,7 @@ export function ThemeSwitcher() {
         value={themeId}
         onChange={(e) => setThemeId(e.target.value as (typeof THEMES)[number]['id'])}
         title="Design"
-        className="h-12 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+        className="h-form flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
       >
         {THEMES.map((theme) => (
           <option key={theme.id} value={theme.id}>
@@ -31,7 +31,7 @@ export function ThemeSwitcher() {
           type="button"
           onClick={toggleLightDark}
           title={lightDark === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          className="h-12 flex-shrink-0 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
+          className="h-form flex-shrink-0 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
         >
           {lightDark === 'dark' ? 'Light' : 'Dark'}
         </button>

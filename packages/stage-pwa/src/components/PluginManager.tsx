@@ -64,7 +64,7 @@ export function PluginManager() {
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}
-              className="ml-2 min-h-12 rounded-control bg-control px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
+              className="ml-2 min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -93,7 +93,7 @@ export function PluginManager() {
               onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }
-              className="min-h-12 rounded-control bg-control-strong px-4 text-sm font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+              className="min-h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Installieren
             </button>

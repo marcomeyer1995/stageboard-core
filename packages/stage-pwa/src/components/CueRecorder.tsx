@@ -176,7 +176,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       ) : (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
           <audio {...audioProps} />
-          <button type="button" onClick={togglePlay} className="rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+          <button type="button" onClick={togglePlay} className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
             {isPlaying ? 'Pause' : 'Play'}
           </button>
           <span className="font-sb-mono">
@@ -238,7 +238,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
             type="button"
             onClick={() => void analyzeOnsets()}
             disabled={!trackSrc || analyzing}
-            className="rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {analyzing ? 'Analysiere…' : 'Onsets analysieren'}
           </button>
@@ -289,7 +289,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           type="button"
           onClick={accept}
           disabled={rows.length === 0}
-          className="flex-1 rounded-control bg-accent-2 py-3 text-lg font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover disabled:opacity-40"
+          className="flex-1 rounded-control bg-accent py-3 text-lg font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
         >
           Übernehmen{rows.length > 0 ? ` (${rows.length} Cues)` : ''}
         </button>

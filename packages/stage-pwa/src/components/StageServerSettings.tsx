@@ -70,7 +70,7 @@ export function StageServerSettings() {
           <button
             type="button"
             onClick={reset}
-            className="h-12 self-start rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
+            className="h-form self-start rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
           >
             Zurücksetzen auf automatisch
           </button>
@@ -99,7 +99,7 @@ export function StageServerSettings() {
                 setDraft(draftOverride ?? '')
               }}
               disabled={draftOverride === override}
-              className="h-12 flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-50"
+              className="h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-50"
             >
               Speichern
             </button>

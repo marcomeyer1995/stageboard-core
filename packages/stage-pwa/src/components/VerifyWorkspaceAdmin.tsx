@@ -144,12 +144,12 @@ export function VerifyWorkspaceAdmin({
             placeholder="8-stelliger Code"
             inputMode="numeric"
             autoFocus
-            className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
           />
           <button
             type="submit"
             disabled={busy || manualCode.trim().length === 0}
-            className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Weiter'}
           </button>
@@ -193,12 +193,12 @@ export function VerifyWorkspaceAdmin({
             placeholder="4-stelliger PIN"
             inputMode="numeric"
             autoFocus
-            className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
           />
           <button
             type="submit"
             disabled={busy || pinInput.length !== 4}
-            className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Bestätigen'}
           </button>

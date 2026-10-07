@@ -70,7 +70,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         <button
           type="button"
           onClick={onEdit}
-          className="h-12 flex-shrink-0 rounded-control bg-accent-2 px-4 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover"
+          className="h-form flex-shrink-0 rounded-control bg-accent px-4 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
         >
           Bearbeiten
         </button>

@@ -69,7 +69,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
           placeholder="z.B. „Marcos Kemper“"
-          className="h-11 rounded-control bg-control px-3 text-sm text-ink placeholder:text-ink-faint"
+          className="h-form rounded-control bg-control px-3 text-base text-ink placeholder:text-ink-faint"
         />
       </label>
 
@@ -94,7 +94,7 @@ function NameStep({ draft, onChange, onNext }: { draft: Draft; onChange: (draft:
         type="button"
         onClick={onNext}
         disabled={!draft.name.trim()}
-        className="h-11 self-end rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-form self-end rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
       >
         Weiter
       </button>
@@ -150,14 +150,14 @@ function TypeStep({
         })}
       </div>
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
         <button
           type="button"
           onClick={() => void next()}
           disabled={!draft.pluginId || saving}
-          className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? 'Speichere…' : 'Weiter'}
         </button>
@@ -299,7 +299,7 @@ function ConnectionStep({
                     type="button"
                     onClick={() => void sendTrigger(c.hardwareKey)}
                     disabled={sendingKey === c.hardwareKey}
-                    className="h-7 shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                    className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
                   >
                     {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
                   </button>
@@ -327,7 +327,7 @@ function ConnectionStep({
                 type="button"
                 onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
                 disabled={assigningKey === c.hardwareKey}
-                className="h-7 shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
               >
                 {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
               </button>
@@ -341,7 +341,7 @@ function ConnectionStep({
         <select
           value={manualTarget}
           onChange={(e) => setManualTarget(e.target.value)}
-          className="h-12 rounded-control bg-control px-3 text-base text-ink"
+          className="h-form rounded-control bg-control px-3 text-base text-ink"
         >
           <option value="">— nicht festgelegt —</option>
           <option value={SERVER_EXECUTION_TARGET}>Server (Stage-Server-Plugin)</option>
@@ -359,7 +359,7 @@ function ConnectionStep({
                 setManualTransportId(e.target.value)
                 setManualValues({})
               }}
-              className="h-12 rounded-control bg-control px-3 text-base text-ink"
+              className="h-form rounded-control bg-control px-3 text-base text-ink"
             >
               <option value="">Anschlussart wählen…</option>
               {plugin.transports.map((t) => (
@@ -388,17 +388,17 @@ function ConnectionStep({
         <button
           type="button"
           onClick={() => void saveManual()}
-          className="h-12 self-start rounded-control bg-control-strong px-4 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
+          className="h-form self-start rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           Speichern
         </button>
       </div>
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
-        <button type="button" onClick={onNext} className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+        <button type="button" onClick={onNext} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
           {resolvedTarget ? 'Weiter' : 'Später verbinden'}
         </button>
       </div>
@@ -428,7 +428,7 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
           <button
             type="button"
             onClick={() => void runTest()}
-            className="h-11 rounded-control bg-control-strong px-4 text-sm font-medium text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             Testen
           </button>
@@ -443,10 +443,10 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
       )}
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-11 rounded-control bg-control-strong px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover">
           Zurück
         </button>
-        <button type="button" onClick={onFinish} className="h-11 rounded-control bg-accent px-6 text-sm font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+        <button type="button" onClick={onFinish} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
           Fertig
         </button>
       </div>

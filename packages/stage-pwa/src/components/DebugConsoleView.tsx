@@ -68,7 +68,7 @@ export function DebugConsoleView() {
             type="button"
             aria-pressed={level === l.id}
             onClick={() => setLevel(l.id)}
-            className={`min-h-12 rounded-control px-4 text-sm font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
+            className={`min-h-form rounded-control px-4 text-base font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'}`}
           >
             {l.label}
             {l.id !== 'all' && ` (${entries.filter((e) => e.level === l.id).length})`}
@@ -81,12 +81,12 @@ export function DebugConsoleView() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Suchen…"
           aria-label="Log durchsuchen"
-          className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink"
+          className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink"
         />
-        <button type="button" onClick={() => void copy()} className="min-h-12 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <button type="button" onClick={() => void copy()} className="min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Kopieren
         </button>
-        <button type="button" onClick={clear} className="min-h-12 rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
+        <button type="button" onClick={clear} className="min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
           Leeren
         </button>
       </div>

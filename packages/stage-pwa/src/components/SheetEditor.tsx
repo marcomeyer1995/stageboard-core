@@ -482,7 +482,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           BPM
           <input
             type="number"
-            className="min-h-12 rounded-control bg-control px-3 text-ink"
+            className="min-h-form rounded-control bg-control px-3 text-ink"
             value={draft.bpm}
             onChange={(e) => setDraft({ ...draft, bpm: Number(e.target.value) })}
           />
@@ -490,7 +490,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
           Takt
           <input
-            className="min-h-12 rounded-control bg-control px-3 text-ink"
+            className="min-h-form rounded-control bg-control px-3 text-ink"
             placeholder="4/4"
             value={draft.timeSignature}
             onChange={(e) => setDraft({ ...draft, timeSignature: e.target.value })}
@@ -522,7 +522,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             type="number"
             min={1}
             disabled={!draft.countInEnabled}
-            className="w-16 min-h-12 rounded-control bg-control px-3 text-ink disabled:opacity-40"
+            className="w-16 min-h-form rounded-control bg-control px-3 text-ink disabled:opacity-40"
             value={draft.countInBars}
             onChange={(e) => setDraft({ ...draft, countInBars: Math.max(1, Number(e.target.value)) })}
           />
@@ -536,7 +536,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <button
             type="button"
             onClick={() => setEditorView('timeline')}
-            className="min-h-12 rounded-control bg-control-strong px-3 text-sm font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             In der Timeline bearbeiten
           </button>
@@ -544,7 +544,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             type="button"
             onClick={() => void handleAnalyzeTrack()}
             disabled={!tapTrack || isAnalyzing}
-            className="min-h-12 rounded-control bg-control-strong px-3 text-sm font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
           >
             {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
           </button>
@@ -552,7 +552,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             type="button"
             onClick={() => void handleClearGrid()}
             disabled={!draft.beatGrid}
-            className="min-h-12 rounded-control bg-control-strong px-3 text-sm font-semibold text-red-500 [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-red-500 [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
           >
             Raster löschen
           </button>
@@ -572,7 +572,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       {playingTrack ? (
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
           Dauer
-          <span className="flex h-12 w-40 items-center rounded-control bg-control px-3 text-ink">
+          <span className="flex h-form w-40 items-center rounded-control bg-control px-3 text-ink">
             {playingTrack.durationMs === undefined
               ? 'wird gemessen…'
               : `${Math.round(playingTrack.durationMs / 1000)} s`}
@@ -592,7 +592,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               const seconds = Math.round(Number(e.target.value))
               setDraft({ ...draft, durationMs: e.target.value === '' || !(seconds > 0) ? undefined : seconds * 1000 })
             }}
-            className="h-12 w-40 rounded-control bg-control px-3 text-ink"
+            className="h-form w-40 rounded-control bg-control px-3 text-ink"
           />
           <span className="text-xs text-ink-faint">
             Ohne Track: die Länge für Festival-Uhr und automatisches Stoppen (auch bei reinem Klick). Leer = geschätzt
@@ -628,7 +628,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <button
           type="button"
           onClick={() => setIsRecordingCues(true)}
-          className="min-h-12 rounded-control bg-control-strong px-4 font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
+          className="min-h-form rounded-control bg-control-strong px-4 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           Cues aufnehmen
         </button>
@@ -734,7 +734,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={() => setIsImporting(true)}
-              className="min-h-12 rounded-control bg-control-strong px-3 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Song importieren
             </button>
@@ -745,7 +745,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 setEditorView('timeline')
               }}
               disabled={!draft.chordProContent.trim()}
-              className="min-h-12 rounded-control bg-control-strong px-3 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
             >
               Tap-to-Sync starten
             </button>
@@ -757,7 +757,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               key={label}
               type="button"
               onClick={() => insertPart(label)}
-              className="min-h-12 rounded-control bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
+              className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               + {label}
             </button>
@@ -765,14 +765,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <button
             type="button"
             onClick={insertComment}
-            className="min-h-12 rounded-control bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             + Kommentar
           </button>
           <button
             type="button"
             onClick={insertTabBlock}
-            className="min-h-12 rounded-control bg-control-strong px-4 text-sm font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             + Tab
           </button>
@@ -809,7 +809,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <button
             type="button"
             onClick={handleSave}
-            className="min-h-12 rounded-control bg-accent-2 px-5 font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover"
+            className="min-h-form rounded-control bg-accent px-5 font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
           >
             Speichern
           </button>
@@ -837,7 +837,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <button
             type="button"
             onClick={() => void leave()}
-            className="flex min-h-12 items-center gap-2 rounded-control bg-control-strong px-3 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="flex min-h-form items-center gap-2 rounded-control bg-control-strong px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             <Icon name="back" />
             Bibliothek
@@ -850,7 +850,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               select push the whole form past the right edge on a phone (#373). */}
           <div className="flex min-w-0 items-center gap-2 [&>select]:min-w-0">
             <select
-              className="flex-1 min-h-12 rounded-control bg-control px-3 text-ink"
+              className="flex-1 min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.variantId}
               onChange={(e) => selectVariant(e.target.value)}
             >
@@ -866,7 +866,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <button
               type="button"
               onClick={addVariant}
-                className="min-h-12 rounded-control bg-control-strong px-3 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+                className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
               >
                 + Neue Variante
               </button>
@@ -876,7 +876,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Varianten-Name
             <input
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.variantLabel}
               onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
             />
@@ -892,7 +892,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
             <input
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
@@ -900,7 +900,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Band
             <input
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.artist ?? ''}
               onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
             />
@@ -910,7 +910,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.key ?? ''}
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
@@ -918,7 +918,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Tuning
             <input
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.tuning ?? ''}
               onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
@@ -928,7 +928,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             <input
               type="number"
               min={0}
-              className="min-h-12 rounded-control bg-control px-3 text-ink"
+              className="min-h-form rounded-control bg-control px-3 text-ink"
               value={draft.capo ?? ''}
               onChange={(e) =>
                 setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })
@@ -1024,7 +1024,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                       <button
                         type="button"
                         onClick={() => setMobileTab('text')}
-                        className="min-h-12 rounded-control bg-control px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
+                        className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
                       >
                         Fertig
                       </button>
@@ -1041,7 +1041,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <button
           type="button"
           onClick={handleSave}
-          className="rounded-control bg-accent-2 px-4 py-2 font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover"
+          className="rounded-control bg-accent px-4 min-h-form font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
         >
           Speichern
         </button>

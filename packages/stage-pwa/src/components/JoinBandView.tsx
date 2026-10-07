@@ -335,12 +335,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
                       />
                       <button
                         type="submit"
                         disabled={busy || memberPasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {busy ? '…' : 'Beitreten'}
                       </button>
@@ -354,7 +354,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     <button
                       type="button"
                       onClick={() => setPasswordProfileId(null)}
-                      className="self-start text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
                       Abbrechen
                     </button>
@@ -404,12 +404,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               placeholder="8-stelliger Code"
               inputMode="numeric"
               autoFocus
-              className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+              className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
             />
             <button
               type="submit"
               disabled={busy || manualCode.trim().length === 0}
-              className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+              className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
             >
               {busy ? '…' : 'Weiter'}
             </button>
@@ -450,7 +450,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
         )}
 
         {!native && /Android/i.test(navigator.userAgent) && (
-          <a href="/app" className="flex min-h-12 items-center justify-center rounded-control bg-control-strong px-4 text-base font-semibold text-ink">
+          <a href="/app" className="flex min-h-form items-center justify-center rounded-control bg-control-strong px-4 text-base font-semibold text-ink">
             StageBoard-App für Android installieren
           </a>
         )}
@@ -482,10 +482,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     onChange={(e) => setServerAddress(e.target.value)}
                     placeholder="192.168.178.158"
                     inputMode="url"
-                    className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+                    className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
                     aria-label="Adresse des Stage-Servers"
                   />
-                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
                     Verbinden
                   </button>
                 </div>
@@ -502,10 +502,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setServerAddress(e.target.value)}
                   placeholder="192.168.178.158"
                   inputMode="url"
-                  className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
+                  className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-base text-ink-soft"
                   aria-label="Adresse des Stage-Servers"
                 />
-                <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
                   Verbinden
                 </button>
               </div>
@@ -631,7 +631,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setFallbackWorkspaceId(e.target.value)}
                 placeholder="Band-ID"
                 aria-label="Band-ID"
-                className="h-12 rounded-control bg-control px-3 text-ink-soft"
+                className="h-form rounded-control bg-control px-3 text-ink-soft"
               />
               {/* Per-person-accounts follow-up: every account has its own username now, no
                   fixed formula to derive it from - has to be typed in alongside the password. */}
@@ -640,7 +640,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Benutzername"
                 aria-label="Benutzername"
-                className="h-12 rounded-control bg-control px-3 text-ink-soft"
+                className="h-form rounded-control bg-control px-3 text-ink-soft"
               />
               <div className="flex gap-2">
                 <input
@@ -649,7 +649,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Passwort oder PIN"
                   aria-label="Passwort oder PIN"
-                  className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
+                  className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
                 />
                 <button
                   type="submit"

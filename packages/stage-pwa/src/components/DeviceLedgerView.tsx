@@ -141,7 +141,7 @@ export function DeviceLedgerView() {
                     type="button"
                     onClick={() => void toggleRevoked(device)}
                     className={`min-h-12 rounded-control px-4 text-sm font-medium ${
-                      device.revoked ? 'bg-control-strong text-accent [@media(hover:hover)]:hover:bg-control-strong-hover' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
+                      device.revoked ? 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover' : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
                     }`}
                   >
                     {device.revoked ? 'Wieder zulassen' : 'Entfernen'}

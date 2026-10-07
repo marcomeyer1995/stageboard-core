@@ -78,9 +78,9 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
     onFinish(song, variant)
   }
 
-  const field = 'h-12 w-full rounded-control bg-control px-3 text-base text-ink'
-  const secondary = 'min-h-12 rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-  const primary = 'min-h-12 rounded-control bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
+  const field = 'h-form w-full rounded-control bg-control px-3 text-base text-ink'
+  const secondary = 'min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
+  const primary = 'min-h-form rounded-control bg-accent px-5 font-bold text-accent-ink disabled:opacity-40'
 
   return (
     <div
@@ -97,7 +97,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
               Schritt {step}/3 · {STEP_TITLE[step]}
             </p>
           </div>
-          <button type="button" onClick={onCancel} className="flex h-12 w-12 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
+          <button type="button" onClick={onCancel} className="flex h-form w-12 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink" aria-label="Fenster schließen">
             <Icon name="close" size="1.5rem" />
           </button>
         </div>

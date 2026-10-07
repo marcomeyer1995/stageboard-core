@@ -132,7 +132,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           <button
             type="button"
             onClick={onClose}
-            className="rounded-control px-2 py-1 text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
+            className="rounded-control px-2 min-h-form text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
           >
             <Icon name="close" size="1.25rem" />
           </button>
@@ -159,7 +159,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           <button
             type="submit"
             disabled={busy === 'searching' || !query.trim()}
-            className="rounded-control bg-control-strong px-3 py-1 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+            className="rounded-control bg-control-strong px-3 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
           >
             {busy === 'searching' ? 'Suche...' : 'Suchen'}
           </button>
@@ -215,7 +215,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                 <button
                   type="button"
                   onClick={() => openSourcePreview(selected.sourceUrl!)}
-                  className="flex flex-shrink-0 items-center gap-1 rounded-control bg-control-strong px-2 py-1 text-xs text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-control bg-control-strong px-2 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Original ansehen <Icon name="external" />
                 </button>
@@ -283,7 +283,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           type="button"
           onClick={handleImport}
           disabled={!importableContent}
-          className="self-end rounded-control bg-accent-2 px-4 py-2 text-sm font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-2-hover disabled:opacity-40"
+          className="self-end rounded-control bg-accent px-4 min-h-form text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
         >
           Importieren
         </button>

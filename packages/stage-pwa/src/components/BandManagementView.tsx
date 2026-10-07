@@ -412,7 +412,7 @@ export function BandManagementView() {
         <button
           type="button"
           onClick={() => setShowAddBandChoice(true)}
-          className="min-h-12 w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
+          className="min-h-form w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
         >
           + Band
         </button>
@@ -602,12 +602,12 @@ export function BandManagementView() {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
                       />
                       <button
                         type="submit"
                         disabled={activating || activatePasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {activating ? '…' : 'Wechseln'}
                       </button>
@@ -619,7 +619,7 @@ export function BandManagementView() {
                     <button
                       type="button"
                       onClick={() => setActivatingProfileId(null)}
-                      className="self-start text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
                       Abbrechen
                     </button>
@@ -635,7 +635,7 @@ export function BandManagementView() {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-              className="min-h-12 w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
+              className="min-h-form w-full rounded-control border border-line bg-surface px-4 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
             >
               + Neues Mitglied
             </button>

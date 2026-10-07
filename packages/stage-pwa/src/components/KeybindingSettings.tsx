@@ -48,7 +48,7 @@ export function KeybindingSettings() {
               <button
                 type="button"
                 onClick={() => setEditing(binding)}
-                className="min-h-12 min-w-0 flex-1 rounded-control px-2 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
+                className="min-h-form min-w-0 flex-1 rounded-control px-2 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
               >
                 {describeAction(binding.action)}
               </button>
@@ -56,7 +56,7 @@ export function KeybindingSettings() {
                 type="button"
                 onClick={() => remove(binding.key)}
                 aria-label={`Zuordnung für ${keyLabel(binding.key)} löschen`}
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
+                className="flex h-form w-12 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
               >
                 <Icon name="close" />
               </button>
@@ -67,7 +67,7 @@ export function KeybindingSettings() {
       <button
         type="button"
         onClick={() => setEditing('new')}
-        className="min-h-12 self-start rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
+        className="min-h-form self-start rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
       >
         + Neue Zuordnung
       </button>
@@ -119,7 +119,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
   const action: KeyAction | null = choice === null ? null : choice === 'by-state' ? { kind: 'by-state', steps } : { kind: 'fixed', action: choice }
   const option = (selected: boolean) =>
-    `min-h-12 rounded-control px-4 text-left text-base ${selected ? 'bg-accent font-bold text-accent-ink' : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'}`
+    `min-h-form rounded-control px-4 text-left text-base ${selected ? 'bg-accent font-bold text-accent-ink' : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'}`
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -141,7 +141,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base text-ink-soft">Taste:</span>
               <span className="rounded-control bg-control-strong px-3 py-2 text-base font-bold text-ink">{keyLabel(key)}</span>
-              <button type="button" onClick={() => setKey(null)} className="min-h-12 rounded-control bg-control px-4 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
+              <button type="button" onClick={() => setKey(null)} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
                 Andere Taste
               </button>
             </div>
@@ -173,7 +173,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                       value={steps[id]}
                       onChange={(e) => setSteps({ ...steps, [id]: e.target.value as StepAction })}
                       aria-label={`Wenn ${label}`}
-                      className="h-12 min-w-0 flex-1 rounded-control bg-control-strong px-3 text-base text-ink"
+                      className="h-form min-w-0 flex-1 rounded-control bg-control-strong px-3 text-base text-ink"
                     >
                       {STEP_CHOICES[id].map((step) => (
                         <option key={step} value={step}>
@@ -186,7 +186,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                 <button
                   type="button"
                   onClick={() => setSteps(ONE_BUTTON_SHOW)}
-                  className="min-h-12 self-start rounded-control bg-control-strong px-4 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+                  className="min-h-form self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Vorlage „Ein-Tasten-Show“
                 </button>
@@ -196,14 +196,14 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onClose} className="min-h-12 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
+          <button type="button" onClick={onClose} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
             Abbrechen
           </button>
           <button
             type="button"
             disabled={!key || !action}
             onClick={() => key && action && onSave({ key, action })}
-            className="min-h-12 rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
+            className="min-h-form rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
           >
             Speichern
           </button>

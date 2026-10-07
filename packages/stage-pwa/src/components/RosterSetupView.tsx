@@ -146,7 +146,7 @@ export function RosterSetupView() {
                     <button
                       type="button"
                       onClick={() => void remove(profile.id)}
-                      className="text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center text-base text-ink-faint underline"
                     >
                       Entfernen
                     </button>
@@ -162,12 +162,12 @@ export function RosterSetupView() {
               onChange={(e) => setMemberName(e.target.value)}
               placeholder="Name"
               autoFocus
-              className="h-12 min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
+              className="h-form min-w-0 flex-1 rounded-control bg-control px-3 text-ink-soft"
             />
             <button
               type="submit"
               disabled={!memberName.trim()}
-              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 py-2 font-semibold disabled:opacity-50"
+              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 min-h-form font-semibold disabled:opacity-50"
             >
               Hinzufügen
             </button>
@@ -204,14 +204,14 @@ export function RosterSetupView() {
             onChange={(e) => setFounderName(e.target.value)}
             placeholder="Dein Name"
             autoFocus
-            className="h-12 min-w-0 rounded-control bg-control px-3 text-ink-soft"
+            className="h-form min-w-0 rounded-control bg-control px-3 text-ink-soft"
           />
           <input
             value={founderPin}
             onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
             placeholder="4-stelliger PIN"
             inputMode="numeric"
-            className="h-12 min-w-0 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className="h-form min-w-0 rounded-control bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
           />
           <button
             type="submit"

@@ -77,7 +77,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                 <button
                   type="button"
                   onClick={() => remove(occurrence.lineNumber)}
-                  className="rounded-control bg-control-strong px-2 py-1 text-xs text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
+                  className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Entfernen
                 </button>

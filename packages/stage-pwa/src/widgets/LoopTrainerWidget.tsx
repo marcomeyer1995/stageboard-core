@@ -14,7 +14,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
 const stepperButton =
-  'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control bg-control-strong text-lg font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
+  'flex h-form w-12 flex-shrink-0 items-center justify-center rounded-control bg-control-strong text-lg font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40'
 
 function Stepper({
   label,

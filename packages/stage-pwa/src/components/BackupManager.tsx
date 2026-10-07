@@ -119,7 +119,7 @@ export function BackupManager() {
         <button
           type="button"
           onClick={() => void handleExport()}
-          className="rounded-control bg-accent px-4 py-2 font-semibold text-accent-ink"
+          className="rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink"
         >
           Backup herunterladen
         </button>
