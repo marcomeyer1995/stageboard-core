@@ -101,18 +101,28 @@ describe('LibraryView', () => {
     expect(bravoIndex).toBeLessThan(charlieIndex)
   })
 
-  it('the Setlists filter chip hides the Songs section', () => {
-    render(<LibraryView />)
-    fireEvent.click(screen.getByRole('radio', { name: 'Setlists' }))
+  it('tapping a section heading folds it away and back; remembered on this device', () => {
+    localStorage.removeItem('stageboard-library-folded')
+    const { unmount } = render(<LibraryView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Songs' })).toHaveAttribute('aria-expanded', 'false')
+    unmount()
+    render(<LibraryView />)
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
   })
 
-  it('the Songs filter chip hides the Setlists section', () => {
+  it('a folded section opens while searching - a hit never hides in it', () => {
+    localStorage.removeItem('stageboard-library-folded')
     render(<LibraryView />)
-    fireEvent.click(screen.getByRole('radio', { name: 'Songs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Setlists' }))
     expect(screen.queryByText(/Newer Gig/)).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Songs & Setlists durchsuchen…'), { target: { value: 'new' } })
+    expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
+    localStorage.removeItem('stageboard-library-folded')
   })
 
   it('search filters both sections at once', () => {

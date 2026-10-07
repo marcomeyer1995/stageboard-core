@@ -28,7 +28,7 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Badge, Button, Segmented } from './ui'
+import { Badge, Button } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
@@ -39,12 +39,35 @@ type Selection =
   | { type: 'song'; songId: string; variantId: string | null }
   | null
 
-type FilterMode = 'all' | 'setlists' | 'songs'
+type Section = 'setlists' | 'songs'
+const FOLDED_KEY = 'stageboard-library-folded'
 
-const FILTER_LABEL: Record<FilterMode, string> = {
-  all: 'Alle',
-  setlists: 'Setlists',
-  songs: 'Songs',
+/** Which list sections are folded on this device (a convenience - empty when storage fails). */
+function readFolded(): Record<Section, boolean> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}') as Partial<Record<Section, boolean>>
+    return { setlists: raw.setlists === true, songs: raw.songs === true }
+  } catch {
+    return { setlists: false, songs: false }
+  }
+}
+
+/** A section heading that folds its list away (replaces the Alle/Setlists/Songs filter bar -
+ * Marco, 2026-10-07: the search already narrows both lists). */
+function SectionToggle({ title, folded, onToggle }: { title: string; folded: boolean; onToggle: () => void }) {
+  return (
+    <h2>
+      <button
+        type="button"
+        aria-expanded={!folded}
+        onClick={onToggle}
+        className="flex min-h-form items-center gap-2 text-xs font-bold uppercase tracking-widest text-ink-faint [@media(hover:hover)]:hover:text-ink-soft"
+      >
+        {title}
+        <Icon name={folded ? 'expand' : 'collapse'} size="1.1rem" />
+      </button>
+    </h2>
+  )
 }
 
 /** How far right a song has to travel, with nowhere to drop, before it counts as a swipe
@@ -250,7 +273,20 @@ export function LibraryView() {
   // below 1024px, same threshold SheetEditor.tsx's own 'panel' tier already uses.
   const isPanel = useIsPanelLayout()
   const [search, setSearch] = useState('')
-  const [filterMode, setFilterMode] = useState<FilterMode>('all')
+  const [folded, setFolded] = useState(readFolded)
+  function toggleFolded(section: Section) {
+    const next = { ...folded, [section]: !folded[section] }
+    setFolded(next)
+    try {
+      localStorage.setItem(FOLDED_KEY, JSON.stringify(next))
+    } catch {
+      // Remembering is a convenience only.
+    }
+  }
+  // While searching, both sections stay open - a hit must never hide in a folded one.
+  const searching = search.trim() !== ''
+  const showSetlists = searching || !folded.setlists
+  const showSongs = searching || !folded.songs
   const [selection, setSelection] = useState<Selection>(null)
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
@@ -288,10 +324,10 @@ export function LibraryView() {
   // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
   const focusableItems = useMemo(() => {
     const items: Array<{ type: 'setlist' | 'song'; id: string }> = []
-    if (filterMode !== 'songs') for (const s of filteredSetlists) items.push({ type: 'setlist', id: s.id })
-    if (filterMode !== 'setlists') for (const s of filteredSongs) items.push({ type: 'song', id: s.id })
+    if (showSetlists) for (const s of filteredSetlists) items.push({ type: 'setlist', id: s.id })
+    if (showSongs) for (const s of filteredSongs) items.push({ type: 'song', id: s.id })
     return items
-  }, [filterMode, filteredSetlists, filteredSongs])
+  }, [showSetlists, showSongs, filteredSetlists, filteredSongs])
 
   /** Shared by the song row's own click and SetlistDetail's onSelectSong - both land on the
    * preview, never straight on the editor. Clicking the already-selected song again closes
@@ -511,25 +547,14 @@ export function LibraryView() {
             className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
           />
 
-          {/* Pick one (docs/15 D7) - was a row of round pills, the reason for this whole pass. */}
-          <Segmented
-            label="Anzeigen"
-            value={filterMode}
-            onChange={setFilterMode}
-            options={(['all', 'setlists', 'songs'] as const).map((mode) => ({ value: mode, label: FILTER_LABEL[mode] }))}
-          />
-
-          {filterMode !== 'songs' && (
-            <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-                  Setlists
-                </h2>
+                <SectionToggle title="Setlists" folded={!showSetlists} onToggle={() => toggleFolded('setlists')} />
                 <Button icon="add" aria-label="Neue Setlist" onClick={createSetlist}>
                   Neu
                 </Button>
               </div>
-              <ul className="flex flex-col gap-1">
+              {showSetlists && <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
                   <li key={setlist.id}>
                     <button
@@ -569,19 +594,17 @@ export function LibraryView() {
                     </button>
                   </li>
                 ))}
-              </ul>
+              </ul>}
             </div>
-          )}
 
-          {filterMode !== 'setlists' && (
-            <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Songs</h2>
+                <SectionToggle title="Songs" folded={!showSongs} onToggle={() => toggleFolded('songs')} />
                 <Button icon="add" aria-label="Neuer Song" onClick={() => void createSong()}>
                   Neu
                 </Button>
               </div>
-              <ul className="flex flex-col gap-1">
+              {showSongs && <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (
                   <DraggableSongRow
                     key={song.id}
@@ -597,12 +620,11 @@ export function LibraryView() {
                     onDelete={() => void handleDeleteSong(song)}
                     // Songs come after setlists in focusableItems whenever the current filter
                     // shows both - same offset, same order, so the two stay in sync.
-                    keyboardFocused={focusedIndex === (filterMode !== 'songs' ? filteredSetlists.length : 0) + idx}
+                    keyboardFocused={focusedIndex === (showSetlists ? filteredSetlists.length : 0) + idx}
                   />
                 ))}
-              </ul>
+              </ul>}
             </div>
-          )}
         </div>
 
         <div
