@@ -304,6 +304,14 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Neues Mitglied')).not.toBeInTheDocument()
   })
 
+  it('member rows keep their height without a ⋯ (non-admin) - the button no longer sets it', () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: 'band-b' })
+    const { container } = render(<BandManagementView />)
+    const rows = [...container.querySelectorAll('section .rounded-container.flex-col > div:first-child')]
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) expect(row).toHaveClass('min-h-form')
+  })
+
   it('renaming a member calls update() with the new name', async () => {
     const update = vi.fn()
     useProfilesStore.setState({ update })

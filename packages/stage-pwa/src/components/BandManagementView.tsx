@@ -463,13 +463,18 @@ export function BandManagementView() {
                   isActiveProfile ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
                 }`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* min-h-form: the same height whether or not there is a ⋯ (a non-admin has none,
+                    and the 48 px button was what held the row's height - Marco, 2026-10-07). */}
+                <div className="flex min-h-form flex-wrap items-center justify-between gap-2">
                   {/* A tap anywhere on name/roles selects this profile (2026-09-02 tenth
                       follow-up) - already-active has nothing to select, so it's a plain div
                       there instead of a disabled-looking button. */}
                   {isActiveProfile ? (
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                      {/* Name above roles, like the other rows - inline they sat beside the name. */}
+                      <div className="min-w-0">
+                        <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                      </div>
                       <Badge tone="accent">Du</Badge>
                     </div>
                   ) : (
