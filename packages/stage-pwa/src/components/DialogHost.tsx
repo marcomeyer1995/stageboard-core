@@ -43,8 +43,8 @@ export function DialogHost() {
     <div
       role="presentation"
       data-testid="dialog-host"
-      className={`fixed inset-x-0 top-0 z-[55] flex h-dvh justify-center overflow-y-auto bg-black/60 p-4 ${
-        typesText(request) ? 'items-start pt-6' : 'items-center'
+      className={`fixed inset-x-0 top-0 z-[55] flex h-dvh justify-center overflow-y-auto bg-black/60 sb-pad-safe ${
+        typesText(request) ? 'items-start' : 'items-center'
       }`}
       style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
       onKeyDown={(e) => {

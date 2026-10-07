@@ -46,7 +46,7 @@ export function AudioResumeOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-red-900/95 p-6 text-center">
+    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-red-900/95 sb-pad-safe [--sb-pad:1.5rem] text-center">
       <p className="text-2xl font-bold text-white">Wiedergabe unterbrochen</p>
       <p className="max-w-sm text-base text-red-100">
         Der Browser hat die automatische Fortsetzung des Backing-Tracks blockiert. Zum

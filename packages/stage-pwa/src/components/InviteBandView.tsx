@@ -94,7 +94,7 @@ export function InviteBandView({
   }, [workspaceId, getAccessCode])
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-black/60 sb-pad-safe">
       {/* max-h-[90vh] + overflow-y-auto: a landscape phone/tablet viewport can be shorter
           than this card's content (QR image + code + copy) - without a scroll fallback the
           bottom (including the only way to close it) would be unreachable. Printing uses its

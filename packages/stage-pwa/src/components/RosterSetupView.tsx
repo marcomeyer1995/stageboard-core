@@ -120,7 +120,7 @@ export function RosterSetupView() {
 
   if (phase === 'members') {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <BackToWorkingBandLink />
 
@@ -187,7 +187,7 @@ export function RosterSetupView() {
   }
 
   return (
-    <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
         <BackToWorkingBandLink />
 

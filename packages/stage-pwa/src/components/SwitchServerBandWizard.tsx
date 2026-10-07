@@ -81,7 +81,7 @@ export function SwitchServerBandWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 sb-pad-safe">
       <div className="w-full max-w-sm space-y-4 rounded-container border border-line bg-surface p-6 text-ink">
         {step === 'closing' && closingBand && (
           <VerifyWorkspaceAdmin
