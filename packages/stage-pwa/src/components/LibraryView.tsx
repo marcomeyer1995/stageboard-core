@@ -550,7 +550,6 @@ export function LibraryView() {
           <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <SectionToggle title="Setlists" folded={!showSetlists} onToggle={() => toggleFolded('setlists')} />
-                <AddRow inline label="Neue Setlist" onClick={createSetlist} />
               </div>
               {showSetlists && <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
@@ -593,12 +592,13 @@ export function LibraryView() {
                   </li>
                 ))}
               </ul>}
+              {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
+              {showSetlists && <AddRow label="Neue Setlist" onClick={createSetlist} />}
             </div>
 
           <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <SectionToggle title="Songs" folded={!showSongs} onToggle={() => toggleFolded('songs')} />
-                <AddRow inline label="Neuer Song" onClick={() => void createSong()} />
               </div>
               {showSongs && <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (
@@ -620,6 +620,7 @@ export function LibraryView() {
                   />
                 ))}
               </ul>}
+              {showSongs && <AddRow label="Neuer Song" onClick={() => void createSong()} />}
             </div>
         </div>
 
