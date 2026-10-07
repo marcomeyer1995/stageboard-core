@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { useVisualViewport } from '../lib/useVisualViewport'
+import { Button } from './ui'
+import { INPUT } from './ui/styles'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
@@ -49,8 +51,8 @@ export function DialogHost() {
         if (e.key === 'Escape') cancel()
       }}
     >
-      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink">
-        <h2 className="text-lg font-bold">{request.title}</h2>
+      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-4 text-ink shadow-sb">
+        <h2 className="border-b border-line pb-3 text-lg font-bold">{request.title}</h2>
 
         {request.kind === 'prompt' && (
           <PromptFields fields={request.fields} submitLabel={request.submitLabel} onSubmit={submit} onCancel={cancel} />
@@ -107,7 +109,7 @@ function PromptFields({
       {fields.map((field, index) =>
         field.type === 'radio' ? (
           <fieldset key={field.key} className="text-sm">
-            <legend className="mb-1 text-ink-muted">{field.label}</legend>
+            <legend className="mb-1 font-semibold text-ink-soft">{field.label}</legend>
             <div className="flex flex-col gap-1">
               {(field.options ?? []).map((option, optionIndex) => (
                 <label key={option.value} className="flex min-h-12 items-center gap-3 text-base text-ink-soft">
@@ -117,7 +119,7 @@ function PromptFields({
                     name={field.key}
                     checked={values[field.key] === option.value}
                     onChange={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
-                    className="h-6 w-6 flex-shrink-0"
+                    className="h-6 w-6 flex-shrink-0 accent-accent"
                   />
                   {option.label}
                 </label>
@@ -126,7 +128,7 @@ function PromptFields({
           </fieldset>
         ) : field.type === 'checkboxes' ? (
           <fieldset key={field.key} className="text-sm">
-            <legend className="mb-1 text-ink-muted">{field.label}</legend>
+            <legend className="mb-1 font-semibold text-ink-soft">{field.label}</legend>
             <div className="flex flex-col gap-1">
               {(field.options ?? []).map((option) => {
                 const selected = values[field.key].split(',').filter(Boolean)
@@ -145,7 +147,7 @@ function PromptFields({
                           return { ...prev, [field.key]: next.join(',') }
                         })
                       }
-                      className="h-6 w-6 flex-shrink-0"
+                      className="h-6 w-6 flex-shrink-0 accent-accent"
                     />
                     {option.label}
                   </label>
@@ -155,18 +157,18 @@ function PromptFields({
           </fieldset>
         ) : field.type === 'textarea' ? (
           <label key={field.key} className="block text-sm">
-            <span className="mb-1 block text-ink-muted">{field.label}</span>
+            <span className="mb-1 block font-semibold text-ink-soft">{field.label}</span>
             <textarea
               autoFocus={index === 0}
               rows={5}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="w-full resize-y rounded-control bg-control px-3 py-2 text-ink-soft"
+              className={`resize-y px-4 py-2 text-base ${INPUT}`}
             />
           </label>
         ) : (
           <label key={field.key} className="block text-sm">
-            <span className="mb-1 block text-ink-muted">{field.label}</span>
+            <span className="mb-1 block font-semibold text-ink-soft">{field.label}</span>
             <input
               autoFocus={index === 0}
               // 'pin' isn't a real HTML input type - falls back to a plain text box, but with
@@ -177,22 +179,16 @@ function PromptFields({
               pattern={field.type === 'pin' ? '[0-9]*' : undefined}
               value={values[field.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="h-touch w-full rounded-control bg-control px-3 text-lg text-ink-soft"
+              className={`h-form px-4 text-lg ${INPUT}`}
             />
           </label>
         ),
       )}
-      <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          Abbrechen
-        </button>
-        <button type="submit" className="h-touch rounded-control bg-accent px-5 font-semibold text-accent-ink">
+      <div className="flex justify-between gap-2 border-t border-line pt-3">
+        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button type="submit" variant="primary">
           {submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -201,15 +197,11 @@ function PromptFields({
 function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge: () => void }) {
   return (
     <div className="space-y-3">
-      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
-      <div className="flex justify-end pt-2">
-        <button
-          type="button"
-          onClick={onAcknowledge}
-          className="h-touch rounded-control bg-accent px-5 font-semibold text-accent-ink"
-        >
+      {message && <p className="whitespace-pre-line text-base text-ink-soft">{message}</p>}
+      <div className="flex justify-end border-t border-line pt-3">
+        <Button variant="primary" onClick={onAcknowledge}>
           OK
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -230,24 +222,12 @@ function ConfirmBody({
 }) {
   return (
     <div className="space-y-3">
-      {message && <p className="whitespace-pre-line text-sm text-ink-muted">{message}</p>}
-      <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={onConfirm}
-          className={`rounded-control px-4 py-2 font-semibold ${
-            danger ? 'bg-red-600 text-white [@media(hover:hover)]:hover:bg-red-500' : 'bg-accent text-accent-ink'
-          }`}
-        >
+      {message && <p className="whitespace-pre-line text-base text-ink-soft">{message}</p>}
+      <div className="flex justify-between gap-2 border-t border-line pt-3">
+        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
           {confirmLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -276,32 +256,25 @@ function DestructiveBody({
     <div className="space-y-3">
       <p className="text-base text-ink-muted">{message}</p>
       {alternativeLabel && (
-        <button type="button" onClick={() => onResolve('alternative')} className="h-touch w-full rounded-control bg-accent px-4 font-semibold text-accent-ink">
+        <Button variant="primary" fullWidth onClick={() => onResolve('alternative')}>
           {alternativeLabel}
-        </button>
+        </Button>
       )}
-      <label className="flex flex-col gap-1 text-sm text-ink-muted">
+      <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
         Zum Bestätigen „{typeToConfirm}“ eingeben
         <input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"
-          className="h-12 rounded-control bg-control px-3 text-base text-ink"
+          className={`h-form px-4 text-base font-normal ${INPUT}`}
           aria-label={`Zum Bestätigen „${typeToConfirm}“ eingeben`}
         />
       </label>
-      <div className="flex justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="h-touch rounded-control bg-control px-5 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          disabled={!matches}
-          onClick={() => onResolve('confirm')}
-          className="h-touch rounded-control bg-red-600 px-4 font-semibold text-white [@media(hover:hover)]:hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
-        >
+      <div className="flex justify-between gap-2 border-t border-line pt-3">
+        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button variant="danger" disabled={!matches} onClick={() => onResolve('confirm')}>
           {confirmLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )
