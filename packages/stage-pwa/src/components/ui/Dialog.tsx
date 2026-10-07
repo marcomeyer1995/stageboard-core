@@ -4,7 +4,7 @@ import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
 import { CONTAINER } from './styles'
 
-const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl' } as const
+const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
 export interface DialogProps {
   title: string

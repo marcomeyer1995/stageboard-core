@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -38,9 +39,23 @@ interface AppMenuProps {
  * password-protected member there asks for the password (same recovery semantics as everywhere
  * else: blank resets a non-admin account, is refused for an admin one).
  */
+/** True while the window is at least `px` wide. */
+function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const list = window.matchMedia(query)
+    const update = () => setMatches(list.matches)
+    list.addEventListener('change', update)
+    return () => list.removeEventListener('change', update)
+  }, [query])
+  return matches
+}
+
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
   const twoColumns = useIsPanelLayout()
+  const threeColumns = useMinWidth(1000) && twoColumns
   const sessionMode = useAppModeStore((state) => state.mode)
 
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -115,12 +130,25 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
     </>
   )
 
-  // Landscape tablet and laptop (Marco, 2026-10-07: a portrait-shaped menu meant a lot of
-  // scrolling there): wider, in two columns - the dashboard list, the longest part, on the right.
-  // Portrait keeps the single column in the familiar order.
+  // Landscape tablet and laptop (Marco, 2026-10-07: a portrait-shaped menu meant scrolling
+  // there, "perfect not to need to scroll"): from 1000 px three columns - the Xiaomi in landscape
+  // has only ~470 px of height for the menu's content - otherwise two; the dashboard list, the
+  // part that grows, always on the right. Portrait keeps the single column in the familiar order.
   return (
-    <Dialog title="Menü" size={twoColumns ? 'l' : 's'} onClose={onClose}>
-      {twoColumns ? (
+    <Dialog title="Menü" size={threeColumns ? 'xl' : twoColumns ? 'l' : 's'} onClose={onClose}>
+      {threeColumns ? (
+        <div className="grid grid-cols-3 items-start gap-6">
+          <div className="flex min-w-0 flex-col gap-4">
+            {viewSection}
+            {modeSection}
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">
+            {masterSection}
+            {displaySection}
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">{dashboardSection}</div>
+        </div>
+      ) : twoColumns ? (
         <div className="grid grid-cols-2 items-start gap-6">
           <div className="flex min-w-0 flex-col gap-4">
             {viewSection}
