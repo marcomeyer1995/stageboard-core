@@ -54,7 +54,7 @@ interface LibrarySortChoice {
 }
 /** The sort per tab this device last chose (a convenience - the defaults when storage fails). */
 function readSort(): LibrarySortChoice {
-  const fallback: LibrarySortChoice = { setlists: { by: 'newest', reversed: false }, songs: { by: 'title', reversed: false } }
+  const fallback: LibrarySortChoice = { setlists: { by: 'performance', reversed: false }, songs: { by: 'title', reversed: false } }
   try {
     const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? '{}') as Partial<LibrarySortChoice>
     return {

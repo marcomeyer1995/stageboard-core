@@ -89,7 +89,7 @@ describe('LibraryView', () => {
     })
   })
 
-  it('Setlists | Songs are page tabs: songs alphabetically, setlists newest-first; the tab is remembered', () => {
+  it('Setlists | Songs are page tabs: songs alphabetically, setlists by gig date (undated by name); the tab is remembered', () => {
     const { unmount } = render(<LibraryView />)
     const order = (names: string[]) => names.map((n) => screen.getAllByRole('button').findIndex((el) => el.textContent?.includes(n)))
     const [alpha, bravo, charlie] = order(['Alpha', 'Bravo', 'Charlie'])

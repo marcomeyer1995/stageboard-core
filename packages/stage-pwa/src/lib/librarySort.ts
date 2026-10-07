@@ -1,15 +1,15 @@
 import { isSongEntry, type PracticeLogEntry, type Setlist, type Song } from 'shared-types'
 
 /** How the Bibliothek orders its lists (Marco, 2026-10-07) - chosen per tab, remembered per device. */
-export type SetlistSort = 'name' | 'newest' | 'performance'
+// Only gig date and name - creation order says nothing (Marco, 2026-10-07).
+export type SetlistSort = 'performance' | 'name'
 export type SongSort = 'title' | 'artist' | 'setlist' | 'practiced'
 
 /** Labels: [not chosen, chosen, chosen and reversed] - only the chosen option shows its
  * direction (tapping it again reverses), so the bar stays short enough for a phone. */
 export const SETLIST_SORT_LABEL: Record<SetlistSort, readonly [string, string, string]> = {
-  name: ['A–Z', 'A–Z', 'Z–A'],
-  newest: ['Neueste', 'Neueste', 'Älteste'],
   performance: ['Auftritt', 'Auftritt ↓', 'Auftritt ↑'],
+  name: ['A–Z', 'A–Z', 'Z–A'],
 }
 export const SONG_SORT_LABEL: Record<SongSort, readonly [string, string, string]> = {
   title: ['A–Z', 'A–Z', 'Z–A'],
@@ -37,7 +37,6 @@ const byName = (a: string, b: string) => a.localeCompare(b, 'de', { sensitivity:
 export function sortSetlists(setlists: readonly Setlist[], sort: SetlistSort, today: string): Setlist[] {
   const list = [...setlists]
   if (sort === 'name') return list.sort((a, b) => byName(a.name, b.name))
-  if (sort === 'newest') return list.sort((a, b) => b.createdAt - a.createdAt)
   const rank = (s: Setlist) => (!s.performanceDate ? 2 : s.performanceDate >= today ? 0 : 1)
   return list.sort((a, b) => {
     const ra = rank(a)

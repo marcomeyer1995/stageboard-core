@@ -19,10 +19,9 @@ describe('Bibliothek sorting', () => {
     expect(sortSetlists(list, 'performance', '2026-10-07').map((s) => s.id)).toEqual(['next1', 'next2', 'past-new', 'past-old', 'none-a', 'none-b'])
   })
 
-  it('setlists A-Z ignores case; newest by creation', () => {
+  it('setlists A-Z ignores case', () => {
     const list = [setlist('b', 'beta', { createdAt: 1 }), setlist('a', 'Alpha', { createdAt: 2 })]
     expect(sortSetlists(list, 'name', '2026-10-07').map((s) => s.id)).toEqual(['a', 'b'])
-    expect(sortSetlists(list, 'newest', '2026-10-07').map((s) => s.id)).toEqual(['a', 'b'])
   })
 
   const songs = [song('a', 'Alpha', 'Zappa'), song('b', 'Bravo'), song('c', 'Charlie', 'Abba')]
