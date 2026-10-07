@@ -299,3 +299,17 @@ body {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
   margin-left: -14px;
 }
+
+/* Controls are never text: a long press on a button (hold-to-edit dashboards, hold-to-take
+   Master) made the browser select its label and cancel the press - the fill stopped half-way
+   (Marco, phone, 2026-10-07). No selection and no callout menu on anything tappable. */
+button,
+[role='button'],
+[role='radio'],
+[role='tab'],
+[role='switch'],
+[role='checkbox'] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
