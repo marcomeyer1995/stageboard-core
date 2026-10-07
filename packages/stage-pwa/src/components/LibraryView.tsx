@@ -64,8 +64,11 @@ function songEntry(songId: string) {
 }
 
 interface DraggableSongRowProps {
-  /** The song currently loaded in the show - yellow outline + badge, like the active setlist (docs/15 D4). */
+  /** The song currently loaded in the show - the "Aktuell" badge. */
   current?: boolean
+  /** Part of the active setlist (or the current song when there is none) - the yellow outline, so the
+   * songs not in the setlist stand out (Marco, 2026-10-07). */
+  inSetlist?: boolean
   song: Song
   onClick: () => void
   /** Same selected-state treatment the Setlists list already has (Marco: "why is the setlist
@@ -115,6 +118,7 @@ function DraggableSongRow({
   onDelete,
   keyboardFocused,
   current = false,
+  inSetlist = false,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `song:${song.id}`,
@@ -191,7 +195,7 @@ function DraggableSongRow({
         }}
         className={`relative z-10 flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
-        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${current ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
+        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${inSetlist ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
       >
         <button
           type="button"
@@ -247,6 +251,7 @@ export function LibraryView() {
   const { activeSetlist } = useQueue()
   // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
   const currentSongId = useShowMode().queue.currentSong?.id ?? null
+  const setlistSongIds = useMemo(() => new Set(activeSetlist?.entries.filter(isSongEntry).map((entry) => entry.songId) ?? []), [activeSetlist])
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const togglePin = useAudioPinsStore((state) => state.togglePin)
@@ -614,6 +619,7 @@ export function LibraryView() {
                     onClick={() => selectSong(song.id, null)}
                     selected={selection?.type === 'song' && selection.songId === song.id}
                     current={song.id === currentSongId}
+                    inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
                     showSwipeReveal={inputCapability === 'touch'}

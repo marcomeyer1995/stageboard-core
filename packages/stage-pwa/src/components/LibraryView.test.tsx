@@ -108,13 +108,28 @@ describe('LibraryView', () => {
     expect(screen.getByRole('tab', { name: /^Setlists/ })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('the song loaded in the show gets the yellow outline and "Aktuell", like the active setlist', () => {
+  it('songs of the active setlist get the yellow outline, the loaded one also "Aktuell"; songs outside it stay plain', () => {
+    useSetlistsStore.setState({
+      setlists: [{ ...setlist('new', 'Newer Gig', 2000), entries: [{ id: 'e1', songId: 'b', variantId: null, trackId: null }, { id: 'e2', songId: 'c', variantId: null, trackId: null }] }],
+    })
+    useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'new', activeEntryId: 'e2' } })
+    render(<LibraryView />)
+    const row = (name: string) => screen.getByText(name).closest('div.relative') as HTMLElement
+    expect(row('Bravo')).toHaveClass('outline-accent')
+    expect(row('Charlie')).toHaveClass('outline-accent')
+    expect(row('Alpha')).not.toHaveClass('outline-accent')
+    expect(within(row('Charlie')).getByText('Aktuell')).toBeInTheDocument()
+    expect(within(row('Bravo')).queryByText('Aktuell')).not.toBeInTheDocument()
+    useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
+  })
+
+  it('without an active setlist the loaded song alone gets outline and "Aktuell"', () => {
     useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: null, activeEntryId: 'b' } })
     render(<LibraryView />)
-    const row = screen.getByText('Bravo').closest('div.relative')!
-    expect(row).toHaveClass('outline-accent')
-    expect(within(row as HTMLElement).getByText('Aktuell')).toBeInTheDocument()
-    expect(screen.getByText('Alpha').closest('div.relative')).not.toHaveClass('outline-accent')
+    const row = (name: string) => screen.getByText(name).closest('div.relative') as HTMLElement
+    expect(row('Bravo')).toHaveClass('outline-accent')
+    expect(within(row('Bravo')).getByText('Aktuell')).toBeInTheDocument()
+    expect(row('Alpha')).not.toHaveClass('outline-accent')
     useShowStateStore.setState({ state: DEFAULT_SHOW_STATE })
   })
 
