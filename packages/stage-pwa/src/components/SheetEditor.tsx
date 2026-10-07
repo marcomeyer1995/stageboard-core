@@ -28,7 +28,8 @@ import { CueRecorder } from './CueRecorder'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
-import { useBackHandler, useUnsavedChangesWarning } from '../lib/backNavigation'
+import { useBackHandler } from '../lib/backNavigation'
+import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
 import { AddRow, Switch, Tabs } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
@@ -221,10 +222,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // Unsaved changes (#341): the draft differs from what was last loaded or saved. Leaving asks
   // first - via Back, "← Bibliothek", reload or closing the tab.
   const dirty = draft !== null && savedDraft.current !== null && JSON.stringify(draft) !== savedDraft.current
-  useUnsavedChangesWarning(dirty)
+  // Every way out asks "Speichern / Verwerfen / Weiter bearbeiten" while dirty (lib/unsavedChanges).
+  const saveRef = useRef<() => Promise<boolean>>(async () => false)
+  useUnsavedChangesGuard(dirty, () => saveRef.current())
   const leave = async () => {
-    if (dirty && !(await confirm('Ungespeicherte Änderungen verwerfen?', { confirmLabel: 'Verwerfen', danger: true }))) return
-    onBack()
+    if (await confirmLeave()) onBack()
   }
   // Back closes the current view: the timeline returns to the text view, the editor to the library.
   useBackHandler(editorView === 'timeline' ? () => setEditorView('text') : () => void leave())
@@ -284,7 +286,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setSavedAt(null)
   }
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const variant: SongVariant = {
       id: draft.variantId,
       songId: draft.songId,
@@ -308,7 +310,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const variantResult = SongVariantSchema.safeParse(variant)
     if (!variantResult.success) {
       setError(variantResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
-      return
+      return false
     }
 
     // Song.bpm/chordProContent/timecodes are a read-compatibility mirror of the *default*
@@ -328,7 +330,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const songResult = SongSchema.safeParse(song)
     if (!songResult.success) {
       setError(songResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
-      return
+      return false
     }
 
     setError(null)
@@ -336,7 +338,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     await saveVariant(variantResult.data)
     savedDraft.current = JSON.stringify(draft)
     setSavedAt(Date.now())
+    return true
   }
+  saveRef.current = handleSave
 
   /** Marks the block starting at the caret as a song part by inserting a `{part: ...}` directive. */
   const insertPart = (label: string) => {
@@ -795,7 +799,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           {savedAt && <span className="text-sm text-ink-faint">Gespeichert.</span>}
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             className="min-h-form rounded-control bg-accent px-5 font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
           >
             Speichern
@@ -1002,7 +1006,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         {error && <p className="text-sm text-red-500">{error}</p>}
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           className="rounded-control bg-accent px-4 min-h-form font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
         >
           Speichern

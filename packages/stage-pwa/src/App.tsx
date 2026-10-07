@@ -13,6 +13,7 @@ import { AppUpdateBanner } from './components/AppUpdateBanner'
 import { followServerIfMoved, isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
+import { confirmLeave, hasUnsavedChanges } from './lib/unsavedChanges'
 import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
@@ -78,7 +79,14 @@ function noopStart(): TrackedSync | null {
 }
 
 function App() {
-  const [mode, setMode] = useState<Mode>('boards')
+  const [mode, setModeNow] = useState<Mode>('boards')
+  // Switching the screen (☰ menu, Back) closes whatever editor is open - ask first if it has
+  // unsaved changes (Marco, 2026-10-07: never lose edits silently).
+  const setMode = (next: Mode) => {
+    if (next === mode) return
+    if (!hasUnsavedChanges()) return setModeNow(next)
+    void confirmLeave().then((ok) => ok && setModeNow(next))
+  }
   const [menuOpen, setMenuOpen] = useState(false)
   // Finishing a dashboard edit that started in the menu leads back to the menu's list.
   const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
