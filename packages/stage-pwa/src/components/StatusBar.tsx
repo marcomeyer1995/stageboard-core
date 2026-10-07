@@ -51,7 +51,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
       role="status"
       aria-label={`Einzählen, Takt ${bar} von ${bars}, Schlag ${beat}`}
       data-flash={flash}
-      className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-sb px-3 ${flash ? 'bg-white text-blue-800' : 'bg-black/25 text-white'}`}
+      className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-control px-3 ${flash ? 'bg-white text-blue-800' : 'bg-black/25 text-white'}`}
     >
       <span className="w-8 text-center text-4xl font-black leading-none tabular-nums">{beat}</span>
       <span className="flex flex-col gap-1">
@@ -131,7 +131,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         type="button"
         onClick={onOpenMenu}
         aria-label="Menü öffnen"
-        className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-sb px-3 hover:bg-black/15"
+        className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-black/15"
       >
         <Icon name="menu" size="1.75rem" />
         <span className="hidden text-base md:inline">{MODE_LABEL[screen]}</span>
@@ -164,7 +164,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       )}
 
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
-        <span className="rounded-sb-sm bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
+        <span className="rounded-control bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
         {mode === 'gig' && (canControl || holdsToken) && (
           <span
             title={canControl ? 'Dieses Gerät hat das Master-Token' : 'Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht'}

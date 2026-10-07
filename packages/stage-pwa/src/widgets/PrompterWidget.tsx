@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { useEffect, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
@@ -184,7 +185,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
           {chips.map((chip) => (
-            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-sb-sm bg-control px-2 py-1 font-semibold text-ink-soft">
+            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-control bg-control px-2 py-1 font-semibold text-ink-soft">
               {chip}
             </span>
           ))}
@@ -248,17 +249,13 @@ export function PrompterConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Ansicht
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.viewMode}
-          onChange={(e) => onChange({ ...config, viewMode: e.target.value as PrompterConfig['viewMode'] })}
-        >
-          <option value="scroll">Smooth Scroll</option>
-          <option value="paginated">Paginated View</option>
-        </select>
-      </label>
+      <Segmented
+        label="Ansicht"
+        showLabel
+        value={config.viewMode}
+        onChange={(value) => onChange({ ...config, viewMode: value as PrompterConfig['viewMode'] })}
+        options={[{ value: 'scroll', label: 'Smooth Scroll' }, { value: 'paginated', label: 'Paginated View' }]}
+      />
 
       {/* The one anchor size (device-wide default, or this instance's own absolute
           override) - every slider below is a percentage of whatever this resolves to. */}

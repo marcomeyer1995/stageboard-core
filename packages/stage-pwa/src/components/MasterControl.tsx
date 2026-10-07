@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueue } from '../lib/queue'
+import { CONTROL, FOCUS, HOVER } from './ui/styles'
 import { Icon } from './Icon'
 import { useDeviceName } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -138,7 +139,7 @@ export function MasterControl() {
         onPointerLeave={() => endHold(false)}
         onPointerCancel={() => endHold(false)}
         onContextMenu={(e) => e.preventDefault()}
-        className="relative flex h-12 w-full items-center justify-between overflow-hidden rounded-sb bg-control px-4 text-base hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-60"
+        className={`relative flex h-stage w-full items-center justify-between overflow-hidden bg-control px-4 text-lg ${CONTROL} ${FOCUS} ${HOVER} disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span
           aria-hidden
@@ -158,12 +159,12 @@ export function MasterControl() {
           {statusLine}
         </p>
       )}
-      <div className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft">
+      <div className={`flex min-h-stage items-center justify-between gap-3 bg-control px-4 text-lg text-ink-soft ${CONTROL}`}>
         Aktive Setlist
         {activeSetlist ? (
           <span className="font-medium text-accent">{activeSetlist.name}</span>
         ) : (
-          <span className="text-sm text-ink-faint">Keine</span>
+          <span className="text-base text-ink-faint">Keine</span>
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
+import { Switch } from './ui'
 
 export function PluginManager() {
   const installed = usePluginsStore((state) => state.installed)
@@ -39,7 +40,7 @@ export function PluginManager() {
         {installed.map((plugin) => (
           <div
             key={plugin.id}
-            className="flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
+            className="flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">
@@ -50,21 +51,12 @@ export function PluginManager() {
                 {plugin.capabilities.join(', ') || 'keine Capabilities'} · {healthLabel(plugin)}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void setEnabled(plugin.id, !plugin.enabled)}
-              className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
-                plugin.enabled
-                  ? 'bg-accent text-accent-ink hover:bg-accent-hover'
-                  : 'bg-control-strong text-ink hover:bg-control-strong-hover'
-              }`}
-            >
-              {plugin.enabled ? 'Aktiv' : 'Deaktiviert'}
-            </button>
+            {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
+            <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
             <button
               type="button"
               onClick={() => void uninstall(plugin.id)}
-              className="ml-2 min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
+              className="ml-2 min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               Entfernen
             </button>
@@ -82,7 +74,7 @@ export function PluginManager() {
         {notInstalled.map((candidate) => (
           <div
             key={candidate.id}
-            className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
+            className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">{candidate.name}</p>
@@ -93,7 +85,7 @@ export function PluginManager() {
               onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }
-              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-ink hover:bg-control-strong-hover"
+              className="min-h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Installieren
             </button>

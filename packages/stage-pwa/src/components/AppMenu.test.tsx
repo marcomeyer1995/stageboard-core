@@ -36,9 +36,9 @@ describe('AppMenu', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'Boards' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bibliothek' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Boards' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Bibliothek' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'System' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plugins' })).not.toBeInTheDocument()
   })
 
@@ -84,11 +84,11 @@ describe('AppMenu', () => {
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
-  it('no separate "Bearbeiten" row any more - editing starts by holding a dashboard in the list', () => {
+  it('changing the dashboard list (new, order, hide, edit) sits behind one "Bearbeiten"', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: /^Bearbeiten/ })).not.toBeInTheDocument()
-    expect(screen.getByText('Tippen wechselt, gedrückt halten bearbeitet.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Neues Dashboard' })).not.toBeInTheDocument()
   })
 })
 
@@ -99,7 +99,8 @@ describe('AppMenu dashboard picker (#35)', () => {
     render(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.getByText('Dashboards')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ Neues Dashboard' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    expect(screen.getByRole('button', { name: 'Neues Dashboard' })).toBeInTheDocument()
   })
 
   it('lists every dashboard, highlights the active one, and lets any mode reach it (not gated on already being in live mode)', () => {
@@ -109,7 +110,7 @@ describe('AppMenu dashboard picker (#35)', () => {
 
     render(<AppMenu mode="system" onSelectMode={vi.fn()} onClose={vi.fn()} />)
 
-    const active = screen.getByRole('button', { name: /Monitor/ })
+    const active = screen.getByRole('button', { name: /^Monitor/ })
     const inactive = screen.getByRole('button', { name: 'Bühne' })
     expect(active).toHaveClass('bg-accent')
     expect(inactive).not.toHaveClass('bg-accent')
@@ -129,16 +130,16 @@ describe('AppMenu dashboard picker (#35)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('puts "Schließen" in a fixed header above the scrolling list, not at its end (#376)', () => {
+  it('closes with "Fertig" in the fixed bottom row, outside the scrolling list (#376, docs/15 D6)', () => {
     const onClose = vi.fn()
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
-    const close = screen.getByRole('button', { name: 'Schließen' })
-    const firstMode = screen.getByRole('button', { name: 'Boards' })
-    // Before every menu entry in document order, and outside the scroll container.
-    expect(close.compareDocumentPosition(firstMode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(close.closest('.overflow-y-auto')).toBeNull()
+    const done = screen.getByRole('button', { name: 'Fertig' })
+    const firstMode = screen.getByRole('radio', { name: 'Boards' })
+    // Never scrolls away: outside the scroll container that holds the entries.
+    expect(done.closest('.overflow-y-auto')).toBeNull()
     expect(firstMode.closest('.overflow-y-auto')).not.toBeNull()
-    fireEvent.click(close)
+    expect(screen.queryByRole('button', { name: /Schließen/ })).not.toBeInTheDocument()
+    fireEvent.click(done)
     expect(onClose).toHaveBeenCalled()
   })
 })

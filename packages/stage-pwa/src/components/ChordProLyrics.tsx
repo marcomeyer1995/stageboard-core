@@ -89,7 +89,7 @@ export function ChordProLyrics({
               // sideways instead. Tighter leading than lyrics: the strings belong together.
               <div
                 data-line-index={lineIndex}
-                className={`-mx-2 overflow-x-auto rounded-sb-sm px-2 transition-colors duration-300 ${
+                className={`-mx-2 overflow-x-auto rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
@@ -103,7 +103,7 @@ export function ChordProLyrics({
               // are the content of this row, not an annotation above it.
               <p
                 data-line-index={lineIndex}
-                className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+                className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
@@ -120,7 +120,7 @@ export function ChordProLyrics({
               <p
                 data-line-index={lineIndex}
                 style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
-                className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-sb-sm px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
+                className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-control px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
@@ -179,7 +179,7 @@ function LyricLine({
     <p
       data-line-index={lineIndex}
       style={lineStyle}
-      className={`-mx-2 whitespace-pre-wrap break-words rounded-sb-sm px-2 transition-colors duration-300 ${
+      className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
         // Keeps a little air between a part label and its first line.
         startsPart ? 'mt-6' : ''
       } ${active ? 'bg-accent-2/20' : ''}`}

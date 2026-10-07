@@ -30,7 +30,7 @@ function Group({
   return (
     <section
       aria-label={title}
-      className={`flex flex-col gap-4 rounded-sb border bg-surface p-4 shadow-sb ${shared ? 'border-amber-500/60' : 'border-line'}`}
+      className={`flex flex-col gap-4 rounded-container border bg-surface p-4 shadow-sb ${shared ? 'border-amber-500/60' : 'border-line'}`}
     >
       <header className="flex flex-col gap-1">
         <h3 className="text-lg font-bold text-ink">{title}</h3>

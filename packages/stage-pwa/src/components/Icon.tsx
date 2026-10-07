@@ -4,6 +4,8 @@ import {
   ArrowUpDown,
   Ban,
   Camera,
+  Plus,
+  Pencil,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -75,6 +77,8 @@ const ICONS = {
   blocked: Ban,
   note: NotebookPen,
   camera: Camera,
+  add: Plus,
+  edit: Pencil,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

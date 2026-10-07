@@ -101,18 +101,28 @@ describe('LibraryView', () => {
     expect(bravoIndex).toBeLessThan(charlieIndex)
   })
 
-  it('the Setlists filter chip hides the Songs section', () => {
-    render(<LibraryView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Setlists' }))
+  it('tapping a section heading folds it away and back; remembered on this device', () => {
+    localStorage.removeItem('stageboard-library-folded')
+    const { unmount } = render(<LibraryView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Songs' })).toHaveAttribute('aria-expanded', 'false')
+    unmount()
+    render(<LibraryView />)
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
   })
 
-  it('the Songs filter chip hides the Setlists section', () => {
+  it('a folded section opens while searching - a hit never hides in it', () => {
+    localStorage.removeItem('stageboard-library-folded')
     render(<LibraryView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Songs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Setlists' }))
     expect(screen.queryByText(/Newer Gig/)).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Songs & Setlists durchsuchen…'), { target: { value: 'new' } })
+    expect(screen.getByText(/Newer Gig/)).toBeInTheDocument()
+    localStorage.removeItem('stageboard-library-folded')
   })
 
   it('search filters both sections at once', () => {
@@ -123,17 +133,16 @@ describe('LibraryView', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
   })
 
-  it('Setlists "+ Neu" opens one dialog with name and optional songs; picked songs become the entries (#183)', async () => {
+  it('"Neue Setlist" below the list opens one dialog with name and optional songs; picked songs become the entries (#183)', async () => {
     const saveSetlist = vi.fn(async () => {})
     useSetlistsStore.setState({ saveSetlist })
     render(<LibraryView />)
 
-    const setlistsHeading = screen.getByRole('heading', { name: 'Setlists' })
-    fireEvent.click(within(setlistsHeading.parentElement!).getByRole('button', { name: '+ Neu' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Setlist' }))
     const dialog = screen.getByRole('dialog', { name: 'Neue Setlist' })
     fireEvent.change(within(dialog).getByLabelText('Name der neuen Setlist'), { target: { value: 'Sommerfest' } })
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /Alpha/ }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Fertig' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Anlegen' }))
 
     await waitFor(() =>
       expect(saveSetlist).toHaveBeenCalledWith(
@@ -143,15 +152,14 @@ describe('LibraryView', () => {
     expect(screen.queryByRole('dialog', { name: 'Neue Setlist' })).not.toBeInTheDocument()
   })
 
-  it('Songs "+ Neu" opens the guided new-song flow; nothing is saved before its last step (#182)', async () => {
+  it('"Neuer Song" below the list opens the guided new-song flow; nothing is saved before its last step (#182)', async () => {
     // saveSong is spied via setState rather than asserted through `songs` afterward - the mocked
     // PouchDB's changes() feed is a no-op stub, so the store's `songs` never refreshes here.
     const saveSong = vi.fn(async () => {})
     useSongsStore.setState({ saveSong })
     render(<LibraryView />)
 
-    const songsHeading = screen.getByRole('heading', { name: 'Songs' })
-    fireEvent.click(within(songsHeading.parentElement!).getByRole('button', { name: '+ Neu' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Neuer Song' }))
     const wizard = screen.getByRole('dialog', { name: 'Neuer Song' })
     fireEvent.change(within(wizard).getByLabelText('Titel'), { target: { value: 'Wonderwall' } })
     fireEvent.click(within(wizard).getByRole('button', { name: 'Weiter' }))
@@ -265,7 +273,7 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
 
     const row = screen.getByText('Alpha').closest('li')!
     expect(within(row).getByText('+ Zur aktiven Setlist')).toBeInTheDocument()
-    expect(within(row).queryByRole('button', { name: '+' })).not.toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: /Zur aktiven Setlist hinzufügen|Keine aktive Setlist/ })).not.toBeInTheDocument()
   })
 
   it('pointer lane (happy-dom default): "+" button present, no swipe reveal', () => {
@@ -273,7 +281,7 @@ describe('LibraryView - "+" vs. swipe-to-add, gated by input capability', () => 
 
     const row = screen.getByText('Alpha').closest('li')!
     expect(within(row).queryByText('+ Zur aktiven Setlist')).not.toBeInTheDocument()
-    expect(within(row).getByRole('button', { name: '+' })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: /Zur aktiven Setlist hinzufügen|Keine aktive Setlist/ })).toBeInTheDocument()
   })
 
   it('dragging itself is disabled in the pointer lane, not just the swipe fallback', () => {
@@ -364,7 +372,7 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
 
     fireEvent.contextMenu(screen.getByText('Alpha'))
 
-    expect(screen.getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' })).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Duplizieren' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Offline anheften' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Löschen' })).toBeInTheDocument()
@@ -385,7 +393,7 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
     render(<LibraryView />)
 
     fireEvent.contextMenu(screen.getByText('Alpha'))
-    fireEvent.click(screen.getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Zur aktiven Setlist hinzufügen' }))
 
     await waitFor(() =>
       expect(saveSetlist).toHaveBeenCalledWith(

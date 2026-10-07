@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
 
@@ -144,12 +146,12 @@ export function VerifyWorkspaceAdmin({
             placeholder="8-stelliger Code"
             inputMode="numeric"
             autoFocus
-            className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"
             disabled={busy || manualCode.trim().length === 0}
-            className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Weiter'}
           </button>
@@ -169,7 +171,7 @@ export function VerifyWorkspaceAdmin({
                     setPinInput('')
                     setStep('pin')
                   }}
-                  className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
+                  className="w-full rounded-control border border-line bg-control px-4 py-3 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   {member.name}
                 </button>
@@ -193,12 +195,12 @@ export function VerifyWorkspaceAdmin({
             placeholder="4-stelliger PIN"
             inputMode="numeric"
             autoFocus
-            className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"
             disabled={busy || pinInput.length !== 4}
-            className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Bestätigen'}
           </button>
@@ -213,15 +215,15 @@ export function VerifyWorkspaceAdmin({
             setPickedProfileId(null)
             setPinInput('')
           }}
-          className="w-full text-center text-xs text-ink-faint underline"
+          className="min-h-form w-full text-center text-base text-ink-soft underline"
         >
           Anderer Admin wählen
         </button>
       )}
 
-      <button type="button" onClick={onCancel} className="w-full text-center text-xs text-ink-faint underline">
-        Abbrechen
-      </button>
+      <div className="flex border-t border-line pt-3">
+        <Button onClick={onCancel}>Abbrechen</Button>
+      </div>
     </div>
   )
 }

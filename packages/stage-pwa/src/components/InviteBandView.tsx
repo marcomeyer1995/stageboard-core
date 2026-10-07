@@ -4,6 +4,7 @@ import { fetchServerAddress } from '../lib/serverInfo'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { Button } from './ui'
 
 /**
  * "Band beitreten" QR/code screen (see #21, redesigned 2026-09-01 at Marco's explicit request
@@ -96,7 +97,7 @@ export function InviteBandView({
           bottom (including the only way to close it) would be unreachable. print: overrides
           escape all of that for the printed page itself - a fixed/clipped/scrollable modal
           would otherwise print blank or cropped. */}
-      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-sb border border-line bg-surface p-6 text-ink print:max-h-none print:w-full print:max-w-none print:overflow-visible print:border-0 print:p-0">
+      <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink print:max-h-none print:w-full print:max-w-none print:overflow-visible print:border-0 print:p-0">
         <h2 className="text-xl font-bold">{isFoundingSummary ? 'Code speichern!' : 'Band einladen'}</h2>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -128,7 +129,7 @@ export function InviteBandView({
             <button
               type="button"
               onClick={() => window.print()}
-              className="w-full rounded-sb border border-line bg-surface px-4 py-2 font-semibold hover:bg-control-hover print:hidden"
+              className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover print:hidden"
             >
               Drucken / als PDF speichern
             </button>
@@ -148,20 +149,19 @@ export function InviteBandView({
                 setCode(result.code)
                 void loadQr(result.code, server)
               }}
-              className="w-full text-center text-xs text-ink-faint underline disabled:opacity-50 print:hidden"
+              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-50 print:hidden"
             >
               {rotating ? 'Erzeuge neuen Code…' : 'Code ändern'}
             </button>
           </>
         )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover print:hidden"
-        >
-          {isFoundingSummary ? 'Fertig' : 'Schließen'}
-        </button>
+        {/* Nothing to confirm here - one "Fertig" at the bottom (docs/15 D6). */}
+        <div className="flex justify-end border-t border-line pt-3 print:hidden">
+          <Button variant="primary" onClick={onClose}>
+            Fertig
+          </Button>
+        </div>
       </div>
     </div>
   )

@@ -69,10 +69,10 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
       {...longPress}
       className={`flex select-none items-center gap-1 px-2 py-1 ${isDragging ? 'opacity-50' : ''} ${pressing ? 'brightness-125' : ''} ${
         isSection
-          ? `mt-2 rounded-sb-sm border-b-2 ${
+          ? `mt-2 rounded-control border-b-2 ${
               status === 'current' ? 'border-accent-ink bg-accent text-accent-ink' : 'border-accent bg-transparent'
             } ${status === 'past' ? 'opacity-50' : ''}`
-          : `rounded-sb-sm ${isTransition ? 'border border-dashed border-accent' : ''} ${
+          : `rounded-control ${isTransition ? 'border border-dashed border-accent' : ''} ${
               status === 'current'
                 ? 'bg-accent text-accent-ink font-semibold'
                 : status === 'past'
@@ -221,8 +221,8 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
             type="button"
             aria-pressed={sorting}
             onClick={() => setSorting(!sorting)}
-            className={`h-touch flex-shrink-0 rounded-sb-sm px-3 text-sm font-semibold ${
-              sorting ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+            className={`h-touch flex-shrink-0 rounded-control px-3 text-base font-semibold ${
+              sorting ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
             }`}
           >
             {sorting ? (
@@ -236,7 +236,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
         )}
         {mode === 'gig' && !canControl && (
           <MasterTakeoverButton
-            className="h-touch flex-shrink-0 rounded-sb-sm bg-control-strong px-3 text-sm font-medium text-accent hover:bg-control-strong-hover"
+            className="h-touch flex-shrink-0 rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           />
         )}
       </div>
@@ -309,7 +309,7 @@ export function LiveQueueWidgetPreview() {
         return (
           <div
             key={row.title}
-            className={`flex items-center gap-2 rounded-sb-sm px-2 py-1 ${
+            className={`flex items-center gap-2 rounded-control px-2 py-1 ${
               row.kind === 'announcement' ? 'border border-dashed border-accent bg-control italic' : current ? 'bg-accent text-accent-ink font-semibold' : 'bg-control'
             }`}
           >

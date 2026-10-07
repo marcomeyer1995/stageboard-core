@@ -12,7 +12,7 @@ export function ReadyCheckControl({ compact = false, buttonClassName }: { compac
   const endReadyCheck = useShowStateStore((state) => state.endReadyCheck)
   const profiles = useProfilesStore((state) => state.profiles)
   const { checkId, status } = useReadyCheck()
-  const buttonClass = buttonClassName ?? 'rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover'
+  const buttonClass = buttonClassName ?? 'rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
 
   if (!checkId || !status) {
     return (

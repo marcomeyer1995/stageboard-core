@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { DEFAULT_SIZE_RATIO, type DashboardSwitcherConfig } from './dashboardSwitcherConfig'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -49,10 +50,10 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
           key={dashboard.id}
           type="button"
           onClick={() => setActive(workspaceId, dashboard.id)}
-          className={`min-h-touch min-w-max flex-1 rounded-sb px-4 font-bold uppercase tracking-wide transition-colors ${
+          className={`min-h-touch min-w-max flex-1 rounded-control px-4 font-bold uppercase tracking-wide transition-colors ${
             dashboard.id === activeId
               ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
           }`}
         >
           <span style={{ fontSize }} className="whitespace-nowrap">
@@ -77,19 +78,13 @@ export function DashboardSwitcherConfigPanel({
         Zeigt dieselben Dashboards wie das Menü: ausblenden und sortieren unter ☰ → Dashboards → „Ordnen“, Gig/Solo in den
         Einstellungen des Dashboards.
       </p>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Ausrichtung
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.orientation}
-          onChange={(e) =>
-            onChange({ ...config, orientation: e.target.value as DashboardSwitcherConfig['orientation'] })
-          }
-        >
-          <option value="horizontal">Horizontal (Leiste)</option>
-          <option value="vertical">Vertikal (Spalte)</option>
-        </select>
-      </label>
+      <Segmented
+        label="Ausrichtung"
+        showLabel
+        value={config.orientation}
+        onChange={(value) => onChange({ ...config, orientation: value as DashboardSwitcherConfig['orientation'] })}
+        options={[{ value: 'horizontal', label: 'Horizontal (Leiste)' }, { value: 'vertical', label: 'Vertikal (Spalte)' }]}
+      />
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

@@ -78,6 +78,11 @@ function noopStart(): TrackedSync | null {
 function App() {
   const [mode, setMode] = useState<Mode>('boards')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Finishing a dashboard edit that started in the menu leads back to the menu's list.
+  const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
+  useEffect(() => {
+    if (reopenMenuEditing) setMenuOpen(true)
+  }, [reopenMenuEditing])
   // Native app: if the paired server moved to another address (new router at the venue), find it
   // by its certificate and follow (#351) - on start and whenever the network comes back.
   useEffect(() => {
@@ -288,7 +293,7 @@ function App() {
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="relative flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
+              className="relative flex h-form items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}

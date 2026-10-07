@@ -14,6 +14,8 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
+import { ActionMenuDialog, AddRow, Badge, Segmented } from './ui'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
@@ -146,7 +148,7 @@ function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onli
           {profile.stageRoles.map((role) => (
             <span
               key={role}
-              className="rounded-sb-sm bg-control px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink-soft"
+              className="rounded-control bg-control px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink-soft"
             >
               {STAGE_ROLE_LABELS[role]}
             </span>
@@ -278,7 +280,7 @@ export function BandManagementView() {
       <h1 className="text-2xl font-bold">Bands verwalten</h1>
 
       {(hardwareStatus !== 'loading' || hardwareSlow) && (
-        <p className="rounded-sb border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
+        <p className="rounded-container border border-line bg-surface px-4 py-2 text-sm text-ink-muted">
           {hardwareStatus === 'loading' && 'Stage-Server antwortet langsam…'}
           {hardwareStatus === 'unreachable' && 'Stage-Server nicht erreichbar.'}
           {hardwareStatus === 'unpaired' && 'Noch mit keinem Stage-Server gekoppelt - unter System → Einstellungen → Stage-Server suchen.'}
@@ -297,17 +299,19 @@ export function BandManagementView() {
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
-            className={`flex items-center justify-between gap-2 rounded-sb border px-4 py-3 ${
-              workspace.id === activeWorkspaceId ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+            className={`flex items-center justify-between gap-2 rounded-container border px-4 py-3 ${
+              // Active = yellow outline + badge (docs/15 D4), never a fill or tint.
+              workspace.id === activeWorkspaceId ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
             }`}
           >
             <button
               type="button"
               onClick={() => setActiveWorkspace(workspace.id)}
               disabled={workspace.id === activeWorkspaceId}
-              className="text-left font-semibold hover:underline disabled:hover:no-underline"
+              className="flex min-h-form min-w-0 flex-1 items-center gap-3 text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
             >
-              {workspace.name}
+              <span className="truncate">{workspace.name}</span>
+              {workspace.id === activeWorkspaceId && <Badge tone="accent">Aktiv</Badge>}
             </button>
             {(workspace.isAdmin || !!workspace.username) && (
               <RowMenuButton
@@ -409,13 +413,7 @@ export function BandManagementView() {
             )}
           </div>
         ))}
-        <button
-          type="button"
-          onClick={() => setShowAddBandChoice(true)}
-          className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
-        >
-          + Band
-        </button>
+        <AddRow label="Band hinzufügen" onClick={() => setShowAddBandChoice(true)} />
       </section>
 
       {activeWorkspace && (
@@ -427,7 +425,7 @@ export function BandManagementView() {
             <p className="text-sm text-ink-faint">Nur der Band-Admin kann Mitglieder verwalten.</p>
           )}
           {activeWorkspace.isAdmin && !activeWorkspace.username && (
-            <div className="space-y-2 rounded-sb border border-line bg-surface p-4">
+            <div className="space-y-2 rounded-container border border-line bg-surface p-4">
               <p className="text-sm text-ink-soft">
                 Diese Band läuft bisher nur lokal auf diesem Gerät. Sobald ein Stage-Server bereitsteht (z.B. beim
                 nächsten Bandtreffen), verbindet "Verbinden" diese Band damit - danach kann jedes Mitglied sich über
@@ -448,7 +446,7 @@ export function BandManagementView() {
                   setStageServerUrl(overrideForTypedUrl(serverUrl))
                   await connectToServer(normalizeStageServerUrl(serverUrl))
                 }}
-                className="rounded-sb border border-line bg-control px-4 py-2 font-semibold hover:bg-control-hover"
+                className="rounded-control border border-line bg-control px-4 py-2 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
               >
                 Verbinden
               </button>
@@ -461,8 +459,8 @@ export function BandManagementView() {
             return (
               <div
                 key={profile.id}
-                className={`flex flex-col gap-2 rounded-sb border px-4 py-3 ${
-                  isActiveProfile ? 'border-accent bg-accent/10' : 'border-line bg-surface'
+                className={`flex flex-col gap-2 rounded-container border px-4 py-3 ${
+                  isActiveProfile ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -470,11 +468,12 @@ export function BandManagementView() {
                       follow-up) - already-active has nothing to select, so it's a plain div
                       there instead of a disabled-looking button. */}
                   {isActiveProfile ? (
-                    <div>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
+                      <Badge tone="accent">Du</Badge>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left hover:opacity-80">
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}
@@ -602,12 +601,12 @@ export function BandManagementView() {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <button
                         type="submit"
                         disabled={activating || activatePasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {activating ? '…' : 'Wechseln'}
                       </button>
@@ -619,7 +618,7 @@ export function BandManagementView() {
                     <button
                       type="button"
                       onClick={() => setActivatingProfileId(null)}
-                      className="self-start text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
                       Abbrechen
                     </button>
@@ -629,16 +628,13 @@ export function BandManagementView() {
             )
           })}
           {activeWorkspace.isAdmin && (
-            <button
-              type="button"
+            <AddRow
+              label="Neues Mitglied"
               onClick={async () => {
                 const name = await promptText('Neues Mitglied', { label: 'Name' })
                 if (name?.trim()) await createProfile(name.trim())
               }}
-              className="min-h-12 w-full rounded-sb border border-line bg-surface px-4 font-semibold hover:bg-control-hover"
-            >
-              + Neues Mitglied
-            </button>
+            />
           )}
         </section>
       )}
@@ -650,22 +646,15 @@ export function BandManagementView() {
             Pro Gerät: genau ein Gerät steuert die Show. Pro Person: alle Geräte der Person, die Master ist (z. B. Tablet
             und Handy des Bandleaders), steuern gemeinsam.
           </p>
-          <div className="flex gap-2">
-            {(['device', 'account'] as const).map((mode) => {
-              const selected = (activeWorkspace.masterMode ?? 'device') === mode
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => !selected && void setMasterMode(activeWorkspace.id, mode)}
-                  className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
-                >
-                  {mode === 'device' ? 'Pro Gerät' : 'Pro Person'}
-                </button>
-              )
-            })}
-          </div>
+          <Segmented
+            label="Master-Kontrolle"
+            value={activeWorkspace.masterMode ?? 'device'}
+            onChange={(mode) => void setMasterMode(activeWorkspace.id, mode)}
+            options={[
+              { value: 'device', label: 'Pro Gerät' },
+              { value: 'account', label: 'Pro Person' },
+            ]}
+          />
         </section>
       )}
 
@@ -674,39 +663,20 @@ export function BandManagementView() {
       )}
       {showJoinAnotherBand && <JoinBandView onClose={() => setShowJoinAnotherBand(false)} />}
       {showAddBandChoice && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm space-y-3 rounded-sb border border-line bg-surface p-6 text-ink">
-            <h2 className="text-xl font-bold">Band hinzufügen</h2>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddBandChoice(false)
-                setShowJoinAnotherBand(true)
-              }}
-              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
-            >
-              Bestehender Band beitreten
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                setShowAddBandChoice(false)
+        <ActionMenuDialog
+          title="Band hinzufügen"
+          onClose={() => setShowAddBandChoice(false)}
+          actions={[
+            { label: 'Bestehender Band beitreten', onClick: () => setShowJoinAnotherBand(true) },
+            {
+              label: 'Neue Band gründen',
+              onClick: async () => {
                 const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
                 if (name?.trim()) void addWorkspace(name.trim())
-              }}
-              className="w-full rounded-sb border border-line bg-control px-4 py-3 text-left font-semibold hover:bg-control-hover"
-            >
-              Neue Band gründen
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddBandChoice(false)}
-              className="w-full text-center text-xs text-ink-faint underline"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
+              },
+            },
+          ]}
+        />
       )}
     </div>
   )

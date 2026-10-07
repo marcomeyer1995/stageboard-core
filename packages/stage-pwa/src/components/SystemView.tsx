@@ -13,6 +13,7 @@ import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 import { DebugConsoleView } from './DebugConsoleView'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { Tabs } from './ui'
 
 const TAB_LABEL: Record<SystemTab, string> = {
   band: 'Band',
@@ -110,21 +111,8 @@ export function SystemView() {
   if (showSidebar) {
     return (
       <div className="flex h-full sb-app-bg text-ink">
-        <div className="flex w-56 flex-shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-surface p-2">
-          {tabs.map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              onClick={() => setTab(candidate)}
-              className={`min-h-12 rounded-sb px-4 text-left text-base font-semibold ${
-                activeTab === candidate
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control text-ink-soft hover:bg-control-hover'
-              }`}
-            >
-              {TAB_LABEL[candidate]}
-            </button>
-          ))}
+        <div className="flex w-56 flex-shrink-0 flex-col overflow-y-auto border-r border-line bg-surface py-2">
+          <Tabs label="System" orientation="vertical" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: TAB_LABEL[candidate] }))} />
         </div>
         <div className="flex-1 overflow-y-auto">{content}</div>
       </div>
@@ -135,19 +123,10 @@ export function SystemView() {
   // sideways - a scrolling strip hid Band/Plugins on the phone with no hint that more existed (#373).
   return (
     <div className="h-full overflow-y-auto sb-app-bg text-ink">
-      <div className="sticky top-0 z-10 flex flex-wrap gap-2 border-b border-line bg-surface p-2">
-        {tabs.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            onClick={() => setTab(candidate)}
-            className={`min-h-12 flex-grow rounded-sb px-4 text-sm font-semibold ${
-              activeTab === candidate ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'
-            }`}
-          >
-            {TAB_LABEL[candidate]}
-          </button>
-        ))}
+      {/* Page navigation = underline tabs (docs/15). They wrap onto a second row instead of
+          scrolling sideways - a scrolling strip hid Band/Plugins on the phone (#373). */}
+      <div className="sticky top-0 z-10 border-b border-line bg-surface px-2 pt-1">
+        <Tabs label="System" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: TAB_LABEL[candidate] }))} />
       </div>
 
       {content}

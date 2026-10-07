@@ -32,7 +32,7 @@ export function AppUpdateBanner() {
       <button
         type="button"
         disabled={busy}
-        className="min-h-12 rounded-sb-sm bg-black/80 px-4 text-base font-bold text-white disabled:opacity-60"
+        className="min-h-12 rounded-control bg-black/80 px-4 text-base font-bold text-white disabled:opacity-60"
         onClick={async () => {
           setBusy(true)
           setError(null)
@@ -46,7 +46,7 @@ export function AppUpdateBanner() {
       >
         {busy ? 'Lädt…' : 'Aktualisieren'}
       </button>
-      <button type="button" className="min-h-12 rounded-sb-sm px-4 text-base font-semibold underline" onClick={() => setDismissed(true)}>
+      <button type="button" className="min-h-12 rounded-control px-4 text-base font-semibold underline" onClick={() => setDismissed(true)}>
         Später
       </button>
     </div>

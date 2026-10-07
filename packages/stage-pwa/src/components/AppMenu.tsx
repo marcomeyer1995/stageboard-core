@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -9,22 +8,12 @@ import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
-import { useBackHandler } from '../lib/backNavigation'
-import { Icon } from './Icon'
+import { Dialog, Section, Segmented, Switch } from './ui'
 
 interface AppMenuProps {
   mode: Mode
   onSelectMode: (mode: Mode) => void
   onClose: () => void
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</p>
-      {children}
-    </div>
-  )
 }
 
 /**
@@ -49,7 +38,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * else: blank resets a non-admin account, is refused for an admin one).
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
-  useBackHandler(onClose)
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
 
@@ -62,93 +50,54 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
     onClose()
   }
 
+  // A dialog like every other (docs/15 D6): the way out is the "Fertig" at the bottom - the
+  // bottom row never scrolls away (#376: on the phone the old end-of-list close was cut off).
   return (
-    <div
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[min(85vh,85dvh)] w-full max-w-sm flex-col overflow-hidden rounded-sb border border-line bg-surface shadow-sb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close sits in a fixed header, not at the end of the list (#376): on a phone or a short
-            landscape screen the list scrolls, and "Schließen" used to be reachable only after
-            scrolling to the bottom (on the phone it was even cut off). */}
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-2">
-          <p className="text-sm font-bold uppercase tracking-widest text-ink-faint">Menü</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-touch items-center gap-2 rounded-sb bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
-          >
-            <Icon name="close" size="1.25rem" />
-            Schließen
-          </button>
-        </div>
-        <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
-          <Section title="Ansicht">
-            <div className="grid grid-cols-3 gap-2">
-              {MODES.map((candidate) => (
-                <button
-                  key={candidate}
-                  type="button"
-                  onClick={() => {
-                    onSelectMode(candidate)
-                    onClose()
-                  }}
-                  className={`h-14 rounded-sb text-base font-semibold ${
-                    mode === candidate
-                      ? 'bg-accent text-accent-ink'
-                      : 'bg-control text-ink-soft hover:bg-control-hover'
-                  }`}
-                >
-                  {MODE_LABEL[candidate]}
-                </button>
-              ))}
-            </div>
-          </Section>
+    <Dialog title="Menü" size="s" onClose={onClose}>
+      {/* Ansicht as the same joined bar as Modus (Marco, 2026-10-07: separate buttons above a bar
+          looked like two systems). Choosing a screen closes the menu. */}
+      <Section title="Ansicht">
+        <Segmented
+          label="Ansicht"
+          size="stage"
+          value={mode}
+          onChange={(candidate) => {
+            onSelectMode(candidate)
+            onClose()
+          }}
+          options={MODES.map((candidate) => ({ value: candidate, label: MODE_LABEL[candidate] }))}
+        />
+      </Section>
 
-          {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
-              (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
-          <Section title="Dashboards">
-            <DashboardMenuList
-              onSelect={selectDashboard}
-              onEdit={() => {
-                onSelectMode('boards')
-                onClose()
-              }}
-            />
-          </Section>
+      {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
+          (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
+      <Section title="Dashboards">
+        <DashboardMenuList
+          onSelect={selectDashboard}
+          onEdit={() => {
+            onSelectMode('boards')
+            onClose()
+          }}
+        />
+      </Section>
 
-          <Section title="Modus">
-            <SessionModeControl />
-            {sessionMode === 'practice' && <PracticeSetlistPicker />}
-          </Section>
+      <Section title="Modus">
+        <SessionModeControl />
+        {sessionMode === 'practice' && <PracticeSetlistPicker />}
+      </Section>
 
-          {sessionMode === 'gig' && (
-            <Section title="Master-Kontrolle">
-              <MasterControl />
-            </Section>
-          )}
+      {sessionMode === 'gig' && (
+        <Section title="Master-Kontrolle">
+          <MasterControl />
+        </Section>
+      )}
 
-          {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
-          {fullscreen.supported && !isNativeApp() && (
-            <Section title="Anzeige">
-              <button
-                type="button"
-                onClick={() => void fullscreen.toggle()}
-                className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
-              >
-                Vollbild
-                <span className="flex items-center gap-2">
-                  <Icon name={fullscreen.isFullscreen ? 'exitFullscreen' : 'fullscreen'} />
-                  {fullscreen.isFullscreen ? 'Aus' : 'An'}
-                </span>
-              </button>
-            </Section>
-          )}
-        </div>
-      </div>
-    </div>
+      {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
+      {fullscreen.supported && !isNativeApp() && (
+        <Section title="Anzeige">
+          <Switch label="Vollbild" checked={fullscreen.isFullscreen} onChange={() => void fullscreen.toggle()} />
+        </Section>
+      )}
+    </Dialog>
   )
 }

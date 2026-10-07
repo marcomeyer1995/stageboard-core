@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -32,8 +31,9 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
-import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
+import { INPUT, SELECTED } from './ui/styles'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -64,7 +64,6 @@ function VariantPicker({
   onSelect: (variantId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  useBackHandler(open ? () => setOpen(false) : null)
   const selectedLabel = variants.find((v) => v.id === selectedId)?.label ?? ''
 
   return (
@@ -77,54 +76,31 @@ function VariantPicker({
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
         // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
         // title 0 px wide.
-        className="min-h-12 max-w-full self-start whitespace-normal break-words rounded-sb-sm bg-control-strong px-3 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
+        className="min-h-form max-w-full self-start whitespace-normal break-words rounded-control bg-control-strong px-3 py-1 text-left text-base leading-tight text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
       >
         {selectedLabel}
       </button>
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
-            onClick={() => setOpen(false)}
-          >
-            <div
-              className="flex w-full max-w-[min(320px,85vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Variante</p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
-                >
-                  <Icon name="close" size="1.25rem" />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => {
-                      setOpen(false)
-                      onSelect(variant.id)
-                    }}
-                    className={`h-11 w-full rounded-sb px-3 text-left text-base ${
-                      variant.id === selectedId
-                        ? 'bg-accent text-accent-ink'
-                        : 'bg-control text-ink hover:bg-control-hover'
-                    }`}
-                  >
-                    {variant.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {open && (
+        // Choosing one already closes it - so the way out is "Abbrechen" (docs/15 D6).
+        <Dialog title="Variante" size="s" closeLabel="Abbrechen" onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2">
+            {variants.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                aria-current={variant.id === selectedId ? 'true' : undefined}
+                onClick={() => {
+                  setOpen(false)
+                  onSelect(variant.id)
+                }}
+                className={`${MENU_ROW} ${variant.id === selectedId ? SELECTED : 'text-ink'}`}
+              >
+                {variant.label}
+              </button>
+            ))}
+          </div>
+        </Dialog>
+      )}
     </>
   )
 }
@@ -173,7 +149,6 @@ function TransitionPicker({
   onChange: (type: TransitionType, delayMs: number) => void
 }) {
   const [open, setOpen] = useState(false)
-  useBackHandler(open ? () => setOpen(false) : null)
   const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
 
   return (
@@ -182,8 +157,8 @@ function TransitionPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`Übergang zum nächsten Eintrag: ${current.label}`}
-        className={`h-12 min-w-12 flex-shrink-0 rounded-sb-sm px-3 text-sm hover:bg-control-strong-hover ${
-          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
+        className={`h-form min-w-form flex-shrink-0 rounded-control px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover ${
+          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-ink'
         }`}
       >
         <span className="flex items-center gap-1">
@@ -191,61 +166,35 @@ function TransitionPicker({
           {type === 'manual' ? null : current.label}
         </span>
       </button>
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
-            onClick={() => setOpen(false)}
-          >
-            <div
-              className="flex w-full max-w-[min(360px,90vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
-                  {isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
-                >
-                  <Icon name="close" size="1.25rem" />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {TRANSITION_OPTIONS.map((option) => (
-                  <button
-                    key={option.type}
-                    type="button"
-                    onClick={() => onChange(option.type, delayMs)}
-                    className={`flex flex-col rounded-sb px-3 py-2 text-left ${
-                      option.type === type ? 'bg-accent text-accent-ink' : 'bg-control text-ink hover:bg-control-hover'
-                    }`}
-                  >
-                    <span className="text-base font-semibold">{option.label}</span>
-                    <span className="text-xs opacity-80">{isItem ? option.itemHint : option.hint}</span>
-                  </button>
-                ))}
-              </div>
-              {type === 'delayed' && (
-                <label className="flex items-center justify-between gap-2 text-sm text-ink-soft">
-                  Pause (Sekunden)
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={Math.round(delayMs / 1000)}
-                    onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
-                    className="h-12 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
-                  />
-                </label>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {open && (
+        <Dialog title={isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'} size="s" onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Übergang">
+            {TRANSITION_OPTIONS.map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                role="radio"
+                aria-checked={option.type === type}
+                onClick={() => onChange(option.type, delayMs)}
+                className={`${MENU_ROW} !flex-col !items-start py-2 ${option.type === type ? SELECTED : 'text-ink'}`}
+              >
+                <span className="text-base font-semibold">{option.label}</span>
+                <span className="text-sm opacity-80">{isItem ? option.itemHint : option.hint}</span>
+              </button>
+            ))}
+          </div>
+          {type === 'delayed' && (
+            <Field
+              label="Pause (Sekunden)"
+              type="number"
+              min={0}
+              step={1}
+              value={Math.round(delayMs / 1000)}
+              onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
+            />
+          )}
+        </Dialog>
+      )}
     </>
   )
 }
@@ -291,7 +240,7 @@ function EntryRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-sb-sm bg-control px-3 py-3 text-base ${
+      className={`flex items-center gap-2 rounded-control bg-control px-3 py-3 text-base ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
@@ -300,7 +249,7 @@ function EntryRow({
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
@@ -309,7 +258,7 @@ function EntryRow({
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-12 min-w-0 truncate text-left hover:underline"
+          className="min-h-12 min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -342,14 +291,14 @@ function EntryRow({
 /** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
  * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
 function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
-  const inputClass = 'h-12 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
+  const inputClass = `h-form !w-24 px-2 text-right ${INPUT}`
   function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
     const seconds = Number(text.trim().replace(',', '.'))
     const value = text.trim() === '' || !Number.isFinite(seconds) || seconds < 0 ? undefined : Math.round(seconds) * 1000
     if (value !== setlist[field]) onSave({ ...setlist, [field]: value })
   }
   return (
-    <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+    <details className="rounded-container border border-line px-3 py-2 text-base text-ink-soft">
       <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
@@ -360,7 +309,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
             type="time"
             value={setlist.targetEndTime ?? ''}
             onChange={(e) => onSave({ ...setlist, targetEndTime: e.target.value || undefined })}
-            className="h-12 rounded-sb-sm bg-surface px-2 text-ink"
+            className={`h-form !w-auto px-2 ${INPUT}`}
           />
         </label>
         <label className="flex items-center justify-between gap-2">
@@ -423,7 +372,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`flex items-center gap-2 px-3 py-3 text-base ${
-        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-sb-sm border border-dashed border-line bg-control'
+        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-control border border-dashed border-line bg-control'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
@@ -431,17 +380,17 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
           <>
-            <span className="mr-2 text-xs font-bold uppercase tracking-wider text-accent">Ansage</span>
+            <span className="mr-2"><Badge tone="accent">Ansage</Badge></span>
             <span className="italic">{entry.title}</span>
           </>
         )}
@@ -517,14 +466,14 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
           if (e.key === 'Escape') setOpen(false)
         }}
         placeholder="Songs durchsuchen…"
-        className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+        className={`h-form px-4 text-base ${INPUT}`}
       />
       {open && (
         // Opens upward, not down (Marco, explicit request) - this control sits at the bottom
         // of the pane, below the entry list, so a downward dropdown pushed itself off-screen
         // and needed a scroll to reach; anchoring to the input's top edge instead opens into
         // the room the entry list already occupies.
-        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-sb border border-line bg-surface shadow-sb">
+        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
           ) : (
@@ -533,7 +482,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
                 <button
                   type="button"
                   onClick={() => pick(song.id)}
-                  className="block w-full truncate px-4 py-3 text-left text-base text-ink hover:bg-control-hover"
+                  className="block w-full truncate px-4 py-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   {song.title || '(ohne Titel)'}
                   {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
@@ -725,7 +674,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
             type="button"
             onClick={() => setActiveSetlist(setlist.id)}
             disabled={!isMaster}
-            className="h-12 rounded-sb-sm bg-accent-2 px-4 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
+            className="h-form rounded-control bg-accent px-4 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
           >
             Aktivieren
           </button>
@@ -748,7 +697,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           type="button"
           onClick={() => setActiveSetlist(null)}
           disabled={!isMaster}
-          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover disabled:opacity-40"
+          className="h-form self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
         >
           Setlist deaktivieren (alle Songs)
         </button>
@@ -792,20 +741,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void addTransition('announcement')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Ansage / Pause
-          </button>
-          <button
-            type="button"
-            onClick={() => void addTransition('heading')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Abschnitt
-          </button>
+          <AddRow inline label="Ansage / Pause" onClick={() => void addTransition('announcement')} />
+          <AddRow inline label="Abschnitt" onClick={() => void addTransition('heading')} />
         </div>
       </div>
     </div>

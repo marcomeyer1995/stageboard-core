@@ -55,7 +55,7 @@ export function AudioResumeOverlay() {
       <button
         type="button"
         onClick={() => void resume()}
-        className="animate-pulse rounded-sb bg-white px-8 py-4 text-xl font-bold uppercase tracking-wide text-red-700 hover:bg-red-50"
+        className="animate-pulse rounded-control bg-white px-8 py-4 text-xl font-bold uppercase tracking-wide text-red-700 [@media(hover:hover)]:hover:bg-red-50"
       >
         Antippen zum Fortsetzen
       </button>

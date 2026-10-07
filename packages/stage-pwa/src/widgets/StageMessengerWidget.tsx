@@ -1,10 +1,11 @@
+import { AddRow, Button, IconButton, ToggleChip } from '../components/ui'
+import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import { FLASH_PRESETS, sendFlash } from '../lib/flash'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { Icon } from '../components/Icon'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import type { StageMessengerConfig } from './stageMessengerConfig'
 
@@ -42,32 +43,21 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
     if (result === 'sent') setText('')
   }
 
-  const chip = (selected: boolean) =>
-    `min-h-12 rounded-sb-sm px-3 font-semibold ${selected ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`
-
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft" style={{ fontSize }}>
+      {/* Pick several (docs/15 D7); "Alle" stays its own first chip that clears the others. */}
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Empfänger">
         <span className="text-sm text-ink-faint">An</span>
-        <button type="button" aria-pressed={to.length === 0} onClick={() => setTo([])} className={chip(to.length === 0)}>
-          Alle
-        </button>
+        <ToggleChip size="widget" label="Alle" selected={to.length === 0} onToggle={() => setTo([])} />
         {profiles.map((profile) => (
-          <button key={profile.id} type="button" aria-pressed={to.includes(profile.id)} onClick={() => toggle(profile.id)} className={chip(to.includes(profile.id))}>
-            {profile.name}
-          </button>
+          <ToggleChip key={profile.id} size="widget" label={profile.name} selected={to.includes(profile.id)} onToggle={() => toggle(profile.id)} />
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
         {presets.map((preset, i) => (
-          <button
-            key={`${i}-${preset}`}
-            type="button"
-            onClick={() => void send(preset)}
-            className="min-h-12 rounded-sb-sm bg-control-strong px-3 font-bold text-ink hover:bg-control-strong-hover"
-          >
+          <Button key={`${i}-${preset}`} size="widget" onClick={() => void send(preset)} className="font-bold">
             {preset}
-          </button>
+          </Button>
         ))}
       </div>
       <form
@@ -83,11 +73,11 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
           onChange={(e) => setText(e.target.value)}
           placeholder="Eigene Nachricht…"
           aria-label={`Nachricht an ${recipients}`}
-          className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-ink"
+          className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
-        <button type="submit" disabled={!text.trim()} className="min-h-12 rounded-sb-sm bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
+        <Button type="submit" variant="primary" size="widget" disabled={!text.trim()}>
           Senden
-        </button>
+        </Button>
       </form>
       {status && (
         <p role="status" className="text-sm text-ink-faint">
@@ -108,7 +98,6 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
     next.splice(i + by, 0, item!)
     set(next)
   }
-  const iconButton = 'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control text-ink-soft hover:bg-control-hover disabled:opacity-30'
   return (
     <div className="flex flex-col gap-3">
       <ContentFontSizeConfigPanel config={config} onChange={onChange} />
@@ -122,28 +111,20 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
               aria-label={`Nachricht ${i + 1}`}
               onChange={(e) => set(presets.map((p, j) => (j === i ? e.target.value : p)))}
               onBlur={() => set(presets.map((p) => p.trim()).filter(Boolean))}
-              className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-base text-ink"
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT}`}
             />
-            <button type="button" aria-label={`„${preset}“ nach oben`} disabled={i === 0} onClick={() => move(i, -1)} className={iconButton}>
-              <Icon name="up" />
-            </button>
-            <button type="button" aria-label={`„${preset}“ nach unten`} disabled={i === presets.length - 1} onClick={() => move(i, 1)} className={iconButton}>
-              <Icon name="down" />
-            </button>
-            <button type="button" aria-label={`„${preset}“ entfernen`} onClick={() => set(presets.filter((_, j) => j !== i))} className={iconButton}>
-              <Icon name="close" />
-            </button>
+            <IconButton icon="up" label={`„${preset}“ nach oben`} disabled={i === 0} onClick={() => move(i, -1)} />
+            <IconButton icon="down" label={`„${preset}“ nach unten`} disabled={i === presets.length - 1} onClick={() => move(i, 1)} />
+            <IconButton icon="close" variant="quiet" label={`„${preset}“ entfernen`} onClick={() => set(presets.filter((_, j) => j !== i))} />
           </li>
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} className="min-h-12 rounded-sb-sm bg-accent px-4 font-bold text-accent-ink disabled:opacity-40">
-          + Nachricht
-        </button>
+        <AddRow label="Neue Nachricht" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} />
         {config.presets && (
-          <button type="button" onClick={() => onChange({ ...config, presets: undefined })} className="min-h-12 rounded-sb-sm bg-control px-4 text-ink-soft hover:bg-control-hover">
+          <Button variant="quiet" onClick={() => onChange({ ...config, presets: undefined })}>
             Standard wiederherstellen
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -1,4 +1,6 @@
 import { FLASH_SECONDS, useFlashPrefsStore, type FlashMode } from '../store/useFlashPrefsStore'
+import { Button, Segmented } from './ui'
+import { showLocalFlash } from '../lib/flash'
 
 const OPTIONS: { mode: FlashMode; label: string; hint: (seconds: number) => string }[] = [
   { mode: 'banner', label: 'Banner', hint: (s) => `Streifen oben, durchscheinend, bis Tippen oder ${s} Sekunden - der Rest bleibt bedienbar.` },
@@ -14,20 +16,15 @@ export function FlashSettings() {
   const setSeconds = useFlashPrefsStore((state) => state.setSeconds)
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Blitzmeldungen anzeigen">
-        {OPTIONS.map((option) => (
-          <button
-            key={option.mode}
-            type="button"
-            aria-pressed={mode === option.mode}
-            onClick={() => setMode(option.mode)}
-            className={`h-12 rounded-sb text-base font-semibold ${mode === option.mode ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <Segmented label="Blitzmeldungen anzeigen" value={mode} onChange={setMode} options={OPTIONS.map((option) => ({ value: option.mode, label: option.label }))} />
       <p className="text-sm text-ink-faint">{OPTIONS.find((option) => option.mode === mode)?.hint(seconds)}</p>
+      {/* Shows a sample with the current look and duration - on this device only, nobody else
+          gets it (Marco, 2026-10-07). */}
+      {mode !== 'off' && (
+        <Button icon="eye" onClick={() => showLocalFlash('Vorschau: Noch 5 Minuten')} className="self-start">
+          Vorschau
+        </Button>
+      )}
       {mode !== 'off' && (
         <label className="flex flex-col gap-1 text-base text-ink-soft">
           <span className="flex items-center justify-between">

@@ -1,3 +1,4 @@
+import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { useActiveProfile } from '../lib/useActiveProfile'
@@ -45,7 +46,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
         {!showId && <p className="text-ink-faint">Noch keine Show aktiv.</p>}
         {showId && notes.length === 0 && <p className="text-ink-faint">Noch keine Notizen.</p>}
         {notes.map((note) => (
-          <div key={note.id} className="rounded-sb-sm bg-control px-2 py-1">
+          <div key={note.id} className="rounded-control bg-control px-2 py-1">
             <p className="text-ink">{note.text}</p>
             <p className="text-xs text-ink-faint">{authorName(note.authorProfileId)}</p>
           </div>
@@ -60,13 +61,13 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           }}
           placeholder="Notiz hinzufügen…"
           disabled={!showId}
-          className="min-h-touch min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-ink disabled:opacity-40"
+          className={`min-h-touch min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
         <button
           type="button"
           onClick={submit}
           disabled={!showId}
-          className="min-h-touch flex-shrink-0 rounded-sb-sm bg-control-strong px-3 py-1 font-semibold text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="min-h-touch flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Hinzufügen
         </button>

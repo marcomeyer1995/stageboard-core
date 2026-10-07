@@ -127,7 +127,7 @@ export function PostShowReport() {
         {shows.map((show) => (
           <div
             key={show.showId}
-            className="rounded-sb border border-line bg-surface p-4 shadow-sb"
+            className="rounded-container border border-line bg-surface p-4 shadow-sb"
           >
             <ShowSections show={show} authorName={authorName} />
           </div>

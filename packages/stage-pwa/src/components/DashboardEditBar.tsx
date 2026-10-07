@@ -12,6 +12,8 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { WidgetLibrary } from './WidgetLibrary'
 import { Icon } from './Icon'
+import { Button, IconButton } from './ui'
+import { CONTROL, FOCUS, HOVER } from './ui/styles'
 import { DashboardSettingsDialog } from './DashboardSettingsDialog'
 
 interface DashboardEditBarProps {
@@ -63,39 +65,22 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
         type="button"
         onClick={() => void rename()}
         title="Umbenennen"
-        className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-sb-sm px-2 text-left text-base font-semibold text-ink hover:bg-control-hover"
+        className={`flex h-form min-w-0 flex-1 items-center gap-2 px-2 text-left text-lg font-semibold text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
       >
         <span className="truncate">{dashboard.name}</span>
         <Icon name="note" size="1rem" className="text-ink-faint" />
       </button>
 
-      <button
-        type="button"
-        onClick={() => setShowLibrary(true)}
-        className="h-12 flex-shrink-0 rounded-sb-sm bg-accent-2 px-3 font-bold text-accent-ink hover:bg-accent-2-hover"
-      >
-        + Widget
-      </button>
+      <Button variant="primary" icon="add" onClick={() => setShowLibrary(true)} className="flex-shrink-0 !px-3">
+        Widget
+      </Button>
 
       {/* Wide like "+ Widget" (Marco: the small ⋯ was hard to hit). */}
-      <button
-        type="button"
-        onClick={() => setShowSettings(true)}
-        aria-label="Dashboard-Einstellungen"
-        className="flex h-12 w-16 flex-shrink-0 items-center justify-center rounded-sb-sm bg-control-strong text-ink hover:bg-control-strong-hover"
-      >
-        <Icon name="more" size="1.5rem" />
-      </button>
+      <IconButton icon="more" label="Dashboard-Einstellungen" onClick={() => setShowSettings(true)} className="!w-16 flex-shrink-0" />
 
-      <button
-        type="button"
-        onClick={() => setEditing(false)}
-        aria-label="Bearbeiten beenden"
-        className="flex h-12 flex-shrink-0 items-center gap-2 rounded-sb-sm bg-control px-3 text-ink-soft hover:bg-control-hover"
-      >
-        <Icon name="locked" size="1.25rem" />
+      <Button icon="locked" aria-label="Bearbeiten beenden" onClick={() => setEditing(false)} className="flex-shrink-0 !px-3">
         <span className="hidden sm:inline">Fertig</span>
-      </button>
+      </Button>
 
       {showSettings && <DashboardSettingsDialog dashboard={dashboard} onClose={() => setShowSettings(false)} />}
 

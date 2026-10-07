@@ -67,7 +67,7 @@ export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
   return (
     <div
       ref={boxRef}
-      className={`flex h-full flex-col items-center gap-1 rounded-sb transition-colors duration-75 ${
+      className={`flex h-full flex-col items-center gap-1 rounded-container transition-colors duration-75 ${
         flashOn ? 'bg-ink text-surface' : 'bg-surface text-ink'
       }`}
     >

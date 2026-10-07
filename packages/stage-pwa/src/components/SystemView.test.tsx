@@ -69,13 +69,13 @@ describe('SystemView', () => {
 
     expect(screen.getByText('Bands verwalten', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
     expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nachbericht' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Nachbericht' }))
     expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Geräte' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Geräte' }))
     expect(screen.getByText('Geräte', { selector: 'h1' })).toBeInTheDocument()
   })
 
@@ -102,14 +102,14 @@ describe('SystemView', () => {
       ],
     })
     render(<SystemView />)
-    expect(screen.getByRole('button', { name: 'Backup' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Backup' })).toBeInTheDocument()
   })
 
   it('switching to Einstellungen renders the moved-out settings sections', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Einstellungen' }))
 
     expect(screen.getByText('Darstellung')).toBeInTheDocument()
     expect(screen.getByText('Speicher & Sync')).toBeInTheDocument()
@@ -125,15 +125,15 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
   })
 
   function expectSidebar() {
-    const bandButton = screen.getByRole('button', { name: 'Band' })
-    expect(bandButton.parentElement).toHaveClass('w-56')
-    expect(bandButton.parentElement).not.toHaveClass('flex-wrap')
+    const tabs = screen.getByRole('tablist', { name: 'System' })
+    expect(tabs).toHaveAttribute('aria-orientation', 'vertical')
+    expect(tabs.parentElement).toHaveClass('w-56')
   }
 
   function expectStrip() {
-    const bandButton = screen.getByRole('button', { name: 'Band' })
-    expect(bandButton.parentElement).toHaveClass('flex-wrap')
-    expect(bandButton.parentElement).not.toHaveClass('w-56')
+    const tabs = screen.getByRole('tablist', { name: 'System' })
+    expect(tabs).toHaveAttribute('aria-orientation', 'horizontal')
+    expect(tabs).toHaveClass('flex-wrap')
   }
 
   it('pointer lane (happy-dom default): a vertical sidebar, not the horizontal strip', () => {
@@ -161,7 +161,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
     expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ pointer: false }))
@@ -174,7 +174,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
     expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ wide: true }))
@@ -185,7 +185,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
   it('Einstellungen groups device settings apart from the band-wide ones (#371)', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
-    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Einstellungen' }))
 
     const device = screen.getByRole('region', { name: 'Dieses Gerät' })
     expect(within(device).getByText('Gerätename')).toBeInTheDocument()

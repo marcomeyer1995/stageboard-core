@@ -77,7 +77,7 @@ describe('InviteBandView', () => {
     expect(await screen.findByText('Code konnte nicht geladen werden.')).toBeInTheDocument()
   })
 
-  it('calls onClose when "Schließen" is clicked', async () => {
+  it('calls onClose when "Fertig" is clicked', async () => {
     const getAccessCode = vi.fn().mockResolvedValue({ code: '12345678' })
     useWorkspaceStore.setState({ getAccessCode })
     const onClose = vi.fn()
@@ -85,7 +85,7 @@ describe('InviteBandView', () => {
     render(<InviteBandView workspaceId="band-a" onClose={onClose} />)
     await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
 
-    screen.getByText('Schließen').click()
+    screen.getByText('Fertig').click()
     expect(onClose).toHaveBeenCalled()
   })
 

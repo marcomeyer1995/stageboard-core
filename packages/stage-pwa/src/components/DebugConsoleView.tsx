@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Segmented, Switch } from './ui'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
+import { INPUT_FREE } from './ui/styles'
 
 const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
   { id: 'all', label: 'Alles' },
@@ -51,32 +53,24 @@ export function DebugConsoleView() {
         <p className="text-sm text-ink-muted">Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge.</p>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {LEVELS.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            aria-pressed={level === l.id}
-            onClick={() => setLevel(l.id)}
-            className={`min-h-12 rounded-sb-sm px-4 text-sm font-semibold ${level === l.id ? 'bg-accent text-accent-ink' : 'bg-control text-ink-soft hover:bg-control-hover'}`}
-          >
-            {l.label}
-            {l.id !== 'all' && ` (${entries.filter((e) => e.level === l.id).length})`}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Einträge"
+        value={level}
+        onChange={setLevel}
+        options={LEVELS.map((l) => ({ value: l.id, label: l.id === 'all' ? l.label : `${l.label} (${entries.filter((e) => e.level === l.id).length})` }))}
+      />
       <div className="flex flex-wrap gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Suchen…"
           aria-label="Log durchsuchen"
-          className="h-12 min-w-0 flex-1 rounded-sb-sm bg-control px-3 text-base text-ink"
+          className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
         />
-        <button type="button" onClick={() => void copy()} className="min-h-12 rounded-sb-sm bg-control-strong px-4 font-semibold text-ink hover:bg-control-strong-hover">
+        <button type="button" onClick={() => void copy()} className="min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Kopieren
         </button>
-        <button type="button" onClick={clear} className="min-h-12 rounded-sb-sm bg-control px-4 font-semibold text-ink-soft hover:bg-control-hover">
+        <button type="button" onClick={clear} className="min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
           Leeren
         </button>
       </div>
@@ -86,7 +80,7 @@ export function DebugConsoleView() {
         </p>
       )}
 
-      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-sb border border-line bg-surface font-sb-mono text-sm" aria-label="Log">
+      <ol className="flex max-h-[55vh] flex-col overflow-y-auto rounded-container border border-line bg-surface font-sb-mono text-sm" aria-label="Log">
         {shown.length === 0 && <li className="p-3 text-ink-faint">Keine Einträge.</li>}
         {shown.map((e) => (
           <li key={e.id} className={`border-b border-line px-3 py-2 ${LEVEL_CLASS[e.level]}`}>
@@ -96,22 +90,19 @@ export function DebugConsoleView() {
         ))}
       </ol>
 
-      <section className="flex flex-col gap-2 rounded-sb border border-line bg-surface p-4">
+      <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4">
         <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
         <p className="text-sm text-ink-muted">Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten.</p>
         {DEBUG_FLAGS.map((flag) => (
-          <label key={flag.key} className="flex min-h-12 cursor-pointer items-center gap-3 text-base text-ink">
-            <input
-              type="checkbox"
-              checked={debugFlagOn(flag.key)}
-              onChange={(e) => {
-                setDebugFlag(flag.key, e.target.checked)
-                rerender((n) => n + 1)
-              }}
-              className="h-6 w-6"
-            />
-            {flag.label}
-          </label>
+          <Switch
+            key={flag.key}
+            label={flag.label}
+            checked={debugFlagOn(flag.key)}
+            onChange={(on) => {
+              setDebugFlag(flag.key, on)
+              rerender((n) => n + 1)
+            }}
+          />
         ))}
       </section>
     </div>

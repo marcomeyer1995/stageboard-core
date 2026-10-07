@@ -108,7 +108,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
         <span className="text-center text-sm">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>
         <MasterTakeoverButton
-          className="rounded-sb-sm bg-control-strong px-3 py-1 text-sm font-medium text-accent hover:bg-control-strong-hover"
+          className="min-h-form rounded-control bg-control-strong px-4 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         />
       </div>
     )
@@ -141,10 +141,10 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void play()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'play' })
           }}
-          className={`h-full min-h-0 rounded-sb px-1 font-bold uppercase tracking-wide transition-colors ${
+          className={`h-full min-h-0 rounded-control px-1 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'playing'
               ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
           }`}
         >
           {layout.iconButtons ? (
@@ -159,10 +159,10 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void pause()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'pause' })
           }}
-          className={`h-full min-h-0 rounded-sb px-1 font-bold uppercase tracking-wide transition-colors ${
+          className={`h-full min-h-0 rounded-control px-1 font-bold uppercase tracking-wide transition-colors ${
             playbackStatus === 'paused'
               ? 'bg-accent text-accent-ink'
-              : 'bg-control-strong text-ink hover:bg-control-strong-hover'
+              : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
           }`}
         >
           {layout.iconButtons ? (
@@ -177,7 +177,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void stop()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'stop' })
           }}
-          className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           {layout.iconButtons ? (
             <Icon name="stop" size="1.6em" label="Stop" className="mx-auto" />
@@ -188,7 +188,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
         <button
           type="button"
           onClick={() => void reset()}
-          className="h-full min-h-0 rounded-sb bg-control-strong px-1 font-bold uppercase tracking-wide text-ink hover:bg-control-strong-hover"
+          className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
           {layout.iconButtons ? (
             <Icon name="reset" size="1.6em" label="Reset" className="mx-auto" />

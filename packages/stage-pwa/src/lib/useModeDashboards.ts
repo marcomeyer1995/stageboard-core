@@ -5,6 +5,7 @@ import { useActiveProfile } from './useActiveProfile'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useDashboardsStore } from '../store/useDashboardsStore'
+import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { inMenuOrder, useDashboardMenuStore } from '../store/useDashboardMenuStore'
 
@@ -39,5 +40,8 @@ export function useModeDashboards(): {
     const shown = listed.filter((d) => !hidden.includes(d.id))
     return shown.length ? shown : listed
   }, [listed, hidden])
-  return { candidates, active: resolveActiveDashboard(candidates, rememberedForMode, lastShown), mode, listed, hidden }
+  // A dashboard hidden here can still be edited (menu "Bearbeiten" → pen): while editing it stays
+  // the shown one instead of falling back to the first visible (Marco, 2026-10-07).
+  const editing = useEditModeStore((state) => state.isEditing)
+  return { candidates, active: resolveActiveDashboard(editing ? listed : candidates, rememberedForMode, lastShown), mode, listed, hidden }
 }

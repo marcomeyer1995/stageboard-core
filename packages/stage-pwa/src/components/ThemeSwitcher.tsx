@@ -1,4 +1,6 @@
 import { THEMES, useThemeStore } from '../store/useThemeStore'
+import { INPUT_FREE } from './ui/styles'
+import { Segmented } from './ui'
 
 /**
  * Lets a musician pick their own visual language for this device - see "StageBoard Look
@@ -18,7 +20,7 @@ export function ThemeSwitcher() {
         value={themeId}
         onChange={(e) => setThemeId(e.target.value as (typeof THEMES)[number]['id'])}
         title="Design"
-        className="h-12 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+        className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
       >
         {THEMES.map((theme) => (
           <option key={theme.id} value={theme.id}>
@@ -27,14 +29,17 @@ export function ThemeSwitcher() {
         ))}
       </select>
       {themeId === 'default' && (
-        <button
-          type="button"
-          onClick={toggleLightDark}
-          title={lightDark === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          className="h-12 flex-shrink-0 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
-        >
-          {lightDark === 'dark' ? 'Light' : 'Dark'}
-        </button>
+        <div className="w-44 flex-shrink-0">
+          <Segmented
+            label="Hell oder dunkel"
+            value={lightDark}
+            onChange={(next) => next !== lightDark && toggleLightDark()}
+            options={[
+              { value: 'dark', label: 'Dunkel' },
+              { value: 'light', label: 'Hell' },
+            ]}
+          />
+        </div>
       )}
     </div>
   )

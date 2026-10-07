@@ -10,6 +10,7 @@ import {
   parseWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
+import { Badge } from './ui'
 
 /**
  * A focused view of just the band's backup-capability plugin(s), for the "gated built-in
@@ -86,7 +87,7 @@ export function BackupManager() {
         {backupPlugins.map((plugin) => (
           <div
             key={plugin.id}
-            className="flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb"
+            className="flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="flex-1">
               <p className="font-semibold">
@@ -95,15 +96,7 @@ export function BackupManager() {
               </p>
               <p className="text-xs text-ink-muted">{healthLabel(plugin)}</p>
             </div>
-            <span
-              className={`rounded-sb-sm px-2 py-1 text-xs font-medium ${
-                healthLabel(plugin) === 'online'
-                  ? 'bg-accent text-accent-ink'
-                  : 'bg-control-strong text-ink'
-              }`}
-            >
-              {plugin.enabled ? 'Aktiv' : 'Deaktiviert'}
-            </span>
+            <Badge tone={healthLabel(plugin) === 'online' ? 'accent' : 'neutral'}>{plugin.enabled ? 'Aktiv' : 'Deaktiviert'}</Badge>
           </div>
         ))}
       </div>
@@ -119,14 +112,14 @@ export function BackupManager() {
         <button
           type="button"
           onClick={() => void handleExport()}
-          className="rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink"
+          className="rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink"
         >
           Backup herunterladen
         </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-sb border border-line bg-surface px-4 py-2 font-semibold"
+          className="min-h-form rounded-control bg-control-strong px-4 font-semibold"
         >
           Backup wiederherstellen…
         </button>
