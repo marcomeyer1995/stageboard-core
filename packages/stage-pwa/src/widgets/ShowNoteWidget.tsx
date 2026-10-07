@@ -1,3 +1,4 @@
+import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { useActiveProfile } from '../lib/useActiveProfile'
@@ -60,13 +61,13 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           }}
           placeholder="Notiz hinzufügen…"
           disabled={!showId}
-          className="min-h-touch min-w-0 flex-1 rounded-control bg-control px-2 py-1 text-ink disabled:opacity-40"
+          className={`min-h-touch min-w-0 flex-1 px-3 ${INPUT}`}
         />
         <button
           type="button"
           onClick={submit}
           disabled={!showId}
-          className="min-h-touch flex-shrink-0 rounded-control bg-control-strong px-3 py-1 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="min-h-touch flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Hinzufügen
         </button>

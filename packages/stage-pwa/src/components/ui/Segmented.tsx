@@ -14,14 +14,17 @@ export interface SegmentedProps<T extends string> {
   /** Accessible name of the whole question ("Modus", "Sichtbar für"). */
   label: string
   size?: ControlSize
+  /** Show `label` above the bar (settings forms); otherwise it only names the group for screen readers. */
+  showLabel?: boolean
+  hint?: string
 }
 
 /**
  * Pick exactly one (D7): one joined bar, the chosen segment filled. Tapping the chosen segment
  * again changes nothing - the bar always has an answer.
  */
-export function Segmented<T extends string>({ options, value, onChange, label, size = 'form' }: SegmentedProps<T>) {
-  return (
+export function Segmented<T extends string>({ options, value, onChange, label, size = 'form', showLabel = false, hint }: SegmentedProps<T>) {
+  const bar = (
     <div role="radiogroup" aria-label={label} className={`flex w-full gap-0 border border-line bg-control p-1 ${CONTROL}`}>
       {options.map((option) => {
         const selected = option.value === value
@@ -42,6 +45,15 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
           </button>
         )
       })}
+    </div>
+  )
+  if (!showLabel && !hint) return bar
+  // In a settings form: the question above the bar, like a field's label (docs/15 §4).
+  return (
+    <div className="flex flex-col gap-1">
+      {showLabel && <p className="text-sm font-semibold text-ink-soft">{label}</p>}
+      {bar}
+      {hint && <p className="text-sm text-ink-faint">{hint}</p>}
     </div>
   )
 }

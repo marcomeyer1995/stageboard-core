@@ -108,7 +108,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
         <span className="text-center text-sm">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>
         <MasterTakeoverButton
-          className="rounded-control bg-control-strong px-3 py-1 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
+          className="min-h-form rounded-control bg-control-strong px-4 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         />
       </div>
     )

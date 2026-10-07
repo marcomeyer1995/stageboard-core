@@ -39,7 +39,7 @@ export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
         type="button"
         onClick={jumpToNextSection}
         style={{ fontSize }}
-        className="flex-shrink-0 whitespace-nowrap rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+        className="min-h-form flex-shrink-0 whitespace-nowrap rounded-control bg-control-strong px-3 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
       >
         Fußtaster simulieren
       </button>

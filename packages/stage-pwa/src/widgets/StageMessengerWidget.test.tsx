@@ -55,7 +55,7 @@ describe('StageMessengerWidget (#26)', () => {
     expect(onChange).toHaveBeenLastCalledWith({ presets: ['B', 'C'] })
     fireEvent.change(screen.getByLabelText('Nachricht 2'), { target: { value: 'Bee' } })
     expect(onChange).toHaveBeenLastCalledWith({ presets: ['A', 'Bee', 'C'] })
-    fireEvent.click(screen.getByRole('button', { name: '+ Nachricht' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nachricht' }))
     expect(onChange).toHaveBeenLastCalledWith({ presets: ['A', 'B', 'C', 'Neue Nachricht'] })
     fireEvent.click(screen.getByRole('button', { name: 'Standard wiederherstellen' }))
     expect(onChange).toHaveBeenLastCalledWith({ presets: undefined })

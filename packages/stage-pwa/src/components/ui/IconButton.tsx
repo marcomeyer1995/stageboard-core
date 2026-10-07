@@ -26,7 +26,7 @@ export function IconButton({ icon, label, size = 'form', variant = 'secondary', 
       className={`inline-flex flex-shrink-0 items-center justify-center ${SQUARE[size]} ${CONTROL} ${VARIANT[variant]} ${FOCUS} ${DISABLED} ${className}`}
       {...rest}
     >
-      <Icon name={icon} size={size === 'form' ? '1.4rem' : '1.7rem'} />
+      <Icon name={icon} size={size === 'form' || size === 'widget' ? '1.4rem' : '1.7rem'} />
     </button>
   )
 }

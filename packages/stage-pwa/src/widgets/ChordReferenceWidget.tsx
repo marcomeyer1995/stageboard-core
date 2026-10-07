@@ -1,3 +1,4 @@
+import { Segmented, Switch } from '../components/ui'
 import { useState } from 'react'
 import { GuitarChordDiagram } from '../components/GuitarChordDiagram'
 import { PianoChordDiagram } from '../components/PianoChordDiagram'
@@ -79,25 +80,15 @@ export function ChordReferenceConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Notenname
-        <select
-          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
-          value={config.noteNaming ?? 'sharp'}
-          onChange={(e) => onChange({ ...config, noteNaming: e.target.value as ChordReferenceConfig['noteNaming'] })}
-        >
-          <option value="sharp">Kreuz (F#)</option>
-          <option value="flat">B (Gb)</option>
-        </select>
-      </label>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={config.showGuitar ?? true} onChange={(e) => onChange({ ...config, showGuitar: e.target.checked })} />
-        Gitarren-Griffbild
-      </label>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={config.showPiano ?? true} onChange={(e) => onChange({ ...config, showPiano: e.target.checked })} />
-        Klaviatur
-      </label>
+      <Segmented
+        label="Notenname"
+        showLabel
+        value={config.noteNaming ?? 'sharp'}
+        onChange={(value) => onChange({ ...config, noteNaming: value as ChordReferenceConfig['noteNaming'] })}
+        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+      />
+      <Switch label="Gitarren-Griffbild" checked={config.showGuitar ?? true} onChange={(showGuitar) => onChange({ ...config, showGuitar })} />
+      <Switch label="Klaviatur" checked={config.showPiano ?? true} onChange={(showPiano) => onChange({ ...config, showPiano })} />
       <SizeRatioSlider label="Akkordname" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )

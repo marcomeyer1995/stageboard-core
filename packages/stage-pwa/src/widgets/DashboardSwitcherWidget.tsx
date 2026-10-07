@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { DEFAULT_SIZE_RATIO, type DashboardSwitcherConfig } from './dashboardSwitcherConfig'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -77,19 +78,13 @@ export function DashboardSwitcherConfigPanel({
         Zeigt dieselben Dashboards wie das Menü: ausblenden und sortieren unter ☰ → Dashboards → „Ordnen“, Gig/Solo in den
         Einstellungen des Dashboards.
       </p>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Ausrichtung
-        <select
-          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
-          value={config.orientation}
-          onChange={(e) =>
-            onChange({ ...config, orientation: e.target.value as DashboardSwitcherConfig['orientation'] })
-          }
-        >
-          <option value="horizontal">Horizontal (Leiste)</option>
-          <option value="vertical">Vertikal (Spalte)</option>
-        </select>
-      </label>
+      <Segmented
+        label="Ausrichtung"
+        showLabel
+        value={config.orientation}
+        onChange={(value) => onChange({ ...config, orientation: value as DashboardSwitcherConfig['orientation'] })}
+        options={[{ value: 'horizontal', label: 'Horizontal (Leiste)' }, { value: 'vertical', label: 'Vertikal (Spalte)' }]}
+      />
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

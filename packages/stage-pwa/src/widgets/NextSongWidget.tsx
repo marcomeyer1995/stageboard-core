@@ -99,7 +99,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
           </button>
         </div>
       ) : (
-        <MasterTakeoverButton className="min-h-touch rounded-control bg-control-strong px-4 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover" />
+        <MasterTakeoverButton className="min-h-touch rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover" />
       )}
     </div>
   )

@@ -1,3 +1,4 @@
+import { Button, Select, Switch } from '../components/ui'
 import { parseChordPro } from '../lib/chordpro'
 import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
 import { formatLoopTime, loopSections } from '../lib/loopSections'
@@ -89,60 +90,42 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>
 
       <div className="flex items-center gap-2">
-        <button type="button" disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })} className="min-h-12 rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })}>
           A setzen
-        </button>
+        </Button>
         <span className="font-bold tabular-nums text-ink">{settings.startMs === null ? '–' : formatLoopTime(settings.startMs)}</span>
-        <button type="button" disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto min-h-12 rounded-control bg-control-strong px-3 py-1 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <Button disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto">
           B setzen
-        </button>
+        </Button>
         <span className="font-bold tabular-nums text-ink">{settings.endMs === null ? '–' : formatLoopTime(settings.endMs)}</span>
       </div>
 
       {sections.length > 0 && (
-        <div className="flex gap-2">
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
-            Von Abschnitt
-            <select
-              disabled={stored.active}
-              className="min-h-12 rounded-control bg-control px-2 py-1 text-sm text-ink"
-              value=""
-              onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
-            >
-              <option value="">wählen…</option>
-              {sections.map((section) => (
-                <option key={`from-${section.startMs}`} value={section.startMs}>
-                  {section.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
-            Bis Ende von
-            <select
-              disabled={stored.active}
-              className="min-h-12 rounded-control bg-control px-2 py-1 text-sm text-ink"
-              value=""
-              onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
-            >
-              <option value="">wählen…</option>
-              {sections
-                .filter((section) => section.endMs !== null)
-                .map((section) => (
-                  <option key={`to-${section.startMs}`} value={section.endMs ?? 0}>
-                    {section.label}
-                  </option>
-                ))}
-            </select>
-          </label>
+        <div className="grid grid-cols-2 gap-2">
+          <Select
+            label="Von Abschnitt"
+            disabled={stored.active}
+            className="min-w-0"
+            value=""
+            onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
+            options={[{ value: '', label: 'wählen…' }, ...sections.map((section) => ({ value: String(section.startMs), label: section.label }))]}
+          />
+          <Select
+            label="Bis Ende von"
+            disabled={stored.active}
+            className="min-w-0"
+            value=""
+            onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
+            options={[
+              { value: '', label: 'wählen…' },
+              ...sections.filter((section) => section.endMs !== null).map((section) => ({ value: String(section.endMs ?? 0), label: section.label })),
+            ]}
+          />
         </div>
       )}
 
       <Stepper label="Tempo" value={settings.startPercent} min={25} max={150} step={5} disabled={stored.active} onChange={(startPercent) => update({ startPercent })} />
-      <label className="flex min-h-12 items-center gap-2 text-ink">
-        <input type="checkbox" className="h-6 w-6" disabled={stored.active} checked={settings.trainerEnabled} onChange={(e) => update({ trainerEnabled: e.target.checked })} />
-        Speed Trainer
-      </label>
+      <Switch label="Speed Trainer" disabled={stored.active} checked={settings.trainerEnabled} onChange={(trainerEnabled) => update({ trainerEnabled })} />
       {settings.trainerEnabled && (
         <>
           <Stepper label="Ziel" value={settings.targetPercent} min={25} max={150} step={5} disabled={stored.active} onChange={(targetPercent) => update({ targetPercent })} />
@@ -151,13 +134,13 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       )}
 
       {stored.active ? (
-        <button type="button" onClick={stopLoopTrainer} className="min-h-12 rounded-control bg-control-strong px-3 py-2 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button variant="primary" icon="stop" onClick={stopLoopTrainer}>
           Loop stoppen
-        </button>
+        </Button>
       ) : (
-        <button type="button" disabled={!hasLoop} onClick={() => void startLoopTrainer()} className="min-h-12 rounded-control bg-control-strong px-3 py-2 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40">
+        <Button variant="primary" icon="play" disabled={!hasLoop} onClick={() => void startLoopTrainer()}>
           Loop starten
-        </button>
+        </Button>
       )}
 
       {playing && (

@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -160,17 +161,13 @@ export function MetronomeConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Anzeige
-        <select
-          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
-          value={config.style}
-          onChange={(e) => onChange({ ...config, style: e.target.value as MetronomeConfig['style'] })}
-        >
-          <option value="number">Zahl (Beat im Takt)</option>
-          <option value="beat-dots">Punkte (Taktposition)</option>
-        </select>
-      </label>
+      <Segmented
+        label="Anzeige"
+        showLabel
+        value={config.style}
+        onChange={(value) => onChange({ ...config, style: value as MetronomeConfig['style'] })}
+        options={[{ value: 'number', label: 'Zahl (Beat im Takt)' }, { value: 'beat-dots', label: 'Punkte (Taktposition)' }]}
+      />
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

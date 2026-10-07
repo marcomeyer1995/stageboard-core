@@ -1,7 +1,6 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
-import { CONTROL, FOCUS, SIZE, type ControlSize } from './styles'
+import { FOCUS, INPUT, SIZE, type ControlSize } from './styles'
 
-const INPUT = `w-full border border-transparent bg-control text-ink placeholder:text-ink-faint ${CONTROL} ${FOCUS} disabled:opacity-40`
 
 function Wrap({ id, label, hint, error, children }: { id: string; label?: string; hint?: string; error?: string; children: ReactNode }) {
   return (

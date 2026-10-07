@@ -221,7 +221,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
             type="button"
             aria-pressed={sorting}
             onClick={() => setSorting(!sorting)}
-            className={`h-touch flex-shrink-0 rounded-control px-3 text-sm font-semibold ${
+            className={`h-touch flex-shrink-0 rounded-control px-3 text-base font-semibold ${
               sorting ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
             }`}
           >
@@ -236,7 +236,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
         )}
         {mode === 'gig' && !canControl && (
           <MasterTakeoverButton
-            className="h-touch flex-shrink-0 rounded-control bg-control-strong px-3 text-sm font-medium text-accent [@media(hover:hover)]:hover:bg-control-strong-hover"
+            className="h-touch flex-shrink-0 rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           />
         )}
       </div>

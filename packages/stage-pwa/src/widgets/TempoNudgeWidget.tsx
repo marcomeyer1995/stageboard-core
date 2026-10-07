@@ -99,7 +99,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
           type="button"
           disabled={!canControl}
           onClick={() => setLiveTempoAdjustPercent(0)}
-          className="h-12 flex-none rounded-control bg-control-strong px-4 font-bold text-accent [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-form flex-none rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Zurücksetzen
         </button>

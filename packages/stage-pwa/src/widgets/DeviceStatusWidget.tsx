@@ -1,3 +1,4 @@
+import { Select } from '../components/ui'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { pluginProviding, pluginStatus, type CapabilityStatus } from '../lib/capabilities'
 import { useMidiTrigger } from '../lib/useMidiTrigger'
@@ -90,21 +91,12 @@ export function DeviceStatusConfigPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Gerät
-        <select
-          className="rounded-control bg-control px-2 py-1 text-sm text-ink"
-          value={config.logicalDeviceId ?? ''}
-          onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
-        >
-          <option value="">— Gerät wählen —</option>
-          {devices.map((device) => (
-            <option key={device.id} value={device.id}>
-              {device.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Gerät"
+        value={config.logicalDeviceId ?? ''}
+        onChange={(e) => onChange({ ...config, logicalDeviceId: e.target.value || undefined })}
+        options={[{ value: '', label: '— Gerät wählen —' }, ...devices.map((device) => ({ value: device.id, label: device.name }))]}
+      />
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

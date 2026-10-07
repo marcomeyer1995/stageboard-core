@@ -1,3 +1,4 @@
+import { Slider } from '../components/ui'
 import { useDeferredSliderValue } from '../lib/useDeferredSliderValue'
 
 /** min/max/step in percent of the anchor "Text" size - 25%-400% covers everything from a
@@ -25,21 +26,15 @@ export function SizeRatioSlider({
   const [displayRatio, onDrag, flush] = useDeferredSliderValue(ratio, onChange, label)
   const percent = Math.round(displayRatio * 100)
   return (
-    <label className="flex flex-col gap-1 text-xs text-ink-muted">
-      <div className="flex items-center justify-between">
-        <span>{label}</span>
-        <span className="text-ink-faint">{percent}%</span>
-      </div>
-      <input
-        type="range"
-        min={RATIO_MIN_PERCENT}
-        max={RATIO_MAX_PERCENT}
-        step={RATIO_STEP_PERCENT}
-        value={percent}
-        onChange={(e) => onDrag(Number(e.target.value) / 100)}
-        onPointerUp={flush}
-        className="w-full accent-accent"
-      />
-    </label>
+    <Slider
+      label={label}
+      valueLabel={`${percent}%`}
+      min={RATIO_MIN_PERCENT}
+      max={RATIO_MAX_PERCENT}
+      step={RATIO_STEP_PERCENT}
+      value={percent}
+      onChange={(next) => onDrag(next / 100)}
+      onPointerUp={flush}
+    />
   )
 }
