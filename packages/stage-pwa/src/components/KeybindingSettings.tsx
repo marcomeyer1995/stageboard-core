@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useBackHandler } from '../lib/backNavigation'
 import {
   bindingForKey,
   describeAction,
@@ -20,7 +18,8 @@ import {
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { Icon } from './Icon'
-import { INPUT_FREE } from './ui/styles'
+import { Button, Dialog, MENU_ROW } from './ui'
+import { INPUT_FREE, SELECTED } from './ui/styles'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -95,7 +94,6 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
   const [choice, setChoice] = useState<Choice | null>(initial ? (initial.action.kind === 'fixed' ? initial.action.action : 'by-state') : null)
   const [steps, setSteps] = useState<Record<SongState, StepAction>>(initial?.action.kind === 'by-state' ? initial.action.steps : ONE_BUTTON_SHOW)
   const listening = key === null
-  useBackHandler(onClose)
 
   useEffect(() => {
     if (!listening) return
@@ -119,18 +117,21 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
   const action: KeyAction | null = choice === null ? null : choice === 'by-state' ? { kind: 'by-state', steps } : { kind: 'fixed', action: choice }
-  const option = (selected: boolean) =>
-    `min-h-form rounded-control px-4 text-left text-base ${selected ? 'bg-accent font-bold text-accent-ink' : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'}`
+  const option = (selected: boolean) => `${MENU_ROW} ${selected ? SELECTED : 'text-ink'}`
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label={initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}
-        className="flex max-h-[90dvh] w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-bold text-ink">{initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}</h2>
+  return (
+    <Dialog
+      title={initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}
+      onClose={onClose}
+      actions={
+        <>
+          <Button onClick={onClose}>Abbrechen</Button>
+          <Button variant="primary" disabled={!key || !action} onClick={() => key && action && onSave({ key, action })}>
+            Speichern
+          </Button>
+        </>
+      }
+    >
 
         {listening ? (
           <div className="flex flex-col items-center gap-3 rounded-container bg-control p-6 text-center">
@@ -142,9 +143,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base text-ink-soft">Taste:</span>
               <span className="rounded-control bg-control-strong px-3 py-2 text-base font-bold text-ink">{keyLabel(key)}</span>
-              <button type="button" onClick={() => setKey(null)} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
-                Andere Taste
-              </button>
+              <Button onClick={() => setKey(null)}>Andere Taste</Button>
             </div>
             {takenBy && (
               <p className="text-sm text-amber-500">
@@ -152,14 +151,14 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
               </p>
             )}
 
-            <fieldset className="flex flex-col gap-2">
+            <fieldset className="flex flex-col gap-2" role="radiogroup" aria-label="Was soll passieren?">
               <legend className="mb-2 text-base font-semibold text-ink">Was soll passieren?</legend>
               {FIXED_ACTIONS.map(({ id, label }) => (
-                <button key={id} type="button" aria-pressed={choice === id} onClick={() => setChoice(id)} className={option(choice === id)}>
+                <button key={id} type="button" role="radio" aria-checked={choice === id} onClick={() => setChoice(id)} className={option(choice === id)}>
                   {label}
                 </button>
               ))}
-              <button type="button" aria-pressed={choice === 'by-state'} onClick={() => setChoice('by-state')} className={option(choice === 'by-state')}>
+              <button type="button" role="radio" aria-checked={choice === 'by-state'} onClick={() => setChoice('by-state')} className={option(choice === 'by-state')}>
                 Je nach Zustand des Songs
               </button>
             </fieldset>
@@ -196,21 +195,6 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
           </>
         )}
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onClose} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            disabled={!key || !action}
-            onClick={() => key && action && onSave({ key, action })}
-            className="min-h-form rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-          >
-            Speichern
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </Dialog>
   )
 }

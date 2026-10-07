@@ -22,20 +22,20 @@ function dashboard(): Dashboard {
 describe('WidgetLibrary', () => {
   it('closes when the backdrop is clicked, not when the panel itself is', () => {
     const onClose = vi.fn()
-    const { container } = render(
+    render(
       <WidgetLibrary dashboard={dashboard()} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={onClose} />,
     )
     fireEvent.click(screen.getByText('Widget hinzufügen'))
     expect(onClose).not.toHaveBeenCalled()
 
-    fireEvent.click(container.firstElementChild!)
+    fireEvent.click(screen.getByRole('dialog', { name: 'Widget hinzufügen' }).parentElement!)
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('closes via the ✕ button', () => {
+  it('closes via "Abbrechen" at the bottom', () => {
     const onClose = vi.fn()
     render(<WidgetLibrary dashboard={dashboard()} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={onClose} />)
-    fireEvent.click(screen.getByTitle('Schließen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -83,7 +83,7 @@ describe('WidgetLibrary', () => {
       render(<WidgetLibrary dashboard={full()} breakpoint="md" capabilities={new Map()} onAdd={onAdd} onAddToNewDashboard={onAddToNewDashboard} onClose={vi.fn()} />)
       fireEvent.click(screen.getByText('Live-Queue'))
       expect(onAdd).not.toHaveBeenCalled()
-      expect(screen.getByRole('alert').textContent).toContain('Kein Platz für „Live-Queue"')
+      expect(screen.getByRole('dialog', { name: /Kein Platz für „Live-Queue“/ })).toBeInTheDocument()
 
       fireEvent.click(screen.getByText('Neues Dashboard mit diesem Widget'))
       expect(onAddToNewDashboard).toHaveBeenCalledWith(expect.objectContaining({ type: 'live-queue' }))

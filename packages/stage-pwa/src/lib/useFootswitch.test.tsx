@@ -102,7 +102,7 @@ describe('KeybindingSettings (#27)', () => {
     expect(within(dialog).getByText('Jetzt Pedal drücken …')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'PageDown' })
     expect(show.next).not.toHaveBeenCalled() // captured, not executed
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Je nach Zustand des Songs' }))
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Je nach Zustand des Songs' }))
     expect(within(dialog).getByLabelText('Wenn Spielt')).toHaveValue('stop-next')
     fireEvent.change(within(dialog).getByLabelText('Wenn Spielt'), { target: { value: 'pause' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))

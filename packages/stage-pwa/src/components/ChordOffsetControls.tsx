@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useBackHandler } from '../lib/backNavigation'
+import { Button, Dialog } from './ui'
 import type { ChordOffsets } from '../lib/useChordOffsets'
 import { MAX_CAPO_FRET, MAX_TRANSPOSE } from '../lib/useChordOffsets'
 import { transposeKey } from '../lib/transposeChord'
@@ -72,48 +71,41 @@ export function ChordOffsetControls({ offsets, authoredCapo, baseKey }: { offset
 }
 
 function ChordOffsetDialog({ offsets, authoredCapo, onClose }: { offsets: ChordOffsets; authoredCapo: number; onClose: () => void }) {
-  useBackHandler(onClose)
   const { transposeOffset, effectiveCapo } = offsets
   const dirty = transposeOffset !== 0 || offsets.capoOffset !== 0
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label="Tonart"
-        className="flex w-full max-w-sm flex-col gap-4 rounded-container border border-line bg-surface p-4 shadow-sb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-bold text-ink">Tonart</h2>
-        <div className="grid grid-cols-[7rem_auto_3rem_auto] items-center gap-3">
-          <Stepper
-            label="Transpose"
-            value={transposeOffset > 0 ? `+${transposeOffset}` : String(transposeOffset)}
-            canDecrease={transposeOffset > -MAX_TRANSPOSE}
-            canIncrease={transposeOffset < MAX_TRANSPOSE}
-            onStep={offsets.stepTranspose}
-          />
-          <Stepper
-            label="Capo"
-            value={String(effectiveCapo)}
-            canDecrease={effectiveCapo > 0}
-            canIncrease={effectiveCapo < MAX_CAPO_FRET}
-            onStep={offsets.stepCapo}
-          />
-        </div>
-        {authoredCapo > 0 && <p className="text-sm text-ink-faint">Akkorde sind für Capo {authoredCapo} notiert.</p>}
-        <p className="text-sm text-ink-faint">Gilt nur auf diesem Gerät und nur für diesen Song.</p>
-        <div className="flex justify-end gap-2">
-          {dirty && (
-            <button type="button" onClick={offsets.reset} className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
-              Zurücksetzen
-            </button>
-          )}
-          <button type="button" onClick={onClose} className="min-h-form rounded-control bg-accent px-6 text-base font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+  // Applies at once - the way out is one "Fertig"; "Zurücksetzen" sits beside it while changed.
+  return (
+    <Dialog
+      title="Tonart"
+      size="s"
+      onClose={onClose}
+      actions={
+        <>
+          {dirty ? <Button onClick={offsets.reset}>Zurücksetzen</Button> : <span />}
+          <Button variant="primary" onClick={onClose}>
             Fertig
-          </button>
-        </div>
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-[7rem_auto_3rem_auto] items-center gap-3">
+        <Stepper
+          label="Transpose"
+          value={transposeOffset > 0 ? `+${transposeOffset}` : String(transposeOffset)}
+          canDecrease={transposeOffset > -MAX_TRANSPOSE}
+          canIncrease={transposeOffset < MAX_TRANSPOSE}
+          onStep={offsets.stepTranspose}
+        />
+        <Stepper
+          label="Capo"
+          value={String(effectiveCapo)}
+          canDecrease={effectiveCapo > 0}
+          canIncrease={effectiveCapo < MAX_CAPO_FRET}
+          onStep={offsets.stepCapo}
+        />
       </div>
-    </div>,
-    document.body,
+      {authoredCapo > 0 && <p className="text-sm text-ink-faint">Akkorde sind für Capo {authoredCapo} notiert.</p>}
+      <p className="text-sm text-ink-faint">Gilt nur auf diesem Gerät und nur für diesen Song.</p>
+    </Dialog>
   )
 }

@@ -15,8 +15,8 @@ import {
 import { ALL_WIDGETS, type StageTier, type WidgetCategory, type WidgetDefinition } from '../widgets/registry'
 import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 import { useBackHandler } from '../lib/backNavigation'
-import { Icon } from './Icon'
 import { INPUT } from './ui/styles'
+import { Button, Dialog } from './ui'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   performance: 'Performance',
@@ -158,23 +158,9 @@ export function WidgetLibrary({
     )
   }
 
+  // Picking a widget adds it and closes - so the way out at the bottom is "Abbrechen" (docs/15 D6).
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-ink">Widget hinzufügen</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            title="Schließen"
-            className="flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
-          >
-            <Icon name="close" size="1.5rem" />
-          </button>
-        </div>
+    <Dialog title="Widget hinzufügen" size="l" closeLabel="Abbrechen" onClose={onClose}>
 
         {/* flex-shrink-0: the panel is a scrolling flex column, which shrank the field to 19px on
             the tablet despite h-touch. */}
@@ -187,50 +173,34 @@ export function WidgetLibrary({
         />
 
         {noRoom && (
-          // Its own overlay above the library: the tapped card can be far down the scrolled list.
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setNoRoom(null)}>
-            <div
-              role="alert"
-              className="flex w-full max-w-lg flex-col gap-3 rounded-container border border-amber-500 bg-surface p-4 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="text-ink">
-                <span className="font-bold">Kein Platz für „{noRoom.title}"</span> in voller Größe (
-                {noRoom.defaultLayout.w} × {noRoom.defaultLayout.h}) auf diesem Dashboard - es würde verkleinert
-                und zeigt dann womöglich nicht alles. Anderes Dashboard wählen oder erst Platz schaffen.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => onAddToNewDashboard(noRoom)}
-                  className="h-touch rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-                >
-                  Neues Dashboard mit diesem Widget
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addHere(noRoom)}
-                  className="h-touch rounded-control bg-control-strong px-4 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
-                  Trotzdem hier hinzufügen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNoRoom(null)}
-                  className="h-touch rounded-control bg-control px-4 text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-                >
-                  Abbrechen
-                </button>
-              </div>
-            </div>
-          </div>
+          // Its own dialog above the library: the tapped card can be far down the scrolled list.
+          <Dialog
+            title={`Kein Platz für „${noRoom.title}“`}
+            onClose={() => setNoRoom(null)}
+            actions={
+              <>
+                <Button onClick={() => setNoRoom(null)}>Abbrechen</Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button onClick={() => addHere(noRoom)}>Trotzdem hier hinzufügen</Button>
+                  <Button variant="primary" onClick={() => onAddToNewDashboard(noRoom)}>
+                    Neues Dashboard mit diesem Widget
+                  </Button>
+                </div>
+              </>
+            }
+          >
+            <p role="alert" className="text-base text-ink">
+              In voller Größe ({noRoom.defaultLayout.w} × {noRoom.defaultLayout.h}) ist auf diesem Dashboard kein Platz - es
+              würde verkleinert und zeigt dann womöglich nicht alles. Anderes Dashboard wählen oder erst Platz schaffen.
+            </p>
+          </Dialog>
         )}
 
         {grouped.length === 0 && <p className="text-ink-faint">Kein Widget gefunden.</p>}
 
         {grouped.map(([label, definitions]) => (
           <div key={label} className="flex flex-col gap-1">
-            <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{label}</p>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{label}</h3>
             <div className="flex flex-wrap gap-2">
               {definitions.map((definition) => (
                 <div
@@ -277,9 +247,9 @@ export function WidgetLibrary({
                         </span>
                       )}
                     </span>
-                    <span className="block text-xs text-ink-muted">{definition.description}</span>
+                    <span className="block text-sm text-ink-muted">{definition.description}</span>
                     {definition.stageTier === 'rehearsal' && offeredInGig && (
-                      <span className="block text-xs text-accent">
+                      <span className="block text-sm text-accent">
                         Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar.
                       </span>
                     )}
@@ -289,7 +259,6 @@ export function WidgetLibrary({
             </div>
           </div>
         ))}
-      </div>
-    </div>
+    </Dialog>
   )
 }
