@@ -94,7 +94,7 @@ Rot nur für Fehler und Gefahr (wie in der Statusleiste festgelegt).
 0. **Konzept** - dieses Dokument, Sammel-Issue #423.
 1. **Tokens** (½ Tag, nichts sichtbar).
 2. **Komponenten** (1½-2 Tage).
-3. **Vorschau-Seite** (½ Tag): versteckte Seite mit jeder Komponente in jedem Zustand, umschaltbar zwischen den fünf Themes, auf Tablet und Handy. **Freigabe durch Marco, bevor umgestellt wird.**
+3. **Vorschau-Seite** (½ Tag): versteckte Seite mit jeder Komponente in jedem Zustand, umschaltbar zwischen den fünf Themes, auf Tablet und Handy. **Freigabe durch Marco, bevor umgestellt wird.** (Freigegeben und nach der Umstellung wieder entfernt, 2026-10-07 - im Git-Verlauf erhalten.)
 4. **Umstellung** (4-6 Abende, ein Branch, Bühne zuerst): Burger-Menü, Status- und Edit-Leiste, Dashboard-Einstellungen · die 27 Widgets und ihre Einstellungen · Bibliothek, Setlists, Song-Vorschau · System (Einstellungen, Band, Hardware, Geräte, Diagnose) · Song-Editor, Timeline, Cue-Dialog und -Recorder · alle Dialoge, Assistenten, Beitreten und Onboarding · Aufräumen (drei Menüs → `ActionMenu`, Checkboxen → `Switch`/`ToggleChip`).
 5. **Wächter** (½ Tag): ein Test schlägt fehl, wenn außerhalb von `ui/` ein Button, Feld oder Dropdown mit eigenen Stil-Klassen geschrieben wird.
 6. **Prüfung und Freigabe** (1 Abend): alle Tests; Screenshots aller Bildschirme in einem eckigen, einem weichen und dem Default-Theme auf Fire, Xiaomi und Handy; Marco prüft das **fertige Ergebnis** auf einem Test-Build (Freigabe am Stück); dann Merge und Deploy.
