@@ -81,8 +81,10 @@ export function UiPreview({ onClose }: { onClose: () => void }) {
           </Section>
 
           <Section title="Genau eins wählen · Segmented (D7)" hint="Eine zusammenhängende Leiste; das gewählte Segment gefüllt. Erneut tippen ändert nichts.">
+            <p className="text-sm font-semibold text-ink-soft">Im Burger-Menü und auf Dashboards · Bühne, 56 px</p>
             <Segmented label="Ansicht" size="stage" value={view} onChange={setView} options={[{ value: 'boards', label: 'Boards' }, { value: 'library', label: 'Bibliothek' }, { value: 'system', label: 'System' }]} />
-            <Segmented label="Modus" value={mode} onChange={setMode} options={[{ value: 'gig', label: 'Gig' }, { value: 'practice', label: 'Solo Üben' }]} />
+            <Segmented label="Modus" size="stage" value={mode} onChange={setMode} options={[{ value: 'gig', label: 'Gig' }, { value: 'practice', label: 'Solo Üben' }]} />
+            <p className="text-sm font-semibold text-ink-soft">In Einstellungen und Dialogen · Formular, 48 px</p>
             <Segmented label="Blitzmeldungen" value={flash} onChange={setFlash} options={[{ value: 'banner', label: 'Banner' }, { value: 'fullscreen', label: 'Vollbild' }, { value: 'off', label: 'Aus' }]} />
           </Section>
 
