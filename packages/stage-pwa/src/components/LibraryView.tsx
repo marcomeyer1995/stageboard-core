@@ -35,8 +35,9 @@ import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { playStats, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
-import { useShowLogStore } from '../store/useShowLogStore'
+import { inDirection, practiceStats, sortLabelIndex, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
+import { usePracticeLogStore } from '../store/usePracticeLogStore'
+import { useActiveProfile } from '../lib/useActiveProfile'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -48,17 +49,17 @@ const TAB_KEY = 'stageboard-library-tab'
 
 const SORT_KEY = 'stageboard-library-sort'
 interface LibrarySortChoice {
-  setlists: SetlistSort
-  songs: SongSort
+  setlists: { by: SetlistSort; reversed: boolean }
+  songs: { by: SongSort; reversed: boolean }
 }
 /** The sort per tab this device last chose (a convenience - the defaults when storage fails). */
 function readSort(): LibrarySortChoice {
-  const fallback: LibrarySortChoice = { setlists: 'newest', songs: 'title' }
+  const fallback: LibrarySortChoice = { setlists: { by: 'newest', reversed: false }, songs: { by: 'title', reversed: false } }
   try {
     const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? '{}') as Partial<LibrarySortChoice>
     return {
-      setlists: raw.setlists && raw.setlists in SETLIST_SORT_LABEL ? raw.setlists : fallback.setlists,
-      songs: raw.songs && raw.songs in SONG_SORT_LABEL ? raw.songs : fallback.songs,
+      setlists: raw.setlists && raw.setlists.by in SETLIST_SORT_LABEL ? { by: raw.setlists.by, reversed: raw.setlists.reversed === true } : fallback.setlists,
+      songs: raw.songs && raw.songs.by in SONG_SORT_LABEL ? { by: raw.songs.by, reversed: raw.songs.reversed === true } : fallback.songs,
     }
   } catch {
     return fallback
@@ -76,6 +77,15 @@ function todayIso(): string {
 function formatGigDate(date: string): string {
   const [y, m, d] = date.split('-')
   return `${d}.${m}.${y}`
+}
+
+/** While sorting by practice: "geübt heute / vor 3 Tagen / nie geübt", or "2× in 30 Tagen". */
+function practiceNote(by: SongSort, stat: { last: number; recent: number } | undefined): string | undefined {
+  if (by === 'practiced30') return `${stat?.recent ?? 0}× in 30 Tagen`
+  if (by !== 'practiced') return undefined
+  if (!stat) return 'nie geübt'
+  const days = Math.floor((Date.now() - stat.last) / 86_400_000)
+  return days <= 0 ? 'geübt heute' : days === 1 ? 'geübt gestern' : `geübt vor ${days} Tagen`
 }
 
 function readTab(): LibraryTab {
@@ -98,6 +108,8 @@ function songEntry(songId: string) {
 }
 
 interface DraggableSongRowProps {
+  /** Extra info after the artist - e.g. when it was last practised, while sorting by that. */
+  note?: string
   /** In the active setlist (not the no-setlist fallback) - then a swipe takes it out again. */
   inActiveSetlist?: boolean
   onRemoveFromActiveSetlist?: () => void
@@ -157,6 +169,7 @@ function DraggableSongRow({
   current = false,
   inSetlist = false,
   inActiveSetlist = false,
+  note,
   onRemoveFromActiveSetlist,
 }: DraggableSongRowProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -244,6 +257,7 @@ function DraggableSongRow({
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
+          {note && <span className={selected ? '' : 'text-ink-faint'}> · {note}</span>}
         </button>
         {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
         {showAddButton && (
@@ -328,8 +342,10 @@ export function LibraryView() {
       // Remembering is a convenience only.
     }
   }
-  const showLogEvents = useShowLogStore((state) => state.events)
-  const stats = useMemo(() => playStats(showLogEvents), [showLogEvents])
+  // "Geübt" / "30 Tage": this person's own Solo-Üben takes (Marco, 2026-10-07).
+  const practiceLog = usePracticeLogStore((state) => state.entries)
+  const myProfileId = useActiveProfile()?.id ?? null
+  const stats = useMemo(() => practiceStats(practiceLog, myProfileId, Date.now()), [practiceLog, myProfileId])
   const [selection, setSelection] = useState<Selection>(null)
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
@@ -352,7 +368,7 @@ export function LibraryView() {
   const term = search.trim().toLowerCase()
   const filteredSetlists = useMemo(() => {
     const matches = term ? setlists.filter((s) => s.name.toLowerCase().includes(term)) : setlists
-    return sortSetlists(matches, sort.setlists, todayIso())
+    return inDirection(sortSetlists(matches, sort.setlists.by, todayIso()), sort.setlists.reversed)
   }, [setlists, term, sort.setlists])
   const filteredSongs = useMemo(() => {
     const matches = term
@@ -360,7 +376,7 @@ export function LibraryView() {
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return sortSongs(matches, sort.songs, { activeSetlist: activeSetlist ?? null, stats })
+    return inDirection(sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, stats }), sort.songs.reversed)
   }, [songs, term, sort.songs, activeSetlist, stats])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
@@ -634,16 +650,25 @@ export function LibraryView() {
             {showSetlists ? (
               <Segmented
                 label="Setlists sortieren"
-                value={sort.setlists}
-                onChange={(setlists) => setSort({ ...sort, setlists })}
-                options={(Object.keys(SETLIST_SORT_LABEL) as SetlistSort[]).map((value) => ({ value, label: SETLIST_SORT_LABEL[value] }))}
+                value={sort.setlists.by}
+                onChange={(by) => setSort({ ...sort, setlists: { by, reversed: false } })}
+                // Tapping the chosen order again reverses it (Marco, 2026-10-07).
+                onSelectedTap={() => setSort({ ...sort, setlists: { ...sort.setlists, reversed: !sort.setlists.reversed } })}
+                options={(Object.keys(SETLIST_SORT_LABEL) as SetlistSort[]).map((value) => ({
+                  value,
+                  label: SETLIST_SORT_LABEL[value][sortLabelIndex(value === sort.setlists.by, sort.setlists.reversed)],
+                }))}
               />
             ) : (
               <Segmented
                 label="Songs sortieren"
-                value={sort.songs}
-                onChange={(songs) => setSort({ ...sort, songs })}
-                options={(Object.keys(SONG_SORT_LABEL) as SongSort[]).map((value) => ({ value, label: SONG_SORT_LABEL[value] }))}
+                value={sort.songs.by}
+                onChange={(by) => setSort({ ...sort, songs: { by, reversed: false } })}
+                onSelectedTap={() => setSort({ ...sort, songs: { ...sort.songs, reversed: !sort.songs.reversed } })}
+                options={(Object.keys(SONG_SORT_LABEL) as SongSort[]).map((value) => ({
+                  value,
+                  label: SONG_SORT_LABEL[value][sortLabelIndex(value === sort.songs.by, sort.songs.reversed)],
+                }))}
               />
             )}
             {showSetlists ? (
@@ -678,8 +703,11 @@ export function LibraryView() {
                         }
                       >
                         ({setlist.entries.filter(isSongEntry).length})
-                        {setlist.performanceDate && ` · ${formatGigDate(setlist.performanceDate)}`}
                       </span>
+                      {/* The gig date like a song's artist (Marco, 2026-10-07). */}
+                      {setlist.performanceDate && (
+                        <span className={selection?.type === 'setlist' && selection.id === setlist.id ? '' : 'text-ink-faint'}> — {formatGigDate(setlist.performanceDate)}</span>
+                      )}
                       {/* "Aktiv" = a badge (docs/15 D4), never the yellow fill a selection has. */}
                       {activeSetlist?.id === setlist.id && (
                         <span className="ml-2">
@@ -705,6 +733,7 @@ export function LibraryView() {
                     current={song.id === currentSongId}
                     inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
                     inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
+                    note={practiceNote(sort.songs.by, stats.get(song.id))}
                     onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}

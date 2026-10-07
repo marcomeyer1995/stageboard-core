@@ -149,7 +149,20 @@ describe('LibraryView', () => {
     render(<LibraryView />)
     expect(screen.getByRole('radio', { name: 'A–Z' })).toHaveAttribute('aria-checked', 'true')
     openTab('Songs')
-    expect(screen.getByRole('radio', { name: 'Interpret' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Interpret ↓' })).toHaveAttribute('aria-checked', 'true')
+    localStorage.removeItem('stageboard-library-sort')
+  })
+
+  it('tapping the chosen order again reverses it - Z-A, and back', () => {
+    localStorage.removeItem('stageboard-library-sort')
+    render(<LibraryView />)
+    const first = () => [...new Set(screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /^(Alpha|Bravo|Charlie)/.test(t)))][0]
+    expect(first()).toMatch(/^Alpha/)
+    fireEvent.click(screen.getByRole('radio', { name: 'A–Z' }))
+    expect(screen.getByRole('radio', { name: 'Z–A' })).toHaveAttribute('aria-checked', 'true')
+    expect(first()).toMatch(/^Charlie/)
+    fireEvent.click(screen.getByRole('radio', { name: 'Z–A' }))
+    expect(first()).toMatch(/^Alpha/)
     localStorage.removeItem('stageboard-library-sort')
   })
 
