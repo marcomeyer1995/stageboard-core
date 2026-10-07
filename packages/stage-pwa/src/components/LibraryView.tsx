@@ -28,7 +28,7 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { AddRow, Badge } from './ui'
+import { AddRow, Badge, Tabs } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
@@ -39,35 +39,16 @@ type Selection =
   | { type: 'song'; songId: string; variantId: string | null }
   | null
 
-type Section = 'setlists' | 'songs'
-const FOLDED_KEY = 'stageboard-library-folded'
+type LibraryTab = 'setlists' | 'songs'
+const TAB_KEY = 'stageboard-library-tab'
 
-/** Which list sections are folded on this device (a convenience - empty when storage fails). */
-function readFolded(): Record<Section, boolean> {
+/** The tab this device last had open (a convenience - Setlists when storage fails). */
+function readTab(): LibraryTab {
   try {
-    const raw = JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}') as Partial<Record<Section, boolean>>
-    return { setlists: raw.setlists === true, songs: raw.songs === true }
+    return localStorage.getItem(TAB_KEY) === 'songs' ? 'songs' : 'setlists'
   } catch {
-    return { setlists: false, songs: false }
+    return 'setlists'
   }
-}
-
-/** A section heading that folds its list away (replaces the Alle/Setlists/Songs filter bar -
- * Marco, 2026-10-07: the search already narrows both lists). */
-function SectionToggle({ title, folded, onToggle }: { title: string; folded: boolean; onToggle: () => void }) {
-  return (
-    <h2>
-      <button
-        type="button"
-        aria-expanded={!folded}
-        onClick={onToggle}
-        className="flex min-h-form items-center gap-2 text-xs font-bold uppercase tracking-widest text-ink-faint [@media(hover:hover)]:hover:text-ink-soft"
-      >
-        {title}
-        <Icon name={folded ? 'expand' : 'collapse'} size="1.1rem" />
-      </button>
-    </h2>
-  )
 }
 
 /** How far right a song has to travel, with nowhere to drop, before it counts as a swipe
@@ -273,20 +254,19 @@ export function LibraryView() {
   // below 1024px, same threshold SheetEditor.tsx's own 'panel' tier already uses.
   const isPanel = useIsPanelLayout()
   const [search, setSearch] = useState('')
-  const [folded, setFolded] = useState(readFolded)
-  function toggleFolded(section: Section) {
-    const next = { ...folded, [section]: !folded[section] }
-    setFolded(next)
+  // Setlists | Songs as page tabs, like System (Marco, 2026-10-07) - replaces the foldable
+  // sections. The search searches the open tab; hits in the other one are pointed out.
+  const [tab, setTabState] = useState<LibraryTab>(readTab)
+  function setTab(next: LibraryTab) {
+    setTabState(next)
     try {
-      localStorage.setItem(FOLDED_KEY, JSON.stringify(next))
+      localStorage.setItem(TAB_KEY, next)
     } catch {
       // Remembering is a convenience only.
     }
   }
-  // While searching, both sections stay open - a hit must never hide in a folded one.
-  const searching = search.trim() !== ''
-  const showSetlists = searching || !folded.setlists
-  const showSongs = searching || !folded.songs
+  const showSetlists = tab === 'setlists'
+  const showSongs = tab === 'songs'
   const [selection, setSelection] = useState<Selection>(null)
   // A song selection always starts in 'preview' (SongPreview, in the right pane) - 'edit' only
   // once its "Bearbeiten" button is clicked, which is what actually opens the full-page
@@ -529,29 +509,51 @@ export function LibraryView() {
           something is picked, then swap to just the detail pane with a way back. At/above the
           panel threshold (desktop-wide, or a landscape tablet already wide enough), both stay
           visible at once - no need to hide either. */}
-      <div
-        className={`flex h-full gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
-      >
+      {/* Like System (Marco, 2026-10-07): no cards on the black background. Wide: the list column
+          on the left (surface, divider) with Setlists | Songs as page tabs, the detail on the
+          right. Narrow: tabs on top, the list - picking an entry swaps to the detail with a way
+          back (#178). */}
+      <div className={`flex h-full sb-app-bg text-ink ${isPanel ? '' : 'flex-col'}`}>
         <div
-          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb ${
-            isPanel || !selection ? 'flex' : 'hidden'
-          }`}
+          className={`min-h-0 flex-col ${isPanel ? 'flex w-[min(26rem,40%)] flex-shrink-0 border-r border-line bg-surface' : selection ? 'hidden' : 'flex flex-1'}`}
         >
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Songs & Setlists durchsuchen…"
-            aria-label="Suche"
-            className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
-          />
-
-          <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <SectionToggle title="Setlists" folded={!showSetlists} onToggle={() => toggleFolded('setlists')} />
-              </div>
-              {showSetlists && <ul className="flex flex-col gap-1">
+          <div className={`flex-shrink-0 px-2 pt-1 ${isPanel ? '' : 'border-b border-line bg-surface'}`}>
+            <Tabs
+              label="Bibliothek"
+              value={tab}
+              onChange={(next) => {
+                setTab(next)
+                setFocusedIndex(null)
+              }}
+              tabs={[
+                { value: 'setlists', label: `Setlists (${filteredSetlists.length})` },
+                { value: 'songs', label: `Songs (${filteredSongs.length})` },
+              ]}
+            />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={showSetlists ? 'Setlists durchsuchen…' : 'Songs durchsuchen…'}
+              aria-label="Suche"
+              className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
+            />
+            {/* The search looks into the open tab; hits in the other one shouldn't go unseen. */}
+            {search.trim() !== '' && (showSetlists ? filteredSongs.length : filteredSetlists.length) > 0 && (
+              <button
+                type="button"
+                onClick={() => setTab(showSetlists ? 'songs' : 'setlists')}
+                className="min-h-form self-start text-left text-base text-accent underline"
+              >
+                {showSetlists ? `${filteredSongs.length} Treffer unter Songs` : `${filteredSetlists.length} Treffer unter Setlists`}
+              </button>
+            )}
+            {showSetlists ? (
+              <>
+                <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
                   <li key={setlist.id}>
                     <button
@@ -591,16 +593,13 @@ export function LibraryView() {
                     </button>
                   </li>
                 ))}
-              </ul>}
-              {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
-              {showSetlists && <AddRow label="Neue Setlist" onClick={createSetlist} />}
-            </div>
-
-          <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <SectionToggle title="Songs" folded={!showSongs} onToggle={() => toggleFolded('songs')} />
-              </div>
-              {showSongs && <ul className="flex flex-col gap-1">
+              </ul>
+                {/* Adding sits below the last entry, like every list (docs/15 AddRow). */}
+                <AddRow label="Neue Setlist" onClick={createSetlist} />
+              </>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (
                   <DraggableSongRow
                     key={song.id}
@@ -619,16 +618,19 @@ export function LibraryView() {
                     keyboardFocused={focusedIndex === (showSetlists ? filteredSetlists.length : 0) + idx}
                   />
                 ))}
-              </ul>}
-              {showSongs && <AddRow label="Neuer Song" onClick={() => void createSong()} />}
-            </div>
+              </ul>
+                <AddRow label="Neuer Song" onClick={() => void createSong()} />
+              </>
+            )}
+          </div>
         </div>
 
         <div
           ref={setDropzoneRef}
-          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-container border p-4 shadow-sb ${
-            isPanel || selection ? 'flex' : 'hidden'
-          } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
+          className={`min-h-0 flex-1 flex-col overflow-y-auto p-4 ${isPanel || selection ? 'flex' : 'hidden'} ${
+            // Dropping a song onto the open setlist: the whole detail area lights up.
+            isOver ? 'outline outline-2 -outline-offset-4 outline-accent' : ''
+          }`}
         >
           {selection?.type === 'setlist' ? (
             <>
