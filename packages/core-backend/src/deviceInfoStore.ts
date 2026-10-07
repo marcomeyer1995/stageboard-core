@@ -14,11 +14,13 @@ type Subscriber = (snapshot: DeviceInfo) => void
  * legitimately doesn't know anything about any device until it hears otherwise again.
  */
 const stateByWorkspace = new Map<string, Map<string, DeviceInfoEntry>>()
+/** Reports are only held in memory - they start empty at every server start. */
+const collectingSince = Date.now()
 const subscribersByWorkspace = new Map<string, Set<Subscriber>>()
 
 function snapshotFor(workspaceId: string): DeviceInfo {
   const devices = stateByWorkspace.get(workspaceId)
-  return { devices: devices ? Object.fromEntries(devices) : {} }
+  return { devices: devices ? Object.fromEntries(devices) : {}, collectingSince }
 }
 
 export function getSnapshot(workspaceId: string): DeviceInfo {

@@ -170,7 +170,7 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
   })
 
-  it('"Inaktive entfernen" takes only inactive, unblocked, unused devices not seen for a day', async () => {
+  it('"Inaktive entfernen" takes every device without a live signal once the server has collected for 5 minutes - not blocked, not used, not this one', async () => {
     const forget = vi.fn().mockResolvedValue('removed')
     const old = Date.now() - 10 * 86_400_000
     useDevicesStore.setState({
@@ -178,19 +178,38 @@ describe('DeviceLedgerView', () => {
       devices: [
         { id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false },
         { id: 'old-1', name: 'Altes Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
-        { id: 'old-2', name: 'Doppeltes Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
+        { id: 'recent', name: 'Doppeltes Tablet', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
         { id: 'old-blocked', name: 'Gesperrt', lastSeenAt: old, firstSeenAt: 1, revoked: true },
         { id: 'old-used', name: 'Kemper-Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
-        // No live data (e.g. just after a server restart) but seen an hour ago: stays.
-        { id: 'recent', name: 'Handy', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
       ],
     })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': DEVICE_INFO_ENTRY }, collectingSince: Date.now() - 10 * 60_000 } })
     useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'old-used' }] as never })
     render(<DeviceLedgerView />)
     fireEvent.click(screen.getByRole('button', { name: 'Inaktive entfernen (2)' }))
     await waitFor(() => expect(forget).toHaveBeenCalledTimes(2))
-    expect(forget.mock.calls.map((call) => call[1]).sort()).toEqual(['old-1', 'old-2'])
+    expect(forget.mock.calls.map((call) => call[1]).sort()).toEqual(['old-1', 'recent'])
     expect(screen.getByText(/1 inaktive bleiben, weil Hardware sie verwendet/)).toBeInTheDocument()
+  })
+
+  it('right after a server start nothing counts as inactive yet - the devices are still reporting', () => {
+    useDevicesStore.setState({ devices: [{ id: 'old-1', name: 'Altes Tablet', lastSeenAt: Date.now() - 10 * 86_400_000, firstSeenAt: 1, revoked: false }] })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: {}, collectingSince: Date.now() - 60_000 } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByRole('button', { name: 'Inaktive entfernen (0)' })).toBeDisabled()
+    expect(screen.getByText(/Der Stage-Server wurde gerade gestartet/)).toBeInTheDocument()
+  })
+
+  it('an older server without collectingSince: falls back to "not seen for a day"', () => {
+    useDevicesStore.setState({
+      devices: [
+        { id: 'old-1', name: 'Altes Tablet', lastSeenAt: Date.now() - 10 * 86_400_000, firstSeenAt: 1, revoked: false },
+        { id: 'recent', name: 'Handy', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
+      ],
+    })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: {} } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByRole('button', { name: 'Inaktive entfernen (1)' })).toBeInTheDocument()
   })
 
   it('alerts when revoke fails', async () => {

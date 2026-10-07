@@ -17,17 +17,17 @@ beforeEach(() => {
 
 describe('getSnapshot', () => {
   it('is empty for a workspace nothing has reported into yet', () => {
-    expect(getSnapshot('band-a')).toEqual({ devices: {} })
+    expect(getSnapshot('band-a')).toEqual({ devices: {}, collectingSince: expect.any(Number) })
   })
 
   it('reflects every device entry set for that workspace', () => {
     setEntry('band-a', 'device-1', ENTRY)
-    expect(getSnapshot('band-a')).toEqual({ devices: { 'device-1': ENTRY } })
+    expect(getSnapshot('band-a')).toEqual({ devices: { 'device-1': ENTRY }, collectingSince: expect.any(Number) })
   })
 
   it('keeps workspaces fully isolated from each other', () => {
     setEntry('band-a', 'device-1', ENTRY)
-    expect(getSnapshot('band-b')).toEqual({ devices: {} })
+    expect(getSnapshot('band-b')).toEqual({ devices: {}, collectingSince: expect.any(Number) })
   })
 
   it('overwrites an existing entry for the same device', () => {
@@ -46,7 +46,7 @@ describe('patchEntry', () => {
 
   it('is a no-op when the device has no entry yet', () => {
     patchEntry('band-a', 'device-1', { networkReachable: true })
-    expect(getSnapshot('band-a')).toEqual({ devices: {} })
+    expect(getSnapshot('band-a')).toEqual({ devices: {}, collectingSince: expect.any(Number) })
   })
 
   it('notifies subscribers of the merged result', () => {
@@ -57,7 +57,7 @@ describe('patchEntry', () => {
 
     patchEntry('band-a', 'device-1', { networkReachable: false })
 
-    expect(subscriber).toHaveBeenCalledWith({ devices: { 'device-1': { ...ENTRY, networkReachable: false } } })
+    expect(subscriber).toHaveBeenCalledWith({ devices: { 'device-1': { ...ENTRY, networkReachable: false } }, collectingSince: expect.any(Number) })
   })
 })
 
@@ -87,7 +87,7 @@ describe('subscribe', () => {
     subscribe('band-a', subscriber)
 
     expect(subscriber).toHaveBeenCalledOnce()
-    expect(subscriber).toHaveBeenCalledWith({ devices: { 'device-1': ENTRY } })
+    expect(subscriber).toHaveBeenCalledWith({ devices: { 'device-1': ENTRY }, collectingSince: expect.any(Number) })
   })
 
   it('does not notify a subscriber of a different workspace', () => {

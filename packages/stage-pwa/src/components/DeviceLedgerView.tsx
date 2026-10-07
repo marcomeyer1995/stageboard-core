@@ -10,7 +10,9 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
 import { ActionMenu, Badge, Button } from './ui'
 
-/** Seen this recently = not removed by "Inaktive entfernen", live signal or not. */
+/** How long the Stage-Server has to collect reports before a missing one means "inactive". */
+const COLLECT_MS = 5 * 60 * 1000
+/** Fallback for an older server (no `collectingSince`): seen this recently = not inactive. */
 const RECENT_MS = 24 * 60 * 60 * 1000
 
 const ENVIRONMENT_LABEL: Record<string, string> = { browser: 'Browser', pwa: 'PWA', native: 'Nativ' }
@@ -88,14 +90,16 @@ export function DeviceLedgerView() {
   /** Hardware that runs on a device (Hardware tab, `executionTarget`) - such a device is never
    * removed (Marco, 2026-10-07); the row names what has to move first. */
   const usedBy = (deviceId: string) => logicalDevices.filter((d) => d.executionTarget === deviceId).map((d) => d.name)
-  /** Live signal (app open or reachable) or seen within the last day. The day matters: right
-   * after a Stage-Server restart no device has reported yet, and every device would look
-   * inactive - "Inaktive entfernen" then also took the phone in use minutes ago and lost its
-   * own name (found on the real server, 2026-10-07). */
+  /** Live signal (app open or reachable). Right after a Stage-Server start no device has reported
+   * yet - then every device would look inactive (found on the real server, 2026-10-07), so
+   * missing reports only count once the server has collected for a while; an older server
+   * without `collectingSince` falls back to "not seen for a day". */
+  const collectedLongEnough = deviceInfo.collectingSince !== undefined && now - deviceInfo.collectingSince >= COLLECT_MS
   const isActive = (device: Device) => {
     const info = deviceInfo.devices[device.id]
     if (info && (now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
-    return now - device.lastSeenAt < RECENT_MS
+    if (collectedLongEnough) return false
+    return deviceInfo.collectingSince !== undefined || now - device.lastSeenAt < RECENT_MS
   }
   /** What "Inaktive entfernen" takes: no app open and not reachable, not blocked (the block lives
    * on the entry), not this device, not in use by hardware. */
@@ -165,8 +169,9 @@ export function DeviceLedgerView() {
             Inaktive entfernen ({inactive.length})
           </Button>
           <p className="text-sm text-ink-faint">
-            Entfernt Geräte ohne offene App, ohne Netzwerk und seit über einem Tag nicht gesehen - kein Blockieren, sie erscheinen beim nächsten Start wieder.
+            Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder.
             {skippedInUse.length > 0 && ` ${skippedInUse.length} inaktive bleiben, weil Hardware sie verwendet.`}
+            {deviceInfo.collectingSince !== undefined && !collectedLongEnough && ' Der Stage-Server wurde gerade gestartet - die Geräte melden sich noch, erst danach zählen sie als inaktiv.'}
           </p>
         </div>
       )}

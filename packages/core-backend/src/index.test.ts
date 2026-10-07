@@ -603,7 +603,7 @@ describe('Fastify routes', () => {
     it('returns an empty snapshot when nothing has reported yet', async () => {
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
 
     it('returns the current snapshot, scoped to the requested workspace', async () => {
@@ -619,8 +619,8 @@ describe('Fastify routes', () => {
       setDeviceInfoEntry('band-a', 'device-1', entry)
 
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
-      expect(response.json()).toEqual({ devices: { 'device-1': entry } })
-      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: { 'device-1': entry }, collectingSince: expect.any(Number) })
+      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
   })
 
