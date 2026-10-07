@@ -74,7 +74,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                   type="text"
                   value={occurrence.text}
                   onChange={(e) => patchLine(occurrence.lineNumber, e.target.value, occurrence.targets)}
-                  className={`flex-1 px-2 py-1 text-base ${INPUT_FREE}`}
+                  className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                 />
                 <button
                   type="button"

@@ -149,7 +149,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Songtitel..."
-            className={`flex-1 px-2 py-1 text-base ${INPUT_FREE}`}
+            className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
           />
           <button
             type="submit"

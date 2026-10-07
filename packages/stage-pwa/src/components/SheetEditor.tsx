@@ -766,7 +766,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </div>
         <textarea
           ref={textareaRef}
-          className={`min-h-[240px] flex-1 p-2 font-sb-mono text-base ${INPUT_FREE}`}
+          className={`min-h-[240px] flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
           value={draft.chordProContent}
           onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
           placeholder="[00:00.00] Come on baby [G] don't you wanna go"
@@ -837,7 +837,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               select push the whole form past the right edge on a phone (#373). */}
           <div className="flex min-w-0 items-center gap-2 [&>select]:min-w-0">
             <select
-              className={`min-h-form px-3 text-base flex-1 ${INPUT}`}
+              className={`min-h-form px-3 text-base flex-1 min-w-0 ${INPUT}`}
               value={draft.variantId}
               onChange={(e) => selectVariant(e.target.value)}
             >

@@ -73,7 +73,7 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
           onChange={(e) => setText(e.target.value)}
           placeholder="Eigene Nachricht…"
           aria-label={`Nachricht an ${recipients}`}
-          className={`h-form min-w-0 flex-1 px-3 ${INPUT}`}
+          className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
         <Button type="submit" variant="primary" size="widget" disabled={!text.trim()}>
           Senden
@@ -111,7 +111,7 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
               aria-label={`Nachricht ${i + 1}`}
               onChange={(e) => set(presets.map((p, j) => (j === i ? e.target.value : p)))}
               onBlur={() => set(presets.map((p) => p.trim()).filter(Boolean))}
-              className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT}`}
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT}`}
             />
             <IconButton icon="up" label={`„${preset}“ nach oben`} disabled={i === 0} onClick={() => move(i, -1)} />
             <IconButton icon="down" label={`„${preset}“ nach unten`} disabled={i === presets.length - 1} onClick={() => move(i, 1)} />

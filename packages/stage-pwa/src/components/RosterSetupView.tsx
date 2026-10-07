@@ -163,7 +163,7 @@ export function RosterSetupView() {
               onChange={(e) => setMemberName(e.target.value)}
               placeholder="Name"
               autoFocus
-              className={`h-form min-w-0 flex-1 px-3 ${INPUT_FREE}`}
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
             <button
               type="submit"

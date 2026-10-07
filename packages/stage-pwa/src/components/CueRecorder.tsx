@@ -203,7 +203,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
           MIDI-Eingang
           <span className="flex gap-1">
-            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className={`min-h-form px-3 text-base min-w-0 flex-1 ${INPUT_FREE}`}>
+            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className={`min-h-form px-3 text-base min-w-0 flex-1 min-w-0 ${INPUT_FREE}`}>
               {(inputs ?? []).map((input) => (
                 <option key={input.id} value={input.id}>
                   {input.name}

@@ -20,7 +20,7 @@ export function ThemeSwitcher() {
         value={themeId}
         onChange={(e) => setThemeId(e.target.value as (typeof THEMES)[number]['id'])}
         title="Design"
-        className={`min-h-form flex-1 px-3 text-base ${INPUT_FREE}`}
+        className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
       >
         {THEMES.map((theme) => (
           <option key={theme.id} value={theme.id}>

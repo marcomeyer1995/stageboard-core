@@ -146,7 +146,7 @@ export function VerifyWorkspaceAdmin({
             placeholder="8-stelliger Code"
             inputMode="numeric"
             autoFocus
-            className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
+            className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"
@@ -195,7 +195,7 @@ export function VerifyWorkspaceAdmin({
             placeholder="4-stelliger PIN"
             inputMode="numeric"
             autoFocus
-            className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
+            className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"

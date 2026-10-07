@@ -30,7 +30,7 @@ export function DeviceNameSettings() {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Name dieses Geräts"
-        className={`h-form flex-1 px-4 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
+        className={`h-form flex-1 min-w-0 px-4 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
       />
       <button
         type="button"

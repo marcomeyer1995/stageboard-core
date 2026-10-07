@@ -61,6 +61,10 @@ describe('UI system guard (docs/15)', () => {
     expect(offending(/rounded-sb-pill.*(flex-1|flex-grow|aria-pressed)|aria-pressed=\{[^}]*\}.*rounded-sb-pill/)).toEqual([])
   })
 
+  it('a text field that grows (flex-1) may also shrink (min-w-0) - otherwise it pushes its button out of the card on the phone', () => {
+    expect(offending(/(?<![\w-])flex-1(?![\w-])(?![^`"]*min-w-0)[^`"]*\$\{INPUT/)).toEqual([])
+  })
+
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {
     expect(offending(/>\s*Schließen\s*</)).toEqual([])
   })

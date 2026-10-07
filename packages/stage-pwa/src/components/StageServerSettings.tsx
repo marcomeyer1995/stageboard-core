@@ -91,7 +91,7 @@ export function StageServerSettings() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="z.B. https://stageboard.local"
               aria-label="Stage-Server-Adresse"
-              className={`h-12 min-w-0 flex-1 px-3 ${INPUT_FREE}`}
+              className={`h-12 min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
             <button
               type="button"

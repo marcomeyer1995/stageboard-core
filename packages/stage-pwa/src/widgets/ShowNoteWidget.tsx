@@ -61,7 +61,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           }}
           placeholder="Notiz hinzufügen…"
           disabled={!showId}
-          className={`min-h-touch min-w-0 flex-1 px-3 ${INPUT}`}
+          className={`min-h-touch min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
         <button
           type="button"

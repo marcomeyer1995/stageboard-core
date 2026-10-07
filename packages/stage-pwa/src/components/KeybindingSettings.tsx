@@ -167,7 +167,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                       value={steps[id]}
                       onChange={(e) => setSteps({ ...steps, [id]: e.target.value as StepAction })}
                       aria-label={`Wenn ${label}`}
-                      className={`min-h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
+                      className={`min-h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                     >
                       {STEP_CHOICES[id].map((step) => (
                         <option key={step} value={step}>

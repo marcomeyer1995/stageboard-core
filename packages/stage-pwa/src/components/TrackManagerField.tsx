@@ -145,7 +145,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           onChange={(e) => setYoutubeUrl(e.target.value)}
           placeholder="YouTube-Link für eine Referenzaufnahme"
           disabled={disabled}
-          className={`min-w-0 flex-1 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
+          className={`min-w-0 flex-1 min-w-0 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
         />
         <button
           type="submit"

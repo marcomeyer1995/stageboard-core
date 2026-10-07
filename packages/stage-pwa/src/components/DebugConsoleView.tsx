@@ -74,7 +74,7 @@ export function DebugConsoleView() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Suchen…"
           aria-label="Log durchsuchen"
-          className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
+          className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
         />
         <button type="button" onClick={() => void copy()} className="min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
           Kopieren

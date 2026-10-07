@@ -337,7 +337,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
+                        className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <button
                         type="submit"
@@ -406,7 +406,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               placeholder="8-stelliger Code"
               inputMode="numeric"
               autoFocus
-              className={`h-form min-w-0 flex-1 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
             <button
               type="submit"
@@ -484,7 +484,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     onChange={(e) => setServerAddress(e.target.value)}
                     placeholder="192.168.178.158"
                     inputMode="url"
-                    className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
+                    className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                     aria-label="Adresse des Stage-Servers"
                   />
                   <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
@@ -504,7 +504,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setServerAddress(e.target.value)}
                   placeholder="192.168.178.158"
                   inputMode="url"
-                  className={`h-form min-w-0 flex-1 px-3 text-base ${INPUT_FREE}`}
+                  className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                   aria-label="Adresse des Stage-Servers"
                 />
                 <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
@@ -651,7 +651,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Passwort oder PIN"
                   aria-label="Passwort oder PIN"
-                  className={`h-form min-w-0 flex-1 px-3 ${INPUT_FREE}`}
+                  className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
                 />
                 <button
                   type="submit"
