@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
 
@@ -220,9 +221,9 @@ export function VerifyWorkspaceAdmin({
         </button>
       )}
 
-      <button type="button" onClick={onCancel} className="min-h-form w-full text-center text-base text-ink-soft underline">
-        Abbrechen
-      </button>
+      <div className="flex border-t border-line pt-3">
+        <Button onClick={onCancel}>Abbrechen</Button>
+      </div>
     </div>
   )
 }
