@@ -282,7 +282,7 @@ function ConnectionStep({
       )}
 
       {identifyingHere && (
-        <div className="flex flex-col gap-2 rounded-control border border-accent/40 bg-control px-3 py-3">
+        <div className="flex flex-col gap-2 rounded-container border border-accent/40 bg-control px-3 py-3">
           <p className="text-sm font-semibold text-ink">{identifyingHere.instruction}</p>
           {candidates
             .filter((c) => c.status === 'identifying')
@@ -336,7 +336,7 @@ function ConnectionStep({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-control border border-dashed border-line px-3 py-3">
+      <div className="flex flex-col gap-2 rounded-container border border-dashed border-line px-3 py-3">
         <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Manuell festlegen</p>
         <select
           value={manualTarget}

@@ -10,11 +10,11 @@ const songs = [
 ] as unknown as Song[]
 
 describe('NewSetlistDialog (#183)', () => {
-  it('"Fertig" with no songs ticked creates an empty setlist, like before', () => {
+  it('"Anlegen" with no songs ticked creates an empty setlist, like before', () => {
     const onDone = vi.fn()
     render(<NewSetlistDialog songs={songs} onCancel={vi.fn()} onDone={onDone} />)
     fireEvent.change(screen.getByLabelText('Name der neuen Setlist'), { target: { value: '  Sommerfest  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
     expect(onDone).toHaveBeenCalledWith('Sommerfest', [])
   })
 
@@ -25,7 +25,7 @@ describe('NewSetlistDialog (#183)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Highway to hell/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /All the small things/ }))
     expect(screen.getByText(/2 ausgewählt/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
     expect(onDone).toHaveBeenCalledWith('Gig', ['a', 'c'])
   })
 
@@ -33,7 +33,7 @@ describe('NewSetlistDialog (#183)', () => {
     const onDone = vi.fn()
     const onCancel = vi.fn()
     render(<NewSetlistDialog songs={songs} onCancel={onCancel} onDone={onDone} />)
-    expect(screen.getByRole('button', { name: 'Fertig' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Anlegen' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     expect(onCancel).toHaveBeenCalled()
     expect(onDone).not.toHaveBeenCalled()

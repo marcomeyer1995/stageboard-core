@@ -216,7 +216,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       </div>
       {inputProblem && <p className="text-xs text-red-500">{inputProblem}</p>}
 
-      <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-control bg-control p-3 font-sb-mono text-sm">
+      <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-container bg-control p-3 font-sb-mono text-sm">
         {rows.length === 0 ? (
           <p className="text-ink-faint">Noch nichts aufgenommen.</p>
         ) : (

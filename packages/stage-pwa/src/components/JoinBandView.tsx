@@ -521,7 +521,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             this taller than the whole viewport in landscape on a phone/tablet, pushing
             everything else off-screen with nothing to scroll to. object-cover still fills
             this box regardless of the camera's actual aspect ratio. */}
-        <div className="relative h-56 overflow-hidden rounded-control border border-line bg-surface">
+        <div className="relative h-56 overflow-hidden rounded-container border border-line bg-surface">
           <video
             ref={videoRef}
             className={`h-full w-full object-cover ${cameraStatus === 'scanning' ? '' : 'hidden'}`}

@@ -201,7 +201,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             )}
           </ul>
 
-          <div className="flex flex-col overflow-y-auto rounded-control bg-control p-2 text-sm">
+          <div className="flex flex-col overflow-y-auto rounded-container bg-control p-2 text-sm">
             {selected?.sourceUrl && (
               <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                 <a

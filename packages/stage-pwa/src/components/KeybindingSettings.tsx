@@ -132,7 +132,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
         <h2 className="text-xl font-bold text-ink">{initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}</h2>
 
         {listening ? (
-          <div className="flex flex-col items-center gap-3 rounded-control bg-control p-6 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-container bg-control p-6 text-center">
             <span className="text-2xl font-bold text-accent">Jetzt Pedal drücken …</span>
             <span className="text-sm text-ink-muted">oder eine Taste der Tastatur. Esc bricht ab.</span>
           </div>
@@ -164,7 +164,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
             </fieldset>
 
             {choice === 'by-state' && (
-              <div className="flex flex-col gap-2 rounded-control bg-control p-3">
+              <div className="flex flex-col gap-2 rounded-container bg-control p-3">
                 <p className="text-sm text-ink-muted">Was die Taste tut, hängt davon ab, in welchem Zustand der Song gerade ist (wie in der Statusleiste).</p>
                 {SONG_STATES.map(({ id, label }) => (
                   <label key={id} className="flex items-center gap-3">

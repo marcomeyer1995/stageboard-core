@@ -96,7 +96,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 rounded-control border border-dashed border-line p-3">
+      <div className="flex flex-col gap-2 rounded-container border border-dashed border-line p-3">
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Zeit (s)

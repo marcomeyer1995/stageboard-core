@@ -28,6 +28,8 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Badge, Button, Segmented } from './ui'
+import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
@@ -197,9 +199,9 @@ function DraggableSongRow({
             onClick={() => onAddToActiveSetlist?.()}
             disabled={!onAddToActiveSetlist}
             title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-control text-xl text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink disabled:opacity-40"
+            className="flex h-form w-form flex-shrink-0 items-center justify-center rounded-control text-xl text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink disabled:opacity-40"
           >
-            +
+            <Icon name="add" />
           </button>
         )}
         <OverflowMenu
@@ -495,7 +497,7 @@ export function LibraryView() {
         className={`flex h-full gap-3 sb-app-bg p-3 text-ink ${isPanel ? 'grid grid-cols-[minmax(0,1fr)_2fr]' : 'flex-col'}`}
       >
         <div
-          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-control border border-line bg-surface p-4 shadow-sb ${
+          className={`min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb ${
             isPanel || !selection ? 'flex' : 'hidden'
           }`}
         >
@@ -505,25 +507,17 @@ export function LibraryView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Songs & Setlists durchsuchen…"
-            className="h-12 flex-shrink-0 rounded-control bg-control px-4 text-base text-ink"
+            aria-label="Suche"
+            className={`h-form flex-shrink-0 px-4 text-base ${INPUT}`}
           />
 
-          <div className="flex gap-2">
-            {(['all', 'setlists', 'songs'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setFilterMode(mode)}
-                className={`h-12 flex-1 rounded-sb-pill text-base font-medium ${
-                  filterMode === mode
-                    ? 'bg-accent text-accent-ink'
-                    : 'bg-control text-ink-soft [@media(hover:hover)]:hover:bg-control-hover'
-                }`}
-              >
-                {FILTER_LABEL[mode]}
-              </button>
-            ))}
-          </div>
+          {/* Pick one (docs/15 D7) - was a row of round pills, the reason for this whole pass. */}
+          <Segmented
+            label="Anzeigen"
+            value={filterMode}
+            onChange={setFilterMode}
+            options={(['all', 'setlists', 'songs'] as const).map((mode) => ({ value: mode, label: FILTER_LABEL[mode] }))}
+          />
 
           {filterMode !== 'songs' && (
             <div className="flex flex-col gap-2">
@@ -531,13 +525,9 @@ export function LibraryView() {
                 <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">
                   Setlists
                 </h2>
-                <button
-                  type="button"
-                  onClick={createSetlist}
-                  className="h-12 rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
-                  + Neu
-                </button>
+                <Button icon="add" aria-label="Neue Setlist" onClick={createSetlist}>
+                  Neu
+                </Button>
               </div>
               <ul className="flex flex-col gap-1">
                 {filteredSetlists.map((setlist, idx) => (
@@ -567,15 +557,10 @@ export function LibraryView() {
                       >
                         ({setlist.entries.filter(isSongEntry).length})
                       </span>
+                      {/* "Aktiv" = a badge (docs/15 D4), never the yellow fill a selection has. */}
                       {activeSetlist?.id === setlist.id && (
-                        <span
-                          className={`ml-2 text-xs font-semibold ${
-                            selection?.type === 'setlist' && selection.id === setlist.id
-                              ? 'text-accent-ink'
-                              : 'text-accent'
-                          }`}
-                        >
-                          <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aktiv
+                        <span className="ml-2">
+                          <Badge tone={selection?.type === 'setlist' && selection.id === setlist.id ? 'neutral' : 'accent'}>Aktiv</Badge>
                         </span>
                       )}
                     </button>
@@ -589,13 +574,9 @@ export function LibraryView() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Songs</h2>
-                <button
-                  type="button"
-                  onClick={() => void createSong()}
-                  className="h-12 rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
-                  + Neu
-                </button>
+                <Button icon="add" aria-label="Neuer Song" onClick={() => void createSong()}>
+                  Neu
+                </Button>
               </div>
               <ul className="flex flex-col gap-1">
                 {filteredSongs.map((song, idx) => (
@@ -623,7 +604,7 @@ export function LibraryView() {
 
         <div
           ref={setDropzoneRef}
-          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-control border p-4 shadow-sb ${
+          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-container border p-4 shadow-sb ${
             isPanel || selection ? 'flex' : 'hidden'
           } ${isOver ? 'border-accent bg-surface' : 'border-line bg-surface'}`}
         >
@@ -632,7 +613,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover ${
+                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
@@ -650,7 +631,7 @@ export function LibraryView() {
               <button
                 type="button"
                 onClick={() => setSelection(null)}
-                className={`mb-3 flex h-12 items-center gap-2 self-start rounded-control bg-control-strong px-4 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover ${
+                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
                   isPanel ? 'hidden' : ''
                 }`}
               >
