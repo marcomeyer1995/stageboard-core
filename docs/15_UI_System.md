@@ -31,7 +31,7 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | D4 Aktiv | „Aktiv / das bist du“ = gelbe Umrandung + Badge „Du“ / „Aktiv“; gelbe Füllung bleibt für einen gewählten Wert reserviert | Regel |
 | D5 An/Aus | Echter Schalter (Knopf auf Schiene) | Regel |
 | D6 Dialoge | Der Ausweg ist immer an derselben Stelle: die feste Zeile unten (scrollt nie weg, liegt unter dem Daumen). Mit etwas zu bestätigen: „Abbrechen“ links, Hauptaktion rechts. Ohne Bestätigung (wirkt sofort: Einstellungen, Tonart): ein „Fertig“ rechts; ⋯-Menüs: „Abbrechen“. Die Titelzeile nennt nur den Dialog. Daneben tippen und Zurück-Geste schließen ebenfalls (präzisiert 2026-10-07: nie zwei Auswege, nie mal oben, mal unten) | Regel |
-| D7 Eins vs. mehrere | Eins = zusammenhängende Leiste, gewähltes Segment gefüllt; mehrere = einzelne Chips mit ✓, nicht gewählt mit Umriss | Regel |
+| D7 Eins vs. mehrere | Eins = zusammenhängende Leiste, gewähltes Segment gefüllt; mehrere = einzelne Chips mit Kästchen vorn (leer + Umriss = nicht gewählt, angehakt + gefüllt = gewählt; das Kästchen ist immer da, damit die Breite nie springt - präzisiert 2026-10-07) | Regel |
 | Tabs | Seiten-Navigation (System-Tabs, Editor-Tabs) = Text mit gelber Unterstreichung. Ausnahme: „Ansicht“ im Burger-Menü bleibt große Buttons im Leisten-Stil | Regel |
 | Themes | Wie Dashboards: in der Band gespeichert, bandweit oder privat, Admins schützen Vorlagen, andere duplizieren; jedes Gerät wählt sein Theme. Theme-Editor = eigenes Projekt danach | - |
 
@@ -42,14 +42,14 @@ Testfrage: **Kann eine gemeinsame Frage über den Elementen stehen, und die Ausw
 | Aufgabe | Frage | Element | Beispiele |
 |---|---|---|---|
 | Genau eins wählen | „Welches?“ | Leiste (`Segmented`) | Modus, Sichtbar für, Banner/Vollbild/Aus, Bibliotheks-Filter |
-| Mehrere wählen | „Welche?“ (gleichartig) | ✓ Chips (`ToggleChip`) | Empfänger im Stage-Messenger, Anbieten in Gig/Solo, Akkordarten |
+| Mehrere wählen | „Welche?“ (gleichartig) | Chips mit Kästchen (`ToggleChip`) | Empfänger im Stage-Messenger, Anbieten in Gig/Solo, Akkordarten |
 | Eine Einstellung an/aus | „Ist X an?“ | Schalter (`Switch`) | Einrasten, Klick, Statusleiste, Vorlage, „Songs gleich hinzufügen“ |
 | Seite wechseln | „Wohin?“ | Tabs (`Tabs`) | System → Band / Plugins / …, Song-Editor Text / Timeline |
 | Etwas tun | - | Button | Speichern, Anlegen, Takt 1 hier |
 
-Verhalten passt zur Form: das gewählte Segment erneut tippen ändert nichts; einen ✓-Chip erneut tippen nimmt ihn heraus. Gruppen, die nie leer sein dürfen (Anbieten in), verhindern das Abwählen des letzten mit Begründung. „Alle“ bei den Empfängern bleibt ein eigener erster Chip, der die anderen leert. Unter Mehrfach-Gruppen steht kurz „Mehrere möglich“.
+Verhalten passt zur Form: das gewählte Segment erneut tippen ändert nichts; einen gewählten Chip erneut tippen nimmt ihn heraus. Gruppen, die nie leer sein dürfen (Anbieten in), verhindern das Abwählen des letzten mit Begründung. „Alle“ bei den Empfängern bleibt ein eigener erster Chip, der die anderen leert. Unter Mehrfach-Gruppen steht kurz „Mehrere möglich“.
 
-Alle drei Auswahl-Elemente teilen Höhe, Ecke, Gelb für „an/gewählt“ und Schrift; nur ein Signal unterscheidet sie (zusammenhängend, ✓, Knopf).
+Alle drei Auswahl-Elemente teilen Höhe, Ecke, Gelb für „an/gewählt“ und Schrift; nur ein Signal unterscheidet sie (zusammenhängend, Kästchen, Knopf).
 
 ## 5. Tokens (Phase 1)
 
