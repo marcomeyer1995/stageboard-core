@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { PracticeLogEntry, Setlist, Song } from 'shared-types'
-import { practiceStats, sortLabel, sortSetlists, sortSongs } from './librarySort'
+import type { PracticeLogEntry, Setlist, ShowLogEvent, Song } from 'shared-types'
+import { practiceStats, rehearsalStats, sortLabel, sortSetlists, sortSongs } from './librarySort'
 
 const setlist = (id: string, name: string, extra: Partial<Setlist> = {}): Setlist => ({ id, name, entries: [], createdAt: 0, ...extra })
 const song = (id: string, title: string, artist?: string) => ({ id, title, artist, bpm: 120, timeSignature: '4/4', clickTrackEnabled: false, chordProContent: '', timecodes: [] }) as Song
@@ -35,19 +35,41 @@ describe('Bibliothek sorting', () => {
   const songs = [song('a', 'Alpha', 'Zappa'), song('b', 'Bravo'), song('c', 'Charlie', 'Abba')]
 
   it('songs by artist (no artist last, also descending), by setlist order, rest by title', () => {
-    expect(sortSongs(songs, 'artist', { activeSetlist: null, stats: new Map() }).map((s) => s.id)).toEqual(['c', 'a', 'b'])
-    expect(sortSongs(songs, 'artist', { activeSetlist: null, stats: new Map() }, true).map((s) => s.id)).toEqual(['a', 'c', 'b'])
+    expect(sortSongs(songs, 'artist', { activeSetlist: null, practice: new Map(), rehearsal: new Map() }).map((s) => s.id)).toEqual(['c', 'a', 'b'])
+    expect(sortSongs(songs, 'artist', { activeSetlist: null, practice: new Map(), rehearsal: new Map() }, true).map((s) => s.id)).toEqual(['a', 'c', 'b'])
     const gig = setlist('g', 'Gig', { entries: [{ id: '1', songId: 'c', variantId: null, trackId: null }, { id: '2', songId: 'a', variantId: null, trackId: null }, { id: '3', songId: 'c', variantId: null, trackId: null }] })
-    expect(sortSongs(songs, 'setlist', { activeSetlist: gig, stats: new Map() }).map((s) => s.id)).toEqual(['c', 'a', 'b'])
+    expect(sortSongs(songs, 'setlist', { activeSetlist: gig, practice: new Map(), rehearsal: new Map() }).map((s) => s.id)).toEqual(['c', 'a', 'b'])
   })
 
-  it('practice: how often practised in the last 30 days - only the own takes; ↑ the least practised first', () => {
-    const day = 86_400_000
-    const now = 100 * day
-    const stats = practiceStats([practiced('a', now - 40 * day), practiced('a', now - 2 * day), practiced('b', now - 1 * day), practiced('a', now - 3 * day), practiced('c', now, 'someone-else')], 'me', now)
-    expect(stats.get('a')).toBe(2)
-    expect(stats.has('c')).toBe(false)
-    expect(sortSongs(songs, 'practiced', { activeSetlist: null, stats }).map((s) => s.id)).toEqual(['c', 'b', 'a'])
-    expect(sortSongs(songs, 'practiced', { activeSetlist: null, stats }, true).map((s) => s.id)).toEqual(['a', 'b', 'c'])
+  const day = 86_400_000
+  const now = 100 * day
+
+  it('Geübt: own takes in the device period, plus the latest one (also outside the period); ↑ the least practised first', () => {
+    const practice = practiceStats([practiced('a', now - 40 * day), practiced('a', now - 2 * day), practiced('b', now - 1 * day), practiced('a', now - 3 * day), practiced('c', now, 'someone-else')], 'me', now, 30)
+    expect(practice.get('a')).toEqual({ count: 2, last: now - 2 * day })
+    expect(practice.has('c')).toBe(false)
+    expect(practiceStats([practiced('a', now - 40 * day)], 'me', now, 30).get('a')).toEqual({ count: 0, last: now - 40 * day })
+    const context = { activeSetlist: null, practice, rehearsal: new Map() }
+    expect(sortSongs(songs, 'practiced', context).map((s) => s.id)).toEqual(['c', 'b', 'a'])
+    expect(sortSongs(songs, 'practiced', context, true).map((s) => s.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('Geprobt: the band\'s Gig-mode plays in the last N days, or in the last N shows', () => {
+    const played = (songId: string, showId: string, at: number): ShowLogEvent => ({ id: `${songId}-${at}`, showId, type: 'song-played', at, endedAt: at + 1, songId, songTitle: songId, activeMs: 60_000 })
+    const events: ShowLogEvent[] = [
+      played('a', 'show-old', now - 200 * day),
+      played('a', 'show-1', now - 60 * day),
+      played('b', 'show-2', now - 20 * day),
+      played('a', 'show-3', now - 5 * day),
+      played('b', 'show-3', now - 5 * day + 1),
+    ]
+    const byDays = rehearsalStats(events, { kind: 'days', days: 90 }, now)
+    expect(byDays.get('a')).toEqual({ count: 2, last: now - 5 * day })
+    expect(byDays.get('b')?.count).toBe(2)
+    const lastTwoShows = rehearsalStats(events, { kind: 'shows', shows: 2 }, now)
+    expect(lastTwoShows.get('a')?.count).toBe(1)
+    expect(lastTwoShows.get('b')?.count).toBe(2)
+    const context = { activeSetlist: null, practice: new Map(), rehearsal: lastTwoShows }
+    expect(sortSongs(songs, 'rehearsed', context, true).map((s) => s.id)).toEqual(['b', 'a', 'c'])
   })
 })

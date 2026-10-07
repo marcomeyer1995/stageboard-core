@@ -60,6 +60,7 @@ import { useSetlistsStore } from './store/useSetlistsStore'
 import { useAsyncJobsStore } from './store/useAsyncJobsStore'
 import { useShowLogStore } from './store/useShowLogStore'
 import { usePracticeLogStore } from './store/usePracticeLogStore'
+import { useBandSettingsStore } from './store/useBandSettingsStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
@@ -161,6 +162,7 @@ function App() {
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePracticeLogStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useBandSettingsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike

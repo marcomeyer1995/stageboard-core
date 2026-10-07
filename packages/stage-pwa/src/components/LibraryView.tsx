@@ -11,7 +11,7 @@ import {
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { isSongEntry, type Setlist, type Song, type SongVariant } from 'shared-types'
+import { DEFAULT_REHEARSAL_WINDOW, isSongEntry, type RehearsalWindow, type Setlist, type Song, type SongVariant } from 'shared-types'
 import { clampSwipe } from '../lib/clampSwipe'
 import { randomId } from '../lib/id'
 import { useQueue } from '../lib/queue'
@@ -35,8 +35,11 @@ import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { practiceStats, sortLabel, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
+import { practiceStats, rehearsalStats, sortLabel, type PlayCount, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
+import { useShowLogStore } from '../store/useShowLogStore'
+import { useBandSettingsStore } from '../store/useBandSettingsStore'
+import { useLibraryPrefsStore } from '../store/useLibraryPrefsStore'
 import { useActiveProfile } from '../lib/useActiveProfile'
 
 type Selection =
@@ -74,9 +77,21 @@ function formatGigDate(date: string): string {
   return `${d}.${m}.${y}`
 }
 
-/** While sorting by practice: "2× in 30 Tagen". */
-function practiceNote(by: SongSort, count: number | undefined): string | undefined {
-  return by === 'practiced' ? `${count ?? 0}× in 30 Tagen` : undefined
+/** "heute / gestern / vor 12 Tagen". */
+function ago(at: number): string {
+  const days = Math.floor((Date.now() - at) / 86_400_000)
+  return days <= 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`
+}
+
+/** "30 Tagen" / "den letzten 5 Shows" - the period in "2× in …". */
+function windowText(window: RehearsalWindow): string {
+  return window.kind === 'days' ? `${window.days} Tagen` : `den letzten ${window.shows} Shows`
+}
+
+/** While sorting by Geübt / Geprobt: "2× in 30 Tagen · zuletzt vor 3 Tagen", or "nie geübt". */
+function playNote(stat: PlayCount | undefined, period: string, verb: string): string {
+  if (!stat || stat.last === 0) return `nie ${verb}`
+  return `${stat.count}× in ${period} · zuletzt ${ago(stat.last)}`
 }
 
 function readTab(): LibraryTab {
@@ -333,10 +348,19 @@ export function LibraryView() {
       // Remembering is a convenience only.
     }
   }
-  // "Geübt" / "30 Tage": this person's own Solo-Üben takes (Marco, 2026-10-07).
+  // "Geübt": this person's own Solo-Üben takes in the device's period; "Geprobt": the band's
+  // Gig-mode plays in the band's period (Marco, 2026-10-07).
   const practiceLog = usePracticeLogStore((state) => state.entries)
+  const practiceDays = useLibraryPrefsStore((state) => state.practiceDays)
+  const showLogEvents = useShowLogStore((state) => state.events)
+  const rehearsalWindow = useBandSettingsStore((state) => state.settings.rehearsalWindow) ?? DEFAULT_REHEARSAL_WINDOW
   const myProfileId = useActiveProfile()?.id ?? null
-  const stats = useMemo(() => practiceStats(practiceLog, myProfileId, Date.now()), [practiceLog, myProfileId])
+  const practice = useMemo(() => practiceStats(practiceLog, myProfileId, Date.now(), practiceDays), [practiceLog, myProfileId, practiceDays])
+  const rehearsal = useMemo(
+    () => rehearsalStats(showLogEvents, rehearsalWindow, Date.now()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showLogEvents, JSON.stringify(rehearsalWindow)],
+  )
   const [selection, setSelectionNow] = useState<Selection>(null)
   // An open setlist with unsaved changes (SetlistDetail reports it): leaving it asks first.
   const [setlistDirty, setSetlistDirty] = useState(false)
@@ -378,8 +402,8 @@ export function LibraryView() {
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, stats }, sort.songs.reversed)
-  }, [songs, term, sort.songs, activeSetlist, stats])
+    return sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, practice, rehearsal }, sort.songs.reversed)
+  }, [songs, term, sort.songs, activeSetlist, practice, rehearsal])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
   // filter shows them) then songs (if it shows those), matching the two <ul>s below exactly.
@@ -733,7 +757,13 @@ export function LibraryView() {
                     current={song.id === currentSongId}
                     inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
                     inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
-                    note={practiceNote(sort.songs.by, stats.get(song.id))}
+                    note={
+                      sort.songs.by === 'practiced'
+                        ? playNote(practice.get(song.id), `${practiceDays} Tagen`, 'geübt')
+                        : sort.songs.by === 'rehearsed'
+                          ? playNote(rehearsal.get(song.id), windowText(rehearsalWindow), 'geprobt')
+                          : undefined
+                    }
                     onRemoveFromActiveSetlist={() => removeFromActiveSetlist(song.id)}
                     onAddToActiveSetlist={activeSetlist ? () => addToActiveSetlist(song.id) : null}
                     showAddButton={inputCapability === 'pointer'}
