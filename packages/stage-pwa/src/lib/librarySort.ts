@@ -5,24 +5,20 @@ import { isSongEntry, type PracticeLogEntry, type Setlist, type Song } from 'sha
 export type SetlistSort = 'performance' | 'name'
 export type SongSort = 'title' | 'artist' | 'setlist' | 'practiced'
 
-/** Labels: [not chosen, chosen, chosen and reversed] - only the chosen option shows its
- * direction (tapping it again reverses), so the bar stays short enough for a phone. */
-export const SETLIST_SORT_LABEL: Record<SetlistSort, readonly [string, string, string]> = {
-  // Bar order: A–Z left, Auftritt right (Marco, 2026-10-07).
-  name: ['A–Z', 'A–Z', 'Z–A'],
-  performance: ['Auftritt', 'Auftritt ↓', 'Auftritt ↑'],
-}
-export const SONG_SORT_LABEL: Record<SongSort, readonly [string, string, string]> = {
-  title: ['A–Z', 'A–Z', 'Z–A'],
-  artist: ['Interpret', 'Interpret ↓', 'Interpret ↑'],
-  setlist: ['Setlist', 'Setlist ↓', 'Setlist ↑'],
+/** Option names; bar order A–Z left, Auftritt right (Marco, 2026-10-07). */
+export const SETLIST_SORT_LABEL: Record<SetlistSort, string> = { name: 'A–Z', performance: 'Auftritt' }
+export const SONG_SORT_LABEL: Record<SongSort, string> = {
+  title: 'A–Z',
+  artist: 'Interpret',
+  setlist: 'Setlist',
   // How often practised in the last 30 days (Marco: when it was last practised doesn't matter).
-  practiced: ['Geübt', 'Geübt ↓', 'Geübt ↑'],
+  practiced: 'Geübt',
 }
 
-/** Which label to show: 0 not chosen, 1 chosen, 2 chosen and reversed. */
-export function sortLabelIndex(chosen: boolean, reversed: boolean): 0 | 1 | 2 {
-  return !chosen ? 0 : reversed ? 2 : 1
+/** The chosen option shows its direction: first tap ↑ ascending, tapping again ↓ descending
+ * (Marco, 2026-10-07). The others show just their name, so the bar fits a phone. */
+export function sortLabel(name: string, chosen: boolean, descending: boolean): string {
+  return chosen ? `${name} ${descending ? '↓' : '↑'}` : name
 }
 
 /** Window of the "Geübt" option. */
@@ -31,22 +27,28 @@ export const PRACTICE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const byName = (a: string, b: string) => a.localeCompare(b, 'de', { sensitivity: 'base' })
 
 /**
- * `performance`: coming gigs first, the next one on top; then past gigs, the latest on top; then
- * setlists without a date, by name. `today` is "YYYY-MM-DD" - comparing these strings sorts by
- * date.
+ * Sorts by `key` ascending, or descending; entries without a key (undefined) always come last,
+ * in either direction. Ties by name, always A–Z.
  */
-export function sortSetlists(setlists: readonly Setlist[], sort: SetlistSort, today: string): Setlist[] {
-  const list = [...setlists]
-  if (sort === 'name') return list.sort((a, b) => byName(a.name, b.name))
-  const rank = (s: Setlist) => (!s.performanceDate ? 2 : s.performanceDate >= today ? 0 : 1)
-  return list.sort((a, b) => {
-    const ra = rank(a)
-    const rb = rank(b)
-    if (ra !== rb) return ra - rb
-    if (ra === 0) return a.performanceDate!.localeCompare(b.performanceDate!)
-    if (ra === 1) return b.performanceDate!.localeCompare(a.performanceDate!)
-    return byName(a.name, b.name)
+function sortBy<T>(list: readonly T[], key: (item: T) => string | number | undefined, name: (item: T) => string, descending: boolean): T[] {
+  return [...list].sort((a, b) => {
+    const ka = key(a)
+    const kb = key(b)
+    if (ka === undefined || kb === undefined) {
+      if (ka !== kb) return ka === undefined ? 1 : -1
+      return byName(name(a), name(b))
+    }
+    const order = typeof ka === 'number' && typeof kb === 'number' ? ka - kb : byName(String(ka), String(kb))
+    return (descending ? -order : order) || byName(name(a), name(b))
   })
+}
+
+/** `name`: A–Z (descending Z–A). `performance`: by gig date, the earliest first (descending the
+ * latest first); setlists without a date at the end. */
+export function sortSetlists(setlists: readonly Setlist[], sort: SetlistSort, descending = false): Setlist[] {
+  const name = (s: Setlist) => s.name
+  // "YYYY-MM-DD" strings compare like dates.
+  return sortBy(setlists, sort === 'name' ? name : (s) => s.performanceDate, name, descending)
 }
 
 /** Per song, for one person: how often they practised it in the last 30 days (Solo Üben). */
@@ -61,25 +63,23 @@ export function practiceStats(entries: readonly PracticeLogEntry[], profileId: s
 }
 
 /**
- * `setlist`: the active setlist's songs in its order on top (first appearance counts), then the
- * rest by title. `practiced`: most practised in the last 30 days first, unpractised at the end
- * by title (reversed: they come first - "what needs practice").
+ * `artist`: songs without one at the end. `setlist`: the active setlist's songs in its order
+ * (first appearance counts), the others at the end. `practiced`: how often practised in the last
+ * 30 days - ascending puts the least practised (what needs practice) first.
  */
-export function sortSongs(songs: readonly Song[], sort: SongSort, context: { activeSetlist: Setlist | null; stats: Map<string, number> }): Song[] {
-  const list = [...songs]
-  const byTitle = (a: Song, b: Song) => byName(a.title, b.title)
-  if (sort === 'title') return list.sort(byTitle)
-  if (sort === 'artist') return list.sort((a, b) => byName(a.artist ?? '￿', b.artist ?? '￿') || byTitle(a, b))
+export function sortSongs(
+  songs: readonly Song[],
+  sort: SongSort,
+  context: { activeSetlist: Setlist | null; stats: Map<string, number> },
+  descending = false,
+): Song[] {
+  const title = (song: Song) => song.title
+  if (sort === 'title') return sortBy(songs, title, title, descending)
+  if (sort === 'artist') return sortBy(songs, (song) => song.artist || undefined, title, descending)
   if (sort === 'setlist') {
     const position = new Map<string, number>()
     for (const entry of context.activeSetlist?.entries ?? []) if (isSongEntry(entry) && !position.has(entry.songId)) position.set(entry.songId, position.size)
-    return list.sort((a, b) => (position.get(a.id) ?? Infinity) - (position.get(b.id) ?? Infinity) || byTitle(a, b))
+    return sortBy(songs, (song) => position.get(song.id), title, descending)
   }
-  const count = (song: Song) => context.stats.get(song.id) ?? 0
-  return list.sort((a, b) => count(b) - count(a) || byTitle(a, b))
-}
-
-/** The chosen order, or its exact reverse (tapping the chosen option again). */
-export function inDirection<T>(list: T[], reversed: boolean): T[] {
-  return reversed ? [...list].reverse() : list
+  return sortBy(songs, (song) => context.stats.get(song.id) ?? 0, title, descending)
 }

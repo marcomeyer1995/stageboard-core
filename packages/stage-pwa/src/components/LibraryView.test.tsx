@@ -147,9 +147,9 @@ describe('LibraryView', () => {
     expect(names[1]).toMatch(/^Older/)
     unmount()
     render(<LibraryView />)
-    expect(screen.getByRole('radio', { name: 'A–Z' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'A–Z ↑' })).toHaveAttribute('aria-checked', 'true')
     openTab('Songs')
-    expect(screen.getByRole('radio', { name: 'Interpret ↓' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Interpret ↑' })).toHaveAttribute('aria-checked', 'true')
     localStorage.removeItem('stageboard-library-sort')
   })
 
@@ -172,15 +172,16 @@ describe('LibraryView', () => {
     expect(await screen.findByRole('heading', { name: /Older Gig/ })).toBeInTheDocument()
   })
 
-  it('tapping the chosen order again reverses it - Z-A, and back', () => {
+  it('first tap ↑ ascending, tapping again ↓ descending, and back', () => {
     localStorage.removeItem('stageboard-library-sort')
     render(<LibraryView />)
     const first = () => [...new Set(screen.getAllByRole('button').map((el) => el.textContent ?? '').filter((t) => /^(Alpha|Bravo|Charlie)/.test(t)))][0]
     expect(first()).toMatch(/^Alpha/)
-    fireEvent.click(screen.getByRole('radio', { name: 'A–Z' }))
-    expect(screen.getByRole('radio', { name: 'Z–A' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'A–Z ↑' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('radio', { name: 'A–Z ↑' }))
+    expect(screen.getByRole('radio', { name: 'A–Z ↓' })).toHaveAttribute('aria-checked', 'true')
     expect(first()).toMatch(/^Charlie/)
-    fireEvent.click(screen.getByRole('radio', { name: 'Z–A' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'A–Z ↓' }))
     expect(first()).toMatch(/^Alpha/)
     localStorage.removeItem('stageboard-library-sort')
   })

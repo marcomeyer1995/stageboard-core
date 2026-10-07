@@ -35,7 +35,7 @@ import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
 import { useShowMode } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { inDirection, practiceStats, sortLabelIndex, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
+import { practiceStats, sortLabel, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
 import { useActiveProfile } from '../lib/useActiveProfile'
 
@@ -49,6 +49,7 @@ const TAB_KEY = 'stageboard-library-tab'
 
 const SORT_KEY = 'stageboard-library-sort'
 interface LibrarySortChoice {
+  // reversed = descending (↓), the second tap.
   setlists: { by: SetlistSort; reversed: boolean }
   songs: { by: SongSort; reversed: boolean }
 }
@@ -67,12 +68,6 @@ function readSort(): LibrarySortChoice {
 }
 
 /** The tab this device last had open (a convenience - Setlists when storage fails). */
-/** Today as "YYYY-MM-DD" in local time - the format of Setlist.performanceDate. */
-function todayIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 /** "2026-12-24" → "24.12.2026". */
 function formatGigDate(date: string): string {
   const [y, m, d] = date.split('-')
@@ -375,7 +370,7 @@ export function LibraryView() {
   const term = search.trim().toLowerCase()
   const filteredSetlists = useMemo(() => {
     const matches = term ? setlists.filter((s) => s.name.toLowerCase().includes(term)) : setlists
-    return inDirection(sortSetlists(matches, sort.setlists.by, todayIso()), sort.setlists.reversed)
+    return sortSetlists(matches, sort.setlists.by, sort.setlists.reversed)
   }, [setlists, term, sort.setlists])
   const filteredSongs = useMemo(() => {
     const matches = term
@@ -383,7 +378,7 @@ export function LibraryView() {
           (s) => s.title.toLowerCase().includes(term) || s.artist?.toLowerCase().includes(term),
         )
       : songs
-    return inDirection(sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, stats }), sort.songs.reversed)
+    return sortSongs(matches, sort.songs.by, { activeSetlist: activeSetlist ?? null, stats }, sort.songs.reversed)
   }, [songs, term, sort.songs, activeSetlist, stats])
 
   // Flat, on-screen-order list of what ↑/↓ actually moves through - setlists (if the current
@@ -661,7 +656,7 @@ export function LibraryView() {
                 onSelectedTap={() => setSort({ ...sort, setlists: { ...sort.setlists, reversed: !sort.setlists.reversed } })}
                 options={(Object.keys(SETLIST_SORT_LABEL) as SetlistSort[]).map((value) => ({
                   value,
-                  label: SETLIST_SORT_LABEL[value][sortLabelIndex(value === sort.setlists.by, sort.setlists.reversed)],
+                  label: sortLabel(SETLIST_SORT_LABEL[value], value === sort.setlists.by, sort.setlists.reversed),
                 }))}
               />
             ) : (
@@ -672,7 +667,7 @@ export function LibraryView() {
                 onSelectedTap={() => setSort({ ...sort, songs: { ...sort.songs, reversed: !sort.songs.reversed } })}
                 options={(Object.keys(SONG_SORT_LABEL) as SongSort[]).map((value) => ({
                   value,
-                  label: SONG_SORT_LABEL[value][sortLabelIndex(value === sort.songs.by, sort.songs.reversed)],
+                  label: sortLabel(SONG_SORT_LABEL[value], value === sort.songs.by, sort.songs.reversed),
                 }))}
               />
             )}
