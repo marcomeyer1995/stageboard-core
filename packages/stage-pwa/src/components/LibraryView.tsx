@@ -79,13 +79,9 @@ function formatGigDate(date: string): string {
   return `${d}.${m}.${y}`
 }
 
-/** While sorting by practice: "geübt heute / vor 3 Tagen / nie geübt", or "2× in 30 Tagen". */
-function practiceNote(by: SongSort, stat: { last: number; recent: number } | undefined): string | undefined {
-  if (by === 'practiced30') return `${stat?.recent ?? 0}× in 30 Tagen`
-  if (by !== 'practiced') return undefined
-  if (!stat) return 'nie geübt'
-  const days = Math.floor((Date.now() - stat.last) / 86_400_000)
-  return days <= 0 ? 'geübt heute' : days === 1 ? 'geübt gestern' : `geübt vor ${days} Tagen`
+/** While sorting by practice: "2× in 30 Tagen". */
+function practiceNote(by: SongSort, count: number | undefined): string | undefined {
+  return by === 'practiced' ? `${count ?? 0}× in 30 Tagen` : undefined
 }
 
 function readTab(): LibraryTab {
