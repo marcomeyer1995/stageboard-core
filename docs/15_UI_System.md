@@ -51,6 +51,8 @@ Verhalten passt zur Form: das gewählte Segment erneut tippen ändert nichts; ei
 
 Alle drei Auswahl-Elemente teilen Höhe, Ecke, Gelb für „an/gewählt“ und Schrift; nur ein Signal unterscheidet sie (zusammenhängend, Kästchen, Knopf).
 
+Bibliothek: kein Filter „Alle / Setlists / Songs“ mehr - die Überschriften „Setlists“ und „Songs“ klappen ihre Liste ein (pro Gerät gemerkt), beim Suchen sind beide immer offen (2026-10-07).
+
 ## 5. Tokens (Phase 1)
 
 Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in `tailwind.config.js` verdrahtet:
@@ -74,7 +76,7 @@ In `packages/stage-pwa/src/components/ui/`, jede mit Tests und passenden ARIA-At
 |---|---|---|
 | Aktionen | `Button` (Hauptaktion · sekundär · Gefahr · leise; Größe show · stage · form) | handgeschriebene Buttons, 10 lokale Stil-Konstanten (~245) |
 | | `IconButton` (nie unter 48 px) | ⋯, ×, ↑↓, Stepper (~25) |
-| Auswahl | `Segmented` | Ansicht, Modus, Filter, Sync, Blitzmeldungen, Editor-Umschalter (~20) |
+| Auswahl | `Segmented` | Ansicht, Modus, Sync, Blitzmeldungen, Editor-Umschalter (~20) |
 | | `ToggleChip` | Gig/Solo, Empfänger, Akkordarten, Timeline-Schalter (~25) |
 | | `Switch` (`role="switch"`) | native Checkboxen, „Einrasten“ (~10) |
 | | `Tabs` (`role="tablist"`) | System-Tabs, Editor-Tabs (~4) |
