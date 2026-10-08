@@ -200,11 +200,6 @@ export function listTabBlocks(content: string): TabBlockOccurrence[] {
 }
 
 /**
- * Which raw lines Tap-to-Sync may put a timestamp on: lyric lines only. Blank lines, part and
- * comment directives, and everything belonging to a tab block are skipped - a time tag in front
- * of a directive turns it into plain lyric text, and inside a tab block it corrupts the staff.
- */
-/**
  * A Stage-Messenger alert authored into the song (#26): `{alert: VAMP}`, usually with a time tag
  * in front (`[02:14.00] {alert: Noch 4 Takte}`) - at that moment every playing device flashes
  * the text. Not a lyric line: the prompter skips it, Tap-to-Sync never stamps it.
@@ -225,6 +220,11 @@ export function songAlerts(content: string): Array<{ timeMs: number; text: strin
   return alerts.sort((a, b) => a.timeMs - b.timeMs)
 }
 
+/**
+ * Which raw lines Tap-to-Sync may put a timestamp on: lyric lines only. Blank lines, part and
+ * comment directives, and everything belonging to a tab block are skipped - a time tag in front
+ * of a directive turns it into plain lyric text, and inside a tab block it corrupts the staff.
+ */
 export function tappableLines(rawLines: readonly string[]): boolean[] {
   const tappable = rawLines.map(() => false)
   for (let i = 0; i < rawLines.length; i++) {
