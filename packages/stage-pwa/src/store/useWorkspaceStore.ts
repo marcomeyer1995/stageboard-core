@@ -256,7 +256,10 @@ async function provisionWithProof(
   known: Workspace[],
 ): Promise<{ username: string; password: string } | null> {
   const dialogs = useDialogStore.getState()
-  const admin = known.find((w) => w.isAdmin && w.username && w.couchPassword)
+  // The admin logins this device has belong to its Stage-Server (one per device, #84) - never hand
+  // them to another server typed in by hand when connecting a solo band there (#396 review).
+  const sameServer = base.replace(/\/+$/, '') === (getStageServerUrl() ?? '').replace(/\/+$/, '')
+  const admin = sameServer ? known.find((w) => w.isAdmin && w.username && w.couchPassword) : undefined
   const proof = admin ? { adminUsername: admin.username!, adminPassword: admin.couchPassword! } : {}
   const response = await fetch(`${base}/workspaces`, {
     method: 'POST',
