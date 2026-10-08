@@ -1,6 +1,8 @@
 # StageBoard - Projektstatus, Fähigkeiten und Use Cases
 
-Stand: 2026-10-04, `main` @ `fd668cc` (nach #281-#358). Seit dem letzten Stand dazugekommen: Bühnengröße für alle Widgets und Dashboards je Modus (#281-#305), die feste Statusleiste (PR F2), der **Timeline-Editor** mit Raster, Liedtext, Notizen, Cues, Übersichtsleiste, einklappbaren Spuren und Einrast-Schalter (docs/14, #307-#358), das **starre Klick-Raster mit Ausrichtungspunkten statt Beat-Ankern** (#313/#314), die **native Android-App** mit Zertifikat-Pinning und Updates vom Stage-Server (#348-#350), die Zurück-Navigation innerhalb der App (#341), robuster Stage-Server-Betrieb (Start ohne Desktop-Anmeldung, schnelles Stoppen, mDNS wartet aufs Netz, #335/#336/#339) und die Umbenennung „Live" → „Boards" (#333). 33 offene Issues.
+Stand: 2026-10-08, `main` @ `ff1e417` (nach #359-#432). Seit 2026-10-04 dazugekommen: **ein UI-System für die ganze App** (gemeinsame Komponenten, Ecken/Größen nach Rolle, ein Dialog-Muster, Wächter-Test - docs/15, #424/#425) und echte Linien-Icons statt Emoji (#380); **Dashboards werden im Menü bearbeitet** (Reihenfolge/Ausblenden je Gerät, Einstellungen im ⋯ der Edit-Leiste, kein Langdruck-Schloss und kein „Dashboards verwalten“ mehr, #422) und **schreibgeschützte Vorlagen** (#16/#401); die **Statusleiste nach Rangfolge** (#429); die **Bibliothek** mit Tabs, Sortierung (Geübt/Geprobt), Setlist-Vorschau mit ausdrücklichem Speichern (#430) und **nie mehr stillem Datenverlust** beim Verlassen eines Editors (#431); das Menü ohne Scrollen im Querformat (#432); **Stage-Messenger** (#26/#400), **Bluetooth-Fußtaster/Tastatur** (#27/#394), **Master je Person** (#85/#409), Cues an das richtige von mehreren gleichen Geräten (#149/#408), **Diagnose-Tab mit Live-Debug-Konsole** (#14/#402), Master-Selbstprüfung (#378/#392), geführte Song- und Setlist-Anlage (#182/#183), Timeline: alles danach verschieben (#330/#393) und Feinmodus (#334/#407), Tonart/Kapo im Prompter (#410/#411); Sicherheit: **CouchDB nur noch auf localhost**, Admin-Logins auf ihre Band beschränkt und nach 5 Fehlversuchen gesperrt (#419), Band-Anlage braucht einen Nachweis (#364/#396), Server-Befehle `band:delete` und `admin:reset` (#70), wiederherstellbar gelöschte Datenbanken (#362); Geräte-Liste aufräumen (#426); native App findet den Stage-Server per mDNS (#351/#367); viele Bühnen-Korrekturen aus dem 4-Geräte-GUI-Check (#369-#378). 25 offene Issues.
+
+Vorheriger Stand: 2026-10-04, `main` @ `fd668cc` (nach #281-#358). Seit dem letzten Stand dazugekommen: Bühnengröße für alle Widgets und Dashboards je Modus (#281-#305), die feste Statusleiste (PR F2), der **Timeline-Editor** mit Raster, Liedtext, Notizen, Cues, Übersichtsleiste, einklappbaren Spuren und Einrast-Schalter (docs/14, #307-#358), das **starre Klick-Raster mit Ausrichtungspunkten statt Beat-Ankern** (#313/#314), die **native Android-App** mit Zertifikat-Pinning und Updates vom Stage-Server (#348-#350), die Zurück-Navigation innerhalb der App (#341), robuster Stage-Server-Betrieb (Start ohne Desktop-Anmeldung, schnelles Stoppen, mDNS wartet aufs Netz, #335/#336/#339) und die Umbenennung „Live" → „Boards" (#333). 33 offene Issues.
 
 Ältere Grundlage: Stand 2026-09-26, `main` @ `05b8301` (nach #255-#278). Grundlage ist der gelesene Quelltext; die drei Teile unten wurden am 2026-09-19 (`e265c88`) aus dem Code erhoben und stichprobenartig gegengeprüft (kein Client sendet `scheduledAt`, Master schreibt lokale `Date.now()`) und am 2026-09-20 um die seither ausgelieferten Änderungen ergänzt: Festival-Uhr (#28), Übergangs-/Abschnitts-Einträge (#29), Master-Heartbeat mit Force Takeover (#32), Transposition/Capo (#59), Loop-Trainer (#61), Ready-Check (#60), die Nachschlage-Widgets Akkord-Nachschlagen und Quintenzirkel (#24) der Cue-Recorder (#6), das Einrasten auf Onsets (#7, erste Scheibe), die Bugfixes #247-#249, die YouTube-Referenzspur über Async-Jobs (#5), der gereifte Ultimate-Guitar-Import (#277) und Tab-Blöcke im ChordPro (#278). **Seit 2026-09-25 ist StageBoard produktiv im Einsatz** (Betrieb: docs/03 §0b). Damals 26 offene Issues. Nichts davon wurde neu auf Tablets getestet; die Tablet-/Geräte-Prüfungen von #5, #6, #7, #24, #32, #59, #60 und #61 stehen ausdrücklich noch aus (siehe Risiken unten).
 
@@ -420,7 +422,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ---
 
-### 4. Boards (bis #333 „Live“): Dashboard (`Dashboard.tsx`, `WidgetFrame.tsx`, `DashboardEditBar.tsx`, `DashboardManager.tsx`, `WidgetLibrary.tsx`, `EditLock.tsx`)
+### 4. Boards (bis #333 „Live“): Dashboard (`Dashboard.tsx`, `WidgetFrame.tsx`, `DashboardEditBar.tsx`, `DashboardMenuList.tsx`, `DashboardSettingsDialog.tsx`, `WidgetLibrary.tsx`)
 
 #### 4.1 Dashboard-Raster
 - **Was:** `react-grid-layout`-Raster, Breakpoints `xl 1600 / lg 1024 / md 640 / sm 0` (Layout wird pro Breakpoint gespeichert, Breite wird real gemessen). Im Normalbetrieb **schreibgeschützt**: nichts bewegt sich. Sichtbare Dashboards = geteilte + eigene private Stations (`isDashboardVisible`). Fällt das gemerkte Dashboard weg, wird das erste sichtbare gezeigt. Unbekannte Widget-Typen (nach Update entfernt) erscheinen als „Unbekanntes Widget" mit Entfernen-Möglichkeit. Widgets, deren Hardware nicht erreichbar ist, bleiben **an Ort und Stelle, grau, inert, mit „⃠ Offline"** (Graceful Degradation).
@@ -428,13 +430,13 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Seed:** Zwei Standard-Dashboards mit festen IDs (`default-prompter`, `default-monitoring`), damit gleichzeitiges Seeden mehrerer Tablets nicht dupliziert.
 - **UC:** Sängerin hat ein „Prompter"-Dashboard mit Lyrics und Queue; Techniker ein „Monitoring"-Dashboard – beide auf ihrem eigenen Tablet.
 
-#### 4.2 Edit-Lock / Bearbeitungsmodus
-- **Was:** `EditLock` im Menü (nur in Live): 600 ms **Langdruck** auf „Bearbeiten 🔒" entsperrt; der Knopf füllt sich dabei als Fortschritt, ein zu kurzer Tipp zeigt „Zum Bearbeiten gedrückt halten" (vorher nur ein auf Touch unsichtbarer Tooltip). Beenden per „🔒 Bearbeiten beenden" in der Edit-Leiste (hieß „🔒 Fertig" - wie das „Fertig" des Dashboard-Managers, das nur den Manager schließt; der heißt jetzt „Schließen", ebenso der Knopf unten im App-Menü). Zustand wird **nicht persistiert** – nach Reload ist wieder alles gesperrt.
-- **Gating:** rein UX-Schutz gegen Fehlbedienung, keine Rolle/PIN.
-- **UC:** Bühne, Tablet im Ständer: ein versehentliches Tippen verschiebt nichts; erst der bewusste Langdruck im Menü erlaubt Umbauten.
+#### 4.2 Bearbeitungsmodus (seit #422, 2026-10-07)
+- **Was:** Die Dashboard-Liste im Menü schaltet normalerweise nur um. Alles, was etwas ändert, liegt hinter **einem** Knopf **„Bearbeiten“** unter der Liste (`DashboardMenuList`): danach hat jede Zeile einen Ziehgriff (Reihenfolge), ein Auge (ausblenden) - beides **nur auf diesem Gerät** (`useDashboardMenuStore`) - und einen Stift, der das Dashboard im Edit-Modus öffnet; darunter „Neues Dashboard“ (privat für den Anlegenden). Eine Vorlage, die das Profil nicht ändern darf (#16), zeigt ein Schloss; ihr Stift bietet „Eigene Kopie bearbeiten“. Kommt man aus dem Edit-Modus zurück, öffnet sich die Liste wieder im Bearbeiten-Zustand. Der frühere `EditLock` (600-ms-Langdruck) und der `DashboardManager` sind entfernt. Edit-Zustand wird **nicht persistiert** – nach Reload ist wieder alles gesperrt.
+- **Gating:** UX-Schutz gegen Fehlbedienung; geschützte Vorlagen zusätzlich per Rolle (nur Admins, auch im CouchDB-Validator).
+- **UC:** Bühne, Tablet im Ständer: ein versehentliches Tippen im Menü schaltet höchstens das Dashboard um; erst „Bearbeiten“ und der Stift erlauben Umbauten.
 
 #### 4.3 Edit-Leiste (`DashboardEditBar`)
-- **+ Widget** öffnet die Widget-Bibliothek. **Dashboards verwalten** öffnet den `DashboardManager`. **Zurücksetzen** (Bestätigung, rot) verwirft **alle** Dashboards und legt die Standard-Layouts neu an. **🔒 Bearbeiten beenden** beendet den Modus.
+- Ersetzt im Edit-Modus die Statusleiste, eine Zeile fester Höhe: Name (antippen = umbenennen), **+ Widget** (Widget-Bibliothek), breites **⋯** (`DashboardSettingsDialog`: *Anbieten in* Gig/Solo, *Sichtbar für* Ganze Band/Nur ich, *Statusleiste anzeigen*, *Als Vorlage schützen* (Admins), *Duplizieren*, *Dashboard löschen* (das letzte geteilte bleibt), *Alle Dashboards zurücksetzen*) und **🔒 Fertig** (beendet den Modus).
 
 #### 4.4 Widget-Rahmen (`WidgetFrame`)
 - Im Edit-Modus ist der ganze Widget-Körper Ziehgriff, der Inhalt inert. **⋯-Menü** (auch per Doppelklick): Widget-eigene Konfiguration (ConfigPanel), **Rahmen ein-/ausblenden** („frameless", nur in der gesperrten Ansicht wirksam), **Entfernen** (rot, bewusst abgesetzt, ohne zweite Bestätigung).
@@ -449,13 +451,13 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Bühnen-Stufe (2026-09-27):** Jede Karte trägt ein Badge *Gig*, *Gig-Blick* oder *Probe* (`stageTier`, siehe docs/07 §3); ein Probe-Widget auf einem auch im Gig verfügbaren Dashboard bekommt den Hinweis „Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar" (kein Verbot).
 - **UC:** Eine Band ohne Lichtplugin sieht keine Licht-Widgets – die Bibliothek bleibt übersichtlich.
 
-#### 4.6 Dashboards verwalten (`DashboardManager`)
-- **Was:** Liste „Meine Stations" + „Geteilt": ▲/▼ umordnen, Inline-Umbenennen, **Anzeigen**, **Duplizieren** (`<Name> Kopie`), **Löschen** (das **letzte öffentliche** Dashboard ist gesperrt), und **seit 2026-09-27 die Chips „Gig" / „Solo"**: in welchem Modus das Dashboard angeboten wird (`Dashboard.modes`, fehlt = beide; der letzte Chip eines Modus ist gesperrt); **+ Neu** mit Besitzer: *Geteilt*, *<Profil> (privat)* oder *Rolle: <Rolle> (privat)*.
-- **Gating:** Edit-Modus; Privatheit ist **nur Anzeigefilter** (Dokument repliziert trotzdem zu jedem Gerät).
-- **UC:** Der Tontechniker legt ein privates „FOH"-Dashboard für die Rolle *soundtech* an, das sonst niemand sieht. Der Gitarrist stellt sein Probe-Dashboard (Loop-Trainer, Quintenzirkel) auf „nur Solo" - im Gig taucht es im Menü gar nicht auf.
+#### 4.6 Dashboard-Einstellungen (`DashboardSettingsDialog`, ersetzt seit #422 den `DashboardManager`)
+- **Was:** siehe 4.3. Modi-Chips: in welchem Modus das Dashboard angeboten wird (`Dashboard.modes`, fehlt = beide; der letzte eines Modus ist gesperrt). Ein neues Dashboard ist privat („Nur ich“) und wird hier für die Band geteilt; „Nur ich“ ist gesperrt für das letzte geteilte Dashboard oder ohne Profil. Rollen-eigene Dashboards (*Rolle: <Rolle>*) sind mit #422 entfallen.
+- **Gating:** Edit-Modus; Privatheit ist **nur Anzeigefilter** (Dokument repliziert trotzdem zu jedem Gerät). Vorlagen (`isReadOnly`, #16): nur Admins ändern sie - der Roster-Validator lehnt andere Schreibzugriffe ab.
+- **UC:** Der Gitarrist stellt sein Probe-Dashboard (Loop-Trainer, Quintenzirkel) auf „nur Solo“ - im Gig taucht es im Menü gar nicht auf. Der Bandleader schützt „Prompter“ als Vorlage; wer es anpassen will, bekommt eine eigene Kopie.
 
 #### 4.7 Dashboard-Auswahl im Menü
-- `AppMenu` zeigt den Abschnitt **Dashboards** nur bei >1 sichtbarem Dashboard; Wahl wechselt direkt nach Live (`useActiveDashboardStore`, pro Gerät+Band gemerkt). Seit 2026-09-27 zählen nur die Dashboards des **aktuellen Modus** (`useModeDashboards`), und gemerkt wird **je Modus**: Gig → das zuletzt im Gig gezeigte Dashboard, Solo Üben → das zuletzt beim Üben gezeigte; ist das aktuelle in beiden Modi verfügbar, bleibt es stehen. Gleiches gilt für den Dashboard-Umschalter.
+- `AppMenu` zeigt den Abschnitt **Dashboards** (`DashboardMenuList`); Wahl wechselt direkt nach Boards (`useActiveDashboardStore`, pro Gerät+Band gemerkt). Es zählen nur die Dashboards des **aktuellen Modus** (`useModeDashboards`), in der eigenen Reihenfolge des Geräts, ohne die ausgeblendeten; gemerkt wird **je Modus**. Der Dashboard-Umschalter zeigt seit #422 **genau diese Liste** (keine eigene band-weite Auswahl mehr).
 
 ---
 
@@ -464,12 +466,13 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 | Abschnitt | Funktion | Gating / Hinweis |
 |---|---|---|
 | **Ansicht** | Boards / Bibliothek / System | offen |
-| **Dashboards** | Aktives Dashboard wählen | nur bei >1 sichtbarem |
+| **Dashboards** (`DashboardMenuList`) | Aktives Dashboard wählen; „Bearbeiten“ für Reihenfolge, Ausblenden, Neu und Stift (4.2) | immer |
 | **Modus** (`SessionModeControl`) | **Gig** ↔ **Solo Üben**. In Solo läuft die Queue rein lokal, Wiedergabe über das eigene Gerät. Wechsel **Solo → Gig** stoppt lokales Playback und setzt es zurück (#233); **Gig → Solo** ist gesperrt, solange die geteilte Show spielt („Wechsel zu Solo Üben erst möglich, wenn gerade kein Song läuft"). | nur pro Gerät; Sperre = Sicherheitsfeature |
 | **Setlist zum Üben** (`PracticeSetlistPicker`) | Nur im Solo-Modus: „Keine Setlist (ganzer Katalog)" oder eine bestehende Setlist. Wechsel stoppt Wiedergabe und setzt Position/Overrides zurück (#234). | lokal, berührt nie den ShowState |
 | **Master-Kontrolle** (`MasterControl`) | Zeigt, wer Master ist (mit „antwortet nicht" bei ausbleibendem Heartbeat); „Übernehmen" bzw. „Force Takeover" (nur `admin`/`showmaster` gegen einen lebenden Master); als Master „Master abgeben"; zeigt die aktive Setlist. | nur im Gig-Modus |
-| **Dashboard** (`EditLock`) | Langdruck „Bearbeiten 🔒" | nur in Live |
-| **Anzeige** | Vollbild an/aus | nur wenn Browser es unterstützt |
+| **Anzeige** | Vollbild an/aus (`Switch`) | nur im Browser/PWA, wenn unterstützt - die native App läuft immer im Vollbild (#412) |
+
+Das Menü ist ein normaler Dialog mit „Fertig“ unten (docs/15 D6). Im Querformat ohne Scrollen (#432): ab 1000 px drei Spalten, ab Tablet-Breite zwei, die wachsende Dashboard-Liste rechts; Hochformat einspaltig. „Ansicht“ ist eine zusammenhängende Leiste wie „Modus“.
 
 - **UC (Solo):** Gitarrist übt zu Hause die Setlist der nächsten Show mit Klick und Backing-Track, ohne dass die Band-Show-Uhr berührt wird. **UC (Gig):** Beim Stagewechsel gibt der bisherige Master das Token mit „Master abgeben" zurück und das Tablet des Bandleaders übernimmt; fällt ein Master aus, übernimmt nach 15 s jeder, oder ein Admin/Showmaster sofort per Force Takeover.
 
@@ -477,9 +480,9 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ### 6. Bibliothek (`LibraryView.tsx`, `SetlistDetail.tsx`, `SongPreview.tsx`, `SheetEditor.tsx` + Editor-Bausteine)
 
-#### 6.1 Bibliothek-Liste (`LibraryView`)
-- **Suche** (Titel/Artist, Setlist-Namen), Filter **Alle | Setlists | Songs**, Setlists nach Erstelldatum absteigend, Songs alphabetisch.
-- **+ Neu (Setlist):** Name per In-App-Dialog; öffnet die Setlist. **+ Neu (Song):** Titel per Dialog; legt Song mit Defaults (120 BPM, 4/4, leer) an und springt in den Editor.
+#### 6.1 Bibliothek-Liste (`LibraryView`, seit #430)
+- **Tabs „Setlists (n)“ / „Songs (n)“** (vorher ein Filter Alle/Setlists/Songs), darüber die **Suche** des Tabs. **Sortierleiste** je Tab, je Gerät gemerkt (`useLibraryPrefsStore`, `lib/librarySort.ts`): erster Tipp ↑ aufsteigend, zweiter ↓ absteigend; Einträge ohne Wert immer am Ende. Setlists: *Name* · *Auftritt* (Gig-Datum `performanceDate`, Standard). Songs: *Titel* · *Interpret* · *Setlist* (Reihenfolge der aktiven Setlist) · *Geübt* (eigene Solo-Üben-Durchläufe ≥ 20 s ohne Pause, je Profil, synchronisiert; Zeitraum je Gerät 7/14/30/90 Tage; ohne Profil wird nichts erfasst) · *Geprobt* (Gig-Durchläufe der Band aus dem Show-Log; Zeitraum band-weit in Tagen oder letzten N Shows, nur Admins, `band-settings`-Dokument). Die Zeile zeigt Anzahl und „zuletzt“.
+- **Neue Setlist** (`AddRow` am Listenende): ein Dialog mit Name und optionalen Start-Songs (#183, `NewSetlistDialog`). **Neuer Song**: geführter Ablauf Name → Inhalt (Ultimate-Guitar-Import oder leer) → Grundeinstellungen (#182, `NewSongWizard`); geschrieben wird erst bei „Song anlegen“.
 - **Song-Zeile:** Tippen = Vorschau (nochmal tippen schließt). **Touch:** Wischen nach rechts (≥90 px) fügt zur **aktiven Setlist** hinzu (Hintergrund „+ Zur aktiven Setlist"). **Maus:** „+"-Button, **Rechtsklick**-Kontextmenü, Zeilen-⋯. Menüpunkte: *Zur aktiven Setlist hinzufügen* (deaktiviert ohne aktive Setlist), *Duplizieren* (Dialog, nur Maus), *Offline anheften / Offline-Pin entfernen*, *Löschen* (mit Bestätigung).
 - **Drag & Drop (Touch):** Song auf die geöffnete Setlist-Spalte ziehen fügt dort ein (im Zwei-Spalten-Layout).
 - **Tastatur (Maus-Bahn):** ↑/↓ Fokusring, Enter öffnet, Strg/Cmd+F fokussiert die Suche; inaktiv solange ein Dialog offen ist.
@@ -487,7 +490,8 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Gating:** keine (jeder mit Zugriff auf die Band; Datenschutz nur über Bandzugehörigkeit).
 
 #### 6.2 Setlist-Detail (`SetlistDetail`)
-- **Kopf:** Name, Badge **„● Aktiv"**, **Aktivieren** (setzt die geteilte aktive Setlist; **nur Master**, sonst deaktiviert), ⋯-Menü: **Umbenennen, Duplizieren („(Kopie)"), Löschen** (Bestätigung; löscht eine aktive Setlist → zuerst als Master deaktiviert). **„Setlist deaktivieren (alle Songs)"** (nur Master).
+- **Seit #430 zuerst eine Vorschau** (`SetlistPreview`, wie die Song-Vorschau): Name, Gig-Datum, Zeitplan, Reihenfolge; nur Aktivieren/Deaktivieren direkt. Ändern nur über **Bearbeiten** (Entwurf) und **Speichern**; jeder Weg hinaus mit ungespeicherten Änderungen fragt **Speichern / Verwerfen / Weiter bearbeiten** (#431, `lib/unsavedChanges.ts` - gilt genauso im Song-Editor; neue Editoren melden sich über `useUnsavedChangesGuard` an). Felder wie Gig-Datum und Festival-Uhr-Zeitplan gingen vor #430 beim Laden verloren (`toSetlist` kopierte nur einige Felder).
+- **Kopf (Bearbeiten):** Name, Badge **„Aktiv"**, **Aktivieren** (setzt die geteilte aktive Setlist; **nur Master**, sonst deaktiviert), ⋯-Menü: **Umbenennen, Duplizieren („(Kopie)"), Löschen** (Bestätigung; löscht eine aktive Setlist → zuerst als Master deaktiviert). **„Setlist deaktivieren (alle Songs)"** (nur Master).
 - **Einträge:** Ziehgriff ⠿ zum Umsortieren (Drag), Titel-Klick öffnet den Song, **Variantenwahl** (Portal-Dialog, weil ein `<select>` im scrollenden Container abgeschnitten wurde), ⋯ **Entfernen**. Derselbe Song darf **mehrfach** vorkommen (z. B. Vollversion + Kurzfassung als Zugabe).
 - **Song hinzufügen:** durchsuchbare Combobox (Tippen filtert, Esc/Klick außerhalb schließt).
 - **Übergangstyp pro Eintrag** (#232, neu): „→"-Button in jeder Zeile außer der letzten öffnet einen Dialog mit **Manuell** (Standard, stoppt am Ende), **Nächster bereit** (stoppt, stellt den nächsten Song bereit), **Nahtlos** (nächster Song startet sofort ohne Einzähler; Track wird vorgeladen), **Mit Pause** (Pause in Sekunden, dann Start mit Einzähler). Fortgeschrittenes Detail: Bar-Extend (#231) verschiebt den Übergangspunkt.
@@ -512,9 +516,9 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ---
 
-### 7. System-Ansicht (`SystemView.tsx`) – sieben Tabs
+### 7. System-Ansicht (`SystemView.tsx`) – acht Tabs
 
-Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbericht, Einstellungen** (\* nur sichtbar, wenn eine Backup-Capability installiert ist). Der aktive Tab wird in `useActiveSystemTabStore` veröffentlicht – die Hardware-Hot-Plug-Abfrage darf nur feuern, wenn „System → Hardware" tatsächlich offen ist.
+Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbericht, Einstellungen, Diagnose** (Diagnose seit #402: Live-Debug-Konsole, `DebugConsoleView`) (\* nur sichtbar, wenn eine Backup-Capability installiert ist). Der aktive Tab wird in `useActiveSystemTabStore` veröffentlicht – die Hardware-Hot-Plug-Abfrage darf nur feuern, wenn „System → Hardware" tatsächlich offen ist.
 
 #### 7.1 Band (`BandManagementView`)
 - **Serverstatus-Zeile:** „Hardware auf diesem Server aktiv für: <Band>" / „Keine Band-Hardware aktiv" / „nicht erreichbar" / „antwortet langsam".
@@ -539,7 +543,7 @@ Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbe
 - **UC:** Der Gitarrist steckt seinen Kemper per USB ein → Prompt „Neues Gerät: Kemper – welche Rolle?" → Wizard → Testen → Cues am Song zielen auf „Marcos Kemper".
 
 #### 7.5 Geräte (`DeviceLedgerView`)
-- **Geräte-Ledger:** jedes Gerät, das der Band je beigetreten ist; je Zeile Name, Hostname/OS/IP, Umgebung, Sync-Status, **„App offen"** (frische Geräte-Meldung) und **„Netzwerk erreichbar"** (echter ICMP-Ping des Stage-Servers), „Zuletzt gesehen". Oben: Stage-Server (LAN-IP). **Admin:** **Entfernen/Wiederherstellen** eines Geräts (Bestätigung; Server prüft Admin; 403 → Dialog). Geräte-Diagnose wird nur **gepollt, solange dieser Tab offen ist** (SSE-Connection-Budget des Browsers).
+- **Geräte-Ledger:** jedes Gerät, das der Band je beigetreten ist; je Zeile Name, Hostname/OS/IP, Umgebung, Sync-Status, **„App offen"** (frische Geräte-Meldung) und **„Netzwerk erreichbar"** (echter ICMP-Ping des Stage-Servers), „Zuletzt gesehen". Oben: Stage-Server (LAN-IP). **Admin:** **Blockieren/Freigeben** eines Geräts (hieß „Entfernen“; Bestätigung; Server prüft Admin; 403 → Dialog). Seit #426/#428 **alte Geräte aus der Liste entfernen** (`POST /workspaces/:id/devices/:deviceId/forget`; einzeln oder „Inaktive entfernen“ = kein Live-Signal, nachdem der Server 5 min gesammelt hat). Geräte, die als Ausführungsziel von Hardware eingetragen sind, und blockierte bleiben. Geräte-Diagnose wird nur **gepollt, solange dieser Tab offen ist** (SSE-Connection-Budget des Browsers).
 - **UC:** Ein Tablet hört mitten im Soundcheck auf zu reagieren: im Ledger sieht man „Netzwerk erreichbar ✔, App offen ✘" → App wurde geschlossen, nicht das WLAN ausgefallen.
 
 #### 7.6 Backup (`BackupManager`)
@@ -962,20 +966,19 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 
 ---
 
-### 7. Geplant, aber nicht gebaut (Stand offene Issues, 33 - 2026-10-04)
+### 7. Geplant, aber nicht gebaut (Stand offene Issues, 25 - 2026-10-08)
 
 | Bereich | Issues |
 |---|---|
 | **Live-Show-Automatik** | #7 Auto-Cue-Erkennung (erste Scheibe gebaut: Einrasten; offen: Validierung mit echten Abschnittszeiten in #267, Vorschlags-Zuweisung), #8 Live-Cue-Firing + Post-Show-Persistenz |
-| **Setlist/Fluss** | #244 Crossfade, #183/#182 geführte Song-/Setlist-Anlage |
-| **Musiker-Werkzeuge** | #26 Stage-Messenger, #27 Bluetooth-Fußtaster (Tastenbelegung; in der Android-App nativ möglich, #348 Phase 3) |
-| **Timeline/Klick** | #330 alles nach einem Punkt verschieben (z. B. nach Track-Tausch), #354 allmähliche Tempowechsel (Ritardando) + Warnung beim Tippen, #334 Feinpositionierung per Abstand (niedrige Priorität), #267 Onset-Einrasten validieren |
+| **Setlist/Fluss** | #244 Crossfade |
+| **Timeline/Klick** | #354 allmähliche Tempowechsel (Ritardando) - Entwurf PR #399, #267 Onset-Einrasten validieren |
 | **Latenz** | #302 Ausgabelatenz je Gerät ausgleichen, #303 Geräte-Fähigkeitsprofil, #317 Latenz externer Geräte (alle bewusst geparkt) |
-| **Native App** | #351 Server-Suche per mDNS und IP-Wechsel folgen (Phase 2 von #348) |
 | **Audio-Pipeline** | #9 Stem-Trennung (kann auf der Async-Job-Warteschlange aus #5 aufsetzen), #66 Tone-Match (IR), #63 Ansage-TTS für In-Ears |
-| **Hardware/Architektur** | #149 Multi-Instanz-Routing, #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
-| **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #16 Read-only-Vorlagen-Dashboards, #70 Break-Glass-CLI, #84 Band auf abweichendem Server, #85 Master-Token-Modus |
-| **Sonstiges** | #14 Live-Debug-Konsole, #15 Robustheit UG/MusicBrainz, #25 Visual-Metronome/Click (Feature-Kern läuft, Issue offen), #64 Post-Gig-Telemetrie, #65 Publikums-QR-Jukebox, #213 Container-Widgets |
+| **Hardware/Architektur** | #62 räumliche Bühnenmatrix, #17 dynamischer Server-Plugin-Code, #36 Kern-vs-Plugin-Grenze |
+| **Konten/Sicherheit** | #57 Rollen-Zugriff auf Widgets, #84 Band auf abweichendem Server |
+| **Betrieb** | #363 automatisches Backup auf ein zweites Medium (Entwurf PR #405, Ziel-Medium offen), #404 unplausible Spielzeiten im Nachbericht (Optionen A/B/C offen) |
+| **Sonstiges** | #15 Robustheit UG/MusicBrainz (Teil 1 mit #406), #25 Visual-Metronome/Click (Feature-Kern läuft, Issue offen), #64 Post-Gig-Telemetrie, #65 Publikums-QR-Jukebox, #213 Container-Widgets |
 
 **Laut Ausbaustufen-Doku (`docs/02`) nicht vorhanden:** Auto-Failover A/B-Server (Stufe 5), Cloud-Sync/VPS (Stufe 4), Auto-Backup auf USB/NAS, Multikanal-Audio-Routing (Dante/USB-Interface), echte Mixer-/DMX-Server-Adapter. (Native-App-mDNS-Discovery ist jetzt #351.)
 
@@ -986,7 +989,7 @@ Client-Translatoren: `kemperTranslator` (`kemper.selectRig`, `kemper.stomp`), `c
 1. **Ahead-of-Time-Dispatch (`docs/00 §4`) nur halb gebaut.** Der Server-Gateway unterstützt `scheduledAt` (`POST /plugins/:name/trigger` wartet bis dahin), aber **kein Client-Code sendet je `scheduledAt`** (kein Treffer in `stage-pwa/src`). Cues werden per ~60-fps-Polling der Elapsed-Zeit gefeuert, nicht per Web-Audio-`start(time)`/`midiOutput.send(data, time)`; `setTimeout` wird im Deferred-Count-in-Pfad (`practiceQueue.ts`) und im neuen `delayed`-Übergang genutzt.
 2. **Uhr-Basis beim Transportstart** – *behoben 2026-09-27*: der Master schrieb lokale `Date.now()`, Leser rechnen mit Server-Zeit (6.2); live gemessen 2,1 s Versatz (Tablet-Uhr 2126 ms vor). Jetzt stempelt `queue.ts` mit `getServerTime()`.
 3. **Unauthentifizierte Routen:** `PUT/GET/DELETE /audio/*`, `POST /plugins/:name/trigger`, `POST …/devices/:id/trigger`, alle Discovery-POSTs, Präsenz/Health/Device-Info-Reports. Modell = „Wer im Band-WLAN ist, vertraut sich“. Ein Fremder im selben Netz könnte Audio überschreiben/löschen. Für Touring mit fremdem Venue-WLAN relevant.
-4. **CouchDB-Default `admin/admin`** im Code, wenn keine Umgebungsvariablen gesetzt sind.
+4. **CouchDB-Default `admin/admin`** im Code, wenn keine Umgebungsvariablen gesetzt sind. *Entschärft mit #419:* CouchDB lauscht nur noch auf `127.0.0.1`, das Passwort kommt aus einer Datei auf dem Server; der Fallback im Code bleibt für die Entwicklung.
 5. *(erledigt mit #249)* Server-Plugin-Katalog = PWA-Katalog: `mock-backup` und `mock-click` haben jetzt eine Mock-Server-Seite.
 6. **Flüchtiger Serverzustand:** Präsenz, Geräte-Info, Plugin-Health, Discovery-Session, PIN-Sperre und Geräte-Relay-Abonnements sind nach Neustart leer; Clients füllen sie durch zyklische Reports wieder auf.
 7. *(erledigt mit #250)* `docs/05` ist mit dem Issue-Stand abgeglichen.
