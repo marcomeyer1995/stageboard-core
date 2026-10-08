@@ -98,7 +98,7 @@ export function rehearsalStats(events: readonly ShowLogEvent[], window: Rehearsa
 /**
  * `artist`: songs without one at the end. `setlist`: the active setlist's songs in its order
  * (first appearance counts), the others at the end. `practiced` / `rehearsed`: how often in the
- * period - ascending puts the least (what needs practice) first.
+ * period - ascending puts the least (what needs practice) first; same count, longest ago first.
  */
 export function sortSongs(
   songs: readonly Song[],
@@ -115,5 +115,11 @@ export function sortSongs(
     return sortBy(songs, (song) => position.get(song.id), title, descending)
   }
   const stats = sort === 'practiced' ? context.practice : context.rehearsal
-  return sortBy(songs, (song) => stats.get(song.id)?.count ?? 0, title, descending)
+  // Same count: the one practised/played longest ago first, never at all before that (Marco,
+  // 2026-10-08) - ascending puts what needs it most on top; descending reverses all of it.
+  const stat = (song: Song) => stats.get(song.id) ?? { count: 0, last: 0 }
+  return [...songs].sort((a, b) => {
+    const order = stat(a).count - stat(b).count || stat(a).last - stat(b).last
+    return (descending ? -order : order) || byName(a.title, b.title)
+  })
 }

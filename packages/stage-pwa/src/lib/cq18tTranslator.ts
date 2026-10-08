@@ -76,7 +76,7 @@ interface Cq18tOutput {
   channel: number // 0-indexed
 }
 
-/** Same "first Logical Device with this capability, bound on this device" resolution as
+/** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts's `resolveKemperOutput` - see its own doc comment for why. */
 async function resolveCq18tOutput(logicalDeviceId?: string): Promise<Cq18tOutput | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, CQ18T_CAPABILITY, logicalDeviceId)

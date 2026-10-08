@@ -28,6 +28,7 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, hasUnsavedChanges } from '../lib/unsavedChanges'
+import { changeSetlistDraft } from '../lib/setlistDrafts'
 import { Icon } from './Icon'
 import { AddRow, Badge, Segmented, Tabs } from './ui'
 import { INPUT } from './ui/styles'
@@ -540,10 +541,18 @@ export function LibraryView() {
     await duplicateSong(song.id, name.trim())
   }
 
-  function addSongToSetlist(setlistId: string, songId: string) {
+  /** Into the editor's draft if that setlist is being edited (it would be overwritten by the next
+   * "Speichern" otherwise), else straight into the stored setlist. True = went into the draft. */
+  function changeSetlist(target: Setlist, change: (setlist: Setlist) => Setlist): boolean {
+    if (changeSetlistDraft(target.id, change)) return true
+    saveSetlist(change(target))
+    return false
+  }
+
+  function addSongToSetlist(setlistId: string, songId: string): boolean {
     const target = setlists.find((s) => s.id === setlistId)
-    if (!target) return
-    saveSetlist({ ...target, entries: [...target.entries, songEntry(songId)] })
+    if (!target) return false
+    return changeSetlist(target, (setlist) => ({ ...setlist, entries: [...setlist.entries, songEntry(songId)] }))
   }
 
   function showTransientMessage(text: string) {
@@ -558,8 +567,8 @@ export function LibraryView() {
       showTransientMessage('Keine aktive Setlist')
       return
     }
-    addSongToSetlist(activeSetlist.id, songId)
-    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
+    const intoDraft = addSongToSetlist(activeSetlist.id, songId)
+    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
   }
 
   /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
@@ -568,13 +577,16 @@ export function LibraryView() {
   function removeFromActiveSetlist(songId: string) {
     if (!activeSetlist) return
     const loadedEntryId = useShowStateStore.getState().state.activeEntryId
-    const entry = [...activeSetlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
-    if (!entry) {
+    const lastRemovable = (setlist: Setlist) => [...setlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
+    if (!lastRemovable(activeSetlist)) {
       showTransientMessage('Gerade geladen - erst weiterschalten')
       return
     }
-    saveSetlist({ ...activeSetlist, entries: activeSetlist.entries.filter((e) => e.id !== entry.id) })
-    showTransientMessage(`Aus "${activeSetlist.name}" entfernt`)
+    const intoDraft = changeSetlist(activeSetlist, (setlist) => {
+      const entry = lastRemovable(setlist)
+      return entry ? { ...setlist, entries: setlist.entries.filter((e) => e.id !== entry.id) } : setlist
+    })
+    showTransientMessage(`Aus "${activeSetlist.name}" entfernt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
   }
 
   function handleDragEnd(event: DragEndEvent) {

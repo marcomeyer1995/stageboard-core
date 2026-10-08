@@ -90,7 +90,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   )
   const dashboardSection = (
     <>
-      {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
+      {/* Tap switches; "Bearbeiten" below the list opens order, hiding, new ones and the pen
           (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
       <Section title="Dashboards">
         <DashboardMenuList
