@@ -85,17 +85,22 @@ export const ROSTER_VALIDATOR_SOURCE = `function(newDoc, oldDoc, userCtx) {
  * written once at founding only, so bands founded before a rule was added (protected dashboard
  * templates, #16) would never get it. Returns the bands whose validator was replaced.
  */
-export async function updateRosterValidators(config: CouchConfig): Promise<string[]> {
+export async function updateRosterValidators(config: CouchConfig, onError?: (db: string, err: unknown) => void): Promise<string[]> {
   const updated: string[] = []
   for (const db of await listDbs(config)) {
     if (!db.startsWith('stageboard-')) continue
-    const current = await getDoc<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
-    if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
-    await putDocWithRetry<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
-      ...(existing ?? { _id: '_design/roster' }),
-      validate_doc_update: ROSTER_VALIDATOR_SOURCE,
-    }))
-    updated.push(db)
+    // One band's database failing must not leave every band after it on the old rules (#401 review).
+    try {
+      const current = await getDoc<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster')
+      if (current === null || current.validate_doc_update === ROSTER_VALIDATOR_SOURCE) continue
+      await putDocWithRetry<CouchDoc & { validate_doc_update?: string }>(config, db, '_design/roster', (existing) => ({
+        ...(existing ?? { _id: '_design/roster' }),
+        validate_doc_update: ROSTER_VALIDATOR_SOURCE,
+      }))
+      updated.push(db)
+    } catch (err) {
+      onError?.(db, err)
+    }
   }
   return updated
 }
@@ -136,10 +141,10 @@ function randomPin(): string {
  * admin credentials - only core-backend's own trusted `couch` config is ever passed here, never
  * anything reachable from a tablet.
  *
- * `_security` and the roster validator are role-based and deliberately never touched again
- * after this call (see `ROSTER_VALIDATOR_SOURCE` above) - every subsequent member
- * (`provisionMember` below) just gets created with the right role and is immediately covered,
- * no further writes to either doc.
+ * `_security` and the roster validator are role-based (see `ROSTER_VALIDATOR_SOURCE` above) - every
+ * subsequent member (`provisionMember` below) just gets created with the right role and is
+ * immediately covered. `_security` is never written again; the validator is brought up to date
+ * at every server start (`updateRosterValidators`, since #16) - don't hand-patch it in a band DB.
  *
  * Never rotates an existing account's password: a repeat call for an id that's already
  * provisioned (checked via the founder's own user) throws `WorkspaceAlreadyProvisionedError`
