@@ -54,6 +54,18 @@ afterEach(() => {
 })
 
 describe('init', () => {
+  it('comes back under its own name after being removed from the list (Marco, 2026-10-08)', async () => {
+    localStorage.removeItem('stageboard-device-name')
+    getAllDevices.mockResolvedValue([{ id: 'this-device', name: 'Caros Tablet', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false }])
+    await useDevicesStore.getState().init('band-a')
+    // Removed by an admin - the next start registers it again.
+    getAllDevices.mockResolvedValue([])
+    putDevice.mockClear()
+    await useDevicesStore.getState().init('band-a')
+    expect((putDevice.mock.calls[0][0] as Device).name).toBe('Caros Tablet')
+    localStorage.removeItem('stageboard-device-name')
+  })
+
   it('stamps both lastSeenAt and firstSeenAt when registering this device for the first time', async () => {
     getAllDevices.mockResolvedValue([])
     const before = Date.now()

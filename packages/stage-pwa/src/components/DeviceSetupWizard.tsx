@@ -423,7 +423,8 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
   async function runTest() {
     if (!draft.capability) return
     setTestResult('…')
-    const result = await getTranslator(draft.capability)?.({ type: 'test', payload: {} })
+    // The device being set up - with two of the same kind the test went to the first (#408 review).
+    const result = await getTranslator(draft.capability)?.({ type: 'test', payload: {}, logicalDeviceId: draft.id })
     setTestResult(result ? `${result.status}${result.message ? `: ${result.message}` : ''}` : 'kein Translator')
   }
 

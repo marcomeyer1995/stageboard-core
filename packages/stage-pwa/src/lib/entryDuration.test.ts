@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SongEntry, SongVariant } from 'shared-types'
-import { countInDurationMs, songDurationMs } from './entryDuration'
+import { countInDurationMs, songDurationMs, stoppedNearEnd } from './entryDuration'
 
 const entry: SongEntry = { id: 'e', songId: 's', variantId: null, trackId: null }
 
@@ -50,5 +50,14 @@ describe('countInDurationMs', () => {
 
   it('is the part of the count-in that sticks out before position 0', () => {
     expect(countInDurationMs(variant({ countInEnabled: true, countInBars: 2, beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 350 }], meters: [] } }))).toBe(3650)
+  })
+})
+
+describe('stoppedNearEnd (Marco, 2026-10-08: a Stop on the last chord is "Beendet")', () => {
+  it('within the last 5 s or after the end, not before - and never for an unknown length', () => {
+    expect(stoppedNearEnd(entry, variant({}, 200_000), null, 196_000)).toBe(true)
+    expect(stoppedNearEnd(entry, variant({}, 200_000), null, 230_000)).toBe(true)
+    expect(stoppedNearEnd(entry, variant({}, 200_000), null, 150_000)).toBe(false)
+    expect(stoppedNearEnd(entry, variant(), null, 999_000)).toBe(false)
   })
 })

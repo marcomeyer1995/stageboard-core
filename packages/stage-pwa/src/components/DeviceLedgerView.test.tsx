@@ -56,6 +56,7 @@ beforeEach(() => {
   // wiring (covered separately by fetchDeviceInfo.test.ts).
   useDeviceInfoStore.setState({
     deviceInfo: { devices: { 'device-1': DEVICE_INFO_ENTRY } },
+    loaded: true,
     init: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn(),
   })
@@ -198,6 +199,48 @@ describe('DeviceLedgerView', () => {
     render(<DeviceLedgerView />)
     expect(screen.getByRole('button', { name: 'Inaktive entfernen (0)' })).toBeDisabled()
     expect(screen.getByText(/Der Stage-Server wurde gerade gestartet/)).toBeInTheDocument()
+  })
+
+  it('before the first device report nothing counts as inactive (#426 review)', () => {
+    useDevicesStore.setState({ devices: [{ id: 'old-1', name: 'Altes Tablet', lastSeenAt: Date.now() - 10 * 86_400_000, firstSeenAt: 1, revoked: false }] })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: {} }, loaded: false })
+    render(<DeviceLedgerView />)
+    expect(screen.getByRole('button', { name: 'Inaktive entfernen (0)' })).toBeDisabled()
+  })
+
+  it('only devices still inactive after the question are removed (#426 review)', async () => {
+    const forget = vi.fn().mockResolvedValue('removed')
+    let answer: (ok: boolean) => void = () => {}
+    useDialogStore.setState({ confirm: vi.fn(() => new Promise<boolean>((resolve) => (answer = resolve))) })
+    useDevicesStore.setState({
+      forget,
+      devices: [
+        { id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false },
+        { id: 'old-1', name: 'Altes Tablet', lastSeenAt: 1, firstSeenAt: 1, revoked: false },
+        { id: 'old-2', name: 'Caros Tablet', lastSeenAt: 1, firstSeenAt: 1, revoked: false },
+      ],
+    })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': DEVICE_INFO_ENTRY }, collectingSince: Date.now() - 10 * 60_000 } })
+    render(<DeviceLedgerView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Inaktive entfernen (2)' }))
+    // Caro opens the app while the question is open.
+    act(() => {
+      useDeviceInfoStore.setState({
+        deviceInfo: { devices: { 'device-1': DEVICE_INFO_ENTRY, 'old-2': { ...DEVICE_INFO_ENTRY, lastSeenAt: Date.now() } }, collectingSince: Date.now() - 10 * 60_000 },
+      })
+    })
+    await act(async () => answer(true))
+    await waitFor(() => expect(forget).toHaveBeenCalledTimes(1))
+    expect(forget).toHaveBeenCalledWith('band-a', 'old-1')
+  })
+
+  it('says so when the device was blocked in the meantime (#426 review)', async () => {
+    const alert = vi.fn().mockResolvedValue(undefined)
+    useDialogStore.setState({ alert })
+    useDevicesStore.setState({ forget: vi.fn().mockResolvedValue('blocked') })
+    render(<DeviceLedgerView />)
+    menuAction('Marcos iPad', 'Aus Liste entfernen')
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(expect.stringContaining('inzwischen blockiert')))
   })
 
   it('an older server without collectingSince: falls back to "not seen for a day"', () => {

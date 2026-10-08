@@ -104,7 +104,9 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   },
   setActiveSetlist: async (setlistId) => {
     if (!get().isMaster) return
-    await putShowState({ activeSetlistId: setlistId })
+    // "Beendet" belonged to the old setlist's song - carried over, the pedal's next-play would skip
+    // the new setlist's first song (#394 review).
+    await putShowState({ activeSetlistId: setlistId, trackEnded: false })
   },
   applyPatch: async (patch) => {
     if (!get().isMaster) return

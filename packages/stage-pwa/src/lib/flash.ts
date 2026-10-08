@@ -22,7 +22,9 @@ export async function sendFlash(
     const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/flash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Basic ${btoa(`${login.username}:${login.password}`)}` },
-      body: JSON.stringify({ text, from, ...(to.length ? { to } : {}) }),
+      // The server takes at most 60 characters of the sender's name - a longer profile name made
+      // every message fail as "nicht erreichbar" (#400 review).
+      body: JSON.stringify({ text, from: from?.slice(0, 60), ...(to.length ? { to } : {}) }),
     })
     if (response.status === 401) return 'not-signed-in'
     return response.ok ? 'sent' : 'unreachable'

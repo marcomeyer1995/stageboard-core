@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -11,12 +10,14 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
 import { Dialog, Section, Segmented, Switch } from './ui'
 import { useIsPanelLayout } from '../lib/useIsPanelLayout'
+import { LOW_SCREEN, useMediaQuery } from '../lib/useMediaQuery'
 
 interface AppMenuProps {
   mode: Mode
   onSelectMode: (mode: Mode) => void
   onClose: () => void
 }
+
 
 /**
  * Just what's actually touched during a show - band/theme/sync-detail settings moved out to
@@ -39,24 +40,23 @@ interface AppMenuProps {
  * password-protected member there asks for the password (same recovery semantics as everywhere
  * else: blank resets a non-admin account, is refused for an admin one).
  */
-/** True while the window is at least `px` wide. */
-function useMinWidth(px: number): boolean {
-  const query = `(min-width: ${px}px)`
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
-  useEffect(() => {
-    const list = window.matchMedia(query)
-    const update = () => setMatches(list.matches)
-    list.addEventListener('change', update)
-    return () => list.removeEventListener('change', update)
-  }, [query])
-  return matches
-}
-
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
-  const twoColumns = useIsPanelLayout()
-  const threeColumns = useMinWidth(1000) && twoColumns
+  // Two columns from tablet width in portrait too (Marco, 2026-10-08: on the Fire in portrait the
+  // single 384 px column looked crowded and wasted half the screen, and scrolled with more
+  // dashboards) - only a phone in portrait keeps one column.
+  const panelLayout = useIsPanelLayout()
+  const tabletWide = useMediaQuery('(min-width: 600px)')
+  // Phone in landscape: so little height that each part gets its own column (Marco, 2026-10-08).
+  const lowScreen = useMediaQuery(LOW_SCREEN)
+  const wide = useMediaQuery('(min-width: 1000px)')
+  const lowAndWide = useMediaQuery('(min-width: 700px)') && lowScreen
+  const twoColumns = panelLayout || tabletWide
   const sessionMode = useAppModeStore((state) => state.mode)
+  // The middle column holds Master-Kontrolle (Gig only) and Anzeige (browser only) - with neither,
+  // three columns would leave an empty third in the middle (#432 review); two columns then.
+  const middleColumnEmpty = sessionMode !== 'gig' && !(fullscreen.supported && !isNativeApp())
+  const threeColumns = (wide || lowAndWide) && twoColumns && !middleColumnEmpty
 
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
@@ -76,7 +76,8 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
       <Section title="Ansicht">
         <Segmented
           label="Ansicht"
-          size="stage"
+          size={lowScreen ? 'form' : 'stage'}
+          compact={lowScreen}
           value={mode}
           onChange={(candidate) => {
             onSelectMode(candidate)
@@ -89,7 +90,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   )
   const dashboardSection = (
     <>
-      {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
+      {/* Tap switches; "Bearbeiten" below the list opens order, hiding, new ones and the pen
           (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
       <Section title="Dashboards">
         <DashboardMenuList
@@ -137,7 +138,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   return (
     <Dialog title="Menü" size={threeColumns ? 'xl' : twoColumns ? 'l' : 's'} onClose={onClose}>
       {threeColumns ? (
-        <div className="grid grid-cols-3 items-start gap-6">
+        <div className={`grid items-start ${lowScreen ? 'grid-cols-[1.25fr_1fr_1fr] gap-4' : 'grid-cols-3 gap-6'}`}>
           <div className="flex min-w-0 flex-col gap-4">
             {viewSection}
             {modeSection}

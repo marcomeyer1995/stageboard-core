@@ -95,6 +95,20 @@ describe('DashboardMenuList', () => {
     expect(useEditModeStore.getState().isEditing).toBe(true)
   })
 
+  it('an admin choosing at a template: edit it for the whole band, or an own private copy - no extra button (2026-10-08)', async () => {
+    me.profile.stageRoles = ['admin']
+    useDashboardsStore.setState({ dashboards: [board('Bühne', 0, { isReadOnly: true }), board('Monitor', 1)] })
+    const duplicate = vi.fn(async () => board('Bühne Kopie', 2, { visibility: 'private', ownerProfileId: 'p-caro' }))
+    useDashboardsStore.setState({ duplicate })
+    render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
+    openEditing()
+    fireEvent.click(pen('Bühne'))
+    expect(screen.getByRole('button', { name: 'Vorlage für alle bearbeiten' })).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Eigene Kopie bearbeiten' })))
+    expect(duplicate).toHaveBeenCalledWith('Bühne', 'Bühne Kopie', 'p-caro')
+    expect(useEditModeStore.getState().isEditing).toBe(true)
+  })
+
   it('"Bearbeiten": the eye hides a dashboard on this device; drag order is per device too', () => {
     render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
     openEditing()

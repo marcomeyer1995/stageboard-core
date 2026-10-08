@@ -1,4 +1,4 @@
-import { isTransitionEntry } from 'shared-types'
+import { isSongEntry, isTransitionEntry } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
 import { clickTimeline } from './beatGrid'
@@ -20,6 +20,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
 import { MIN_SONG_DURATION_MS } from './showLogTracking'
 import { randomId } from './id'
+import { stoppedNearEnd } from './entryDuration'
 
 /**
  * Practice mode's counterpart to queue.ts - deliberately never touches the real, synced
@@ -49,17 +50,31 @@ function patch(next: Partial<PracticeState>): void {
 }
 
 /**
+ * The transport's position is the song position, not the time played: a loop (#61) sets it to the
+ * loop start and back. Every such jump inside the current take is summed here and taken off, so a
+ * loop started at 2:30 and stopped after 3 s is a 3 s take, not 2:33 (#430 review).
+ */
+let takeJumpMs = 0
+
+/** Records that the position is set to `positionMs` without playing there. */
+function jumpPosition(positionMs: number): void {
+  takeJumpMs += positionMs - computeActiveMs(currentTransport(currentPracticeState()), Date.now())
+}
+
+/**
  * Records the take that is ending (Stop, Reset, the track running out, another song or setlist)
  * as practice, if the song really ran - MIN_SONG_DURATION_MS unpaused, like a show's played song.
  * Per person (the active profile); without one nothing is recorded. The Bibliothek sorts by these
  * ("Geübt", "30 Tage" - Marco, 2026-10-07).
  */
 function logPracticeTake(): void {
+  const jumpMs = takeJumpMs
+  takeJumpMs = 0
   const { currentSong } = snapshot()
   const profileId = useActiveProfileStore.getState().byWorkspace[activeWorkspaceId()]
   if (!currentSong || !profileId) return
   const now = Date.now()
-  const activeMs = Math.round(computeActiveMs(currentTransport(currentPracticeState()), now))
+  const activeMs = Math.round(computeActiveMs(currentTransport(currentPracticeState()), now) - jumpMs)
   if (activeMs < MIN_SONG_DURATION_MS) return
   void usePracticeLogStore.getState().add({ id: randomId(), profileId, songId: currentSong.id, at: now, activeMs })
 }
@@ -111,6 +126,8 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
   const state = currentPracticeState()
   const isFreshStart = state.playbackStatus === 'stopped'
+  // A new take starts from scratch (a reload or anything that stopped without logging).
+  if (isFreshStart) takeJumpMs = 0
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong
   const seededMs = seedCountIn && activeSong
@@ -160,19 +177,24 @@ export function practiceLoopContext(): { entryId: string; variantId: string; tra
  * two never sound together. */
 export function practiceBeginLoop(startMs: number): void {
   clearScheduledAudioStart()
+  jumpPosition(startMs)
   pauseLocalTrack()
   patch(transportPatch(playTransport({ ...ARMED_TRANSPORT, accumulatedMs: startMs }, Date.now())))
 }
 
 /** Leaves a loop paused at `positionMs`, so the normal Play button resumes the song from there. */
 export function practiceEndLoop(positionMs: number): void {
+  jumpPosition(positionMs)
   patch(transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs }))
 }
 
 export async function practiceStopSong(): Promise<void> {
   clearScheduledAudioStart()
+  const { currentEntry, currentVariant } = snapshot()
+  const state = currentPracticeState()
+  const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), Date.now()))
   logPracticeTake()
-  patch(transportPatch(ARMED_TRANSPORT))
+  patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: ended })
   stopLocalTrack()
 }
 
@@ -252,6 +274,8 @@ export function practiceSetTrackOverride(trackId: string | null): void {
 export function practiceSetVariantOverride(variantId: string | null): void {
   if (currentPracticeState().variantOverride === variantId) return
   clearScheduledAudioStart()
+  // Switching the variant ends the take like moving to another song.
+  logPracticeTake()
   patch({
     variantOverride: variantId,
     trackOverride: null,

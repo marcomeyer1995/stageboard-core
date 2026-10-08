@@ -77,4 +77,12 @@ describe('StageMessengerWidget (#26)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Senden' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Nicht gesendet'))
   })
+
+  it('a quick message emptied while retyping keeps the custom list (#400 review)', async () => {
+    const { StageMessengerConfigSchema } = await import('./stageMessengerConfig')
+    expect(StageMessengerConfigSchema.parse({ presets: ['Eigene 1', ''] }).presets).toEqual(['Eigene 1', ''])
+    render(<StageMessengerWidget config={{ presets: ['Eigene 1', ''] }} />)
+    expect(screen.getByRole('button', { name: 'Eigene 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'VAMP' })).not.toBeInTheDocument()
+  })
 })

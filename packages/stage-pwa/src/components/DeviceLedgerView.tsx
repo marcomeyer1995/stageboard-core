@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { DEVICE_INFO_TIMEOUT_MS, type Device } from 'shared-types'
+import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
@@ -57,6 +58,7 @@ export function DeviceLedgerView() {
   const forget = useDevicesStore((state) => state.forget)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const deviceInfo = useDeviceInfoStore((state) => state.deviceInfo)
+  const deviceInfoLoaded = useDeviceInfoStore((state) => state.loaded)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === activeWorkspaceId)?.isAdmin ?? false)
   const confirm = useDialogStore((state) => state.confirm)
@@ -94,30 +96,41 @@ export function DeviceLedgerView() {
    * yet - then every device would look inactive (found on the real server, 2026-10-07), so
    * missing reports only count once the server has collected for a while; an older server
    * without `collectingSince` falls back to "not seen for a day". */
-  const collectedLongEnough = deviceInfo.collectingSince !== undefined && now - deviceInfo.collectingSince >= COLLECT_MS
+  // `collectingSince` and the reports' `lastSeenAt` are the Stage-Server's clock - compared in
+  // server time, so a tablet clock that is off doesn't shift the window (#426 review).
+  const serverNow = now - Date.now() + getServerTime()
+  const collectedLongEnough = deviceInfo.collectingSince !== undefined && serverNow - deviceInfo.collectingSince >= COLLECT_MS
   const isActive = (device: Device) => {
     const info = deviceInfo.devices[device.id]
-    if (info && (now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
+    if (info && (serverNow - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
     if (collectedLongEnough) return false
     return deviceInfo.collectingSince !== undefined || now - device.lastSeenAt < RECENT_MS
   }
   /** What "Inaktive entfernen" takes: no app open and not reachable, not blocked (the block lives
    * on the entry), not this device, not in use by hardware. */
-  const inactive = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length === 0)
-  const skippedInUse = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length > 0)
+  // Nothing counts as inactive before the first device report arrived.
+  const inactive = deviceInfoLoaded ? sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length === 0) : []
+  const skippedInUse = deviceInfoLoaded ? sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length > 0) : []
+  // The list as of now - read again after the confirmation, which can take a while.
+  const inactiveNow = useRef(inactive)
+  inactiveNow.current = inactive
 
   async function forgetOne(device: Device) {
     if (!(await confirm(`„${device.name}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.`, { confirmLabel: 'Entfernen' }))) return
     const result = await forget(activeWorkspaceId, device.id)
     if (result === 'in-use') void alert(`„${device.name}“ wird noch von Hardware verwendet - erst im Tab Hardware ein anderes Gerät wählen.`)
+    else if (result === 'blocked') void alert(`„${device.name}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.`)
     else if (result === 'failed') void alert('Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.')
   }
 
   async function forgetInactive() {
     const note = skippedInUse.length ? ` ${skippedInUse.length} weitere bleiben, weil Hardware sie verwendet.` : ''
     if (!(await confirm(`${inactive.length} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.${note}`, { confirmLabel: 'Entfernen' }))) return
+    // Only devices that were confirmed AND are still inactive - one that came back online or was
+    // blocked while the question was open stays (#426 review).
+    const confirmed = new Set(inactive.map((device) => device.id))
     let failed = 0
-    for (const device of inactive) if ((await forget(activeWorkspaceId, device.id)) !== 'removed') failed++
+    for (const device of inactiveNow.current.filter((d) => confirmed.has(d.id))) if ((await forget(activeWorkspaceId, device.id)) !== 'removed') failed++
     if (failed) void alert(`${failed} Geräte konnten nicht entfernt werden (Stage-Server nicht erreichbar oder inzwischen in Verwendung).`)
   }
 

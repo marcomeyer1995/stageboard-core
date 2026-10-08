@@ -24,6 +24,7 @@ interface DashboardEditBarProps {
 
 export function DashboardEditBar({ dashboard, breakpoint, capabilities }: DashboardEditBarProps) {
   const save = useDashboardsStore((state) => state.save)
+  const rename = useDashboardsStore((state) => state.rename)
   const create = useDashboardsStore((state) => state.create)
   const setActive = useActiveDashboardStore((state) => state.setActive)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -33,9 +34,9 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
   const [showSettings, setShowSettings] = useState(false)
   const activeProfile = useActiveProfile()
 
-  async function rename() {
+  async function askName() {
     const name = (await promptText('Dashboard umbenennen', { label: 'Name', defaultValue: dashboard.name, submitLabel: 'Übernehmen' }))?.trim()
-    if (name && name !== dashboard.name) void save({ ...dashboard, name })
+    if (name && name !== dashboard.name) void rename(dashboard.id, name)
   }
 
   // The widget library's answer to "no room here": a public dashboard named after the widget,
@@ -63,7 +64,7 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
       <span className="hidden flex-shrink-0 font-bold uppercase tracking-widest text-accent sm:inline">Edit</span>
       <button
         type="button"
-        onClick={() => void rename()}
+        onClick={() => void askName()}
         title="Umbenennen"
         className={`flex h-form min-w-0 flex-1 items-center gap-2 px-2 text-left text-lg font-semibold text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
       >

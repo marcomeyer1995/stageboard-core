@@ -21,7 +21,7 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
   const profiles = useProfilesStore((state) => state.profiles)
   const from = useActiveProfile()?.name
   const fontSize = useContentFontSize(config)
-  const presets = config.presets ?? FLASH_PRESETS
+  const presets = (config.presets ?? FLASH_PRESETS).map((preset) => preset.trim()).filter(Boolean)
   const [to, setTo] = useState<string[]>([])
   const [text, setText] = useState('')
   const [status, setStatus] = useState<string | null>(null)

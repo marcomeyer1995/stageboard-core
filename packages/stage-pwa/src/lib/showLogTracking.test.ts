@@ -108,3 +108,18 @@ describe('diffCapabilities', () => {
     expect(diffCapabilities(previous, current)).toEqual([])
   })
 })
+
+describe('finalizeSongPlay - never-stopped songs (#404)', () => {
+  it('caps the time at the song length and moves the end back to where it really ended', () => {
+    const entry = { songId: 's', songTitle: 'Song' }
+    // 25 h "played", song + margin allows 4 min.
+    const result = finalizeSongPlay(entry, 1_000_000, 90_000_000, 91_000_000, 'show', 240_000)
+    expect(result).toMatchObject({ activeMs: 240_000, endedAt: 91_000_000 - (90_000_000 - 240_000) })
+  })
+
+  it('leaves a normal play-through alone', () => {
+    const result = finalizeSongPlay({ songId: 's', songTitle: 'Song' }, 1_000, 200_000, 201_000, 'show', 300_000)
+    expect(result).toMatchObject({ activeMs: 200_000, endedAt: 201_000 })
+  })
+})
+

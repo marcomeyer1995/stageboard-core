@@ -25,7 +25,7 @@ import {
   __resetDiscoverySessionStoreForTests,
   getSnapshot as getDiscoverySnapshot,
 } from './discoverySessionStore.js'
-import { buildApp } from './index.js'
+import { bandDbProxyRefusal, buildApp } from './index.js'
 import { LookupError } from './plugins/lookupError.js'
 import { __resetHealthStoreForTests, getSnapshot, setEntry } from './plugins/healthStore.js'
 import {
@@ -61,6 +61,29 @@ function fakeLookupPlugin(overrides: Partial<ILookupPlugin> = {}): ILookupPlugin
     ...overrides,
   }
 }
+
+describe('/db proxy - a band database only for that band\'s accounts', () => {
+  const basic = (username: string) => `Basic ${Buffer.from(`${username}:pw`).toString('base64')}`
+
+  it('lets an account of the band into its own database', () => {
+    expect(bandDbProxyRefusal('/db/stageboard-band-a/_changes?since=0', basic('stageboard-band-a-p1~dev'))).toBeNull()
+    expect(bandDbProxyRefusal('/db/stageboard-band-a', basic('stageboard-band-a-p1'))).toBeNull()
+  })
+
+  it('refuses another band\'s account and requests without a login', () => {
+    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', basic('stageboard-band-b-p1'))).toBe('account of another band')
+    expect(bandDbProxyRefusal('/db/stageboard-band-a/_all_docs', undefined)).toBe('no band login')
+    expect(bandDbProxyRefusal('/db//stageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
+    expect(bandDbProxyRefusal('/db/%73tageboard-band-a/x', basic('stageboard-band-b-p1'))).toBe('account of another band')
+    expect(bandDbProxyRefusal('/db/../stageboard-band-a', basic('stageboard-band-b-p1'))).toBe('bad path')
+    expect(bandDbProxyRefusal('/db/stageboard-band-a%2Fx', basic('stageboard-band-b-p1'))).toBe('bad path')
+  })
+
+  it('leaves CouchDB\'s own endpoints to CouchDB', () => {
+    expect(bandDbProxyRefusal('/db/_session', undefined)).toBeNull()
+    expect(bandDbProxyRefusal('/db/', undefined)).toBeNull()
+  })
+})
 
 describe('Fastify routes', () => {
   let app: FastifyInstance
@@ -685,6 +708,49 @@ describe('Fastify routes', () => {
     })
   })
 
+  it('master mode: only an admin of this band, never one of another band (no CouchDB login tried)', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/workspaces/band-a/master-mode',
+        payload: { adminUsername: 'stageboard-band-b-p1', adminPassword: '1234', masterMode: 'account' },
+      })
+      expect(response.statusCode).toBe(403)
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('wrong admin logins lock the account on the /db proxy too - no unlimited PIN guessing (#396 review)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+    try {
+      for (let i = 0; i < 5; i++) {
+        await app.inject({ method: 'POST', url: '/workspaces/band-a/master-mode', payload: { adminUsername: 'stageboard-band-a-p9', adminPassword: `${1000 + i}`, masterMode: 'account' } })
+      }
+      const response = await app.inject({
+        method: 'GET',
+        url: '/db/stageboard-band-a/_all_docs',
+        headers: { authorization: `Basic ${Buffer.from('stageboard-band-a-p9:1005').toString('base64')}` },
+      })
+      expect(response.statusCode).toBe(429)
+      expect(Number(response.headers['retry-after'])).toBeGreaterThan(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('the /db proxy refuses another band\'s account before the request reaches CouchDB', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/db/stageboard-band-a/_all_docs',
+      headers: { authorization: `Basic ${Buffer.from('stageboard-band-b-p1:pw').toString('base64')}` },
+    })
+    expect(response.statusCode).toBe(403)
+  })
+
   describe('POST /workspaces/:workspaceId/devices/:deviceId/forget', () => {
     function stubFetch(responses: Array<Partial<Response>>) {
       const fetchMock = vi.fn()
@@ -701,12 +767,33 @@ describe('Fastify routes', () => {
     const hardware = (docs: object[]) => ({ ok: true, status: 200, json: async () => ({ rows: docs.map((doc) => ({ doc })) }) })
 
     it('deletes an unused, unblocked device from the ledger', async () => {
-      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]), { ok: true, status: 200 }])
+      const fetchMock = stubFetch([
+        admin,
+        { ok: true, status: 200, json: async () => device() },
+        hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]),
+        { ok: true, status: 200, json: async () => device() },
+        { ok: true, status: 200 },
+      ])
       const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
       expect(response.statusCode).toBe(204)
-      const [url, init] = fetchMock.mock.calls[3]
-      expect(String(url)).toContain('devices%3Adevice-1')
-      expect(JSON.parse(init.body)).toEqual({ _id: 'devices:device-1', _rev: '3-c', _deleted: true })
+      const [url, init] = fetchMock.mock.calls[4]
+      expect(String(url)).toContain('devices%3Adevice-1?rev=3-c')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('a write in between is a conflict - read again, and a block set meanwhile is honoured (#426 review)', async () => {
+      const fetchMock = stubFetch([
+        admin,
+        { ok: true, status: 200, json: async () => device() },
+        hardware([]),
+        { ok: true, status: 200, json: async () => device() },
+        { ok: false, status: 409 },
+        { ok: true, status: 200, json: async () => device({ _rev: '4-d', revoked: true }) },
+      ])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'blocked' })
+      expect(fetchMock).toHaveBeenCalledTimes(6)
     })
 
     it('refuses a blocked device - deleting the entry would lift the block', async () => {
@@ -871,6 +958,7 @@ describe('Fastify routes', () => {
 
     it('provisions a new workspace (incl. its standing access code) and returns the founder\'s own personal credential', async () => {
       stubFetch([
+        { ok: true, status: 200, json: async () => ['stageboard-band-a'] }, // _all_dbs
         { ok: false, status: 404 }, // userExists
         { ok: true, status: 201 }, // createUser (founder)
         { ok: true, status: 201 }, // ensureDb
@@ -893,7 +981,7 @@ describe('Fastify routes', () => {
     })
 
     it('returns 409 when the workspace is already provisioned', async () => {
-      stubFetch([{ ok: true, status: 200, json: async () => ({ name: 'stageboard-band-a-p1' }) }])
+      stubFetch([{ ok: true, status: 200, json: async () => ['stageboard-band-a'] }, { ok: true, status: 200, json: async () => ({ name: 'stageboard-band-a-p1' }) }])
 
       const response = await app.inject({
         method: 'POST',
@@ -902,6 +990,14 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(409)
+    })
+
+    it('refuses a band id that extends another band id - its accounts would look like that band\'s', async () => {
+      for (const workspaceId of ['band-a-evil', 'band']) {
+        stubFetch([{ ok: true, status: 200, json: async () => ['_users', 'stageboard-band-a'] }])
+        const response = await app.inject({ method: 'POST', url: '/workspaces', payload: { workspaceId, founderId: 'p1', workspaceName: 'X' } })
+        expect(response.statusCode).toBe(400)
+      }
     })
 
     it('returns 400 for a body that fails schema validation', async () => {
@@ -1225,6 +1321,20 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(400)
+    })
+
+    it('an admin cannot remove their own profile, even with another admin left (Marco, 2026-10-08)', async () => {
+      const fetchMock = stubFetch([stubAdminVerify()])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p1',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toMatchObject({ message: 'An admin cannot remove their own profile' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('returns 403 when the caller does not verify as an admin', async () => {
