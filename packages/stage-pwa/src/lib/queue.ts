@@ -59,7 +59,10 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
   const activeMs = computeActiveMs(currentTransport(state), now)
   const showId = state.currentShowId ?? randomId()
   const result = finalizeSongPlay({ songId: currentSong.id, songTitle: currentSong.title }, state.activeEntryStartedAt, activeMs, now, showId)
-  if (result) void useShowLogStore.getState().append({ id: randomId(), type: 'song-played', ...result })
+  // The same play-through always gets the same id: in 'Pro Person' master mode (#85) every
+  // device of the master finalizes it - with a random id each, the Nachbericht (and "Geprobt")
+  // counted the song twice; with one id the copies are one document (#409 review).
+  if (result) void useShowLogStore.getState().append({ id: `song-played-${showId}-${state.activeEntryStartedAt}`, type: 'song-played', ...result })
 }
 
 /** Starts a fresh `show` in ShowLog if enough idle time passed since the last activity,

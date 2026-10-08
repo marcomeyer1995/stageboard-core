@@ -28,8 +28,8 @@ import {
   practiceStopSongAtTrackEnd,
   usePracticeQueue,
 } from './practiceQueue'
-import { usePlaybackElapsedMs } from './usePlaybackElapsedMs'
-import { usePracticeElapsedMs } from './usePracticeElapsedMs'
+import { gigElapsedMsNow, usePlaybackElapsedMs } from './usePlaybackElapsedMs'
+import { practiceElapsedMsNow, usePracticeElapsedMs } from './usePracticeElapsedMs'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
 import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -78,6 +78,23 @@ export interface ShowModeApi {
    * Gig mode, which is also how TrackOverrideWidget decides whether to offer the picker. */
   variantOverride: string | null
   setVariantOverride: ((variantId: string | null) => void) | null
+}
+
+/**
+ * The current song and playback state of the mode this device is in, **without** the per-frame
+ * elapsed time: useShowMode() re-renders its caller on every animation frame while playing, which
+ * an always-mounted hook (App.tsx) must never do - it re-rendered the whole app 60 times a second
+ * (#400 review). `elapsedNow()` reads the position when asked.
+ */
+export function useShowModeSong(): { mode: SessionMode; queue: Queue; playbackStatus: PlaybackStatus; elapsedNow: () => number | null } {
+  const mode = useAppModeStore((state) => state.mode)
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const gigQueue = useQueue()
+  const practiceQueue = usePracticeQueue()
+  const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
+  const practicePlaybackStatus = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).playbackStatus)
+  if (mode === 'practice') return { mode, queue: practiceQueue, playbackStatus: practicePlaybackStatus, elapsedNow: () => practiceElapsedMsNow(workspaceId) }
+  return { mode, queue: gigQueue, playbackStatus: gigPlaybackStatus, elapsedNow: gigElapsedMsNow }
 }
 
 /**

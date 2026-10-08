@@ -13,7 +13,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
-import { AddRow, Button } from './ui'
+import { ActionMenuDialog, AddRow, Button } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 /**
@@ -37,12 +37,14 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
   const setEditing = useEditModeStore((state) => state.setEditing)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
+  const alert = useDialogStore((state) => state.alert)
   const profile = useActiveProfile()
   const roles = profile?.stageRoles ?? []
   // Back from editing a dashboard that was opened here: the list comes back in "Bearbeiten".
   const [arranging, setArranging] = useState(() => useEditModeStore.getState().reopenMenuEditing)
   const consumeReopenMenu = useEditModeStore((state) => state.consumeReopenMenu)
   useEffect(() => consumeReopenMenu(), [consumeReopenMenu])
+  const [templateChoice, setTemplateChoice] = useState<Dashboard | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function openForEditing(id: string) {
@@ -53,16 +55,28 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
 
   async function edit(dashboard: Dashboard) {
     if (canEditDashboard(dashboard, roles)) {
-      openForEditing(dashboard.id)
+      // An admin on a template chooses: change it for the whole band, or an own private copy
+      // (Marco, 2026-10-08) - asked at the pen, so the list gets no extra button.
+      if (dashboard.isReadOnly) setTemplateChoice(dashboard)
+      else openForEditing(dashboard.id)
       return
     }
     // A template (#16): the musician's own copy instead.
-    if (!profile) return
+    if (!profile) return void editOwnCopy(dashboard) // says why there is no copy
     const ok = await confirm(`„${dashboard.name}“ ist eine Vorlage - nur Admins ändern sie. Eine eigene Kopie anlegen und bearbeiten?`, {
       title: 'Vorlage',
       confirmLabel: 'Eigene Kopie bearbeiten',
     })
-    if (!ok) return
+    if (ok) await editOwnCopy(dashboard)
+  }
+
+  /** A private copy of a template for this profile, opened for editing. */
+  async function editOwnCopy(dashboard: Dashboard) {
+    // Without a profile there is nobody to own the copy - say so instead of doing nothing (#422 review).
+    if (!profile) {
+      void alert(`„${dashboard.name}“ ist eine Vorlage. Für eine eigene Kopie zuerst ein Profil wählen (Menü → Band).`)
+      return
+    }
     const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`, profile.id)
     if (copy) openForEditing(copy.id)
   }
@@ -127,6 +141,16 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
         {arranging ? 'Bearbeiten beenden' : 'Bearbeiten'}
       </Button>
       {arranging && <p className="text-sm text-ink-faint">Stift öffnet ein Dashboard zum Bearbeiten. Ziehen sortiert, das Auge blendet aus - beides nur auf diesem Gerät.</p>}
+      {templateChoice && (
+        <ActionMenuDialog
+          title={`„${templateChoice.name}“ ist eine Vorlage`}
+          onClose={() => setTemplateChoice(null)}
+          actions={[
+            { label: 'Vorlage für alle bearbeiten', onClick: () => openForEditing(templateChoice.id) },
+            { label: 'Eigene Kopie bearbeiten', onClick: () => void editOwnCopy(templateChoice) },
+          ]}
+        />
+      )}
     </div>
   )
 }

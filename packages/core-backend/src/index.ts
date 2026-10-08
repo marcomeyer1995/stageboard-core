@@ -43,7 +43,7 @@ import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
@@ -103,6 +103,27 @@ const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
   'https://localhost',
 ].join(',')
+
+/**
+ * Why a request through the `/db` proxy must not reach CouchDB, or null if it may: a path into a
+ * band's database (`/db/stageboard-<band>/…`) needs Basic auth with an account of that band
+ * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_session`, `_users`, …) is left to
+ * CouchDB. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
+ */
+export function bandDbProxyRefusal(url: string, authorization: string | undefined): string | null {
+  const path = url.slice('/db'.length).split('?')[0] ?? ''
+  let first: string
+  try {
+    first = path.split('/').map((segment) => decodeURIComponent(segment)).find((segment) => segment !== '') ?? ''
+  } catch {
+    return 'bad path'
+  }
+  if (first === '.' || first === '..' || first.includes('/')) return 'bad path'
+  if (!first.startsWith('stageboard-')) return null
+  const login = basicAuthCredentials(authorization)
+  if (!login) return 'no band login'
+  return login.username.startsWith(`${first}-`) ? null : 'account of another band'
+}
 
 /** Username and password from an `Authorization: Basic …` header, or null. */
 export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
@@ -610,15 +631,18 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
     if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      request.log.warn({ workspaceId, deviceId }, 'device forget refused: not this band\'s admin')
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
     const db = workspaceDbName(workspaceId)
     const docId = `devices:${deviceId}`
     const existing = await getDoc<Device & CouchDoc>(couch, db, docId)
     if (!existing) {
+      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
       return reply.status(404).send({ status: 'error', message: 'Unknown device' })
     }
     if (existing.revoked) {
+      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
       return reply.status(409).send({ status: 'error', message: 'blocked' })
     }
     const hardware = await allDocs<CouchDoc & { name?: string; executionTarget?: string | null }>(couch, db, {
@@ -627,9 +651,21 @@ export async function buildApp() {
     })
     const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
     if (usedBy.length > 0) {
+      request.log.info({ workspaceId, deviceId, usedBy }, 'device forget refused: in use by hardware')
       return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
     }
-    await putDoc(couch, db, { _id: docId, _rev: existing._rev, _deleted: true })
+    // Checked and deleted against the same revision; a write in between (the device's own
+    // lastSeenAt, a rename, a block) is a conflict - read again and check again instead of
+    // answering 204 for a delete that never happened (#426 review).
+    const result = await deleteDocUnless<Device & CouchDoc, 'blocked'>(couch, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
+    if (result === 'missing') {
+      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
+      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
+    }
+    if (result === 'blocked') {
+      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
+      return reply.status(409).send({ status: 'error', message: 'blocked' })
+    }
     request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
     return reply.status(204).send()
   })
@@ -909,9 +945,18 @@ export async function buildApp() {
       return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
     }
 
+    // Accounts are tied to their band by name (`stageboard-<band>-<profile>`), so no band id may
+    // extend another one - band "x-y" would otherwise own names that look like band "x"'s.
+    const bandDbs = (await listDbs(couch)).filter((db) => db.startsWith('stageboard-'))
+    const newDb = workspaceDbName(workspaceId)
+    if (bandDbs.some((db) => db !== newDb && (newDb.startsWith(`${db}-`) || db.startsWith(`${newDb}-`)))) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused a band id that extends another band id')
+      return reply.status(400).send({ status: 'error', message: 'Invalid band id' })
+    }
+
     let proof: 'first-band' | 'server' | 'admin' | null = null
     if (isLoopback(request.ip)) proof = 'server'
-    else if ((await listDbs(couch)).every((db) => !db.startsWith('stageboard-'))) proof = 'first-band'
+    else if (bandDbs.length === 0) proof = 'first-band'
     else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
     if (!proof) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
@@ -998,6 +1043,12 @@ export async function buildApp() {
 
     // Only actually blocks removing the sole remaining *admin* - deleting a plain member never
     // changes the admin count, so this only rejects when the target itself is that one admin.
+    // No admin removes their own profile - only another admin can (Marco, 2026-10-08), like
+    // taking away one's own admin rights below. Checked before any CouchDB read.
+    if (parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0] === profileId) {
+      return reply.status(400).send({ status: 'error', message: 'An admin cannot remove their own profile' })
+    }
+
     if ((await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
       return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
     }
@@ -1261,10 +1312,17 @@ export async function buildApp() {
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    // Band-scoped and locked out after wrong tries like every other admin route - a bare
+    // verifyAdmin() would take any band's admin and allow unlimited PIN guesses.
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
     }
-    await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    try {
+      await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    } catch (err) {
+      app.log.error({ err, workspaceId, masterMode: parsed.data.masterMode }, 'Setting the master mode failed')
+      return reply.status(500).send({ status: 'error', message: 'Could not save the master mode' })
+    }
     app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
     return reply.status(200).send({ status: 'ok' })
   })
@@ -1369,6 +1427,38 @@ export async function buildApp() {
     upstream: couch.url,
     prefix: '/db',
     rewritePrefix: '',
+    // A band's database only for that band's own accounts. CouchDB's `_security` grants access by
+    // role, and the roles (`member`, `admin`) are the same in every band - without this, any
+    // band's device login could read and write every other band's database through here.
+    preHandler: (request, reply, done) => {
+      const refusal = bandDbProxyRefusal(request.url, request.headers.authorization)
+      if (refusal) {
+        app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
+        void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
+        return
+      }
+      // CouchDB itself never locks a login - an admin's password is their 4-digit PIN, so guessing
+      // it here had no limit (#396 review). Same lock as the admin routes, shared per account.
+      const login = basicAuthCredentials(request.headers.authorization)
+      const lockedFor = login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
+      if (lockedFor > 0) {
+        void reply.status(429).header('Retry-After', String(lockedFor)).send({ error: 'locked', reason: 'Too many wrong logins' })
+        return
+      }
+      done()
+    },
+  })
+  app.addHook('onResponse', async (request, reply) => {
+    if (!request.url.startsWith('/db')) return
+    const login = basicAuthCredentials(request.headers.authorization)
+    if (!login) return
+    if (reply.statusCode === 401) {
+      if (adminLoginThrottle.recordFailure(login.username)) {
+        app.log.warn({ username: login.username, remoteAddress: request.ip }, 'Too many wrong database logins - locked out temporarily')
+      }
+    } else if (reply.statusCode < 400) {
+      adminLoginThrottle.recordSuccess(login.username)
+    }
   })
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the
@@ -1413,6 +1503,15 @@ async function main() {
   const { app, lookupRegistry, workspaceHardware, pluginLog, couch } = await buildApp()
 
   try {
+    // Validator rules added after a band was founded (protected dashboard templates, #16) reach
+    // its database here. A failure must not keep the server from starting.
+    try {
+      const updated = await updateRosterValidators(couch, (db, err) => app.log.error({ err, db }, 'Could not update the roster validator of this band'))
+      if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
+    } catch (err) {
+      app.log.error({ err }, 'Could not update roster validators')
+    }
+
     // Which plugins run is not configured here: the band installs them in the PWA, and the
     // installation documents replicate to this server over CouchDB (docs/01, mesh).
     //
@@ -1431,15 +1530,6 @@ async function main() {
     // persisted choice (activeWorkspaceStateStore.ts) wins, surviving restarts on its own. The
     // env var is only the first-boot bootstrap for a truly fresh box that's never activated
     // anything yet.
-    // Validator rules added after a band was founded (protected dashboard templates, #16) reach
-    // its database here. A failure must not keep the server from starting.
-    try {
-      const updated = await updateRosterValidators(couch)
-      if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
-    } catch (err) {
-      app.log.error({ err }, 'Could not update roster validators')
-    }
-
     const bootWorkspaceId = readPersistedActiveWorkspace() ?? process.env.STAGEBOARD_WORKSPACE ?? null
     if (bootWorkspaceId) {
       await workspaceHardware.activate(bootWorkspaceId)

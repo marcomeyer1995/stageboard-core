@@ -9,6 +9,20 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * the local practice state instead of synced ShowState, and plain Date.now() rather than
  * clockSync.ts's getServerTime() (there's only ever one device involved, nothing to
  * cross-tablet-synchronize). Returns null while stopped, same "nothing to show" contract. */
+/** The same value, read once without subscribing - for a timer that must not re-render (#400 review). */
+export function practiceElapsedMsNow(workspaceId: string): number | null {
+  const state = usePracticeStateStore.getState().byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE
+  if (state.playbackStatus === 'stopped') return null
+  if (useLoopTrainerStore.getState().active) {
+    const loop = getLoopPlaybackState()
+    if (loop) return loop.positionMs
+  }
+  return computeActiveMs(
+    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs },
+    Date.now(),
+  )
+}
+
 export function usePracticeElapsedMs(): number | null {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const state = usePracticeStateStore((s) => s.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
