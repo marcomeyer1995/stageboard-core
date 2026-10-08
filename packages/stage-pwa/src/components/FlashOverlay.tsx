@@ -53,7 +53,8 @@ export function FlashOverlay() {
   if (!shown) return null
   if (mode === 'banner') {
     // Under the status bar, wherever it ends on this screen (none on a dashboard without it).
-    const top = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0
+    // The status bar's <header> (data-status) - not any <header>, e.g. a settings group's (#400 review).
+    const top = document.querySelector('header[data-status]')?.getBoundingClientRect().bottom ?? 0
     return (
       <div
         role="alert"

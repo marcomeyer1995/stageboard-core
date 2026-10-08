@@ -373,15 +373,19 @@ button,
    it - at least their usual padding (--sb-pad), more where the notch is. #root does the same
    for the app itself; overlays are `fixed` and don't get #root's padding (2026-10-07: content
    was cut on Marco's phone, in the app and in the browser's full-screen mode). */
+:root {
+  --sb-pad-default: 1rem;
+}
+/* An overlay sets its own --sb-pad ([--sb-pad:1.5rem]); this rule must not set it too - it comes
+   after Tailwind's utilities and won, so every overlay got 1rem (#429 review). */
 .sb-pad-safe {
-  --sb-pad: 1rem;
-  padding: max(var(--sb-pad), env(safe-area-inset-top)) max(var(--sb-pad), env(safe-area-inset-right))
-    max(var(--sb-pad), env(safe-area-inset-bottom)) max(var(--sb-pad), env(safe-area-inset-left));
+  padding: max(var(--sb-pad, var(--sb-pad-default)), env(safe-area-inset-top)) max(var(--sb-pad, var(--sb-pad-default)), env(safe-area-inset-right))
+    max(var(--sb-pad, var(--sb-pad-default)), env(safe-area-inset-bottom)) max(var(--sb-pad, var(--sb-pad-default)), env(safe-area-inset-left));
 }
 /* Low screens (tablet/phone in landscape, browser bars on): every pixel of height counts. */
 @media (max-height: 600px) {
-  .sb-pad-safe {
-    --sb-pad: 0.5rem;
+  :root {
+    --sb-pad-default: 0.5rem;
   }
 }
 /* Bars glued to an edge: background to the edge, content clear of the notch. */

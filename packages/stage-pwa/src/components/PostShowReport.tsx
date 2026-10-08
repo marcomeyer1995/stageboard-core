@@ -7,6 +7,11 @@ function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** Wall-clock time to the second - cues follow each other closely. */
+function fmtClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 function fmtDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)
@@ -39,6 +44,7 @@ function groupByShow(events: ShowLogEvent[]): ShowGroup[] {
 type SongPlayed = Extract<ShowLogEvent, { type: 'song-played' }>
 type CapabilityChanged = Extract<ShowLogEvent, { type: 'capability-changed' }>
 type Note = Extract<ShowLogEvent, { type: 'note' }>
+type CueFired = Extract<ShowLogEvent, { type: 'cue-fired' }>
 
 /**
  * One show: what was played first, then the notes, and the technical events folded into a single
@@ -50,6 +56,9 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
   const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
   const notes = byTime.filter((event): event is Note => event.type === 'note')
   const technical = byTime.filter((event): event is CapabilityChanged => event.type === 'capability-changed')
+  const cues = byTime.filter((event): event is CueFired => event.type === 'cue-fired')
+  const failedCues = cues.filter((event) => !event.ok)
+  const cueLine = (event: CueFired) => `${fmtClock(event.at)} · ${event.songTitle} · ${event.cueType} → ${event.target}`
   const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
 
   return (
@@ -82,6 +91,33 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
             </p>
           ))}
         </div>
+      )}
+      {/* Cues (#8, Marco 2026-10-08): the ones that failed stay in sight, all of them fold away. */}
+      {failedCues.length > 0 && (
+        <div className="mt-4 space-y-1">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-danger">Cues fehlgeschlagen ({failedCues.length})</h3>
+          {failedCues.map((event) => (
+            <p key={event.id} className="text-sm text-danger">
+              <Icon name="warning" className="mr-1" />
+              {cueLine(event)}
+              {event.message ? ` - ${event.message}` : ''}
+            </p>
+          ))}
+        </div>
+      )}
+      {cues.length > 0 && (
+        <details className="mt-4">
+          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">
+            Cues ({cues.length}{failedCues.length > 0 ? `, ${failedCues.length} fehlgeschlagen` : ''})
+          </summary>
+          <div className="space-y-1 text-sm text-ink-soft">
+            {cues.map((event) => (
+              <div key={event.id} className={event.ok ? '' : 'text-danger'}>
+                {event.ok ? '✓' : '✗'} {cueLine(event)}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
       {technical.length > 0 && (
         <details className="mt-4">

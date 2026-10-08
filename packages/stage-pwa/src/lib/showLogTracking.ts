@@ -41,14 +41,29 @@ export interface SongPlayed {
  * or an explicit Stop (#13) - not inferred reactively from state diffs, since it's always a
  * direct consequence of one of those actions.
  */
+/** Unknown song length: no song plays longer than this (#404). */
+export const UNKNOWN_LENGTH_CAP_MS = 20 * 60_000
+/** Room past the song's own length (applause, a held last chord) before a play-through counts as
+ * "never stopped" (#404). */
+export const LENGTH_MARGIN_MS = 60_000
+
 export function finalizeSongPlay(
   entry: { songId: string; songTitle: string },
   startedAt: number,
   activeMs: number,
   endedAt: number,
   showId: string,
+  maxActiveMs?: number,
 ): SongPlayed | null {
   if (!shouldConfirmSong(activeMs)) return null
+  // #404 (option C, Marco 2026-10-08): a song nobody stopped - tablet closed, app reloaded while
+  // 'playing', set ended without Stop - kept counting until the next action, the next day too
+  // ("1530:32 gespielt"). Past its length it is logged as having ended there: at most the length
+  // (plus margin), and the end time moved back by what was counted too much.
+  if (maxActiveMs !== undefined && activeMs > maxActiveMs) {
+    endedAt -= activeMs - maxActiveMs
+    activeMs = maxActiveMs
+  }
   // activeMs can start from a fractional count-in origin (metronome.ts's countInLeadMs - BPM
   // rarely divides 60000 evenly, e.g. 128 BPM -> 468.75ms/beat) - that sub-ms precision is
   // real and needed for beat-locked playback timing, but ShowLogEvent's activeMs is a

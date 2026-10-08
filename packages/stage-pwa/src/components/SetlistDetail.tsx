@@ -27,6 +27,7 @@ import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
+import { registerSetlistDraft } from '../lib/setlistDrafts'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
@@ -557,10 +558,19 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const update = (next: Setlist) => setDraft(next)
   // Opens as a clean preview (SetlistPreview); "Bearbeiten" switches to the editor below.
   const [editing, setEditing] = useState(false)
+  // A song dropped on this setlist or swiped in the Bibliothek lands in the draft while editing.
+  useEffect(() => {
+    if (!editing) return
+    return registerSetlistDraft(setlistId, (change) => setDraft((current) => (current ? change(current) : current)))
+  }, [editing, setlistId])
 
   async function handleSave(): Promise<boolean> {
     if (!draft || !draft.name.trim()) return false
-    await saveSetlist({ ...draft, name: draft.name.trim() })
+    const saved = { ...draft, name: draft.name.trim() }
+    // The draft takes the trimmed name too - otherwise it differs from the stored setlist for
+    // good and the editor stays "unsaved" (asks on every way out, stops following other devices).
+    setDraft(saved)
+    await saveSetlist(saved)
     setEditing(false)
     return true
   }

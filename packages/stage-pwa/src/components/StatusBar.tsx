@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ScrollOnceText } from './ScrollOnceText'
-import { fitStatusBarItems, type StatusBarItem } from '../lib/statusBarItems'
+import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
@@ -148,16 +148,26 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const [shownKey, setShownKey] = useState(wanted.join(','))
   const shown = new Set(shownKey.split(',').filter(Boolean) as StatusBarItem[])
   const fault = state.kind === 'fault'
-  const syncProblem = syncStatus !== 'idle'
+  // 'syncing' is the normal short phase of every write - pinning it made the bar jump on every
+  // Play/Weiter (#429 review). Only offline / error is a problem that must stay visible.
+  const syncProblem = syncStatus === 'offline' || syncStatus === 'error'
   const isShown = (item: StatusBarItem) => (item === 'stateText' && fault) || (item === 'sync' && syncProblem) || shown.has(item)
   const item = (id: StatusBarItem) => ({
     'data-sbitem': id,
     className: isShown(id) ? '' : 'pointer-events-none invisible absolute',
   })
+  // Measuring forces a layout - only when something visible changed (texts, the fitted set), not on
+  // every animation frame the playing song re-renders this bar with (#429 review). Size changes
+  // come through the ResizeObserver below.
+  const measuredFor = useRef('')
+  const [resizes, setResizes] = useState(0)
   useLayoutEffect(() => {
     const header = headerRef.current
     const title = titleRef.current
     if (!header || !title) return
+    const signature = `${resizes}|${shownKey}|${wanted.join(',')}|${fault}|${syncProblem}|${header.textContent}`
+    if (signature === measuredFor.current) return
+    measuredFor.current = signature
     const widths: Partial<Record<StatusBarItem, number>> = {}
     let used = 0
     for (const el of header.querySelectorAll<HTMLElement>('[data-sbitem]')) {
@@ -166,17 +176,22 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       widths[id] = width
       if (isShown(id)) used += width
     }
-    // Always-shown items (a fault's word, a sync problem) take their room off the top.
-    const pinned = wanted.filter((id) => (id === 'stateText' && fault) || (id === 'sync' && syncProblem))
+    // Always-shown items (a fault's word, a sync problem) take their room off the top - also when
+    // hidden in Einstellungen, they are shown anyway (#429 review).
+    const pinned = STATUS_BAR_ITEMS.filter((id) => (id === 'stateText' && fault) || (id === 'sync' && syncProblem))
     const room = title.clientWidth + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
-    const next = [...fitStatusBarItems(wanted.filter((id) => !pinned.includes(id)), widths, room)].join(',')
+    const next = [...fitStatusBarItems(wanted.filter((id) => !(pinned as readonly StatusBarItem[]).includes(id)), widths, room)].join(',')
     if (next !== shownKey) setShownKey(next)
   })
   useEffect(() => {
     const header = headerRef.current
     if (!header) return
     // A narrower or wider bar (rotation, split screen): start from everything again and fit.
-    const observer = new ResizeObserver(() => setShownKey(useStatusBarPrefsStore.getState().order.join(',')))
+    const observer = new ResizeObserver(() => {
+      const { order: all, hidden } = useStatusBarPrefsStore.getState()
+      setShownKey(all.filter((id) => !hidden.includes(id)).join(','))
+      setResizes((n) => n + 1)
+    })
     observer.observe(header)
     return () => observer.disconnect()
   }, [])

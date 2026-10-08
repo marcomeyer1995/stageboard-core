@@ -22,10 +22,10 @@ import { Button } from './ui'
  * `isFoundingSummary`'s copy/label swap, as `RosterSetupView.tsx`'s final phase - the whole
  * point of this session's earlier lockouts was losing this exact code, so founding a band now
  * ends on this same screen instead of relying on someone remembering to open "Einladen" later.
- * "Drucken" (`window.print()`, browser-native - every OS's print dialog already offers "Save as
- * PDF" as a destination, no PDF library needed) uses `print:` Tailwind variants to hide
- * everything except the QR/code themselves, and to escape the `fixed`/`overflow-y-auto` modal
- * chrome that would otherwise clip or blank the printed page.
+ * "Drucken" - every OS's print dialog already offers "Save as PDF" as a destination, no PDF
+ * library needed. Since #428 the printable page is its own sheet (PrintSheet, a portal on
+ * `body.sb-has-print-sheet`) printed via `lib/native.ts`'s `printPage()`: `window.print()` in the
+ * browser, the native PrintPlugin in the Android app (its WebView ignores `window.print()`).
  *
  * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
  * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a

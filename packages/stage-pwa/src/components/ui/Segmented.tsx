@@ -19,13 +19,15 @@ export interface SegmentedProps<T extends string> {
   /** Tapping the chosen option again (otherwise nothing happens) - e.g. to reverse a sort. */
   onSelectedTap?: () => void
   hint?: string
+  /** Less padding per segment - for a narrow place, e.g. a column of the ☰ menu on a phone in landscape. */
+  compact?: boolean
 }
 
 /**
  * Pick exactly one (D7): one joined bar, the chosen segment filled. Tapping the chosen segment
  * again changes nothing - the bar always has an answer.
  */
-export function Segmented<T extends string>({ options, value, onChange, label, size = 'form', showLabel = false, hint, onSelectedTap }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, label, size = 'form', showLabel = false, hint, onSelectedTap, compact = false }: SegmentedProps<T>) {
   const bar = (
     <div role="radiogroup" aria-label={label} className={`flex w-full gap-0 border border-line bg-control p-1 ${CONTROL}`}>
       {options.map((option) => {
@@ -39,7 +41,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
             disabled={option.disabled}
             title={option.title}
             onClick={() => (selected ? onSelectedTap?.() : onChange(option.value))}
-            className={`flex flex-1 items-center justify-center whitespace-nowrap ${SIZE[size]} ${options.length >= 5 ? '!px-1.5' : '!px-3'} ${CONTROL} ${FOCUS} ${DISABLED} ${
+            className={`flex flex-1 items-center justify-center whitespace-nowrap ${SIZE[size]} ${options.length >= 5 || compact ? '!px-1.5' : '!px-3'} ${CONTROL} ${FOCUS} ${DISABLED} ${
               selected ? SELECTED : `text-ink-soft ${HOVER}`
             }`}
           >
