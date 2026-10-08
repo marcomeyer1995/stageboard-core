@@ -3,7 +3,7 @@ import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-t
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import {
@@ -58,8 +58,9 @@ function formatClock(ms: number): string {
  * all share one size).
  */
 export function ShowTransportWidget({ config }: { config: ShowTransportConfig }) {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
-    useShowMode()
+  const { mode, queue, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } = useShowMode()
+  // The shown text, so the widget renders when the clock text changes - not every frame (#457).
+  const clock = useShowElapsed((ms) => formatClock(ms ?? 0))
   const { currentSong, currentVariant } = queue
   const driverError = useLocalAudioOutputStore((state) => state.error)
 
@@ -124,7 +125,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           )}
         </span>
         <span style={{ fontSize: infoClockFontSize }} className="flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink">
-          {formatClock(elapsedMs ?? 0)}
+          {clock}
           {transitionItem?.estimatedDurationMs ? (
             <span className="ml-1 font-normal text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
           ) : null}

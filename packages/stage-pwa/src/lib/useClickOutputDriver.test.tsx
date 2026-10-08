@@ -14,7 +14,12 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // 2026-09-10: switching away from the Live tab used to unmount ClickTrackWidget and silently
 // stop the click mid-show). Mock clickEngine.ts since happy-dom (vitest.config.ts) has no real
 // AudioContext.
-vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('./showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))

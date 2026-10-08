@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
 import type { SetlistEntry, Song, SongVariant, TrackMeta } from 'shared-types'
 import { useAudioOutputDriver } from './useAudioOutputDriver'
-import { useShowMode } from './showMode'
+import { useShowElapsed, useShowMode } from './showMode'
 import { loadLocalTrack, pauseLocalTrack, playLocalTrack, stopLocalTrack, syncLocalTrackPosition, unloadLocalTrack } from './localAudioEngine'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -19,7 +19,7 @@ import { ShowTransportWidget } from '../widgets/ShowTransportWidget'
 vi.mock('../components/MasterTakeoverButton', () => {
   return { MasterTakeoverButton: () => null }
 })
-vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('./showMode', () => ({ useShowMode: vi.fn(), useShowElapsed: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
@@ -74,6 +74,7 @@ function mockShowMode(overrides: {
   playbackStatus?: 'stopped' | 'playing' | 'paused'
   elapsedMs?: number | null
 }) {
+  vi.mocked(useShowElapsed).mockImplementation(((select: (ms: number | null) => unknown) => select(overrides.elapsedMs ?? 0)) as typeof useShowElapsed)
   vi.mocked(useShowMode).mockReturnValue({
     mode: 'gig',
     queue: {
@@ -90,7 +91,7 @@ function mockShowMode(overrides: {
       currentVariant: overrides.currentVariant,
       nextVariant: null,
     },
-    elapsedMs: overrides.elapsedMs ?? 0,
+    elapsedNow: () => overrides.elapsedMs ?? 0,
     playbackStatus: overrides.playbackStatus ?? 'stopped',
     trackOverride: null,
     liveTempoAdjustPercent: 0,

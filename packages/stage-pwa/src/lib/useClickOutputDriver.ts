@@ -4,7 +4,7 @@ import { startClick, stopClick, type ClickEngineState } from './clickEngine'
 import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
-import { useShowMode } from './showMode'
+import { useShowElapsed, useShowMode } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { clickTimeline } from './beatGrid'
 
@@ -71,7 +71,9 @@ function loopClickState(loopActive: boolean): Pick<ClickEngineState, 'playbackRa
  * way to get true silence during the gap instead of occasional stray hits.
  */
 export function useClickOutputDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride } = useShowMode()
+  const { mode, queue, playbackStatus, liveTempoAdjustPercent, clickTrackOverride } = useShowMode()
+  // Every frame on purpose (timing-critical): the time itself, not a coarse value (#457).
+  const elapsedMs = useShowElapsed((ms) => ms)
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)

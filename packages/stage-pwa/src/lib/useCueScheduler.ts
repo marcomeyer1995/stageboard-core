@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fireCue } from './cueFiring'
-import { useShowMode } from './showMode'
+import { useShowElapsed, useShowMode } from './showMode'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
@@ -23,7 +23,9 @@ import { useShowLogStore } from '../store/useShowLogStore'
  * everywhere else cues/timecodes are read in this app).
  */
 export function useCueScheduler(): void {
-  const { mode, queue, elapsedMs } = useShowMode()
+  const { mode, queue } = useShowMode()
+  // Every frame on purpose (timing-critical): the time itself, not a coarse value (#457).
+  const elapsedMs = useShowElapsed((ms) => ms)
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
   // Server cues go out once - from the device that drives the automatic steps (one device even in

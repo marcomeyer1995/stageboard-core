@@ -6,7 +6,12 @@ import { useShowMode } from '../lib/showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
 // Same mocking reasoning as PrompterWidget.test.tsx; the audio start/stop itself is the engine's job.
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn() }))
 vi.mock('../store/usePracticeStateStore', () => ({
   DEFAULT_PRACTICE_STATE: { trackOverride: null },
@@ -42,6 +47,7 @@ function mockMode(mode: 'gig' | 'practice', elapsedMs: number | null = 12_500, v
       currentEntry: { id: 'e1', songId: 's1', variantId: null, trackId: null },
     },
     elapsedMs,
+    elapsedNow: () => elapsedMs,
   } as never)
 }
 

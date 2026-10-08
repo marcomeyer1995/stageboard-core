@@ -7,7 +7,7 @@ import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm, beatAt, beatsPerBar } from '../lib/metronome'
 import { MODE_LABEL, type Mode } from '../lib/modes'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import {
   COUNT_IN_FLASH_MS,
   countInPosition,
@@ -88,8 +88,20 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
   )
 }
 
+interface LiveBar {
+  time: string
+  isCountIn: boolean
+  flash: boolean
+  position: CountInPosition | null
+}
+
+function sameLiveBar(a: LiveBar, b: LiveBar): boolean {
+  const p = (x: CountInPosition | null) => (x ? `${x.bar}/${x.bars}/${x.beat}/${x.beatsPerBar}` : '')
+  return a.time === b.time && a.isCountIn === b.isCountIn && a.flash === b.flash && p(a.position) === p(b.position)
+}
+
 export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: () => void }) {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
+  const { mode, queue, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
@@ -112,9 +124,28 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const timeline = song
     ? clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
     : null
-  const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
-  const countInBeat = beat !== null && beat.isCountIn ? beat : null
-  const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
+  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
+  const firstBeatMs = timeline?.bar1Ms ?? 0
+  const perBar = song ? beatsPerBar(song.timeSignature) : 4
+  // All the bar shows of the running position, re-rendered only when one of these changes - the
+  // time once a second, the count-in per beat - not on every frame (#457).
+  const live = useShowElapsed(
+    (elapsedMs): LiveBar => {
+      const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
+      const countInBeat = beat !== null && beat.isCountIn ? beat : null
+      return {
+        time: formatSongTime(elapsedMs ?? 0),
+        isCountIn: playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0)),
+        flash: countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS,
+        position:
+          countInBeat && elapsedMs !== null
+            ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
+            : null,
+      }
+    },
+    sameLiveBar,
+  )
+  const isCountIn = live.isCountIn
 
   const state = statusBarState({
     mode,
@@ -125,14 +156,8 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
     syncStatus,
     audioError,
   })
-  const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
-  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
-  const firstBeatMs = timeline?.bar1Ms ?? 0
-  const perBar = song ? beatsPerBar(song.timeSignature) : 4
-  const position =
-    state.kind === 'count-in' && countInBeat && elapsedMs !== null
-      ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
-      : null
+  const flash = state.kind === 'count-in' && live.flash
+  const position = state.kind === 'count-in' ? live.position : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
   const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
   const sync = SYNC_TEXT[syncStatus]
@@ -236,7 +261,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
 
       {title && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
-          {formatSongTime(elapsedMs ?? 0)}
+          {live.time}
           {durationMs !== null && (
             <span {...item('duration')}>
               <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>

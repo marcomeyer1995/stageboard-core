@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { isSongEntry, isTransitionEntry } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
@@ -34,7 +35,8 @@ export function usePracticeQueue(): Queue {
   const setlists = useSetlistsStore((state) => state.setlists)
   const variants = useSongVariantsStore((state) => state.variants)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
-  return computeQueue(songs, setlists, practiceState, variants, practiceState.variantOverride)
+  // Once per change of its inputs, not on every render of every caller (#457).
+  return useMemo(() => computeQueue(songs, setlists, practiceState, variants, practiceState.variantOverride), [songs, setlists, practiceState, variants])
 }
 
 function activeWorkspaceId(): string {

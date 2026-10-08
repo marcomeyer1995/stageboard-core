@@ -5,7 +5,12 @@ import { LiveQueueWidget } from './LiveQueueWidget'
 import { useShowMode } from '../lib/showMode'
 import { LONG_PRESS_MS } from '../lib/useLongPress'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../lib/useContentFontSize', () => ({ useContentFontSize: () => 16 }))
 vi.mock('../components/MasterTakeoverButton', () => ({ MasterTakeoverButton: () => <button type="button">Übernehmen</button> }))
 const saveSetlist = vi.hoisted(() => vi.fn())

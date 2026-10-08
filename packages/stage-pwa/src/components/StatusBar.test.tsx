@@ -4,7 +4,12 @@ import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { StatusBar } from './StatusBar'
 import { useShowMode } from '../lib/showMode'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p', name: 'Marco' }) }))
 vi.mock('../lib/useNow', () => ({ useNow: () => new Date('2026-09-27T21:07:00').getTime() }))
 const stores = vi.hoisted(() => ({ masterHolderId: 'tablet' as string | null, audioError: null as string | null }))

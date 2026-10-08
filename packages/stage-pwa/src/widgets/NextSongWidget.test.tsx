@@ -4,7 +4,12 @@ import type { SetlistEntry, Song } from 'shared-types'
 import { NextSongWidget } from './NextSongWidget'
 import { useShowMode } from '../lib/showMode'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../components/ReadyCheckControl', () => ({
   ReadyCheckControl: ({ compact }: { compact?: boolean }) => <button type="button">{compact ? 'Ready' : 'Ready-Check'}</button>,
 }))

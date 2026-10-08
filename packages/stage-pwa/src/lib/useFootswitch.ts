@@ -23,14 +23,16 @@ type Show = ReturnType<typeof useShowMode>
 
 /** Whether the song is still in its count-in bars - the same reading as the status bar's. */
 export function isCountingIn(show: Show): boolean {
-  if (show.playbackStatus !== 'playing' || show.elapsedMs === null) return false
-  if (show.elapsedMs < 0) return true
+  // Read now - at the key press - not a per-frame value (#457).
+  const elapsedMs = show.elapsedNow()
+  if (show.playbackStatus !== 'playing' || elapsedMs === null) return false
+  if (elapsedMs < 0) return true
   const { currentVariant, currentSong } = show.queue
   const song = currentVariant ?? currentSong
   if (!song) return false
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
   const timeline = clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, show.liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
-  return beatAt(show.elapsedMs, timeline)?.isCountIn === true
+  return beatAt(elapsedMs, timeline)?.isCountIn === true
 }
 
 export function currentSongState(show: Show): SongState {

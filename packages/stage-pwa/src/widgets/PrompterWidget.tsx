@@ -1,5 +1,5 @@
 import { Segmented } from '../components/ui'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
 import { ChordOffsetControls } from '../components/ChordOffsetControls'
@@ -11,7 +11,7 @@ import { isStandardTuning } from '../lib/tuning'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useChordOffsets } from '../lib/useChordOffsets'
 import { useContentFontSize } from '../lib/useContentFontSize'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -54,16 +54,16 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   }, [config])
   // useShowMode already picks the right song/clock for Gig vs. Practice mode - Gig mode's
   // clock is ShowState-synced (every tablet scrolls off the same value), Practice mode's is
-  // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
+  // this device's own local one (usePracticeElapsedMs.ts). Either way, the position is null
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
-  const { queue, elapsedMs, playbackStatus } = useShowMode()
+  const { queue, playbackStatus } = useShowMode()
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Who's targeted comments (`{cc4marco:}`, issue #215 follow-up) resolve against - this
   // device's active profile, and the whole roster (so a typo'd/stale target name still fails
   // open instead of silently vanishing forever, see commentVisibleTo's own doc comment).
   const activeProfile = useActiveProfile()
-  const rosterNames = useProfilesStore((state) => state.profiles).map((profile) => profile.name)
+  const rosterKey = useProfilesStore((state) => state.profiles.map((profile) => profile.name).join('\n'))
 
   // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
   // so the actual content to render comes from the variant, not the Song mirror - falling
@@ -77,13 +77,18 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const baseKey = currentVariant?.key
   // #59: this device's own transpose/capo shift, applied to the chords only (line count and
   // indices stay identical, so pagination and scrolling are unaffected).
-  const lines = currentSong
-    ? transposeLines(
-        parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames)),
-        offsets.chordShift,
-        baseKey,
-      )
-    : []
+  // Parsed once per song/variant, profile and transpose - not on every render (#457).
+  const hasSong = currentSong !== null
+  const profileName = activeProfile?.name
+  const lines = useMemo(() => {
+    if (!hasSong) return []
+    const rosterNames = rosterKey ? rosterKey.split('\n') : []
+    return transposeLines(
+      parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, profileName, rosterNames)),
+      offsets.chordShift,
+      baseKey,
+    )
+  }, [hasSong, chordProContent, profileName, rosterKey, offsets.chordShift, baseKey])
 
   // Key/Tuning/Capo (#410, Marco): no line of their own any more. The key is on the "Tonart"
   // button; capo and a tuning that isn't standard are small chips next to it in the header -
@@ -92,8 +97,13 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     offsets.effectiveCapo > 0 && `Capo ${offsets.effectiveCapo}`,
     !isStandardTuning(currentVariant?.tuning) && currentVariant?.tuning,
   ].filter((chip): chip is string => Boolean(chip))
-  const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
-  const pages = buildPages(lines)
+  // Rendered again when the active line changes, not on every frame (#457).
+  const activeIndex = useShowElapsed((ms) => currentLineIndex(lines, ms ?? 0))
+  const currentTransition = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
+  const transitionLeft = useShowElapsed((ms) =>
+    currentTransition?.estimatedDurationMs ? remainingSeconds(currentTransition.estimatedDurationMs, ms) : null,
+  )
+  const pages = useMemo(() => buildPages(lines), [lines])
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]
 
@@ -109,25 +119,30 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     return () => window.removeEventListener(PROMPTER_SCROLL_EVENT, onScroll)
   }, [])
 
+  // Smooth Scroll: ease toward the active line on every animation frame while playing - its own
+  // loop on the scroll position, so the widget itself renders only when the line changes (#457).
   useEffect(() => {
     if (config.viewMode !== 'scroll') return
-    const container = containerRef.current
-    const activeEl = container?.querySelector<HTMLElement>(`[data-line-index="${activeIndex}"]`)
-    if (!container || !activeEl) return
+    const step = () => {
+      const container = containerRef.current
+      const activeEl = container?.querySelector<HTMLElement>(`[data-line-index="${activeIndex}"]`)
+      if (!container || !activeEl) return
+      const containerRect = container.getBoundingClientRect()
+      const activeRect = activeEl.getBoundingClientRect()
+      const target = container.scrollTop + (activeRect.top - containerRect.top) - container.clientHeight / 2 + activeRect.height / 2
+      container.scrollTop += (target - container.scrollTop) * 0.08
+    }
+    step()
+    if (playbackStatus !== 'playing') return
+    let frame: number
+    const tick = () => {
+      step()
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [activeIndex, playbackStatus, config.viewMode])
 
-    const containerRect = container.getBoundingClientRect()
-    const activeRect = activeEl.getBoundingClientRect()
-    const target =
-      container.scrollTop +
-      (activeRect.top - containerRect.top) -
-      container.clientHeight / 2 +
-      activeRect.height / 2
-
-    // Smooth Scroll: ease continuously toward the active line every tick.
-    container.scrollTop += (target - container.scrollTop) * 0.08
-  }, [activeIndex, elapsedMs, config.viewMode])
-
-  const currentTransition = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
   if (currentTransition) {
     return (
       <div className="flex h-full flex-col gap-2 overflow-y-auto">
@@ -144,7 +159,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
           <p style={{ fontSize: artistFontSize }} className="text-ink-muted">
             {playbackStatus === 'stopped'
               ? `ca. ${formatItemSeconds(currentTransition.estimatedDurationMs)}`
-              : `noch ${remainingSeconds(currentTransition.estimatedDurationMs, elapsedMs)} s`}
+              : `noch ${transitionLeft} s`}
           </p>
         ) : null}
         {currentTransition.notes ? (

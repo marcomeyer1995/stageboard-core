@@ -6,7 +6,12 @@ import { useShowMode } from '../lib/showMode'
 
 // Same reasoning as ShowTransportWidget.test.tsx: mock useShowMode directly rather than the
 // stores it composes, several of which transitively construct a real PouchDB at import time.
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 
 function song(bpm: number, timeSignature: string): Song {
   return { id: 'song-1', title: 'Test Song', bpm, timeSignature, clickTrackEnabled: false, chordProContent: '', timecodes: [] }

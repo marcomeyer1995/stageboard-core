@@ -4,7 +4,7 @@ import { songDurationMs } from './entryDuration'
 import { resolveTrackForEntry } from './computeQueue'
 import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
-import { useShowMode } from './showMode'
+import { useShowElapsed, useShowMode } from './showMode'
 
 /**
  * Ends the current entry once its length has elapsed (#231, #28), then acts on its
@@ -26,7 +26,9 @@ import { useShowMode } from './showMode'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
+  const { playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
+  // Every frame on purpose (timing-critical): the time itself, not a coarse value (#457).
+  const elapsedMs = useShowElapsed((ms) => ms)
   const { currentEntry, currentVariant, nextEntry } = queue
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`

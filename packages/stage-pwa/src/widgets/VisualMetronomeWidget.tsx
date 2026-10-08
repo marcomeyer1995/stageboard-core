@@ -1,6 +1,6 @@
 import { Segmented } from '../components/ui'
 import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MetronomeConfig } from './metronomeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -44,10 +44,27 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
  * the audio click generator and hardware routing are deliberately out of scope here, split to
  * a follow-up issue since they need real output hardware to verify meaningfully).
  */
+/** What the widget draws of a beat - equal keys draw the same. */
+function beatKey(beat: Beat | null): string {
+  if (!beat) return 'none'
+  return `${beat.beatInBar}|${beat.isDownbeat}|${beat.isCountIn}|${beat.effectiveBpm.toFixed(1)}|${beat.msIntoBeat < PULSE_WINDOW_MS}`
+}
+
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
-  const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
+  const { queue, playbackStatus, liveTempoAdjustPercent } = useShowMode()
   const song = queue.currentVariant ?? queue.currentSong
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
+  // The grid only lives on SongVariant, not the bare Song fallback `song` might be - same "no
+  // variant means none" shape useClickOutputDriver.ts uses.
+  const timeline = song
+    ? clickTimeline({ beatGrid: queue.currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
+    : null
+  // Rendered again only when what is drawn changes - the beat, its flash, count-in, the shown
+  // tempo - about twice per beat instead of every frame (#457).
+  const beat = useShowElapsed(
+    (ms) => (playbackStatus === 'playing' && ms !== null && timeline ? beatAt(ms, timeline) : null),
+    (a, b) => beatKey(a) === beatKey(b),
+  )
 
   // The big beat number is sized as a ratio of the device-wide default, not auto-fit to the tile
   // (Marco, 2026-09-14). The status words ("Kein Song aktiv", "Wartet auf Play", "Einzählen…")
@@ -68,12 +85,6 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
 
   const bpm = adjustedBpm(song.bpm, liveTempoAdjustPercent)
 
-  // The grid only lives on SongVariant, not the bare Song fallback `song` might be - same "no
-  // variant means none" shape useClickOutputDriver.ts uses.
-  const beat =
-    playbackStatus === 'playing' && elapsedMs !== null
-      ? beatAt(elapsedMs, clickTimeline({ beatGrid: queue.currentVariant?.beatGrid, bpm, timeSignature: song.timeSignature, countInBars }))
-      : null
 
   // The actually-audible tempo right now, not the song's authored bpm - `beat.effectiveBpm` is the
   // spacing of the grid stretch playing; with no active beat (not playing yet, or before the
