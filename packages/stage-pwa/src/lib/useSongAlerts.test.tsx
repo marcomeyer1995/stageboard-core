@@ -1,13 +1,14 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const clock = vi.hoisted(() => ({ ms: 0 }))
 const show = vi.hoisted(() => ({
+  mode: 'gig',
   playbackStatus: 'playing' as string,
+  elapsedNow: () => clock.ms,
   queue: { currentVariant: { chordProContent: '[00:01.00]Line\n[00:05.00] {alert: VAMP}\n[00:09.00]Line' }, currentSong: null },
 }))
-const clock = vi.hoisted(() => ({ ms: 0 }))
-vi.mock('./showMode', () => ({ useShowMode: () => show }))
-vi.mock('../store/useClockStore', () => ({ useClockStore: { getState: () => ({ getElapsedMs: () => clock.ms }) } }))
+vi.mock('./showMode', () => ({ useShowModeSong: () => show }))
 
 const { useSongAlerts } = await import('./useSongAlerts')
 const { LOCAL_FLASH_EVENT } = await import('./flash')

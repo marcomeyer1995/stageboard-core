@@ -22,10 +22,20 @@ public class PrintPlugin extends Plugin {
     public void print(PluginCall call) {
         String name = call.getString("name", "StageBoard");
         getActivity().runOnUiThread(() -> {
+            // A device without print support (some Fire OS / stripped ROMs) has no PrintManager -
+            // reject instead of crashing the whole app on the UI thread.
             PrintManager printManager = (PrintManager) getActivity().getSystemService(Context.PRINT_SERVICE);
-            PrintDocumentAdapter adapter = getBridge().getWebView().createPrintDocumentAdapter(name);
-            printManager.print(name, adapter, new PrintAttributes.Builder().build());
-            call.resolve();
+            if (printManager == null) {
+                call.reject("Drucken wird auf diesem Gerät nicht unterstützt.");
+                return;
+            }
+            try {
+                PrintDocumentAdapter adapter = getBridge().getWebView().createPrintDocumentAdapter(name);
+                printManager.print(name, adapter, new PrintAttributes.Builder().build());
+                call.resolve();
+            } catch (RuntimeException e) {
+                call.reject("Drucken fehlgeschlagen: " + e.getMessage());
+            }
         });
     }
 }
