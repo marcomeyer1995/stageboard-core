@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
 import { CONTAINER } from './styles'
+import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
 
 const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
@@ -28,6 +29,9 @@ export interface DialogProps {
 export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm' }: DialogProps) {
   useBackHandler(onClose)
   const typing = useTypingOnTouch()
+  // Phone in landscape (under 300 px of height in the browser): no title row - the dialog keeps
+  // its name for screen readers - and slimmer rows, so the content gets the height.
+  const low = useMediaQuery(LOW_SCREEN)
   return createPortal(
     // h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
     // with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review).
@@ -48,11 +52,11 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
         // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
         className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
       >
-        <div className="flex flex-shrink-0 items-center border-b border-line px-4 py-3">
+        <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
           <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
         </div>
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">{children}</div>
-        <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3">
+        <div className={`flex min-h-0 flex-col overflow-y-auto ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
+        <div className={`flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
           {actions ?? (
             <Button variant="primary" onClick={onClose} className="ml-auto">
               {closeLabel}

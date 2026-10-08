@@ -153,4 +153,17 @@ describe('AppMenu dashboard picker (#35)', () => {
       window.matchMedia = original
     }
   })
+
+  it('a phone in landscape (very low screen) gets three columns, so nothing has to scroll (2026-10-08)', () => {
+    const original = window.matchMedia
+    const on = new Set(['(max-height: 420px)', '(min-width: 700px)', '(min-width: 768px)', '(orientation: landscape)'])
+    window.matchMedia = ((query: string) => ({ matches: on.has(query), media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+    try {
+      render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+      expect(document.querySelector('.grid-cols-3')).not.toBeNull()
+    } finally {
+      window.matchMedia = original
+    }
+  })
 })
+
