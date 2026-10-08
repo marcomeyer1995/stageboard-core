@@ -43,7 +43,7 @@ import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, deleteDocUnless, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
@@ -610,15 +610,18 @@ export async function buildApp() {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
     if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      request.log.warn({ workspaceId, deviceId }, 'device forget refused: not this band\'s admin')
       return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
     }
     const db = workspaceDbName(workspaceId)
     const docId = `devices:${deviceId}`
     const existing = await getDoc<Device & CouchDoc>(couch, db, docId)
     if (!existing) {
+      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
       return reply.status(404).send({ status: 'error', message: 'Unknown device' })
     }
     if (existing.revoked) {
+      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
       return reply.status(409).send({ status: 'error', message: 'blocked' })
     }
     const hardware = await allDocs<CouchDoc & { name?: string; executionTarget?: string | null }>(couch, db, {
@@ -627,9 +630,21 @@ export async function buildApp() {
     })
     const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
     if (usedBy.length > 0) {
+      request.log.info({ workspaceId, deviceId, usedBy }, 'device forget refused: in use by hardware')
       return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
     }
-    await putDoc(couch, db, { _id: docId, _rev: existing._rev, _deleted: true })
+    // Checked and deleted against the same revision; a write in between (the device's own
+    // lastSeenAt, a rename, a block) is a conflict - read again and check again instead of
+    // answering 204 for a delete that never happened (#426 review).
+    const result = await deleteDocUnless<Device & CouchDoc, 'blocked'>(couch, db, docId, (existing) => (existing.revoked ? 'blocked' : null))
+    if (result === 'missing') {
+      request.log.info({ workspaceId, deviceId }, 'device forget: unknown device')
+      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
+    }
+    if (result === 'blocked') {
+      request.log.info({ workspaceId, deviceId }, 'device forget refused: blocked')
+      return reply.status(409).send({ status: 'error', message: 'blocked' })
+    }
     request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
     return reply.status(204).send()
   })

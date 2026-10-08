@@ -124,7 +124,8 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
       })
-      if (response.status === 204) return 'removed'
+      // 404: already gone (another admin, or a second tap before the list synced) - that's done.
+      if (response.status === 204 || response.status === 404) return 'removed'
       if (response.status === 409) {
         const body = (await response.json().catch(() => ({}))) as { message?: string }
         return body.message === 'blocked' ? 'blocked' : 'in-use'
