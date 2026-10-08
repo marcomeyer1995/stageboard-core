@@ -160,7 +160,7 @@ describe('AppMenu dashboard picker (#35)', () => {
     window.matchMedia = ((query: string) => ({ matches: on.has(query), media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
     try {
       render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-      expect(document.querySelector('.grid-cols-3')).not.toBeNull()
+      expect(document.querySelector('[class*="grid-cols-[1.25fr_1fr_1fr]"]')).not.toBeNull()
     } finally {
       window.matchMedia = original
     }
