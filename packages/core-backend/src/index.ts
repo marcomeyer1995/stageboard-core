@@ -1411,10 +1411,33 @@ export async function buildApp() {
     // band's device login could read and write every other band's database through here.
     preHandler: (request, reply, done) => {
       const refusal = bandDbProxyRefusal(request.url, request.headers.authorization)
-      if (!refusal) return done()
-      app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
-      void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
+      if (refusal) {
+        app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
+        void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
+        return
+      }
+      // CouchDB itself never locks a login - an admin's password is their 4-digit PIN, so guessing
+      // it here had no limit (#396 review). Same lock as the admin routes, shared per account.
+      const login = basicAuthCredentials(request.headers.authorization)
+      const lockedFor = login ? adminLoginThrottle.lockedForSeconds(login.username) : 0
+      if (lockedFor > 0) {
+        void reply.status(429).header('Retry-After', String(lockedFor)).send({ error: 'locked', reason: 'Too many wrong logins' })
+        return
+      }
+      done()
     },
+  })
+  app.addHook('onResponse', async (request, reply) => {
+    if (!request.url.startsWith('/db')) return
+    const login = basicAuthCredentials(request.headers.authorization)
+    if (!login) return
+    if (reply.statusCode === 401) {
+      if (adminLoginThrottle.recordFailure(login.username)) {
+        app.log.warn({ username: login.username, remoteAddress: request.ip }, 'Too many wrong database logins - locked out temporarily')
+      }
+    } else if (reply.statusCode < 400) {
+      adminLoginThrottle.recordSuccess(login.username)
+    }
   })
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the

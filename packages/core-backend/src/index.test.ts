@@ -724,6 +724,24 @@ describe('Fastify routes', () => {
     }
   })
 
+  it('wrong admin logins lock the account on the /db proxy too - no unlimited PIN guessing (#396 review)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+    try {
+      for (let i = 0; i < 5; i++) {
+        await app.inject({ method: 'POST', url: '/workspaces/band-a/master-mode', payload: { adminUsername: 'stageboard-band-a-p9', adminPassword: `${1000 + i}`, masterMode: 'account' } })
+      }
+      const response = await app.inject({
+        method: 'GET',
+        url: '/db/stageboard-band-a/_all_docs',
+        headers: { authorization: `Basic ${Buffer.from('stageboard-band-a-p9:1005').toString('base64')}` },
+      })
+      expect(response.statusCode).toBe(429)
+      expect(Number(response.headers['retry-after'])).toBeGreaterThan(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('the /db proxy refuses another band\'s account before the request reaches CouchDB', async () => {
     const response = await app.inject({
       method: 'GET',
