@@ -16,7 +16,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * Mounted once in App.tsx alongside DialogHost/DiscoveryBanner, so it fires regardless of which
  * top-level tab is currently showing - same "must survive independently of any one widget being
  * mounted" reasoning as useAudioOutputDriver.ts itself. A higher z-index than every other overlay
- * in the app (DialogHost is z-30) is deliberate: losing the band's audio outranks anything else
+ * in the app (z-takeover, above DialogHost's z-alert) is deliberate: losing the band's audio outranks anything else
  * this device could be showing right now.
  *
  * Deliberately does NOT read `useShowMode()`/`elapsedMs` reactively (Marco, found live,
@@ -46,16 +46,16 @@ export function AudioResumeOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-red-900/95 sb-pad-safe [--sb-pad:1.5rem] text-center">
-      <p className="text-2xl font-bold text-white">Wiedergabe unterbrochen</p>
-      <p className="max-w-sm text-base text-red-100">
+    <div className="fixed inset-0 z-takeover flex flex-col items-center justify-center gap-6 bg-alarm/95 sb-pad-safe [--sb-pad:1.5rem] text-center">
+      <p className="text-2xl font-bold text-alarm-ink">Wiedergabe unterbrochen</p>
+      <p className="max-w-sm text-base text-alarm-ink/80">
         Der Browser hat die automatische Fortsetzung des Backing-Tracks blockiert. Zum
         Weiterspielen antippen.
       </p>
       <button
         type="button"
         onClick={() => void resume()}
-        className="animate-pulse rounded-control bg-white px-8 py-4 text-xl font-bold uppercase tracking-wide text-red-700 [@media(hover:hover)]:hover:bg-red-50"
+        className="animate-pulse rounded-control bg-alarm-ink px-8 py-4 text-xl font-bold uppercase tracking-wide text-alarm [@media(hover:hover)]:hover:bg-alarm-ink/90"
       >
         Antippen zum Fortsetzen
       </button>

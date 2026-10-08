@@ -71,7 +71,7 @@ export function TimelineMinimap({ width, peaks, range, view, viewSpanMs, blocks,
     }
 
     const px = minimapX(playheadMs, range, width)
-    g.fillStyle = '#ef4444'
+    g.fillStyle = cssVar('--sb-danger', '#ef4444')
     g.fillRect(px - 1, 0, 2, MINIMAP_H)
 
     const bx = Math.max(0, minimapX(view.startMs, range, width))

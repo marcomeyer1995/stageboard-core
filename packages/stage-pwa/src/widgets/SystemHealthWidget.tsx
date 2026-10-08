@@ -12,8 +12,8 @@ const STATUS_LABEL: Record<CapabilityStatus, string> = {
 }
 
 const STATUS_DOT: Record<CapabilityStatus, string> = {
-  available: 'bg-green-500',
-  degraded: 'bg-amber-500',
+  available: 'bg-ok',
+  degraded: 'bg-warn',
   missing: 'bg-control-strong-hover',
 }
 
@@ -73,7 +73,7 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
           <span className="flex items-center gap-[0.4em]">
             <span
               className={`inline-block rounded-full ${
-                driftMs !== null && driftMs > DRIFT_WARN_THRESHOLD_MS ? 'bg-amber-500' : 'bg-green-500'
+                driftMs !== null && driftMs > DRIFT_WARN_THRESHOLD_MS ? 'bg-warn' : 'bg-ok'
               }`}
               style={{ width: '0.5em', height: '0.5em' }}
             />

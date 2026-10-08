@@ -120,7 +120,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
 
   return (
     <div
-      className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 sb-pad-safe [--sb-pad:0.75rem]"
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-scrim/60 sb-pad-safe [--sb-pad:0.75rem]"
       onClick={onClose}
     >
       {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
@@ -160,7 +160,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           </button>
         </form>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         <div className="grid flex-1 grid-cols-2 gap-3 overflow-hidden">
           <ul className="flex flex-col gap-1 overflow-y-auto">

@@ -1,6 +1,6 @@
 export type Status = 'ok' | 'warning' | 'error' | 'off'
 
-const COLOR: Record<Status, string> = { ok: 'bg-green-500', warning: 'bg-amber-500', error: 'bg-red-500', off: 'bg-control-strong' }
+const COLOR: Record<Status, string> = { ok: 'bg-ok', warning: 'bg-warn', error: 'bg-danger', off: 'bg-control-strong' }
 const NAME: Record<Status, string> = { ok: 'OK', warning: 'Warnung', error: 'Fehler', off: 'Aus' }
 
 /** One size, four states - red only for faults. */

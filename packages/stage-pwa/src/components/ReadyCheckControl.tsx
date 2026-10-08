@@ -27,7 +27,7 @@ export function ReadyCheckControl({ compact = false, buttonClassName }: { compac
     <div className="flex h-full items-center gap-2">
       <span
         title={missing.length > 0 ? `Warten auf: ${missing.join(', ')}` : 'Alle bereit'}
-        className={`font-bold tabular-nums ${status.allReady ? 'text-green-500' : 'text-ink'}`}
+        className={`font-bold tabular-nums ${status.allReady ? 'text-ok' : 'text-ink'}`}
       >
         {status.allReady && <Icon name="check" className="mr-1" />}
         {status.ready}/{status.total}{compact ? '' : ' bereit'}

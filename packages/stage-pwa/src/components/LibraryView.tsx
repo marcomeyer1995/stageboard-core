@@ -253,7 +253,7 @@ function DraggableSongRow({
           // scrolling working natively; only the horizontal swipe/drag is JS-driven.
           touchAction: 'pan-y',
         }}
-        className={`relative z-10 flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
+        className={`relative z-content flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
         } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${inSetlist ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
       >
@@ -847,7 +847,7 @@ export function LibraryView() {
           instead, like a toast, and never intercepts touches/clicks meant for whatever's
           underneath it. */}
       {swipeMessage && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-dialog flex justify-center px-4">
           <p className="rounded-sb-pill bg-control-strong px-4 py-2 text-center text-sm text-ink shadow-sb">
             {swipeMessage}
           </p>

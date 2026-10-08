@@ -63,7 +63,7 @@ export function StageServerSettings() {
 
       {override && (
         <div className="flex flex-col gap-2 rounded-container border border-line bg-surface p-3 text-sm">
-          <p className="text-amber-500">
+          <p className="text-warn">
             Diese manuelle Adresse ersetzt auf diesem Gerät die automatische
             {automatic ? ` (${automatic})` : ''}. Stimmt sie nicht mehr, erreicht dieses Gerät den Stage-Server
             nicht.

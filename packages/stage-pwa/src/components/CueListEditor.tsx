@@ -165,7 +165,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
             className={`px-2 py-1 font-sb-mono text-base placeholder:text-ink-faint ${INPUT}`}
           />
         </label>
-        {payloadError && <p className="text-xs text-red-500">{payloadError}</p>}
+        {payloadError && <p className="text-xs text-danger">{payloadError}</p>}
         <button
           type="button"
           onClick={add}

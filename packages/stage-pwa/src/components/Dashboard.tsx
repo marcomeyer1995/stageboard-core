@@ -333,8 +333,8 @@ export function Dashboard() {
       {isEditing && current && current.squeezed > 0 && (
         // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
         // true size (#370), so nothing may take height away from the grid.
-        <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
-          <span className="text-amber-500">
+        <div className="absolute inset-x-3 bottom-3 z-bars flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
+          <span className="text-warn">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
             klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
             gezeigt).

@@ -12,7 +12,7 @@ import { INPUT, SELECTED } from './ui/styles'
  *
  * Stacking (#375): a dialog is always the answer to something the user just did - often inside
  * another overlay (the burger menu's "Force Takeover", a widget's or row's ⋯ menu). It therefore
- * sits above every menu/sheet layer (those use z-40/z-50); only the AudioResumeOverlay (z-60),
+ * sits above every menu/sheet layer (z-menu / z-dialog, docs/15 §5); it is z-alert - only the AudioResumeOverlay (z-takeover),
  * which blocks the whole app until audio is unlocked, stays above it.
  *
  * Keyboard: a dialog the user types into opens at the top of the screen, where the on-screen
@@ -44,7 +44,7 @@ export function DialogHost() {
     <div
       role="presentation"
       data-testid="dialog-host"
-      className={`fixed inset-x-0 top-0 z-[55] flex h-dvh justify-center overflow-y-auto bg-black/60 sb-pad-safe ${
+      className={`fixed inset-x-0 top-0 z-alert flex h-dvh justify-center overflow-y-auto bg-scrim/60 sb-pad-safe ${
         typesText(request) ? 'items-start' : 'items-center'
       }`}
       style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}

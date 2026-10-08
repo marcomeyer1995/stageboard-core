@@ -28,7 +28,7 @@ function formatDateTime(ms: number | undefined): string {
 }
 
 function StatusDot({ on, title }: { on: boolean | null; title: string }) {
-  const color = on === null ? 'bg-ink-faint/40' : on ? 'bg-green-500' : 'bg-ink-faint'
+  const color = on === null ? 'bg-ink-faint/40' : on ? 'bg-ok' : 'bg-ink-faint'
   return <span className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${color}`} title={title} />
 }
 
@@ -183,7 +183,7 @@ export function DeviceLedgerView() {
           const used = usedBy(device.id)
 
           return (
-            <div key={device.id} className={`rounded-container border px-4 py-3 shadow-sb ${device.revoked ? 'border-red-500/40 bg-red-500/5' : 'border-line bg-surface'}`}>
+            <div key={device.id} className={`rounded-container border px-4 py-3 shadow-sb ${device.revoked ? 'border-danger/40 bg-danger/5' : 'border-line bg-surface'}`}>
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">
@@ -242,7 +242,7 @@ export function DeviceLedgerView() {
                 )}
               </div>
               {used.length > 0 && (
-                <p className="mt-2 text-sm text-amber-500">
+                <p className="mt-2 text-sm text-warn">
                   In Verwendung: {used.join(', ')} - im Tab Hardware ein anderes Gerät wählen, dann lässt es sich entfernen.
                 </p>
               )}

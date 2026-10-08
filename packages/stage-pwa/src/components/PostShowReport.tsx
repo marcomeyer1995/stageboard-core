@@ -85,10 +85,10 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
       )}
       {technical.length > 0 && (
         <details className="mt-4">
-          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-amber-500">
+          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-warn">
             Technik ({technical.length})
           </summary>
-          <div className="space-y-1 text-sm text-amber-500">
+          <div className="space-y-1 text-sm text-warn">
             {technical.map((event) => (
               <div key={event.id}>
                 <Icon name="warning" className="mr-1" />

@@ -515,7 +515,7 @@ export function DeviceSetupWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
         <div className="border-b border-line px-4 py-3">

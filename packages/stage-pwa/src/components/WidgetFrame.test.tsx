@@ -90,7 +90,7 @@ describe('WidgetFrame', () => {
         <p>widget content</p>
       </WidgetFrame>,
     )
-    expect(container.firstElementChild).toHaveClass('outline-red-500')
+    expect(container.firstElementChild).toHaveClass('outline-danger')
     expect(screen.getByText(/zu klein/)).toBeInTheDocument()
 
     rerender(
@@ -98,7 +98,7 @@ describe('WidgetFrame', () => {
         <p>widget content</p>
       </WidgetFrame>,
     )
-    expect(container.firstElementChild).not.toHaveClass('outline-red-500')
+    expect(container.firstElementChild).not.toHaveClass('outline-danger')
     expect(screen.queryByText(/zu klein/)).not.toBeInTheDocument()
   })
 })

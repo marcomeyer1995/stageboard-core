@@ -29,7 +29,7 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   useBackHandler(onClose)
   const typing = useTypingOnTouch()
   return createPortal(
-    <div className={`fixed inset-0 z-dialog flex justify-center bg-black/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
+    <div className={`fixed inset-0 z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

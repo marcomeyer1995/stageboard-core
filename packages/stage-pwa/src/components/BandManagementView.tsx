@@ -136,7 +136,7 @@ function MemberRowLabel({ profile, onlineDeviceCount }: { profile: Profile; onli
       <span className="inline-flex items-center gap-1.5">
         {onlineDeviceCount > 0 && (
           <span
-            className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"
+            className="h-2 w-2 flex-shrink-0 rounded-full bg-ok"
             title={`${onlineDeviceCount} Gerät${onlineDeviceCount === 1 ? '' : 'e'} gerade angemeldet`}
           />
         )}
@@ -379,7 +379,7 @@ export function BandManagementView() {
                   <>
                     {/* Set apart and named for what it does (#361): on 2026-10-04 "Löschen" next
                         to "Von diesem Gerät entfernen" deleted a band for everyone by mistake. */}
-                    {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-red-500">Für alle Geräte</div>}
+                    {!!workspace.username && <div className="border-t border-line pt-2 text-xs font-bold uppercase tracking-widest text-danger">Für alle Geräte</div>}
                     <RowActionButton
                       danger
                       onClick={async () => {

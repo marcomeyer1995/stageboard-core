@@ -11,7 +11,7 @@ function Wrap({ id, label, hint, error, children }: { id: string; label?: string
         </label>
       )}
       {children}
-      {error ? <p className="text-sm text-red-400">{error}</p> : hint ? <p className="text-sm text-ink-faint">{hint}</p> : null}
+      {error ? <p className="text-sm text-danger">{error}</p> : hint ? <p className="text-sm text-ink-faint">{hint}</p> : null}
     </div>
   )
 }
@@ -29,7 +29,7 @@ export function Field({ label, hint, error, size = 'form', id, className = '', .
   const fieldId = id ?? autoId
   return (
     <Wrap id={fieldId} label={label} hint={hint} error={error}>
-      <input id={fieldId} aria-invalid={error ? true : undefined} className={`${INPUT} ${SIZE[size]} ${error ? '!border-red-500' : ''} ${className}`} {...rest} />
+      <input id={fieldId} aria-invalid={error ? true : undefined} className={`${INPUT} ${SIZE[size]} ${error ? '!border-danger' : ''} ${className}`} {...rest} />
     </Wrap>
   )
 }

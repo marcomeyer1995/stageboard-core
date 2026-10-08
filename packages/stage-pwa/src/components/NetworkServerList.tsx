@@ -64,7 +64,7 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
           <span className="text-sm text-ink-muted">{server.host}</span>
         </button>
       ))}
-      {error && <p className="text-sm text-amber-500">{error}</p>}
+      {error && <p className="text-sm text-warn">{error}</p>}
     </div>
   )
 }

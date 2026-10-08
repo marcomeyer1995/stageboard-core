@@ -155,7 +155,7 @@ export function MasterControl() {
           {mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
         </p>
       ) : (
-        <p role={unconfirmed ? 'status' : undefined} className={`text-sm ${unconfirmed || status === 'stale' ? 'text-amber-500' : 'text-ink-faint'}`}>
+        <p role={unconfirmed ? 'status' : undefined} className={`text-sm ${unconfirmed || status === 'stale' ? 'text-warn' : 'text-ink-faint'}`}>
           {statusLine}
         </p>
       )}

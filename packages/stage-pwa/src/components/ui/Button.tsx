@@ -11,7 +11,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   // D3: the lighter grey, so a button never looks like an unselected segment.
   secondary: 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Red only for faults and danger.
-  danger: 'bg-control-strong text-red-400 [@media(hover:hover)]:hover:bg-control-strong-hover',
+  danger: 'bg-control-strong text-danger [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Inline, without a fill - still a full-height touch target.
   quiet: 'bg-transparent text-ink-soft [@media(hover:hover)]:hover:bg-control-hover',
 }

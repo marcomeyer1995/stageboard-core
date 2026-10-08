@@ -178,7 +178,7 @@ export function CueDialog({
           </>
         )}
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
       </form>
     </Dialog>
   )

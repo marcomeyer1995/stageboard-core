@@ -303,7 +303,7 @@ function App() {
         {/* Only where the status bar is hidden (a dashboard can switch it off) - elsewhere the
             bar carries the menu button. */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
-          <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+          <div className="absolute bottom-3 right-3 z-content flex items-center gap-2">
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
@@ -319,10 +319,10 @@ function App() {
                 title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
                 className={`absolute right-1 top-1 h-2 w-2 rounded-full ${
                   {
-                    idle: 'bg-green-500',
-                    syncing: 'bg-blue-500 animate-pulse',
-                    offline: 'bg-gray-400',
-                    error: 'bg-red-500',
+                    idle: 'bg-ok',
+                    syncing: 'bg-info animate-pulse',
+                    offline: 'bg-ink-faint',
+                    error: 'bg-danger',
                   }[syncStatus]
                 }`}
               />

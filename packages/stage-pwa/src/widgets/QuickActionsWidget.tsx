@@ -67,7 +67,7 @@ export function QuickActionsWidget({ config }: { config: CueGridConfig }) {
       <div className="min-h-0 flex-1">
         <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} fontSize={fontSize} />
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   )
 }

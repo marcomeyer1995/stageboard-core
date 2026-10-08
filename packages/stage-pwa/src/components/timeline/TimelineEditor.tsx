@@ -108,7 +108,10 @@ const LINE_SNAP_MS = 60
 /** Stand-in for a song without a grid of its own: bar 1 at 0:00 (what playback assumes too). */
 const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters: [] }
 
-const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
+/** Bar quality on the grid lane - the theme's meaning colours (docs/15 §5), read when drawing. */
+function qualityColors(): Record<'good' | 'ok' | 'poor' | 'quiet', string> {
+  return { good: cssVar('--sb-ok', '#22c55e'), ok: cssVar('--sb-warn', '#f59e0b'), poor: cssVar('--sb-danger', '#ef4444'), quiet: cssVar('--sb-control-strong', '#404040') }
+}
 /** Lane names and empty-lane hints (#324): faint, stage-readable size. */
 const LANE_LABEL_FONT = '600 16px system-ui, sans-serif'
 
@@ -451,6 +454,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const faint = cssVar('--sb-ink-faint', '#a3a3a3')
     const accent = cssVar('--sb-accent', '#f59e0b')
     const stage = cssVar('--sb-stage', '#000000')
+    const qualityColor = qualityColors()
     const viewEndMs = xToTime(width, view)
     const activeBar = drag?.kind === 'bar' ? drag.bar : selectedBar
     const activeLine = drag?.kind === 'line' ? drag.rawIndex : selectedLine
@@ -517,7 +521,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const x0 = timeToX(bar.startMs, view)
         const x1 = timeToX(bar.endMs, view)
         if (x1 < 0 || x0 > width) continue
-        g.fillStyle = QUALITY_COLOR[bar.level]
+        g.fillStyle = qualityColor[bar.level]
         g.globalAlpha = 0.55
         g.fillRect(x0, h - 10, Math.max(1, x1 - x0 - 1), 10)
         g.globalAlpha = 1
@@ -1402,7 +1406,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         aria-label={compactTools ? 'Werkzeuge' : undefined}
         className={
           compactTools
-            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
+            ? 'absolute inset-x-0 z-bars flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
             : 'flex flex-wrap items-center gap-2'
         }
         style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
@@ -1467,7 +1471,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       {!trackId && <p className="text-sm text-ink-faint">Kein Track angehängt - die Timeline zeigt nur das Raster.</p>}
       {analysisState === 'loading' && <p className="text-sm text-ink-faint">Wellenform wird berechnet…</p>}
-      {analysisState === 'error' && <p className="text-sm text-amber-500">Track auf diesem Gerät nicht verfügbar - keine Wellenform.</p>}
+      {analysisState === 'error' && <p className="text-sm text-warn">Track auf diesem Gerät nicht verfügbar - keine Wellenform.</p>}
 
       <TimelineMinimap
         width={width}
@@ -1496,11 +1500,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {!hiddenLanes.has('notes') && <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />}
         {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
         {playheadX >= 0 && playheadX <= width && (
-          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
+          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
         {fine && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-black shadow"
+            className="pointer-events-none absolute z-content -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-accent-ink shadow-sb"
             style={{ left: Math.min(Math.max(fine.x, 60), width - 60), top: Math.max(fine.y - 72, 4) }}
             role="status"
           >

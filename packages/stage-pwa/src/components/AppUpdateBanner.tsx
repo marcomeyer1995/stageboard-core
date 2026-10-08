@@ -27,12 +27,12 @@ export function AppUpdateBanner() {
   if (!update || dismissed) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-center justify-center gap-3 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-bottom text-accent-ink shadow-sb" role="status">
+    <div className="fixed inset-x-0 bottom-0 z-menu flex flex-wrap items-center justify-center gap-3 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-bottom text-accent-ink shadow-sb" role="status">
       <span className="text-base font-semibold">{error ?? `Neue App-Version ${update.versionName} auf dem Stage-Server`}</span>
       <button
         type="button"
         disabled={busy}
-        className="min-h-12 rounded-control bg-black/80 px-4 text-base font-bold text-white disabled:opacity-60"
+        className="min-h-12 rounded-control bg-scrim/80 px-4 text-base font-bold text-scrim-ink disabled:opacity-60"
         onClick={async () => {
           setBusy(true)
           setError(null)

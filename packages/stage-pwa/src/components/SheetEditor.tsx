@@ -549,12 +549,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             type="button"
             onClick={() => void handleClearGrid()}
             disabled={!draft.beatGrid}
-            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-red-500 [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
+            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-danger [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
           >
             Raster löschen
           </button>
         </div>
-        {analyzeError && <p className="text-sm text-red-500">{analyzeError}</p>}
+        {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
       </div>
     </div>
   )
@@ -795,7 +795,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             {draft.title}
             <span className="ml-2 font-normal text-ink-muted">{draft.variantLabel}</span>
           </span>
-          {error && <span className="text-sm text-red-500">{error}</span>}
+          {error && <span className="text-sm text-danger">{error}</span>}
           {savedAt && <span className="text-sm text-ink-faint">Gespeichert.</span>}
           <button
             type="button"
@@ -984,7 +984,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 // scroll away with it instead of staying pinned to the viewport like a real
                 // bottom sheet.
                 return (
-                  <div className="fixed inset-x-0 bottom-0 z-20 flex max-h-[55dvh] flex-col gap-3 overflow-y-auto rounded-t-sb border-t border-line bg-surface p-4 shadow-sb">
+                  <div className="fixed inset-x-0 bottom-0 z-bars flex max-h-[55dvh] flex-col gap-3 overflow-y-auto rounded-t-sb border-t border-line bg-surface p-4 shadow-sb">
                     <div className="flex items-center justify-between">
                       <span className="h-1 w-10 self-center rounded-sb-pill bg-control-strong" />
                       <button
@@ -1003,7 +1003,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               return active.content
             })()}
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <button
           type="button"
           onClick={() => void handleSave()}

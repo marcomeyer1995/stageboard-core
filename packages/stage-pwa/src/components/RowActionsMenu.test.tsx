@@ -77,6 +77,6 @@ describe('RowActionButton', () => {
 
   it('applies a distinct style for danger actions', () => {
     render(<RowActionButton danger>Löschen</RowActionButton>)
-    expect(screen.getByText('Löschen').className).toMatch(/text-red-400/)
+    expect(screen.getByText('Löschen').className).toMatch(/text-danger/)
   })
 })

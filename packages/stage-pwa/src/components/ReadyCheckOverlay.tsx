@@ -48,7 +48,7 @@ export function ReadyCheckOverlay() {
   }
 
   return (
-    <div role="dialog" aria-label="Ready-Check" className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-8 bg-black/90 sb-pad-safe [--sb-pad:1.5rem] text-center">
+    <div role="dialog" aria-label="Ready-Check" className="fixed inset-0 z-menu flex flex-col items-center justify-center gap-8 bg-scrim/90 sb-pad-safe [--sb-pad:1.5rem] text-center">
       <p className="text-2xl font-bold uppercase tracking-widest text-ink-faint">Ready-Check</p>
       <p className="max-w-md text-lg text-ink-soft">
         {profile ? 'Auf der Bühne, In-Ears sitzen, Instrument an?' : 'Kein Profil gewählt - dieses Gerät kann nicht antworten.'}
@@ -61,7 +61,7 @@ export function ReadyCheckOverlay() {
       >
         {profile ? 'Ich bin bereit' : 'Schließen'}
       </button>
-      {failed && <p className="text-base text-red-500">Keine Verbindung zum Stage-Server - bitte nochmal tippen.</p>}
+      {failed && <p className="text-base text-danger">Keine Verbindung zum Stage-Server - bitte nochmal tippen.</p>}
     </div>
   )
 }

@@ -495,7 +495,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
         // of the pane, below the entry list, so a downward dropdown pushed itself off-screen
         // and needed a scroll to reach; anchoring to the input's top edge instead opens into
         // the room the entry list already occupies.
-        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
+        <ul className="absolute inset-x-0 bottom-full z-content mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
           ) : (

@@ -94,7 +94,7 @@ export function InviteBandView({
   }, [workspaceId, getAccessCode])
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-black/60 sb-pad-safe">
+    <div className="fixed inset-0 z-bars flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe">
       {/* max-h-[90vh] + overflow-y-auto: a landscape phone/tablet viewport can be shorter
           than this card's content (QR image + code + copy) - without a scroll fallback the
           bottom (including the only way to close it) would be unreachable. Printing uses its
@@ -103,7 +103,7 @@ export function InviteBandView({
       <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink">
         <h2 className="text-xl font-bold">{isFoundingSummary ? 'Code speichern!' : 'Band einladen'}</h2>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {!error && !code && <p className="text-sm text-ink-muted">Lade Code…</p>}
 
