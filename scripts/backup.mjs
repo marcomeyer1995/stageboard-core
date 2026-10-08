@@ -27,7 +27,7 @@
  * same defaults. No credential is ever printed.
  */
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -102,7 +102,11 @@ async function dumpDb(db) {
 
 function tarGz(sourceDir, file) {
   if (!existsSync(sourceDir)) throw new Error(`Folder to back up is missing: ${sourceDir}`)
-  execFileSync('tar', ['-czf', file, '-C', dirname(sourceDir), basename(sourceDir)], { stdio: ['ignore', 'ignore', 'pipe'] })
+  // The folder itself may be a link - on the Stage-Server `certs` in the deploy worktree points at
+  // the dev checkout's certs (found 2026-10-09: the archive held only the link, no key). Pack what
+  // it points to, under the folder's own name.
+  const real = realpathSync(sourceDir)
+  execFileSync('tar', ['-czf', file, '-C', dirname(real), `--transform=s,^${basename(real)},${basename(sourceDir)},`, basename(real)], { stdio: ['ignore', 'ignore', 'pipe'] })
   chmodSync(file, 0o600)
   return statSync(file).size
 }
