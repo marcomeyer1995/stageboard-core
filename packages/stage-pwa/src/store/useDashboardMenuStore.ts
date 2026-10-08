@@ -25,7 +25,10 @@ export const useDashboardMenuStore = create<DashboardMenuState>()(
     (set) => ({
       byWorkspace: {},
       setOrder: (workspaceId, order) =>
-        set((state) => ({ byWorkspace: { ...state.byWorkspace, [workspaceId]: { hidden: state.byWorkspace[workspaceId]?.hidden ?? [], order } } })),
+        set((state) => {
+          const prefs = state.byWorkspace[workspaceId] ?? { order: [], hidden: [] }
+          return { byWorkspace: { ...state.byWorkspace, [workspaceId]: { ...prefs, order: mergeOrder(prefs.order, order) } } }
+        }),
       setHidden: (workspaceId, dashboardId, hidden) =>
         set((state) => {
           const prefs = state.byWorkspace[workspaceId] ?? { order: [], hidden: [] }
@@ -37,6 +40,18 @@ export const useDashboardMenuStore = create<DashboardMenuState>()(
     { name: 'stageboard-dashboard-menu' },
   ),
 )
+
+/**
+ * `arranged` is the new order of the dashboards one mode lists. Only their places in the stored
+ * order change - the other mode's dashboards keep theirs (replacing the whole list threw away the
+ * order arranged in the other mode, #422 review).
+ */
+export function mergeOrder(stored: readonly string[], arranged: readonly string[]): string[] {
+  const merged = [...stored, ...arranged.filter((id) => !stored.includes(id))]
+  const moving = new Set(arranged)
+  let next = 0
+  return merged.map((id) => (moving.has(id) ? arranged[next++]! : id))
+}
 
 /** The dashboards in this device's order: the dragged ones first, as dragged, then the rest in
  * band order (new dashboards appear at the end until moved). */
