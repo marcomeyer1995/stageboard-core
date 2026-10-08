@@ -104,6 +104,27 @@ const DEFAULT_FRONTEND_ORIGINS = [
   'https://localhost',
 ].join(',')
 
+/**
+ * Why a request through the `/db` proxy must not reach CouchDB, or null if it may: a path into a
+ * band's database (`/db/stageboard-<band>/…`) needs Basic auth with an account of that band
+ * (`stageboard-<band>-<profile>[~<device>]`). Everything else (`_session`, `_users`, …) is left to
+ * CouchDB. Band ids never extend each other (checked at provisioning), so the prefix is unambiguous.
+ */
+export function bandDbProxyRefusal(url: string, authorization: string | undefined): string | null {
+  const path = url.slice('/db'.length).split('?')[0] ?? ''
+  let first: string
+  try {
+    first = path.split('/').map((segment) => decodeURIComponent(segment)).find((segment) => segment !== '') ?? ''
+  } catch {
+    return 'bad path'
+  }
+  if (first === '.' || first === '..' || first.includes('/')) return 'bad path'
+  if (!first.startsWith('stageboard-')) return null
+  const login = basicAuthCredentials(authorization)
+  if (!login) return 'no band login'
+  return login.username.startsWith(`${first}-`) ? null : 'account of another band'
+}
+
 /** Username and password from an `Authorization: Basic …` header, or null. */
 export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
   if (!header?.startsWith('Basic ')) return null
@@ -909,9 +930,18 @@ export async function buildApp() {
       return reply.status(409).send({ status: 'error', code: 'deleted', message: 'This band was deleted - restore it via docs/03 §0b' })
     }
 
+    // Accounts are tied to their band by name (`stageboard-<band>-<profile>`), so no band id may
+    // extend another one - band "x-y" would otherwise own names that look like band "x"'s.
+    const bandDbs = (await listDbs(couch)).filter((db) => db.startsWith('stageboard-'))
+    const newDb = workspaceDbName(workspaceId)
+    if (bandDbs.some((db) => db !== newDb && (newDb.startsWith(`${db}-`) || db.startsWith(`${newDb}-`)))) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Refused a band id that extends another band id')
+      return reply.status(400).send({ status: 'error', message: 'Invalid band id' })
+    }
+
     let proof: 'first-band' | 'server' | 'admin' | null = null
     if (isLoopback(request.ip)) proof = 'server'
-    else if ((await listDbs(couch)).every((db) => !db.startsWith('stageboard-'))) proof = 'first-band'
+    else if (bandDbs.length === 0) proof = 'first-band'
     else if (adminUsername && adminPassword && (await isAnyBandAdmin(request, adminUsername, adminPassword))) proof = 'admin'
     if (!proof) {
       app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Band provisioning refused - no proof')
@@ -1261,10 +1291,17 @@ export async function buildApp() {
     if (!parsed.success) {
       return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
     }
-    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+    // Band-scoped and locked out after wrong tries like every other admin route - a bare
+    // verifyAdmin() would take any band's admin and allow unlimited PIN guesses.
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
       return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
     }
-    await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    try {
+      await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    } catch (err) {
+      app.log.error({ err, workspaceId, masterMode: parsed.data.masterMode }, 'Setting the master mode failed')
+      return reply.status(500).send({ status: 'error', message: 'Could not save the master mode' })
+    }
     app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
     return reply.status(200).send({ status: 'ok' })
   })
@@ -1369,6 +1406,15 @@ export async function buildApp() {
     upstream: couch.url,
     prefix: '/db',
     rewritePrefix: '',
+    // A band's database only for that band's own accounts. CouchDB's `_security` grants access by
+    // role, and the roles (`member`, `admin`) are the same in every band - without this, any
+    // band's device login could read and write every other band's database through here.
+    preHandler: (request, reply, done) => {
+      const refusal = bandDbProxyRefusal(request.url, request.headers.authorization)
+      if (!refusal) return done()
+      app.log.warn({ url: request.url.split('?')[0], remoteAddress: request.ip, reason: refusal }, 'Database request for another band refused')
+      void reply.status(403).send({ error: 'forbidden', reason: 'Not an account of this band' })
+    },
   })
 
   // Serves stage-pwa's `vite build` output, if present - graceful fallback, same pattern as the
