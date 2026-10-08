@@ -140,7 +140,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
               <Button onClick={() => setKey(null)}>Andere Taste</Button>
             </div>
             {takenBy && (
-              <p className="text-sm text-amber-500">
+              <p className="text-sm text-warn">
                 {keyLabel(key)} ist schon belegt („{describeAction(takenBy.action)}“) - beim Speichern wird das ersetzt.
               </p>
             )}

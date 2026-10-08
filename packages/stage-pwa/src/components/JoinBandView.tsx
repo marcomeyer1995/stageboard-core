@@ -311,7 +311,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 3: pick who you are.
   if (roster) {
     return (
-      <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">Wer bist du?</h1>
@@ -342,7 +342,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                       <button
                         type="submit"
                         disabled={busy || memberPasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
                       >
                         {busy ? '…' : 'Beitreten'}
                       </button>
@@ -366,7 +366,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     type="button"
                     disabled={busy}
                     onClick={() => handlePickMember(member)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
                   >
                     <span>{member.name}</span>
                   </button>
@@ -375,7 +375,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             ))}
           </ul>
 
-          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-form w-full text-center text-sm text-ink-faint underline">
             Andere Band oder anderer Code
           </button>
         </div>
@@ -386,7 +386,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 2: code entry, scoped to the band picked in step 1.
   if (selectedWorkspace) {
     return (
-      <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
@@ -411,13 +411,13 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             <button
               type="submit"
               disabled={busy || manualCode.trim().length === 0}
-              className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
+              className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
             >
               {busy ? '…' : 'Weiter'}
             </button>
           </form>
 
-          <button type="button" onClick={backToList} className="min-h-12 w-full text-center text-sm text-ink-faint underline">
+          <button type="button" onClick={backToList} className="min-h-form w-full text-center text-sm text-ink-faint underline">
             Andere Band wählen
           </button>
         </div>
@@ -427,7 +427,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
-    <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+    <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
         {!onClose && <BackToWorkingBandLink />}
 
@@ -487,11 +487,11 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                     aria-label="Adresse des Stage-Servers"
                   />
-                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-40">
                     Verbinden
                   </button>
                 </div>
-                {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+                {connectError && <p className="text-sm text-warn">{connectError}</p>}
                 {/* #351: servers announcing themselves - searched right away while not yet paired. */}
                 <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
                 </div>
@@ -507,11 +507,11 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                   aria-label="Adresse des Stage-Servers"
                 />
-                <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-40">
                   Verbinden
                 </button>
               </div>
-              {connectError && <p className="text-sm text-amber-500">{connectError}</p>}
+              {connectError && <p className="text-sm text-warn">{connectError}</p>}
               {/* #351: servers announcing themselves - searched right away while not yet paired. */}
               <NetworkServerList autoSearch={!serverUrl} onPaired={() => void loadWorkspaces()} />
               </>
@@ -552,7 +552,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Verfügbare Bands</h2>
-            <button type="button" onClick={() => void loadWorkspaces()} className="inline-flex min-h-12 items-center text-sm text-ink-faint underline">
+            <button type="button" onClick={() => void loadWorkspaces()} className="inline-flex min-h-form items-center text-sm text-ink-faint underline">
               Neu laden
             </button>
           </div>
@@ -611,7 +611,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <button
             type="button"
             onClick={() => setShowPasswordFallback((v) => !v)}
-            className="inline-flex min-h-12 items-center text-sm text-ink-faint underline"
+            className="inline-flex min-h-form items-center text-sm text-ink-faint underline"
           >
             Zugangsdaten manuell eingeben
           </button>

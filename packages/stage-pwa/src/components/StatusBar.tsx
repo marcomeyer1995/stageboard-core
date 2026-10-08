@@ -68,7 +68,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
       role="status"
       aria-label={`Einzählen, Takt ${bar} von ${bars}, Schlag ${beat}`}
       data-flash={flash}
-      className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-control px-3 ${flash ? 'bg-white text-blue-800' : 'bg-black/25 text-white'}`}
+      className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-control px-3 ${flash ? 'bg-state-count-in-ink text-state-count-in' : 'bg-scrim/25 text-state-count-in-ink'}`}
     >
       <span className="w-8 text-center text-4xl font-black leading-none tabular-nums">{beat}</span>
       <span className="flex flex-col gap-1">
@@ -76,7 +76,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
           {Array.from({ length: beatsInBar }, (_, i) => (
             <span
               key={i}
-              className={`h-3 w-3 rounded-full ${i < beat ? (flash ? 'bg-blue-800' : 'bg-white') : flash ? 'bg-blue-800/25' : 'bg-white/30'}`}
+              className={`h-3 w-3 rounded-full ${i < beat ? (flash ? 'bg-state-count-in' : 'bg-state-count-in-ink') : flash ? 'bg-state-count-in/25' : 'bg-state-count-in-ink/30'}`}
             />
           ))}
         </span>
@@ -208,7 +208,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
         type="button"
         onClick={onOpenMenu}
         aria-label="Menü öffnen"
-        className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-black/15"
+        className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-scrim/15"
       >
         <Icon name="menu" size="1.75rem" />
         <span {...item('screen')}>
@@ -247,7 +247,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
 
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
         <span {...item('mode')}>
-          <span className="rounded-control bg-black/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
+          <span className="rounded-control bg-scrim/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
         </span>
         {mode === 'gig' && (canControl || holdsToken) && (
           <span {...item('master')}>

@@ -131,7 +131,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
       </button>
       {/* One line each: the button keeps its touch height, the hint gives way. */}
       {disabled && <p className="flex-shrink-0 truncate text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
-      {error && <p className="flex-shrink-0 truncate text-xs text-red-500">{error}</p>}
+      {error && <p className="flex-shrink-0 truncate text-xs text-danger">{error}</p>}
     </div>
   )
 }

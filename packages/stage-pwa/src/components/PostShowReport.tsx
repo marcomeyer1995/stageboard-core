@@ -95,9 +95,9 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
       {/* Cues (#8, Marco 2026-10-08): the ones that failed stay in sight, all of them fold away. */}
       {failedCues.length > 0 && (
         <div className="mt-4 space-y-1">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-red-500">Cues fehlgeschlagen ({failedCues.length})</h3>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-danger">Cues fehlgeschlagen ({failedCues.length})</h3>
           {failedCues.map((event) => (
-            <p key={event.id} className="text-sm text-red-500">
+            <p key={event.id} className="text-sm text-danger">
               <Icon name="warning" className="mr-1" />
               {cueLine(event)}
               {event.message ? ` - ${event.message}` : ''}
@@ -112,7 +112,7 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
           </summary>
           <div className="space-y-1 text-sm text-ink-soft">
             {cues.map((event) => (
-              <div key={event.id} className={event.ok ? '' : 'text-red-500'}>
+              <div key={event.id} className={event.ok ? '' : 'text-danger'}>
                 {event.ok ? '✓' : '✗'} {cueLine(event)}
               </div>
             ))}
@@ -121,10 +121,10 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
       )}
       {technical.length > 0 && (
         <details className="mt-4">
-          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-amber-500">
+          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-warn">
             Technik ({technical.length})
           </summary>
-          <div className="space-y-1 text-sm text-amber-500">
+          <div className="space-y-1 text-sm text-warn">
             {technical.map((event) => (
               <div key={event.id}>
                 <Icon name="warning" className="mr-1" />

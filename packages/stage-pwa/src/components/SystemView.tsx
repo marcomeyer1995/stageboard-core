@@ -125,7 +125,7 @@ export function SystemView() {
     <div className="h-full overflow-y-auto sb-app-bg text-ink">
       {/* Page navigation = underline tabs (docs/15). They wrap onto a second row instead of
           scrolling sideways - a scrolling strip hid Band/Plugins on the phone (#373). */}
-      <div className="sticky top-0 z-10 border-b border-line bg-surface px-2 pt-1">
+      <div className="sticky top-0 z-content border-b border-line bg-surface px-2 pt-1">
         <Tabs label="System" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: TAB_LABEL[candidate] }))} />
       </div>
 

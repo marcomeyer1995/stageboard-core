@@ -17,7 +17,7 @@ const STATUS_LABEL: Record<CapabilityStatus, string> = {
 }
 
 const STATUS_DOT: Record<CapabilityStatus, string> = {
-  available: 'bg-green-500',
+  available: 'bg-ok',
   degraded: 'bg-control-strong-hover',
   missing: 'bg-control-strong-hover',
 }

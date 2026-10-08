@@ -151,7 +151,7 @@ export function VerifyWorkspaceAdmin({
           <button
             type="submit"
             disabled={busy || manualCode.trim().length === 0}
-            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
           >
             {busy ? '…' : 'Weiter'}
           </button>
@@ -200,7 +200,7 @@ export function VerifyWorkspaceAdmin({
           <button
             type="submit"
             disabled={busy || pinInput.length !== 4}
-            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
+            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
           >
             {busy ? '…' : 'Bestätigen'}
           </button>

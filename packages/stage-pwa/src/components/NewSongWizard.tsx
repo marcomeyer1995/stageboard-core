@@ -182,7 +182,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                   <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="z. B. Am" className={field} />
                 </label>
               </div>
-              {!bpmValid && <p className="text-sm text-amber-500">BPM zwischen 20 und 400 eingeben.</p>}
+              {!bpmValid && <p className="text-sm text-warn">BPM zwischen 20 und 400 eingeben.</p>}
             </form>
           )}
         </div>

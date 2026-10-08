@@ -56,6 +56,36 @@
   --sb-h-show: var(--sb-touch-primary);
   --sb-h-stage: var(--sb-touch);
   --sb-h-form: 3rem;
+  /* Meaning colours (docs/15 §5, 2026-10-08): every "this is an error / a warning / fine",
+     the status bar's states, the flash message and the dimming behind dialogs come from here,
+     never from Tailwind's palette - so a theme (and the later theme editor) changes them in
+     one place. Each fill has an -ink for text on it. Values = what the app used before. */
+  --sb-danger: 239 68 68;
+  --sb-danger-ink: 255 255 255;
+  --sb-warn: 245 158 11;
+  --sb-warn-ink: 0 0 0;
+  --sb-ok: 34 197 94;
+  --sb-ok-ink: 0 0 0;
+  --sb-info: 59 130 246;
+  --sb-info-ink: 255 255 255;
+  --sb-state-count-in: 29 78 216;
+  --sb-state-count-in-ink: 255 255 255;
+  --sb-state-playing: 21 128 61;
+  --sb-state-playing-ink: 255 255 255;
+  --sb-state-paused: 245 158 11;
+  --sb-state-paused-ink: 0 0 0;
+  --sb-state-finished: 162 28 175;
+  --sb-state-finished-ink: 255 255 255;
+  --sb-state-fault: 220 38 38;
+  --sb-state-fault-ink: 255 255 255;
+  --sb-flash: 253 224 71;
+  --sb-flash-ink: 0 0 0;
+  /* Dimming behind dialogs and overlays, and text on it. */
+  --sb-scrim: 0 0 0;
+  --sb-scrim-ink: 255 255 255;
+  /* Full-screen alarms (audio blocked, device blocked). */
+  --sb-alarm: 127 29 29;
+  --sb-alarm-ink: 255 255 255;
   --sb-shadow: none;
   --sb-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
   --sb-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -83,6 +113,12 @@
   --sb-accent-2: 154 52 18;
   --sb-accent-2-hover: 180 83 9;
   --sb-line: rgba(0, 0, 0, 0.08);
+  /* Meaning colours readable as text on white (red-600, amber-700, green-700). */
+  --sb-danger: 220 38 38;
+  --sb-warn: 180 83 9;
+  --sb-warn-ink: 255 255 255;
+  --sb-ok: 21 128 61;
+  --sb-ok-ink: 255 255 255;
 }
 
 /*

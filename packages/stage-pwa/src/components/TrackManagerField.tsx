@@ -117,7 +117,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           {variantJobs.map((job) => (
             <div key={job.id} className="flex items-center gap-2 text-xs">
               {job.status === 'error' ? (
-                <span className="text-red-500">YouTube-Extraktion fehlgeschlagen: {job.error}</span>
+                <span className="text-danger">YouTube-Extraktion fehlgeschlagen: {job.error}</span>
               ) : job.status === 'done' ? (
                 <span className="text-ink-faint">YouTube-Extraktion abgeschlossen</span>
               ) : (
@@ -155,7 +155,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           Von YouTube laden
         </button>
       </form>
-      {youtubeError && <span className="text-xs text-red-500">{youtubeError}</span>}
+      {youtubeError && <span className="text-xs text-danger">{youtubeError}</span>}
       <div className="flex items-center gap-2">
         <select
           className={`min-h-form px-3 text-base ${INPUT}`}

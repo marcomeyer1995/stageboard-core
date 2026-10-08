@@ -21,7 +21,7 @@ export function DiscoveryBanner() {
   if (!identifying || !isOwnContender) return null
 
   return (
-    <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-center gap-2 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-top text-center text-sm font-semibold text-accent-ink shadow-sb">
+    <div className="fixed inset-x-0 top-0 z-menu flex items-center justify-center gap-2 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-top text-center text-sm font-semibold text-accent-ink shadow-sb">
       <span>
         Geräte-Erkennung — „{identifying.logicalDeviceName}": {identifying.instruction}
       </span>

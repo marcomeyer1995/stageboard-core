@@ -45,7 +45,7 @@ export function AppVersionSettings() {
       </div>
       {state.kind === 'current' && <p className="text-base text-ink-muted">Aktuell – der Stage-Server hat keine neuere Version.</p>}
       {state.kind === 'none' && <p className="text-base text-ink-muted">Der Stage-Server bietet keine App an (oder ist nicht erreichbar).</p>}
-      {state.kind === 'error' && <p className="text-base text-amber-500">{state.message}</p>}
+      {state.kind === 'error' && <p className="text-base text-warn">{state.message}</p>}
     </div>
   )
 }

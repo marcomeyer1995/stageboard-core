@@ -184,7 +184,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           <span className="font-sb-mono">
             {formatTrackClockTime(position)} / {formatTrackClockTime(duration)}
           </span>
-          {isPlaying && device && inputId && <span className="ml-auto flex items-center gap-1 font-bold text-red-500"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aufnahme läuft</span>}
+          {isPlaying && device && inputId && <span className="ml-auto flex items-center gap-1 font-bold text-danger"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aufnahme läuft</span>}
         </div>
       )}
 
@@ -216,7 +216,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           </span>
         </label>
       </div>
-      {inputProblem && <p className="text-xs text-red-500">{inputProblem}</p>}
+      {inputProblem && <p className="text-xs text-danger">{inputProblem}</p>}
 
       <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-container bg-control p-3 font-sb-mono text-sm">
         {rows.length === 0 ? (
@@ -266,7 +266,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
             </>
           )}
         </div>
-        {analysisError && <p className="text-xs text-red-500">{analysisError}</p>}
+        {analysisError && <p className="text-xs text-danger">{analysisError}</p>}
         {partStarts.length > 0 && (
           <div className="flex flex-col gap-0.5 text-xs text-ink-muted">
             <span>Abschnittsstarts zum nächsten Onset:</span>

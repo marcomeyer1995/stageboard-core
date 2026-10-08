@@ -5,8 +5,8 @@ export type BadgeTone = 'neutral' | 'accent' | 'warning' | 'danger'
 const TONE: Record<BadgeTone, string> = {
   neutral: 'bg-control-strong text-ink',
   accent: 'bg-accent text-accent-ink',
-  warning: 'bg-amber-500/20 text-amber-300',
-  danger: 'bg-red-500/20 text-red-300',
+  warning: 'bg-warn/20 text-warn',
+  danger: 'bg-danger/20 text-danger',
 }
 
 /** Small uppercase label (roles, tiers, "Aktiv", "zu klein") - the only place pills appear (D1). */

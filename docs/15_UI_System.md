@@ -68,6 +68,21 @@ Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in 
 | `--sb-h-form` | Formular-Bedienelemente | 48 px |
 | Ebenen | feste z-Stufen als Tailwind-Klassen `z-content` 10 · `z-bars` 20 · `z-menu` 40 · `z-dialog` 50 · `z-alert` 55 · `z-flash` 58 · `z-takeover` 60 (`tailwind.config.js`, kein CSS-Token) | ersetzt die freien z-Werte |
 
+**Bedeutungsfarben (2026-10-08):** Fehler, Warnung, OK und Info, die Zustände der Statusleiste, die Blitzmeldung, die Abdunklung hinter Dialogen und die Vollbild-Alarme kommen ebenfalls aus Tokens. Vorher standen sie als Tailwind-Palette (`text-red-500`, `bg-amber-500` …) in 52 Dateien, und kein Theme konnte sie ändern.
+
+| Token (je mit `-ink` für Text darauf) | Tailwind | Wofür | Default |
+|---|---|---|---|
+| `--sb-danger` | `text-danger`, `bg-danger` … | Fehler, Gefahr, Löschen | red-500 (hell: red-600) |
+| `--sb-warn` | `warn` | Warnung, „noch nicht“ | amber-500 (hell: amber-700) |
+| `--sb-ok` | `ok` | läuft, verbunden | green-500 (hell: green-700) |
+| `--sb-info` | `info` | synchronisiert gerade | blue-500 |
+| `--sb-state-{count-in,playing,paused,finished,fault}` | `bg-state-playing` … | volle Statusleiste | blue-700 · green-700 · amber-500 · fuchsia-700 · red-600 |
+| `--sb-flash` | `flash` | Stage-Messenger-Meldung | yellow-300 |
+| `--sb-scrim` | `bg-scrim/60` | Abdunklung hinter Dialogen | schwarz |
+| `--sb-alarm` | `alarm` | Vollbild-Alarm (Audio blockiert, Gerät blockiert) | red-900 |
+
+Ebenso liest das Timeline-Canvas seine Qualitätsfarben aus diesen Tokens. Ausnahmen sind Inhaltsfarben, die ein Musiker wählt oder die Kategorien unterscheiden (`widgets/widgetColors.ts`, Cue- und Notizfarben der Timeline), die Stimmgerät-Skala und das Druckblatt (immer schwarz auf weiß). Der Wächter-Test verbietet Palettenfarben und rohe z-Werte.
+
 Höhen und Ecken gibt es als Tailwind-Klassen `h-show` / `h-stage` / `h-form` (auch `min-h-*`) und `rounded-control` / `rounded-container`. Bestehende Tokens bleiben; die neuen sind Aliasse, damit ein späterer Theme-Editor Rolle für Rolle einstellen kann.
 
 ## 6. Komponenten (Phase 2)

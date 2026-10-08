@@ -203,7 +203,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           trigger - shown whenever any extension is active, playing or not (a pause mid-extension
           shouldn't make the indicator flicker off). */}
       {layout.showHelper && clickExtendMs > 0 && <p className="flex-none text-xs text-accent">Verlängert - läuft über die reguläre Länge hinaus</p>}
-      {(error ?? driverError) && <p className="flex-none text-xs text-red-500">{error ?? driverError}</p>}
+      {(error ?? driverError) && <p className="flex-none text-xs text-danger">{error ?? driverError}</p>}
     </div>
   )
 }

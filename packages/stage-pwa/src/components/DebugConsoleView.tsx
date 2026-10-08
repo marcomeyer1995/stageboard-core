@@ -12,8 +12,8 @@ const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
 ]
 
 const LEVEL_CLASS: Record<LogLevel, string> = {
-  error: 'text-red-400',
-  warn: 'text-amber-500',
+  error: 'text-danger',
+  warn: 'text-warn',
   info: 'text-ink',
   debug: 'text-ink-muted',
 }

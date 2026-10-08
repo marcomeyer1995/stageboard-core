@@ -68,7 +68,7 @@ export function WidgetFrame({
     <div
       className={`relative flex h-full w-full flex-col overflow-hidden rounded-container ${
         hideChrome ? '' : 'border border-line bg-surface shadow-sb'
-      } ${isEditing ? 'widget-drag-handle cursor-move' : ''} ${isEditing && tooSmall ? 'outline outline-2 -outline-offset-2 outline-red-500' : ''}`}
+      } ${isEditing ? 'widget-drag-handle cursor-move' : ''} ${isEditing && tooSmall ? 'outline outline-2 -outline-offset-2 outline-danger' : ''}`}
       onDoubleClick={isEditing ? () => setMenuOpen(true) : undefined}
     >
       <div
@@ -85,7 +85,7 @@ export function WidgetFrame({
         <div className="pointer-events-none absolute inset-x-2 top-5 flex items-center justify-between gap-2">
           <span className="truncate rounded-control bg-stage/70 px-2 py-0.5 text-xs text-ink-soft">
             {title}
-            {tooSmall && <span className="font-bold text-red-500"> · zu klein</span>}
+            {tooSmall && <span className="font-bold text-danger"> · zu klein</span>}
           </span>
           <button
             type="button"
