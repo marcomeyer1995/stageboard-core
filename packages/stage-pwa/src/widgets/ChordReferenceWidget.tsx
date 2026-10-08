@@ -1,3 +1,4 @@
+import { Segmented, Switch } from '../components/ui'
 import { useState } from 'react'
 import { GuitarChordDiagram } from '../components/GuitarChordDiagram'
 import { PianoChordDiagram } from '../components/PianoChordDiagram'
@@ -11,7 +12,7 @@ import { stageFontSize } from '../lib/stageSize'
 // 48px targets: the rehearsal-tier minimum (Probe widgets, GUI audit 2026-09-27; the chips were
 // 26 x 31 px).
 const chip = (selected: boolean) =>
-  `min-h-12 min-w-12 rounded-sb-sm px-2 py-1 text-sm font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink hover:bg-control-strong-hover'}`
+  `min-h-form min-w-12 rounded-control px-2 py-1 text-base font-medium ${selected ? 'bg-accent text-accent-ink' : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'}`
 
 /**
  * Chord Cheat Sheet (#24): pick a root and a quality, see the notes, the intervals, a guitar
@@ -79,25 +80,15 @@ export function ChordReferenceConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Notenname
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.noteNaming ?? 'sharp'}
-          onChange={(e) => onChange({ ...config, noteNaming: e.target.value as ChordReferenceConfig['noteNaming'] })}
-        >
-          <option value="sharp">Kreuz (F#)</option>
-          <option value="flat">B (Gb)</option>
-        </select>
-      </label>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={config.showGuitar ?? true} onChange={(e) => onChange({ ...config, showGuitar: e.target.checked })} />
-        Gitarren-Griffbild
-      </label>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={config.showPiano ?? true} onChange={(e) => onChange({ ...config, showPiano: e.target.checked })} />
-        Klaviatur
-      </label>
+      <Segmented
+        label="Notenname"
+        showLabel
+        value={config.noteNaming ?? 'sharp'}
+        onChange={(value) => onChange({ ...config, noteNaming: value as ChordReferenceConfig['noteNaming'] })}
+        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+      />
+      <Switch label="Gitarren-Griffbild" checked={config.showGuitar ?? true} onChange={(showGuitar) => onChange({ ...config, showGuitar })} />
+      <Switch label="Klaviatur" checked={config.showPiano ?? true} onChange={(showPiano) => onChange({ ...config, showPiano })} />
       <SizeRatioSlider label="Akkordname" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )

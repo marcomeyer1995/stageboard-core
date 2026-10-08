@@ -603,7 +603,7 @@ describe('Fastify routes', () => {
     it('returns an empty snapshot when nothing has reported yet', async () => {
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
 
     it('returns the current snapshot, scoped to the requested workspace', async () => {
@@ -619,8 +619,8 @@ describe('Fastify routes', () => {
       setDeviceInfoEntry('band-a', 'device-1', entry)
 
       const response = await app.inject({ method: 'GET', url: '/workspaces/band-a/device-info' })
-      expect(response.json()).toEqual({ devices: { 'device-1': entry } })
-      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {} })
+      expect(response.json()).toEqual({ devices: { 'device-1': entry }, collectingSince: expect.any(Number) })
+      expect(await app.inject({ method: 'GET', url: '/workspaces/band-b/device-info' }).then((r) => r.json())).toEqual({ devices: {}, collectingSince: expect.any(Number) })
     })
   })
 
@@ -682,6 +682,54 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(403)
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/devices/:deviceId/forget', () => {
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+    const admin = { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: 'stageboard-band-a-p1', roles: ['member', 'admin'] } }) }
+    const payload = { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' }
+    const device = (extra: object = {}) => ({ _id: 'devices:device-1', _rev: '3-c', id: 'device-1', name: 'Altes Tablet', lastSeenAt: 100, revoked: false, ...extra })
+    const hardware = (docs: object[]) => ({ ok: true, status: 200, json: async () => ({ rows: docs.map((doc) => ({ doc })) }) })
+
+    it('deletes an unused, unblocked device from the ledger', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]), { ok: true, status: 200 }])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(204)
+      const [url, init] = fetchMock.mock.calls[3]
+      expect(String(url)).toContain('devices%3Adevice-1')
+      expect(JSON.parse(init.body)).toEqual({ _id: 'devices:device-1', _rev: '3-c', _deleted: true })
+    })
+
+    it('refuses a blocked device - deleting the entry would lift the block', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device({ revoked: true }) }])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'blocked' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('refuses a device a hardware device runs on, and names it', async () => {
+      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'device-1' }, { _id: 'logical-devices:c', name: 'Click', executionTarget: 'device-1' }])])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'in-use', usedBy: ['Kemper', 'Click'] })
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('returns 403 for a non-admin and 404 for an unknown device', async () => {
+      stubFetch([{ ok: false, status: 401 }])
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })).statusCode).toBe(403)
+      stubFetch([admin, { ok: false, status: 404 }])
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/nope/forget', payload })).statusCode).toBe(404)
     })
   })
 
@@ -1086,6 +1134,25 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(204)
     })
 
+    it('rejects an admin revoking their own admin rights - also from a device account', async () => {
+      const roster = stubRoster([
+        { id: 'p1', stageRoles: ['admin'] },
+        { id: 'p2', stageRoles: ['admin'] },
+      ])
+      for (const adminUsername of ['stageboard-band-a-p1', 'stageboard-band-a-p1~device-7']) {
+        const verify = { ok: true, status: 200, json: async () => ({ ok: true, userCtx: { name: adminUsername, roles: ['member', 'admin'] } }) }
+        const fetchMock = stubFetch([verify, roster])
+        const response = await app.inject({
+          method: 'POST',
+          url: '/workspaces/band-a/members/p1/admin',
+          payload: { adminUsername, adminPassword: 'correct-pw', isAdmin: false },
+        })
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toMatchObject({ message: 'An admin cannot revoke their own admin rights' })
+        expect(fetchMock).toHaveBeenCalledTimes(2) // nothing written
+      }
+    })
+
     it('rejects revoking the sole remaining admin', async () => {
       stubFetch([stubAdminVerify(), stubRoster([{ id: 'p1', stageRoles: ['admin'] }])])
 
@@ -1398,6 +1465,46 @@ describe('Fastify routes', () => {
         { workspaceId: 'band-a', workspaceName: 'Band A' },
         { workspaceId: 'band-c', workspaceName: 'Band C' },
       ])
+    })
+  })
+
+  describe('POST /workspaces/:workspaceId/flash (#26)', () => {
+    const basic = (username: string, password: string) => ({ authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` })
+    const signedIn = basic('stageboard-band-a-p1~d1', 'pw')
+    const session = (name: string) => vi.fn(async () => new Response(JSON.stringify({ ok: true, userCtx: { name, roles: ['member'] } }), { status: 200 }))
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('only takes messages from a device signed in to this band', async () => {
+      const send = (headers: Record<string, string>) => app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'VAMP' }, headers })
+      expect((await send({})).statusCode).toBe(401)
+      const fetchMock = session('stageboard-band-b-p1~d1')
+      vi.stubGlobal('fetch', fetchMock)
+      expect((await send(basic('stageboard-band-b-p1~d1', 'pw'))).statusCode).toBe(401) // another band's device
+      expect(fetchMock).not.toHaveBeenCalled()
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+      expect((await send(signedIn)).statusCode).toBe(401) // wrong password
+    })
+
+    it('stores the message, returns it with id and time, and rejects empty text', async () => {
+      vi.stubGlobal('fetch', session('stageboard-band-a-p1~d1'))
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '  VAMP  ', from: 'Caro' }, headers: signedIn })
+      expect(response.statusCode).toBe(201)
+      const flash = response.json()
+      expect(flash).toMatchObject({ text: 'VAMP', from: 'Caro' })
+      expect(typeof flash.id).toBe('string')
+      expect(typeof flash.at).toBe('number')
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: '   ' } })).statusCode).toBe(400)
+    })
+
+    it('carries the recipients along, or none for everyone', async () => {
+      vi.stubGlobal('fetch', session('stageboard-band-a-p1~d1'))
+      const toOne = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'Gitarre stimmen', to: ['p2'] }, headers: signedIn })
+      expect(toOne.json()).toMatchObject({ text: 'Gitarre stimmen', to: ['p2'] })
+      const toAll = await app.inject({ method: 'POST', url: '/workspaces/band-a/flash', payload: { text: 'VAMP', to: [] }, headers: signedIn })
+      expect(toAll.json().to).toBeUndefined()
     })
   })
 

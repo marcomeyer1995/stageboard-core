@@ -43,7 +43,7 @@ export function BackToWorkingBandLink() {
           key={w.id}
           type="button"
           onClick={() => setActiveWorkspace(w.id)}
-          className="flex items-center gap-1 text-xs text-ink-faint underline"
+          className="flex min-h-form items-center gap-1 text-base text-ink-faint underline"
         >
           <Icon name="back" /> Zurück zu {w.name}
         </button>

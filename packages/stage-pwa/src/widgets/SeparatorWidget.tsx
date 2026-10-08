@@ -1,3 +1,4 @@
+import { Segmented, Select } from '../components/ui'
 import type { SeparatorConfig } from './separatorConfig'
 import { WIDGET_COLORS, WIDGET_COLOR_LINE } from './widgetColors'
 
@@ -24,33 +25,19 @@ export function SeparatorConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Ausrichtung
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.orientation}
-          onChange={(e) =>
-            onChange({ ...config, orientation: e.target.value as SeparatorConfig['orientation'] })
-          }
-        >
-          <option value="horizontal">Horizontal</option>
-          <option value="vertical">Vertikal</option>
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Farbe
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.color}
-          onChange={(e) => onChange({ ...config, color: e.target.value as SeparatorConfig['color'] })}
-        >
-          {WIDGET_COLORS.map((color) => (
-            <option key={color} value={color}>
-              {color}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Segmented
+        label="Ausrichtung"
+        showLabel
+        value={config.orientation}
+        onChange={(value) => onChange({ ...config, orientation: value as SeparatorConfig['orientation'] })}
+        options={[{ value: 'horizontal', label: 'Horizontal' }, { value: 'vertical', label: 'Vertikal' }]}
+      />
+      <Select
+        label="Farbe"
+        value={config.color}
+        onChange={(e) => onChange({ ...config, color: e.target.value as SeparatorConfig['color'] })}
+        options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
+      />
     </div>
   )
 }

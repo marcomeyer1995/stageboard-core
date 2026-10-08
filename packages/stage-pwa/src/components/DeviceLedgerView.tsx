@@ -6,6 +6,14 @@ import { useDeviceInfoStore } from '../store/useDeviceInfoStore'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { getDeviceId } from '../lib/deviceId'
+import { ActionMenu, Badge, Button } from './ui'
+
+/** How long the Stage-Server has to collect reports before a missing one means "inactive". */
+const COLLECT_MS = 5 * 60 * 1000
+/** Fallback for an older server (no `collectingSince`): seen this recently = not inactive. */
+const RECENT_MS = 24 * 60 * 60 * 1000
 
 const ENVIRONMENT_LABEL: Record<string, string> = { browser: 'Browser', pwa: 'PWA', native: 'Nativ' }
 const SYNC_STATUS_LABEL: Record<string, string> = { idle: 'Synchronisiert', syncing: 'Synchronisiert…', offline: 'Offline', error: 'Fehler' }
@@ -46,6 +54,8 @@ function StatusDot({ on, title }: { on: boolean | null; title: string }) {
 export function DeviceLedgerView() {
   const devices = useDevicesStore((state) => state.devices)
   const revoke = useDevicesStore((state) => state.revoke)
+  const forget = useDevicesStore((state) => state.forget)
+  const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const deviceInfo = useDeviceInfoStore((state) => state.deviceInfo)
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === activeWorkspaceId)?.isAdmin ?? false)
@@ -65,8 +75,8 @@ export function DeviceLedgerView() {
   async function toggleRevoked(device: Device) {
     const nextRevoked = !device.revoked
     if (nextRevoked) {
-      const confirmed = await confirm(`"${device.name}" aus der Band entfernen? Das Gerät wird beim nächsten Kontakt gesperrt.`, {
-        confirmLabel: 'Entfernen',
+      const confirmed = await confirm(`"${device.name}" blockieren? Das Gerät wird beim nächsten Kontakt gesperrt und kommt nicht mehr in die Band.`, {
+        confirmLabel: 'Blockieren',
         danger: true,
       })
       if (!confirmed) return
@@ -76,6 +86,40 @@ export function DeviceLedgerView() {
   }
 
   const sorted = [...devices].sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+  const myId = getDeviceId()
+  /** Hardware that runs on a device (Hardware tab, `executionTarget`) - such a device is never
+   * removed (Marco, 2026-10-07); the row names what has to move first. */
+  const usedBy = (deviceId: string) => logicalDevices.filter((d) => d.executionTarget === deviceId).map((d) => d.name)
+  /** Live signal (app open or reachable). Right after a Stage-Server start no device has reported
+   * yet - then every device would look inactive (found on the real server, 2026-10-07), so
+   * missing reports only count once the server has collected for a while; an older server
+   * without `collectingSince` falls back to "not seen for a day". */
+  const collectedLongEnough = deviceInfo.collectingSince !== undefined && now - deviceInfo.collectingSince >= COLLECT_MS
+  const isActive = (device: Device) => {
+    const info = deviceInfo.devices[device.id]
+    if (info && (now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS || info.networkReachable === true)) return true
+    if (collectedLongEnough) return false
+    return deviceInfo.collectingSince !== undefined || now - device.lastSeenAt < RECENT_MS
+  }
+  /** What "Inaktive entfernen" takes: no app open and not reachable, not blocked (the block lives
+   * on the entry), not this device, not in use by hardware. */
+  const inactive = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length === 0)
+  const skippedInUse = sorted.filter((d) => !d.revoked && d.id !== myId && !isActive(d) && usedBy(d.id).length > 0)
+
+  async function forgetOne(device: Device) {
+    if (!(await confirm(`„${device.name}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.`, { confirmLabel: 'Entfernen' }))) return
+    const result = await forget(activeWorkspaceId, device.id)
+    if (result === 'in-use') void alert(`„${device.name}“ wird noch von Hardware verwendet - erst im Tab Hardware ein anderes Gerät wählen.`)
+    else if (result === 'failed') void alert('Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.')
+  }
+
+  async function forgetInactive() {
+    const note = skippedInUse.length ? ` ${skippedInUse.length} weitere bleiben, weil Hardware sie verwendet.` : ''
+    if (!(await confirm(`${inactive.length} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.${note}`, { confirmLabel: 'Entfernen' }))) return
+    let failed = 0
+    for (const device of inactive) if ((await forget(activeWorkspaceId, device.id)) !== 'removed') failed++
+    if (failed) void alert(`${failed} Geräte konnten nicht entfernt werden (Stage-Server nicht erreichbar oder inzwischen in Verwendung).`)
+  }
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
@@ -89,7 +133,7 @@ export function DeviceLedgerView() {
       {/* The Stage-Server itself, not a roster `Device` (it never joins a band, it hosts one) -
           its own row, same visual language as the tablets below, so "is anything down" reads
           the same way for the box everything else here depends on. */}
-      <div className="mb-2 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
+      <div className="mb-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <p className="font-semibold">Stage-Server</p>
@@ -119,33 +163,58 @@ export function DeviceLedgerView() {
 
       {sorted.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte registriert.</p>}
 
+      {isAdmin && sorted.length > 0 && (
+        <div className="mb-3 flex flex-col gap-1">
+          <Button disabled={inactive.length === 0} onClick={() => void forgetInactive()} className="self-start">
+            Inaktive entfernen ({inactive.length})
+          </Button>
+          <p className="text-sm text-ink-faint">
+            Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder.
+            {skippedInUse.length > 0 && ` ${skippedInUse.length} inaktive bleiben, weil Hardware sie verwendet.`}
+            {deviceInfo.collectingSince !== undefined && !collectedLongEnough && ' Der Stage-Server wurde gerade gestartet - die Geräte melden sich noch, erst danach zählen sie als inaktiv.'}
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {sorted.map((device) => {
           const info = deviceInfo.devices[device.id]
           const appOpen = info ? now - info.lastSeenAt <= DEVICE_INFO_TIMEOUT_MS : false
+          const used = usedBy(device.id)
 
           return (
-            <div key={device.id} className={`rounded-sb border px-4 py-3 shadow-sb ${device.revoked ? 'border-red-500/40 bg-red-500/5' : 'border-line bg-surface'}`}>
+            <div key={device.id} className={`rounded-container border px-4 py-3 shadow-sb ${device.revoked ? 'border-red-500/40 bg-red-500/5' : 'border-line bg-surface'}`}>
               <div className="flex items-center gap-3">
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold">
                     {device.name}
-                    {device.revoked && <span className="ml-2 text-xs font-normal text-red-500">entfernt</span>}
+                    {device.revoked && (
+                      <span className="ml-2">
+                        <Badge tone="danger">blockiert</Badge>
+                      </span>
+                    )}
+                    {device.id === myId && (
+                      <span className="ml-2">
+                        <Badge tone="accent">Dieses Gerät</Badge>
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-ink-faint">
                     Zuerst gesehen {formatDateTime(device.firstSeenAt)} · Zuletzt {formatDateTime(device.lastSeenAt)}
                   </p>
                 </div>
                 {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => void toggleRevoked(device)}
-                    className={`min-h-12 rounded-sb-sm px-4 text-sm font-medium ${
-                      device.revoked ? 'bg-control-strong text-accent hover:bg-control-strong-hover' : 'bg-control text-ink-soft hover:bg-control-hover'
-                    }`}
-                  >
-                    {device.revoked ? 'Wieder zulassen' : 'Entfernen'}
-                  </button>
+                  <ActionMenu
+                    title={device.name}
+                    actions={[
+                      ...(!device.revoked && device.id !== myId
+                        ? [{ label: 'Aus Liste entfernen', disabled: used.length > 0, onClick: () => void forgetOne(device) }]
+                        : []),
+                      device.revoked
+                        ? { label: 'Wieder zulassen', onClick: () => void toggleRevoked(device) }
+                        : { label: 'Blockieren', danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
+                    ]}
+                  />
                 )}
               </div>
 
@@ -172,6 +241,11 @@ export function DeviceLedgerView() {
                   <span className="text-ink-faint">Noch keine Diagnosedaten von diesem Gerät.</span>
                 )}
               </div>
+              {used.length > 0 && (
+                <p className="mt-2 text-sm text-amber-500">
+                  In Verwendung: {used.join(', ')} - im Tab Hardware ein anderes Gerät wählen, dann lässt es sich entfernen.
+                </p>
+              )}
             </div>
           )
         })}

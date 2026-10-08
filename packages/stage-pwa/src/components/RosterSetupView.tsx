@@ -6,6 +6,7 @@ import { useRosterSetupStore } from '../store/useRosterSetupStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { InviteBandView } from './InviteBandView'
+import { INPUT_FREE } from './ui/styles'
 
 type Phase = 'founder' | 'members' | 'summary'
 
@@ -119,7 +120,7 @@ export function RosterSetupView() {
 
   if (phase === 'members') {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <BackToWorkingBandLink />
 
@@ -136,7 +137,7 @@ export function RosterSetupView() {
               {profiles.map((profile) => (
                 <li
                   key={profile.id}
-                  className="flex items-center justify-between rounded-sb border border-line bg-surface px-4 py-2"
+                  className="flex items-center justify-between rounded-container border border-line bg-surface px-4 py-2"
                 >
                   <span className="font-semibold">
                     {profile.name}
@@ -146,7 +147,7 @@ export function RosterSetupView() {
                     <button
                       type="button"
                       onClick={() => void remove(profile.id)}
-                      className="text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center text-base text-ink-faint underline"
                     >
                       Entfernen
                     </button>
@@ -162,12 +163,12 @@ export function RosterSetupView() {
               onChange={(e) => setMemberName(e.target.value)}
               placeholder="Name"
               autoFocus
-              className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
             <button
               type="submit"
               disabled={!memberName.trim()}
-              className="flex-shrink-0 rounded-sb border border-line bg-surface px-4 py-2 font-semibold disabled:opacity-50"
+              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 min-h-form font-semibold disabled:opacity-50"
             >
               Hinzufügen
             </button>
@@ -176,7 +177,7 @@ export function RosterSetupView() {
           <button
             type="button"
             onClick={handleMembersDone}
-            className="w-full rounded-sb bg-accent px-4 py-3 font-semibold text-accent-ink"
+            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink"
           >
             Weiter
           </button>
@@ -186,7 +187,7 @@ export function RosterSetupView() {
   }
 
   return (
-    <div className="flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="flex h-full flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
         <BackToWorkingBandLink />
 
@@ -204,19 +205,19 @@ export function RosterSetupView() {
             onChange={(e) => setFounderName(e.target.value)}
             placeholder="Dein Name"
             autoFocus
-            className="h-12 min-w-0 rounded-sb bg-control px-3 text-ink-soft"
+            className={`h-form min-w-0 px-3 ${INPUT_FREE}`}
           />
           <input
             value={founderPin}
             onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
             placeholder="4-stelliger PIN"
             inputMode="numeric"
-            className="h-12 min-w-0 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+            className={`h-form min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <button
             type="submit"
             disabled={busy || !founderName.trim() || founderPin.length !== 4}
-            className="w-full rounded-sb bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-50"
+            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-50"
           >
             {busy ? '…' : 'Weiter'}
           </button>
@@ -245,7 +246,7 @@ export function RosterSetupView() {
               })
               if (confirmed) void deleteWorkspace(workspaceId)
             }}
-            className="w-full text-center text-xs text-ink-faint underline"
+            className="min-h-form w-full text-center text-base text-ink-soft underline"
           >
             Bandnamen falsch eingegeben? Neu anfangen
           </button>

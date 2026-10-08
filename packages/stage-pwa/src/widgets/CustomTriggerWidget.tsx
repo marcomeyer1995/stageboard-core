@@ -1,3 +1,4 @@
+import { Field, Segmented, Select, TextArea } from '../components/ui'
 import { useEffect, useState } from 'react'
 import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
@@ -16,7 +17,7 @@ import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
 import { stageFontSize } from '../lib/stageSize'
 
-const INACTIVE_CLASS = 'bg-control-strong text-ink hover:bg-control-strong-hover'
+const INACTIVE_CLASS = 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
 
 function parsePayload(json: string): Record<string, unknown> {
   try {
@@ -73,7 +74,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
       pluginId,
       supportsLocalExecution(installed, device.capability),
     )
-    const event: ShowControlEvent = { type: config.commandType, payload }
+    const event: ShowControlEvent = { type: config.commandType, payload, ...(device ? { logicalDeviceId: device.id } : {}) }
 
     if (engine === 'local-mine') {
       const translator = getTranslator(device.capability)
@@ -120,7 +121,7 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
         onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
         onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-sb font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-control font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
@@ -153,90 +154,53 @@ export function CustomTriggerConfigPanel({
   })()
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Beschriftung
-        <input
-          type="text"
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.label}
-          onChange={(e) => onChange({ ...config, label: e.target.value })}
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Farbe
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.color}
-          onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
-        >
-          {WIDGET_COLORS.map((color) => (
-            <option key={color} value={color}>
-              {color}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Verhalten
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.behavior}
-          onChange={(e) => onChange({ ...config, behavior: e.target.value as CustomTriggerConfig['behavior'] })}
-        >
-          <option value="momentary">Momentary (nur während gehalten)</option>
-          <option value="latching">Latching (Umschalten)</option>
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Zielgerät
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.targetLogicalDeviceId ?? ''}
-          onChange={(e) => onChange({ ...config, targetLogicalDeviceId: e.target.value || undefined })}
-        >
-          <option value="">— Gerät wählen —</option>
-          {devices.map((device) => (
-            <option key={device.id} value={device.id}>
-              {device.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Command-Type
-        <input
-          type="text"
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.commandType}
-          onChange={(e) => onChange({ ...config, commandType: e.target.value })}
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Payload (JSON)
-        <textarea
-          className="rounded-sb-sm bg-control px-2 py-1 font-mono text-xs text-ink"
-          rows={3}
-          value={config.commandPayloadJson}
-          onChange={(e) => onChange({ ...config, commandPayloadJson: e.target.value })}
-        />
-        {!payloadValid && <span className="text-red-500">Ungültiges JSON</span>}
-      </label>
+    <div className="flex flex-col gap-3">
+      <Field label="Beschriftung" value={config.label} onChange={(e) => onChange({ ...config, label: e.target.value })} />
+      <Select
+        label="Farbe"
+        value={config.color}
+        onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
+        options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
+      />
+      <Segmented
+        label="Verhalten"
+        showLabel
+        value={config.behavior}
+        onChange={(behavior) => onChange({ ...config, behavior })}
+        options={[
+          { value: 'momentary', label: 'Halten' },
+          { value: 'latching', label: 'Umschalten' },
+        ]}
+        hint={config.behavior === 'momentary' ? 'An, solange gedrückt (Momentary).' : 'Ein Druck an, der nächste aus (Latching).'}
+      />
+      <Select
+        label="Zielgerät"
+        value={config.targetLogicalDeviceId ?? ''}
+        onChange={(e) => onChange({ ...config, targetLogicalDeviceId: e.target.value || undefined })}
+        options={[{ value: '', label: '— Gerät wählen —' }, ...devices.map((device) => ({ value: device.id, label: device.name }))]}
+      />
+      <Field label="Command-Type" value={config.commandType} onChange={(e) => onChange({ ...config, commandType: e.target.value })} />
+      <TextArea
+        label="Payload (JSON)"
+        rows={3}
+        className="font-sb-mono text-sm"
+        value={config.commandPayloadJson}
+        error={payloadValid ? undefined : 'Ungültiges JSON'}
+        onChange={(e) => onChange({ ...config, commandPayloadJson: e.target.value })}
+      />
       {config.commandType === 'click.extend' && (
-        <label className="flex flex-col gap-1 text-xs text-ink-muted">
-          Takte (#231: wie weit der Endpunkt bei jedem Druck verschoben wird)
-          <input
-            type="number"
-            min={1}
-            step={1}
-            className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-            value={String(parsePayload(config.commandPayloadJson).bars ?? 1)}
-            onChange={(e) => {
-              const bars = Math.max(1, Math.round(Number(e.target.value) || 1))
-              onChange({ ...config, commandPayloadJson: JSON.stringify({ ...parsePayload(config.commandPayloadJson), bars }) })
-            }}
-          />
-        </label>
+        <Field
+          label="Takte"
+          hint="Wie weit der Endpunkt bei jedem Druck verschoben wird (#231)."
+          type="number"
+          min={1}
+          step={1}
+          value={String(parsePayload(config.commandPayloadJson).bars ?? 1)}
+          onChange={(e) => {
+            const bars = Math.max(1, Math.round(Number(e.target.value) || 1))
+            onChange({ ...config, commandPayloadJson: JSON.stringify({ ...parsePayload(config.commandPayloadJson), bars }) })
+          }}
+        />
       )}
       <SizeRatioSlider
         label="Größe"

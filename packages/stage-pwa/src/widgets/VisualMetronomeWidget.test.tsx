@@ -236,7 +236,7 @@ describe('MetronomeConfigPanel', () => {
   it('reports the selected style back through onChange', () => {
     const onChange = vi.fn()
     render(<MetronomeConfigPanel config={{ style: 'number' }} onChange={onChange} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'beat-dots' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Punkte (Taktposition)' }))
     expect(onChange).toHaveBeenCalledWith({ style: 'beat-dots' })
   })
 })

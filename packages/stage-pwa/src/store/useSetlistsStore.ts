@@ -19,15 +19,24 @@ import {
  * `entries` document the next time anything saves it (same lazy-migration spirit as
  * ensureDefaultVariant in songVariantsDb.ts).
  */
-function toSetlist(doc: SetlistDoc): Setlist {
-  const raw = doc as unknown as {
-    entries?: SetlistEntry[]
+/** A stored setlist as the app uses it. Keeps every field of the doc - it used to copy only
+ * id/name/entries/createdAt, which silently dropped the Festival-Uhr schedule (targetEndTime,
+ * default pause and song length) and the gig date (found 2026-10-07: the date picker "didn't
+ * take"). Only PouchDB's own fields and the legacy `songIds` stay behind. */
+export function toSetlist(doc: SetlistDoc): Setlist {
+  const { _id, _rev, _deleted, _conflicts, songIds, ...rest } = doc as unknown as Setlist & {
+    _id?: string
+    _rev?: string
+    _deleted?: boolean
+    _conflicts?: string[]
     songIds?: string[]
-    createdAt?: number
   }
-  const entries: SetlistEntry[] =
-    raw.entries ?? (raw.songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null, trackId: null }))
-  return { id: doc.id, name: doc.name, entries, createdAt: raw.createdAt ?? 0 }
+  void _id
+  void _rev
+  void _deleted
+  void _conflicts
+  const entries: SetlistEntry[] = rest.entries ?? (songIds ?? []).map((songId) => ({ id: randomId(), songId, variantId: null, trackId: null }))
+  return { ...rest, id: doc.id, name: doc.name, entries, createdAt: rest.createdAt ?? 0 }
 }
 
 interface SetlistsState {
@@ -35,7 +44,8 @@ interface SetlistsState {
   loaded: boolean
   init: (workspaceId: string) => Promise<void>
   saveSetlist: (setlist: Setlist) => Promise<void>
-  duplicateSetlist: (id: string, newName: string) => Promise<Setlist | null>
+  /** Copies `source` as given - SetlistDetail passes what is shown, unsaved changes included. */
+  duplicateSetlist: (source: Setlist, newName: string) => Promise<Setlist | null>
   remove: (id: string) => Promise<void>
 }
 
@@ -46,7 +56,7 @@ async function refresh(set: (partial: Partial<SetlistsState>) => void) {
   set({ setlists: docs.map(toSetlist) })
 }
 
-export const useSetlistsStore = create<SetlistsState>((set, get) => ({
+export const useSetlistsStore = create<SetlistsState>((set) => ({
   setlists: [],
   loaded: false,
   init: async (workspaceId) => {
@@ -64,10 +74,10 @@ export const useSetlistsStore = create<SetlistsState>((set, get) => ({
   saveSetlist: async (setlist) => {
     await putSetlist(setlist)
   },
-  duplicateSetlist: async (id, newName) => {
-    const source = get().setlists.find((setlist) => setlist.id === id)
-    if (!source) return null
+  duplicateSetlist: async (source, newName) => {
+    // Everything of the source (gig date, Festival-Uhr schedule too) - entries get new ids.
     const copy: Setlist = {
+      ...source,
       id: randomId(),
       name: newName,
       entries: source.entries.map((entry) => ({ ...entry, id: randomId() })),

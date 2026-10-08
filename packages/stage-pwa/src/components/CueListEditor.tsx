@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CAPABILITIES, type CapabilityId, type ShowCue } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 const CAPABILITY_OPTIONS = Object.values(CAPABILITIES)
 
@@ -78,7 +79,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
           {cues.map((cue) => (
             <div
               key={cue.id}
-              className="flex items-center gap-3 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft"
+              className="flex items-center gap-3 rounded-control bg-control px-3 py-2 text-sm text-ink-soft"
             >
               <span className="font-sb-mono text-ink">{formatTime(cue.timeMs)}</span>
               <span className="flex-1">
@@ -87,7 +88,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               <button
                 type="button"
                 onClick={() => remove(cue.id)}
-                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink-soft hover:bg-control-strong-hover"
+                className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
               >
                 Entfernen
               </button>
@@ -96,7 +97,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 rounded-sb-sm border border-dashed border-line p-3">
+      <div className="flex flex-col gap-2 rounded-container border border-dashed border-line p-3">
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
             Zeit (s)
@@ -105,7 +106,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               min={0}
               value={seconds}
               onChange={(e) => setSeconds(Number(e.target.value))}
-              className="w-20 rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+              className={`w-20 px-2 py-1 text-base ${INPUT_FREE}`}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-ink-muted">
@@ -116,7 +117,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
                 setCapability(e.target.value)
                 setTargetLogicalDeviceId('')
               }}
-              className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+              className={`min-h-form px-3 text-base ${INPUT_FREE}`}
             >
               {CAPABILITY_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -131,7 +132,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               value={targetLogicalDeviceId}
               onChange={(e) => setTargetLogicalDeviceId(e.target.value)}
               disabled={devicesForCapability.length === 0}
-              className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              className={`min-h-form px-3 text-base ${INPUT_FREE}`}
             >
               <option value="">
                 {devicesForCapability.length === 0 ? 'Kein Logical Device mit dieser Capability' : 'Wählen…'}
@@ -150,7 +151,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               value={type}
               onChange={(e) => setType(e.target.value)}
               placeholder="z.B. rig_change"
-              className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink placeholder:text-ink-faint"
+              className={`px-2 py-1 text-base placeholder:text-ink-faint ${INPUT}`}
             />
           </label>
         </div>
@@ -161,7 +162,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
             onChange={(e) => setPayloadText(e.target.value)}
             placeholder='{"rigName": "Clean Chorus", "slot": 3}'
             rows={2}
-            className="rounded-sb-sm bg-control px-2 py-1 font-sb-mono text-xs text-ink placeholder:text-ink-faint"
+            className={`px-2 py-1 font-sb-mono text-base placeholder:text-ink-faint ${INPUT}`}
           />
         </label>
         {payloadError && <p className="text-xs text-red-500">{payloadError}</p>}
@@ -169,7 +170,7 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
           type="button"
           onClick={add}
           disabled={!targetLogicalDeviceId || !type.trim()}
-          className="self-start rounded-sb-sm bg-control-strong px-3 py-1 text-sm font-medium text-accent hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="self-start rounded-control bg-control-strong px-3 min-h-form text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Cue hinzufügen
         </button>

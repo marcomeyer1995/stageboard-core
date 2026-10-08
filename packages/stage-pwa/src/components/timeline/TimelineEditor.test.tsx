@@ -641,6 +641,30 @@ describe('snapping switch (#332)', () => {
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
   })
 
+  it('fine mode (#334): pulled 140 px away vertically, a sideways move counts only a sixth, and says so', () => {
+    useTimelineSnapStore.setState({ snapping: false })
+    const { onChange } = setup({ content })
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: 10000 / 60, clientY: textY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: 10000 / 60 + 10, clientY: textY }) // 10 px at full speed = 600 ms
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: 10000 / 60 + 10, clientY: textY + 140 }) // only down: no jump
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: 10000 / 60 + 70, clientY: textY + 140 }) // 60 px count as 10 = 600 ms
+    expect(screen.getByText('Feinmodus 1:6')).toBeInTheDocument()
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: 10000 / 60 + 70, clientY: textY + 140 })
+    expect(screen.queryByText(/Feinmodus/)).not.toBeInTheDocument()
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:11.20] First line')
+  })
+
+  it('fine mode is off while snapping is on - snapping decides', () => {
+    const { onChange } = setup({ content })
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: 10000 / 60, clientY: textY })
+    fireEvent.pointerMove(lanes, { pointerId: 1, clientX: 12030 / 60, clientY: textY + 140 })
+    expect(screen.queryByText(/Feinmodus/)).not.toBeInTheDocument()
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: 12030 / 60, clientY: textY + 140 })
+    expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.00] First line')
+  })
+
   it('with the switch off, holding Alt snaps after all - Alt inverts the switch', () => {
     useTimelineSnapStore.setState({ snapping: false })
     const { onChange } = setup({ content })

@@ -126,7 +126,7 @@ describe('BandManagementView', () => {
     openBandMenu('Band A')
     expect(screen.getByText('Einladen')).toBeInTheDocument()
     expect(screen.getByText('Band für alle löschen …')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Schließen'))
+    fireEvent.click(screen.getByText('Abbrechen'))
 
     openMemberMenu('Marco')
     expect(screen.getByText('Umbenennen')).toBeInTheDocument()
@@ -145,30 +145,30 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Einladen')).not.toBeInTheDocument()
   })
 
-  it('"+ Band" offers a choice, and "Neue Band gründen" prompts for a name and calls addWorkspace (#68)', async () => {
+  it('"Band hinzufügen" offers a choice, and "Neue Band gründen" prompts for a name and calls addWorkspace (#68)', async () => {
     const addWorkspace = vi.fn().mockResolvedValue({ id: 'new-id', name: 'Band C' })
     useWorkspaceStore.setState({ addWorkspace })
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Band C') })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Band'))
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
     fireEvent.click(await screen.findByText('Neue Band gründen'))
 
     await waitFor(() => expect(addWorkspace).toHaveBeenCalledWith('Band C'))
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
   })
 
-  it('"+ Band" → "Bestehender Band beitreten" opens JoinBandView as a closable overlay (#68)', async () => {
+  it('"Band hinzufügen" → "Bestehender Band beitreten" opens JoinBandView as a closable overlay (#68)', async () => {
     useWorkspaceStore.setState({ listWorkspaces: vi.fn().mockResolvedValue([]) })
 
     render(<BandManagementView />)
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('+ Band'))
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
     fireEvent.click(await screen.findByText('Bestehender Band beitreten'))
 
     expect(await screen.findByText('Band beitreten')).toBeInTheDocument()
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
     // Opened voluntarily (a device with band-a already exists), not the forced onboarding
     // gate - JoinBandView.tsx only renders an "Abbrechen" escape hatch in that case.
     expect(screen.getByText('Abbrechen')).toBeInTheDocument()
@@ -177,17 +177,17 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
   })
 
-  it('"+ Band" → "Abbrechen" closes the choice without opening either flow', async () => {
+  it('"Band hinzufügen" → "Abbrechen" closes the choice without opening either flow', async () => {
     const addWorkspace = vi.fn()
     useWorkspaceStore.setState({ addWorkspace })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Band'))
-    await screen.findByText('Band hinzufügen')
+    fireEvent.click(screen.getByRole('button', { name: 'Band hinzufügen' }))
+    await screen.findByRole('dialog', { name: 'Band hinzufügen' })
 
     fireEvent.click(screen.getByText('Abbrechen'))
 
-    expect(screen.queryByText('Band hinzufügen')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Band hinzufügen' })).not.toBeInTheDocument()
     expect(screen.queryByText('Band beitreten')).not.toBeInTheDocument()
     expect(addWorkspace).not.toHaveBeenCalled()
   })
@@ -262,8 +262,8 @@ describe('BandManagementView', () => {
   it('highlights the active band with the same accent treatment as the active profile row, and no other band', () => {
     render(<BandManagementView />)
 
-    const activeBandRow = screen.getByText('Band A').closest('div.rounded-sb')
-    const otherBandRow = screen.getByText('Band B').closest('div.rounded-sb')
+    const activeBandRow = screen.getByText('Band A').closest('div.rounded-container')
+    const otherBandRow = screen.getByText('Band B').closest('div.rounded-container')
     expect(activeBandRow?.className).toMatch(/border-accent/)
     expect(otherBandRow?.className).not.toMatch(/border-accent/)
   })
@@ -273,7 +273,7 @@ describe('BandManagementView', () => {
 
     expect(screen.getByText(/Mitglieder \(Band A\)/)).toBeInTheDocument()
     expect(screen.getByText('Marco')).toBeInTheDocument()
-    expect(screen.getByText('+ Neues Mitglied')).toBeInTheDocument()
+    expect(screen.getByText('Neues Mitglied')).toBeInTheDocument()
   })
 
   it('shows a member\'s assigned stage roles (including "Admin") as badges directly in the roster', () => {
@@ -301,7 +301,15 @@ describe('BandManagementView', () => {
     render(<BandManagementView />)
 
     expect(screen.getByText(/Nur der Band-Admin kann Mitglieder verwalten/)).toBeInTheDocument()
-    expect(screen.queryByText('+ Neues Mitglied')).not.toBeInTheDocument()
+    expect(screen.queryByText('Neues Mitglied')).not.toBeInTheDocument()
+  })
+
+  it('member rows keep their height without a ⋯ (non-admin) - the button no longer sets it', () => {
+    useWorkspaceStore.setState({ activeWorkspaceId: 'band-b' })
+    const { container } = render(<BandManagementView />)
+    const rows = [...container.querySelectorAll('section .rounded-container.flex-col > div:first-child')]
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) expect(row).toHaveClass('min-h-form')
   })
 
   it('renaming a member calls update() with the new name', async () => {
@@ -323,10 +331,14 @@ describe('BandManagementView', () => {
     expect(screen.queryByText('Instrument/Funktion ändern')).not.toBeInTheDocument()
   })
 
-  it('"Stage-Rollen anpassen" offers "Admin" alongside the other stage roles, pre-filled from the current selection', async () => {
+  it('"Stage-Rollen anpassen" offers "Admin" alongside the other stage roles for another member, pre-filled from the current selection', async () => {
     useProfilesStore.setState({
-      profiles: [{ id: 'p1', name: 'Marco', stageRoles: ['performer', 'admin'] }],
+      profiles: [
+        { id: 'p1', name: 'Marco', stageRoles: ['performer', 'admin'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+      ],
     })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
     const updateStageRoles = vi.fn()
     useProfilesStore.setState({ updateStageRoles })
     const promptFields = vi.fn().mockResolvedValue({ stageRoles: 'performer,soundtech,admin' })
@@ -342,13 +354,14 @@ describe('BandManagementView', () => {
     expect(fields[0].options).toContainEqual({ value: 'admin', label: 'Admin' })
   })
 
-  it('unchecking "Admin" for someone who is not the last admin calls updateStageRoles as normal', async () => {
+  it('unchecking "Admin" for another member who is not the last admin calls updateStageRoles as normal', async () => {
     useProfilesStore.setState({
       profiles: [
         { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
         { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
       ],
     })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p2' } })
     const updateStageRoles = vi.fn()
     useProfilesStore.setState({ updateStageRoles })
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
@@ -360,10 +373,33 @@ describe('BandManagementView', () => {
     await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', []))
   })
 
+  it('your own profile: no "Admin" box, your admin role stays whatever you pick - only another admin can take it', async () => {
+    useProfilesStore.setState({
+      profiles: [
+        { id: 'p1', name: 'Marco', stageRoles: ['admin', 'performer'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+      ],
+    })
+    const updateStageRoles = vi.fn()
+    useProfilesStore.setState({ updateStageRoles })
+    const promptFields = vi.fn().mockResolvedValue({ stageRoles: 'soundtech' })
+    useDialogStore.setState({ promptFields })
+
+    render(<BandManagementView />)
+    openMemberMenu('Marco')
+    fireEvent.click(screen.getByText('Stage-Rollen anpassen'))
+
+    await waitFor(() => expect(updateStageRoles).toHaveBeenCalledWith('p1', ['admin', 'soundtech']))
+    const [, fields] = promptFields.mock.calls[0]
+    expect(fields[0].options).not.toContainEqual({ value: 'admin', label: 'Admin' })
+    expect(fields[0].label).toMatch(/nur ein anderer Admin/)
+  })
+
   it('"Stage-Rollen anpassen" calls updateStageRoles unconditionally - the last-admin block itself lives in useProfilesStore, covered by useProfilesStore.test.ts', async () => {
     const updateStageRoles = vi.fn().mockResolvedValue(false)
     useProfilesStore.setState({ updateStageRoles })
     useDialogStore.setState({ promptFields: vi.fn().mockResolvedValue({ stageRoles: '' }) })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'someone-else' } }) // another member's roles, not your own
 
     render(<BandManagementView />)
     openMemberMenu('Marco')
@@ -430,12 +466,12 @@ describe('BandManagementView', () => {
       expect(screen.queryByRole('button', { name: 'Weitere Optionen für Marco' })).not.toBeInTheDocument()
     })
 
-    it('"Schließen" dismisses the popup', () => {
+    it('"Abbrechen" dismisses the popup', () => {
       render(<BandManagementView />)
 
       openMemberMenu('Marco')
       expect(screen.getByText('Umbenennen')).toBeInTheDocument()
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Abbrechen'))
       expect(screen.queryByText('Umbenennen')).not.toBeInTheDocument()
     })
 
@@ -443,8 +479,7 @@ describe('BandManagementView', () => {
       render(<BandManagementView />)
       openMemberMenu('Marco')
 
-      const heading = screen.getByText('Marco', { selector: 'h3' })
-      const card = heading.parentElement!
+      const card = screen.getByRole('dialog', { name: 'Marco' })
       const backdrop = card.parentElement!
 
       fireEvent.click(card)
@@ -525,8 +560,8 @@ describe('BandManagementView', () => {
 
       // p2 (Chris) is active - the accent border is the only "this is you" signal now
       // (2026-09-02 thirteenth follow-up: the "(du)" text label was redundant with it).
-      const chrisRow = screen.getByText('Chris').closest('div.rounded-sb')
-      const marcoRow = screen.getByText('Marco').closest('div.rounded-sb')
+      const chrisRow = screen.getByText('Chris').closest('div.rounded-container')
+      const marcoRow = screen.getByText('Marco').closest('div.rounded-container')
       expect(chrisRow?.className).toMatch(/border-accent/)
       expect(marcoRow?.className).not.toMatch(/border-accent/)
     })
@@ -602,7 +637,7 @@ describe('BandManagementView', () => {
     useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
     render(<BandManagementView />)
-    fireEvent.click(screen.getByText('+ Neues Mitglied'))
+    fireEvent.click(screen.getByText('Neues Mitglied'))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
     expect(screen.queryByText('Band einladen')).not.toBeInTheDocument()
@@ -617,11 +652,11 @@ describe('BandManagementView', () => {
       openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
 
-      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getAllByText('11112222')[0]).toBeInTheDocument())
       expect(getAccessCode).toHaveBeenCalledWith('band-a')
     })
 
-    it('"Schließen" closes the invite screen', async () => {
+    it('"Fertig" closes the invite screen', async () => {
       useWorkspaceStore.setState({
         getAccessCode: vi.fn().mockResolvedValue({ code: '11112222' }),
       })
@@ -629,9 +664,9 @@ describe('BandManagementView', () => {
       render(<BandManagementView />)
       openBandMenu('Band A')
       fireEvent.click(screen.getByText('Einladen'))
-      await waitFor(() => expect(screen.getByText('11112222')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getAllByText('11112222')[0]).toBeInTheDocument())
 
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Fertig'))
       expect(screen.queryByText('11112222')).not.toBeInTheDocument()
     })
   })
@@ -747,7 +782,7 @@ describe('BandManagementView', () => {
       useDialogStore.setState({ promptText: vi.fn().mockResolvedValue('Chris') })
 
       render(<BandManagementView />)
-      fireEvent.click(screen.getByText('+ Neues Mitglied'))
+      fireEvent.click(screen.getByText('Neues Mitglied'))
 
       await waitFor(() => expect(create).toHaveBeenCalledWith('Chris'))
     })
@@ -918,7 +953,7 @@ describe('BandManagementView', () => {
       // self-PIN option in his own menu.
       openMemberMenu('Marco')
       expect(screen.getByText('Meinen PIN setzen')).toBeInTheDocument()
-      fireEvent.click(screen.getByText('Schließen'))
+      fireEvent.click(screen.getByText('Abbrechen'))
 
       openMemberMenu('Chris')
       expect(screen.queryByText('Meinen PIN setzen')).not.toBeInTheDocument()

@@ -30,7 +30,7 @@ export function TextSizeSettings() {
       />
       <p
         style={{ fontSize: baseFontSize, lineHeight: 1.3 }}
-        className="overflow-x-auto whitespace-nowrap rounded-sb-sm bg-control px-2 py-1 font-sb-mono text-ink"
+        className="overflow-x-auto whitespace-nowrap rounded-control bg-control px-2 py-1 font-sb-mono text-ink"
       >
         1. Highway to Hell
       </p>

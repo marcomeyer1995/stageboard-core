@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -26,14 +25,18 @@ import {
 import { useQueue } from '../lib/queue'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
+import { useBackHandler } from '../lib/backNavigation'
+import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
-import { useBackHandler } from '../lib/backNavigation'
+import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
+import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
+import { INPUT, SELECTED } from './ui/styles'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -43,6 +46,25 @@ interface SetlistDetailProps {
   /** Called after the setlist is actually deleted, so LibraryView can clear a selection
    * that would otherwise point at a setlist that no longer exists. */
   onDeleted: () => void
+}
+
+/** Same content, regardless of key order or fields set to undefined. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return Object.fromEntries(
+      Object.keys(record)
+        .filter((key) => record[key] !== undefined)
+        .sort()
+        .map((key) => [key, canonical(record[key])]),
+    )
+  }
+  return value
+}
+
+export function sameSetlist(a: Setlist, b: Setlist): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
 }
 
 /**
@@ -64,7 +86,6 @@ function VariantPicker({
   onSelect: (variantId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  useBackHandler(open ? () => setOpen(false) : null)
   const selectedLabel = variants.find((v) => v.id === selectedId)?.label ?? ''
 
   return (
@@ -77,54 +98,31 @@ function VariantPicker({
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
         // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
         // title 0 px wide.
-        className="min-h-12 max-w-full self-start whitespace-normal break-words rounded-sb-sm bg-control-strong px-3 py-1 text-left text-sm leading-tight text-ink hover:bg-control-strong-hover"
+        className="min-h-form max-w-full self-start whitespace-normal break-words rounded-control bg-control-strong px-3 py-1 text-left text-base leading-tight text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
       >
         {selectedLabel}
       </button>
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
-            onClick={() => setOpen(false)}
-          >
-            <div
-              className="flex w-full max-w-[min(320px,85vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Variante</p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
-                >
-                  <Icon name="close" size="1.25rem" />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => {
-                      setOpen(false)
-                      onSelect(variant.id)
-                    }}
-                    className={`h-11 w-full rounded-sb px-3 text-left text-base ${
-                      variant.id === selectedId
-                        ? 'bg-accent text-accent-ink'
-                        : 'bg-control text-ink hover:bg-control-hover'
-                    }`}
-                  >
-                    {variant.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {open && (
+        // Choosing one already closes it - so the way out is "Abbrechen" (docs/15 D6).
+        <Dialog title="Variante" size="s" closeLabel="Abbrechen" onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2">
+            {variants.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                aria-current={variant.id === selectedId ? 'true' : undefined}
+                onClick={() => {
+                  setOpen(false)
+                  onSelect(variant.id)
+                }}
+                className={`${MENU_ROW} ${variant.id === selectedId ? SELECTED : 'text-ink'}`}
+              >
+                {variant.label}
+              </button>
+            ))}
+          </div>
+        </Dialog>
+      )}
     </>
   )
 }
@@ -173,7 +171,6 @@ function TransitionPicker({
   onChange: (type: TransitionType, delayMs: number) => void
 }) {
   const [open, setOpen] = useState(false)
-  useBackHandler(open ? () => setOpen(false) : null)
   const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
 
   return (
@@ -182,8 +179,8 @@ function TransitionPicker({
         type="button"
         onClick={() => setOpen(true)}
         title={`Übergang zum nächsten Eintrag: ${current.label}`}
-        className={`h-12 min-w-12 flex-shrink-0 rounded-sb-sm px-3 text-sm hover:bg-control-strong-hover ${
-          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-accent'
+        className={`h-form min-w-form flex-shrink-0 rounded-control px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover ${
+          type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-ink'
         }`}
       >
         <span className="flex items-center gap-1">
@@ -191,61 +188,35 @@ function TransitionPicker({
           {type === 'manual' ? null : current.label}
         </span>
       </button>
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
-            onClick={() => setOpen(false)}
-          >
-            <div
-              className="flex w-full max-w-[min(360px,90vw)] flex-col gap-3 rounded-sb border border-line bg-surface p-3 shadow-sb"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
-                  {isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  title="Schließen"
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sb-sm text-ink-muted hover:bg-control-hover hover:text-ink"
-                >
-                  <Icon name="close" size="1.25rem" />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2">
-                {TRANSITION_OPTIONS.map((option) => (
-                  <button
-                    key={option.type}
-                    type="button"
-                    onClick={() => onChange(option.type, delayMs)}
-                    className={`flex flex-col rounded-sb px-3 py-2 text-left ${
-                      option.type === type ? 'bg-accent text-accent-ink' : 'bg-control text-ink hover:bg-control-hover'
-                    }`}
-                  >
-                    <span className="text-base font-semibold">{option.label}</span>
-                    <span className="text-xs opacity-80">{isItem ? option.itemHint : option.hint}</span>
-                  </button>
-                ))}
-              </div>
-              {type === 'delayed' && (
-                <label className="flex items-center justify-between gap-2 text-sm text-ink-soft">
-                  Pause (Sekunden)
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={Math.round(delayMs / 1000)}
-                    onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
-                    className="h-12 w-20 rounded-sb-sm bg-control px-2 text-right text-ink"
-                  />
-                </label>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+      {open && (
+        <Dialog title={isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'} size="s" onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Übergang">
+            {TRANSITION_OPTIONS.map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                role="radio"
+                aria-checked={option.type === type}
+                onClick={() => onChange(option.type, delayMs)}
+                className={`${MENU_ROW} !flex-col !items-start py-2 ${option.type === type ? SELECTED : 'text-ink'}`}
+              >
+                <span className="text-base font-semibold">{option.label}</span>
+                <span className="text-sm opacity-80">{isItem ? option.itemHint : option.hint}</span>
+              </button>
+            ))}
+          </div>
+          {type === 'delayed' && (
+            <Field
+              label="Pause (Sekunden)"
+              type="number"
+              min={0}
+              step={1}
+              value={Math.round(delayMs / 1000)}
+              onChange={(e) => onChange('delayed', Math.max(0, Math.round(Number(e.target.value) || 0)) * 1000)}
+            />
+          )}
+        </Dialog>
+      )}
     </>
   )
 }
@@ -291,7 +262,7 @@ function EntryRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 rounded-sb-sm bg-control px-3 py-3 text-base ${
+      className={`flex items-center gap-2 rounded-control bg-control px-3 py-3 text-base ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
@@ -300,7 +271,7 @@ function EntryRow({
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
@@ -309,7 +280,7 @@ function EntryRow({
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-12 min-w-0 truncate text-left hover:underline"
+          className="min-h-12 min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -342,14 +313,14 @@ function EntryRow({
 /** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
  * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
 function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
-  const inputClass = 'h-12 w-24 rounded-sb-sm bg-control px-2 text-right text-ink'
+  const inputClass = `h-form !w-24 px-2 text-right ${INPUT}`
   function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
     const seconds = Number(text.trim().replace(',', '.'))
     const value = text.trim() === '' || !Number.isFinite(seconds) || seconds < 0 ? undefined : Math.round(seconds) * 1000
     if (value !== setlist[field]) onSave({ ...setlist, [field]: value })
   }
   return (
-    <details className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+    <details className="rounded-container border border-line px-3 py-2 text-base text-ink-soft">
       <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
         Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
       </summary>
@@ -360,7 +331,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
             type="time"
             value={setlist.targetEndTime ?? ''}
             onChange={(e) => onSave({ ...setlist, targetEndTime: e.target.value || undefined })}
-            className="h-12 rounded-sb-sm bg-surface px-2 text-ink"
+            className={`h-form !w-auto px-2 ${INPUT}`}
           />
         </label>
         <label className="flex items-center justify-between gap-2">
@@ -423,7 +394,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`flex items-center gap-2 px-3 py-3 text-base ${
-        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-sb-sm border border-dashed border-line bg-control'
+        heading ? 'mt-2 border-b-2 border-accent' : 'rounded-control border border-dashed border-line bg-control'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
@@ -431,17 +402,17 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-12 w-12 flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
         aria-label="Ziehen zum Sortieren"
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
           <>
-            <span className="mr-2 text-xs font-bold uppercase tracking-wider text-accent">Ansage</span>
+            <span className="mr-2"><Badge tone="accent">Ansage</Badge></span>
             <span className="italic">{entry.title}</span>
           </>
         )}
@@ -517,14 +488,14 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
           if (e.key === 'Escape') setOpen(false)
         }}
         placeholder="Songs durchsuchen…"
-        className="h-12 rounded-sb-sm bg-control px-4 text-base text-ink placeholder:text-ink-faint"
+        className={`h-form px-4 text-base ${INPUT}`}
       />
       {open && (
         // Opens upward, not down (Marco, explicit request) - this control sits at the bottom
         // of the pane, below the entry list, so a downward dropdown pushed itself off-screen
         // and needed a scroll to reach; anchoring to the input's top edge instead opens into
         // the room the entry list already occupies.
-        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-sb border border-line bg-surface shadow-sb">
+        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
           ) : (
@@ -533,7 +504,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
                 <button
                   type="button"
                   onClick={() => pick(song.id)}
-                  className="block w-full truncate px-4 py-3 text-left text-base text-ink hover:bg-control-hover"
+                  className="block w-full truncate px-4 py-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   {song.title || '(ohne Titel)'}
                   {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
@@ -568,14 +539,39 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const setlist = setlists.find((s) => s.id === setlistId) ?? null
+  const stored = setlists.find((s) => s.id === setlistId) ?? null
+  // Edits go to a draft, like in the song editor (Marco, 2026-10-07): "Speichern" takes them
+  // over, leaving without saving throws them away (after asking). Activating and deleting stay
+  // immediate - they aren't changes to the setlist itself.
+  const [draft, setDraft] = useState<Setlist | null>(stored)
+  const dirty = draft !== null && stored !== null && !sameSetlist(draft, stored)
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  // Follows the stored setlist (another device, or our own save) as long as nothing is pending.
+  useEffect(() => {
+    if (!dirtyRef.current) setDraft(stored)
+  }, [stored])
+  // Every way out asks "Speichern / Verwerfen / Weiter bearbeiten" while dirty (lib/unsavedChanges).
+  useUnsavedChangesGuard(dirty, () => handleSave())
+  const setlist = draft
+  const update = (next: Setlist) => setDraft(next)
+  // Opens as a clean preview (SetlistPreview); "Bearbeiten" switches to the editor below.
+  const [editing, setEditing] = useState(false)
 
-  async function handleRename() {
-    if (!setlist) return
-    const name = await promptText('Setlist umbenennen', { label: 'Neuer Name', defaultValue: setlist.name })
-    if (!name?.trim()) return
-    saveSetlist({ ...setlist, name: name.trim() })
+  async function handleSave(): Promise<boolean> {
+    if (!draft || !draft.name.trim()) return false
+    await saveSetlist({ ...draft, name: draft.name.trim() })
+    setEditing(false)
+    return true
   }
+
+  /** "Abbrechen" / Back in the editor: back to the preview, asking first if something changed. */
+  async function leaveEditing() {
+    if (!(await confirmLeave())) return
+    setDraft(stored)
+    setEditing(false)
+  }
+  useBackHandler(editing ? () => void leaveEditing() : null)
 
   async function handleDuplicate() {
     if (!setlist) return
@@ -584,11 +580,13 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       defaultValue: `${setlist.name} (Kopie)`,
     })
     if (!name?.trim()) return
-    await duplicateSetlist(setlist.id, name.trim())
+    // Copies what is shown, unsaved changes included.
+    await duplicateSetlist(setlist, name.trim())
   }
 
   async function handleDelete() {
-    if (!setlist) return
+    if (!stored) return
+    const setlist = stored
     const confirmed = await confirm(
       `"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
       { confirmLabel: 'Löschen', danger: true },
@@ -612,12 +610,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     const from = setlist.entries.findIndex((e) => e.id === event.active.id)
     const to = setlist.entries.findIndex((e) => e.id === event.over?.id)
     if (from === -1 || to === -1) return
-    saveSetlist({ ...setlist, entries: arrayMove(setlist.entries, from, to) })
+    update({ ...setlist, entries: arrayMove(setlist.entries, from, to) })
   }
 
   function removeSong(index: number) {
     if (!setlist) return
-    saveSetlist({ ...setlist, entries: setlist.entries.filter((_, i) => i !== index) })
+    update({ ...setlist, entries: setlist.entries.filter((_, i) => i !== index) })
   }
 
   /** Adds a new occurrence of a song - deliberately allowed even if the song is already in
@@ -625,7 +623,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
    * already played earlier in its full-length variant. */
   function addSong(songId: string) {
     if (!setlist || !songId) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: [...setlist.entries, { id: randomId(), songId, variantId: null, trackId: null }],
     })
@@ -665,7 +663,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       notes: result.notes ?? '',
       estimatedDurationMs: parseSeconds(result.seconds),
     }
-    saveSetlist({ ...setlist, entries: [...setlist.entries, item] })
+    update({ ...setlist, entries: [...setlist.entries, item] })
   }
 
   async function editTransition(entry: TransitionEntry) {
@@ -679,12 +677,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       notes: result.notes ?? '',
       estimatedDurationMs: parseSeconds(result.seconds),
     }
-    saveSetlist({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
+    update({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
   }
 
   function setVariant(entryId: string, variantId: string) {
     if (!setlist) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: setlist.entries.map((entry) =>
         entry.id === entryId && isSongEntry(entry) ? { ...entry, variantId } : entry,
@@ -694,7 +692,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
 
   function setTransition(entryId: string, transitionType: TransitionType, transitionDelayMs: number) {
     if (!setlist) return
-    saveSetlist({
+    update({
       ...setlist,
       entries: setlist.entries.map((entry) =>
         entry.id === entryId ? { ...entry, transitionType, transitionDelayMs } : entry,
@@ -702,8 +700,29 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     })
   }
 
-  if (!setlist) {
+  if (!setlist || !stored) {
     return <p className="text-ink-faint">Setlist wurde entfernt.</p>
+  }
+
+  if (!editing) {
+    return (
+      <SetlistPreview
+        setlist={stored}
+        active={activeSetlist?.id === stored.id}
+        canActivate={isMaster}
+        onActivate={() => void setActiveSetlist(stored.id)}
+        onDeactivate={() => void setActiveSetlist(null)}
+        onEdit={() => {
+          setDraft(stored)
+          setEditing(true)
+        }}
+        menu={[
+          { label: 'Duplizieren', onClick: () => void handleDuplicate() },
+          { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
+        ]}
+        onSelectSong={onSelectSong}
+      />
+    )
   }
 
   return (
@@ -713,47 +732,35 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     // that button is actually visible (Marco: the whole page was scrolling in portrait mode,
     // not just this list) - flex-1 instead claims only what's left after the button.
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-ink-muted">
-          {setlist.name}
-          {activeSetlist?.id === setlist.id && (
-            <span className="flex items-center gap-1 text-xs font-semibold normal-case text-accent"><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-current" /> Aktiv</span>
-          )}
-        </h2>
-        <span className="flex flex-shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveSetlist(setlist.id)}
-            disabled={!isMaster}
-            className="h-12 rounded-sb-sm bg-accent-2 px-4 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
-          >
-            Aktivieren
-          </button>
-          {/* Duplizieren/Löschen behind one menu, same pattern as a song row's own ⋯ in
-              LibraryView.tsx - harmonizing how a song vs. a setlist gets deleted (Marco,
-              explicit request). Aktivieren stays its own always-visible button: it's the one
-              action reached for constantly during a show, unlike the other two. */}
-          <OverflowMenu
-            title={setlist.name}
-            actions={[
-              { label: 'Umbenennen', onClick: () => void handleRename() },
-              { label: 'Duplizieren', onClick: () => void handleDuplicate() },
-              { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
-            ]}
-          />
-        </span>
-      </div>
-      {activeSetlist?.id === setlist.id && (
+      {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
+      <div className="flex items-center justify-end gap-2">
         <button
           type="button"
-          onClick={() => setActiveSetlist(null)}
-          disabled={!isMaster}
-          className="h-12 self-start rounded-sb-sm bg-control-strong px-4 text-sm hover:bg-control-strong-hover disabled:opacity-40"
+          onClick={() => void leaveEditing()}
+          className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         >
-          Setlist deaktivieren (alle Songs)
+          Abbrechen
         </button>
-      )}
-      <ScheduleSettings setlist={setlist} onSave={(next) => void saveSetlist(next)} />
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={!setlist.name.trim()}
+          className="h-form rounded-control bg-accent px-5 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
+        >
+          Speichern
+        </button>
+      </div>
+      <Field label="Name" value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
+      {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
+      <div className="max-w-56">
+        <Field
+          label="Auftrittsdatum"
+          type="date"
+          value={setlist.performanceDate ?? ''}
+          onChange={(e) => update({ ...setlist, performanceDate: e.target.value || undefined })}
+        />
+      </div>
+      <ScheduleSettings setlist={setlist} onSave={update} />
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext items={setlist.entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-1 flex-col gap-1 overflow-y-auto">
@@ -792,20 +799,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void addTransition('announcement')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Ansage / Pause
-          </button>
-          <button
-            type="button"
-            onClick={() => void addTransition('heading')}
-            className="h-12 flex-1 rounded-sb bg-control-strong px-3 text-sm font-medium text-ink hover:bg-control-strong-hover sm:flex-none"
-          >
-            + Abschnitt
-          </button>
+          <AddRow inline label="Ansage / Pause" onClick={() => void addTransition('announcement')} />
+          <AddRow inline label="Abschnitt" onClick={() => void addTransition('heading')} />
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
+import { ActionMenu, AddRow } from './ui'
 
 const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
   complete: 'vollständig',
@@ -50,46 +51,37 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
         const usage = findLogicalDeviceUsage(device.id, variants, songs)
         const hasOwnTransportConfig = devicesRegistry.some((c) => c.logicalDeviceId === device.id && c.deviceId === getDeviceId())
         return (
-          <div key={device.id} className="flex items-center gap-3 rounded-sb border border-line bg-surface px-4 py-3 shadow-sb">
-            <div className="flex-1">
+          <div key={device.id} className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
+            <div className="min-w-0 flex-1">
               <p className="font-semibold">
                 {device.name} <span className="text-xs font-normal text-ink-faint">({STATUS_LABEL[complete ? 'complete' : 'incomplete']})</span>
               </p>
-              <p className="text-xs text-ink-muted">
+              <p className="break-words text-sm text-ink-muted">
                 {pluginNameOf(device.pluginId)} · {targetLabel(device.executionTarget)}
                 {usage.length > 0 && <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>}
                 {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint"> · Anschluss auf diesem Gerät gesetzt</span>}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onEdit(device)}
-              className="min-h-12 rounded-sb-sm bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover"
-            >
-              Einrichten
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) {
-                  void remove(device.id)
-                }
-              }}
-              className="ml-2 min-h-12 rounded-sb-sm bg-control px-4 text-sm text-ink-soft hover:bg-control-hover"
-            >
-              Entfernen
-            </button>
+            {/* Actions behind ⋯ like every list row - two buttons beside the text pushed past the
+                card on the phone and squeezed the text to a narrow column (2026-10-07). */}
+            <ActionMenu
+              title={device.name}
+              actions={[
+                { label: 'Einrichten', onClick: () => onEdit(device) },
+                {
+                  label: 'Entfernen',
+                  danger: true,
+                  onClick: async () => {
+                    if (await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) void remove(device.id)
+                  },
+                },
+              ]}
+            />
           </div>
         )
       })}
 
-      <button
-        type="button"
-        onClick={onAdd}
-        className="h-12 rounded-sb border border-dashed border-line text-sm font-medium text-accent hover:bg-control-hover"
-      >
-        + Neues Gerät
-      </button>
+      <AddRow label="Neues Gerät" onClick={onAdd} />
     </div>
   )
 }

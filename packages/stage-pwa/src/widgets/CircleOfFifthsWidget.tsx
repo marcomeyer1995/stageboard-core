@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { useState } from 'react'
 import {
   circleLabel,
@@ -114,17 +115,13 @@ export function CircleOfFifthsConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Notenname
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.noteNaming ?? 'sharp'}
-          onChange={(e) => onChange({ ...config, noteNaming: e.target.value as CircleOfFifthsConfig['noteNaming'] })}
-        >
-          <option value="sharp">Kreuz (F#)</option>
-          <option value="flat">B (Gb)</option>
-        </select>
-      </label>
+      <Segmented
+        label="Notenname"
+        showLabel
+        value={config.noteNaming ?? 'sharp'}
+        onChange={(value) => onChange({ ...config, noteNaming: value as CircleOfFifthsConfig['noteNaming'] })}
+        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+      />
       <SizeRatioSlider label="Beschreibung" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )

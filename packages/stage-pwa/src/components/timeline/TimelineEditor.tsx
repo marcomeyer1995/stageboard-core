@@ -30,6 +30,7 @@ import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
 import { useTrackClock } from '../../lib/useTrackClock'
 import { useTimelineLanesStore } from '../../store/useTimelineLanesStore'
+import { fineFactor, fineRatioLabel, fineStep } from '../../lib/fineDrag'
 import { useTimelineSnapStore } from '../../store/useTimelineSnapStore'
 import { useClockStore } from '../../store/useClockStore'
 import { useDialogStore } from '../../store/useDialogStore'
@@ -158,8 +159,10 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
   )
 }
 
-type Pan = { pointerId: number; startX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
-type Drag = { pointerId: number; startX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
+// `x` / `effectiveX` is where the finger counts as being - in fine mode (#334) that lags behind the
+// real `rawX`; `startY` is what the vertical distance for fine mode is measured from.
+type Pan = { pointerId: number; startX: number; startY: number; rawX: number; effectiveX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
+type Drag = { pointerId: number; startX: number; startY: number; rawX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
 /** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
  * dragged (snapping and the readout follow it). */
 type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
@@ -266,6 +269,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
+  /** Fine mode (#334) while it is on: where the finger is and how much a step counts. */
+  const [fine, setFine] = useState<{ x: number; y: number; factor: number } | null>(null)
   const [ripple, setRipple] = useState<Ripple | null>(null)
   /** A tapped tempo change waiting for "Übernehmen" (#354): its grid is shown, its curve drawn. */
   const [tempoPreview, setTempoPreview] = useState<Extract<CurveGridResult, { kind: 'grid' }> | null>(null)
@@ -888,7 +893,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       setDrag(null)
       return
     }
-    const base = { pointerId: e.pointerId, startX: x, x, moved: false }
+    const base = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, x, moved: false }
     if (ripple) {
       setDrag({ ...base, kind: 'ripple' })
       return
@@ -923,7 +928,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         return
       }
     }
-    pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
+    pan.current = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, effectiveX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -937,17 +942,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     if (drag && drag.pointerId === e.pointerId) {
-      setDrag({ ...drag, x, moved: drag.moved || Math.abs(x - drag.startX) > MOVE_THRESHOLD_PX })
+      // Fine mode only while snapping is off - otherwise snapping decides where it lands anyway.
+      const factor = snapOn ? 1 : fineFactor(y - drag.startY)
+      showFine(x, y, factor)
+      setDrag({ ...drag, rawX: x, x: fineStep(drag.x, drag.rawX, x, factor), moved: drag.moved || Math.abs(x - drag.startX) > MOVE_THRESHOLD_PX })
       return
     }
     const p = pan.current
     if (!p || p.pointerId !== e.pointerId) return
     p.moved = p.moved || Math.abs(x - p.startX) > MOVE_THRESHOLD_PX
-    if (p.moved) setView(clampView({ ...p.startView, startMs: p.startView.startMs - (x - p.startX) * p.startView.msPerPx }, width, minMs, durationMs))
+    if (!p.moved) return
+    const factor = fineFactor(y - p.startY)
+    showFine(x, y, factor)
+    p.effectiveX = fineStep(p.effectiveX, p.rawX, x, factor)
+    p.rawX = x
+    setView(clampView({ ...p.startView, startMs: p.startView.startMs - (p.effectiveX - p.startX) * p.startView.msPerPx }, width, minMs, durationMs))
+  }
+
+  function showFine(x: number, y: number, factor: number) {
+    setFine(factor < 1 ? { x, y, factor } : null)
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId)
+    setFine(null)
     if (pinch.current) {
       if (pointers.current.size < 2) pinch.current = null
       return
@@ -1392,9 +1410,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const button = 'min-h-12 min-w-12 rounded-sb-sm bg-control-strong px-3 text-sm font-semibold text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const button = 'min-h-form min-w-12 rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
-  const iconButton = 'flex min-h-12 min-w-12 items-center justify-center rounded-sb-sm bg-control-strong px-3 text-ink hover:bg-control-strong-hover disabled:opacity-40'
+  const iconButton = 'flex min-h-form min-w-12 items-center justify-center rounded-control bg-control-strong px-3 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
   const viewBar = timeline.barOf(Math.max(0, timeline.beatAtOrBefore(view.startMs)))
   const barsGrabbable = (timeline.timeOfBeat(timeline.barStartBeat(viewBar + 1)) - timeline.timeOfBeat(timeline.barStartBeat(viewBar))) / view.msPerPx >= 2 * TOLERANCE_PX
@@ -1425,7 +1443,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const lanesGroup = (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2" role="group" aria-label="Spuren">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2" role="group" aria-label="Spuren">
           {TIMELINE_LANES.map((lane) => (
             <button
               key={lane}
@@ -1494,7 +1512,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         aria-label={compactTools ? 'Werkzeuge' : undefined}
         className={
           compactTools
-            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-sb border border-line bg-surface p-3 shadow-sb'
+            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
             : 'flex flex-wrap items-center gap-2'
         }
         style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
@@ -1574,7 +1592,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       <div
         ref={boxRef}
-        className={`relative w-full select-none overflow-hidden rounded-sb border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
+        className={`relative w-full select-none overflow-hidden rounded-control border border-line bg-stage ${fill ? 'min-h-48 flex-1' : ''}`}
         style={{ height: fill ? undefined : lanesH, touchAction: 'none', cursor: drag ? 'grabbing' : hoverGrab ? 'grab' : undefined }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -1591,10 +1609,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
+        {fine && (
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-black shadow"
+            style={{ left: Math.min(Math.max(fine.x, 60), width - 60), top: Math.max(fine.y - 72, 4) }}
+            role="status"
+          >
+            Feinmodus {fineRatioLabel(fine.factor)}
+          </div>
+        )}
       </div>
 
       {tapMode === 'lines' && (
-        <div className="flex flex-col gap-2 rounded-sb bg-control p-2" data-testid="tap-lines-panel">
+        <div className="flex flex-col gap-2 rounded-control bg-control p-2" data-testid="tap-lines-panel">
           <div className="flex flex-col gap-1 px-2 text-base">
             <span className="truncate text-ink-faint" data-testid="tap-prev-line">
               {prevTapLine ? (
@@ -1618,7 +1645,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
             </span>
             <span className="truncate text-ink-faint">{afterTapLine ? afterTapLine.text : ' '}</span>
           </div>
-          <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+          <button type="button" className="h-touch-primary rounded-control bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
             {clock.isPlaying ? (nextTapLine ? 'TIPP' : 'Fertig') : 'Abspielen, dann zu jeder Zeile tippen'}
           </button>
           <div className="flex flex-wrap items-center gap-2">
@@ -1633,13 +1660,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
         </div>
       )}
       {tapMode === 'tempo' && (
-        <button type="button" className="h-touch-primary rounded-sb bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
+        <button type="button" className="h-touch-primary rounded-control bg-accent px-4 text-xl font-black text-accent-ink" onPointerDown={() => clock.isPlaying && tap()}>
           {clock.isPlaying ? `TIPP (${tapCount})` : 'Abspielen, dann im Takt tippen'}
         </button>
       )}
 
       {selectedBar !== null && selectedBarMs !== null && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             Takt {selectedBar} · {formatTimelineTime(selectedBarMs)} ·{' '}
             {selectedStretch?.gradual
@@ -1678,7 +1705,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedLineInfo && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             „{fitText(selectedLineInfo.text, 320)}“ · {selectedLineInfo.timeMs !== null ? formatTimelineTime(selectedLineInfo.timeMs) : 'ohne Zeit'}
           </span>
@@ -1733,7 +1760,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {ripple && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Verschieben">
+        <div className="flex flex-wrap items-center gap-2 rounded-control border border-accent bg-control p-2" role="status" aria-label="Verschieben">
           <span className="font-semibold">
             Verschieben: {ripple.label} - in der Timeline ziehen, alles ab {formatTimelineTime(ripple.fromMs)} wandert mit
             {rippleDelta ? ` (${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s)` : ''}.
@@ -1748,7 +1775,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedCue && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             {selectedCueDevice?.name ?? 'Unbekanntes Gerät'} · {describeCue(selectedCue, selectedCueDevice?.capability)} · {formatTimelineTime(selectedCue.timeMs)}
           </span>
@@ -1781,7 +1808,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {selectedNote && (
-        <div className="flex flex-col gap-2 rounded-sb bg-control p-2">
+        <div className="flex flex-col gap-2 rounded-control bg-control p-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">
               {selectedNote.kind === 'tab' ? `Tab${selectedNote.text ? `: ${selectedNote.text}` : ''}` : `„${selectedNote.text ?? ''}“`}

@@ -1,3 +1,4 @@
+import { Segmented } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { centsToColor } from '../lib/centsColor'
 import { detectPitch } from '../lib/pitchDetection'
@@ -130,7 +131,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
           <button
             type="button"
             onClick={stopListening}
-            className="rounded-sb-sm bg-control-strong px-[4cqw] py-[2cqh] text-[5.5cqh] font-medium text-ink hover:bg-control-strong-hover"
+            className="rounded-control bg-control-strong px-[4cqw] py-[2cqh] text-[5.5cqh] font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             Aus
           </button>
@@ -194,7 +195,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             <button
               type="button"
               onClick={() => void start()}
-              className="rounded-sb-sm bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink hover:bg-control-strong-hover"
+              className="rounded-control bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
               Mikrofon aktivieren
             </button>
@@ -257,10 +258,10 @@ export function TunerConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        <div className="flex items-center justify-between">
+      <label className="flex flex-col gap-1">
+        <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
           <span>Empfindlichkeit</span>
-          <span className="text-ink-faint">{config.minRms.toFixed(4)} RMS</span>
+          <span className="font-normal text-ink-faint">{config.minRms.toFixed(4)} RMS</span>
         </div>
         <input
           type="range"
@@ -269,17 +270,17 @@ export function TunerConfigPanel({
           step={1}
           value={minRmsToSlider(config.minRms)}
           onChange={(e) => onChange({ ...config, minRms: sliderToMinRms(Number(e.target.value)) })}
-          className="w-full accent-accent"
+          className="h-form w-full accent-accent"
         />
-        <div className="flex justify-between text-xs text-ink-faint">
+        <div className="flex justify-between text-sm text-ink-faint">
           <span>Unempfindlich</span>
           <span>Empfindlich</span>
         </div>
       </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        <div className="flex items-center justify-between">
+      <label className="flex flex-col gap-1">
+        <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
           <span>Reaktionsgeschwindigkeit</span>
-          <span className="text-ink-faint">{config.smoothingWindow}</span>
+          <span className="font-normal text-ink-faint">{config.smoothingWindow}</span>
         </div>
         <input
           type="range"
@@ -288,17 +289,17 @@ export function TunerConfigPanel({
           step={1}
           value={config.smoothingWindow}
           onChange={(e) => onChange({ ...config, smoothingWindow: Number(e.target.value) })}
-          className="w-full accent-accent"
+          className="h-form w-full accent-accent"
         />
-        <div className="flex justify-between text-xs text-ink-faint">
+        <div className="flex justify-between text-sm text-ink-faint">
           <span>Schnell</span>
           <span>Stabil</span>
         </div>
       </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        <div className="flex items-center justify-between">
+      <label className="flex flex-col gap-1">
+        <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
           <span>Referenzton</span>
-          <span className="text-ink-faint">{config.referenceFrequency.toFixed(1)} Hz</span>
+          <span className="font-normal text-ink-faint">{config.referenceFrequency.toFixed(1)} Hz</span>
         </div>
         <input
           type="range"
@@ -307,27 +308,21 @@ export function TunerConfigPanel({
           step={0.5}
           value={config.referenceFrequency}
           onChange={(e) => onChange({ ...config, referenceFrequency: Number(e.target.value) })}
-          className="w-full accent-accent"
+          className="h-form w-full accent-accent"
         />
-        <div className="flex justify-between text-xs text-ink-faint">
+        <div className="flex justify-between text-sm text-ink-faint">
           <span>400 Hz</span>
           <span>440 Hz (Standard)</span>
           <span>480 Hz</span>
         </div>
       </label>
-      <label className="flex flex-col gap-1 text-xs text-ink-muted">
-        Notennamen
-        <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
-          value={config.noteNaming}
-          onChange={(e) =>
-            onChange({ ...config, noteNaming: e.target.value as TunerConfig['noteNaming'] })
-          }
-        >
-          <option value="sharp">Kreuz (F#)</option>
-          <option value="flat">B (Gb)</option>
-        </select>
-      </label>
+      <Segmented
+        label="Notennamen"
+        showLabel
+        value={config.noteNaming}
+        onChange={(value) => onChange({ ...config, noteNaming: value as TunerConfig['noteNaming'] })}
+        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+      />
       <SizeRatioSlider
         label="Notenname"
         ratio={config.noteSizeRatio ?? DEFAULT_NOTE_SIZE_RATIO}

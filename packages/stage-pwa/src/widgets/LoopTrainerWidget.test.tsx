@@ -97,7 +97,7 @@ describe('LoopTrainerWidget (#61)', () => {
     render(<LoopTrainerWidget config={{}} />)
     expect(screen.queryByText('Ziel')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('Speed Trainer'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Speed Trainer' }))
     expect(screen.getByText('Ziel')).toBeInTheDocument()
     expect(screen.getByText('Pro Durchgang +')).toBeInTheDocument()
 

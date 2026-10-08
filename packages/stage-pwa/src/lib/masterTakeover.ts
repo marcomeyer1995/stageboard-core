@@ -69,3 +69,12 @@ export function masterSelfCheck(input: {
   return confirmed ? 'ok' : 'unconfirmed'
 }
 
+/** The identity a master is held under in 'account' mode (#85): the person, not the device. */
+export function accountMasterIdentity(profileId: string): string {
+  return `profile:${profileId}`
+}
+
+/** Profile id from an 'account' master holder id, or null for a device id. */
+export function profileIdOfMasterHolder(holderId: string | null): string | null {
+  return holderId?.startsWith('profile:') ? holderId.slice('profile:'.length) : null
+}

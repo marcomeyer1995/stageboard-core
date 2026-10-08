@@ -6,9 +6,12 @@ import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
+import { StatusBarSettings } from './StatusBarSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
+import { FlashSettings } from './FlashSettings'
+import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -29,7 +32,7 @@ function Group({
   return (
     <section
       aria-label={title}
-      className={`flex flex-col gap-4 rounded-sb border bg-surface p-4 shadow-sb ${shared ? 'border-amber-500/60' : 'border-line'}`}
+      className={`flex flex-col gap-4 rounded-container border bg-surface p-4 shadow-sb ${shared ? 'border-amber-500/60' : 'border-line'}`}
     >
       <header className="flex flex-col gap-1">
         <h3 className="text-lg font-bold text-ink">{title}</h3>
@@ -71,11 +74,26 @@ export function SystemSettings() {
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
         </Section>
+        <Section title="Bibliothek - Geübt">
+          <PracticeWindowSettings />
+        </Section>
+      </Group>
+
+      <Group title="Statusleiste" description="Was die Leiste oben zeigt und was zuerst weichen darf, wenn der Platz knapp wird - nur auf diesem Gerät.">
+        <Section title="Reihenfolge">
+          <StatusBarSettings />
+        </Section>
       </Group>
 
       <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur für Weiter, Zurück, Play und den Prompter - gilt nur für dieses Gerät.">
         <Section title="Zuordnung">
           <KeybindingSettings />
+        </Section>
+      </Group>
+
+      <Group title="Blitzmeldungen" description="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
+        <Section title="Auf diesem Gerät">
+          <FlashSettings />
         </Section>
       </Group>
 
@@ -98,11 +116,14 @@ export function SystemSettings() {
 
       <Group
         title="Band & Server - gilt für alle"
-        description="Welche Band die Hardware des Stage-Servers gerade nutzt. Eine Änderung wirkt auf alle Geräte der Band."
+        description="Welche Band die Hardware des Stage-Servers gerade nutzt, und was die Bibliothek als „Geprobt“ zählt. Eine Änderung wirkt auf alle Geräte der Band."
         shared
       >
         <Section title="Aktive Band (Hardware)">
           <WorkspaceHardwareSettings />
+        </Section>
+        <Section title="Bibliothek - Geprobt">
+          <RehearsalWindowSettings />
         </Section>
       </Group>
     </div>

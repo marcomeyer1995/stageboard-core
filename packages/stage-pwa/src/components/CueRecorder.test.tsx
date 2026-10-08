@@ -153,7 +153,7 @@ describe('CueRecorder (#6)', () => {
 
     it('keeps the recorded times when snapping is switched off', async () => {
       const onComplete = await analyze()
-      fireEvent.click(screen.getByLabelText('Cues einrasten'))
+      fireEvent.click(screen.getByRole('switch', { name: 'Cues einrasten' }))
       mocks.clockMs = 12_040
       receive([0xc0, 4])
 

@@ -134,3 +134,24 @@ describe('Dashboard', () => {
     expect(sizeOf(oversized)).toEqual(sizeOf(reference))
   })
 })
+
+describe('Dashboard - read-only template guard (#16)', () => {
+  it('leaves edit mode at once when the dashboard on screen is a template and the musician is no admin', async () => {
+    const { useEditModeStore } = await import('../store/useEditModeStore')
+    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
+    useDashboardsStore.setState({ dashboards: [{ ...makeDashboard(), isReadOnly: true }], loaded: true, resetNonce: 0 })
+    useEditModeStore.getState().setEditing(true)
+    render(<Dashboard />)
+    expect(useEditModeStore.getState().isEditing).toBe(false)
+  })
+
+  it('keeps edit mode on an ordinary dashboard', async () => {
+    const { useEditModeStore } = await import('../store/useEditModeStore')
+    useDashboardsStore.setState({ dashboards: [makeDashboard()], loaded: true, resetNonce: 0 })
+    useEditModeStore.getState().setEditing(true)
+    render(<Dashboard />)
+    expect(useEditModeStore.getState().isEditing).toBe(true)
+    act(() => useEditModeStore.getState().setEditing(false))
+  })
+})
+

@@ -60,6 +60,13 @@ const setlist: Setlist = {
   createdAt: 1000,
 }
 
+/** Opens the setlist and presses "Bearbeiten" - it opens as a read-only preview. */
+function renderEditing(onDeleted = vi.fn()) {
+  const view = render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={onDeleted} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+  return view
+}
+
 beforeEach(() => {
   useSongsStore.setState({
     songs: [song('a', 'Alpha'), song('b', 'Bravo'), song('c', 'Creep', 'Radiohead')],
@@ -69,7 +76,7 @@ beforeEach(() => {
 
 describe('SetlistDetail - row reorder/remove', () => {
   it('has no up/down arrow buttons, and no "Nach oben"/"Nach unten" in the row menu - drag is the only reorder gesture', async () => {
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     expect(screen.queryByRole('button', { name: '↑' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '↓' })).not.toBeInTheDocument()
@@ -86,13 +93,16 @@ describe('SetlistDetail - row reorder/remove', () => {
   it("a row's ⋯ menu removes it, saving the entries without it", async () => {
     const saveSetlist = vi.fn(async () => {})
     useSetlistsStore.setState({ saveSetlist })
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
     fireEvent.click(within(row).getByTitle('Menü öffnen'))
     fireEvent.click(await screen.findByRole('button', { name: 'Entfernen' }))
 
-    expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [entry('e2', 'b')] }))
+    // Nothing is stored before "Speichern" (Marco, 2026-10-07).
+    expect(saveSetlist).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [entry('e2', 'b')] })))
   })
 })
 
@@ -111,7 +121,7 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
   })
 
   it('shows the selected variant\'s label on its trigger button, not a native <select>', () => {
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
     expect(within(row).getByRole('button', { name: 'Original' })).toBeInTheDocument()
@@ -121,40 +131,97 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
   it('opens a menu listing every variant, and picking one saves it onto the entry', async () => {
     const saveSetlist = vi.fn(async () => {})
     useSetlistsStore.setState({ saveSetlist })
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
     fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
 
     expect(await screen.findByRole('button', { name: 'Akustik' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Akustik' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    expect(saveSetlist).toHaveBeenCalledWith(
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(
       expect.objectContaining({
         entries: [expect.objectContaining({ id: 'e1', variantId: 'v2' }), entry('e2', 'b')],
       }),
-    )
+    ))
   })
 })
 
-describe('SetlistDetail - header ⋯ menu (#181)', () => {
-  function headerMenuButton() {
-    const headerRow = screen.getByRole('heading', { name: /Herbst-Tour 2026/ }).closest('div')!
-    return within(headerRow).getByTitle('Menü öffnen')
-  }
-
-  it('Umbenennen renames the setlist', async () => {
-    const saveSetlist = vi.fn(async () => {})
-    useDialogStore.setState({ promptText: async () => 'Winter-Tour 2027' })
-    useSetlistsStore.setState({ saveSetlist })
+describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)', () => {
+  it('opens as a clean preview - numbered songs, gig date, no editing controls', () => {
+    useSetlistsStore.setState({ setlists: [{ ...setlist, performanceDate: '2026-12-24', targetEndTime: '23:00' }] })
     render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
 
-    fireEvent.click(headerMenuButton())
-    fireEvent.click(await screen.findByRole('button', { name: 'Umbenennen' }))
-
-    // handleRename is async (awaits the mocked promptText first) - the click above only starts it.
-    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour 2027' })))
+    expect(screen.getByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
+    expect(screen.getByText(/Auftritt .*24\.12\.2026/)).toBeInTheDocument()
+    expect(screen.getByText('Ende 23:00')).toBeInTheDocument()
+    expect(screen.getByText('2 Songs')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aktivieren' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Songs durchsuchen…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
   })
+
+  it('the name is edited in the editor and stored with "Speichern" - back to the preview', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour 2027' } })
+    expect(saveSetlist).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour 2027' })))
+    expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
+  })
+
+  it('"Abbrechen" with changes asks - "Verwerfen" throws them away', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    const askUnsaved = vi.fn(async () => 'discard' as const)
+    useDialogStore.setState({ askUnsaved })
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Verworfen' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+
+    await waitFor(() => expect(askUnsaved).toHaveBeenCalled())
+    expect(await screen.findByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
+    expect(saveSetlist).not.toHaveBeenCalled()
+  })
+
+  it('"Speichern" in that question stores the changes, "Weiter bearbeiten" keeps the editor', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    const askUnsaved = vi.fn<() => Promise<'save' | 'discard' | null>>(async () => null)
+    useDialogStore.setState({ askUnsaved })
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    await waitFor(() => expect(askUnsaved).toHaveBeenCalledTimes(1))
+    expect(screen.getByLabelText('Name')).toHaveValue('Winter-Tour')
+
+    askUnsaved.mockResolvedValue('save')
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour' })))
+  })
+
+  it('"Abbrechen" without changes goes straight back, no question', async () => {
+    const askUnsaved = vi.fn(async () => 'discard' as const)
+    useDialogStore.setState({ askUnsaved })
+    renderEditing()
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
+    expect(askUnsaved).not.toHaveBeenCalled()
+  })
+})
+
+describe('SetlistDetail - preview ⋯ menu (#181)', () => {
+  function headerMenuButton() {
+    return within(screen.getByRole('button', { name: 'Bearbeiten' }).parentElement!).getByTitle('Menü öffnen')
+  }
 
   it('Duplizieren creates a copy under the prompted name', async () => {
     const duplicateSetlist = vi.fn(async () => null)
@@ -165,7 +232,7 @@ describe('SetlistDetail - header ⋯ menu (#181)', () => {
     fireEvent.click(headerMenuButton())
     fireEvent.click(await screen.findByRole('button', { name: 'Duplizieren' }))
 
-    await waitFor(() => expect(duplicateSetlist).toHaveBeenCalledWith('sl-1', 'Herbst-Tour 2026 (Kopie)'))
+    await waitFor(() => expect(duplicateSetlist).toHaveBeenCalledWith(setlist, 'Herbst-Tour 2026 (Kopie)'))
   })
 
   it('Löschen removes the setlist and calls onDeleted, after confirming', async () => {
@@ -185,7 +252,7 @@ describe('SetlistDetail - header ⋯ menu (#181)', () => {
 
 describe('SetlistDetail - "Song hinzufügen" search combobox', () => {
   it('focusing the input shows every song; typing narrows by title or artist', () => {
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
     expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument()
@@ -199,7 +266,7 @@ describe('SetlistDetail - "Song hinzufügen" search combobox', () => {
   })
 
   it('shows "Keine Songs gefunden." for a query matching nothing', () => {
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
     fireEvent.change(screen.getByPlaceholderText('Songs durchsuchen…'), { target: { value: 'zzz' } })
@@ -207,23 +274,26 @@ describe('SetlistDetail - "Song hinzufügen" search combobox', () => {
     expect(screen.getByText('Keine Songs gefunden.')).toBeInTheDocument()
   })
 
-  it('picking a result adds it to the setlist and resets/closes the dropdown', () => {
+  it('picking a result adds it to the setlist and resets/closes the dropdown', async () => {
     const saveSetlist = vi.fn(async () => {})
     useSetlistsStore.setState({ saveSetlist })
-    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    renderEditing()
 
     const input = screen.getByPlaceholderText('Songs durchsuchen…')
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: 'Creep' } })
     fireEvent.click(screen.getByRole('button', { name: /Creep/ }))
 
-    expect(saveSetlist).toHaveBeenCalledWith(
+    // The dropdown is closed (its plain "Bravo" result is gone; the row reads "2. Bravo").
+    expect(screen.queryByRole('button', { name: 'Bravo' })).not.toBeInTheDocument()
+    expect(screen.getByText('3. Creep')).toBeInTheDocument()
+    expect(input).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(
       expect.objectContaining({
         entries: [entry('e1', 'a'), entry('e2', 'b'), expect.objectContaining({ songId: 'c' })],
       }),
-    )
-    expect(screen.queryByRole('button', { name: /Creep/ })).not.toBeInTheDocument()
-    expect(input).toHaveValue('')
+    ))
   })
 
   it('closes the dropdown on an outside click', () => {
@@ -233,6 +303,7 @@ describe('SetlistDetail - "Song hinzufügen" search combobox', () => {
         <SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />
       </div>,
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
 
     fireEvent.focus(screen.getByPlaceholderText('Songs durchsuchen…'))
     expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument()

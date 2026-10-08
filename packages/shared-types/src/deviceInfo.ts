@@ -46,6 +46,11 @@ export type DeviceInfoEntry = z.infer<typeof DeviceInfoEntrySchema>
 /** Keyed by deviceId, same shape as Presence/PluginHealth's own snapshot schemas. */
 export const DeviceInfoSchema = z.object({
   devices: z.record(z.string(), DeviceInfoEntrySchema).default({}),
+  /** When this Stage-Server started collecting reports (its start, ms). Until every running
+   * device has had time to report, a missing report says nothing - the Geräte tab's "Inaktive
+   * entfernen" waits for that instead of a fixed day (Marco, 2026-10-07). Absent from older
+   * servers. */
+  collectingSince: z.number().int().nonnegative().optional(),
 })
 export type DeviceInfo = z.infer<typeof DeviceInfoSchema>
 

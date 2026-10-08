@@ -97,12 +97,12 @@ describe('KeybindingSettings (#27)', () => {
   it('starts empty; a new mapping is made in the popup: press the pedal, choose, save', () => {
     render(<KeybindingSettings />)
     expect(screen.getByText('Noch keine Zuordnung.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '+ Neue Zuordnung' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Zuordnung' }))
     const dialog = screen.getByRole('dialog', { name: 'Neue Zuordnung' })
     expect(within(dialog).getByText('Jetzt Pedal drücken …')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'PageDown' })
     expect(show.next).not.toHaveBeenCalled() // captured, not executed
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Je nach Zustand des Songs' }))
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Je nach Zustand des Songs' }))
     expect(within(dialog).getByLabelText('Wenn Spielt')).toHaveValue('stop-next')
     fireEvent.change(within(dialog).getByLabelText('Wenn Spielt'), { target: { value: 'pause' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))

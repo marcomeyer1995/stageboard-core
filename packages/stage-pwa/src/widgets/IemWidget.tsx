@@ -93,7 +93,7 @@ export function IemWidget({ config }: { config: IemConfig }) {
               // Inline style, not Tailwind's own `accent-*` utility: that utility shares our
               // color palette too, so `accent-accent` would be the (confusing) class name.
               style={{ accentColor: 'rgb(var(--sb-accent))' }}
-              className="h-full w-2 flex-1 appearance-none rounded-sb-sm bg-control-strong [writing-mode:vertical-lr] [direction:rtl]"
+              className="h-full w-2 flex-1 appearance-none rounded-control bg-control-strong [writing-mode:vertical-lr] [direction:rtl]"
             />
             <span style={{ fontSize }} className="font-sb-mono text-ink">
               {levels[channel]}

@@ -52,10 +52,10 @@ describe('DialogHost', () => {
       ])
     })
 
-    const performer = screen.getByLabelText('Musiker:in') as HTMLInputElement
-    const soundtech = screen.getByLabelText('Tontechnik') as HTMLInputElement
-    expect(performer.checked).toBe(true)
-    expect(soundtech.checked).toBe(false)
+    const performer = screen.getByRole('checkbox', { name: 'Musiker:in' })
+    const soundtech = screen.getByRole('checkbox', { name: 'Tontechnik' })
+    expect(performer).toHaveAttribute('aria-checked', 'true')
+    expect(soundtech).toHaveAttribute('aria-checked', 'false')
 
     fireEvent.click(soundtech)
     fireEvent.click(performer)

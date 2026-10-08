@@ -691,3 +691,9 @@ export function availableWidgets<T extends { requires: CapabilityId[]; relevantR
     return true
   })
 }
+
+/** Whether a profile with these roles may edit this dashboard (#16): templates are admin-only. */
+export function canEditDashboard(dashboard: Pick<Dashboard, 'isReadOnly'>, roles: readonly string[]): boolean {
+  return dashboard.isReadOnly !== true || roles.includes('admin')
+}
+

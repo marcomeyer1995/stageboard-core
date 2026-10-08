@@ -12,6 +12,8 @@ const ACCESS_DOC_ID = 'workspace:access'
 interface WorkspaceAccessDoc {
   code: string
   name: string
+  /** Who holds the Master-Token (#85) - absent means 'device'. */
+  masterMode?: 'device' | 'account'
 }
 
 /** One-shot read of the given workspace's own `workspace:access` doc - `null` if this
@@ -20,7 +22,7 @@ interface WorkspaceAccessDoc {
 export async function getWorkspaceAccessDoc(workspaceId: string): Promise<WorkspaceAccessDoc | null> {
   try {
     const doc = await getWorkspaceDb<WorkspaceAccessDoc>(workspaceId).get(ACCESS_DOC_ID)
-    return { code: doc.code, name: doc.name }
+    return { code: doc.code, name: doc.name, masterMode: doc.masterMode }
   } catch {
     return null
   }
@@ -36,6 +38,6 @@ export function watchWorkspaceAccessDoc(
   onChange: (doc: WorkspaceAccessDoc) => void,
 ): LocalChangesHandle<WorkspaceAccessDoc> {
   return watchLocalChanges<WorkspaceAccessDoc>(getWorkspaceDb(workspaceId), (id) => id === ACCESS_DOC_ID).on('change', (change) => {
-    if (change.doc) onChange({ code: change.doc.code, name: change.doc.name })
+    if (change.doc) onChange({ code: change.doc.code, name: change.doc.name, masterMode: change.doc.masterMode })
   })
 }

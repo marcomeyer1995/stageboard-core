@@ -7,6 +7,7 @@ import {
 } from 'react-grid-layout'
 import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-types'
 import { capabilityStatusFor } from '../lib/capabilities'
+import { canEditDashboard } from '../lib/dashboardLayout'
 import {
   belowMinimumItems,
   BREAKPOINT_CANVAS,
@@ -33,6 +34,7 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
+import { useActiveProfile } from '../lib/useActiveProfile'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -226,6 +228,14 @@ export function Dashboard() {
   // business showing. A remembered dashboard that was deleted, turned private or taken out of
   // this mode since falls back the same way (useModeDashboards / resolveActiveDashboard).
   const { active } = useModeDashboards()
+  // A read-only template (#16) can't be edited by non-admins - also not by switching to it via
+  // the edit bar's dashboard menu while edit mode is already on (the bypass the issue names).
+  const roles = useActiveProfile()?.stageRoles ?? []
+  const editable = !active || canEditDashboard(active, roles)
+  const leaveEditing = useEditModeStore((state) => state.setEditing)
+  useEffect(() => {
+    if (isEditing && !editable) leaveEditing(false)
+  }, [isEditing, editable, leaveEditing])
 
   // A baseline belongs to one specific dashboard's widgets and must never outlive it - e.g.
   // switching away mid-drag, or the active dashboard being rewritten out from under the grid
@@ -323,7 +333,7 @@ export function Dashboard() {
       {isEditing && current && current.squeezed > 0 && (
         // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
         // true size (#370), so nothing may take height away from the grid.
-        <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-sb border border-line bg-surface px-3 py-2 shadow-sb">
+        <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
           <span className="text-amber-500">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
             klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
@@ -333,7 +343,7 @@ export function Dashboard() {
             <button
               type="button"
               onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}
-              className="h-touch rounded-sb bg-accent px-4 font-bold text-accent-ink hover:bg-accent-hover"
+              className="h-touch rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
             >
               {current.source === 'repaired'
                 ? 'Zu kleine Widgets neu platzieren'

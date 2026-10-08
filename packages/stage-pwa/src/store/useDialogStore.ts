@@ -46,6 +46,13 @@ interface DestructiveRequest {
   resolve: (value: 'confirm' | 'alternative' | null) => void
 }
 
+/** Leaving an editor with unsaved changes - see lib/unsavedChanges.ts. */
+interface UnsavedRequest {
+  kind: 'unsaved'
+  title: string
+  resolve: (value: 'save' | 'discard' | null) => void
+}
+
 interface AlertRequest {
   kind: 'alert'
   title: string
@@ -54,7 +61,7 @@ interface AlertRequest {
 }
 
 interface DialogState {
-  request: PromptRequest | ConfirmRequest | DestructiveRequest | AlertRequest | null
+  request: PromptRequest | ConfirmRequest | DestructiveRequest | UnsavedRequest | AlertRequest | null
   promptFields: (title: string, fields: DialogField[], submitLabel?: string) => Promise<Record<string, string> | null>
   promptText: (
     title: string,
@@ -66,6 +73,9 @@ interface DialogState {
    * option, null when cancelled. */
   confirmDestructive: (options: { title: string; message: string; typeToConfirm: string; confirmLabel: string; alternativeLabel?: string }) => Promise<'confirm' | 'alternative' | null>
   resolveDestructive: (value: 'confirm' | 'alternative') => void
+  /** Speichern / Verwerfen; null = keep editing. */
+  askUnsaved: () => Promise<'save' | 'discard' | null>
+  resolveUnsaved: (value: 'save' | 'discard') => void
   submit: (value: Record<string, string>) => void
   acceptConfirm: () => void
   acceptAlert: () => void
@@ -131,6 +141,16 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
     request.resolve(value)
     set({ request: null })
   },
+  askUnsaved: () =>
+    new Promise((resolve) => {
+      set({ request: { kind: 'unsaved', title: 'Ungespeicherte Änderungen', resolve } })
+    }),
+  resolveUnsaved: (value) => {
+    const request = get().request
+    if (request?.kind !== 'unsaved') return
+    request.resolve(value)
+    set({ request: null })
+  },
   submit: (value) => {
     const request = get().request
     if (request?.kind !== 'prompt') return
@@ -156,7 +176,7 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
       request.resolve(null)
     } else if (request.kind === 'confirm') {
       request.resolve(false)
-    } else if (request.kind === 'destructive') {
+    } else if (request.kind === 'destructive' || request.kind === 'unsaved') {
       request.resolve(null)
     } else {
       request.resolve()

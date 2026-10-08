@@ -54,6 +54,8 @@ import { TunerConfigPanel, TunerWidget, TunerWidgetPreview } from './TunerWidget
 import { TunerConfigSchema } from './tunerConfig'
 import { MetronomeConfigPanel, VisualMetronomeWidget, VisualMetronomeWidgetPreview } from './VisualMetronomeWidget'
 import { MetronomeConfigSchema } from './metronomeConfig'
+import { StageMessengerConfigPanel, StageMessengerWidget } from './StageMessengerWidget'
+import { StageMessengerConfigSchema } from './stageMessengerConfig'
 
 export interface WidgetSize {
   w: number
@@ -398,6 +400,17 @@ const DEFINITIONS: WidgetDefinition[] = [
     Component: TunerWidget,
     ConfigPanel: TunerConfigPanel,
     Preview: TunerWidgetPreview,
+  }),
+  defineWidget({
+    type: 'stage-messenger',
+    title: 'Stage-Messenger',
+    description: 'Kurze Nachricht an alle oder einzelne Musiker blitzen: „Noch 5 Minuten“, „Gitarre stimmen“, eigene Schnellnachrichten.',
+    category: 'system-crew',
+    stageTier: 'glance',
+    defaultLayout: { w: 6, h: 6, minW: 3, minH: 4 },
+    configSchema: StageMessengerConfigSchema,
+    Component: StageMessengerWidget,
+    ConfigPanel: StageMessengerConfigPanel,
   }),
   defineWidget({
     type: 'show-notes',

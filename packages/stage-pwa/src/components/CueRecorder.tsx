@@ -14,6 +14,8 @@ import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfig
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Switch } from './ui'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 interface CueRecorderProps {
   /** Object URL of the variant's track (band-mix, else reference). Cues are stamped with the
@@ -164,19 +166,19 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
 
   return (
     <div className="flex flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+      <div className="flex items-center justify-between rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <span>Track abspielen und am Gerät spielen - jede Aktion wird als Cue an der Track-Position aufgenommen.</span>
         <span className="font-sb-mono text-ink">{(elapsedMs / 1000).toFixed(2)}s</span>
       </div>
 
       {!trackSrc ? (
-        <p className="rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-faint">
+        <p className="rounded-control bg-control px-3 py-2 text-sm text-ink-faint">
           Für diese Variante ist kein Track angehängt - Cues brauchen einen Track als Zeitachse.
         </p>
       ) : (
-        <div className="flex items-center gap-2 rounded-sb-sm bg-control px-3 py-2 text-xs text-ink-soft">
+        <div className="flex items-center gap-2 rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
           <audio {...audioProps} />
-          <button type="button" onClick={togglePlay} className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover">
+          <button type="button" onClick={togglePlay} className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
             {isPlaying ? 'Pause' : 'Play'}
           </button>
           <span className="font-sb-mono">
@@ -189,7 +191,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       <div className="flex flex-wrap gap-2">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
           Gerät
-          <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} disabled={recordable.length === 0} className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink disabled:opacity-40">
+          <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} disabled={recordable.length === 0} className={`min-h-form px-3 text-base ${INPUT}`}>
             <option value="">{recordable.length === 0 ? 'Kein aufnahmefähiges Gerät eingerichtet' : 'Wählen…'}</option>
             {recordable.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
@@ -201,14 +203,14 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-ink-muted">
           MIDI-Eingang
           <span className="flex gap-1">
-            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className="min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-sm text-ink disabled:opacity-40">
+            <select value={inputId} onChange={(e) => setInputId(e.target.value)} disabled={!inputs?.length} className={`min-h-form px-3 text-base min-w-0 flex-1 min-w-0 ${INPUT_FREE}`}>
               {(inputs ?? []).map((input) => (
                 <option key={input.id} value={input.id}>
                   {input.name}
                 </option>
               ))}
             </select>
-            <button type="button" onClick={refreshInputs} title="MIDI-Eingänge neu einlesen" className="rounded-sb-sm bg-control-strong px-2 text-sm text-ink hover:bg-control-strong-hover">
+            <button type="button" onClick={refreshInputs} title="MIDI-Eingänge neu einlesen" className="rounded-control bg-control-strong px-2 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
               <Icon name="retry" />
             </button>
           </span>
@@ -216,7 +218,7 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       </div>
       {inputProblem && <p className="text-xs text-red-500">{inputProblem}</p>}
 
-      <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-sb-sm bg-control p-3 font-sb-mono text-sm">
+      <div className="max-h-48 flex-1 space-y-1 overflow-y-auto rounded-container bg-control p-3 font-sb-mono text-sm">
         {rows.length === 0 ? (
           <p className="text-ink-faint">Noch nichts aufgenommen.</p>
         ) : (
@@ -232,29 +234,28 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       </div>
       {ignored > 0 && <p className="text-xs text-ink-faint">{ignored} Nachricht(en) ohne passendes Ereignis übersprungen.</p>}
 
-      <div className="flex flex-col gap-2 rounded-sb-sm bg-control px-3 py-2 text-sm text-ink-soft">
+      <div className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void analyzeOnsets()}
             disabled={!trackSrc || analyzing}
-            className="rounded-sb-sm bg-control-strong px-3 py-1 font-medium text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {analyzing ? 'Analysiere…' : 'Onsets analysieren'}
           </button>
           {onsets && <span className="text-xs text-ink-faint">{onsets.onsets.length} Onsets gefunden</span>}
           {onsets && (
             <>
-              <label className="ml-auto flex items-center gap-1 text-ink">
-                <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
-                Cues einrasten
-              </label>
+              <span className="ml-auto">
+                <Switch layout="inline" label="Cues einrasten" checked={snapEnabled} onChange={setSnapEnabled} />
+              </span>
               <select
                 aria-label="Einrast-Fenster"
                 value={snapWindowMs}
                 onChange={(e) => setSnapWindowMs(Number(e.target.value))}
                 disabled={!snapEnabled}
-                className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink disabled:opacity-40"
+                className={`min-h-form px-3 text-base ${INPUT_FREE}`}
               >
                 {SNAP_WINDOWS_MS.map((windowMs) => (
                   <option key={windowMs} value={windowMs}>
@@ -289,11 +290,11 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
           type="button"
           onClick={accept}
           disabled={rows.length === 0}
-          className="flex-1 rounded-sb-sm bg-accent-2 py-3 text-lg font-bold text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
+          className="flex-1 rounded-control bg-accent py-3 text-lg font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
         >
           Übernehmen{rows.length > 0 ? ` (${rows.length} Cues)` : ''}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-sb-sm bg-control-strong px-4 py-3 text-sm hover:bg-control-strong-hover">
+        <button type="button" onClick={onCancel} className="rounded-control bg-control-strong px-4 py-3 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover">
           Abbrechen
         </button>
       </div>
