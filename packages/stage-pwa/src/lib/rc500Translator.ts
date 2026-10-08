@@ -19,7 +19,7 @@ interface Rc500Output {
   channel: number // 0-indexed
 }
 
-/** Same "first Logical Device with this capability, bound on this device" resolution as
+/** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts/cq18tTranslator.ts/mg30Translator.ts - see their own doc comments for
  * why. */
 async function resolveRc500Output(logicalDeviceId?: string): Promise<Rc500Output | null> {

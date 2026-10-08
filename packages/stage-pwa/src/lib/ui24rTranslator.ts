@@ -36,7 +36,7 @@ interface Ui24rTarget {
   connection: Ui24rConnection
 }
 
-/** Same "first Logical Device with this capability, bound on this device" resolution as
+/** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts/cq18tTranslator.ts/mg30Translator.ts/rc500Translator.ts - see their
  * own doc comments for why. */
 async function resolveUi24r(logicalDeviceId?: string): Promise<Ui24rTarget | null> {
