@@ -578,8 +578,16 @@ export function BandManagementView() {
                         )}
                         <RowActionButton
                           danger
-                          disabled={isLastAdmin(profile)}
-                          title={isLastAdmin(profile) ? 'Mindestens ein Admin muss bestehen bleiben.' : undefined}
+                          // An admin doesn't remove themselves - only another admin can (Marco, 2026-10-08,
+                          // like their own admin rights in #428; the server refuses it too).
+                          disabled={isLastAdmin(profile) || (isActiveProfile && profile.stageRoles.includes('admin'))}
+                          title={
+                            isLastAdmin(profile)
+                              ? 'Mindestens ein Admin muss bestehen bleiben.'
+                              : isActiveProfile && profile.stageRoles.includes('admin')
+                                ? 'Dein eigenes Admin-Profil entfernt nur ein anderer Admin.'
+                                : undefined
+                          }
                           onClick={async () => {
                             setActionsMenuProfileId(null)
                             if (await confirm(`"${profile.name}" aus der Band entfernen?`, { confirmLabel: 'Entfernen', danger: true })) {
