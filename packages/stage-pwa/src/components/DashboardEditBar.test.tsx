@@ -84,4 +84,11 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     openSettings()
     expect(action('Dashboard löschen')).toBeDisabled()
   })
+
+  it('only a band admin can reset all dashboards (Marco, 2026-10-08)', () => {
+    me.profile.stageRoles = []
+    renderBar(board('Bühne'))
+    openSettings()
+    expect(screen.queryByRole('button', { name: 'Alle Dashboards zurücksetzen' })).not.toBeInTheDocument()
+  })
 })

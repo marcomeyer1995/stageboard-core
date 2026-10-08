@@ -110,17 +110,21 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
         >
           Dashboard löschen
         </Button>
-        <Button
-          variant="danger"
-          fullWidth
-          onClick={async () => {
-            if (!(await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true }))) return
-            void resetToDefaults()
-            onClose()
-          }}
-        >
-          Alle Dashboards zurücksetzen
-        </Button>
+        {/* Throws away the whole band's dashboards, templates included - band admins only
+            (Marco, 2026-10-08). */}
+        {isAdmin && (
+          <Button
+            variant="danger"
+            fullWidth
+            onClick={async () => {
+              if (!(await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true }))) return
+              void resetToDefaults()
+              onClose()
+            }}
+          >
+            Alle Dashboards zurücksetzen
+          </Button>
+        )}
       </Section>
     </Dialog>
   )
