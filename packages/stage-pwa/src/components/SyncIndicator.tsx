@@ -3,6 +3,7 @@ import { deriveSyncProgress, deriveSyncStatus, useSyncStore, type SyncStatus } f
 import { useDialogStore } from '../store/useDialogStore'
 import { deriveOwnProfileId, useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon, type IconName } from './Icon'
+import { Button } from './ui'
 
 const STATUS_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
   idle: { icon: 'check', label: 'Synchronisiert' },
@@ -69,13 +70,9 @@ export function SyncIndicator() {
         {displayLabel}
       </div>
       {status === 'error' && (
-        <button
-          type="button"
-          onClick={() => void repair()}
-          className="h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
+        <Button onClick={() => void repair()}>
           Reparieren
-        </button>
+        </Button>
       )}
     </div>
   )

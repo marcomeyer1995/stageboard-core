@@ -14,7 +14,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { ActionMenuDialog, AddRow, Badge, Segmented } from './ui'
+import { ActionMenuDialog, AddRow, Badge, Segmented, Button } from './ui'
 import { INPUT_FREE } from './ui/styles'
 
 /**
@@ -431,9 +431,7 @@ export function BandManagementView() {
                 nächsten Bandtreffen), verbindet "Verbinden" diese Band damit - danach kann jedes Mitglied sich über
                 den "Einladen"-Code oben selbst auf seinem Gerät anmelden.
               </p>
-              <button
-                type="button"
-                onClick={async () => {
+              <Button onClick={async () => {
                   // Pre-filled with the address this app was loaded from - on a tablet that opened
                   // the app from the Stage-Server that is already the right one, just confirm.
                   const serverUrl = await promptText('Mit Stage-Server verbinden', {
@@ -445,11 +443,9 @@ export function BandManagementView() {
                   // overrideForTypedUrl) - confirming the automatic one must not pin it.
                   setStageServerUrl(overrideForTypedUrl(serverUrl))
                   await connectToServer(normalizeStageServerUrl(serverUrl))
-                }}
-                className="rounded-control border border-line bg-control px-4 py-2 font-semibold [@media(hover:hover)]:hover:bg-control-hover"
-              >
+                }}>
                 Verbinden
-              </button>
+              </Button>
             </div>
           )}
           {profiles.map((profile) => {
@@ -622,13 +618,9 @@ export function BandManagementView() {
                         autoFocus
                         className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
-                      <button
-                        type="submit"
-                        disabled={activating || activatePasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
-                      >
+                      <Button variant="primary" className="flex-shrink-0" type="submit" disabled={activating || activatePasswordInput.length !== 4}>
                         {activating ? '…' : 'Wechseln'}
-                      </button>
+                      </Button>
                     </div>
                     {/* Only reached for an admin profile - non-admin picks activate immediately,
                         see handlePickProfile above. Deliberately no hint here about the

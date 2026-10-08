@@ -3,6 +3,7 @@ import { CAPABILITIES, type CapabilityId, type ShowCue } from 'shared-types'
 import { randomId } from '../lib/id'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 const CAPABILITY_OPTIONS = Object.values(CAPABILITIES)
 
@@ -85,13 +86,9 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
               <span className="flex-1">
                 {nameFor(cue.targetLogicalDeviceId)} <span className="text-xs text-ink-faint">· {cue.type}</span>
               </span>
-              <button
-                type="button"
-                onClick={() => remove(cue.id)}
-                className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
-              >
+              <Button onClick={() => remove(cue.id)}>
                 Entfernen
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -166,14 +163,9 @@ export function CueListEditor({ cues, onChange }: CueListEditorProps) {
           />
         </label>
         {payloadError && <p className="text-xs text-danger">{payloadError}</p>}
-        <button
-          type="button"
-          onClick={add}
-          disabled={!targetLogicalDeviceId || !type.trim()}
-          className="self-start rounded-control bg-control-strong px-3 min-h-form text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <Button className="self-start" onClick={add} disabled={!targetLogicalDeviceId || !type.trim()}>
           Cue hinzufügen
-        </button>
+        </Button>
       </div>
     </div>
   )

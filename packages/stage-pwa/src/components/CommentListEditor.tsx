@@ -7,7 +7,7 @@ import {
 } from '../lib/chordpro'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { INPUT_FREE } from './ui/styles'
-import { ToggleChip } from './ui'
+import { ToggleChip, Button } from './ui'
 
 interface CommentListEditorProps {
   content: string
@@ -76,13 +76,9 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
                   onChange={(e) => patchLine(occurrence.lineNumber, e.target.value, occurrence.targets)}
                   className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                 />
-                <button
-                  type="button"
-                  onClick={() => remove(occurrence.lineNumber)}
-                  className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
+                <Button onClick={() => remove(occurrence.lineNumber)}>
                   Entfernen
-                </button>
+                </Button>
               </div>
               <TargetPicker
                 profiles={profiles}
