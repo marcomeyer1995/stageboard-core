@@ -19,6 +19,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 const TOTAL_STEPS = 4
 const STEP_TITLE: Record<number, string> = { 1: 'Name', 2: 'Typ', 3: 'Verbindung', 4: 'Prüfen' }
@@ -92,17 +93,12 @@ function NameStep({ draft, onChange, onNext, onCancel }: { draft: Draft; onChang
       )}
 
       <div className="flex justify-between">
-        <button type="button" onClick={onCancel} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button onClick={onCancel}>
           Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={!draft.name.trim()}
-          className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="primary" onClick={onNext} disabled={!draft.name.trim()}>
           Weiter
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -156,17 +152,12 @@ function TypeStep({
         })}
       </div>
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button onClick={onBack}>
           Zurück
-        </button>
-        <button
-          type="button"
-          onClick={() => void next()}
-          disabled={!draft.pluginId || saving}
-          className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="primary" onClick={() => void next()} disabled={!draft.pluginId || saving}>
           {saving ? 'Speichere…' : 'Weiter'}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -301,14 +292,9 @@ function ConnectionStep({
                   <FeedLine events={feeds[c.hardwareKey]} />
                 </div>
                 {namePattern && c.reporterId === getDeviceId() && (
-                  <button
-                    type="button"
-                    onClick={() => void sendTrigger(c.hardwareKey)}
-                    disabled={sendingKey === c.hardwareKey}
-                    className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
-                  >
+                  <Button variant="primary" className="shrink-0" onClick={() => void sendTrigger(c.hardwareKey)} disabled={sendingKey === c.hardwareKey}>
                     {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
-                  </button>
+                  </Button>
                 )}
               </div>
             ))}
@@ -329,14 +315,9 @@ function ConnectionStep({
             {c.assignedLogicalDeviceId === draft.id ? (
               <span className="shrink-0 text-ink-faint">{c.status}</span>
             ) : (
-              <button
-                type="button"
-                onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
-                disabled={assigningKey === c.hardwareKey}
-                className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
-              >
+              <Button variant="primary" className="shrink-0" onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)} disabled={assigningKey === c.hardwareKey}>
                 {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
-              </button>
+              </Button>
             )}
           </div>
         ))}
@@ -391,22 +372,18 @@ function ConnectionStep({
             )}
           </>
         )}
-        <button
-          type="button"
-          onClick={() => void saveManual()}
-          className="h-form self-start rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
+        <Button className="self-start" onClick={() => void saveManual()}>
           Speichern
-        </button>
+        </Button>
       </div>
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button onClick={onBack}>
           Zurück
-        </button>
-        <button type="button" onClick={onNext} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+        </Button>
+        <Button variant="primary" onClick={onNext}>
           {resolvedTarget ? 'Weiter' : 'Später verbinden'}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -423,7 +400,8 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
   async function runTest() {
     if (!draft.capability) return
     setTestResult('…')
-    const result = await getTranslator(draft.capability)?.({ type: 'test', payload: {} })
+    // The device being set up - with two of the same kind the test went to the first (#408 review).
+    const result = await getTranslator(draft.capability)?.({ type: 'test', payload: {}, logicalDeviceId: draft.id })
     setTestResult(result ? `${result.status}${result.message ? `: ${result.message}` : ''}` : 'kein Translator')
   }
 
@@ -431,13 +409,9 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
     <div className="flex flex-col gap-4">
       {canTestHere ? (
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void runTest()}
-            className="h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
-          >
+          <Button onClick={() => void runTest()}>
             Testen
-          </button>
+          </Button>
           {testResult && <span className="text-sm text-ink-faint">{testResult}</span>}
         </div>
       ) : executionTarget ? (
@@ -449,12 +423,12 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
       )}
 
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button onClick={onBack}>
           Zurück
-        </button>
-        <button type="button" onClick={onFinish} className="h-form rounded-control bg-accent px-6 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover">
+        </Button>
+        <Button variant="primary" onClick={onFinish}>
           Fertig
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -515,7 +489,7 @@ export function DeviceSetupWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
         <div className="border-b border-line px-4 py-3">

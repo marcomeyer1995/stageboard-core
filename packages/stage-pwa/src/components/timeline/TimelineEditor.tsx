@@ -40,6 +40,7 @@ import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
+import { Button } from '../ui'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
  * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
@@ -108,7 +109,10 @@ const LINE_SNAP_MS = 60
 /** Stand-in for a song without a grid of its own: bar 1 at 0:00 (what playback assumes too). */
 const NO_GRID: BeatGrid = { points: [{ id: 'bar-1', bar: 1, timeMs: 0 }], meters: [] }
 
-const QUALITY_COLOR = { good: '#16a34a', ok: '#d97706', poor: '#dc2626', quiet: '#52525b' } as const
+/** Bar quality on the grid lane - the theme's meaning colours (docs/15 §5), read when drawing. */
+function qualityColors(): Record<'good' | 'ok' | 'poor' | 'quiet', string> {
+  return { good: cssVar('--sb-ok', '#22c55e'), ok: cssVar('--sb-warn', '#f59e0b'), poor: cssVar('--sb-danger', '#ef4444'), quiet: cssVar('--sb-control-strong', '#404040') }
+}
 /** Lane names and empty-lane hints (#324): faint, stage-readable size. */
 const LANE_LABEL_FONT = '600 16px system-ui, sans-serif'
 
@@ -451,6 +455,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     const faint = cssVar('--sb-ink-faint', '#a3a3a3')
     const accent = cssVar('--sb-accent', '#f59e0b')
     const stage = cssVar('--sb-stage', '#000000')
+    const qualityColor = qualityColors()
     const viewEndMs = xToTime(width, view)
     const activeBar = drag?.kind === 'bar' ? drag.bar : selectedBar
     const activeLine = drag?.kind === 'line' ? drag.rawIndex : selectedLine
@@ -517,7 +522,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         const x0 = timeToX(bar.startMs, view)
         const x1 = timeToX(bar.endMs, view)
         if (x1 < 0 || x0 > width) continue
-        g.fillStyle = QUALITY_COLOR[bar.level]
+        g.fillStyle = qualityColor[bar.level]
         g.globalAlpha = 0.55
         g.fillRect(x0, h - 10, Math.max(1, x1 - x0 - 1), 10)
         g.globalAlpha = 1
@@ -1300,8 +1305,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const button = 'min-h-form min-w-12 rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
-  const toggle = (on: boolean) => `${button} ${on ? '!bg-accent !text-accent-ink' : ''}`
   const iconButton = 'flex min-h-form min-w-12 items-center justify-center rounded-control bg-control-strong px-3 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
   const viewBar = timeline.barOf(Math.max(0, timeline.beatAtOrBefore(view.startMs)))
@@ -1335,18 +1338,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const lanesGroup = (
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2" role="group" aria-label="Spuren">
           {TIMELINE_LANES.map((lane) => (
-            <button
-              key={lane}
-              type="button"
-              className={toggle(!hiddenLanes.has(lane))}
-              data-keep-open
-              aria-pressed={!hiddenLanes.has(lane)}
-              // The last visible lane stays - an empty timeline would show nothing to work on.
-              disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1}
-              onClick={() => toggleLane(lane)}
-            >
+            <Button variant={!hiddenLanes.has(lane) ? 'primary' : 'secondary'} key={lane} data-keep-open aria-pressed={!hiddenLanes.has(lane)} disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1} onClick={() => toggleLane(lane)}>
               {LANE_NAME[lane]}
-            </button>
+            </Button>
           ))}
           <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
         </div>
@@ -1358,19 +1352,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
   return (
     <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div ref={topRow} className="flex flex-wrap items-center gap-2">
-        <button type="button" className={button} onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
+        <Button onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
-        </button>
+        </Button>
         <span className="min-w-20 font-bold tabular-nums">{formatTimelineTime(playheadMs)}</span>
-        <button type="button" className={button} aria-label="Herauszoomen" onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
+        <Button aria-label="Herauszoomen" onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
           −
-        </button>
-        <button type="button" className={button} aria-label="Hineinzoomen" onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
+        </Button>
+        <Button aria-label="Hineinzoomen" onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
           +
-        </button>
-        <button type="button" className={toggle(clickOn)} aria-pressed={clickOn} onClick={() => setClickOn(!clickOn)}>
+        </Button>
+        <Button variant={clickOn ? 'primary' : 'secondary'} aria-pressed={clickOn} onClick={() => setClickOn(!clickOn)}>
           Klick
-        </button>
+        </Button>
         <button type="button" className={iconButton} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
           <UndoIcon />
         </button>
@@ -1378,21 +1372,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <UndoIcon mirrored />
         </button>
         {compactTools && tapMode === null && (
-          <button
-            ref={toolsToggle}
-            type="button"
-            className={toggle(toolsOpen)}
-            aria-pressed={toolsOpen}
-            aria-expanded={toolsOpen}
-            onClick={() => setToolsOpen((open) => !open)}
-          >
+          <Button variant={toolsOpen ? 'primary' : 'secondary'} ref={toolsToggle} aria-pressed={toolsOpen} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>
             Werkzeuge
-          </button>
+          </Button>
         )}
         {compactTools && tapMode !== null && (
-          <button type="button" className={toggle(true)} aria-pressed onClick={() => void finishTapping()}>
+          <Button variant="primary" aria-pressed onClick={() => void finishTapping()}>
             Tippen beenden ({tapCount})
-          </button>
+          </Button>
         )}
       </div>
       {showTools && (
@@ -1402,7 +1389,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         aria-label={compactTools ? 'Werkzeuge' : undefined}
         className={
           compactTools
-            ? 'absolute inset-x-0 z-30 flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
+            ? 'absolute inset-x-0 z-bars flex max-h-[60dvh] flex-wrap items-center gap-2 overflow-y-auto rounded-container border border-line bg-surface p-3 shadow-sb'
             : 'flex flex-wrap items-center gap-2'
         }
         style={compactTools ? { top: (topRow.current?.offsetHeight ?? 48) + 8 } : undefined}
@@ -1414,48 +1401,41 @@ export function TimelineEditor(props: TimelineEditorProps) {
           if (compactTools && pressed && !pressed.hasAttribute('data-keep-open')) setToolsOpen(false)
         }}
       >
-        <button type="button" className={button} onClick={setBar1Here} disabled={tapMode !== null}>
+        <Button onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
-        </button>
-        <button type="button" className={toggle(tapMode === 'tempo')} aria-pressed={tapMode === 'tempo'} disabled={!trackSrc || tapMode === 'lines'} onClick={() => (tapMode === 'tempo' ? void finishTapping() : startTapping('tempo'))}>
+        </Button>
+        <Button variant={tapMode === 'tempo' ? 'primary' : 'secondary'} aria-pressed={tapMode === 'tempo'} disabled={!trackSrc || tapMode === 'lines'} onClick={() => (tapMode === 'tempo' ? void finishTapping() : startTapping('tempo'))}>
           {tapMode === 'tempo' ? `Tippen beenden (${tapCount})` : 'Tempo tippen'}
-        </button>
-        <button type="button" className={toggle(tapMode === 'lines')} aria-pressed={tapMode === 'lines'} disabled={!trackSrc || tapMode === 'tempo'} onClick={() => (tapMode === 'lines' ? void finishTapping() : startTapping('lines'))}>
+        </Button>
+        <Button variant={tapMode === 'lines' ? 'primary' : 'secondary'} aria-pressed={tapMode === 'lines'} disabled={!trackSrc || tapMode === 'tempo'} onClick={() => (tapMode === 'lines' ? void finishTapping() : startTapping('lines'))}>
           {tapMode === 'lines' ? `Tippen beenden (${tapCount})` : 'Zeilen tippen'}
-        </button>
+        </Button>
         {onDetectGrid && (
-          <button type="button" className={button} disabled={!trackSrc || detecting || tapMode !== null} onClick={() => void detectGrid()}>
+          <Button disabled={!trackSrc || detecting || tapMode !== null} onClick={() => void detectGrid()}>
             {detecting ? 'Analysiere…' : 'Track analysieren'}
-          </button>
+          </Button>
         )}
-        <button type="button" className={button} disabled={quality.length === 0} onClick={jumpToNextProblem}>
+        <Button disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
-        </button>
-        <button type="button" className={button} disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
+        </Button>
+        <Button disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
           Cue am Abspielkopf
-        </button>
-        <button
-          type="button"
-          className={toggle(snapOn)}
-          aria-pressed={snapOn}
-          title="Einrasten (Alt gedrückt halten kehrt es um)"
-          data-keep-open
-          onClick={() => setSnapping(!snapping)}
-        >
+        </Button>
+        <Button variant={snapOn ? 'primary' : 'secondary'} aria-pressed={snapOn} title="Einrasten (Alt gedrückt halten kehrt es um)" data-keep-open onClick={() => setSnapping(!snapping)}>
           Einrasten{snapOn ? '' : ' aus'}
-        </button>
-        <button type="button" className={toggle(lanesMenuOpen)} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
+        </Button>
+        <Button variant={lanesMenuOpen ? 'primary' : 'secondary'} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
-        </button>
-        <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(0, 'Ganzen Song')}>
+        </Button>
+        <Button disabled={tapMode !== null} onClick={() => rippleFrom(0, 'Ganzen Song')}>
           Ganzen Song verschieben
-        </button>
-        <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
+        </Button>
+        <Button disabled={!trackSrc || tapMode !== null} onClick={startRecordingCues}>
           Cues aufnehmen
-        </button>
-        <button type="button" className={button} disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
+        </Button>
+        <Button disabled={!beatGrid || tapMode !== null} onClick={() => void clearGrid()}>
           Raster löschen
-        </button>
+        </Button>
         {lanesMenuOpen && compactTools && <div className="w-full">{lanesGroup}</div>}
       </div>
       )}
@@ -1467,7 +1447,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       {!trackId && <p className="text-sm text-ink-faint">Kein Track angehängt - die Timeline zeigt nur das Raster.</p>}
       {analysisState === 'loading' && <p className="text-sm text-ink-faint">Wellenform wird berechnet…</p>}
-      {analysisState === 'error' && <p className="text-sm text-amber-500">Track auf diesem Gerät nicht verfügbar - keine Wellenform.</p>}
+      {analysisState === 'error' && <p className="text-sm text-warn">Track auf diesem Gerät nicht verfügbar - keine Wellenform.</p>}
 
       <TimelineMinimap
         width={width}
@@ -1496,11 +1476,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {!hiddenLanes.has('notes') && <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />}
         {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
         {playheadX >= 0 && playheadX <= width && (
-          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-red-500" style={{ left: playheadX }} data-testid="timeline-playhead" />
+          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
         {fine && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-black shadow"
+            className="pointer-events-none absolute z-content -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-accent-ink shadow-sb"
             style={{ left: Math.min(Math.max(fine.x, 60), width - 60), top: Math.max(fine.y - 72, 4) }}
             role="status"
           >
@@ -1538,12 +1518,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
             {clock.isPlaying ? (nextTapLine ? 'TIPP' : 'Fertig') : 'Abspielen, dann zu jeder Zeile tippen'}
           </button>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={button} disabled={tapCount === 0} onClick={undoTap}>
+            <Button disabled={tapCount === 0} onClick={undoTap}>
               Letzte Zeile zurück
-            </button>
-            <button type="button" className={button} disabled={!clock.isPlaying} onClick={undoTapAndRewind}>
+            </Button>
+            <Button disabled={!clock.isPlaying} onClick={undoTapAndRewind}>
               Zurück + 4 s
-            </button>
+            </Button>
             <span className="text-sm text-ink-faint">Tastatur: Leertaste tippen · ↑ letzte zurück · ← zurück + 4 s</span>
           </div>
         </div>
@@ -1559,33 +1539,28 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <span className="font-semibold">
             Takt {selectedBar} · {formatTimelineTime(selectedBarMs)} · {selectedTempo!.toFixed(1)} BPM{selectedPoint ? ' · Ausrichtungspunkt' : ''}
           </span>
-          <button type="button" className={button} onClick={() => alignBar(selectedBar, selectedBarMs - 10)}>
+          <Button onClick={() => alignBar(selectedBar, selectedBarMs - 10)}>
             −10 ms
-          </button>
-          <button type="button" className={button} onClick={() => alignBar(selectedBar, selectedBarMs + 10)}>
+          </Button>
+          <Button onClick={() => alignBar(selectedBar, selectedBarMs + 10)}>
             +10 ms
-          </button>
-          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+          </Button>
+          <Button onClick={moveSelectionToPlayhead}>
             Zum Abspielkopf
-          </button>
+          </Button>
           {selectedPoint && (shownGrid?.points.length ?? 0) > 1 && (
-            <button type="button" className={button} onClick={() => commitGrid(removePoint(editableGrid, selectedPoint.id))}>
+            <Button onClick={() => commitGrid(removePoint(editableGrid, selectedPoint.id))}>
               Punkt entfernen
-            </button>
+            </Button>
           )}
           {selectedBar >= 2 && (
-            <button type="button" className={button} onClick={() => void editMeter(selectedBar)}>
+            <Button onClick={() => void editMeter(selectedBar)}>
               Taktart ab hier
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className={button}
-            disabled={tapMode !== null}
-            onClick={() => rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}
-          >
+          <Button disabled={tapMode !== null} onClick={() => rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}>
             Alles danach verschieben
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1594,29 +1569,24 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <span className="font-semibold">
             „{fitText(selectedLineInfo.text, 320)}“ · {selectedLineInfo.timeMs !== null ? formatTimelineTime(selectedLineInfo.timeMs) : 'ohne Zeit'}
           </span>
-          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(-50)}>
+          <Button disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(-50)}>
             −50 ms
-          </button>
-          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(50)}>
+          </Button>
+          <Button disabled={selectedLineInfo.timeMs === null} onClick={() => nudgeLine(50)}>
             +50 ms
-          </button>
-          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+          </Button>
+          <Button onClick={moveSelectionToPlayhead}>
             Zum Abspielkopf
-          </button>
-          <button type="button" className={button} disabled={selectedLineInfo.timeMs === null} onClick={() => commitText(setLineTime(content, selectedLineInfo.rawIndex, null))}>
+          </Button>
+          <Button disabled={selectedLineInfo.timeMs === null} onClick={() => commitText(setLineTime(content, selectedLineInfo.rawIndex, null))}>
             Zeit entfernen
-          </button>
-          <button type="button" className={button} disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
+          </Button>
+          <Button disabled={!trackSrc || tapMode !== null} onClick={() => startTapping('lines', selectedLineInfo.rawIndex)}>
             Zeilen tippen ab hier
-          </button>
-          <button
-            type="button"
-            className={button}
-            disabled={selectedLineInfo.timeMs === null || tapMode !== null}
-            onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}
-          >
+          </Button>
+          <Button disabled={selectedLineInfo.timeMs === null || tapMode !== null} onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}>
             Alles danach verschieben
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1626,12 +1596,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
             Verschieben: {ripple.label} - in der Timeline ziehen, alles ab {formatTimelineTime(ripple.fromMs)} wandert mit
             {rippleDelta ? ` (${rippleDelta > 0 ? '+' : ''}${(rippleDelta / 1000).toLocaleString('de-DE')} s)` : ''}.
           </span>
-          <button type="button" className={button} onClick={() => void rippleBySeconds()}>
+          <Button onClick={() => void rippleBySeconds()}>
             Sekunden eingeben…
-          </button>
-          <button type="button" className={toggle(true)} onClick={() => setRipple(null)}>
+          </Button>
+          <Button variant="primary" aria-pressed={true} onClick={() => setRipple(null)}>
             Fertig
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1640,31 +1610,27 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <span className="font-semibold">
             {selectedCueDevice?.name ?? 'Unbekanntes Gerät'} · {describeCue(selectedCue, selectedCueDevice?.capability)} · {formatTimelineTime(selectedCue.timeMs)}
           </span>
-          <button type="button" className={button} onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
+          <Button onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
             −50 ms
-          </button>
-          <button type="button" className={button} onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs + 50))}>
+          </Button>
+          <Button onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs + 50))}>
             +50 ms
-          </button>
-          <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+          </Button>
+          <Button onClick={moveSelectionToPlayhead}>
             Zum Abspielkopf
-          </button>
-          <button type="button" className={button} onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
+          </Button>
+          <Button onClick={() => openCueDialog(selectedCue.timeMs, selectedCue.id)}>
             Bearbeiten
-          </button>
-          <button type="button" className={button} disabled={tapMode !== null} onClick={() => rippleFrom(selectedCue.timeMs, 'Dieser Cue und alles danach')}>
+          </Button>
+          <Button disabled={tapMode !== null} onClick={() => rippleFrom(selectedCue.timeMs, 'Dieser Cue und alles danach')}>
             Alles danach verschieben
-          </button>
-          <button
-            type="button"
-            className={button}
-            onClick={() => {
+          </Button>
+          <Button onClick={() => {
               commitCues(removeCue(cues, selectedCue.id))
               setSelection(null)
-            }}
-          >
+            }}>
             Entfernen
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1675,22 +1641,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
               {selectedNote.kind === 'tab' ? `Tab${selectedNote.text ? `: ${selectedNote.text}` : ''}` : `„${selectedNote.text ?? ''}“`}
               {selectedNote.timeMs !== null ? ` · ${formatTimelineTime(selectedNote.timeMs)}` : ''}
             </span>
-            <button type="button" className={button} onClick={moveSelectionToPlayhead}>
+            <Button onClick={moveSelectionToPlayhead}>
               Zum Abspielkopf
-            </button>
-            <button type="button" className={button} onClick={() => void editNoteText(selectedNote.start, selectedNote.kind, selectedNote.text)}>
+            </Button>
+            <Button onClick={() => void editNoteText(selectedNote.start, selectedNote.kind, selectedNote.text)}>
               {selectedNote.kind === 'tab' ? 'Name ändern' : 'Text ändern'}
-            </button>
-            <button
-              type="button"
-              className={button}
-              onClick={() => {
+            </Button>
+            <Button onClick={() => {
                 commitText(removeNote(content, selectedNote.start))
                 setSelection(null)
-              }}
-            >
+              }}>
               Entfernen
-            </button>
+            </Button>
           </div>
           <TargetPicker profiles={profiles} targets={selectedNote.targets} onChange={(targets) => commitText(setNoteTargets(content, selectedNote.start, targets))} />
         </div>

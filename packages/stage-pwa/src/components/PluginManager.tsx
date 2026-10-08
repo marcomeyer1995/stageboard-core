@@ -76,15 +76,11 @@ export function PluginManager() {
               <p className="font-semibold">{candidate.name}</p>
               <p className="text-sm text-ink-muted">{candidate.capabilities.join(', ')}</p>
             </div>
-            <button
-              type="button"
-              onClick={() =>
+            <Button onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
-              }
-              className="min-h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-            >
+              }>
               Installieren
-            </button>
+            </Button>
           </div>
         ))}
       </div>

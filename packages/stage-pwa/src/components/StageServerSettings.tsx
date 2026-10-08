@@ -4,6 +4,7 @@ import { useStageServerStore } from '../store/useStageServerStore'
 import { isNativeApp } from '../lib/native'
 import { NetworkServerList } from './NetworkServerList'
 import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 /**
  * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
@@ -63,18 +64,14 @@ export function StageServerSettings() {
 
       {override && (
         <div className="flex flex-col gap-2 rounded-container border border-line bg-surface p-3 text-sm">
-          <p className="text-amber-500">
+          <p className="text-warn">
             Diese manuelle Adresse ersetzt auf diesem Gerät die automatische
             {automatic ? ` (${automatic})` : ''}. Stimmt sie nicht mehr, erreicht dieses Gerät den Stage-Server
             nicht.
           </p>
-          <button
-            type="button"
-            onClick={reset}
-            className="h-form self-start rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-          >
+          <Button className="self-start" onClick={reset}>
             Zurücksetzen auf automatisch
-          </button>
+          </Button>
         </div>
       )}
 
@@ -91,19 +88,14 @@ export function StageServerSettings() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="z.B. https://stageboard.local"
               aria-label="Stage-Server-Adresse"
-              className={`h-12 min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
-            <button
-              type="button"
-              onClick={() => {
+            <Button className="flex-shrink-0" onClick={() => {
                 setUrl(draftOverride)
                 setDraft(draftOverride ?? '')
-              }}
-              disabled={draftOverride === override}
-              className="h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-50"
-            >
+              }} disabled={draftOverride === override}>
               Speichern
-            </button>
+            </Button>
           </div>
         </div>
       </details>

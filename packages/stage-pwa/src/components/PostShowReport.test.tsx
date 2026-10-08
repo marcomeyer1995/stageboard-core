@@ -37,4 +37,17 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     const technik = screen.getByText('Technik (3)')
     expect(technik.closest('details')).not.toHaveAttribute('open')
   })
+
+  it('shows every fired cue folded away, the failed ones in sight with the reason (#8)', () => {
+    useProfilesStore.setState({ profiles: [] })
+    const cue = (n: number, ok: boolean, message?: string) =>
+      ({ id: `q${n}`, showId: 'show', type: 'cue-fired', at: t0 + n * 30_000, songId: 'song1', songTitle: 'Highway to Hell', cueId: `cue${n}`, cueType: 'kemper.selectRig', target: 'Marcos Kemper', ok, ...(message ? { message } : {}) }) as ShowLogEvent
+    useShowLogStore.setState({
+      events: [{ id: 'start', showId: 'show', type: 'show-started', at: t0 }, song(1, 'Highway to Hell'), cue(1, true), cue(2, false, 'kein MIDI-Ausgang'), cue(3, true)],
+    } as never)
+    render(<PostShowReport />)
+    expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
+    expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
+    expect(screen.getByText('Cues (3, 1 fehlgeschlagen)').closest('details')).not.toHaveAttribute('open')
+  })
 })

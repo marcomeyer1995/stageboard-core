@@ -31,7 +31,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { AddRow, Switch, Tabs } from './ui'
+import { AddRow, Switch, Tabs, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
@@ -530,31 +530,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <span className="text-sm text-ink-muted">Klick-Raster</span>
         <p className="text-sm text-ink-soft">{gridSummary}</p>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setEditorView('timeline')}
-            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-          >
+          <Button onClick={() => setEditorView('timeline')}>
             In der Timeline bearbeiten
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleAnalyzeTrack()}
-            disabled={!tapTrack || isAnalyzing}
-            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-          >
+          </Button>
+          <Button onClick={() => void handleAnalyzeTrack()} disabled={!tapTrack || isAnalyzing}>
             {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleClearGrid()}
-            disabled={!draft.beatGrid}
-            className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-red-500 [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-          >
+          </Button>
+          <Button variant="danger" onClick={() => void handleClearGrid()} disabled={!draft.beatGrid}>
             Raster löschen
-          </button>
+          </Button>
         </div>
-        {analyzeError && <p className="text-sm text-red-500">{analyzeError}</p>}
+        {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
       </div>
     </div>
   )
@@ -622,13 +608,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <span>Cues live einspielen: Track abspielen und am Gerät bedienen.</span>
-        <button
-          type="button"
-          onClick={() => setIsRecordingCues(true)}
-          className="min-h-form rounded-control bg-control-strong px-4 font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
+        <Button onClick={() => setIsRecordingCues(true)}>
           Cues aufnehmen
-        </button>
+        </Button>
       </div>
       <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
     </div>
@@ -722,51 +704,29 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <div className="flex items-center justify-between">
           ChordPro-Text
           <span className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => setIsImporting(true)}
-              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-            >
+            <Button onClick={() => setIsImporting(true)}>
               Song importieren
-            </button>
-            <button
-              type="button"
-              onClick={() => {
+            </Button>
+            <Button onClick={() => {
                 setTapLinesOnOpen(true)
                 setEditorView('timeline')
-              }}
-              disabled={!draft.chordProContent.trim()}
-              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-            >
+              }} disabled={!draft.chordProContent.trim()}>
               Tap-to-Sync starten
-            </button>
+            </Button>
           </span>
         </div>
         <div className="flex flex-wrap gap-1">
           {PART_LABELS.map((label) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => insertPart(label)}
-              className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-            >
+            <Button className="uppercase tracking-wide" key={label} onClick={() => insertPart(label)}>
               + {label}
-            </button>
+            </Button>
           ))}
-          <button
-            type="button"
-            onClick={insertComment}
-            className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
-          >
+          <Button className="uppercase tracking-wide" onClick={insertComment}>
             + Kommentar
-          </button>
-          <button
-            type="button"
-            onClick={insertTabBlock}
-            className="min-h-form rounded-control bg-control-strong px-4 text-base font-bold uppercase tracking-wide text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover"
-          >
+          </Button>
+          <Button className="uppercase tracking-wide" onClick={insertTabBlock}>
             + Tab
-          </button>
+          </Button>
         </div>
         <textarea
           ref={textareaRef}
@@ -795,15 +755,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             {draft.title}
             <span className="ml-2 font-normal text-ink-muted">{draft.variantLabel}</span>
           </span>
-          {error && <span className="text-sm text-red-500">{error}</span>}
+          {error && <span className="text-sm text-danger">{error}</span>}
           {savedAt && <span className="text-sm text-ink-faint">Gespeichert.</span>}
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            className="min-h-form rounded-control bg-accent px-5 font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-          >
+          <Button variant="primary" onClick={() => void handleSave()}>
             Speichern
-          </button>
+          </Button>
         </div>
         <div className="min-h-0 flex-1">{timelineContent}</div>
       </div>
@@ -825,14 +781,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             to LibraryView's own tree (its "+ Neu" and each row's ⋯ menu) - going back there is
             how you pick a different song now, not a dropdown duplicating the same list. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => void leave()}
-            className="flex min-h-form items-center gap-2 rounded-control bg-control-strong px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover"
-          >
+          <Button onClick={() => void leave()}>
             <Icon name="back" />
             Bibliothek
-          </button>
+          </Button>
           {viewSwitch}
         </div>
         <label className="flex min-w-0 flex-col gap-1 text-sm text-ink-muted">
@@ -947,7 +899,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               type="button"
               onClick={() => setTextExpanded((v) => !v)}
               aria-expanded={textExpanded}
-              className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
+              className="flex min-h-form items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
             >
               <Icon name={textExpanded ? 'collapse' : 'expand'} /> Text
             </button>
@@ -966,7 +918,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                   type="button"
                   onClick={section.onToggleExpand}
                   aria-expanded={section.expanded}
-                  className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
+                  className="flex min-h-form items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
                 >
                   <Icon name={section.expanded ? 'collapse' : 'expand'} /> {section.fullLabel}
                 </button>
@@ -984,16 +936,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                 // scroll away with it instead of staying pinned to the viewport like a real
                 // bottom sheet.
                 return (
-                  <div className="fixed inset-x-0 bottom-0 z-20 flex max-h-[55dvh] flex-col gap-3 overflow-y-auto rounded-t-sb border-t border-line bg-surface p-4 shadow-sb">
+                  <div className="fixed inset-x-0 bottom-0 z-bars flex max-h-[55dvh] flex-col gap-3 overflow-y-auto rounded-t-sb border-t border-line bg-surface p-4 shadow-sb">
                     <div className="flex items-center justify-between">
                       <span className="h-1 w-10 self-center rounded-sb-pill bg-control-strong" />
-                      <button
-                        type="button"
-                        onClick={() => setMobileTab('text')}
-                        className="min-h-form rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-                      >
+                      <Button onClick={() => setMobileTab('text')}>
                         Fertig
-                      </button>
+                      </Button>
                     </div>
                     {active.content}
                   </div>
@@ -1003,14 +951,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               return active.content
             })()}
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          className="rounded-control bg-accent px-4 min-h-form font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-        >
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <Button variant="primary" onClick={() => void handleSave()}>
           Speichern
-        </button>
+        </Button>
         {savedAt && <p className="text-xs text-ink-faint">Gespeichert.</p>}
       </div>
       {/* Its own grid column only in 'panel' layout - otherwise the preview already renders

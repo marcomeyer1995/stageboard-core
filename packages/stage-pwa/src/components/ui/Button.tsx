@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Icon, type IconName } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, SIZE, type ControlSize } from './styles'
 
@@ -11,7 +11,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   // D3: the lighter grey, so a button never looks like an unselected segment.
   secondary: 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Red only for faults and danger.
-  danger: 'bg-control-strong text-red-400 [@media(hover:hover)]:hover:bg-control-strong-hover',
+  danger: 'bg-control-strong text-danger [@media(hover:hover)]:hover:bg-control-strong-hover',
   // Inline, without a fill - still a full-height touch target.
   quiet: 'bg-transparent text-ink-soft [@media(hover:hover)]:hover:bg-control-hover',
 }
@@ -25,10 +25,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
 }
 
-/** Something that *does* something (docs/15 §4) - never a state; that is a Switch or a chip. */
-export function Button({ variant = 'secondary', size = 'form', icon, fullWidth, className = '', children, type = 'button', ...rest }: ButtonProps) {
+/** Something that *does* something (docs/15 §4) - never a state; that is a Switch or a chip.
+ * Passes a ref on to the <button> (a toolbar toggle that anchors its own menu needs it). */
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'secondary', size = 'form', icon, fullWidth, className = '', children, type = 'button', ...rest },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={`inline-flex items-center justify-center gap-2 ${SIZE[size]} ${CONTROL} ${VARIANT[variant]} ${FOCUS} ${DISABLED} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...rest}
@@ -37,4 +42,4 @@ export function Button({ variant = 'secondary', size = 'form', icon, fullWidth, 
       {children}
     </button>
   )
-}
+})

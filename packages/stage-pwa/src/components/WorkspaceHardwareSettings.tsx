@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
 import { SwitchServerBandWizard } from './SwitchServerBandWizard'
+import { Button } from './ui'
 
 /**
  * Which band this physical Stage-Server's hardware (plugin sync, Discovery Mode's MIDI watcher)
@@ -27,14 +28,9 @@ export function WorkspaceHardwareSettings() {
           </>
         )}
       </p>
-      <button
-        type="button"
-        disabled={status !== 'reachable' || !workspaces?.length}
-        onClick={() => setWizardOpen(true)}
-        className="h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
-      >
+      <Button disabled={status !== 'reachable' || !workspaces?.length} onClick={() => setWizardOpen(true)}>
         Band wechseln…
-      </button>
+      </Button>
 
       {wizardOpen && workspaces && (
         <SwitchServerBandWizard

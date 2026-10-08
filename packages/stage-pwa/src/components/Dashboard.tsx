@@ -35,6 +35,7 @@ import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { Button } from './ui'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -333,24 +334,20 @@ export function Dashboard() {
       {isEditing && current && current.squeezed > 0 && (
         // Floating over the bottom edge, not above the grid: edit mode shows widgets at their
         // true size (#370), so nothing may take height away from the grid.
-        <div className="absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
-          <span className="text-amber-500">
+        <div className="absolute inset-x-3 bottom-3 z-bars flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
+          <span className="text-warn">
             {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
             klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
             gezeigt).
           </span>
           {current.source !== 'stored' && (
-            <button
-              type="button"
-              onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}
-              className="h-touch rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-            >
+            <Button variant="primary" size="stage" onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}>
               {current.source === 'repaired'
                 ? 'Zu kleine Widgets neu platzieren'
                 : current.source === 'stacked'
                   ? 'Untereinander übernehmen'
                   : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
-            </button>
+            </Button>
           )}
         </div>
       )}

@@ -43,9 +43,12 @@ describe('resolveTargetDevice (#149)', () => {
   it('takes the device an event names, not just the first with the capability', () => {
     expect(resolveTargetDevice([k1, k2], 'kemper-control', 'k2')).toBe(k2)
   })
-  it('falls back to the first match without a name, or for a name of another capability', () => {
+  it('falls back to the first match only without a name', () => {
     expect(resolveTargetDevice([k1, k2], 'kemper-control')).toBe(k1)
     expect(resolveTargetDevice([k1, k2], 'mixer', 'k2')).toBeNull()
+  })
+  it('a named device that is not here is nobody - never the other Kemper (#408 review)', () => {
+    expect(resolveTargetDevice([k1], 'kemper-control', 'k2')).toBeNull()
   })
 })
 

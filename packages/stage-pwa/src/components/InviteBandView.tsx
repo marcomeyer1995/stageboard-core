@@ -22,10 +22,10 @@ import { Button } from './ui'
  * `isFoundingSummary`'s copy/label swap, as `RosterSetupView.tsx`'s final phase - the whole
  * point of this session's earlier lockouts was losing this exact code, so founding a band now
  * ends on this same screen instead of relying on someone remembering to open "Einladen" later.
- * "Drucken" (`window.print()`, browser-native - every OS's print dialog already offers "Save as
- * PDF" as a destination, no PDF library needed) uses `print:` Tailwind variants to hide
- * everything except the QR/code themselves, and to escape the `fixed`/`overflow-y-auto` modal
- * chrome that would otherwise clip or blank the printed page.
+ * "Drucken" - every OS's print dialog already offers "Save as PDF" as a destination, no PDF
+ * library needed. Since #428 the printable page is its own sheet (PrintSheet, a portal on
+ * `body.sb-has-print-sheet`) printed via `lib/native.ts`'s `printPage()`: `window.print()` in the
+ * browser, the native PrintPlugin in the Android app (its WebView ignores `window.print()`).
  *
  * 2026-09-02 seventh follow-up, at Marco's explicit request: the QR now encodes a real
  * `https://<LAN IP>/?ws=&code=` URL (`buildJoinUrl`), not just `workspaceId:code` text, so a
@@ -94,7 +94,7 @@ export function InviteBandView({
   }, [workspaceId, getAccessCode])
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-black/60 sb-pad-safe">
+    <div className="fixed inset-0 z-bars flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe">
       {/* max-h-[90vh] + overflow-y-auto: a landscape phone/tablet viewport can be shorter
           than this card's content (QR image + code + copy) - without a scroll fallback the
           bottom (including the only way to close it) would be unreachable. Printing uses its
@@ -103,7 +103,7 @@ export function InviteBandView({
       <div className="max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-6 text-ink">
         <h2 className="text-xl font-bold">{isFoundingSummary ? 'Code speichern!' : 'Band einladen'}</h2>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         {!error && !code && <p className="text-sm text-ink-muted">Lade Code…</p>}
 
@@ -129,13 +129,9 @@ export function InviteBandView({
                 nicht mit einer normalen Kamera-App.
               </p>
             )}
-            <button
-              type="button"
-              onClick={() => void printPage(`StageBoard - ${bandName || 'Band'} einladen`)}
-              className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover"
-            >
+            <Button fullWidth onClick={() => void printPage(`StageBoard - ${bandName || 'Band'} einladen`)}>
               Drucken / als PDF speichern
-            </button>
+            </Button>
             <button
               type="button"
               disabled={rotating}
@@ -152,7 +148,7 @@ export function InviteBandView({
                 setCode(result.code)
                 void loadQr(result.code, server)
               }}
-              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-50"
+              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-40"
             >
               {rotating ? 'Erzeuge neuen Code…' : 'Code ändern'}
             </button>

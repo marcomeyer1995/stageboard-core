@@ -13,7 +13,7 @@ const STATUS_LABEL: Record<MidiStatus, string> = {
 const STATUS_DOT: Record<MidiStatus, string> = {
   unsupported: 'bg-control-strong-hover',
   'no-device': 'bg-control-strong-hover',
-  connected: 'bg-green-500',
+  connected: 'bg-ok',
 }
 
 /** Sized as a ratio of the device-wide default (System/Einstellungen), not auto-fit to the

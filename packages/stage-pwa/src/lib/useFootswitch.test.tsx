@@ -7,7 +7,7 @@ const show = vi.hoisted(() => ({
   trackEnded: false,
   elapsedMs: null as number | null,
   liveTempoAdjustPercent: 0,
-  queue: { currentSong: { bpm: 120, timeSignature: '4/4' }, currentVariant: null as null | object },
+  queue: { currentSong: { bpm: 120, timeSignature: '4/4' }, currentVariant: null as null | object, nextEntry: { id: 'e2' } as null | object },
   next: vi.fn(async () => {}),
   previous: vi.fn(async () => {}),
   play: vi.fn(async () => {}),
@@ -26,6 +26,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 beforeEach(() => {
   vi.clearAllMocks()
   Object.assign(show, { canControl: true, playbackStatus: 'stopped', trackEnded: false, elapsedMs: null })
+  show.queue.nextEntry = { id: 'e2' }
   useKeybindingsStore.setState({ bindings: [] })
 })
 
@@ -80,6 +81,29 @@ describe('useFootswitch (#27)', () => {
     await press()
     expect(show.next).toHaveBeenCalledTimes(2)
     expect(show.play).toHaveBeenCalledTimes(3)
+  })
+
+  it('after the last song "next and play" does nothing - it never restarts the song that ended (#394 review)', async () => {
+    useKeybindingsStore.setState({ bindings: [{ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } }] })
+    renderHook(() => useFootswitch(true))
+    Object.assign(show, { playbackStatus: 'stopped', trackEnded: true })
+    show.queue.nextEntry = null
+    fireEvent.keyDown(window, { key: 'b' })
+    await flush()
+    await flush()
+    expect(show.next).not.toHaveBeenCalled()
+    expect(show.play).not.toHaveBeenCalled()
+  })
+
+  it('does nothing while a dialog or the menu is open (#394 review)', () => {
+    useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
+    renderHook(() => useFootswitch(true))
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.appendChild(dialog)
+    fireEvent.keyDown(window, { key: 'PageDown' })
+    dialog.remove()
+    expect(show.next).not.toHaveBeenCalled()
   })
 
   it('prompter keys page the prompter', () => {

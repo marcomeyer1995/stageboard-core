@@ -242,7 +242,7 @@ export function TunerWidgetPreview() {
       </p>
       <div className="relative h-1.5 w-4/5 rounded-full bg-control">
         <div className="absolute left-1/2 top-1/2 h-4 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-faint" />
-        <div className="absolute top-1/2 left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500" />
+        <div className="absolute top-1/2 left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ok" />
       </div>
       <p className="text-xs text-ink-faint">440.0 Hz</p>
     </div>

@@ -2,6 +2,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
+import { Button } from './ui'
 
 /**
  * Shown by App.tsx instead of the Dashboard once the active workspace has credentials but no
@@ -43,13 +44,9 @@ export function ProfileRolePickerView() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setActive(workspaceId, null)}
-          className="mt-4 w-full rounded-control bg-control px-4 py-2 text-sm text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-        >
+        <Button fullWidth className="mt-4" onClick={() => setActive(workspaceId, null)}>
           Ohne Profil fortfahren
-        </button>
+        </Button>
       </div>
     </div>
   )

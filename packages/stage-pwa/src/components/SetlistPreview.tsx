@@ -3,7 +3,7 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
-import { Badge } from './ui'
+import { Badge, Button } from './ui'
 
 interface SetlistPreviewProps {
   setlist: Setlist
@@ -51,21 +51,12 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="h-form rounded-control bg-accent px-4 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-        >
+        <Button variant="primary" onClick={onEdit}>
           Bearbeiten
-        </button>
-        <button
-          type="button"
-          onClick={active ? onDeactivate : onActivate}
-          disabled={!canActivate}
-          className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-        >
+        </Button>
+        <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
           {active ? 'Deaktivieren' : 'Aktivieren'}
-        </button>
+        </Button>
         <OverflowMenu title={setlist.name} actions={menu} />
       </div>
 

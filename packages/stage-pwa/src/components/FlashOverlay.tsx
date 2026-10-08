@@ -53,13 +53,14 @@ export function FlashOverlay() {
   if (!shown) return null
   if (mode === 'banner') {
     // Under the status bar, wherever it ends on this screen (none on a dashboard without it).
-    const top = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0
+    // The status bar's <header> (data-status) - not any <header>, e.g. a settings group's (#400 review).
+    const top = document.querySelector('header[data-status]')?.getBoundingClientRect().bottom ?? 0
     return (
       <div
         role="alert"
         style={{ top, left: 'max(0.5rem, env(safe-area-inset-left))', right: 'max(0.5rem, env(safe-area-inset-right))' }}
         onClick={() => setShown(null)}
-        className="fixed inset-x-2 cursor-pointer z-[58] flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-container bg-yellow-300/85 px-4 py-3 text-center text-black shadow-sb"
+        className="fixed inset-x-2 cursor-pointer z-flash flex max-h-[30dvh] flex-col items-center justify-center gap-1 rounded-container bg-flash/85 px-4 py-3 text-center text-flash-ink shadow-sb"
       >
         <p className="max-w-full break-words text-[clamp(2rem,6vw,4.5rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
         {shown.from && <p className="text-lg font-bold">— {shown.from}</p>}
@@ -70,7 +71,7 @@ export function FlashOverlay() {
     <div
       role="alert"
       onClick={() => setShown(null)}
-      className="fixed inset-0 z-[58] flex cursor-pointer flex-col items-center justify-center gap-4 bg-yellow-300 sb-pad-safe [--sb-pad:1.5rem] text-center text-black"
+      className="fixed inset-0 z-flash flex cursor-pointer flex-col items-center justify-center gap-4 bg-flash sb-pad-safe [--sb-pad:1.5rem] text-center text-flash-ink"
     >
       <p className="max-w-full break-words text-[clamp(3rem,11vw,9rem)] font-black uppercase leading-none tracking-tight">{shown.text}</p>
       {shown.from && <p className="text-2xl font-bold">— {shown.from}</p>}

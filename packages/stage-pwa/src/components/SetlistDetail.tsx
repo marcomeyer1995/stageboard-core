@@ -27,6 +27,7 @@ import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
+import { registerSetlistDraft } from '../lib/setlistDrafts'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongsStore } from '../store/useSongsStore'
@@ -35,7 +36,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
+import { AddRow, Badge, Dialog, Field, MENU_ROW, Button } from './ui'
 import { INPUT, SELECTED } from './ui/styles'
 
 interface SetlistDetailProps {
@@ -280,7 +281,7 @@ function EntryRow({
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-12 min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
+          className="min-h-form min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -407,7 +408,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-form min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
@@ -495,7 +496,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
         // of the pane, below the entry list, so a downward dropdown pushed itself off-screen
         // and needed a scroll to reach; anchoring to the input's top edge instead opens into
         // the room the entry list already occupies.
-        <ul className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
+        <ul className="absolute inset-x-0 bottom-full z-content mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
             <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
           ) : (
@@ -557,10 +558,19 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   const update = (next: Setlist) => setDraft(next)
   // Opens as a clean preview (SetlistPreview); "Bearbeiten" switches to the editor below.
   const [editing, setEditing] = useState(false)
+  // A song dropped on this setlist or swiped in the Bibliothek lands in the draft while editing.
+  useEffect(() => {
+    if (!editing) return
+    return registerSetlistDraft(setlistId, (change) => setDraft((current) => (current ? change(current) : current)))
+  }, [editing, setlistId])
 
   async function handleSave(): Promise<boolean> {
     if (!draft || !draft.name.trim()) return false
-    await saveSetlist({ ...draft, name: draft.name.trim() })
+    const saved = { ...draft, name: draft.name.trim() }
+    // The draft takes the trimmed name too - otherwise it differs from the stored setlist for
+    // good and the editor stays "unsaved" (asks on every way out, stops following other devices).
+    setDraft(saved)
+    await saveSetlist(saved)
     setEditing(false)
     return true
   }
@@ -734,21 +744,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
       <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => void leaveEditing()}
-          className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
+        <Button onClick={() => void leaveEditing()}>
           Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={!setlist.name.trim()}
-          className="h-form rounded-control bg-accent px-5 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="primary" onClick={() => void handleSave()} disabled={!setlist.name.trim()}>
           Speichern
-        </button>
+        </Button>
       </div>
       <Field label="Name" value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}

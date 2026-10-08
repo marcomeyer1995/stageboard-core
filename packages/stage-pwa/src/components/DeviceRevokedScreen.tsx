@@ -13,10 +13,10 @@ import { Icon } from './Icon'
  */
 export function DeviceRevokedScreen() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 bg-red-950 p-8 text-center text-white">
+    <div className="flex h-full flex-col items-center justify-center gap-4 bg-alarm p-8 text-center text-alarm-ink">
       <Icon name="blocked" size="3.5rem" />
       <h1 className="text-xl font-bold">Dieses Gerät wurde entfernt</h1>
-      <p className="max-w-sm text-sm text-red-200">
+      <p className="max-w-sm text-sm text-alarm-ink/80">
         Ein Admin hat dieses Gerät aus der Band entfernt. Wende dich an einen Admin, wenn das ein
         Irrtum war - sobald das Gerät wieder zugelassen wird, geht es hier automatisch weiter.
       </p>

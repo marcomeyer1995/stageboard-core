@@ -27,6 +27,47 @@ export default {
           faint: 'rgb(var(--sb-ink-faint) / <alpha-value>)',
         },
         line: 'var(--sb-line)',
+        // Meaning colours (docs/15 §5) - never Tailwind's red/amber/green directly.
+        danger: {
+          DEFAULT: 'rgb(var(--sb-danger) / <alpha-value>)',
+          ink: 'rgb(var(--sb-danger-ink) / <alpha-value>)',
+        },
+        warn: {
+          DEFAULT: 'rgb(var(--sb-warn) / <alpha-value>)',
+          ink: 'rgb(var(--sb-warn-ink) / <alpha-value>)',
+        },
+        ok: {
+          DEFAULT: 'rgb(var(--sb-ok) / <alpha-value>)',
+          ink: 'rgb(var(--sb-ok-ink) / <alpha-value>)',
+        },
+        info: {
+          DEFAULT: 'rgb(var(--sb-info) / <alpha-value>)',
+          ink: 'rgb(var(--sb-info-ink) / <alpha-value>)',
+        },
+        flash: {
+          DEFAULT: 'rgb(var(--sb-flash) / <alpha-value>)',
+          ink: 'rgb(var(--sb-flash-ink) / <alpha-value>)',
+        },
+        scrim: {
+          DEFAULT: 'rgb(var(--sb-scrim) / <alpha-value>)',
+          ink: 'rgb(var(--sb-scrim-ink) / <alpha-value>)',
+        },
+        alarm: {
+          DEFAULT: 'rgb(var(--sb-alarm) / <alpha-value>)',
+          ink: 'rgb(var(--sb-alarm-ink) / <alpha-value>)',
+        },
+        state: {
+          'count-in': 'rgb(var(--sb-state-count-in) / <alpha-value>)',
+          'count-in-ink': 'rgb(var(--sb-state-count-in-ink) / <alpha-value>)',
+          'playing': 'rgb(var(--sb-state-playing) / <alpha-value>)',
+          'playing-ink': 'rgb(var(--sb-state-playing-ink) / <alpha-value>)',
+          'paused': 'rgb(var(--sb-state-paused) / <alpha-value>)',
+          'paused-ink': 'rgb(var(--sb-state-paused-ink) / <alpha-value>)',
+          'finished': 'rgb(var(--sb-state-finished) / <alpha-value>)',
+          'finished-ink': 'rgb(var(--sb-state-finished-ink) / <alpha-value>)',
+          'fault': 'rgb(var(--sb-state-fault) / <alpha-value>)',
+          'fault-ink': 'rgb(var(--sb-state-fault-ink) / <alpha-value>)',
+        },
       },
       borderRadius: {
         sb: 'var(--sb-radius)',

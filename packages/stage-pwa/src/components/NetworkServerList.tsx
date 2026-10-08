@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { discoverServers, pairingConfirmation, pairWithServer, serverFingerprint, type FoundServer } from '../lib/native'
 import { useDialogStore } from '../store/useDialogStore'
+import { Button } from './ui'
 
 /**
  * Native app (#351): the Stage-Servers announcing themselves on the local network - tap one to
@@ -48,9 +49,9 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-ink-muted">Stage-Server im Netzwerk</span>
-        <button type="button" disabled={searching} onClick={() => void search()} className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink disabled:opacity-50">
+        <Button disabled={searching} onClick={() => void search()}>
           {searching ? 'Sucht…' : 'Suchen'}
-        </button>
+        </Button>
       </div>
       {servers?.length === 0 && !searching && <p className="text-sm text-ink-faint">Keiner gefunden – Adresse eingeben oder QR-Code scannen.</p>}
       {servers?.map((server) => (
@@ -64,7 +65,7 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
           <span className="text-sm text-ink-muted">{server.host}</span>
         </button>
       ))}
-      {error && <p className="text-sm text-amber-500">{error}</p>}
+      {error && <p className="text-sm text-warn">{error}</p>}
     </div>
   )
 }

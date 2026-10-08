@@ -148,7 +148,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
           Durchgang {playing.pass + 1} · {Math.round(playing.rate * 100)} %
         </p>
       )}
-      {stored.error && <p className="text-xs text-red-500">{stored.error}</p>}
+      {stored.error && <p className="text-xs text-danger">{stored.error}</p>}
     </div>
   )
 }

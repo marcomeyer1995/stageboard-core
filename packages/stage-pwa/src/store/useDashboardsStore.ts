@@ -155,6 +155,10 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
       visibility: owner?.visibility ?? 'public',
     }
     await putDashboard(dashboard)
+    // In the store right away: the caller opens it next (in edit mode) - waiting for the changes
+    // feed let the active dashboard fall back to another one for a moment, and on a template
+    // that switched edit mode off again (#422 review).
+    set({ dashboards: [...get().dashboards.filter((d) => d.id !== dashboard.id), dashboard].sort(byOrder) })
     return dashboard
   },
   duplicate: async (id, newName, personalFor) => {
@@ -171,12 +175,13 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
       ...(personalFor ? { visibility: 'private' as const, ownerProfileId: personalFor } : {}),
     }
     await putDashboard(copy)
+    set({ dashboards: [...get().dashboards.filter((d) => d.id !== copy.id), copy].sort(byOrder) })
     return copy
   },
   rename: async (id, name) => {
-    const existing = get().dashboards.find((dashboard) => dashboard.id === id)
-    if (!existing) return
-    await putDashboard({ ...existing, name })
+    // Against the freshly read document, like updateWidget - a spread of the cached copy could
+    // overwrite widget changes that arrived meanwhile (#422 review).
+    await updateDashboard(id, (current) => ({ ...current, name }))
   },
   remove: async (id) => {
     const target = get().dashboards.find((dashboard) => dashboard.id === id)

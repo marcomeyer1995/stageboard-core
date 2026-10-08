@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Segmented, Switch } from './ui'
+import { Segmented, Switch, Button } from './ui'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
 
@@ -12,8 +12,8 @@ const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
 ]
 
 const LEVEL_CLASS: Record<LogLevel, string> = {
-  error: 'text-red-400',
-  warn: 'text-amber-500',
+  error: 'text-danger',
+  warn: 'text-warn',
   info: 'text-ink',
   debug: 'text-ink-muted',
 }
@@ -67,12 +67,12 @@ export function DebugConsoleView() {
           aria-label="Log durchsuchen"
           className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
         />
-        <button type="button" onClick={() => void copy()} className="min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+        <Button onClick={() => void copy()}>
           Kopieren
-        </button>
-        <button type="button" onClick={clear} className="min-h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover">
+        </Button>
+        <Button onClick={clear}>
           Leeren
-        </button>
+        </Button>
       </div>
       {copied && (
         <p role="status" className="text-sm text-ink-muted">

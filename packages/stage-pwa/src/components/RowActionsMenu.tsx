@@ -28,5 +28,5 @@ export function RowActionsMenu({ title, onClose, children }: { title: string; on
 }
 
 export function RowActionButton({ danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) {
-  return <button type="button" {...props} className={`${MENU_ROW} ${danger ? 'text-red-400' : 'text-ink'} ${className ?? ''}`} />
+  return <button type="button" {...props} className={`${MENU_ROW} ${danger ? 'text-danger' : 'text-ink'} ${className ?? ''}`} />
 }
