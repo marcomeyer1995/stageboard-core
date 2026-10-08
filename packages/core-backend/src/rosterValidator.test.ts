@@ -25,6 +25,22 @@ describe('updateRosterValidators (#16)', () => {
     expect(await updateRosterValidators(config)).toEqual(['stageboard-old'])
     expect(writes).toEqual(['http://couch/stageboard-old/_design%2Froster'])
   })
+
+  it('one failing band does not stop the others - it is reported (#401 review)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
+        if (url.endsWith('/_all_dbs')) return json(['stageboard-broken', 'stageboard-old'])
+        if (url.includes('stageboard-broken')) return new Response('{}', { status: 500 })
+        if (init?.method === 'PUT') return new Response('{}', { status: 201 })
+        return json({ _id: '_design/roster', _rev: '1-a', validate_doc_update: 'function(){}' })
+      }),
+    )
+    const failed: string[] = []
+    expect(await updateRosterValidators(config, (db) => failed.push(db))).toEqual(['stageboard-old'])
+    expect(failed).toEqual(['stageboard-broken'])
+  })
 })
 
 describe('roster validator - band settings', () => {

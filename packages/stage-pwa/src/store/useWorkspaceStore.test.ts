@@ -1288,6 +1288,20 @@ describe('addWorkspace - proof for the Stage-Server (#364)', () => {
     expect(promptText).not.toHaveBeenCalled()
   })
 
+  it('never hands this server\'s admin login to another server typed in by hand (#396 review)', async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: 'band-a', name: 'Band A', isAdmin: true, username: 'stageboard-band-a-p1', couchPassword: 'pw-a' },
+        { id: 'solo', name: 'Solo', ownProfileId: 'me', isAdmin: true },
+      ],
+    })
+    const fetchMock = stubFetch({ ok: true, status: 201, json: async () => ({ username: 'u', password: 'p' }) })
+    await useWorkspaceStore.getState().connectWorkspace('solo', 'https://other-server')
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.adminUsername).toBeUndefined()
+    expect(body.adminPassword).toBeUndefined()
+  })
+
   it('without admin rights here, explains who can found a band - and founds nothing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ code: 'admin-required' }) }))
     const alert = vi.fn(async () => {})
