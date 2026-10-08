@@ -10,6 +10,7 @@ import { StatusBarSettings } from './StatusBarSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
+import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
 import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
@@ -67,6 +68,10 @@ export function SystemSettings() {
         </Section>
         <Section title="Darstellung">
           <ThemeSwitcher />
+        </Section>
+        {/* Both languages in the title: found also by someone who can't read the current one (#456). */}
+        <Section title="Sprache · Language">
+          <LanguageSettings />
         </Section>
         <Section title="Textgröße">
           <TextSizeSettings />
