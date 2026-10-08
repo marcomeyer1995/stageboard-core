@@ -1711,12 +1711,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
             {tempoPreview.endBpm < tempoPreview.startBpm ? 'Wird langsamer' : 'Wird schneller'}: {tempoPreview.startBpm.toFixed(0)} → {tempoPreview.endBpm.toFixed(0)} BPM, Takt{' '}
             {tempoPreview.startBar}–{tempoPreview.endBar} ({tempoPreview.pointCount} Ausrichtungspunkte). Die Linie zeigt das getippte Tempo.
           </span>
-          <button type="button" className={button} onClick={() => setTempoPreview(null)}>
+          <Button onClick={() => setTempoPreview(null)}>
             Verwerfen
-          </button>
-          <button
-            type="button"
-            className={toggle(true)}
+          </Button>
+          <Button
+            variant="primary"
             onClick={() => {
               const preview = tempoPreview
               commitGrid(preview.grid)
@@ -1725,7 +1724,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
             }}
           >
             Übernehmen
-          </button>
+          </Button>
         </div>
       )}
 
