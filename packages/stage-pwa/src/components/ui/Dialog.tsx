@@ -29,7 +29,9 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   useBackHandler(onClose)
   const typing = useTypingOnTouch()
   return createPortal(
-    <div className={`fixed inset-0 z-dialog flex justify-center bg-black/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
+    // h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
+    // with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review).
+    <div className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-black/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

@@ -18,6 +18,19 @@ interface AppMenuProps {
   onClose: () => void
 }
 
+/** True while the window is at least `px` wide. */
+function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const list = window.matchMedia(query)
+    const update = () => setMatches(list.matches)
+    list.addEventListener('change', update)
+    return () => list.removeEventListener('change', update)
+  }, [query])
+  return matches
+}
+
 /**
  * Just what's actually touched during a show - band/theme/sync-detail settings moved out to
  * SystemView.tsx's "Einstellungen" tab in the 2026-08-30 menu-decluttering pass (this menu had
@@ -39,24 +52,14 @@ interface AppMenuProps {
  * password-protected member there asks for the password (same recovery semantics as everywhere
  * else: blank resets a non-admin account, is refused for an admin one).
  */
-/** True while the window is at least `px` wide. */
-function useMinWidth(px: number): boolean {
-  const query = `(min-width: ${px}px)`
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
-  useEffect(() => {
-    const list = window.matchMedia(query)
-    const update = () => setMatches(list.matches)
-    list.addEventListener('change', update)
-    return () => list.removeEventListener('change', update)
-  }, [query])
-  return matches
-}
-
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
   const twoColumns = useIsPanelLayout()
-  const threeColumns = useMinWidth(1000) && twoColumns
   const sessionMode = useAppModeStore((state) => state.mode)
+  // The middle column holds Master-Kontrolle (Gig only) and Anzeige (browser only) - with neither,
+  // three columns would leave an empty third in the middle (#432 review); two columns then.
+  const middleColumnEmpty = sessionMode !== 'gig' && !(fullscreen.supported && !isNativeApp())
+  const threeColumns = useMinWidth(1000) && twoColumns && !middleColumnEmpty
 
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
