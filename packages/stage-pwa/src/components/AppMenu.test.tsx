@@ -142,5 +142,15 @@ describe('AppMenu dashboard picker (#35)', () => {
     fireEvent.click(done)
     expect(onClose).toHaveBeenCalled()
   })
-})
 
+  it('uses two columns from tablet width in portrait too - one column only on a phone (2026-10-08)', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ matches: query === '(min-width: 600px)', media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+    try {
+      render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+      expect(document.querySelector('.grid-cols-2')).not.toBeNull()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+})

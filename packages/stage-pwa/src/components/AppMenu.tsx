@@ -54,7 +54,12 @@ function useMinWidth(px: number): boolean {
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const fullscreen = useFullscreen()
-  const twoColumns = useIsPanelLayout()
+  // Two columns from tablet width in portrait too (Marco, 2026-10-08: on the Fire in portrait the
+  // single 384 px column looked crowded and wasted half the screen, and scrolled with more
+  // dashboards) - only a phone in portrait keeps one column.
+  const panelLayout = useIsPanelLayout()
+  const tabletWide = useMinWidth(600)
+  const twoColumns = panelLayout || tabletWide
   const sessionMode = useAppModeStore((state) => state.mode)
   // The middle column holds Master-Kontrolle (Gig only) and Anzeige (browser only) - with neither,
   // three columns would leave an empty third in the middle (#432 review); two columns then.
