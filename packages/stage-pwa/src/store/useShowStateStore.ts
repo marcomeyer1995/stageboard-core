@@ -82,7 +82,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   },
   claimMaster: async () => {
     const { masterIdentity } = get()
-    await putShowState({ masterHolderId: masterIdentity, masterClaimedAt: Date.now() })
+    await putShowState({ masterHolderId: masterIdentity, masterClaimedAt: Date.now(), drivingDeviceId: get().deviceId })
     const fresh = await getShowState()
     set({ state: fresh, ...mastership(fresh.masterHolderId === masterIdentity, get().selfCheck) })
   },
@@ -114,7 +114,20 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // through the local changes feed delayed Stop by 0.87 s on the band's tablet (measured
     // 2026-09-27 - the backing track and click kept going after the tap). Every other tablet
     // still learns it through replication; the feed's echo then just re-sets the same values.
-    set({ state: { ...get().state, ...patch } })
-    await putShowState(patch)
+    // Whoever acts as master is the one that drives the automatic steps from now on (drivingDeviceId).
+    const mine = { ...patch, drivingDeviceId: get().deviceId }
+    set({ state: { ...get().state, ...mine } })
+    await putShowState(mine)
   },
 }))
+
+/**
+ * Whether this device runs the master's automatic steps: it is master and either the device that
+ * last acted as master or nobody is recorded yet (older state). One device in Pro-Person mode,
+ * where all devices of the master are master - otherwise each of them advanced at the track end,
+ * measured tracks and logged (Marco, 2026-10-08). If that device goes away, the next master action
+ * on another device of the person takes over.
+ */
+export function drivesAutomation(store: Pick<ShowStateStore, 'isMaster' | 'deviceId' | 'state'>): boolean {
+  return store.isMaster && (!store.state.drivingDeviceId || store.state.drivingDeviceId === store.deviceId)
+}

@@ -32,7 +32,7 @@ import { gigElapsedMsNow, usePlaybackElapsedMs } from './usePlaybackElapsedMs'
 import { practiceElapsedMsNow, usePracticeElapsedMs } from './usePracticeElapsedMs'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
 import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
-import { useShowStateStore } from '../store/useShowStateStore'
+import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 export interface ShowModeApi {
@@ -62,6 +62,9 @@ export interface ShowModeApi {
   /** Whether THIS device may act right now - the Master-Token in Gig mode (unchanged), always
    * true in Practice mode (fully local, nothing to contend over). */
   canControl: boolean
+  /** Runs the automatic master steps (next/stop at the track end, measuring tracks) - one device
+   * even in Pro-Person mode (drivesAutomation in useShowStateStore.ts); always true in Solo. */
+  drivesAutomation: boolean
   play: (opts?: PlayOptions) => Promise<void>
   pause: () => Promise<void>
   stop: () => Promise<void>
@@ -113,6 +116,7 @@ export function useShowMode(): ShowModeApi {
   const gigElapsedMs = usePlaybackElapsedMs()
   const practiceElapsedMs = usePracticeElapsedMs()
   const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
+  const gigDrives = useShowStateStore(drivesAutomation)
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
   const gigLiveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const gigClickTrackOverride = useShowStateStore((state) => state.state.clickTrackOverride)
@@ -134,6 +138,7 @@ export function useShowMode(): ShowModeApi {
       setClickTrackOverride: practiceSetClickTrackOverride,
       clickExtendMs: practiceState.clickExtendMs,
       canControl: true,
+      drivesAutomation: true,
       play: practicePlaySong,
       pause: practicePauseSong,
       stop: practiceStopSong,
@@ -161,6 +166,7 @@ export function useShowMode(): ShowModeApi {
     setClickTrackOverride: (override) => void setClickTrackOverride(override),
     clickExtendMs: gigClickExtendMs,
     canControl: gigQueue.isMaster,
+    drivesAutomation: gigDrives,
     play: playSong,
     pause: pauseSong,
     stop: stopSong,

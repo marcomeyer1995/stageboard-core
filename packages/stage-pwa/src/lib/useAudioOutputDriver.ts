@@ -41,7 +41,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * actual playLocalTrack/loadLocalTrack/triggerShowControl calls live here, exactly once.
  */
 export function useAudioOutputDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl } = useShowMode()
+  const { mode, queue, elapsedMs, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowMode()
   const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
 
   // Kept fresh every render without being a dependency of the load/play effects below (same
