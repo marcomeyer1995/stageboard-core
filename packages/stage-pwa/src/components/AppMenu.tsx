@@ -77,6 +77,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
         <Segmented
           label="Ansicht"
           size={lowScreen ? 'form' : 'stage'}
+          compact={lowScreen}
           value={mode}
           onChange={(candidate) => {
             onSelectMode(candidate)
@@ -137,7 +138,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   return (
     <Dialog title="Menü" size={threeColumns ? 'xl' : twoColumns ? 'l' : 's'} onClose={onClose}>
       {threeColumns ? (
-        <div className="grid grid-cols-3 items-start gap-6">
+        <div className={`grid items-start ${lowScreen ? 'grid-cols-[1.25fr_1fr_1fr] gap-4' : 'grid-cols-3 gap-6'}`}>
           <div className="flex min-w-0 flex-col gap-4">
             {viewSection}
             {modeSection}
