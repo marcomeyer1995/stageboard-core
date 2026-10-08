@@ -117,7 +117,13 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
             variant="danger"
             fullWidth
             onClick={async () => {
-              if (!(await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true }))) return
+              // Says exactly what goes (Marco, 2026-10-08): every dashboard of the band, also the
+              // private ones of other members and the templates - for every device, no undo.
+              const others = dashboards.filter((d) => d.visibility === 'private' && d.ownerProfileId !== profile?.id).length
+              const message =
+                `Löscht alle ${dashboards.length} Dashboards der Band${others > 0 ? `, auch ${others} private von anderen Mitgliedern` : ''}, ` +
+                'auf allen Geräten, und legt die zwei Standard-Dashboards „Prompter“ und „Monitoring“ neu an. Das lässt sich nicht rückgängig machen.'
+              if (!(await confirm(message, { title: 'Alle Dashboards zurücksetzen?', confirmLabel: 'Alle zurücksetzen', danger: true }))) return
               void resetToDefaults()
               onClose()
             }}

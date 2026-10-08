@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard } from 'shared-types'
 
@@ -91,4 +91,15 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     openSettings()
     expect(screen.queryByRole('button', { name: 'Alle Dashboards zurücksetzen' })).not.toBeInTheDocument()
   })
+
+  it('the reset question says how many dashboards go, also other members\' private ones (2026-10-08)', async () => {
+    const confirm = vi.fn(async () => false)
+    useDialogStore.setState({ confirm })
+    useDashboardsStore.setState({ dashboards: [board('Bühne'), board('Monitor'), board('Caros', { visibility: 'private', ownerProfileId: 'p-caro' })] })
+    renderBar(board('Bühne'))
+    openSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'Alle Dashboards zurücksetzen' }))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.stringContaining('alle 3 Dashboards der Band, auch 1 private von anderen Mitgliedern'), expect.objectContaining({ danger: true })))
+  })
 })
+
