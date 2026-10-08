@@ -100,6 +100,7 @@ function mockShowMode(overrides: {
     setClickTrackOverride: vi.fn(),
     clickExtendMs: 0,
     canControl: overrides.canControl ?? false,
+    drivesAutomation: overrides.canControl ?? false,
     play: vi.fn(),
     pause: vi.fn(),
     stop: vi.fn(),

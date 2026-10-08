@@ -21,11 +21,10 @@ interface KemperOutput {
 }
 
 /**
- * Which physical Kemper this tablet talks to right now - the first Logical Device declaring
- * `kemper-control` bound (via DeviceTransportConfig) on this device. Same "first match wins"
- * simplification hardwareRouting.ts/resolveHardwareBinding already use elsewhere in this
- * codebase for the analogous "usually exactly one instance per tablet" case; a `ShowControlEvent`
- * carries no logicalDeviceId to disambiguate further (clientTranslator.ts's Translator contract).
+ * Which physical Kemper this tablet talks to: the Logical Device the event names
+ * (`ShowControlEvent.logicalDeviceId`, #149 - two Kempers each get their own cues), or for an event
+ * that names none the first one declaring `kemper-control`, bound (via DeviceTransportConfig) on
+ * this device - hardwareRouting.ts's resolveTargetDevice.
  */
 async function resolveKemperOutput(logicalDeviceId?: string): Promise<KemperOutput | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, KEMPER_CAPABILITY, logicalDeviceId)

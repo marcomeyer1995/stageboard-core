@@ -27,6 +27,9 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
   const isAdmin = profile?.stageRoles.includes('admin') ?? false
   // The band keeps at least one shared dashboard.
   const lastPublic = dashboard.visibility !== 'private' && dashboards.filter((d) => d.visibility !== 'private').length <= 1
+  // Like the mode chips below: a mode keeps at least one dashboard - deleting must not take it (#422 review).
+  const onlyIn = (['gig', 'practice'] as const).filter((mode) => isDashboardAvailableInMode(dashboard, mode) && !canRemoveMode(dashboards, dashboard, mode))
+  const lastOfMode = onlyIn.length > 0 ? onlyIn.map((mode) => (mode === 'gig' ? 'Gig' : 'Solo')).join(' und ') : null
 
   const modeChip = (mode: 'gig' | 'practice', label: string) => {
     const on = isDashboardAvailableInMode(dashboard, mode)
@@ -96,8 +99,8 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
         <Button
           variant="danger"
           fullWidth
-          disabled={lastPublic}
-          title={lastPublic ? 'Das einzige geteilte Dashboard bleibt bestehen' : undefined}
+          disabled={lastPublic || lastOfMode !== null}
+          title={lastPublic ? 'Das einzige geteilte Dashboard bleibt bestehen' : lastOfMode ? `Einziges Dashboard für ${lastOfMode} - bleibt` : undefined}
           onClick={async () => {
             if (!(await confirm(`„${dashboard.name}“ löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
             await remove(dashboard.id)
@@ -107,17 +110,27 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
         >
           Dashboard löschen
         </Button>
-        <Button
-          variant="danger"
-          fullWidth
-          onClick={async () => {
-            if (!(await confirm('Alle Dashboards verwerfen und zurücksetzen?', { confirmLabel: 'Zurücksetzen', danger: true }))) return
-            void resetToDefaults()
-            onClose()
-          }}
-        >
-          Alle Dashboards zurücksetzen
-        </Button>
+        {/* Throws away the whole band's dashboards, templates included - band admins only
+            (Marco, 2026-10-08). */}
+        {isAdmin && (
+          <Button
+            variant="danger"
+            fullWidth
+            onClick={async () => {
+              // Says exactly what goes (Marco, 2026-10-08): every dashboard of the band, also the
+              // private ones of other members and the templates - for every device, no undo.
+              const others = dashboards.filter((d) => d.visibility === 'private' && d.ownerProfileId !== profile?.id).length
+              const message =
+                `Löscht alle ${dashboards.length} Dashboards der Band${others > 0 ? `, auch ${others} private von anderen Mitgliedern` : ''}, ` +
+                'auf allen Geräten, und legt die zwei Standard-Dashboards „Prompter“ und „Monitoring“ neu an. Das lässt sich nicht rückgängig machen.'
+              if (!(await confirm(message, { title: 'Alle Dashboards zurücksetzen?', confirmLabel: 'Alle zurücksetzen', danger: true }))) return
+              void resetToDefaults()
+              onClose()
+            }}
+          >
+            Alle Dashboards zurücksetzen
+          </Button>
+        )}
       </Section>
     </Dialog>
   )

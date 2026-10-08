@@ -60,7 +60,13 @@ export function createPinThrottle(options: PinThrottleOptions = {}): PinThrottle
 
       if (!entries.has(key) && entries.size >= maxEntries) {
         for (const [k, e] of entries) if (isStale(e, t)) entries.delete(k)
-        if (entries.size >= maxEntries) entries.delete(entries.keys().next().value as string)
+        // Never a key that is locked right now: flooding the map with made-up names would
+        // otherwise push the guessed account's lock out and allow the next 5 tries (#396 review).
+        if (entries.size >= maxEntries) {
+          const unlocked = [...entries].find(([, e]) => e.lockedUntil <= t)
+          if (!unlocked) return false
+          entries.delete(unlocked[0])
+        }
       }
 
       entry.failures += 1
