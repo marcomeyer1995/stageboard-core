@@ -767,12 +767,33 @@ describe('Fastify routes', () => {
     const hardware = (docs: object[]) => ({ ok: true, status: 200, json: async () => ({ rows: docs.map((doc) => ({ doc })) }) })
 
     it('deletes an unused, unblocked device from the ledger', async () => {
-      const fetchMock = stubFetch([admin, { ok: true, status: 200, json: async () => device() }, hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]), { ok: true, status: 200 }])
+      const fetchMock = stubFetch([
+        admin,
+        { ok: true, status: 200, json: async () => device() },
+        hardware([{ _id: 'logical-devices:k', name: 'Kemper', executionTarget: 'other-device' }]),
+        { ok: true, status: 200, json: async () => device() },
+        { ok: true, status: 200 },
+      ])
       const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
       expect(response.statusCode).toBe(204)
-      const [url, init] = fetchMock.mock.calls[3]
-      expect(String(url)).toContain('devices%3Adevice-1')
-      expect(JSON.parse(init.body)).toEqual({ _id: 'devices:device-1', _rev: '3-c', _deleted: true })
+      const [url, init] = fetchMock.mock.calls[4]
+      expect(String(url)).toContain('devices%3Adevice-1?rev=3-c')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('a write in between is a conflict - read again, and a block set meanwhile is honoured (#426 review)', async () => {
+      const fetchMock = stubFetch([
+        admin,
+        { ok: true, status: 200, json: async () => device() },
+        hardware([]),
+        { ok: true, status: 200, json: async () => device() },
+        { ok: false, status: 409 },
+        { ok: true, status: 200, json: async () => device({ _rev: '4-d', revoked: true }) },
+      ])
+      const response = await app.inject({ method: 'POST', url: '/workspaces/band-a/devices/device-1/forget', payload })
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ message: 'blocked' })
+      expect(fetchMock).toHaveBeenCalledTimes(6)
     })
 
     it('refuses a blocked device - deleting the entry would lift the block', async () => {
@@ -1300,6 +1321,20 @@ describe('Fastify routes', () => {
       })
 
       expect(response.statusCode).toBe(400)
+    })
+
+    it('an admin cannot remove their own profile, even with another admin left (Marco, 2026-10-08)', async () => {
+      const fetchMock = stubFetch([stubAdminVerify()])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p1',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toMatchObject({ message: 'An admin cannot remove their own profile' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('returns 403 when the caller does not verify as an admin', async () => {

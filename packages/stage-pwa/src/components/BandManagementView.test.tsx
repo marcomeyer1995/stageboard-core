@@ -443,9 +443,23 @@ describe('BandManagementView', () => {
     })
     render(<BandManagementView />)
 
-    openMemberMenu('Marco')
+    openMemberMenu('Chris')
     const remove = screen.getByText('Löschen') as HTMLButtonElement
     expect(remove.disabled).toBe(false)
+  })
+
+  it('an admin cannot remove their own profile - only another admin can (Marco, 2026-10-08)', () => {
+    useProfilesStore.setState({
+      profiles: [
+        { id: 'p1', name: 'Marco', stageRoles: ['admin'] },
+        { id: 'p2', name: 'Chris', stageRoles: ['admin'] },
+      ],
+    })
+    useActiveProfileStore.setState({ byWorkspace: { 'band-a': 'p1' } })
+    render(<BandManagementView />)
+
+    openMemberMenu('Marco')
+    expect((screen.getByText('Löschen') as HTMLButtonElement).disabled).toBe(true)
   })
 
   describe('per-member "⋮" actions popup (2026-09-02 tenth follow-up: replaces a row of inline text links that ran out of room on a phone)', () => {
