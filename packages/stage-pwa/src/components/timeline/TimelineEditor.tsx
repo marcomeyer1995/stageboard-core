@@ -900,7 +900,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
     // While a tempo preview is open nothing is grabbed - scrolling and tapping to listen only.
     if (tempoPreview) {
-      pan.current = { pointerId: e.pointerId, startX: x, startView: view, moved: false, lane: null }
+      pan.current = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, effectiveX: x, startView: view, moved: false, lane: null }
       return
     }
     if (y >= cueTop) {
@@ -1736,7 +1736,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {tempoPreview && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sb border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
+        <div className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
           <span className="font-semibold">
             {tempoPreview.endBpm < tempoPreview.startBpm ? 'Wird langsamer' : 'Wird schneller'}: {tempoPreview.startBpm.toFixed(0)} → {tempoPreview.endBpm.toFixed(0)} BPM, Takt{' '}
             {tempoPreview.startBar}–{tempoPreview.endBar} ({tempoPreview.pointCount} Ausrichtungspunkte). Die Linie zeigt das getippte Tempo.
