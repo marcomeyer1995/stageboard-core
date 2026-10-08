@@ -17,15 +17,17 @@ import { useShowLogStore } from '../store/useShowLogStore'
  * Gig mode only - Practice mode has no band/routing concept to route against, same reasoning
  * `ShowTransportWidget`'s Gig-vs-Practice split already uses for audio.
  *
- * Reacts to `elapsedMs` crossing a cue's `timeMs` on every render (a plain polling comparison,
+ * Reacts to the position crossing a cue's `timeMs`, checked every frame (a plain polling comparison,
  * not literal sample-accurate ahead-of-time dispatch per docs/00 §4's sub-5ms rules - the same
  * ~60fps precision `usePlaybackElapsedMs`'s own requestAnimationFrame loop already offers
  * everywhere else cues/timecodes are read in this app).
  */
 export function useCueScheduler(): void {
-  const { mode, queue } = useShowMode()
-  // Every frame on purpose (timing-critical): the time itself, not a coarse value (#457).
-  const elapsedMs = useShowElapsed((ms) => ms)
+  const { mode, queue, elapsedNow } = useShowMode()
+  // Checked every frame, rendered only when one more cue lies behind the position (or playback
+  // starts/stops) - the same frame a cue is crossed, without re-rendering 60 times a second (#457).
+  const cueTimes = queue.currentVariant?.cues
+  const passed = useShowElapsed((ms) => (ms === null ? -1 : (cueTimes ?? []).filter((cue) => cue.timeMs <= ms).length))
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
   // Server cues go out once - from the device that drives the automatic steps (one device even in
@@ -42,7 +44,8 @@ export function useCueScheduler(): void {
   const firedRef = useRef<{ sessionKey: number | null; ids: Set<string> }>({ sessionKey: null, ids: new Set() })
 
   useEffect(() => {
-    if (mode !== 'gig' || elapsedMs === null) return
+    const elapsedMs = elapsedNow()
+    if (mode !== 'gig' || passed < 0 || elapsedMs === null) return
     const cues = queue.currentVariant?.cues ?? []
     if (cues.length === 0) return
 
@@ -78,5 +81,6 @@ export function useCueScheduler(): void {
         })
       })
     }
-  }, [mode, elapsedMs, queue.currentVariant, queue.currentSong, activeEntryStartedAt, logicalDevices, installed, deviceId, isMaster])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- elapsedNow reads the position; `passed` is what changes
+  }, [mode, passed, queue.currentVariant, queue.currentSong, activeEntryStartedAt, logicalDevices, installed, deviceId, isMaster])
 }
