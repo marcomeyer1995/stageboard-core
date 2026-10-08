@@ -48,7 +48,7 @@ export function NetworkServerList({ autoSearch = false, onPaired }: { autoSearch
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-ink-muted">Stage-Server im Netzwerk</span>
-        <button type="button" disabled={searching} onClick={() => void search()} className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink disabled:opacity-50">
+        <button type="button" disabled={searching} onClick={() => void search()} className="min-h-form rounded-control bg-control-strong px-3 text-base font-semibold text-ink disabled:opacity-40">
           {searching ? 'Sucht…' : 'Suchen'}
         </button>
       </div>

@@ -57,7 +57,7 @@ export function ReadyCheckOverlay() {
         type="button"
         disabled={sending}
         onClick={answer}
-        className="w-full max-w-xl rounded-control bg-accent px-8 py-12 text-4xl font-bold uppercase tracking-wide text-accent-ink [@media(hover:hover)]:hover:opacity-90 disabled:opacity-60"
+        className="w-full max-w-xl rounded-control bg-accent px-8 py-12 text-4xl font-bold uppercase tracking-wide text-accent-ink [@media(hover:hover)]:hover:opacity-90 disabled:opacity-40"
       >
         {profile ? 'Ich bin bereit' : 'Schließen'}
       </button>

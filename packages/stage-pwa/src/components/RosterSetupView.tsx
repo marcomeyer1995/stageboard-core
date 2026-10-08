@@ -168,7 +168,7 @@ export function RosterSetupView() {
             <button
               type="submit"
               disabled={!memberName.trim()}
-              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 min-h-form font-semibold disabled:opacity-50"
+              className="flex-shrink-0 rounded-control border border-line bg-surface px-4 min-h-form font-semibold disabled:opacity-40"
             >
               Hinzufügen
             </button>
@@ -217,7 +217,7 @@ export function RosterSetupView() {
           <button
             type="submit"
             disabled={busy || !founderName.trim() || founderPin.length !== 4}
-            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-50"
+            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-40"
           >
             {busy ? '…' : 'Weiter'}
           </button>

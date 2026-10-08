@@ -81,6 +81,15 @@ describe('UI system guard (docs/15)', () => {
     expect(offending(/(?<![\w-])z-(\d+|\[\d+\])(?![\w-])/, { withTs: true })).toEqual([])
   })
 
+  it('heights by role: h-form / h-stage / h-show, not a fixed 48 px (h-12) a theme could not resize', () => {
+    // The status bar's own count block is a bar part, not a control.
+    expect(offending(/(?<![\w-])(min-)?h-12(?![\w-])/).filter((hit) => !hit.includes('StatusBar.tsx'))).toEqual([])
+  })
+
+  it('disabled looks the same everywhere: opacity 40 (ui/styles DISABLED; 100 = deliberately unchanged)', () => {
+    expect(offending(/disabled:opacity-(?!(40|100)(?!\d))\d+/)).toEqual([])
+  })
+
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {
     expect(offending(/>\s*Schließen\s*</)).toEqual([])
   })

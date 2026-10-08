@@ -280,7 +280,7 @@ function EntryRow({
         <button
           type="button"
           onClick={() => onSelectSong(entry.songId, entry.variantId)}
-          className="min-h-12 min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
+          className="min-h-form min-w-0 truncate text-left [@media(hover:hover)]:hover:underline"
         >
           {songNumber}. {title}
         </button>
@@ -407,7 +407,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
       >
         ⠿
       </button>
-      <button type="button" onClick={() => onEdit(entry)} className="min-h-12 min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
+      <button type="button" onClick={() => onEdit(entry)} className="min-h-form min-w-0 flex-1 truncate text-left [@media(hover:hover)]:hover:underline">
         {heading ? (
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (

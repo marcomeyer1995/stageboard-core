@@ -85,7 +85,7 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
       )}
       {technical.length > 0 && (
         <details className="mt-4">
-          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold text-warn">
+          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-warn">
             Technik ({technical.length})
           </summary>
           <div className="space-y-1 text-sm text-warn">

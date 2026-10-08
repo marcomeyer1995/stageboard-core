@@ -478,7 +478,7 @@ export function BandManagementView() {
                       <Badge tone="accent">Du</Badge>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-12 min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-form min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}
@@ -617,7 +617,7 @@ export function BandManagementView() {
                       <button
                         type="submit"
                         disabled={activating || activatePasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
                       >
                         {activating ? '…' : 'Wechseln'}
                       </button>

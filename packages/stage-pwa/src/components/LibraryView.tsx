@@ -260,7 +260,7 @@ function DraggableSongRow({
         <button
           type="button"
           onClick={onClick}
-          className="min-h-12 min-w-0 flex-1 truncate px-2 text-left text-base"
+          className="min-h-form min-w-0 flex-1 truncate px-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}

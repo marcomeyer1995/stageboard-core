@@ -947,7 +947,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               type="button"
               onClick={() => setTextExpanded((v) => !v)}
               aria-expanded={textExpanded}
-              className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
+              className="flex min-h-form items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
             >
               <Icon name={textExpanded ? 'collapse' : 'expand'} /> Text
             </button>
@@ -966,7 +966,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
                   type="button"
                   onClick={section.onToggleExpand}
                   aria-expanded={section.expanded}
-                  className="flex min-h-12 items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
+                  className="flex min-h-form items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
                 >
                   <Icon name={section.expanded ? 'collapse' : 'expand'} /> {section.fullLabel}
                 </button>

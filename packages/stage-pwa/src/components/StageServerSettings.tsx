@@ -91,7 +91,7 @@ export function StageServerSettings() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="z.B. https://stageboard.local"
               aria-label="Stage-Server-Adresse"
-              className={`h-12 min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
             <button
               type="button"
@@ -100,7 +100,7 @@ export function StageServerSettings() {
                 setDraft(draftOverride ?? '')
               }}
               disabled={draftOverride === override}
-              className="h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-50"
+              className="h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
             >
               Speichern
             </button>

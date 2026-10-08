@@ -152,7 +152,7 @@ export function InviteBandView({
                 setCode(result.code)
                 void loadQr(result.code, server)
               }}
-              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-50"
+              className="min-h-form w-full text-center text-base text-ink-faint underline disabled:opacity-40"
             >
               {rotating ? 'Erzeuge neuen Code…' : 'Code ändern'}
             </button>

@@ -31,7 +31,7 @@ export function WorkspaceHardwareSettings() {
         type="button"
         disabled={status !== 'reachable' || !workspaces?.length}
         onClick={() => setWizardOpen(true)}
-        className="h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
+        className="h-form rounded-control bg-control px-4 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
       >
         Band wechseln…
       </button>

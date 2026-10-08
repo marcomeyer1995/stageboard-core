@@ -38,7 +38,7 @@ export function FlashSettings() {
             step={1}
             value={seconds}
             onChange={(e) => setSeconds(Number(e.target.value))}
-            className="h-12 w-full accent-accent"
+            className="h-form w-full accent-accent"
           />
         </label>
       )}

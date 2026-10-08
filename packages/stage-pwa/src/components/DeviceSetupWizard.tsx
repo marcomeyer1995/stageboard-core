@@ -305,7 +305,7 @@ function ConnectionStep({
                     type="button"
                     onClick={() => void sendTrigger(c.hardwareKey)}
                     disabled={sendingKey === c.hardwareKey}
-                    className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                    className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-40"
                   >
                     {sendingKey === c.hardwareKey ? 'sende…' : 'Jetzt senden'}
                   </button>
@@ -333,7 +333,7 @@ function ConnectionStep({
                 type="button"
                 onClick={() => void claimCandidate(c.reporterId, c.hardwareKey)}
                 disabled={assigningKey === c.hardwareKey}
-                className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
+                className="h-form shrink-0 rounded-control bg-accent px-2 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:cursor-wait disabled:opacity-40"
               >
                 {assigningKey === c.hardwareKey ? 'übernehme…' : 'Verwenden'}
               </button>

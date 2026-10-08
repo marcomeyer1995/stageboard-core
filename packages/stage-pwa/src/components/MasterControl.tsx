@@ -139,7 +139,7 @@ export function MasterControl() {
         onPointerLeave={() => endHold(false)}
         onPointerCancel={() => endHold(false)}
         onContextMenu={(e) => e.preventDefault()}
-        className={`relative flex h-stage w-full items-center justify-between overflow-hidden bg-control px-4 text-lg ${CONTROL} ${FOCUS} ${HOVER} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`relative flex h-stage w-full items-center justify-between overflow-hidden bg-control px-4 text-lg ${CONTROL} ${FOCUS} ${HOVER} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         <span
           aria-hidden
