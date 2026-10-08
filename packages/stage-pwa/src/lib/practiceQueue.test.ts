@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { stopLocalTrack } from './localAudioEngine'
-import { practiceAdvanceNext, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
+import { practiceAdvanceNext, practiceBeginLoop, practiceEndLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
 
 vi.mock('./localAudioEngine', () => ({
@@ -143,5 +143,33 @@ describe('practice log (Solo Üben, "Geübt" / "30 Tage")', () => {
     ran(8_000)
     await practiceStopSong()
     expect(practiceLog.add).not.toHaveBeenCalled()
+  })
+
+  it('a loop counts the time it played, not where it sits in the song (#430 review)', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000_000)
+      ran(0)
+      practiceBeginLoop(150_000)
+      vi.setSystemTime(1_003_000)
+      practiceEndLoop(152_000)
+      await practiceStopSong()
+      expect(practiceLog.add).not.toHaveBeenCalled()
+
+      ran(30_000)
+      practiceBeginLoop(150_000)
+      vi.setSystemTime(1_028_000)
+      practiceEndLoop(160_000)
+      await practiceStopSong()
+      expect(practiceLog.add).toHaveBeenCalledWith(expect.objectContaining({ activeMs: 55_000 }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('switching the variant ends the take like leaving the song', () => {
+    ran(95_000)
+    practiceSetVariantOverride('v-acoustic')
+    expect(practiceLog.add).toHaveBeenCalledWith(expect.objectContaining({ songId: 's1', activeMs: 95_000 }))
   })
 })

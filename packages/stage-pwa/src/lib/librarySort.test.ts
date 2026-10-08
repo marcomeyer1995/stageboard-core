@@ -72,4 +72,15 @@ describe('Bibliothek sorting', () => {
     const context = { activeSetlist: null, practice: new Map(), rehearsal: lastTwoShows }
     expect(sortSongs(songs, 'rehearsed', context, true).map((s) => s.id)).toEqual(['b', 'a', 'c'])
   })
+
+  it('same count in the period: the one practised longest ago first, never practised before that (2026-10-08)', () => {
+    const songs = [{ id: 'a', title: 'Alpha' }, { id: 'b', title: 'Bravo' }, { id: 'c', title: 'Charlie' }] as Song[]
+    const practice = new Map([
+      ['a', { count: 0, last: 5_000 }],
+      ['b', { count: 0, last: 1_000 }],
+    ])
+    const context = { activeSetlist: null, practice, rehearsal: new Map() }
+    expect(sortSongs(songs, 'practiced', context).map((s) => s.id)).toEqual(['c', 'b', 'a'])
+    expect(sortSongs(songs, 'practiced', context, true).map((s) => s.id)).toEqual(['a', 'b', 'c'])
+  })
 })

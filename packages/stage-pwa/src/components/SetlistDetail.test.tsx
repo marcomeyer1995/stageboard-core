@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Setlist, SetlistEntry, Song, SongVariant } from 'shared-types'
+import { changeSetlistDraft } from '../lib/setlistDrafts'
+import { hasUnsavedChanges } from '../lib/unsavedChanges'
 
 // Every *Store.ts pulls in a real PouchDB at import time (createWorkspaceCollection et al.),
 // unavailable under happy-dom - same stand-in as LibraryView.test.tsx/SheetEditor.test.tsx.
@@ -206,6 +208,40 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     askUnsaved.mockResolvedValue('save')
     fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
     await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour' })))
+  })
+
+  it('a name saved with a trailing space leaves nothing unsaved behind (#430 review)', async () => {
+    const saveSetlist = vi.fn(async (saved: Setlist) => useSetlistsStore.setState({ setlists: [saved] }))
+    useSetlistsStore.setState({ saveSetlist })
+    renderEditing()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Sommerfest ' } })
+    expect(hasUnsavedChanges()).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Sommerfest' })))
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(false))
+  })
+
+  it('a song dropped on the setlist while editing goes into the draft, saved with it (#430 review)', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist })
+    const addC = (current: Setlist) => ({ ...current, entries: [...current.entries, entry('e3', 'c')] })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+    expect(changeSetlistDraft('sl-1', addC)).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour' } })
+    let intoDraft = false
+    act(() => {
+      intoDraft = changeSetlistDraft('sl-1', addC)
+    })
+    expect(intoDraft).toBe(true)
+    expect(saveSetlist).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+    await waitFor(() =>
+      expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour', entries: [entry('e1', 'a'), entry('e2', 'b'), entry('e3', 'c')] })),
+    )
   })
 
   it('"Abbrechen" without changes goes straight back, no question', async () => {
