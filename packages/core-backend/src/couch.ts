@@ -277,6 +277,33 @@ export async function putDocWithRetry<T extends CouchDoc>(
   }
 }
 
+/**
+ * Deletes `id` unless `refuse(existing)` names a reason not to. The check and the delete use the
+ * same revision: on a write conflict it reads again and checks again (up to 5 times), so a
+ * concurrent change is never ignored the way `putDoc` ignores a 409. Returns 'deleted', 'missing'
+ * (no such doc) or the reason.
+ */
+export async function deleteDocUnless<T extends CouchDoc, R extends string>(
+  config: CouchConfig,
+  db: string,
+  id: string,
+  refuse: (existing: T) => R | null,
+): Promise<'deleted' | 'missing' | R> {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const existing = await getDoc<T>(config, db, id)
+    if (!existing) return 'missing'
+    const reason = refuse(existing)
+    if (reason !== null) return reason
+    const response = await request(config, `${dbUrl(config, db)}/${encodeURIComponent(id)}?rev=${encodeURIComponent(existing._rev ?? '')}`, { method: 'DELETE' })
+    if (response.ok) return 'deleted'
+    if (response.status === 404) return 'missing'
+    if (response.status !== 409 || attempt === 5) {
+      throw new Error(`Failed to delete ${db}/${id}: HTTP ${response.status}`)
+    }
+  }
+  throw new Error(`Failed to delete ${db}/${id}`)
+}
+
 /** Downloads a binary attachment; `null` if the document or attachment does not exist. */
 export async function getAttachment(
   config: CouchConfig,
