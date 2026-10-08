@@ -151,13 +151,9 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             placeholder="Songtitel..."
             className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
           />
-          <button
-            type="submit"
-            disabled={busy === 'searching' || !query.trim()}
-            className="rounded-control bg-control-strong px-3 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-          >
+          <Button type="submit" disabled={busy === 'searching' || !query.trim()}>
             {busy === 'searching' ? 'Suche...' : 'Suchen'}
-          </button>
+          </Button>
         </form>
 
         {error && <p className="text-sm text-danger">{error}</p>}
@@ -180,14 +176,9 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                   {r.rating !== undefined && <RatingLine rating={r.rating} votes={r.votes} />}
                 </button>
                 {r.sourceUrl && (
-                  <button
-                    type="button"
-                    onClick={() => openSourcePreview(r.sourceUrl!)}
-                    title="Original-Seite öffnen"
-                    className="flex-shrink-0 rounded-control px-2 py-1 text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
-                  >
+                  <Button className="flex-shrink-0" onClick={() => openSourcePreview(r.sourceUrl!)} title="Original-Seite öffnen">
                     <Icon name="external" />
-                  </button>
+                  </Button>
                 )}
               </li>
             ))}
@@ -207,13 +198,9 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                 >
                   {selected.sourceUrl}
                 </a>
-                <button
-                  type="button"
-                  onClick={() => openSourcePreview(selected.sourceUrl!)}
-                  className="flex flex-shrink-0 items-center gap-1 rounded-control bg-control-strong px-2 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
+                <Button className="flex-shrink-0" onClick={() => openSourcePreview(selected.sourceUrl!)}>
                   Original ansehen <Icon name="external" />
-                </button>
+                </Button>
               </div>
             )}
             {busy === 'loading-detail' && <p className="text-ink-faint">Lädt...</p>}

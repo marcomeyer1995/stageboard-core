@@ -7,6 +7,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { InviteBandView } from './InviteBandView'
 import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 type Phase = 'founder' | 'members' | 'summary'
 
@@ -174,13 +175,9 @@ export function RosterSetupView() {
             </button>
           </form>
 
-          <button
-            type="button"
-            onClick={handleMembersDone}
-            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink"
-          >
+          <Button variant="primary" fullWidth onClick={handleMembersDone}>
             Weiter
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -214,13 +211,9 @@ export function RosterSetupView() {
             inputMode="numeric"
             className={`h-form min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
-          <button
-            type="submit"
-            disabled={busy || !founderName.trim() || founderPin.length !== 4}
-            className="w-full rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink disabled:opacity-40"
-          >
+          <Button variant="primary" fullWidth type="submit" disabled={busy || !founderName.trim() || founderPin.length !== 4}>
             {busy ? '…' : 'Weiter'}
-          </button>
+          </Button>
         </form>
 
         {/* No band rename (#58) means a typo in the name typed on the previous screen is

@@ -5,6 +5,7 @@ import { ensureDefaultVariant } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
+import { Button } from './ui'
 
 interface SongPreviewProps {
   songId: string
@@ -67,13 +68,9 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
           <h2 className="truncate text-2xl font-bold text-ink">{song.title || '(ohne Titel)'}</h2>
           {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
         </div>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="h-form flex-shrink-0 rounded-control bg-accent px-4 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-        >
+        <Button variant="primary" className="flex-shrink-0" onClick={onEdit}>
           Bearbeiten
-        </button>
+        </Button>
       </div>
 
       {/* At-a-glance overview of what this song actually has attached, present or not (Marco,

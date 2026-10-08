@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Switch } from './ui'
+import { Switch, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 
 type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-context' | 'unsupported'
@@ -339,13 +339,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                         autoFocus
                         className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
-                      <button
-                        type="submit"
-                        disabled={busy || memberPasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
-                      >
+                      <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || memberPasswordInput.length !== 4}>
                         {busy ? '…' : 'Beitreten'}
-                      </button>
+                      </Button>
                     </div>
                     {/* Admin-only screen (2026-09-02 second follow-up, at Marco's explicit
                         request) - only reached for an `isAdmin: true` entry. Deliberately no
@@ -408,13 +404,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               autoFocus
               className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
-            <button
-              type="submit"
-              disabled={busy || manualCode.trim().length === 0}
-              className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
-            >
+            <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || manualCode.trim().length === 0}>
               {busy ? '…' : 'Weiter'}
-            </button>
+            </Button>
           </form>
 
           <button type="button" onClick={backToList} className="min-h-form w-full text-center text-sm text-ink-faint underline">
@@ -442,13 +434,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             App.tsx onboarding gate passes no onClose, since there's nothing to close back to
             with zero known bands. */}
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-control bg-control px-4 py-2 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-          >
+          <Button fullWidth onClick={onClose}>
             Abbrechen
-          </button>
+          </Button>
         )}
 
         {!native && /Android/i.test(navigator.userAgent) && (
@@ -487,9 +475,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                     aria-label="Adresse des Stage-Servers"
                   />
-                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-40">
+                  <Button className="flex-shrink-0" type="submit" disabled={!serverAddress.trim()}>
                     Verbinden
-                  </button>
+                  </Button>
                 </div>
                 {connectError && <p className="text-sm text-warn">{connectError}</p>}
                 {/* #351: servers announcing themselves - searched right away while not yet paired. */}
@@ -507,9 +495,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                   aria-label="Adresse des Stage-Servers"
                 />
-                <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-40">
+                <Button className="flex-shrink-0" type="submit" disabled={!serverAddress.trim()}>
                   Verbinden
-                </button>
+                </Button>
               </div>
               {connectError && <p className="text-sm text-warn">{connectError}</p>}
               {/* #351: servers announcing themselves - searched right away while not yet paired. */}
@@ -594,17 +582,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             Weitere Bands legt ein Band-Admin an: System → Band → „+ Band“. Danach lädt er dich ein.
           </p>
         ) : (
-          <button
-            type="button"
-            disabled={loadingWorkspaces}
-            onClick={async () => {
+          <Button fullWidth disabled={loadingWorkspaces} onClick={async () => {
               const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
               if (name?.trim()) void addWorkspace(name.trim())
-            }}
-            className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
-          >
+            }}>
             Neue Band gründen
-          </button>
+          </Button>
         )}
 
         <div>
@@ -653,12 +636,9 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   aria-label="Passwort oder PIN"
                   className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
                 />
-                <button
-                  type="submit"
-                  className="flex-shrink-0 rounded-control bg-control-strong px-4 min-h-form font-semibold"
-                >
+                <Button className="flex-shrink-0" type="submit">
                   OK
-                </button>
+                </Button>
               </div>
               {/* Self-declared, not verified here - a wrong guess only mis-shows admin UI,
                   CouchDB's roster validator is what actually enforces admin-only writes. */}

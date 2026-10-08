@@ -148,13 +148,9 @@ export function VerifyWorkspaceAdmin({
             autoFocus
             className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
-          <button
-            type="submit"
-            disabled={busy || manualCode.trim().length === 0}
-            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
-          >
+          <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || manualCode.trim().length === 0}>
             {busy ? '…' : 'Weiter'}
-          </button>
+          </Button>
         </form>
       )}
 
@@ -197,13 +193,9 @@ export function VerifyWorkspaceAdmin({
             autoFocus
             className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
-          <button
-            type="submit"
-            disabled={busy || pinInput.length !== 4}
-            className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-40"
-          >
+          <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || pinInput.length !== 4}>
             {busy ? '…' : 'Bestätigen'}
-          </button>
+          </Button>
         </form>
       )}
 

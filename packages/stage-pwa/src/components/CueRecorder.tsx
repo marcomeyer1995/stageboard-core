@@ -14,7 +14,7 @@ import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfig
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
-import { Switch } from './ui'
+import { Switch, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 
 interface CueRecorderProps {
@@ -178,9 +178,9 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       ) : (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 py-2 text-xs text-ink-soft">
           <audio {...audioProps} />
-          <button type="button" onClick={togglePlay} className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+          <Button onClick={togglePlay}>
             {isPlaying ? 'Pause' : 'Play'}
-          </button>
+          </Button>
           <span className="font-sb-mono">
             {formatTrackClockTime(position)} / {formatTrackClockTime(duration)}
           </span>
@@ -210,9 +210,9 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
                 </option>
               ))}
             </select>
-            <button type="button" onClick={refreshInputs} title="MIDI-Eingänge neu einlesen" className="rounded-control bg-control-strong px-2 text-sm text-ink [@media(hover:hover)]:hover:bg-control-strong-hover">
+            <Button onClick={refreshInputs} title="MIDI-Eingänge neu einlesen">
               <Icon name="retry" />
-            </button>
+            </Button>
           </span>
         </label>
       </div>
@@ -236,14 +236,9 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
 
       <div className="flex flex-col gap-2 rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void analyzeOnsets()}
-            disabled={!trackSrc || analyzing}
-            className="rounded-control bg-control-strong px-3 min-h-form font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <Button onClick={() => void analyzeOnsets()} disabled={!trackSrc || analyzing}>
             {analyzing ? 'Analysiere…' : 'Onsets analysieren'}
-          </button>
+          </Button>
           {onsets && <span className="text-xs text-ink-faint">{onsets.onsets.length} Onsets gefunden</span>}
           {onsets && (
             <>
@@ -286,17 +281,12 @@ export function CueRecorder({ trackSrc, chordProContent, onComplete, onCancel }:
       </div>
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={accept}
-          disabled={rows.length === 0}
-          className="flex-1 rounded-control bg-accent py-3 text-lg font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-        >
+        <Button variant="primary" className="flex-1" onClick={accept} disabled={rows.length === 0}>
           Übernehmen{rows.length > 0 ? ` (${rows.length} Cues)` : ''}
-        </button>
-        <button type="button" onClick={onCancel} className="rounded-control bg-control-strong px-4 py-3 text-sm [@media(hover:hover)]:hover:bg-control-strong-hover">
+        </Button>
+        <Button onClick={onCancel}>
           Abbrechen
-        </button>
+        </Button>
       </div>
     </div>
   )

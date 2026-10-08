@@ -129,13 +129,9 @@ export function InviteBandView({
                 nicht mit einer normalen Kamera-App.
               </p>
             )}
-            <button
-              type="button"
-              onClick={() => void printPage(`StageBoard - ${bandName || 'Band'} einladen`)}
-              className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover"
-            >
+            <Button fullWidth onClick={() => void printPage(`StageBoard - ${bandName || 'Band'} einladen`)}>
               Drucken / als PDF speichern
-            </button>
+            </Button>
             <button
               type="button"
               disabled={rotating}

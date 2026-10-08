@@ -35,6 +35,7 @@ import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { Button } from './ui'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -340,17 +341,13 @@ export function Dashboard() {
             gezeigt).
           </span>
           {current.source !== 'stored' && (
-            <button
-              type="button"
-              onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}
-              className="h-touch rounded-control bg-accent px-4 font-bold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
-            >
+            <Button variant="primary" size="stage" onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}>
               {current.source === 'repaired'
                 ? 'Zu kleine Widgets neu platzieren'
                 : current.source === 'stacked'
                   ? 'Untereinander übernehmen'
                   : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
-            </button>
+            </Button>
           )}
         </div>
       )}

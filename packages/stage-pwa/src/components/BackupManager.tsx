@@ -10,7 +10,7 @@ import {
   parseWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
-import { Badge } from './ui'
+import { Badge, Button } from './ui'
 
 /**
  * A focused view of just the band's backup-capability plugin(s), for the "gated built-in
@@ -109,20 +109,12 @@ export function BackupManager() {
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void handleExport()}
-          className="rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink"
-        >
+        <Button variant="primary" onClick={() => void handleExport()}>
           Backup herunterladen
-        </button>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="min-h-form rounded-control bg-control-strong px-4 font-semibold"
-        >
+        </Button>
+        <Button onClick={() => fileInputRef.current?.click()}>
           Backup wiederherstellen…
-        </button>
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
