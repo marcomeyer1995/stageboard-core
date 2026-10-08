@@ -1,4 +1,4 @@
-import { isTransitionEntry, type ShowState } from 'shared-types'
+import { isSongEntry, isTransitionEntry, type ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
@@ -6,6 +6,7 @@ import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, shouldStartNewShow } from './showLogTracking'
+import { stoppedNearEnd } from './entryDuration'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -170,8 +171,11 @@ export async function pauseSong(): Promise<void> {
 export async function stopSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  finalizeCurrentSong(state, getServerTime())
-  await applyPatch(REARM_PATCH)
+  const now = getServerTime()
+  const { currentEntry, currentVariant } = getQueueSnapshot()
+  const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), now))
+  finalizeCurrentSong(state, now)
+  await applyPatch({ ...REARM_PATCH, trackEnded: ended })
 }
 
 /** Stop because the track ran out by itself (useAutoStopDriver): like Stop, but leaves the entry

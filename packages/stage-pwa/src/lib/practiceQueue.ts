@@ -1,4 +1,4 @@
-import { isTransitionEntry } from 'shared-types'
+import { isSongEntry, isTransitionEntry } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
 import { clickTimeline } from './beatGrid'
@@ -20,6 +20,7 @@ import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
 import { MIN_SONG_DURATION_MS } from './showLogTracking'
 import { randomId } from './id'
+import { stoppedNearEnd } from './entryDuration'
 
 /**
  * Practice mode's counterpart to queue.ts - deliberately never touches the real, synced
@@ -189,8 +190,11 @@ export function practiceEndLoop(positionMs: number): void {
 
 export async function practiceStopSong(): Promise<void> {
   clearScheduledAudioStart()
+  const { currentEntry, currentVariant } = snapshot()
+  const state = currentPracticeState()
+  const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), Date.now()))
   logPracticeTake()
-  patch(transportPatch(ARMED_TRANSPORT))
+  patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: ended })
   stopLocalTrack()
 }
 
