@@ -26,7 +26,7 @@ import { useShowMode } from './showMode'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
+  const { elapsedMs, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
   const { currentEntry, currentVariant, nextEntry } = queue
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`

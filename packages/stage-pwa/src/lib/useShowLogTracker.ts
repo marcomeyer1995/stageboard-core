@@ -4,7 +4,7 @@ import type { CapabilityStatus } from './capabilities'
 import { diffCapabilities } from './showLogTracking'
 import { useCapabilities } from './useCapabilities'
 import { useShowLogStore } from '../store/useShowLogStore'
-import { useShowStateStore } from '../store/useShowStateStore'
+import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Derives capability-changed events from hardware capability changes over time. Mount once,
@@ -20,7 +20,8 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * time rather than a discrete user action.
  */
 export function useShowLogTracker(): void {
-  const isMaster = useShowStateStore((state) => state.isMaster)
+  // One device even in Pro-Person mode - otherwise each master device logged the same change.
+  const isMaster = useShowStateStore(drivesAutomation)
   const currentShowId = useShowStateStore((state) => state.state.currentShowId)
   const capabilities = useCapabilities()
   const append = useShowLogStore((state) => state.append)
