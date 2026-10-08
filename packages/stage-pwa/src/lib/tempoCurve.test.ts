@@ -149,7 +149,7 @@ describe('gridFromTappedCurve (#354)', () => {
     expect(result.endBar).toBeLessThan(20)
   })
 
-  it('refuses when the next point leaves no room', () => {
+  it('a point inside the tapped passage is replaced by what was tapped (2026-10-08 - used to refuse)', () => {
     const real = truth(RIT)
     const grid: BeatGrid = {
       points: [
@@ -158,6 +158,73 @@ describe('gridFromTappedCurve (#354)', () => {
       ],
       meters: [],
     }
-    expect(gridFromTappedCurve(grid, 120, '4/4', tapsFor(real, 1, 15)).kind).toBe('refused')
+    const result = gridFromTappedCurve(grid, 120, '4/4', tapsFor(real, 1, 15))
+    if (result.kind !== 'grid') throw new Error('expected a grid')
+    expect(result.grid.points.find((p) => p.id === 'p8')).toBeUndefined()
+    expect(worst(result.grid, 120, real, 24, 68)).toBeLessThan(90)
+  })
+
+  // Marco, 2026-10-08 (Xiaomi, "Whats up"): the amber tapped curve looked right, but "Übernehmen"
+  // gave a grid with jumps (176 / 164 / 98 BPM). The three causes, each as a case:
+  describe('the grid follows the tapped curve, whatever the old grid looked like', () => {
+    /** Tempo of every stretch the click plays over the passage. */
+    const stretchBpms = (grid: BeatGrid, from: number, to: number) => {
+      const timeline = clickTimeline({ beatGrid: grid, bpm: 120, timeSignature: '4/4' })
+      const out: number[] = []
+      for (let b = from; b < to; b++) out.push(60000 / (timeline.timeOfBeat(b + 1) - timeline.timeOfBeat(b)))
+      return out
+    }
+
+    it('old, misplaced points inside the tapped passage are replaced - not kept as a jump', () => {
+      const real = truth(RIT)
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        const r = rng(seed + 100)
+        // An earlier attempt left a point on every bar from 8 to 17, each up to ±300 ms off.
+        const points = [{ id: 'p1', bar: 1, timeMs: real[0]! }]
+        for (let bar = 8; bar <= 17; bar++) points.push({ id: `old${bar}`, bar, timeMs: Math.round(real[(bar - 1) * 4]! + 300 * (r() * 2 - 1)) })
+        const result = gridFromTappedCurve({ points, meters: [] }, 120, '4/4', tapsFor(real, seed, 15))
+        if (result.kind !== 'grid') throw new Error(`seed ${seed}: expected a grid, got ${JSON.stringify(result)}`)
+        expect(result.endBar).toBeGreaterThanOrEqual(17)
+        expect(worst(result.grid, 120, real, 24, 68)).toBeLessThan(90)
+        for (const bpm of stretchBpms(result.grid, 24, 68)) {
+          expect(bpm).toBeGreaterThan(80)
+          expect(bpm).toBeLessThan(130)
+        }
+      }
+    })
+
+    it('a wrong tempo before the tapped passage does not decide where the change starts', () => {
+      // The slowdown starts right where tapping starts (bar 7) - the first stretch is gradual.
+      const real = truth([
+        [24, 120, 120],
+        [16, 120, 90],
+        [40, 90, 90],
+      ])
+      // The old grid plays 150 BPM into bar 7 (bar 6 misplaced), the band plays 120.
+      const grid: BeatGrid = {
+        points: [
+          { id: 'p1', bar: 1, timeMs: real[0]! },
+          { id: 'p6', bar: 6, timeMs: Math.round(real[24]! - 4 * 400) },
+          { id: 'p7', bar: 7, timeMs: Math.round(real[24]!) },
+        ],
+        meters: [],
+      }
+      const result = gridFromTappedCurve(grid, 120, '4/4', tapsFor(real, 2, 15))
+      if (result.kind !== 'grid') throw new Error(`expected a grid, got ${JSON.stringify(result)}`)
+      expect(result.startBpm).toBeLessThan(128)
+      expect(worst(result.grid, 120, real, 24, 68)).toBeLessThan(90)
+    })
+
+    it('starting to tap a little early does not shift everything by a beat', () => {
+      const real = truth(RIT)
+      const r = rng(3)
+      // Anticipating the beat: 40 ms early instead of late.
+      const taps = real.slice(24, 72).map((t) => t - 40 + 15 * gauss(r))
+      const result = gridFromTappedCurve(bar1At(real[0]!), 120, '4/4', taps)
+      if (result.kind !== 'grid') throw new Error(`expected a grid, got ${JSON.stringify(result)}`)
+      expect(result.startBar).toBe(7)
+      expect(worst(result.grid, 120, real, 24, 68)).toBeLessThan(90)
+    })
   })
 })
+

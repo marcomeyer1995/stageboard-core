@@ -331,9 +331,15 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   const hi = Math.max(...bpms)
   if ((hi - lo) / ((hi + lo) / 2) < STEADY_SPREAD) return { kind: 'steady' }
 
-  const timeline = clickTimeline({ beatGrid: grid, bpm, timeSignature })
+  // Where the tapping starts is read from the grid *before* it: points inside the tapped passage
+  // are about to be replaced, and an earlier attempt may have left them wrong - read through them,
+  // the start landed a bar off and the passage was cut short at the first of them (Marco,
+  // 2026-10-08: the amber curve right, the applied grid 176 / 164 / 98 BPM).
+  const firstTap = tapsMs.length ? Math.min(...tapsMs) : 0
+  const before: BeatGrid = { ...grid, points: grid.points.filter((p) => p.timeMs < firstTap - 50) }
+  const timeline = clickTimeline({ beatGrid: before.points.length > 0 ? before : grid, bpm, timeSignature })
   // The beat the first tap belongs to: taps are late, never early by more than jitter.
-  const firstGridBeat = timeline.beatAtOrBefore(tapsMs.length ? Math.min(...tapsMs) + 30 : 0)
+  const firstGridBeat = timeline.beatAtOrBefore(firstTap + 30)
   const startBar = Math.max(1, timeline.barOf(firstGridBeat) + (timeline.beatInBar(firstGridBeat) === 0 ? 0 : 1))
   const startBeat = timeline.barStartBeat(startBar)
   const curveAt = (gridBeat: number) => curve.find((c) => c.beat === gridBeat - firstGridBeat)
@@ -348,22 +354,19 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   const offset = timeline.timeOfBeat(startBeat) - startPoint.timeMs
   const lastTapped = curve[curve.length - 1]!.beat + firstGridBeat - startBeat
   const points = [...grid.points].sort((a, b) => a.bar - b.bar)
-  const next = points.find((p) => p.bar > startBar) ?? null
+  // Every bar tapped through belongs to the passage - old points inside it are replaced, the
+  // passage no longer stops at the first of them.
   const barBeats: number[] = []
   for (let bar = startBar; ; bar++) {
     const rel = timeline.barStartBeat(bar) - startBeat
-    if (rel > lastTapped || (next && bar >= next.bar)) break
+    if (rel > lastTapped) break
     barBeats.push(rel)
   }
   if (barBeats.length < 2) {
-    return {
-      kind: 'refused',
-      reason: next
-        ? `Zwischen Takt ${startBar} und dem nächsten Ausrichtungspunkt (Takt ${next.bar}) ist kein Platz für eine Tempoänderung.`
-        : 'Zu wenige Schläge getippt - mindestens zwei Takte lang mittippen.',
-    }
+    return { kind: 'refused', reason: 'Zu wenige Schläge getippt - mindestens zwei Takte lang mittippen.' }
   }
   const endBar = startBar + barBeats.length - 1
+  const next = points.find((p) => p.bar > endBar) ?? null
   // Observations on the grid's beat numbers relative to the start bar; fitted on the raw taps.
   const relObs = obs.map((o) => ({
     beat: o.beat + firstGridBeat - startBeat,
