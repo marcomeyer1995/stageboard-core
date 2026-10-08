@@ -35,7 +35,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, MENU_ROW } from './ui'
+import { AddRow, Badge, Dialog, Field, MENU_ROW, Button } from './ui'
 import { INPUT, SELECTED } from './ui/styles'
 
 interface SetlistDetailProps {
@@ -734,21 +734,12 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
       <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => void leaveEditing()}
-          className="h-form rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
+        <Button onClick={() => void leaveEditing()}>
           Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={!setlist.name.trim()}
-          className="h-form rounded-control bg-accent px-5 text-base font-semibold text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover disabled:opacity-40"
-        >
+        </Button>
+        <Button variant="primary" onClick={() => void handleSave()} disabled={!setlist.name.trim()}>
           Speichern
-        </button>
+        </Button>
       </div>
       <Field label="Name" value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}

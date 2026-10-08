@@ -69,6 +69,7 @@ import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 import { Icon } from './components/Icon'
 import { useMasterSelfCheck } from './lib/useMasterSelfCheck'
+import { Button } from './components/ui'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -304,11 +305,7 @@ function App() {
             bar carries the menu button. */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
           <div className="absolute bottom-3 right-3 z-content flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="relative flex h-form items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-            >
+            <Button className="relative" onClick={() => setMenuOpen(true)}>
               <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}
               {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
@@ -326,7 +323,7 @@ function App() {
                   }[syncStatus]
                 }`}
               />
-            </button>
+            </Button>
           </div>
         )}
       </div>

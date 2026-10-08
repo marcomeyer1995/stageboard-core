@@ -52,14 +52,9 @@ export function KeybindingSettings() {
               >
                 {describeAction(binding.action)}
               </button>
-              <button
-                type="button"
-                onClick={() => remove(binding.key)}
-                aria-label={`Zuordnung für ${keyLabel(binding.key)} löschen`}
-                className="flex h-form w-12 flex-shrink-0 items-center justify-center rounded-control text-ink-muted [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
-              >
+              <Button className="w-12 flex-shrink-0" onClick={() => remove(binding.key)} aria-label={`Zuordnung für ${keyLabel(binding.key)} löschen`}>
                 <Icon name="close" />
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -177,13 +172,9 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                     </select>
                   </label>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => setSteps(ONE_BUTTON_SHOW)}
-                  className="min-h-form self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
+                <Button className="self-start" onClick={() => setSteps(ONE_BUTTON_SHOW)}>
                   Vorlage „Ein-Tasten-Show“
-                </button>
+                </Button>
               </div>
             )}
           </>

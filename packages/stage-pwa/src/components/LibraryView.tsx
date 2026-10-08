@@ -29,7 +29,7 @@ import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, hasUnsavedChanges } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { AddRow, Badge, Segmented, Tabs } from './ui'
+import { AddRow, Badge, Segmented, Tabs, Button } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
@@ -268,15 +268,9 @@ function DraggableSongRow({
         </button>
         {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
         {showAddButton && (
-          <button
-            type="button"
-            onClick={() => onAddToActiveSetlist?.()}
-            disabled={!onAddToActiveSetlist}
-            title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-form w-form flex-shrink-0 items-center justify-center rounded-control text-xl text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink disabled:opacity-40"
-          >
+          <Button className="w-form flex-shrink-0" onClick={() => onAddToActiveSetlist?.()} disabled={!onAddToActiveSetlist} title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}>
             <Icon name="add" />
-          </button>
+          </Button>
         )}
         <OverflowMenu
           title={song.title || '(ohne Titel)'}
