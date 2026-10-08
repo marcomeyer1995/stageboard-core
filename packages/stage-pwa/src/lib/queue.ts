@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { isSongEntry, isTransitionEntry, type ShowState } from 'shared-types'
 import { computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
@@ -21,7 +22,8 @@ export function useQueue(): Queue & { isMaster: boolean } {
   const isMaster = useShowStateStore((state) => state.isMaster)
   const variants = useSongVariantsStore((state) => state.variants)
 
-  return { ...computeQueue(songs, setlists, showState, variants), isMaster }
+  // Once per change of its inputs, not on every render of every caller (#457).
+  return useMemo(() => ({ ...computeQueue(songs, setlists, showState, variants), isMaster }), [songs, setlists, showState, variants, isMaster])
 }
 
 /** Non-reactive equivalent for imperative callers (e.g. the MIDI trigger handler). */

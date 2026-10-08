@@ -1,3 +1,4 @@
+import { useEffect, useReducer, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import type { Queue } from './computeQueue'
 import type { PlayOptions } from './playbackTransport'
@@ -28,8 +29,9 @@ import {
   practiceStopSongAtTrackEnd,
   usePracticeQueue,
 } from './practiceQueue'
-import { gigElapsedMsNow, usePlaybackElapsedMs } from './usePlaybackElapsedMs'
-import { practiceElapsedMsNow, usePracticeElapsedMs } from './usePracticeElapsedMs'
+import { gigElapsedMsNow } from './usePlaybackElapsedMs'
+import { practiceElapsedMsNow } from './usePracticeElapsedMs'
+import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
 import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
@@ -38,7 +40,12 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 export interface ShowModeApi {
   mode: SessionMode
   queue: Queue
-  elapsedMs: number | null
+  /**
+   * The song position right now, read when called - not a value that re-renders (#457): a
+   * component that shows the time uses useShowElapsed() for exactly what it shows; a handler
+   * (a key press, a button) calls this at that moment.
+   */
+  elapsedNow: () => number | null
   playbackStatus: PlaybackStatus
   trackOverride: string | null
   /** Live +/- tempo correction on top of the current song's bpm (#140) - Gig mode only, always
@@ -113,8 +120,6 @@ export function useShowMode(): ShowModeApi {
 
   const gigQueue = useQueue()
   const practiceQueue = usePracticeQueue()
-  const gigElapsedMs = usePlaybackElapsedMs()
-  const practiceElapsedMs = usePracticeElapsedMs()
   const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
   const gigDrives = useShowStateStore(drivesAutomation)
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
@@ -128,7 +133,7 @@ export function useShowMode(): ShowModeApi {
     return {
       mode,
       queue: practiceQueue,
-      elapsedMs: practiceElapsedMs,
+      elapsedNow: () => practiceElapsedMsNow(workspaceId),
       playbackStatus: practiceState.playbackStatus,
       trackOverride: practiceState.trackOverride,
       liveTempoAdjustPercent: 0,
@@ -156,7 +161,7 @@ export function useShowMode(): ShowModeApi {
   return {
     mode,
     queue: gigQueue,
-    elapsedMs: gigElapsedMs,
+    elapsedNow: gigElapsedMsNow,
     playbackStatus: gigPlaybackStatus,
     trackOverride: gigTrackOverride,
     liveTempoAdjustPercent: gigLiveTempoAdjustPercent,
@@ -179,4 +184,47 @@ export function useShowMode(): ShowModeApi {
     variantOverride: null,
     setVariantOverride: null,
   }
+}
+
+/**
+ * What a component shows of the running song position, re-rendered only when that changes (#457):
+ * `select` turns the position (null while stopped) into the shown value - "1:23", the active
+ * prompter line, the count-in beat - and is checked on every animation frame while playing, but
+ * the component renders again only when the result differs (`isEqual`, default Object.is - so
+ * return primitives or compare yourself). Measured 2026-10-08: the whole dashboard re-rendering
+ * 60x per second for a time that changes once per second cost 40-80 % CPU while playing.
+ *
+ * `select` may close over render values (the song's lines, its grid): the latest one is used.
+ */
+export function useShowElapsed<T>(select: (elapsedMs: number | null) => T, isEqual: (a: T, b: T) => boolean = Object.is): T {
+  const mode = useAppModeStore((state) => state.mode)
+  const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  // Subscribed so a pause, a seek or a stop renders the new position (no frames run then).
+  const gig = useShowStateStore((state) => `${state.state.playbackStatus}|${state.state.playbackStartedAt}|${state.state.playbackAccumulatedMs}`)
+  const practice = usePracticeStateStore((state) => {
+    const p = state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE
+    return `${p.playbackStatus}|${p.playbackStartedAt}|${p.playbackAccumulatedMs}`
+  })
+  const loopActive = useLoopTrainerStore((state) => state.active)
+  const status = (mode === 'practice' ? practice : gig).split('|')[0] as PlaybackStatus
+  const now = () => (mode === 'practice' ? practiceElapsedMsNow(workspaceId) : gigElapsedMsNow())
+
+  const [, rerender] = useReducer((n: number) => n + 1, 0)
+  const value = select(now())
+  const latest = useRef({ select, isEqual, now, value })
+  latest.current = { select, isEqual, now, value }
+
+  useEffect(() => {
+    if (status !== 'playing') return
+    let frame: number
+    const tick = () => {
+      const l = latest.current
+      if (!l.isEqual(l.select(l.now()), l.value)) rerender()
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [status, mode, loopActive])
+
+  return value
 }

@@ -6,6 +6,9 @@ const show = vi.hoisted(() => ({
   playbackStatus: 'stopped' as 'playing' | 'paused' | 'stopped',
   trackEnded: false,
   elapsedMs: null as number | null,
+  elapsedNow(): number | null {
+    return show.elapsedMs
+  },
   liveTempoAdjustPercent: 0,
   queue: { currentSong: { bpm: 120, timeSignature: '4/4' }, currentVariant: null as null | object, nextEntry: { id: 'e2' } as null | object },
   next: vi.fn(async () => {}),

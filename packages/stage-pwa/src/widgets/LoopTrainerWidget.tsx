@@ -4,7 +4,7 @@ import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
 import { formatLoopTime, loopSections } from '../lib/loopSections'
 import { startLoopTrainer, stopLoopTrainer } from '../lib/loopTrainer'
 import { resolveTrackForEntry } from '../lib/computeQueue'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_LOOP_CONFIG, useLoopTrainerStore, type LoopTrainerConfig } from '../store/useLoopTrainerStore'
 import { usePracticeStateStore, DEFAULT_PRACTICE_STATE } from '../store/usePracticeStateStore'
@@ -56,12 +56,18 @@ function Stepper({
  * clock must never allow one tablet to do.
  */
 export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig }) {
-  const { mode, queue, elapsedMs } = useShowMode()
+  const { mode, queue, elapsedNow } = useShowMode()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const trackOverride = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).trackOverride)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const stored = useLoopTrainerStore((state) => state)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
+  // Re-rendered only when what is shown changes - a new pass or speed, the song started or stopped
+  // (#457) - not on every frame; A/B take the position at the tap (elapsedNow).
+  const live = useShowElapsed((ms) => {
+    const loop = stored.active ? getLoopPlaybackState() : null
+    return loop ? `${loop.pass}|${loop.rate}` : ms === null ? 'stopped' : 'running'
+  })
 
   if (mode !== 'practice') {
     return (
@@ -82,7 +88,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const update = (patch: Partial<LoopTrainerConfig>) => stored.setConfig(entryId, patch)
   const sections = loopSections(parseChordPro(currentVariant.chordProContent), track.durationMs ?? null)
   const playing = stored.active ? getLoopPlaybackState() : null
-  const canSetPoint = elapsedMs !== null && !stored.active
+  const canSetPoint = live !== 'stopped' && !stored.active
   const hasLoop = settings.startMs !== null && settings.endMs !== null && settings.endMs > settings.startMs
 
   return (
@@ -90,11 +96,11 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>
 
       <div className="flex items-center gap-2">
-        <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })}>
+        <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedNow() ?? 0) })}>
           A setzen
         </Button>
         <span className="font-bold tabular-nums text-ink">{settings.startMs === null ? '–' : formatLoopTime(settings.startMs)}</span>
-        <Button disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto">
+        <Button disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedNow() ?? 0) })} className="ml-auto">
           B setzen
         </Button>
         <span className="font-bold tabular-nums text-ink">{settings.endMs === null ? '–' : formatLoopTime(settings.endMs)}</span>

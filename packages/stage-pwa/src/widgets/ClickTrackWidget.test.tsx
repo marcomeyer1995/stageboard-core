@@ -13,7 +13,12 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // (startClick/stopClick) no longer happens in this widget - see useClickOutputDriver.test.ts,
 // which owns that behavior now (found live, 2026-09-10: switching away from the Live tab used to
 // unmount this widget and silently stop the click mid-show).
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 // The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
 const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
 vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))

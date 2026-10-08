@@ -9,7 +9,12 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import type { PrompterConfig } from './prompterConfig'
 
 // Same mocking reasoning as PrompterWidget.test.tsx.
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  // useShowElapsed (#457) reads the position the test put into the mocked useShowMode value.
+  const useShowMode = vi.fn()
+  const usePosition = () => (useShowMode() as { elapsedMs?: number | null } | undefined)?.elapsedMs ?? null
+  return { useShowMode, useShowElapsed: (select: (ms: number | null) => unknown) => select(usePosition()) }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: vi.fn() }))
 vi.mock('../store/useProfilesStore', () => ({ useProfilesStore: vi.fn() }))
 

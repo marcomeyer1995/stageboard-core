@@ -1,5 +1,5 @@
 import { computeFestivalClock } from '../lib/festivalClock'
-import { useShowMode } from '../lib/showMode'
+import { useShowElapsed, useShowMode } from '../lib/showMode'
 import { festivalClockLayout } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { useNow } from '../lib/useNow'
@@ -26,7 +26,9 @@ function formatMinutes(ms: number): string {
  * way (stageWidgetLayout.ts), and the remaining lines are single-line.
  */
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
-  const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
+  const { queue, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
+  // Whole seconds are plenty for an end time in minutes - one render a second, not 60 (#457).
+  const elapsedMs = useShowElapsed((ms) => (ms === null ? null : Math.floor(ms / 1000) * 1000))
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))

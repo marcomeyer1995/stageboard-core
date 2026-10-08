@@ -4,7 +4,7 @@ import { songDurationMs } from './entryDuration'
 import { resolveTrackForEntry } from './computeQueue'
 import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
-import { useShowMode } from './showMode'
+import { useShowElapsed, useShowMode } from './showMode'
 
 /**
  * Ends the current entry once its length has elapsed (#231, #28), then acts on its
@@ -26,8 +26,22 @@ import { useShowMode } from './showMode'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
+  const { playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
   const { currentEntry, currentVariant, nextEntry } = queue
+  // Checked every frame, rendered once the end is reached - not 60 times a second (#457). A song
+  // ends after its stored length (#28: the selected track's, else the hand-entered one - which also
+  // ends click-only songs); a track whose length isn't stored yet falls back to the audio actually
+  // loaded on this device. A song with no known length never stops by itself. A transition item or
+  // section heading (#29) ends after its own duration.
+  const reachedEnd = useShowElapsed((ms) => {
+    if (ms === null) return false
+    const durationMs =
+      currentEntry && isSongEntry(currentEntry)
+        ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
+          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? getLocalTrackDurationMs() : null))
+        : transitionItemEndMs(currentEntry)
+    return durationMs !== null && ms >= durationMs + clickExtendMs
+  })
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`
   // keeps ticking via requestAnimationFrame for a frame or two after it fires, before the
@@ -42,17 +56,7 @@ export function useAutoStopDriver(): void {
       handledForRunRef.current = false
       return
     }
-    if (!canControl || handledForRunRef.current || elapsedMs === null) return
-    // A song ends after its stored length (#28: the selected track's, else the hand-entered one -
-    // which also ends click-only songs); a track whose length isn't stored yet falls back to the
-    // audio actually loaded on this device. A song with no known length never stops by itself. A
-    // transition item or section heading (#29) ends after its own duration.
-    const durationMs =
-      currentEntry && isSongEntry(currentEntry)
-        ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
-          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? getLocalTrackDurationMs() : null))
-        : transitionItemEndMs(currentEntry)
-    if (durationMs === null || elapsedMs < durationMs + clickExtendMs) return
+    if (!canControl || handledForRunRef.current || !reachedEnd) return
     handledForRunRef.current = true
     const action = resolveTrackEndAction(currentEntry, nextEntry)
     if (action.kind === 'stop') {
@@ -63,7 +67,7 @@ export function useAutoStopDriver(): void {
       pendingStartRef.current = { entryId: nextEntry.id, skipCountIn: action.skipCountIn, delayMs: action.delayMs }
     }
     void next()
-  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stopAtTrackEnd, next, currentEntry, currentVariant, trackOverride, nextEntry])
+  }, [playbackStatus, canControl, reachedEnd, stopAtTrackEnd, next, currentEntry, nextEntry])
 
   const currentEntryId = currentEntry?.id ?? null
   useEffect(() => {
