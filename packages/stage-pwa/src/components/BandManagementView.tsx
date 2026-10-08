@@ -668,7 +668,10 @@ export function BandManagementView() {
           <Segmented
             label="Master-Kontrolle"
             value={activeWorkspace.masterMode ?? 'device'}
-            onChange={(mode) => void setMasterMode(activeWorkspace.id, mode)}
+            onChange={async (mode) => {
+              // Saved on the Stage-Server - say so when that didn't work instead of silently staying (#409 review).
+              if (!(await setMasterMode(activeWorkspace.id, mode))) void alert('Nicht gespeichert - Stage-Server nicht erreichbar oder keine Admin-Anmeldung auf diesem Gerät.')
+            }}
             options={[
               { value: 'device', label: 'Pro Gerät' },
               { value: 'account', label: 'Pro Person' },
