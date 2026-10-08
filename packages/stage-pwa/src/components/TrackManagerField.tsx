@@ -5,6 +5,7 @@ import { randomId } from '../lib/id'
 import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { putTrack, removeTrack } from '../lib/songVariantsDb'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 interface TrackManagerFieldProps {
   variantId: string
@@ -104,7 +105,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
               type="button"
               onClick={() => handleRemove(track.id)}
               disabled={disabled || busyTrackId === track.id}
-              className="min-h-12 rounded-sb-sm bg-control-strong px-3 text-sm text-ink hover:bg-control-strong-hover disabled:opacity-40"
+              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
             >
               Entfernen
             </button>
@@ -128,7 +129,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
                 <button
                   type="button"
                   onClick={() => void removeAsyncJob(job.id)}
-                  className="rounded-sb-sm bg-control-strong px-2 py-0.5 text-ink hover:bg-control-strong-hover"
+                  className="rounded-control bg-control-strong px-2 min-h-form text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Ausblenden
                 </button>
@@ -144,12 +145,12 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           onChange={(e) => setYoutubeUrl(e.target.value)}
           placeholder="YouTube-Link für eine Referenzaufnahme"
           disabled={disabled}
-          className="min-w-0 flex-1 rounded-sb-sm bg-control px-2 py-1 text-xs text-ink placeholder:text-ink-faint"
+          className={`min-w-0 flex-1 min-w-0 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
         />
         <button
           type="submit"
           disabled={disabled || youtubeUrl.trim() === ''}
-          className="rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
           Von YouTube laden
         </button>
@@ -157,7 +158,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
       {youtubeError && <span className="text-xs text-red-500">{youtubeError}</span>}
       <div className="flex items-center gap-2">
         <select
-          className="rounded-sb-sm bg-control px-2 py-1 text-xs text-ink"
+          className={`min-h-form px-3 text-base ${INPUT}`}
           value={uploadKind}
           onChange={(e) => setUploadKind(e.target.value as TrackKind)}
           disabled={disabled}
@@ -169,7 +170,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           ))}
         </select>
         <label
-          className={`rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover ${
+          className={`rounded-control bg-control-strong px-2 py-1 text-xs text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
             disabled || busyTrackId !== null ? 'pointer-events-none opacity-40' : 'cursor-pointer'
           }`}
         >

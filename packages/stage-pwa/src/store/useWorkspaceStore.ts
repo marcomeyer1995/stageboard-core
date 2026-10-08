@@ -39,6 +39,8 @@ export interface Workspace {
    * flag) - `isAdmin` here only decides what the UI *offers*; a wrong value here can't grant
    * unearned access, only mis-show/hide controls that would fail server-side anyway. */
   isAdmin?: boolean
+  /** Who holds the Master-Token in this band (#85), synced from its `workspace:access` doc. */
+  masterMode?: 'device' | 'account'
 }
 
 /** The message for a 429 from the Stage-Server's temporary admin-PIN lockout, with how long is
@@ -111,6 +113,8 @@ interface WorkspaceState {
    * below for the receiving side on other devices, and the `warum entfernt` section of #58 for
    * why the original client-only rename couldn't). Admin-only; `false` on failure. */
   renameWorkspace: (id: string, name: string) => Promise<boolean>
+  /** Sets who holds the Master-Token (#85) - admin-only, through core-backend like renaming. */
+  setMasterMode: (id: string, masterMode: 'device' | 'account') => Promise<boolean>
   /** Starts (or restarts, cancelling any previous one) a live watch on the active workspace's
    * `workspace:access` doc, keeping this device's own cached `Workspace.name` in sync whenever
    * *another* device renames the band (`renameWorkspace` above already updates this device's
@@ -389,6 +393,25 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         })
         return true
       },
+      setMasterMode: async (id, masterMode) => {
+        const workspace = get().workspaces.find((w) => w.id === id)
+        const base = getStageServerUrl()
+        if (!workspace?.isAdmin || !workspace.username || !workspace.couchPassword || !base) return false
+        try {
+          const response = await fetch(`${base}/workspaces/${encodeURIComponent(id)}/master-mode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword, masterMode }),
+          })
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        } catch (err) {
+          console.error('Failed to set master mode', err)
+          void useDialogStore.getState().alert('Einstellung nicht gespeichert - Stage-Server nicht erreichbar oder keine Admin-Rechte.')
+          return false
+        }
+        set({ workspaces: get().workspaces.map((w) => (w.id === id ? { ...w, masterMode } : w)) })
+        return true
+      },
       renameWorkspace: async (id, name) => {
         const workspace = get().workspaces.find((w) => w.id === id)
         if (!workspace) return false
@@ -431,20 +454,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         nameChangesHandle = null
         if (!workspaceId) return
 
-        const doc = await getWorkspaceAccessDoc(workspaceId)
-        if (doc) {
-          set({
-            workspaces: get().workspaces.map((w) => (w.id === workspaceId && w.name !== doc.name ? { ...w, name: doc.name } : w)),
-          })
-        }
-
-        nameChangesHandle = watchWorkspaceAccessDoc(workspaceId, (updated) => {
+        // Name and master mode (#85) both live on the access doc.
+        const apply = (doc: { name: string; masterMode?: 'device' | 'account' }) =>
           set({
             workspaces: get().workspaces.map((w) =>
-              w.id === workspaceId && w.name !== updated.name ? { ...w, name: updated.name } : w,
+              w.id === workspaceId && (w.name !== doc.name || w.masterMode !== doc.masterMode) ? { ...w, name: doc.name, masterMode: doc.masterMode } : w,
             ),
           })
-        })
+        const doc = await getWorkspaceAccessDoc(workspaceId)
+        if (doc) apply(doc)
+
+        nameChangesHandle = watchWorkspaceAccessDoc(workspaceId, apply)
       },
       removeWorkspaceLocally: async (id) => {
         const remainingWorkspaces = get().workspaces.filter((w) => w.id !== id)

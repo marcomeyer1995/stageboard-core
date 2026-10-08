@@ -26,7 +26,12 @@ interface DevicesState {
    * admin) - the caller shows nothing more specific than "not possible right now" either way,
    * matching `rotateAccessCode`'s own contract. */
   revoke: (workspaceId: string, id: string, revoked: boolean) => Promise<boolean>
+  /** Device Ledger cleanup: removes an entry (no block - it registers again on its next start).
+   * The Stage-Server refuses blocked devices and ones a hardware device runs on. */
+  forget: (workspaceId: string, id: string) => Promise<ForgetResult>
 }
+
+export type ForgetResult = 'removed' | 'blocked' | 'in-use' | 'failed'
 
 let changesHandle: LocalChangesHandle<Device> | null = null
 
@@ -107,6 +112,27 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
       console.error('Failed to update device revoked status', err)
       void useDialogStore.getState().alert('Aktion nicht möglich - Stage-Server nicht erreichbar.')
       return false
+    }
+  },
+  forget: async (workspaceId, id) => {
+    const base = getStageServerUrl()
+    const workspace = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId)
+    if (!base || !workspace?.isAdmin || !workspace.couchPassword || !workspace.username) return 'failed'
+    try {
+      const response = await fetch(`${base}/workspaces/${encodeURIComponent(workspaceId)}/devices/${encodeURIComponent(id)}/forget`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: workspace.username, adminPassword: workspace.couchPassword }),
+      })
+      if (response.status === 204) return 'removed'
+      if (response.status === 409) {
+        const body = (await response.json().catch(() => ({}))) as { message?: string }
+        return body.message === 'blocked' ? 'blocked' : 'in-use'
+      }
+      throw new Error(`HTTP ${response.status}`)
+    } catch (err) {
+      console.error('Failed to remove device from the ledger', err)
+      return 'failed'
     }
   },
 }))

@@ -47,6 +47,15 @@
   --sb-touch: 3.5rem;
   --sb-touch-primary: 4.5rem;
   --sb-text-min: 1rem;
+  /* UI system (docs/15 §5): semantic roles over the per-theme values above. Every control
+     takes --sb-radius-control, every card/dialog/menu --sb-radius-container; the three
+     heights are the only control heights (show actions, stage, forms). Aliases, so each theme
+     keeps its own corners and a later theme editor can tune role by role. */
+  --sb-radius-control: var(--sb-radius-sm);
+  --sb-radius-container: var(--sb-radius);
+  --sb-h-show: var(--sb-touch-primary);
+  --sb-h-stage: var(--sb-touch);
+  --sb-h-form: 3rem;
   --sb-shadow: none;
   --sb-font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
   --sb-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -289,4 +298,64 @@ body {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
   margin-left: -14px;
+}
+
+/* Controls are never text: a long press on a button (hold-to-edit dashboards, hold-to-take
+   Master) made the browser select its label and cancel the press - the fill stopped half-way
+   (Marco, phone, 2026-10-07). No selection and no callout menu on anything tappable. */
+button,
+[role='button'],
+[role='radio'],
+[role='tab'],
+[role='switch'],
+[role='checkbox'] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Print sheets (e.g. the band invite): while one is on the page (body.sb-has-print-sheet, set
+   by the sheet itself - :has() isn't supported by every tablet browser), only it is printed and
+   the app behind it stays off the paper. On screen it is never shown. */
+.sb-print-sheet {
+  display: none;
+}
+@media print {
+  body.sb-has-print-sheet > :not(.sb-print-sheet) {
+    display: none !important;
+  }
+  .sb-print-sheet {
+    display: block !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+}
+
+/* Camera notch / rounded corners (safe area): full-screen overlays keep their content clear of
+   it - at least their usual padding (--sb-pad), more where the notch is. #root does the same
+   for the app itself; overlays are `fixed` and don't get #root's padding (2026-10-07: content
+   was cut on Marco's phone, in the app and in the browser's full-screen mode). */
+.sb-pad-safe {
+  --sb-pad: 1rem;
+  padding: max(var(--sb-pad), env(safe-area-inset-top)) max(var(--sb-pad), env(safe-area-inset-right))
+    max(var(--sb-pad), env(safe-area-inset-bottom)) max(var(--sb-pad), env(safe-area-inset-left));
+}
+/* Low screens (tablet/phone in landscape, browser bars on): every pixel of height counts. */
+@media (max-height: 600px) {
+  .sb-pad-safe {
+    --sb-pad: 0.5rem;
+  }
+}
+/* Bars glued to an edge: background to the edge, content clear of the notch. */
+.sb-pad-safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+.sb-pad-safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.sb-pad-safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
 }

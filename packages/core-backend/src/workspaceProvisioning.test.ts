@@ -13,6 +13,7 @@ import {
   provisionMember,
   provisionWorkspace,
   renameWorkspace,
+  setMasterMode,
   rotateAccessCode,
   setMemberAdmin,
   WorkspaceAlreadyProvisionedError,
@@ -157,6 +158,24 @@ describe('access code (2026-09-01 WiFi-style redesign)', () => {
     expect(fetchMock.mock.calls.length).toBe(2)
     const putCall = fetchMock.mock.calls[1]
     expect(JSON.parse(putCall[1].body)).toEqual({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'The Renamed Band' })
+  })
+
+  it('renameWorkspace keeps the master mode (#85) - it lives on the same doc', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '1-abc', code: '11111111', name: 'Band C', masterMode: 'account' }) },
+      { ok: true, status: 201 },
+    ])
+    await renameWorkspace(config, 'band-c', 'Neu')
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ name: 'Neu', masterMode: 'account' })
+  })
+
+  it('setMasterMode writes the mode and keeps code and name (#85)', async () => {
+    const fetchMock = stubFetch([
+      { ok: true, status: 200, json: async () => ({ _id: 'workspace:access', _rev: '2-x', code: '22222222', name: 'Band C' }) },
+      { ok: true, status: 201 },
+    ])
+    await setMasterMode(config, 'band-c', 'account')
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ _id: 'workspace:access', _rev: '2-x', code: '22222222', name: 'Band C', masterMode: 'account' })
   })
 
   it('renameWorkspace backfills a fresh access-code doc for a workspace that never had one', async () => {

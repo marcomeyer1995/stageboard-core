@@ -70,7 +70,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         <button
           type="button"
           onClick={onEdit}
-          className="h-12 flex-shrink-0 rounded-sb-sm bg-accent-2 px-4 text-base font-medium text-accent-ink hover:bg-accent-2-hover"
+          className="h-form flex-shrink-0 rounded-control bg-accent px-4 text-base font-medium text-accent-ink [@media(hover:hover)]:hover:bg-accent-hover"
         >
           Bearbeiten
         </button>
@@ -83,7 +83,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         {contentBadges.map(({ label, count }) => (
           <span
             key={label}
-            className={`rounded-sb-sm px-2 py-1 ${
+            className={`rounded-control px-2 py-1 ${
               count > 0 ? 'bg-accent-2/20 font-semibold text-ink' : 'bg-control text-ink-faint'
             }`}
           >
@@ -94,12 +94,12 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {variant.key && <span className="rounded-sb-sm bg-control px-2 py-1">Key: {variant.key}</span>}
-        {variant.tuning && <span className="rounded-sb-sm bg-control px-2 py-1">Tuning: {variant.tuning}</span>}
+        {variant.key && <span className="rounded-control bg-control px-2 py-1">Key: {variant.key}</span>}
+        {variant.tuning && <span className="rounded-control bg-control px-2 py-1">Tuning: {variant.tuning}</span>}
         {variant.capo !== undefined && (
-          <span className="rounded-sb-sm bg-control px-2 py-1">Capo: {variant.capo}</span>
+          <span className="rounded-control bg-control px-2 py-1">Capo: {variant.capo}</span>
         )}
-        <span className="rounded-sb-sm bg-control px-2 py-1">
+        <span className="rounded-control bg-control px-2 py-1">
           {variant.bpm} BPM · {variant.timeSignature}
         </span>
       </div>

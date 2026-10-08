@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { EditLock } from './EditLock'
+import { useEffect, useState } from 'react'
+import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
@@ -9,23 +9,13 @@ import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
-import { useModeDashboards } from '../lib/useModeDashboards'
-import { useBackHandler } from '../lib/backNavigation'
-import { Icon } from './Icon'
+import { Dialog, Section, Segmented, Switch } from './ui'
+import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 
 interface AppMenuProps {
   mode: Mode
   onSelectMode: (mode: Mode) => void
   onClose: () => void
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</p>
-      {children}
-    </div>
-  )
 }
 
 /**
@@ -49,22 +39,27 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * password-protected member there asks for the password (same recovery semantics as everywhere
  * else: blank resets a non-admin account, is refused for an admin one).
  */
+/** True while the window is at least `px` wide. */
+function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const list = window.matchMedia(query)
+    const update = () => setMatches(list.matches)
+    list.addEventListener('change', update)
+    return () => list.removeEventListener('change', update)
+  }, [query])
+  return matches
+}
+
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
-  useBackHandler(onClose)
   const fullscreen = useFullscreen()
+  const twoColumns = useIsPanelLayout()
+  const threeColumns = useMinWidth(1000) && twoColumns
   const sessionMode = useAppModeStore((state) => state.mode)
 
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
-  // Same visibility rule DashboardSwitcherWidget.tsx uses - a private Station never appears
-  // as a switch target for anyone but its owner. Hidden entirely with only one (or zero)
-  // dashboard to switch to - nothing to pick from, so the section would just be clutter
-  // (#35: "screen navigation... what's actually touched during a show", same paring-down
-  // this menu already went through once).
-  // ... and, since 2026-09-27, only the dashboards offered in the current session mode (Gig /
-  // Solo Üben), via the same hook Dashboard.tsx resolves its active dashboard with.
-  const { candidates: switchableDashboards, active: activeDashboard } = useModeDashboards()
-  const activeDashboardId = activeDashboard?.id
 
   function selectDashboard(dashboardId: string) {
     setActiveDashboard(workspaceId, dashboardId)
@@ -72,109 +67,106 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
     onClose()
   }
 
+  // A dialog like every other (docs/15 D6): the way out is the "Fertig" at the bottom - the
+  // bottom row never scrolls away (#376: on the phone the old end-of-list close was cut off).
+  const viewSection = (
+    <>
+      {/* Ansicht as the same joined bar as Modus (Marco, 2026-10-07: separate buttons above a bar
+          looked like two systems). Choosing a screen closes the menu. */}
+      <Section title="Ansicht">
+        <Segmented
+          label="Ansicht"
+          size="stage"
+          value={mode}
+          onChange={(candidate) => {
+            onSelectMode(candidate)
+            onClose()
+          }}
+          options={MODES.map((candidate) => ({ value: candidate, label: MODE_LABEL[candidate] }))}
+        />
+      </Section>
+    </>
+  )
+  const dashboardSection = (
+    <>
+      {/* Tap switches, holding opens it for editing; order, hiding and new ones right here
+          (Marco's redesign - replaces "Dashboards verwalten" and the separate lock row). */}
+      <Section title="Dashboards">
+        <DashboardMenuList
+          onSelect={selectDashboard}
+          onEdit={() => {
+            onSelectMode('boards')
+            onClose()
+          }}
+        />
+      </Section>
+    </>
+  )
+  const modeSection = (
+    <>
+      <Section title="Modus">
+        <SessionModeControl />
+        {sessionMode === 'practice' && <PracticeSetlistPicker />}
+      </Section>
+    </>
+  )
+  const masterSection = (
+    <>
+      {sessionMode === 'gig' && (
+        <Section title="Master-Kontrolle">
+          <MasterControl />
+        </Section>
+      )}
+    </>
+  )
+  const displaySection = (
+    <>
+      {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
+      {fullscreen.supported && !isNativeApp() && (
+        <Section title="Anzeige">
+          <Switch label="Vollbild" checked={fullscreen.isFullscreen} onChange={() => void fullscreen.toggle()} />
+        </Section>
+      )}
+    </>
+  )
+
+  // Landscape tablet and laptop (Marco, 2026-10-07: a portrait-shaped menu meant scrolling
+  // there, "perfect not to need to scroll"): from 1000 px three columns - the Xiaomi in landscape
+  // has only ~470 px of height for the menu's content - otherwise two; the dashboard list, the
+  // part that grows, always on the right. Portrait keeps the single column in the familiar order.
   return (
-    <div
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[min(85vh,85dvh)] w-full max-w-sm flex-col overflow-hidden rounded-sb border border-line bg-surface shadow-sb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close sits in a fixed header, not at the end of the list (#376): on a phone or a short
-            landscape screen the list scrolls, and "Schließen" used to be reachable only after
-            scrolling to the bottom (on the phone it was even cut off). */}
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-2">
-          <p className="text-sm font-bold uppercase tracking-widest text-ink-faint">Menü</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-touch items-center gap-2 rounded-sb bg-control-strong px-4 text-base font-medium text-ink hover:bg-control-strong-hover"
-          >
-            <Icon name="close" size="1.25rem" />
-            Schließen
-          </button>
+    <Dialog title="Menü" size={threeColumns ? 'xl' : twoColumns ? 'l' : 's'} onClose={onClose}>
+      {threeColumns ? (
+        <div className="grid grid-cols-3 items-start gap-6">
+          <div className="flex min-w-0 flex-col gap-4">
+            {viewSection}
+            {modeSection}
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">
+            {masterSection}
+            {displaySection}
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">{dashboardSection}</div>
         </div>
-        <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-4">
-          <Section title="Ansicht">
-            <div className="grid grid-cols-3 gap-2">
-              {MODES.map((candidate) => (
-                <button
-                  key={candidate}
-                  type="button"
-                  onClick={() => {
-                    onSelectMode(candidate)
-                    onClose()
-                  }}
-                  className={`h-14 rounded-sb text-base font-semibold ${
-                    mode === candidate
-                      ? 'bg-accent text-accent-ink'
-                      : 'bg-control text-ink-soft hover:bg-control-hover'
-                  }`}
-                >
-                  {MODE_LABEL[candidate]}
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          {switchableDashboards.length > 1 && (
-            <Section title="Dashboards">
-              <div className="flex flex-col gap-1">
-                {switchableDashboards.map((dashboard) => (
-                  <button
-                    key={dashboard.id}
-                    type="button"
-                    onClick={() => selectDashboard(dashboard.id)}
-                    className={`flex h-11 items-center justify-between rounded-sb px-4 text-sm font-medium ${
-                      dashboard.id === activeDashboardId
-                        ? 'bg-accent text-accent-ink'
-                        : 'bg-control text-ink-soft hover:bg-control-hover'
-                    }`}
-                  >
-                    {dashboard.name}
-                    {dashboard.id === activeDashboardId && <Icon name="check" size="1.25rem" />}
-                  </button>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <Section title="Modus">
-            <SessionModeControl />
-            {sessionMode === 'practice' && <PracticeSetlistPicker />}
-          </Section>
-
-          {sessionMode === 'gig' && (
-            <Section title="Master-Kontrolle">
-              <MasterControl />
-            </Section>
-          )}
-
-          {mode === 'boards' && (
-            <Section title="Dashboard">
-              <EditLock onUnlock={onClose} />
-            </Section>
-          )}
-
-          {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
-          {fullscreen.supported && !isNativeApp() && (
-            <Section title="Anzeige">
-              <button
-                type="button"
-                onClick={() => void fullscreen.toggle()}
-                className="flex h-12 items-center justify-between rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
-              >
-                Vollbild
-                <span className="flex items-center gap-2">
-                  <Icon name={fullscreen.isFullscreen ? 'exitFullscreen' : 'fullscreen'} />
-                  {fullscreen.isFullscreen ? 'Aus' : 'An'}
-                </span>
-              </button>
-            </Section>
-          )}
+      ) : twoColumns ? (
+        <div className="grid grid-cols-2 items-start gap-6">
+          <div className="flex min-w-0 flex-col gap-4">
+            {viewSection}
+            {modeSection}
+            {masterSection}
+            {displaySection}
+          </div>
+          <div className="flex min-w-0 flex-col gap-4">{dashboardSection}</div>
         </div>
-      </div>
-    </div>
+      ) : (
+        <>
+          {viewSection}
+          {dashboardSection}
+          {modeSection}
+          {masterSection}
+          {displaySection}
+        </>
+      )}
+    </Dialog>
   )
 }

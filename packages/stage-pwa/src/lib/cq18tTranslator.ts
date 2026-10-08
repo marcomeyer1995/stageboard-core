@@ -5,6 +5,7 @@ import { isWebMidiSupported } from './webMidi'
 import { getMidiOutputById, sendNrpn } from './webMidiOutput'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { resolveTargetDevice } from './hardwareRouting'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock - its own dedicated
@@ -77,8 +78,8 @@ interface Cq18tOutput {
 
 /** Same "first Logical Device with this capability, bound on this device" resolution as
  * kemperTranslator.ts's `resolveKemperOutput` - see its own doc comment for why. */
-async function resolveCq18tOutput(): Promise<Cq18tOutput | null> {
-  const logicalDevice = useLogicalDevicesStore.getState().devices.find((d) => d.capability === CQ18T_CAPABILITY)
+async function resolveCq18tOutput(logicalDeviceId?: string): Promise<Cq18tOutput | null> {
+  const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, CQ18T_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
   const deviceId = getDeviceId()
@@ -137,7 +138,7 @@ function test(cq18t: Cq18tOutput): ShowControlResult {
 
 export const cq18tTranslator: Translator = async (event) => {
   if (!isWebMidiSupported()) return { status: 'error', message: 'CQ-18T: WebMIDI nicht unterstützt.' }
-  const cq18t = await resolveCq18tOutput()
+  const cq18t = await resolveCq18tOutput(event.logicalDeviceId)
   if (!cq18t) return { status: 'error', message: 'CQ-18T: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

@@ -127,6 +127,20 @@ Alles Wichtige liegt auf einer Platte: CouchDB (Songs, Setlisten, Dashboards, Mi
 - **Nächtlich:** Vorlagen `scripts/systemd/stageboard-backup.{service,timer}` (04:00, `Persistent=true` holt verpasste Nächte nach). **Nicht aktiv** - zuerst `STAGEBOARD_BACKUP_TARGET` in der Service-Datei auf das zweite Medium setzen (USB-Platte, NAS), dann nach `~/.config/systemd/user/` kopieren und `systemctl --user daemon-reload && systemctl --user enable --now stageboard-backup.timer`. Einmal von Hand testen: `systemctl --user start stageboard-backup.service; journalctl --user -u stageboard-backup -n 5`.
 - **Wiederherstellen:** `node scripts/backup-restore.mjs <generation> <datenbank|--all>` legt die Datenbank an, setzt `_security` zurück und schreibt alle Dokumente mit `new_edits: false` (gleiche Revisionen - Geräte, die die Band noch haben, synchronisieren einfach weiter). In eine nicht leere Datenbank nur mit `--force`. Design-Dokumente (Validator) kommen zuletzt, sonst würde der Validator einzelne Dokumente ablehnen. Dateien: Stage-Server stoppen, `data.tar.gz`/`certs.tar.gz` an Ort und Stelle entpacken, starten. Getestet am 2026-10-05 gegen eine Wegwerf-CouchDB: alle Datenbanken mit gleicher Dokument-, Lösch- und Revisionszahl wie das Original.
 
+## 0b3. Notfall: kein Admin kommt mehr in die Band (#70)
+
+Wenn niemand mehr als Admin in eine Band kommt (alle Geräte abgemeldet, PIN vergessen, kein anderer Admin da für „Passwort zurücksetzen“): **am Stage-Server selbst** (Shell/SSH) im Repo-Ordner
+
+```bash
+cd ~/stageboard-deploy
+npm run admin:reset -w core-backend                              # Bands anzeigen
+npm run admin:reset -w core-backend -- "<Band>"                  # Mitglieder (Admins markiert)
+npm run admin:reset -w core-backend -- "<Band>" "<Name>"         # neue 4-stellige PIN für einen Admin
+npm run admin:reset -w core-backend -- "<Band>" "<Name>" --make-admin   # kein Admin mehr übrig: Mitglied wird Admin
+```
+
+Band per ID oder genauem Namen, Mitglied per ID oder Name (Groß-/Kleinschreibung egal). Die PIN wird einmal angezeigt; danach in der App der Band beitreten, Namen wählen, PIN eingeben und unter Einstellungen eine eigene PIN setzen. Nach 5 Fehlversuchen ist ein Konto einige Minuten gesperrt (warten oder `systemctl --user restart stageboard`). Der Befehl nutzt das CouchDB-Login des Servers (§0b1), braucht kein Netz und öffnet keinen Zugang über die App.
+
 ## 0c. Native Android-App (Capacitor, #348)
 
 Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.

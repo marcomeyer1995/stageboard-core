@@ -140,3 +140,12 @@ export function pairingConfirmation(name: string, host: string, fingerprint: str
     message: `${where}\n\nZertifikat: ${shortFingerprint(fingerprint)}\nZum Vergleich steht es auf dem Admin-Gerät unter „Einladen“.`,
   }
 }
+
+const NativePrint = registerPlugin<{ print(options: { name: string }): Promise<void> }>('Print')
+
+/** Prints the page (its print styles decide what is on paper): the browser's own dialog, in the
+ * app Android's print dialog via `PrintPlugin.java` - the WebView ignores window.print(). */
+export async function printPage(name: string): Promise<void> {
+  if (isNativeApp()) await NativePrint.print({ name })
+  else window.print()
+}

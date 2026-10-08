@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Song, SongVariant } from 'shared-types'
 
@@ -116,7 +116,7 @@ describe('SheetEditor - always-visible header (Titel/Band/Key/Tuning/Capo)', () 
     expect(screen.getByLabelText('Tuning')).toBeInTheDocument()
     expect(screen.getByLabelText('Capo')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tempo' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Tempo' }))
 
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
     expect(screen.getByLabelText('Key')).toBeInTheDocument()
@@ -139,29 +139,29 @@ describe('SheetEditor - Text/Tempo/Audio/Cues/Kommentare tabs (phone/tablet port
     stubViewport({ orientation: 'portrait' })
     await renderLoaded()
 
-    expect(screen.getByRole('button', { name: 'Text' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tempo' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Audio' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cues' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Kommentare' })).toBeInTheDocument()
+    expect(within(screen.getByRole('tablist', { name: 'Bereich' })).getByRole('tab', { name: 'Text' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Tempo' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Cues' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Kommentare' })).toBeInTheDocument()
 
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
     expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tempo' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Tempo' }))
     expect(screen.getByLabelText('Takt')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Track analysieren' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Audio' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Audio' }))
     expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
     expect(screen.queryByText('Noch keine Cues für diese Variante.')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cues' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Cues' }))
     expect(screen.getByText('Noch keine Cues für diese Variante.')).toBeInTheDocument()
     expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Kommentare' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Kommentare' }))
     expect(
       screen.getByText('Noch keine Kommentare - "+ Kommentar" im ChordPro-Text fügt einen an der Cursorposition ein.'),
     ).toBeInTheDocument()
@@ -171,7 +171,7 @@ describe('SheetEditor - Text/Tempo/Audio/Cues/Kommentare tabs (phone/tablet port
     stubViewport({ width640: true, orientation: 'portrait' })
     await renderLoaded()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tempo' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Tempo' }))
 
     expect(screen.getByLabelText('Takt')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
@@ -191,7 +191,7 @@ describe('SheetEditor - "+ Kommentar" button (issue #215 follow-up)', () => {
     const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
     expect(textarea.value).toContain('{cc: }')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Kommentare' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Kommentare' }))
     expect(screen.queryByText(/Noch keine Kommentare/)).not.toBeInTheDocument()
   })
 })
@@ -280,11 +280,11 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {
     stubViewport({ orientation: 'landscape' })
     await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: 'Timeline-Ansicht' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
     expect(screen.getByLabelText('Timeline')).toBeInTheDocument()
     expect(screen.queryByLabelText('Titel')).not.toBeInTheDocument() // the text editor is gone
     expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Text-Ansicht' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Text' }))
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
   })
 

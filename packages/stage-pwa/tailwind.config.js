@@ -32,6 +32,9 @@ export default {
         sb: 'var(--sb-radius)',
         'sb-sm': 'var(--sb-radius-sm)',
         'sb-pill': 'var(--sb-radius-pill)',
+        // UI system roles (docs/15 §5).
+        control: 'var(--sb-radius-control)',
+        container: 'var(--sb-radius-container)',
       },
       boxShadow: {
         sb: 'var(--sb-shadow)',
@@ -44,10 +47,28 @@ export default {
       spacing: {
         touch: 'var(--sb-touch)',
         'touch-primary': 'var(--sb-touch-primary)',
+        // UI system heights (docs/15 §5): show actions 72, stage 56, forms 48.
+        show: 'var(--sb-h-show)',
+        stage: 'var(--sb-h-stage)',
+        form: 'var(--sb-h-form)',
       },
       minHeight: {
         touch: 'var(--sb-touch)',
         'touch-primary': 'var(--sb-touch-primary)',
+        show: 'var(--sb-h-show)',
+        stage: 'var(--sb-h-stage)',
+        form: 'var(--sb-h-form)',
+      },
+      // Fixed layer scale (docs/15 §5) instead of free z-values per file: content < bars <
+      // menus < dialogs < alerts (DialogHost's confirm above any dialog) < flash < takeover.
+      zIndex: {
+        content: '10',
+        bars: '20',
+        menu: '40',
+        dialog: '50',
+        alert: '55',
+        flash: '58',
+        takeover: '60',
       },
       minWidth: {
         touch: 'var(--sb-touch)',

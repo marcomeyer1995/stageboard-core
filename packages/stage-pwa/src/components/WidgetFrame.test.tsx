@@ -78,7 +78,8 @@ describe('WidgetFrame', () => {
       </WidgetFrame>,
     )
     fireEvent.click(screen.getByTitle('Widget-Menü'))
-    const toggle = screen.getByText('Rahmen ausblenden')
+    const toggle = screen.getByRole('switch', { name: 'Rahmen anzeigen' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(toggle)
     expect(onToggleFrameless).toHaveBeenCalled()
   })

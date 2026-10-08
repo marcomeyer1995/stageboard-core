@@ -85,6 +85,12 @@ export const SetlistSchema = z.object({
    * setlists that predate this field - they simply sort as the oldest, which is correct:
    * no migration needed, nothing before this field genuinely has a creation time to recover. */
   createdAt: z.number().int().nonnegative().default(0),
+  /** The gig this setlist is for, "YYYY-MM-DD" (Marco, 2026-10-07) - optional; the Bibliothek can
+   * sort by it (next gig first). A plain calendar date: no time zone to get wrong. */
+  performanceDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   /** Festival-slot / curfew end as a local time of day, "HH:mm" (#28). A time of day rather than
    * a timestamp so the setlist stays reusable for the next gig. */
   targetEndTime: z

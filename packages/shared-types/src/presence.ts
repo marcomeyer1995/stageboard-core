@@ -22,6 +22,29 @@ export const MASTER_HEARTBEAT_INTERVAL_MS = 5_000
 export const MASTER_HEARTBEAT_TIMEOUT_MS = 15_000
 
 export const MasterHeartbeatReportSchema = z.object({ deviceId: z.string().min(1) })
+
+/** A Stage-Messenger flash message (#26): shown big on every tablet for a few seconds. */
+export const FlashMessageSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().min(1).max(120),
+  /** Who sent it (profile name), shown small under the text. */
+  from: z.string().max(60).optional(),
+  /** Profile ids it is meant for - absent or empty: everyone in the band. */
+  to: z.array(z.string().min(1)).max(50).optional(),
+  /** Server time it was sent. */
+  at: z.number().int().nonnegative(),
+})
+export type FlashMessage = z.infer<typeof FlashMessageSchema>
+
+export const FlashReportSchema = z.object({
+  text: z.string().trim().min(1).max(120),
+  from: z.string().max(60).optional(),
+  to: z.array(z.string().min(1)).max(50).optional(),
+})
+export type FlashReport = z.infer<typeof FlashReportSchema>
+
+/** How long a flash message is shown (and how old one may be to still be shown on arrival). */
+export const FLASH_DURATION_MS = 8_000
 export type MasterHeartbeatReport = z.infer<typeof MasterHeartbeatReportSchema>
 
 /**
@@ -50,6 +73,8 @@ export const PresenceSchema = z.object({
   /** The Master-Token holder's liveness (#32) - rides on this same SSE snapshot instead of a
    * stream of its own, since this app already sits near Chrome's per-origin connection cap. */
   masterHeartbeat: MasterHeartbeatSchema.nullable().optional(),
+  /** The latest Stage-Messenger message (#26), on this same stream for instant delivery. */
+  flash: FlashMessageSchema.nullable().optional(),
 })
 export type Presence = z.infer<typeof PresenceSchema>
 

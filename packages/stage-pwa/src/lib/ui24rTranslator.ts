@@ -5,6 +5,7 @@ import { dbToFaderValue } from './ui24rCurves'
 import { getUi24rConnection, sendUi24r, type Ui24rConnection } from './ui24rSocket'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { resolveTargetDevice } from './hardwareRouting'
 
 /**
  * A real, installable plugin (pluginCatalog.ts) rather than a mock. Own dedicated
@@ -38,8 +39,8 @@ interface Ui24rTarget {
 /** Same "first Logical Device with this capability, bound on this device" resolution as
  * kemperTranslator.ts/cq18tTranslator.ts/mg30Translator.ts/rc500Translator.ts - see their
  * own doc comments for why. */
-async function resolveUi24r(): Promise<Ui24rTarget | null> {
-  const logicalDevice = useLogicalDevicesStore.getState().devices.find((d) => d.capability === UI24R_CAPABILITY)
+async function resolveUi24r(logicalDeviceId?: string): Promise<Ui24rTarget | null> {
+  const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, UI24R_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
   const deviceId = getDeviceId()
@@ -103,7 +104,7 @@ async function test(ui24r: Ui24rTarget): Promise<ShowControlResult> {
 }
 
 export const ui24rTranslator: Translator = async (event) => {
-  const ui24r = await resolveUi24r()
+  const ui24r = await resolveUi24r(event.logicalDeviceId)
   if (!ui24r) return { status: 'error', message: 'Ui24R: keine Verbindung konfiguriert.' }
 
   switch (event.type) {

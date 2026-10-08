@@ -16,7 +16,14 @@ const { useDevicesStore } = await import('../store/useDevicesStore')
 const { useDeviceInfoStore } = await import('../store/useDeviceInfoStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useDialogStore } = await import('../store/useDialogStore')
+const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { DeviceLedgerView } = await import('./DeviceLedgerView')
+
+/** Opens the row's ⋯ menu and taps an action in it. */
+function menuAction(device: string, action: string) {
+  fireEvent.click(screen.getByRole('button', { name: `Menü: ${device}` }))
+  fireEvent.click(screen.getByRole('button', { name: action }))
+}
 
 const DEVICE_INFO_ENTRY = {
   ip: '192.168.1.10',
@@ -53,6 +60,7 @@ beforeEach(() => {
     stop: vi.fn(),
   })
   useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true), alert: vi.fn().mockResolvedValue(undefined) })
+  useLogicalDevicesStore.setState({ devices: [] })
 })
 
 describe('DeviceLedgerView', () => {
@@ -92,21 +100,21 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByText('Noch keine Diagnosedaten von diesem Gerät.')).toBeInTheDocument()
   })
 
-  it('hides the kick/restore button for a non-admin session', () => {
+  it('hides the ⋯ menu for a non-admin session', () => {
     useWorkspaceStore.setState({
       workspaces: [{ id: 'band-a', name: 'Band A', couchPassword: 'member-pw', username: 'stageboard-band-a-p2', isAdmin: false }],
       activeWorkspaceId: 'band-a',
     })
     render(<DeviceLedgerView />)
-    expect(screen.queryByRole('button', { name: 'Entfernen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Menü: Marcos iPad' })).not.toBeInTheDocument()
   })
 
-  it('kicks a device after confirmation, calling revoke with revoked=true', async () => {
+  it('"Blockieren" (formerly "Entfernen") blocks after confirmation, calling revoke with revoked=true', async () => {
     const revoke = vi.fn().mockResolvedValue(true)
     useDevicesStore.setState({ revoke })
     render(<DeviceLedgerView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
+    menuAction('Marcos iPad', 'Blockieren')
 
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('band-a', 'device-1', true))
   })
@@ -117,7 +125,7 @@ describe('DeviceLedgerView', () => {
     useDevicesStore.setState({ revoke })
     render(<DeviceLedgerView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
+    menuAction('Marcos iPad', 'Blockieren')
 
     await waitFor(() => expect(useDialogStore.getState().confirm).toHaveBeenCalled())
     expect(revoke).not.toHaveBeenCalled()
@@ -133,10 +141,75 @@ describe('DeviceLedgerView', () => {
     useDevicesStore.setState({ revoke })
     render(<DeviceLedgerView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Wieder zulassen' }))
+    menuAction('Marcos iPad', 'Wieder zulassen')
 
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('band-a', 'device-1', false))
     expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('"Aus Liste entfernen" forgets a device after confirmation - not offered for a blocked one', async () => {
+    const forget = vi.fn().mockResolvedValue('removed')
+    useDevicesStore.setState({ forget })
+    const { unmount } = render(<DeviceLedgerView />)
+    menuAction('Marcos iPad', 'Aus Liste entfernen')
+    await waitFor(() => expect(forget).toHaveBeenCalledWith('band-a', 'device-1'))
+    unmount()
+
+    useDevicesStore.setState({ devices: [{ id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: true }] })
+    render(<DeviceLedgerView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Marcos iPad' }))
+    expect(screen.queryByRole('button', { name: 'Aus Liste entfernen' })).not.toBeInTheDocument()
+    expect(screen.getByText('blockiert')).toBeInTheDocument()
+  })
+
+  it('a device hardware runs on says where it is used and cannot be removed', () => {
+    useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'device-1' }] as never })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText(/In Verwendung: Kemper - im Tab Hardware ein anderes Gerät wählen/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Marcos iPad' }))
+    expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
+  })
+
+  it('"Inaktive entfernen" takes every device without a live signal once the server has collected for 5 minutes - not blocked, not used, not this one', async () => {
+    const forget = vi.fn().mockResolvedValue('removed')
+    const old = Date.now() - 10 * 86_400_000
+    useDevicesStore.setState({
+      forget,
+      devices: [
+        { id: 'device-1', name: 'Marcos iPad', lastSeenAt: Date.now(), firstSeenAt: 1, revoked: false },
+        { id: 'old-1', name: 'Altes Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
+        { id: 'recent', name: 'Doppeltes Tablet', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
+        { id: 'old-blocked', name: 'Gesperrt', lastSeenAt: old, firstSeenAt: 1, revoked: true },
+        { id: 'old-used', name: 'Kemper-Tablet', lastSeenAt: old, firstSeenAt: 1, revoked: false },
+      ],
+    })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: { 'device-1': DEVICE_INFO_ENTRY }, collectingSince: Date.now() - 10 * 60_000 } })
+    useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'old-used' }] as never })
+    render(<DeviceLedgerView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Inaktive entfernen (2)' }))
+    await waitFor(() => expect(forget).toHaveBeenCalledTimes(2))
+    expect(forget.mock.calls.map((call) => call[1]).sort()).toEqual(['old-1', 'recent'])
+    expect(screen.getByText(/1 inaktive bleiben, weil Hardware sie verwendet/)).toBeInTheDocument()
+  })
+
+  it('right after a server start nothing counts as inactive yet - the devices are still reporting', () => {
+    useDevicesStore.setState({ devices: [{ id: 'old-1', name: 'Altes Tablet', lastSeenAt: Date.now() - 10 * 86_400_000, firstSeenAt: 1, revoked: false }] })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: {}, collectingSince: Date.now() - 60_000 } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByRole('button', { name: 'Inaktive entfernen (0)' })).toBeDisabled()
+    expect(screen.getByText(/Der Stage-Server wurde gerade gestartet/)).toBeInTheDocument()
+  })
+
+  it('an older server without collectingSince: falls back to "not seen for a day"', () => {
+    useDevicesStore.setState({
+      devices: [
+        { id: 'old-1', name: 'Altes Tablet', lastSeenAt: Date.now() - 10 * 86_400_000, firstSeenAt: 1, revoked: false },
+        { id: 'recent', name: 'Handy', lastSeenAt: Date.now() - 3_600_000, firstSeenAt: 1, revoked: false },
+      ],
+    })
+    useDeviceInfoStore.setState({ deviceInfo: { devices: {} } })
+    render(<DeviceLedgerView />)
+    expect(screen.getByRole('button', { name: 'Inaktive entfernen (1)' })).toBeInTheDocument()
   })
 
   it('alerts when revoke fails', async () => {
@@ -146,7 +219,7 @@ describe('DeviceLedgerView', () => {
     useDialogStore.setState({ alert })
     render(<DeviceLedgerView />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
+    menuAction('Marcos iPad', 'Blockieren')
 
     await waitFor(() => expect(alert).toHaveBeenCalled())
   })

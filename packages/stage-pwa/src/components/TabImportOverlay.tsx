@@ -3,6 +3,8 @@ import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 const PROVIDERS = [
   { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
@@ -118,31 +120,24 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-3"
+      className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 sb-pad-safe [--sb-pad:0.75rem]"
       onClick={onClose}
     >
+      {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
+          D6): title row names it, the way out is the bottom row - Abbrechen + Importieren. */}
       <div
-        className="flex h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-sb border border-line bg-surface p-4 shadow-sb"
+        role="dialog"
+        aria-label="Song importieren"
+        className="flex h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-ink-muted">
-            Song importieren
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-sb-sm px-2 py-1 text-ink-muted hover:bg-control-hover hover:text-ink"
-          >
-            <Icon name="close" size="1.25rem" />
-          </button>
-        </div>
+        <h2 className="border-b border-line pb-3 text-lg font-bold text-ink">Song importieren</h2>
 
         <form onSubmit={handleSearch} className="flex gap-2">
           <select
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
-            className="rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+            className={`min-h-form px-3 text-base ${INPUT_FREE}`}
           >
             {PROVIDERS.map((p) => (
               <option key={p.id} value={p.id}>
@@ -154,12 +149,12 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Songtitel..."
-            className="flex-1 rounded-sb-sm bg-control px-2 py-1 text-sm text-ink"
+            className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
           />
           <button
             type="submit"
             disabled={busy === 'searching' || !query.trim()}
-            className="rounded-sb-sm bg-control-strong px-3 py-1 text-sm text-ink hover:bg-control-strong-hover disabled:opacity-40"
+            className="rounded-control bg-control-strong px-3 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
           >
             {busy === 'searching' ? 'Suche...' : 'Suchen'}
           </button>
@@ -174,10 +169,10 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                 <button
                   type="button"
                   onClick={() => handleSelect(r)}
-                  className={`min-w-0 flex-1 rounded-sb-sm px-2 py-1 text-left text-sm ${
+                  className={`min-w-0 flex-1 rounded-control px-2 py-1 text-left text-sm ${
                     selectedId === r.id
                       ? 'bg-accent text-accent-ink'
-                      : 'bg-control text-ink hover:bg-control-hover'
+                      : 'bg-control text-ink [@media(hover:hover)]:hover:bg-control-hover'
                   }`}
                 >
                   <span className="font-medium">{r.title}</span>
@@ -189,7 +184,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
                     type="button"
                     onClick={() => openSourcePreview(r.sourceUrl!)}
                     title="Original-Seite öffnen"
-                    className="flex-shrink-0 rounded-sb-sm px-2 py-1 text-ink-faint hover:bg-control-hover hover:text-ink"
+                    className="flex-shrink-0 rounded-control px-2 py-1 text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink"
                   >
                     <Icon name="external" />
                   </button>
@@ -201,21 +196,21 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
             )}
           </ul>
 
-          <div className="flex flex-col overflow-y-auto rounded-sb-sm bg-control p-2 text-sm">
+          <div className="flex flex-col overflow-y-auto rounded-container bg-control p-2 text-sm">
             {selected?.sourceUrl && (
               <div className="mb-2 flex items-center justify-between gap-2 border-b border-line pb-2">
                 <a
                   href={selected.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="min-w-0 truncate text-xs text-ink-faint hover:text-ink hover:underline"
+                  className="min-w-0 truncate text-xs text-ink-faint [@media(hover:hover)]:hover:text-ink [@media(hover:hover)]:hover:underline"
                 >
                   {selected.sourceUrl}
                 </a>
                 <button
                   type="button"
                   onClick={() => openSourcePreview(selected.sourceUrl!)}
-                  className="flex flex-shrink-0 items-center gap-1 rounded-sb-sm bg-control-strong px-2 py-1 text-xs text-ink hover:bg-control-strong-hover"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-control bg-control-strong px-2 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
                 >
                   Original ansehen <Icon name="external" />
                 </button>
@@ -279,14 +274,12 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleImport}
-          disabled={!importableContent}
-          className="self-end rounded-sb-sm bg-accent-2 px-4 py-2 text-sm font-medium text-accent-ink hover:bg-accent-2-hover disabled:opacity-40"
-        >
-          Importieren
-        </button>
+        <div className="flex justify-between gap-2 border-t border-line pt-3">
+          <Button onClick={onClose}>Abbrechen</Button>
+          <Button variant="primary" onClick={handleImport} disabled={!importableContent}>
+            Importieren
+          </Button>
+        </div>
       </div>
     </div>
   )

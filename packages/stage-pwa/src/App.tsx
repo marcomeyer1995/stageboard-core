@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useMasterIdentity } from './lib/useMasterIdentity'
 import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
@@ -12,6 +13,7 @@ import { AppUpdateBanner } from './components/AppUpdateBanner'
 import { followServerIfMoved, isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
+import { confirmLeave, hasUnsavedChanges } from './lib/unsavedChanges'
 import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
@@ -48,6 +50,8 @@ import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { useFootswitch } from './lib/useFootswitch'
+import { useSongAlerts } from './lib/useSongAlerts'
+import { FlashOverlay } from './components/FlashOverlay'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -56,6 +60,8 @@ import { useRosterSetupStore } from './store/useRosterSetupStore'
 import { useSetlistsStore } from './store/useSetlistsStore'
 import { useAsyncJobsStore } from './store/useAsyncJobsStore'
 import { useShowLogStore } from './store/useShowLogStore'
+import { usePracticeLogStore } from './store/usePracticeLogStore'
+import { useBandSettingsStore } from './store/useBandSettingsStore'
 import { useShowStateStore } from './store/useShowStateStore'
 import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
@@ -73,8 +79,20 @@ function noopStart(): TrackedSync | null {
 }
 
 function App() {
-  const [mode, setMode] = useState<Mode>('boards')
+  const [mode, setModeNow] = useState<Mode>('boards')
+  // Switching the screen (☰ menu, Back) closes whatever editor is open - ask first if it has
+  // unsaved changes (Marco, 2026-10-07: never lose edits silently).
+  const setMode = (next: Mode) => {
+    if (next === mode) return
+    if (!hasUnsavedChanges()) return setModeNow(next)
+    void confirmLeave().then((ok) => ok && setModeNow(next))
+  }
   const [menuOpen, setMenuOpen] = useState(false)
+  // Finishing a dashboard edit that started in the menu leads back to the menu's list.
+  const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
+  useEffect(() => {
+    if (reopenMenuEditing) setMenuOpen(true)
+  }, [reopenMenuEditing])
   // Native app: if the paired server moved to another address (new router at the venue), find it
   // by its certificate and follow (#351) - on start and whenever the network comes back.
   useEffect(() => {
@@ -109,6 +127,8 @@ function App() {
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
   useFootswitch(mode === 'boards' && !isEditingDashboard)
+  // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
+  useSongAlerts()
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
@@ -149,6 +169,8 @@ function App() {
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
   useWorkspaceResource(useShowLogStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(usePracticeLogStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useBandSettingsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useAsyncJobsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(usePresenceStore((state) => state.init), noopStart, activeWorkspaceId)
   // Device Ledger's live diagnostic *subscription* is deliberately NOT wired here - unlike
@@ -184,6 +206,7 @@ function App() {
     useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
   )
   useMasterSelfCheck()
+  useMasterIdentity()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
   // open but no profile is picked yet" is itself a state the Device Ledger should show, not
@@ -242,8 +265,10 @@ function App() {
   // why nothing more (no credential wipe, no forced logout) is needed here.
   if (myDeviceRevoked) return <DeviceRevokedScreen />
 
+  // h-full, not h-dvh: #root already keeps the notch area free with its padding - a full
+  // screen height on top of that pushed the bottom of the dashboard off the screen.
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-full flex-col">
       {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
           dashboard that hides the status bar - so the grid keeps its show-mode size. */}
       {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
@@ -282,7 +307,7 @@ function App() {
             <button
               type="button"
               onClick={() => setMenuOpen(true)}
-              className="relative flex h-12 items-center gap-2 rounded-sb bg-control px-4 text-base text-ink-soft hover:bg-control-hover"
+              className="relative flex h-form items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
             >
               <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}
@@ -311,6 +336,7 @@ function App() {
       )}
 
       <DialogHost />
+      <FlashOverlay />
       <DiscoveryBanner />
       {isNativeApp() && <AppUpdateBanner />}
       <AudioResumeOverlay />

@@ -16,6 +16,10 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { useActiveProfileStore } from '../store/useActiveProfileStore'
+import { usePracticeLogStore } from '../store/usePracticeLogStore'
+import { MIN_SONG_DURATION_MS } from './showLogTracking'
+import { randomId } from './id'
 
 /**
  * Practice mode's counterpart to queue.ts - deliberately never touches the real, synced
@@ -42,6 +46,22 @@ function currentPracticeState(): PracticeState {
 
 function patch(next: Partial<PracticeState>): void {
   usePracticeStateStore.getState().patch(activeWorkspaceId(), next)
+}
+
+/**
+ * Records the take that is ending (Stop, Reset, the track running out, another song or setlist)
+ * as practice, if the song really ran - MIN_SONG_DURATION_MS unpaused, like a show's played song.
+ * Per person (the active profile); without one nothing is recorded. The Bibliothek sorts by these
+ * ("Geübt", "30 Tage" - Marco, 2026-10-07).
+ */
+function logPracticeTake(): void {
+  const { currentSong } = snapshot()
+  const profileId = useActiveProfileStore.getState().byWorkspace[activeWorkspaceId()]
+  if (!currentSong || !profileId) return
+  const now = Date.now()
+  const activeMs = Math.round(computeActiveMs(currentTransport(currentPracticeState()), now))
+  if (activeMs < MIN_SONG_DURATION_MS) return
+  void usePracticeLogStore.getState().add({ id: randomId(), profileId, songId: currentSong.id, at: now, activeMs })
 }
 
 function snapshot(): Queue {
@@ -151,6 +171,7 @@ export function practiceEndLoop(positionMs: number): void {
 
 export async function practiceStopSong(): Promise<void> {
   clearScheduledAudioStart()
+  logPracticeTake()
   patch(transportPatch(ARMED_TRANSPORT))
   stopLocalTrack()
 }
@@ -158,12 +179,14 @@ export async function practiceStopSong(): Promise<void> {
 /** Practice-mode twin of stopSongAtTrackEnd (#27). */
 export async function practiceStopSongAtTrackEnd(): Promise<void> {
   clearScheduledAudioStart()
+  logPracticeTake()
   patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: true })
   stopLocalTrack()
 }
 
 export async function practiceResetSong(): Promise<void> {
   clearScheduledAudioStart()
+  logPracticeTake()
   patch(transportPatch(ARMED_TRANSPORT))
   stopLocalTrack()
 }
@@ -173,6 +196,7 @@ export async function practiceResetSong(): Promise<void> {
  * position/overrides reset - same shape as advancing to another entry. */
 export function practiceSetActiveSetlist(setlistId: string | null): void {
   clearScheduledAudioStart()
+  logPracticeTake()
   patch({
     activeSetlistId: setlistId,
     activeEntryId: null,
@@ -189,6 +213,7 @@ export async function practiceAdvanceNext(): Promise<void> {
   const { nextEntry } = snapshot()
   if (!nextEntry) return
   clearScheduledAudioStart()
+  logPracticeTake()
   patch({
     activeEntryId: nextEntry.id,
     trackOverride: null,
@@ -204,6 +229,7 @@ export async function practiceAdvancePrevious(): Promise<void> {
   const { previousEntry } = snapshot()
   if (!previousEntry) return
   clearScheduledAudioStart()
+  logPracticeTake()
   patch({
     activeEntryId: previousEntry.id,
     trackOverride: null,

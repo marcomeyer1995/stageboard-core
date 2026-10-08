@@ -25,8 +25,10 @@ import {
   ReadyReportSchema,
   RemoveMemberRequestSchema,
   RenameWorkspaceRequestSchema,
+  SetMasterModeRequestSchema,
   ResetMemberPasswordRequestSchema,
   RevokeDeviceRequestSchema,
+  ForgetDeviceRequestSchema,
   RosterRequestSchema,
   RotateAccessCodeRequestSchema,
   SetMemberAdminRequestSchema,
@@ -37,10 +39,11 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
+import { FlashReportSchema } from 'shared-types'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
-import { allDocs, getDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
+import { allDocs, getDoc, putDoc, putDocWithRetry, userExists, verifyUser, type CouchConfig, type CouchDoc } from './couch.js'
 import * as deviceInfoStore from './deviceInfoStore.js'
 import * as deviceRelay from './deviceRelay.js'
 import * as discoverySessionStore from './discoverySessionStore.js'
@@ -70,7 +73,9 @@ import {
   provisionDevice,
   provisionMember,
   provisionWorkspace,
+  updateRosterValidators,
   renameWorkspace,
+  setMasterMode,
   resetAdminPin,
   rotateAccessCode,
   setMemberAdmin,
@@ -98,6 +103,15 @@ const DEFAULT_FRONTEND_ORIGINS = [
   `${CERTS_AVAILABLE ? 'https' : 'http'}://stageboard.local:5173`,
   'https://localhost',
 ].join(',')
+
+/** Username and password from an `Authorization: Basic …` header, or null. */
+export function basicAuthCredentials(header: string | undefined): { username: string; password: string } | null {
+  if (!header?.startsWith('Basic ')) return null
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8')
+  const colon = decoded.indexOf(':')
+  if (colon <= 0) return null
+  return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) }
+}
 
 /** SHA-256 fingerprint of the server's certificate (lowercase hex, no separators), or null
  * without HTTPS. The native app pins exactly this certificate when pairing (#348) - the invite
@@ -486,6 +500,26 @@ export async function buildApp() {
     return reply.status(204).send()
   })
 
+  // Stage-Messenger (#26): a flash message for every tablet of the band, pushed on the presence
+  // stream like the Ready Check. In memory only - a message is only meaningful for seconds.
+  app.post('/workspaces/:workspaceId/flash', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = FlashReportSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    // Unlike the presence reports, a flash *pushes* text onto every tablet of the band - so only a
+    // device signed in to this band may send one (its own CouchDB login, as Basic auth).
+    const login = basicAuthCredentials(request.headers.authorization)
+    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`) || (await verifyUser(couch, login.username, login.password)) === null) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Flash message refused - not signed in to this band')
+      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can send flash messages' })
+    }
+    const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
+    app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
+    return reply.status(201).send(flash)
+  })
+
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened
   // (ShowState.readyCheckId). In memory and pushed on the presence stream, like the master heartbeat.
   app.post('/workspaces/:workspaceId/ready-check/report', async (request, reply) => {
@@ -560,6 +594,43 @@ export async function buildApp() {
       _id: docId,
       _rev: current?._rev ?? existing._rev,
     }))
+    return reply.status(204).send()
+  })
+
+  // Device Ledger cleanup (Marco, 2026-10-07): removes an entry - old and duplicate devices
+  // flooded the Geräte tab. Unlike revoke this is no block: the device registers again on its
+  // next start. Refused (409) for a blocked device - the block lives on this very doc, deleting
+  // it would lift the block - and for a device a hardware device runs on (`executionTarget`):
+  // that must first move to another device in the Hardware tab (Marco's call: never remove a
+  // device in use).
+  app.post('/workspaces/:workspaceId/devices/:deviceId/forget', async (request, reply) => {
+    const { workspaceId, deviceId } = request.params as { workspaceId: string; deviceId: string }
+    const parsed = ForgetDeviceRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await isWorkspaceAdmin(request, workspaceId, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: 'Not this workspace\'s admin' })
+    }
+    const db = workspaceDbName(workspaceId)
+    const docId = `devices:${deviceId}`
+    const existing = await getDoc<Device & CouchDoc>(couch, db, docId)
+    if (!existing) {
+      return reply.status(404).send({ status: 'error', message: 'Unknown device' })
+    }
+    if (existing.revoked) {
+      return reply.status(409).send({ status: 'error', message: 'blocked' })
+    }
+    const hardware = await allDocs<CouchDoc & { name?: string; executionTarget?: string | null }>(couch, db, {
+      startkey: 'logical-devices:',
+      endkey: 'logical-devices:\ufff0',
+    })
+    const usedBy = hardware.filter((doc) => doc.executionTarget === deviceId).map((doc) => doc.name ?? doc._id)
+    if (usedBy.length > 0) {
+      return reply.status(409).send({ status: 'error', message: 'in-use', usedBy })
+    }
+    await putDoc(couch, db, { _id: docId, _rev: existing._rev, _deleted: true })
+    request.log.info({ workspaceId, deviceId }, 'device removed from ledger')
     return reply.status(204).send()
   })
 
@@ -899,6 +970,12 @@ export async function buildApp() {
     if (!parsed.data.isAdmin && (await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
       return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
     }
+    // No admin takes away their own admin rights (Marco, 2026-10-07) - only another admin can.
+    // The caller's profile is in its username: `<band db>-<profileId>` or `…-<profileId>~<deviceId>`.
+    const callerProfileId = parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0]
+    if (!parsed.data.isAdmin && callerProfileId === profileId) {
+      return reply.status(400).send({ status: 'error', message: 'An admin cannot revoke their own admin rights' })
+    }
 
     await setMemberAdmin(couch, workspaceId, profileId, parsed.data.isAdmin)
     return reply.status(204).send()
@@ -1177,6 +1254,21 @@ export async function buildApp() {
     return reply.status(200).send({ status: 'ok' })
   })
 
+  // Who holds the Master-Token (#85): admin-only, stored with the band name.
+  app.post('/workspaces/:workspaceId/master-mode', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = SetMasterModeRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await verifyAdmin(couch, parsed.data.adminUsername, parsed.data.adminPassword))) {
+      return reply.status(403).send({ status: 'error', message: "Not this workspace's admin" })
+    }
+    await setMasterMode(couch, workspaceId, parsed.data.masterMode)
+    app.log.info({ workspaceId, masterMode: parsed.data.masterMode }, 'Master mode set')
+    return reply.status(200).send({ status: 'ok' })
+  })
+
   // Makes this box's hardware (plugin sync, Discovery Mode's MIDI watcher) serve `workspaceId`
   // instead of whichever workspace was previously active - the runtime replacement for having
   // to kill the process and restart it with a different STAGEBOARD_WORKSPACE env var, for the
@@ -1331,7 +1423,7 @@ function detectLanIp(): string | null {
 }
 
 async function main() {
-  const { app, lookupRegistry, workspaceHardware, pluginLog } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch } = await buildApp()
 
   try {
     // Which plugins run is not configured here: the band installs them in the PWA, and the
@@ -1352,6 +1444,15 @@ async function main() {
     // persisted choice (activeWorkspaceStateStore.ts) wins, surviving restarts on its own. The
     // env var is only the first-boot bootstrap for a truly fresh box that's never activated
     // anything yet.
+    // Validator rules added after a band was founded (protected dashboard templates, #16) reach
+    // its database here. A failure must not keep the server from starting.
+    try {
+      const updated = await updateRosterValidators(couch)
+      if (updated.length > 0) app.log.info({ databases: updated }, 'Roster validator updated')
+    } catch (err) {
+      app.log.error({ err }, 'Could not update roster validators')
+    }
+
     const bootWorkspaceId = readPersistedActiveWorkspace() ?? process.env.STAGEBOARD_WORKSPACE ?? null
     if (bootWorkspaceId) {
       await workspaceHardware.activate(bootWorkspaceId)

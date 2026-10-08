@@ -90,7 +90,7 @@ export function TimelineMinimap({ width, peaks, range, view, viewSpanMs, blocks,
   return (
     <canvas
       ref={canvas}
-      className="w-full rounded-sb-sm border border-line bg-stage"
+      className="w-full rounded-control border border-line bg-stage"
       style={{ height: MINIMAP_H, touchAction: 'none' }}
       aria-label="Übersicht"
       data-testid="timeline-minimap"

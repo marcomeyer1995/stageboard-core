@@ -41,8 +41,25 @@ describe('InviteBandView', () => {
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
 
     expect(getAccessCode).toHaveBeenCalledWith('band-a')
-    await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
     await waitFor(() => expect(screen.getByAltText('QR-Code für Bandcode 12345678')).toBeInTheDocument())
+  })
+
+  it('"Drucken" prints only its own sheet (band name, QR, code) - not the app behind the dialog', async () => {
+    const getAccessCode = vi.fn().mockResolvedValue({ code: '12345678' })
+    useWorkspaceStore.setState({ getAccessCode, workspaces: [{ id: 'band-a', name: 'Abadschendaler' }] as never })
+    const print = vi.fn()
+    vi.stubGlobal('print', print)
+    const { unmount } = render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
+    const sheet = await screen.findByTestId('print-sheet')
+    expect(sheet.parentElement).toBe(document.body)
+    expect(sheet).toHaveTextContent('Abadschendaler')
+    expect(sheet).toHaveTextContent('12345678')
+    expect(document.body).toHaveClass('sb-has-print-sheet')
+    fireEvent.click(screen.getByRole('button', { name: 'Drucken / als PDF speichern' }))
+    expect(print).toHaveBeenCalled()
+    unmount()
+    expect(document.body).not.toHaveClass('sb-has-print-sheet')
   })
 
   it('embeds the Stage-Server\'s current LAN IP in the QR and shows it with a regeneration note', async () => {
@@ -53,7 +70,7 @@ describe('InviteBandView', () => {
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
 
-    await waitFor(() => expect(screen.getByText(/192\.168\.1\.5/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/192\.168\.1\.5/)[0]).toBeInTheDocument())
     expect(screen.getByText(/neu erstellt werden/)).toBeInTheDocument()
   })
 
@@ -64,7 +81,7 @@ describe('InviteBandView', () => {
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
 
-    await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
     expect(screen.getByText(/Server-Adresse konnte nicht ermittelt werden/)).toBeInTheDocument()
   })
 
@@ -77,15 +94,15 @@ describe('InviteBandView', () => {
     expect(await screen.findByText('Code konnte nicht geladen werden.')).toBeInTheDocument()
   })
 
-  it('calls onClose when "Schließen" is clicked', async () => {
+  it('calls onClose when "Fertig" is clicked', async () => {
     const getAccessCode = vi.fn().mockResolvedValue({ code: '12345678' })
     useWorkspaceStore.setState({ getAccessCode })
     const onClose = vi.fn()
 
     render(<InviteBandView workspaceId="band-a" onClose={onClose} />)
-    await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
 
-    screen.getByText('Schließen').click()
+    screen.getByText('Fertig').click()
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -96,12 +113,12 @@ describe('InviteBandView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(true) })
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
 
     fireEvent.click(screen.getByText('Code ändern'))
 
     await waitFor(() => expect(rotateAccessCode).toHaveBeenCalledWith('band-a'))
-    await waitFor(() => expect(screen.getByText('87654321')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('87654321')[0]).toBeInTheDocument())
     expect(screen.queryByText('12345678')).not.toBeInTheDocument()
   })
 
@@ -112,12 +129,12 @@ describe('InviteBandView', () => {
     useDialogStore.setState({ confirm: vi.fn().mockResolvedValue(false) })
 
     render(<InviteBandView workspaceId="band-a" onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('12345678')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('12345678')[0]).toBeInTheDocument())
 
     fireEvent.click(screen.getByText('Code ändern'))
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(rotateAccessCode).not.toHaveBeenCalled()
-    expect(screen.getByText('12345678')).toBeInTheDocument()
+    expect(screen.getAllByText('12345678')[0]).toBeInTheDocument()
   })
 })

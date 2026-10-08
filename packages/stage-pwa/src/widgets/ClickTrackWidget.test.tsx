@@ -142,13 +142,13 @@ describe('ClickTrackWidget', () => {
     const setClickTrackOverride = vi.fn()
     mockShowMode({ currentSong: song(true), setClickTrackOverride, canControl: true })
     const { rerender } = render(<ClickTrackWidget config={{}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Aus' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Aus' }))
     expect(setClickTrackOverride).toHaveBeenCalledWith('off')
 
     setClickTrackOverride.mockClear()
     mockShowMode({ currentSong: song(true), setClickTrackOverride, canControl: false })
     rerender(<ClickTrackWidget config={{}} />)
-    expect(screen.getByRole('button', { name: 'Aus' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Aus' })).toBeDisabled()
   })
 
   it('lets the override be changed in Practice mode too - a local, ungated per-device choice, not the Gig-mode Master-gated write (found live, 2026-09-09: this widget rendered the buttons in both modes, but useShowMode\'s Practice branch stubbed the setter to a no-op, so training with a fixed click silently didn\'t work)', () => {
@@ -158,7 +158,7 @@ describe('ClickTrackWidget', () => {
     const setClickTrackOverride = vi.fn()
     mockShowMode({ mode: 'practice', currentSong: song(true), setClickTrackOverride, canControl: true })
     render(<ClickTrackWidget config={{}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Aus' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Aus' }))
     expect(setClickTrackOverride).toHaveBeenCalledWith('off')
   })
 

@@ -10,6 +10,8 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { BackToWorkingBandLink } from './BackToWorkingBandLink'
 import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
+import { Switch } from './ui'
+import { INPUT, INPUT_FREE } from './ui/styles'
 
 type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-context' | 'unsupported'
 
@@ -309,7 +311,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 3: pick who you are.
   if (roster) {
     return (
-      <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">Wer bist du?</h1>
@@ -318,7 +320,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
           <ul className="space-y-2">
             {roster.members.map((member) => (
-              <li key={member.profileId} className="rounded-sb border border-line bg-surface">
+              <li key={member.profileId} className="rounded-container border border-line bg-surface">
                 {passwordProfileId === member.profileId ? (
                   <form
                     onSubmit={(e) => {
@@ -335,12 +337,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                         placeholder="4-stelliger Code"
                         inputMode="numeric"
                         autoFocus
-                        className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+                        className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
                       />
                       <button
                         type="submit"
                         disabled={busy || memberPasswordInput.length !== 4}
-                        className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+                        className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
                       >
                         {busy ? '…' : 'Beitreten'}
                       </button>
@@ -354,7 +356,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     <button
                       type="button"
                       onClick={() => setPasswordProfileId(null)}
-                      className="self-start text-xs text-ink-faint underline"
+                      className="min-h-form inline-flex items-center self-start text-base text-ink-faint underline"
                     >
                       Abbrechen
                     </button>
@@ -364,7 +366,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     type="button"
                     disabled={busy}
                     onClick={() => handlePickMember(member)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-control-hover disabled:opacity-50"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-50"
                   >
                     <span>{member.name}</span>
                   </button>
@@ -384,7 +386,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 2: code entry, scoped to the band picked in step 1.
   if (selectedWorkspace) {
     return (
-      <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+      <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
@@ -404,12 +406,12 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               placeholder="8-stelliger Code"
               inputMode="numeric"
               autoFocus
-              className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-center text-lg tracking-widest text-ink-soft"
+              className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
             <button
               type="submit"
               disabled={busy || manualCode.trim().length === 0}
-              className="flex-shrink-0 rounded-sb bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50"
+              className="flex-shrink-0 rounded-control bg-accent px-4 min-h-form font-semibold text-accent-ink disabled:opacity-50"
             >
               {busy ? '…' : 'Weiter'}
             </button>
@@ -425,7 +427,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
-    <div className="fixed inset-0 z-20 flex h-dvh flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
+    <div className="fixed inset-0 z-20 flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
       <div className="w-full max-w-sm space-y-4 py-4">
         {!onClose && <BackToWorkingBandLink />}
 
@@ -443,14 +445,14 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-sb bg-control px-4 py-2 font-semibold text-ink-soft hover:bg-control-hover"
+            className="w-full rounded-control bg-control px-4 py-2 font-semibold text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
           >
             Abbrechen
           </button>
         )}
 
         {!native && /Android/i.test(navigator.userAgent) && (
-          <a href="/app" className="flex min-h-12 items-center justify-center rounded-sb bg-control-strong px-4 text-base font-semibold text-ink">
+          <a href="/app" className="flex min-h-form items-center justify-center rounded-control bg-control-strong px-4 text-base font-semibold text-ink">
             StageBoard-App für Android installieren
           </a>
         )}
@@ -461,7 +463,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               e.preventDefault()
               void connectByAddress()
             }}
-            className="space-y-2 rounded-sb border border-line bg-surface p-3"
+            className="space-y-2 rounded-container border border-line bg-surface p-3"
           >
             {serverUrl ? (
               <p className="text-base text-ink">
@@ -482,10 +484,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                     onChange={(e) => setServerAddress(e.target.value)}
                     placeholder="192.168.178.158"
                     inputMode="url"
-                    className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+                    className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                     aria-label="Adresse des Stage-Servers"
                   />
-                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                  <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
                     Verbinden
                   </button>
                 </div>
@@ -502,10 +504,10 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setServerAddress(e.target.value)}
                   placeholder="192.168.178.158"
                   inputMode="url"
-                  className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-base text-ink-soft"
+                  className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT_FREE}`}
                   aria-label="Adresse des Stage-Servers"
                 />
-                <button type="submit" disabled={!serverAddress.trim()} className="min-h-12 flex-shrink-0 rounded-sb bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
+                <button type="submit" disabled={!serverAddress.trim()} className="min-h-form flex-shrink-0 rounded-control bg-control-strong px-4 font-semibold text-ink disabled:opacity-50">
                   Verbinden
                 </button>
               </div>
@@ -521,7 +523,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             this taller than the whole viewport in landscape on a phone/tablet, pushing
             everything else off-screen with nothing to scroll to. object-cover still fills
             this box regardless of the camera's actual aspect ratio. */}
-        <div className="relative h-56 overflow-hidden rounded-sb border border-line bg-surface">
+        <div className="relative h-56 overflow-hidden rounded-container border border-line bg-surface">
           <video
             ref={videoRef}
             className={`h-full w-full object-cover ${cameraStatus === 'scanning' ? '' : 'hidden'}`}
@@ -568,7 +570,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   <button
                     type="button"
                     onClick={() => setSelectedWorkspace(workspace)}
-                    className="w-full rounded-sb border border-line bg-surface px-4 py-3 text-left font-semibold hover:bg-control-hover"
+                    className="w-full min-h-stage rounded-control bg-control px-4 text-left font-semibold [@media(hover:hover)]:hover:bg-control-hover"
                   >
                     {workspace.workspaceName}
                   </button>
@@ -588,7 +590,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
             this screen has no admin login, so offering it here could only fail. The first band
             on a fresh server (or a band without any server) is still founded here. */}
         {workspacesExist ? (
-          <p className="rounded-sb border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
+          <p className="rounded-container border border-line bg-surface px-4 py-3 text-sm text-ink-muted">
             Weitere Bands legt ein Band-Admin an: System → Band → „+ Band“. Danach lädt er dich ein.
           </p>
         ) : (
@@ -599,7 +601,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
               const name = await promptText('Neue Band', { label: 'Name der neuen Band' })
               if (name?.trim()) void addWorkspace(name.trim())
             }}
-            className="w-full rounded-sb border border-line bg-surface px-4 py-3 font-semibold text-ink-soft hover:bg-control-hover disabled:opacity-40"
+            className="w-full min-h-form rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-hover disabled:opacity-40"
           >
             Neue Band gründen
           </button>
@@ -631,7 +633,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setFallbackWorkspaceId(e.target.value)}
                 placeholder="Band-ID"
                 aria-label="Band-ID"
-                className="h-12 rounded-sb bg-control px-3 text-ink-soft"
+                className={`h-form px-3 ${INPUT}`}
               />
               {/* Per-person-accounts follow-up: every account has its own username now, no
                   fixed formula to derive it from - has to be typed in alongside the password. */}
@@ -640,7 +642,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Benutzername"
                 aria-label="Benutzername"
-                className="h-12 rounded-sb bg-control px-3 text-ink-soft"
+                className={`h-form px-3 ${INPUT}`}
               />
               <div className="flex gap-2">
                 <input
@@ -649,26 +651,18 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Passwort oder PIN"
                   aria-label="Passwort oder PIN"
-                  className="h-12 min-w-0 flex-1 rounded-sb bg-control px-3 text-ink-soft"
+                  className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
                 />
                 <button
                   type="submit"
-                  className="flex-shrink-0 rounded-sb border border-line bg-surface px-4 py-2 font-semibold"
+                  className="flex-shrink-0 rounded-control bg-control-strong px-4 min-h-form font-semibold"
                 >
                   OK
                 </button>
               </div>
               {/* Self-declared, not verified here - a wrong guess only mis-shows admin UI,
                   CouchDB's roster validator is what actually enforces admin-only writes. */}
-              <label className="flex items-center gap-2 text-sm text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={isAdmin}
-                  onChange={(e) => setIsAdmin(e.target.checked)}
-                  className="h-5 w-5"
-                />
-                Dies ist ein Admin-Konto
-              </label>
+              <Switch label="Dies ist ein Admin-Konto" checked={isAdmin} onChange={setIsAdmin} />
             </form>
           )}
         </div>

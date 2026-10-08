@@ -1,5 +1,5 @@
 import type { ShowControlEvent, ShowControlResult } from 'shared-types'
-import { getStageServerUrl } from './stageServer'
+import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE } from './stageServer'
 
 /** Fires a trigger through the Stage-Server relay (#10 - see deviceRelay.ts) at whichever
  * tablet the active HardwareSetup binds `capability` to, rather than a Stage-Server plugin -
@@ -11,7 +11,7 @@ export async function triggerDeviceControl(
   event: ShowControlEvent,
 ): Promise<ShowControlResult> {
   const base = getStageServerUrl()
-  if (!base) return { status: 'error', message: 'VITE_STAGE_SERVER_URL is not configured' }
+  if (!base) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
 
   try {
     const response = await fetch(`${base}/workspaces/${workspaceId}/devices/${deviceId}/trigger`, {

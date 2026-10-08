@@ -29,7 +29,7 @@ export function AppVersionSettings() {
     setInstalling(false)
   }
 
-  const button = 'h-12 rounded-sb bg-control-strong px-4 text-sm font-medium text-accent hover:bg-control-strong-hover disabled:opacity-40'
+  const button = 'h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   return (
     <div className="flex flex-col gap-2">
       <p className="text-base text-ink">Installiert: {APP_VERSION_CODE > 0 ? `Version 1.${APP_VERSION_CODE}` : 'Entwicklungs-Build'}</p>
