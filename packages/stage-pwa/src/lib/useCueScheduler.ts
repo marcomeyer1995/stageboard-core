@@ -4,6 +4,7 @@ import { useShowMode } from './showMode'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useShowLogStore } from '../store/useShowLogStore'
 
 /**
  * Per-tablet ahead-of-time cue dispatch (#102, runtime counterpart to #99's `ShowCue` schema) -
@@ -25,6 +26,7 @@ export function useCueScheduler(): void {
   const { mode, queue, elapsedMs } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
+  const isMaster = useShowStateStore((state) => state.isMaster)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
 
@@ -51,7 +53,26 @@ export function useCueScheduler(): void {
     for (const cue of cues) {
       if (cue.timeMs > elapsedMs || firedRef.current.ids.has(cue.id)) continue
       firedRef.current.ids.add(cue.id)
-      void fireCue(cue, { deviceId, logicalDevices, installed })
+      const song = queue.currentSong
+      void fireCue(cue, { deviceId, logicalDevices, installed, sendsServerCues: isMaster }).then((outcome) => {
+        // Into the Nachbericht (#8): every cue sent, failed ones with the reason. One id per
+        // show + play-through + cue, so the same cue reported by two devices is one entry.
+        const showId = useShowStateStore.getState().state.currentShowId
+        if (!outcome || !showId || !song || activeEntryStartedAt === null) return
+        void useShowLogStore.getState().append({
+          id: `cue-${showId}-${activeEntryStartedAt}-${cue.id}`,
+          showId,
+          type: 'cue-fired',
+          at: Date.now(),
+          songId: song.id,
+          songTitle: song.title,
+          cueId: cue.id,
+          cueType: cue.type,
+          target: outcome.target,
+          ok: outcome.ok,
+          ...(outcome.message ? { message: outcome.message.slice(0, 300) } : {}),
+        })
+      })
     }
-  }, [mode, elapsedMs, queue.currentVariant, activeEntryStartedAt, logicalDevices, installed, deviceId])
+  }, [mode, elapsedMs, queue.currentVariant, queue.currentSong, activeEntryStartedAt, logicalDevices, installed, deviceId, isMaster])
 }

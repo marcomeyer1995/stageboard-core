@@ -17,8 +17,9 @@ const CapabilityStatusValueSchema = z.enum(['available', 'degraded', 'missing'])
  * every other ShowState write is, so only one tablet ever writes these at a time.
  * Capability-changed detection is the one part that's still a reactive watch over time rather
  * than a discrete action (see stage-pwa's useShowLogTracker.ts), for the same reason and the
- * same trust gate. `note` events are the one exception: any device can add one, not just the
- * master.
+ * same trust gate. `note` events are one exception: any device can add one, not just the
+ * master. `cue-fired` (#8) is the other: written by the device that sent the cue - its id is the
+ * same on every device (show + play-through + cue), so copies merge.
  */
 export const ShowLogEventSchema = z.discriminatedUnion('type', [
   z.object({
@@ -51,6 +52,23 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     capability: z.string().min(1),
     from: CapabilityStatusValueSchema,
     to: CapabilityStatusValueSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('cue-fired'),
+    /** When the cue went out. */
+    at: z.number().int().nonnegative(),
+    songId: z.string().min(1),
+    songTitle: z.string().min(1),
+    cueId: z.string().min(1),
+    /** The cue's command, e.g. `kemper.selectRig`. */
+    cueType: z.string().min(1),
+    /** Who it went to - the Logical Device's name (or its id when it no longer exists). */
+    target: z.string().min(1),
+    ok: z.boolean(),
+    /** Why it failed (device gone, no output, the device's own error). */
+    message: z.string().max(300).optional(),
   }),
   z.object({
     id: z.string().min(1),
