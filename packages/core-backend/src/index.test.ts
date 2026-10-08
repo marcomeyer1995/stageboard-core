@@ -1248,6 +1248,20 @@ describe('Fastify routes', () => {
       expect(response.statusCode).toBe(400)
     })
 
+    it('an admin cannot remove their own profile, even with another admin left (Marco, 2026-10-08)', async () => {
+      const fetchMock = stubFetch([stubAdminVerify()])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/workspaces/band-a/members/p1',
+        payload: { adminUsername: 'stageboard-band-a-p1', adminPassword: 'correct-pw' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json()).toMatchObject({ message: 'An admin cannot remove their own profile' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
     it('returns 403 when the caller does not verify as an admin', async () => {
       stubFetch([{ ok: false, status: 401 }])
 

@@ -1013,6 +1013,12 @@ export async function buildApp() {
 
     // Only actually blocks removing the sole remaining *admin* - deleting a plain member never
     // changes the admin count, so this only rejects when the target itself is that one admin.
+    // No admin removes their own profile - only another admin can (Marco, 2026-10-08), like
+    // taking away one's own admin rights below. Checked before any CouchDB read.
+    if (parsed.data.adminUsername.slice(workspaceDbName(workspaceId).length + 1).split('~')[0] === profileId) {
+      return reply.status(400).send({ status: 'error', message: 'An admin cannot remove their own profile' })
+    }
+
     if ((await countOtherAdmins(couch, workspaceId, profileId)) === 0) {
       return reply.status(400).send({ status: 'error', message: 'At least one admin must remain' })
     }

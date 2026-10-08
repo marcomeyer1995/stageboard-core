@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { Device } from 'shared-types'
 import { getAllDevices, putDevice, devicesChanges, switchDevicesWorkspace } from '../lib/devicesDb'
 import { getDeviceId } from '../lib/deviceId'
+import { rememberDeviceName, rememberedDeviceName } from '../lib/ownDeviceName'
 import { guessDeviceName } from '../lib/guessDeviceName'
 import { getStageServerUrl } from '../lib/stageServer'
 import { useDialogStore } from './useDialogStore'
@@ -58,9 +59,12 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     const docs = await getAllDevices()
     const deviceId = getDeviceId()
     const mine = docs.find((device) => device.id === deviceId)
+    // Keep a copy of the band's name for this device on the device itself (lib/ownDeviceName.ts).
+    if (mine) rememberDeviceName(mine.name)
     if (!mine) {
       const now = Date.now()
-      await putDevice({ id: deviceId, name: guessDeviceName(), lastSeenAt: now, firstSeenAt: now, revoked: false })
+      // Back under its own name after "Aus Liste entfernen" (lib/ownDeviceName.ts).
+      await putDevice({ id: deviceId, name: rememberedDeviceName() ?? guessDeviceName(), lastSeenAt: now, firstSeenAt: now, revoked: false })
     } else if (!mine.firstSeenAt) {
       // Backfill for a doc written before `firstSeenAt`/`revoked` existed (Device Ledger,
       // 2026-09-08) - unconditional on staleness, unlike the plain lastSeenAt refresh below,
@@ -78,6 +82,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     changesHandle.on('change', () => refresh(set))
   },
   rename: async (id, name) => {
+    if (id === getDeviceId()) rememberDeviceName(name)
     const existing = get().devices.find((device) => device.id === id)
     // Spreads `...existing` rather than reconstructing a bare {id, name, lastSeenAt} - devicesDb
     // .put() replaces the full doc body on every call, so a naive reconstruction here would
