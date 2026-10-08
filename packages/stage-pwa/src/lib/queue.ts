@@ -6,7 +6,7 @@ import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
 import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
-import { songDurationMs } from './entryDuration'
+import { songDurationMs, stoppedNearEnd } from './entryDuration'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -62,7 +62,10 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
   const length = isSongEntry(currentEntry) ? songDurationMs(currentEntry, currentVariant, state.trackOverride)?.ms : undefined
   const maxActiveMs = (length ?? UNKNOWN_LENGTH_CAP_MS) + (state.clickExtendMs ?? 0) + LENGTH_MARGIN_MS
   const result = finalizeSongPlay({ songId: currentSong.id, songTitle: currentSong.title }, state.activeEntryStartedAt, activeMs, now, showId, maxActiveMs)
-  if (result) void useShowLogStore.getState().append({ id: randomId(), type: 'song-played', ...result })
+  // The same play-through always gets the same id: in 'Pro Person' master mode (#85) every
+  // device of the master finalizes it - with a random id each, the Nachbericht (and "Geprobt")
+  // counted the song twice; with one id the copies are one document (#409 review).
+  if (result) void useShowLogStore.getState().append({ id: `song-played-${showId}-${state.activeEntryStartedAt}`, type: 'song-played', ...result })
 }
 
 /** Starts a fresh `show` in ShowLog if enough idle time passed since the last activity,
@@ -171,8 +174,11 @@ export async function pauseSong(): Promise<void> {
 export async function stopSong(): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  finalizeCurrentSong(state, getServerTime())
-  await applyPatch(REARM_PATCH)
+  const now = getServerTime()
+  const { currentEntry, currentVariant } = getQueueSnapshot()
+  const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), now))
+  finalizeCurrentSong(state, now)
+  await applyPatch({ ...REARM_PATCH, trackEnded: ended })
 }
 
 /** Stop because the track ran out by itself (useAutoStopDriver): like Stop, but leaves the entry

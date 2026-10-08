@@ -40,7 +40,7 @@ interface Mg30Output {
   channel: number // 0-indexed
 }
 
-/** Same "first Logical Device with this capability, bound on this device" resolution as
+/** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts/cq18tTranslator.ts - see their own doc comments for why. */
 async function resolveMg30Output(logicalDeviceId?: string): Promise<Mg30Output | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, MG30_CAPABILITY, logicalDeviceId)
