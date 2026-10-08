@@ -4,6 +4,8 @@ import { fetchDeviceInfo } from '../lib/fetchDeviceInfo'
 
 interface DeviceInfoState {
   deviceInfo: DeviceInfo
+  /** The first answer from the Stage-Server arrived - before it, every device looks inactive. */
+  loaded: boolean
   init: (workspaceId: string) => Promise<void>
   stop: () => void
 }
@@ -34,13 +36,14 @@ let pollInterval: ReturnType<typeof setInterval> | null = null
  */
 export const useDeviceInfoStore = create<DeviceInfoState>((set) => ({
   deviceInfo: DEFAULT_DEVICE_INFO,
+  loaded: false,
   init: async (workspaceId) => {
     if (pollInterval) clearInterval(pollInterval)
-    set({ deviceInfo: DEFAULT_DEVICE_INFO })
+    set({ deviceInfo: DEFAULT_DEVICE_INFO, loaded: false })
 
     const poll = async () => {
       const deviceInfo = await fetchDeviceInfo(workspaceId)
-      if (deviceInfo) set({ deviceInfo })
+      if (deviceInfo) set({ deviceInfo, loaded: true })
     }
     await poll()
     pollInterval = setInterval(poll, POLL_INTERVAL_MS)
@@ -48,6 +51,6 @@ export const useDeviceInfoStore = create<DeviceInfoState>((set) => ({
   stop: () => {
     if (pollInterval) clearInterval(pollInterval)
     pollInterval = null
-    set({ deviceInfo: DEFAULT_DEVICE_INFO })
+    set({ deviceInfo: DEFAULT_DEVICE_INFO, loaded: false })
   },
 }))
