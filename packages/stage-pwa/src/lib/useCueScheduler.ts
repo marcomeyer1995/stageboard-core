@@ -3,7 +3,7 @@ import { fireCue } from './cueFiring'
 import { useShowMode } from './showMode'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
+import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 import { useShowLogStore } from '../store/useShowLogStore'
 
 /**
@@ -26,7 +26,9 @@ export function useCueScheduler(): void {
   const { mode, queue, elapsedMs } = useShowMode()
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
-  const isMaster = useShowStateStore((state) => state.isMaster)
+  // Server cues go out once - from the device that drives the automatic steps (one device even in
+  // Pro-Person mode, drivesAutomation, #453).
+  const isMaster = useShowStateStore(drivesAutomation)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
 
