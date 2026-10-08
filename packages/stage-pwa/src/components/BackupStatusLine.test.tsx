@@ -32,8 +32,8 @@ describe('BackupStatusLine (#363)', () => {
   })
 
   it('shows the reason of a failed backup', async () => {
-    answer({ ok: false, at: new Date().toISOString(), error: 'Backup target is not there (not mounted?): /media/usb' })
+    answer({ ok: false, at: new Date().toISOString(), error: 'Ziel nicht da (nicht eingesteckt oder nicht eingehängt): /media/usb' })
     render(<BackupStatusLine />)
-    expect(await screen.findByText(/Backup fehlgeschlagen.*not mounted/)).toBeInTheDocument()
+    expect(await screen.findByText(/Backup fehlgeschlagen.*nicht eingesteckt/)).toBeInTheDocument()
   })
 })

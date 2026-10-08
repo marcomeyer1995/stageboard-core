@@ -38,6 +38,11 @@ const keep = Math.max(1, Number(process.env.STAGEBOARD_BACKUP_KEEP ?? 7))
 const dataDir = process.env.STAGEBOARD_DATA_DIR ?? join(homedir(), 'stageboard-data')
 const certsDir = process.env.CERTS_DIR ?? join(repoRoot, 'certs')
 const stateDir = process.env.STAGEBOARD_STATE_DIR ?? dataDir
+// Set by the Stage-Server's backup runner (core-backend/src/backup.ts): its own status file per
+// target, and - for a NAS over SSH - no data archive (rsync copies the data folder itself, so
+// generations share unchanged backing tracks through hard links).
+const statusFile = process.env.STAGEBOARD_BACKUP_STATUS_FILE ?? join(stateDir, 'backup-status.json')
+const skipData = process.env.STAGEBOARD_BACKUP_SKIP_DATA === '1'
 const couch = {
   url: (process.env.COUCHDB_URL ?? 'http://localhost:5984').replace(/\/$/, ''),
   auth: 'Basic ' + Buffer.from(`${process.env.COUCHDB_USER ?? 'admin'}:${process.env.COUCHDB_PASSWORD ?? 'admin'}`).toString('base64'),
@@ -51,8 +56,8 @@ function log(level, msg, extra = {}) {
 
 function writeStatus(status) {
   try {
-    mkdirSync(stateDir, { recursive: true })
-    writeFileSync(join(stateDir, 'backup-status.json'), JSON.stringify(status, null, 2))
+    mkdirSync(dirname(statusFile), { recursive: true })
+    writeFileSync(statusFile, JSON.stringify(status, null, 2))
   } catch (err) {
     log('error', 'Could not write backup-status.json', { error: String(err) })
   }
@@ -115,12 +120,18 @@ async function main() {
   const startedAt = new Date()
   if (!target) throw new Error('No backup target - pass a folder or set STAGEBOARD_BACKUP_TARGET')
   if (!existsSync(target) || !statSync(target).isDirectory()) {
-    throw new Error(`Backup target is not there (not mounted?): ${target}`)
+    throw new Error(`Ziel nicht da (nicht eingesteckt oder nicht eingehängt): ${target}`)
   }
   // A target inside the data folder would archive itself ("file changed while reading") and
   // sit on the same disk anyway - the second medium is the point.
   if (resolve(target).startsWith(resolve(dataDir) + '/')) {
     throw new Error(`Backup target lies inside the data folder ${dataDir} - choose a folder on the second medium`)
+  }
+  // Same filesystem as the data: an unmounted disk whose mount point (e.g. /mnt/backup) still
+  // exists would silently fill the system disk and look green - and it is no second medium anyway.
+  // A separate ZFS dataset is its own filesystem and passes. The NAS runner stages here on purpose.
+  if (process.env.STAGEBOARD_BACKUP_ALLOW_SAME_DISK !== '1' && existsSync(dataDir) && statSync(target).dev === statSync(dataDir).dev) {
+    throw new Error(`Ziel liegt auf derselben Platte wie die Daten (${dataDir}) - nicht eingehängt? Ein zweites Medium wählen`)
   }
   const stamp = startedAt.toISOString().slice(0, 16).replace('T', '_').replace(':', '')
   const dir = join(target, `stageboard-${stamp}`)
@@ -135,14 +146,14 @@ async function main() {
     writeFileSync(file, JSON.stringify(dump), { mode: 0o600 })
     databases.push({ db, docs: dump.docs.length, bytes: statSync(file).size })
   }
-  const dataBytes = tarGz(dataDir, join(dir, 'data.tar.gz'))
+  const dataBytes = skipData ? 0 : tarGz(dataDir, join(dir, 'data.tar.gz'))
   const certsBytes = existsSync(certsDir) ? tarGz(certsDir, join(dir, 'certs.tar.gz')) : 0
 
   const manifest = {
     createdAt: startedAt.toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
     databases,
-    data: { source: dataDir, bytes: dataBytes },
+    data: skipData ? { source: dataDir, copiedAs: 'data/ (rsync)' } : { source: dataDir, bytes: dataBytes },
     certs: { source: certsDir, bytes: certsBytes },
   }
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2))
