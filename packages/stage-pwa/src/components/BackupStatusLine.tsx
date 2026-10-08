@@ -42,11 +42,11 @@ export function BackupStatusLine() {
   }, [])
 
   if (status === undefined) return null
-  if (status === null) return <span className="text-amber-500">Backup: noch nicht eingerichtet (docs/03 „Backup“)</span>
+  if (status === null) return <span className="text-warn">Backup: noch nicht eingerichtet (docs/03 „Backup“)</span>
   const stale = status.at ? Date.now() - new Date(status.at).getTime() > 48 * 3600_000 : true
-  if (!status.ok) return <span className="text-red-400">Backup fehlgeschlagen{status.at ? ` (${ago(status.at)})` : ''}: {status.error}</span>
+  if (!status.ok) return <span className="text-danger">Backup fehlgeschlagen{status.at ? ` (${ago(status.at)})` : ''}: {status.error}</span>
   return (
-    <span className={stale ? 'text-amber-500' : 'text-green-500'}>
+    <span className={stale ? 'text-warn' : 'text-ok'}>
       Letztes Backup {status.at ? ago(status.at) : ''}
       {stale ? ' - älter als zwei Tage' : ''}
     </span>
