@@ -37,6 +37,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
   const setEditing = useEditModeStore((state) => state.setEditing)
   const promptText = useDialogStore((state) => state.promptText)
   const confirm = useDialogStore((state) => state.confirm)
+  const alert = useDialogStore((state) => state.alert)
   const profile = useActiveProfile()
   const roles = profile?.stageRoles ?? []
   // Back from editing a dashboard that was opened here: the list comes back in "Bearbeiten".
@@ -57,7 +58,11 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
       return
     }
     // A template (#16): the musician's own copy instead.
-    if (!profile) return
+    // Without a profile there is nobody to own the copy - say so instead of doing nothing (#422 review).
+    if (!profile) {
+      void alert(`„${dashboard.name}“ ist eine Vorlage. Für eine eigene Kopie zuerst ein Profil wählen (Menü → Band).`)
+      return
+    }
     const ok = await confirm(`„${dashboard.name}“ ist eine Vorlage - nur Admins ändern sie. Eine eigene Kopie anlegen und bearbeiten?`, {
       title: 'Vorlage',
       confirmLabel: 'Eigene Kopie bearbeiten',

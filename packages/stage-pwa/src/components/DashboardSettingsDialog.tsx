@@ -27,6 +27,9 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
   const isAdmin = profile?.stageRoles.includes('admin') ?? false
   // The band keeps at least one shared dashboard.
   const lastPublic = dashboard.visibility !== 'private' && dashboards.filter((d) => d.visibility !== 'private').length <= 1
+  // Like the mode chips below: a mode keeps at least one dashboard - deleting must not take it (#422 review).
+  const onlyIn = (['gig', 'practice'] as const).filter((mode) => isDashboardAvailableInMode(dashboard, mode) && !canRemoveMode(dashboards, dashboard, mode))
+  const lastOfMode = onlyIn.length > 0 ? onlyIn.map((mode) => (mode === 'gig' ? 'Gig' : 'Solo')).join(' und ') : null
 
   const modeChip = (mode: 'gig' | 'practice', label: string) => {
     const on = isDashboardAvailableInMode(dashboard, mode)
@@ -96,8 +99,8 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
         <Button
           variant="danger"
           fullWidth
-          disabled={lastPublic}
-          title={lastPublic ? 'Das einzige geteilte Dashboard bleibt bestehen' : undefined}
+          disabled={lastPublic || lastOfMode !== null}
+          title={lastPublic ? 'Das einzige geteilte Dashboard bleibt bestehen' : lastOfMode ? `Einziges Dashboard für ${lastOfMode} - bleibt` : undefined}
           onClick={async () => {
             if (!(await confirm(`„${dashboard.name}“ löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
             await remove(dashboard.id)

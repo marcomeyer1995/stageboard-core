@@ -54,4 +54,12 @@ describe('useDashboardsStore read path', () => {
     }
     docs.pop()
   })
+
+  it('a new dashboard or copy is in the store at once - the caller opens it right away (#422 review)', async () => {
+    useDashboardsStore.setState({ dashboards: [] })
+    const created = await useDashboardsStore.getState().create('Neu')
+    expect(useDashboardsStore.getState().dashboards.map((d) => d.id)).toContain(created.id)
+    const copy = await useDashboardsStore.getState().duplicate(created.id, 'Neu Kopie')
+    expect(useDashboardsStore.getState().dashboards.map((d) => d.id)).toContain(copy!.id)
+  })
 })

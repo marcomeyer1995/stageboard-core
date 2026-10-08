@@ -18,6 +18,7 @@ const { DashboardEditBar } = await import('./DashboardEditBar')
 
 const board = (id: string, extra: Partial<Dashboard> = {}): Dashboard => ({ id, name: id, order: 0, widgets: [], layouts: {}, visibility: 'public', ...extra })
 const save = vi.fn()
+const rename = vi.fn()
 
 function renderBar(dashboard: Dashboard) {
   return render(<DashboardEditBar dashboard={dashboard} breakpoint="lg" capabilities={new Map()} />)
@@ -29,8 +30,9 @@ const action = (name: RegExp | string) => screen.getByRole('button', { name })
 
 beforeEach(() => {
   save.mockReset()
+  rename.mockReset()
   me.profile.stageRoles = ['admin']
-  useDashboardsStore.setState({ save, dashboards: [board('Bühne'), board('Monitor')] })
+  useDashboardsStore.setState({ save, rename, dashboards: [board('Bühne'), board('Monitor')] })
 })
 
 describe('DashboardEditBar (dashboard editing redesign)', () => {
@@ -40,7 +42,8 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     expect(screen.getByRole('button', { name: 'Bearbeiten beenden' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Bühne/ }))
     await act(async () => useDialogStore.getState().submit({ value: 'Hauptbühne' }))
-    expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'Bühne', name: 'Hauptbühne' }))
+    // Through the store's rename - against the freshly read dashboard, not a spread of this copy (#422 review).
+    expect(rename).toHaveBeenCalledWith('Bühne', 'Hauptbühne')
   })
 
   it('⋯ opens the settings: chips for the modes, a bar for the audience, switches for on/off (docs/15)', () => {
@@ -73,5 +76,12 @@ describe('DashboardEditBar (dashboard editing redesign)', () => {
     expect(action('Dashboard löschen')).toBeDisabled()
     expect(screen.getByRole('radio', { name: 'Nur ich' })).toBeDisabled()
     expect(action('Gig')).toBeDisabled()
+  })
+
+  it('the only dashboard of a mode cannot be deleted - like its mode chip (#422 review)', () => {
+    useDashboardsStore.setState({ dashboards: [board('Bühne', { modes: ['practice'] }), board('Monitor', { modes: ['gig'] })] })
+    renderBar(board('Bühne', { modes: ['practice'] }))
+    openSettings()
+    expect(action('Dashboard löschen')).toBeDisabled()
   })
 })
