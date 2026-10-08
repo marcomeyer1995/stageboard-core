@@ -166,7 +166,7 @@ describe('DialogHost - destructive confirmation (#361)', () => {
     })
     const host = screen.getByTestId('dialog-host')
     // AppMenu / OverflowMenu / WidgetFrame menus use z-40, DeviceSetupWizard and nested sheets z-50.
-    expect(host.className).toContain('z-[55]')
+    expect(host.className).toContain('z-alert')
     expect(host.className).not.toMatch(/\bz-(30|40|50)\b/)
   })
 

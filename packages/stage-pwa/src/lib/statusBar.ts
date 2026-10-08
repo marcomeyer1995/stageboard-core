@@ -47,11 +47,11 @@ export function statusBarState(input: StatusBarInput): StatusBarState {
 /** Full-bar colours per state (Marco: "try the full bar"), each with its own readable text. */
 export const STATUS_BAR_CLASS: Record<StatusBarKind, string> = {
   ready: 'bg-surface text-ink',
-  'count-in': 'bg-blue-700 text-white',
-  playing: 'bg-green-700 text-white',
-  paused: 'bg-amber-500 text-black',
-  finished: 'bg-fuchsia-700 text-white',
-  fault: 'bg-red-600 text-white',
+  'count-in': 'bg-state-count-in text-state-count-in-ink',
+  playing: 'bg-state-playing text-state-playing-ink',
+  paused: 'bg-state-paused text-state-paused-ink',
+  finished: 'bg-state-finished text-state-finished-ink',
+  fault: 'bg-state-fault text-state-fault-ink',
 }
 
 /** How long the count block stays lit on each count-in beat, ms - clearly visible, still a

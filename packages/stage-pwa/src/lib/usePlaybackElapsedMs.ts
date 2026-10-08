@@ -12,6 +12,13 @@ import { useShowStateStore } from '../store/useShowStateStore'
  * home-practice pairing with PrompterWidget never touches ShowState.playbackStatus at all, so
  * it stays 'stopped' and this always returns null there.
  */
+/** The same value, read once without subscribing - for a timer that must not re-render (#400 review). */
+export function gigElapsedMsNow(): number | null {
+  const { playbackStatus: status, playbackStartedAt: startedAt, playbackAccumulatedMs: accumulatedMs } = useShowStateStore.getState().state
+  if (status === 'stopped') return null
+  return computeActiveMs({ status, startedAt, accumulatedMs }, getServerTime())
+}
+
 export function usePlaybackElapsedMs(): number | null {
   const status = useShowStateStore((state) => state.state.playbackStatus)
   const startedAt = useShowStateStore((state) => state.state.playbackStartedAt)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getDeviceId } from '../lib/deviceId'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 /**
  * Lets this device rename itself in the workspace's DeviceRegistry (#10's first slice) - the
@@ -32,14 +33,9 @@ export function DeviceNameSettings() {
         placeholder="Name dieses Geräts"
         className={`h-form flex-1 min-w-0 px-4 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
       />
-      <button
-        type="button"
-        onClick={() => void rename(deviceId, draft.trim())}
-        disabled={!dirty}
-        className="h-form rounded-control bg-control-strong px-4 text-base font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <Button onClick={() => void rename(deviceId, draft.trim())} disabled={!dirty}>
         Speichern
-      </button>
+      </Button>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { DialogHost } from './components/DialogHost'
 import { DiscoveryBanner } from './components/DiscoveryBanner'
 import { JoinBandView } from './components/JoinBandView'
 import { AppUpdateBanner } from './components/AppUpdateBanner'
+import { PlaybackDrivers } from './components/PlaybackDrivers'
 import { followServerIfMoved, isNativeApp } from './lib/native'
 import { LibraryView } from './components/LibraryView'
 import { ProfileRolePickerView } from './components/ProfileRolePickerView'
@@ -22,19 +23,13 @@ import { MODE_LABEL, type Mode } from './lib/modes'
 import { useModeDashboards } from './lib/useModeDashboards'
 import { StatusBar } from './components/StatusBar'
 import { type TrackedSync } from './lib/trackedSync'
-import { useAudioOutputDriver } from './lib/useAudioOutputDriver'
 import { useAudioSyncReconciler } from './lib/useAudioSyncReconciler'
-import { useAutoStopDriver } from './lib/useAutoStopDriver'
-import { useTrackDurationBackfill } from './lib/useTrackDurationBackfill'
 import { useBrowserOnlineStatus } from './lib/useBrowserOnlineStatus'
-import { useClickOutputDriver } from './lib/useClickOutputDriver'
 import { useClockSync } from './lib/useClockSync'
-import { useCueScheduler } from './lib/useCueScheduler'
 import { useFullscreenOnLaunch } from './lib/useFullscreen'
 import { useDeviceInfoReporter } from './lib/useDeviceInfoReporter'
 import { useDiscoveryTrigger } from './lib/useDiscoveryTrigger'
 import { useHardwareDetection } from './lib/useHardwareDetection'
-import { useLoopTrainerDriver } from './lib/loopTrainer'
 import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
 import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
@@ -49,8 +44,6 @@ import { useDeviceTriggerListenerStore } from './store/useDeviceTriggerListenerS
 import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
-import { useFootswitch } from './lib/useFootswitch'
-import { useSongAlerts } from './lib/useSongAlerts'
 import { FlashOverlay } from './components/FlashOverlay'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
@@ -68,7 +61,7 @@ import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
 import { Icon } from './components/Icon'
-import { useMasterSelfCheck } from './lib/useMasterSelfCheck'
+import { Button } from './components/ui'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -125,10 +118,6 @@ function App() {
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.ownProfileId !== undefined,
   )
   const isEditingDashboard = useEditModeStore((state) => state.isEditing)
-  // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
-  useFootswitch(mode === 'boards' && !isEditingDashboard)
-  // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
-  useSongAlerts()
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
@@ -182,16 +171,7 @@ function App() {
   useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
-  useCueScheduler()
-  // Audio-playback/Click Generator engines must keep running regardless of which top-level tab
-  // (Live/Bibliothek/System) is currently showing - see each hook's own doc comment for the
-  // live-found bug this fixes (a show's backing track/click silently stopping on tab switch).
-  useAudioOutputDriver()
-  useClickOutputDriver()
-  useAutoStopDriver()
-  useLoopTrainerDriver()
   useReadyCheckResponder()
-  useTrackDurationBackfill()
   useHardwareDetection()
   useDiscoveryTrigger()
   // BandManagementView.tsx's presence indicators (see #21 ninth follow-up, at Marco's explicit
@@ -205,7 +185,6 @@ function App() {
     activeWorkspaceId,
     useShowStateStore((state) => state.holdsToken && state.selfCheck !== 'sync-error' && state.selfCheck !== 'offline'),
   )
-  useMasterSelfCheck()
   useMasterIdentity()
   // Device Ledger's per-device report (useDeviceInfoReporter.ts, Marco's explicit request) -
   // deliberately unconditional on `activeProfileId`, unlike presence just above: "the app is
@@ -263,12 +242,23 @@ function App() {
   // shouldn't be able to progress through onboarding either. Purely a render gate reacting to
   // this device's own synced `revoked` flag - see DeviceRevokedScreen.tsx's own doc comment for
   // why nothing more (no credential wipe, no forced logout) is needed here.
-  if (myDeviceRevoked) return <DeviceRevokedScreen />
+  // Per-frame playback hooks live in their own component (PlaybackDrivers.tsx) so a playing
+  // song doesn't re-render this whole tree 60 times a second; mounted on every screen as before.
+  const drivers = <PlaybackDrivers footswitchActive={mode === 'boards' && !isEditingDashboard} />
+
+  if (myDeviceRevoked)
+    return (
+      <>
+        {drivers}
+        <DeviceRevokedScreen />
+      </>
+    )
 
   // h-full, not h-dvh: #root already keeps the notch area free with its padding - a full
   // screen height on top of that pushed the bottom of the dashboard off the screen.
   return (
     <div className="flex h-full flex-col">
+      {drivers}
       {/* While a dashboard is edited, its edit bar takes the status bar's place (#370) - also on a
           dashboard that hides the status bar - so the grid keeps its show-mode size. */}
       {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
@@ -303,12 +293,8 @@ function App() {
         {/* Only where the status bar is hidden (a dashboard can switch it off) - elsewhere the
             bar carries the menu button. */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
-          <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="relative flex h-form items-center gap-2 rounded-control bg-control px-4 text-base text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
-            >
+          <div className="absolute bottom-3 right-3 z-content flex items-center gap-2">
+            <Button className="relative" onClick={() => setMenuOpen(true)}>
               <Icon name="menu" size="1.5rem" />
               {MODE_LABEL[mode]}
               {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
@@ -319,14 +305,14 @@ function App() {
                 title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
                 className={`absolute right-1 top-1 h-2 w-2 rounded-full ${
                   {
-                    idle: 'bg-green-500',
-                    syncing: 'bg-blue-500 animate-pulse',
-                    offline: 'bg-gray-400',
-                    error: 'bg-red-500',
+                    idle: 'bg-ok',
+                    syncing: 'bg-info animate-pulse',
+                    offline: 'bg-ink-faint',
+                    error: 'bg-danger',
                   }[syncStatus]
                 }`}
               />
-            </button>
+            </Button>
           </div>
         )}
       </div>

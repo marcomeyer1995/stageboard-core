@@ -6,6 +6,7 @@ import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { putTrack, removeTrack } from '../lib/songVariantsDb'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { Button } from './ui'
 
 interface TrackManagerFieldProps {
   variantId: string
@@ -101,14 +102,9 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
             <span className="text-xs text-ink-faint">
               {KIND_LABELS[track.kind]}: {track.label}
             </span>
-            <button
-              type="button"
-              onClick={() => handleRemove(track.id)}
-              disabled={disabled || busyTrackId === track.id}
-              className="min-h-form rounded-control bg-control-strong px-3 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40"
-            >
+            <Button onClick={() => handleRemove(track.id)} disabled={disabled || busyTrackId === track.id}>
               Entfernen
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -117,7 +113,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           {variantJobs.map((job) => (
             <div key={job.id} className="flex items-center gap-2 text-xs">
               {job.status === 'error' ? (
-                <span className="text-red-500">YouTube-Extraktion fehlgeschlagen: {job.error}</span>
+                <span className="text-danger">YouTube-Extraktion fehlgeschlagen: {job.error}</span>
               ) : job.status === 'done' ? (
                 <span className="text-ink-faint">YouTube-Extraktion abgeschlossen</span>
               ) : (
@@ -126,13 +122,9 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
                 </span>
               )}
               {(job.status === 'error' || job.status === 'done') && (
-                <button
-                  type="button"
-                  onClick={() => void removeAsyncJob(job.id)}
-                  className="rounded-control bg-control-strong px-2 min-h-form text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-                >
+                <Button onClick={() => void removeAsyncJob(job.id)}>
                   Ausblenden
-                </button>
+                </Button>
               )}
             </div>
           ))}
@@ -147,15 +139,11 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           disabled={disabled}
           className={`min-w-0 flex-1 min-w-0 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
         />
-        <button
-          type="submit"
-          disabled={disabled || youtubeUrl.trim() === ''}
-          className="rounded-control bg-control-strong px-2 min-h-form text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <Button type="submit" disabled={disabled || youtubeUrl.trim() === ''}>
           Von YouTube laden
-        </button>
+        </Button>
       </form>
-      {youtubeError && <span className="text-xs text-red-500">{youtubeError}</span>}
+      {youtubeError && <span className="text-xs text-danger">{youtubeError}</span>}
       <div className="flex items-center gap-2">
         <select
           className={`min-h-form px-3 text-base ${INPUT}`}

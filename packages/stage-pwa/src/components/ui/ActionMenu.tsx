@@ -27,7 +27,7 @@ export function ActionMenuDialog({ title, actions, onClose }: { title: string; a
         onClose()
         action.onClick()
       }}
-      className={`${MENU_ROW} ${action.danger ? 'text-red-400' : 'text-ink'}`}
+      className={`${MENU_ROW} ${action.danger ? 'text-danger' : 'text-ink'}`}
     >
       {action.label}
     </button>

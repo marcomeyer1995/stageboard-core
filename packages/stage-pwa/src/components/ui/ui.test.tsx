@@ -13,7 +13,7 @@ describe('UI system (docs/15)', () => {
     )
     expect(screen.getByRole('button', { name: 'Play' })).toHaveClass('min-h-show', 'rounded-control', 'bg-accent')
     expect(screen.getByRole('button', { name: 'Weiter' })).toHaveClass('min-h-stage', 'bg-control-strong')
-    expect(screen.getByRole('button', { name: 'Löschen' })).toHaveClass('min-h-form', 'text-red-400')
+    expect(screen.getByRole('button', { name: 'Löschen' })).toHaveClass('min-h-form', 'text-danger')
   })
 
   it('IconButton: named, never below the form height', () => {

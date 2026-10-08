@@ -58,12 +58,12 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
       )}
       <span
         style={{ fontSize }}
-        className={`whitespace-nowrap font-bold tabular-nums ${overtime ? 'text-red-500' : 'text-ink'}`}
+        className={`whitespace-nowrap font-bold tabular-nums ${overtime ? 'text-danger' : 'text-ink'}`}
       >
         {formatTime(result.predictedEnd)}
       </span>
       {result.targetEnd !== null && result.overrunMs !== null ? (
-        <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-red-500' : 'text-green-500'}`}>
+        <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-danger' : 'text-ok'}`}>
           Ziel {formatTime(result.targetEnd)} ·{' '}
           {overtime ? `${formatMinutes(result.overrunMs)} Überzug` : `${formatMinutes(result.overrunMs)} Puffer`}
         </span>
@@ -100,8 +100,8 @@ export function FestivalClockWidgetPreview() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
       <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">Voraussichtliches Ende</span>
-      <span className="text-3xl font-bold tabular-nums text-red-500">23:05</span>
-      <span className="text-sm font-semibold text-red-500">Ziel 23:00 · 5 min Überzug</span>
+      <span className="text-3xl font-bold tabular-nums text-danger">23:05</span>
+      <span className="text-sm font-semibold text-danger">Ziel 23:00 · 5 min Überzug</span>
     </div>
   )
 }

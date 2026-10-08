@@ -11,9 +11,15 @@ const sources = import.meta.glob(['../../**/*.tsx', '!../../**/*.test.tsx', '!./
   eager: true,
 }) as Record<string, string>
 
-function offending(pattern: RegExp, { skipComments = true }: { skipComments?: boolean } = {}): string[] {
+/** Plus the .ts files - class names also live in lib/ (e.g. statusBar.ts). */
+const sourcesWithTs = {
+  ...sources,
+  ...(import.meta.glob(['../../**/*.ts', '!../../**/*.test.ts', '!../../**/*.d.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
+}
+
+function offending(pattern: RegExp, { skipComments = true, withTs = false }: { skipComments?: boolean; withTs?: boolean } = {}): string[] {
   const hits: string[] = []
-  for (const [path, text] of Object.entries(sources)) {
+  for (const [path, text] of Object.entries(withTs ? sourcesWithTs : sources)) {
     text.split('\n').forEach((line, index) => {
       const trimmed = line.trim()
       if (skipComments && (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('{/*'))) return
@@ -63,6 +69,25 @@ describe('UI system guard (docs/15)', () => {
 
   it('a text field that grows (flex-1) may also shrink (min-w-0) - otherwise it pushes its button out of the card on the phone', () => {
     expect(offending(/(?<![\w-])flex-1(?![\w-])(?![^`"]*min-w-0)[^`"]*\$\{INPUT/)).toEqual([])
+  })
+
+  it('colours by meaning: danger / warn / ok / info, state-*, flash, scrim, alarm - never Tailwind\'s palette (a theme could not change it)', () => {
+    const palette = /(?<![\w-])(bg|text|border|ring|outline|fill|stroke|from|to|via|divide|placeholder|decoration|caret)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone|white|black)(-\d+)?(?![\w-])/
+    // widgetColors.ts is the colour vocabulary a musician picks for a widget - content, not theme.
+    expect(offending(palette, { withTs: true }).filter((hit) => !hit.includes('widgets/widgetColors.ts'))).toEqual([])
+  })
+
+  it('layers by name: z-content … z-takeover (tailwind.config.js) - no raw z-index numbers', () => {
+    expect(offending(/(?<![\w-])z-(\d+|\[\d+\])(?![\w-])/, { withTs: true })).toEqual([])
+  })
+
+  it('heights by role: h-form / h-stage / h-show, not a fixed 48 px (h-12) a theme could not resize', () => {
+    // The status bar's own count block is a bar part, not a control.
+    expect(offending(/(?<![\w-])(min-)?h-12(?![\w-])/).filter((hit) => !hit.includes('StatusBar.tsx'))).toEqual([])
+  })
+
+  it('disabled looks the same everywhere: opacity 40 (ui/styles DISABLED; 100 = deliberately unchanged)', () => {
+    expect(offending(/disabled:opacity-(?!(40|100)(?!\d))\d+/)).toEqual([])
   })
 
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {

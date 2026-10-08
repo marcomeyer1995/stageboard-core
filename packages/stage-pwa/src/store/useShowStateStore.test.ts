@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
-import { useShowStateStore } from './useShowStateStore'
+import { drivesAutomation, useShowStateStore } from './useShowStateStore'
 import { getShowState, putShowState } from '../lib/showStateDb'
 
 vi.mock('../lib/deviceId', () => ({ getDeviceId: () => 'me' }))
@@ -74,7 +74,7 @@ describe('applyPatch (2026-09-27)', () => {
     void useShowStateStore.getState().applyPatch({ playbackStatus: 'stopped', playbackStartedAt: null })
 
     expect(useShowStateStore.getState().state.playbackStatus).toBe('stopped')
-    expect(putShowState).toHaveBeenCalledWith({ playbackStatus: 'stopped', playbackStartedAt: null })
+    expect(putShowState).toHaveBeenCalledWith(expect.objectContaining({ playbackStatus: 'stopped', playbackStartedAt: null }))
   })
 
   it('changes nothing on a device that is not the master', () => {
@@ -82,6 +82,28 @@ describe('applyPatch (2026-09-27)', () => {
     void useShowStateStore.getState().applyPatch({ playbackStatus: 'stopped' })
     expect(useShowStateStore.getState().state.playbackStatus).toBe('playing')
     expect(putShowState).not.toHaveBeenCalled()
+  })
+})
+
+describe('drivesAutomation - one driving device in Pro-Person mode (Marco, 2026-10-08)', () => {
+  it('the device that last acted as master drives; another master device of the person does not', async () => {
+    vi.mocked(putShowState).mockResolvedValue(undefined as never)
+    setState({ playbackStatus: 'stopped' }, true)
+    const me = useShowStateStore.getState().deviceId
+    await useShowStateStore.getState().applyPatch({ playbackStatus: 'playing' })
+    expect(putShowState).toHaveBeenLastCalledWith(expect.objectContaining({ drivingDeviceId: me }))
+    expect(drivesAutomation(useShowStateStore.getState())).toBe(true)
+
+    // The person's phone acted last - this tablet stays master but stops driving.
+    useShowStateStore.setState({ state: { ...useShowStateStore.getState().state, drivingDeviceId: 'phone' } })
+    expect(useShowStateStore.getState().isMaster).toBe(true)
+    expect(drivesAutomation(useShowStateStore.getState())).toBe(false)
+  })
+
+  it('without a recorded device (older state) every master drives, as before', () => {
+    setState({ playbackStatus: 'stopped' }, true)
+    useShowStateStore.setState({ state: { ...useShowStateStore.getState().state, drivingDeviceId: undefined } })
+    expect(drivesAutomation(useShowStateStore.getState())).toBe(true)
   })
 })
 

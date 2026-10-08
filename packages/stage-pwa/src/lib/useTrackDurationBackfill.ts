@@ -18,7 +18,7 @@ const RETRY_AFTER_MS = 5 * 60 * 1000
  * measurement is retried after a cool-down (and logged), not given up on until a reload.
  */
 export function useTrackDurationBackfill(): void {
-  const { queue, canControl, playbackStatus } = useShowMode()
+  const { queue, drivesAutomation: canControl, playbackStatus } = useShowMode()
   const items = queue.orderedItems
   const failedAtRef = useRef(new Map<string, number>())
   const busyRef = useRef(false)

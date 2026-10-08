@@ -63,6 +63,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [],
+      sendsServerCues: true,
     })
     expect(triggerShowControl).not.toHaveBeenCalled()
   })
@@ -73,6 +74,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [plugin()],
+      sendsServerCues: true,
     })
     expect(triggerShowControl).toHaveBeenCalledWith('mock-mixer', {
       type: 'set_volume',
@@ -84,7 +86,7 @@ describe('fireCue', () => {
   it('#102: two Logical Devices sharing a capability each resolve their own independent binding', async () => {
     const mixer1 = mixerDevice({ id: 'mixer-1', name: "Guitarist 1's Rig", executionTarget: 'me' })
     const mixer2 = mixerDevice({ id: 'mixer-2', name: "Guitarist 2's Rig", executionTarget: 'someone-else' })
-    const ctx = { deviceId: 'me', logicalDevices: [mixer1, mixer2], installed: [plugin()] }
+    const ctx = { deviceId: 'me', logicalDevices: [mixer1, mixer2], installed: [plugin()], sendsServerCues: true }
 
     await fireCue(cue({ id: 'cue-for-1', targetLogicalDeviceId: mixer1.id }), ctx)
     expect(localMixerApplyEvent).toHaveBeenCalledTimes(1) // bound to this device - fires locally
@@ -103,6 +105,7 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [], // no client-runtime plugin installed for mixer
+      sendsServerCues: true,
     })
     expect(localMixerApplyEvent).not.toHaveBeenCalled()
     expect(triggerShowControl).not.toHaveBeenCalled()
@@ -119,7 +122,23 @@ describe('fireCue', () => {
       deviceId: 'me',
       logicalDevices: [mixer1],
       installed: [plugin({ id: 'specific-plugin' }), plugin({ id: 'other-plugin' })],
+      sendsServerCues: true,
     })
     expect(triggerShowControl).toHaveBeenCalledWith('specific-plugin', expect.anything())
+  })
+
+  it('a server cue goes out from the master only - not once per tablet (2026-10-08)', async () => {
+    const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: false })).toBeNull()
+    expect(triggerShowControl).not.toHaveBeenCalled()
+  })
+
+  it('reports what happened for the Nachbericht (#8): sent, failed with the reason, or missed', async () => {
+    const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
+    vi.mocked(triggerShowControl).mockResolvedValueOnce({ status: 'ok' })
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: true })
+    vi.mocked(triggerShowControl).mockResolvedValueOnce({ status: 'error', message: 'Pult antwortet nicht' })
+    expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: false, message: 'Pult antwortet nicht' })
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsServerCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
   })
 })

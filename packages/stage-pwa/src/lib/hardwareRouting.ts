@@ -36,15 +36,14 @@ export function resolveHardwareBinding(logicalDevices: LogicalDevice[], capabili
 }
 
 /**
- * The device a translator should drive (#149): the one an event names, if it has this capability -
- * two Kempers on one tablet each get their own cues - otherwise the first one with the capability,
- * as before (events from callers that don't know a specific device).
+ * The device a translator should drive (#149): the one an event names - two Kempers on one tablet
+ * each get their own cues - or, for events that name none, the first one with the capability, as
+ * before. A named device that isn't here (not replicated yet, just deleted) is null, never another
+ * device of the same kind: that would fire one guitarist's preset on the other's amp mid-song
+ * (#408 review).
  */
 export function resolveTargetDevice(logicalDevices: LogicalDevice[], capability: string, logicalDeviceId?: string): LogicalDevice | null {
-  if (logicalDeviceId) {
-    const named = logicalDevices.find((device) => device.id === logicalDeviceId && device.capability === capability)
-    if (named) return named
-  }
+  if (logicalDeviceId) return logicalDevices.find((device) => device.id === logicalDeviceId && device.capability === capability) ?? null
   return resolveHardwareBinding(logicalDevices, capability)
 }
 

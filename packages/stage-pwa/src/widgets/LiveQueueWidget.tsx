@@ -87,7 +87,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
           {...listeners}
           {...attributes}
           style={{ touchAction: 'none' }}
-          className={`flex h-12 w-10 flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${
+          className={`flex h-form w-10 flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${
             status === 'current' ? 'text-accent-ink' : 'text-ink-faint'
           }`}
           aria-label="Ziehen zum Sortieren"

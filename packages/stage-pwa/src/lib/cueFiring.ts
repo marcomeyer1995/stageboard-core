@@ -8,6 +8,17 @@ export interface FireContext {
   deviceId: string
   logicalDevices: LogicalDevice[]
   installed: PluginInstallation[]
+  /** Whether this device sends cues that go to a Stage-Server plugin. Every tablet runs the
+   * scheduler, and each one used to send them - a light cue arrived once per tablet (a toggle
+   * undid itself). Only the master does now (2026-10-08). */
+  sendsServerCues: boolean
+}
+
+/** What happened with a cue on this device - null when another device (or the master) sends it. */
+export interface CueOutcome {
+  target: string
+  ok: boolean
+  message?: string
 }
 
 /**
@@ -22,9 +33,10 @@ export interface FireContext {
  * workspaceDb.ts's top-level `new PouchDB(...)` - same reasoning hardwareRouting.ts's own doc
  * comment already gives.
  */
-export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<void> {
+export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcome | null> {
   const logicalDevice = resolveHardwareBindingById(ctx.logicalDevices, cue.targetLogicalDeviceId)
-  if (!logicalDevice) return
+  // A cue for a device that no longer exists is a missed cue - reported by the master only.
+  if (!logicalDevice) return ctx.sendsServerCues ? { target: cue.targetLogicalDeviceId, ok: false, message: 'Gerät nicht gefunden (gelöscht?)' } : null
 
   const pluginId = logicalDevice.pluginId ?? pluginProviding(ctx.installed, logicalDevice.capability)
   const engine = resolveHardwareEngine(
@@ -34,9 +46,21 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<void> {
     supportsLocalExecution(ctx.installed, logicalDevice.capability),
   )
 
-  if (engine === 'local-mine') {
-    await getTranslator(logicalDevice.capability)?.({ type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id })
-  } else if (engine === 'plugin' && pluginId) {
-    await triggerShowControl(pluginId, { type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id })
+  const target = logicalDevice.name
+  const outcome = (result: { status: string; message?: string } | undefined): CueOutcome =>
+    !result ? { target, ok: false, message: 'Kein Treiber für dieses Gerät' } : { target, ok: result.status === 'ok', ...(result.status === 'ok' || !result.message ? {} : { message: result.message }) }
+  try {
+    if (engine === 'local-mine') {
+      return outcome(await getTranslator(logicalDevice.capability)?.({ type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id }))
+    }
+    if (engine === 'plugin' && pluginId) {
+      if (!ctx.sendsServerCues) return null
+      return outcome(await triggerShowControl(pluginId, { type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id }))
+    }
+  } catch (err) {
+    return { target, ok: false, message: err instanceof Error ? err.message : String(err) }
   }
+  // Nothing anywhere can send it (no plugin installed, nothing bound) - missed, said by the master.
+  if (engine === 'none') return ctx.sendsServerCues ? { target, ok: false, message: 'Kein Plugin oder Gerät führt diesen Cue aus' } : null
+  return null
 }

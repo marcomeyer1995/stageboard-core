@@ -1,6 +1,6 @@
 # 15 · UI-System: Harmonisierung aller Bedienelemente
 
-Stand 2026-10-07 - Konzept, mit Marco abgestimmt, noch nicht gebaut. Bestandsaufnahme mit Screenshots und allen Varianten: Analyse-Seite „StageBoard Interface Inventory“ (Artifact, privat bei Marco). Umsetzung: Sammel-Issue #423.
+Stand 2026-10-08 - **gebaut und gemergt** (#425, 2026-10-07; Konzept #424, Sammel-Issue #423 geschlossen). Das Dokument beschreibt die geltenden Regeln; der Wächter-Test `components/ui/guard.test.ts` setzt sie durch (§7 Phase 5). Bestandsaufnahme mit Screenshots und allen Varianten: Analyse-Seite „StageBoard Interface Inventory“ (Artifact, privat bei Marco). Umsetzung: Sammel-Issue #423.
 
 ## 1. Warum
 
@@ -51,7 +51,7 @@ Verhalten passt zur Form: das gewählte Segment erneut tippen ändert nichts; ei
 
 Alle drei Auswahl-Elemente teilen Höhe, Ecke, Gelb für „an/gewählt“ und Schrift; nur ein Signal unterscheidet sie (zusammenhängend, Kästchen, Knopf).
 
-Bibliothek: kein Filter „Alle / Setlists / Songs“ mehr - die Überschriften „Setlists“ und „Songs“ klappen ihre Liste ein (pro Gerät gemerkt), beim Suchen sind beide immer offen (2026-10-07).
+Bibliothek: kein Filter „Alle / Setlists / Songs“ mehr - seit #430 zwei Tabs „Setlists (n)“ / „Songs (n)“ mit eigener Suche und Sortierleiste (`Segmented`; vorher kurz einklappbare Überschriften, 2026-10-07).
 
 Neuer Eintrag: immer `AddRow` - gestrichelter Umriss, gelbes „+ Text“, am Ende der Liste, zu der er hinzufügt (volle Breite); neben einer Überschrift (Bibliothek) gleiches Aussehen, nur textbreit. Ausnahmen: „+ Widget“ (Hauptaktion der Edit-Leiste) und Einfüge-Werkzeuge im Editor („+ Kommentar“, „+ Tab“). Festgelegt 2026-10-07, abgesichert im Guard-Test.
 
@@ -66,9 +66,24 @@ Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in 
 | `--sb-h-show` | Show-Aktionen | 72 px (= `--sb-touch-primary`) |
 | `--sb-h-stage` | Bühnen-Bedienelemente | 56 px (= `--sb-touch`) |
 | `--sb-h-form` | Formular-Bedienelemente | 48 px |
-| `--sb-layer-*` | feste Ebenen: content · bars · menu · dialog · alert · flash | ersetzt die freien z-Werte |
+| Ebenen | feste z-Stufen als Tailwind-Klassen `z-content` 10 · `z-bars` 20 · `z-menu` 40 · `z-dialog` 50 · `z-alert` 55 · `z-flash` 58 · `z-takeover` 60 (`tailwind.config.js`, kein CSS-Token) | ersetzt die freien z-Werte |
 
-Bestehende Tokens bleiben; die neuen sind Aliasse, damit ein späterer Theme-Editor Rolle für Rolle einstellen kann.
+**Bedeutungsfarben (2026-10-08):** Fehler, Warnung, OK und Info, die Zustände der Statusleiste, die Blitzmeldung, die Abdunklung hinter Dialogen und die Vollbild-Alarme kommen ebenfalls aus Tokens. Vorher standen sie als Tailwind-Palette (`text-red-500`, `bg-amber-500` …) in 52 Dateien, und kein Theme konnte sie ändern.
+
+| Token (je mit `-ink` für Text darauf) | Tailwind | Wofür | Default |
+|---|---|---|---|
+| `--sb-danger` | `text-danger`, `bg-danger` … | Fehler, Gefahr, Löschen | red-500 (hell: red-600) |
+| `--sb-warn` | `warn` | Warnung, „noch nicht“ | amber-500 (hell: amber-700) |
+| `--sb-ok` | `ok` | läuft, verbunden | green-500 (hell: green-700) |
+| `--sb-info` | `info` | synchronisiert gerade | blue-500 |
+| `--sb-state-{count-in,playing,paused,finished,fault}` | `bg-state-playing` … | volle Statusleiste | blue-700 · green-700 · amber-500 · fuchsia-700 · red-600 |
+| `--sb-flash` | `flash` | Stage-Messenger-Meldung | yellow-300 |
+| `--sb-scrim` | `bg-scrim/60` | Abdunklung hinter Dialogen | schwarz |
+| `--sb-alarm` | `alarm` | Vollbild-Alarm (Audio blockiert, Gerät blockiert) | red-900 |
+
+Ebenso liest das Timeline-Canvas seine Qualitätsfarben aus diesen Tokens. Ausnahmen sind Inhaltsfarben, die ein Musiker wählt oder die Kategorien unterscheiden (`widgets/widgetColors.ts`, Cue- und Notizfarben der Timeline), die Stimmgerät-Skala und das Druckblatt (immer schwarz auf weiß). Der Wächter-Test verbietet Palettenfarben und rohe z-Werte.
+
+Höhen und Ecken gibt es als Tailwind-Klassen `h-show` / `h-stage` / `h-form` (auch `min-h-*`) und `rounded-control` / `rounded-container`. Bestehende Tokens bleiben; die neuen sind Aliasse, damit ein späterer Theme-Editor Rolle für Rolle einstellen kann.
 
 ## 6. Komponenten (Phase 2)
 
@@ -82,10 +97,15 @@ In `packages/stage-pwa/src/components/ui/`, jede mit Tests und passenden ARIA-At
 | | `ToggleChip` | Gig/Solo, Empfänger, Akkordarten, Timeline-Schalter (~25) |
 | | `Switch` (`role="switch"`) | native Checkboxen, „Einrasten“ (~10) |
 | | `Tabs` (`role="tablist"`) | System-Tabs, Editor-Tabs (~4) |
-| Eingaben | `Field` · `Select` · `Slider` | Textfelder, Dropdowns, Regler (~100) |
+| | `CheckRow` / `CheckBox` (gebaut dazugekommen) | Mehrfachauswahl als Listenzeile mit Kästchen |
+| Eingaben | `Field` · `TextArea` · `Select` · `Slider` | Textfelder, Dropdowns, Regler (~100) |
 | Struktur | `Card` · `ListRow` (56 px) · `Section` | Panels, Song-/Setlist-/Mitglieder-/Dashboard-Zeilen, Großbuchstaben-Überschriften (~125) |
-| Overlays | `Dialog` (S 384 · M 448 · L 768 px) · `ActionMenu` | 21 Dialoge; OverflowMenu, RowActionsMenu, Widget-Menü |
+| Overlays | `Dialog` (S 384 · M 448 · L 768 px) · `ActionMenu` / `ActionMenuDialog` (+ `MENU_ROW`) | 21 Dialoge; OverflowMenu, RowActionsMenu, Widget-Menü |
 | Signale | `Badge` · `StatusDot` · `ActiveMarker` | Rollen-Tags, Stufen-Chips, „Aktiv“, „zu klein“, Status-Punkte, getönte Karten (~38) |
+
+| Neu anlegen | `AddRow` (gebaut dazugekommen, §4) | eigene „+ Neu“-Buttons |
+
+Gruppen-Hilfen: `ChipGroup` (Überschrift + Hinweis „Mehrere möglich“ über `ToggleChip`s). Alle Exporte in `components/ui/index.ts`.
 
 Rot nur für Fehler und Gefahr (wie in der Statusleiste festgelegt).
 
@@ -96,7 +116,7 @@ Rot nur für Fehler und Gefahr (wie in der Statusleiste festgelegt).
 2. **Komponenten** (1½-2 Tage).
 3. **Vorschau-Seite** (½ Tag): versteckte Seite mit jeder Komponente in jedem Zustand, umschaltbar zwischen den fünf Themes, auf Tablet und Handy. **Freigabe durch Marco, bevor umgestellt wird.** (Freigegeben und nach der Umstellung wieder entfernt, 2026-10-07 - im Git-Verlauf erhalten.)
 4. **Umstellung** (4-6 Abende, ein Branch, Bühne zuerst): Burger-Menü, Status- und Edit-Leiste, Dashboard-Einstellungen · die 27 Widgets und ihre Einstellungen · Bibliothek, Setlists, Song-Vorschau · System (Einstellungen, Band, Hardware, Geräte, Diagnose) · Song-Editor, Timeline, Cue-Dialog und -Recorder · alle Dialoge, Assistenten, Beitreten und Onboarding · Aufräumen (drei Menüs → `ActionMenu`, Checkboxen → `Switch`/`ToggleChip`).
-5. **Wächter** (½ Tag): ein Test schlägt fehl, wenn außerhalb von `ui/` ein Button, Feld oder Dropdown mit eigenen Stil-Klassen geschrieben wird.
+5. **Wächter** (½ Tag): `components/ui/guard.test.ts` durchsucht alle Quellen und schlägt fehl bei: alten Ecken `rounded-sb`/`rounded-sb-sm`; nacktem `hover:` (nur `[@media(hover:hover)]:hover:`, sonst bleibt es auf Touch nach dem Tippen hängen); nativen Checkboxen und Radio-Buttons; Buttons in der zweiten Akzentfarbe; Bedienelementen mit `h-7` bis `h-11`; eigenen „+ Neu“-Buttons statt `AddRow`; runden Pillen als Auswahl; wachsenden Textfeldern (`flex-1`) ohne `min-w-0`; einem übrig gebliebenen „Schließen“ in Dialogen.
 6. **Prüfung und Freigabe** (1 Abend): alle Tests; Screenshots aller Bildschirme in einem eckigen, einem weichen und dem Default-Theme auf Fire, Xiaomi und Handy; Marco prüft das **fertige Ergebnis** auf einem Test-Build (Freigabe am Stück); dann Merge und Deploy.
 
 **Risiken:** sehr große Änderung - offene PRs (#399, #405) vorher mergen oder parken. Bühnen-Widgets vorher/nachher per Screenshot vergleichen. Viele Tests prüfen Stil-Klassen (`toHaveClass('bg-accent')`) und müssen angepasst werden.

@@ -54,6 +54,9 @@ export function useFootswitch(active: boolean): void {
     if (!active) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (footswitchCapture.active || event.repeat || isTypingTarget(event.target)) return
+      // A dialog or the ☰ menu is open: the pedal must not run the show behind it - and Enter/Space
+      // would also press the focused button there (#394 review).
+      if (document.querySelector('[role="dialog"]')) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
       const binding = bindingForKey(latest.current.bindings, event.key)
       if (!binding) return
@@ -96,6 +99,9 @@ async function runStep(step: StepAction, show: Show): Promise<void> {
     await show.stop()
     await show.next()
   } else if (step === 'next-play') {
+    // At the end of the setlist there is no next song - playing would restart the one that just
+    // ended (#394 review).
+    if (!show.queue.nextEntry) return
     await show.next()
     // One task later, like the auto-advance: lets the audio driver load the new entry's track
     // before Play needs it.

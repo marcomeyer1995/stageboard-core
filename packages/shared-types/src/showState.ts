@@ -70,6 +70,12 @@ export const ShowStateSchema = z.object({
    * Cleared by every transport change (Play, Pause, Stop, Weiter). Optional: older devices that
    * don't know it simply leave it out. */
   trackEnded: z.boolean().optional(),
+  /** The device that last did something as master (Play, Weiter, Übernehmen …) - it alone runs
+   * the automatic master steps (next/stop at the track end, measuring track lengths, server cues,
+   * Nachbericht entries). Matters in Pro-Person master mode (#85), where every device of the
+   * master is master (Marco, 2026-10-08: "the last active one"). Optional: older devices leave it
+   * out; without it every master device drives, as before. */
+  drivingDeviceId: z.string().nullable().optional(),
   /** The id of the Ready Check the Master has open (#60), or null when none is. Only the OPEN/CLOSE
    * state lives here (Master-gated like everything else in this doc); the musicians' answers do not -
    * every tablet would write the same doc, so they go to the Stage-Server's in-memory presence

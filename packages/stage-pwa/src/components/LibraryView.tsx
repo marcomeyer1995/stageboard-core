@@ -28,8 +28,9 @@ import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, hasUnsavedChanges } from '../lib/unsavedChanges'
+import { changeSetlistDraft } from '../lib/setlistDrafts'
 import { Icon } from './Icon'
-import { AddRow, Badge, Segmented, Tabs } from './ui'
+import { AddRow, Badge, Segmented, Tabs, Button } from './ui'
 import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
@@ -253,14 +254,14 @@ function DraggableSongRow({
           // scrolling working natively; only the horizontal swipe/drag is JS-driven.
           touchAction: 'pan-y',
         }}
-        className={`relative z-10 flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
+        className={`relative z-content flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
         } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${inSetlist ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
       >
         <button
           type="button"
           onClick={onClick}
-          className="min-h-12 min-w-0 flex-1 truncate px-2 text-left text-base"
+          className="min-h-form min-w-0 flex-1 truncate px-2 text-left text-base"
         >
           {song.title || '(ohne Titel)'}
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
@@ -268,15 +269,9 @@ function DraggableSongRow({
         </button>
         {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
         {showAddButton && (
-          <button
-            type="button"
-            onClick={() => onAddToActiveSetlist?.()}
-            disabled={!onAddToActiveSetlist}
-            title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}
-            className="flex h-form w-form flex-shrink-0 items-center justify-center rounded-control text-xl text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink disabled:opacity-40"
-          >
+          <Button className="w-form flex-shrink-0" onClick={() => onAddToActiveSetlist?.()} disabled={!onAddToActiveSetlist} title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}>
             <Icon name="add" />
-          </button>
+          </Button>
         )}
         <OverflowMenu
           title={song.title || '(ohne Titel)'}
@@ -540,10 +535,18 @@ export function LibraryView() {
     await duplicateSong(song.id, name.trim())
   }
 
-  function addSongToSetlist(setlistId: string, songId: string) {
+  /** Into the editor's draft if that setlist is being edited (it would be overwritten by the next
+   * "Speichern" otherwise), else straight into the stored setlist. True = went into the draft. */
+  function changeSetlist(target: Setlist, change: (setlist: Setlist) => Setlist): boolean {
+    if (changeSetlistDraft(target.id, change)) return true
+    saveSetlist(change(target))
+    return false
+  }
+
+  function addSongToSetlist(setlistId: string, songId: string): boolean {
     const target = setlists.find((s) => s.id === setlistId)
-    if (!target) return
-    saveSetlist({ ...target, entries: [...target.entries, songEntry(songId)] })
+    if (!target) return false
+    return changeSetlist(target, (setlist) => ({ ...setlist, entries: [...setlist.entries, songEntry(songId)] }))
   }
 
   function showTransientMessage(text: string) {
@@ -558,8 +561,8 @@ export function LibraryView() {
       showTransientMessage('Keine aktive Setlist')
       return
     }
-    addSongToSetlist(activeSetlist.id, songId)
-    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt`)
+    const intoDraft = addSongToSetlist(activeSetlist.id, songId)
+    showTransientMessage(`Zu "${activeSetlist.name}" hinzugefügt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
   }
 
   /** The way back (Marco, 2026-10-07): swiping a song that is already in the active setlist takes
@@ -568,13 +571,16 @@ export function LibraryView() {
   function removeFromActiveSetlist(songId: string) {
     if (!activeSetlist) return
     const loadedEntryId = useShowStateStore.getState().state.activeEntryId
-    const entry = [...activeSetlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
-    if (!entry) {
+    const lastRemovable = (setlist: Setlist) => [...setlist.entries].reverse().find((e) => isSongEntry(e) && e.songId === songId && e.id !== loadedEntryId)
+    if (!lastRemovable(activeSetlist)) {
       showTransientMessage('Gerade geladen - erst weiterschalten')
       return
     }
-    saveSetlist({ ...activeSetlist, entries: activeSetlist.entries.filter((e) => e.id !== entry.id) })
-    showTransientMessage(`Aus "${activeSetlist.name}" entfernt`)
+    const intoDraft = changeSetlist(activeSetlist, (setlist) => {
+      const entry = lastRemovable(setlist)
+      return entry ? { ...setlist, entries: setlist.entries.filter((e) => e.id !== entry.id) } : setlist
+    })
+    showTransientMessage(`Aus "${activeSetlist.name}" entfernt${intoDraft ? ' - noch nicht gespeichert' : ''}`)
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -847,7 +853,7 @@ export function LibraryView() {
           instead, like a toast, and never intercepts touches/clicks meant for whatever's
           underneath it. */}
       {swipeMessage && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-dialog flex justify-center px-4">
           <p className="rounded-sb-pill bg-control-strong px-4 py-2 text-center text-sm text-ink shadow-sb">
             {swipeMessage}
           </p>
