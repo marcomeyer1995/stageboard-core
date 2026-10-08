@@ -78,4 +78,12 @@ describe('createPinThrottle', () => {
     // 'd' was tracked despite the cap (oldest evicted), and still locks correctly.
     expect(throttle.lockedForSeconds('d')).toBeGreaterThan(0)
   })
+
+  it('flooding it with made-up keys never pushes out a lock (#396 review)', () => {
+    const { throttle } = setup({ maxEntries: 3 })
+    for (let i = 0; i < 3; i++) throttle.recordFailure('admin')
+    expect(throttle.lockedForSeconds('admin')).toBeGreaterThan(0)
+    for (let i = 0; i < 50; i++) throttle.recordFailure(`fake-${i}`)
+    expect(throttle.lockedForSeconds('admin')).toBeGreaterThan(0)
+  })
 })

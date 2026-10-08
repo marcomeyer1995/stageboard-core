@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   const couch = serverCouchConfig()
   // Imported after the environment is set, like the server itself.
   const { listWorkspaces, workspaceDbName, resetAdminPin, setMemberAdmin } = await import('../workspaceProvisioning.js')
-  const { allDocs, getDoc, putDoc } = await import('../couch.js')
+  const { allDocs, putDocWithRetry } = await import('../couch.js')
   type ProfileDoc = { _id: string; _rev?: string; id?: string; name?: string; stageRoles?: string[] }
 
   const request = parseArgs(process.argv.slice(2))
@@ -94,11 +94,14 @@ async function main(): Promise<void> {
   const credentials = await resetAdminPin(couch, band.workspaceId, member.profileId)
   if (!member.isAdmin) {
     await setMemberAdmin(couch, band.workspaceId, member.profileId, true)
-    // The roster validator only lets band admins edit profiles - not even the server's own
-    // login - so the roster entry is written as the member themselves, with the fresh PIN.
-    const id = `profiles:${member.profileId}`
-    const profile = await getDoc<ProfileDoc>(couch, db, id)
-    if (profile) await putDoc({ ...couch, user: credentials.username, password: credentials.password }, db, { ...profile, stageRoles: [...new Set([...(profile.stageRoles ?? []), 'admin'])] })
+    // The roster entry gets the admin role too, so the app shows it. Written with the server's
+    // own CouchDB admin login (the roster validator lets `_admin` through) and re-read on a
+    // conflict - a plain putDoc ignored a 409 and the roster silently stayed non-admin while this
+    // still said "ist jetzt Admin" (#421 review).
+    await putDocWithRetry<ProfileDoc>(couch, db, `profiles:${member.profileId}`, (profile) => {
+      if (!profile) throw new Error(`Roster-Eintrag von ${member.name} fehlt - Rechte gesetzt, aber in der App nicht als Admin sichtbar.`)
+      return { ...profile, stageRoles: [...new Set([...(profile.stageRoles ?? []), 'admin'])] }
+    })
   }
   console.log(`${member.name} in "${band.workspaceName}"${member.isAdmin ? '' : ' ist jetzt Admin'}.`)
   console.log(`Neue PIN: ${credentials.password}`)
