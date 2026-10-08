@@ -193,12 +193,19 @@ export function minimapGrab(x: number, range: MinimapRange, widthPx: number, vie
 
 
 /** The timeline's lanes that can be hidden (#328): grid = tempo strip + grid, text = parts + lyrics. */
-export type TimelineLane = 'audio' | 'grid' | 'text' | 'notes' | 'cues'
-export const TIMELINE_LANES: readonly TimelineLane[] = ['audio', 'grid', 'text', 'notes', 'cues']
+export type TimelineLane = 'audio' | 'tempo' | 'grid' | 'text' | 'notes' | 'cues'
+export const TIMELINE_LANES: readonly TimelineLane[] = ['audio', 'tempo', 'grid', 'text', 'notes', 'cues']
 
 /** Fixed (touch-size) and default heights of the lanes, px. */
 export interface LaneSizes {
   sectionH: number
+  /** The tempo curve over time (#354), between waveform and grid: full screen, and in the compact
+   * layout (where it comes out of the grid's default height). */
+  tempoH: number
+  compactTempoH: number
+  /** Full screen: the grid lane never grows beyond this (Marco: wasted space) - bar numbers,
+   * points and the quality band fit; the rest goes to waveform and lyrics. */
+  maxGridH: number
   partsH: number
   notesH: number
   cueH: number
@@ -210,6 +217,7 @@ export interface LaneSizes {
 export interface LaneLayout {
   totalH: number
   audioH: number
+  tempoH: number
   /** Tempo strip and grid. */
   sectionH: number
   gridH: number
@@ -217,6 +225,7 @@ export interface LaneLayout {
   textH: number
   notesH: number
   cueH: number
+  tempoTop: number
   gridTop: number
   textTop: number
   notesTop: number
@@ -234,6 +243,7 @@ const FLEX_SHARE = { audio: 0.4, grid: 0.38, text: 0.22 } as const
 export function laneLayout(availableH: number | null, hidden: ReadonlySet<TimelineLane>, sizes: LaneSizes): LaneLayout {
   const shown = (lane: TimelineLane) => !hidden.has(lane)
   const sectionH = shown('grid') ? sizes.sectionH : 0
+  const tempoH = shown('tempo') ? (availableH !== null ? sizes.tempoH : sizes.compactTempoH) : 0
   const partsH = shown('text') ? sizes.partsH : 0
   const notesH = shown('notes') ? sizes.notesH : 0
   const cueH = shown('cues') ? sizes.cueH : 0
@@ -242,32 +252,30 @@ export function laneLayout(availableH: number | null, hidden: ReadonlySet<Timeli
   let textH: number
   let totalH: number
   if (availableH !== null) {
-    const rest = Math.max(0, availableH - sectionH - partsH - notesH - cueH)
+    const rest = Math.max(0, availableH - sectionH - tempoH - partsH - notesH - cueH)
     const flex = (['audio', 'grid', 'text'] as const).filter(shown)
     const shareSum = flex.reduce((sum, lane) => sum + FLEX_SHARE[lane], 0)
-    const share = (lane: 'audio' | 'grid' | 'text') => (shown(lane) && shareSum > 0 ? Math.round((rest * FLEX_SHARE[lane]) / shareSum) : 0)
-    audioH = share('audio')
-    textH = share('text')
-    // The grid takes the rounding remainder, so the lanes always fill the height exactly.
-    gridH = shown('grid') ? rest - audioH - textH : 0
-    if (!shown('grid') && flex.length > 0) {
-      const last = flex[flex.length - 1]!
-      const remainder = rest - audioH - textH
-      if (last === 'audio') audioH += remainder
-      else textH += remainder
-    }
+    const others = (['audio', 'text'] as const).filter(shown)
+    gridH = shown('grid') ? (others.length ? Math.min(sizes.maxGridH, Math.round((rest * FLEX_SHARE.grid) / shareSum)) : rest) : 0
+    // Waveform and lyrics share what the grid leaves; lyrics take the rounding remainder, so the
+    // lanes always fill the height exactly.
+    const left = rest - gridH
+    const otherSum = others.reduce((sum, lane) => sum + FLEX_SHARE[lane], 0)
+    audioH = shown('audio') ? (shown('text') ? Math.round((left * FLEX_SHARE.audio) / otherSum) : left) : 0
+    textH = shown('text') ? left - audioH : 0
     totalH = availableH
   } else {
     audioH = shown('audio') ? sizes.defaultAudioH : 0
-    gridH = shown('grid') ? sizes.defaultGridH : 0
+    gridH = shown('grid') ? sizes.defaultGridH - tempoH : 0
     textH = shown('text') ? sizes.defaultTextH : 0
-    totalH = audioH + sectionH + gridH + partsH + textH + notesH + cueH
+    totalH = audioH + tempoH + sectionH + gridH + partsH + textH + notesH + cueH
   }
-  const gridTop = audioH
+  const tempoTop = audioH
+  const gridTop = tempoTop + tempoH
   const textTop = gridTop + sectionH + gridH
   const notesTop = textTop + partsH + textH
   const cueTop = notesTop + notesH
-  return { totalH, audioH, sectionH, gridH, partsH, textH, notesH, cueH, gridTop, textTop, notesTop, cueTop }
+  return { totalH, audioH, tempoH, sectionH, gridH, partsH, textH, notesH, cueH, tempoTop, gridTop, textTop, notesTop, cueTop }
 }
 
 /**

@@ -73,7 +73,7 @@ describe('gridStretches', () => {
   })
 
   it('with one point is the variant tempo', () => {
-    expect(gridStretches(grid([1, 500]), 133, '4/4')).toEqual([{ fromBar: 1, toBar: null, fromMs: 500, toMs: null, bpm: 133 }])
+    expect(gridStretches(grid([1, 500]), 133, '4/4')).toMatchObject([{ fromBar: 1, toBar: null, fromMs: 500, toMs: null, bpm: 133, gradual: false }])
   })
 })
 
@@ -208,3 +208,69 @@ describe('applySectionTempo (#329)', () => {
     expect(result.kind).toBe('refused')
   })
 })
+
+/** Marks the stretch starting at point `id` as gradual (#354). */
+const gradualAt = (g: BeatGrid, id: string): BeatGrid => ({ ...g, points: g.points.map((p) => (p.id === id ? { ...p, gradual: true } : p)) })
+
+describe('gradual tempo stretches (#354)', () => {
+  // 4/4: bars 1-5 constant 120 BPM (16 beats, 8 s), then a ritardando over bars 5-9 to 90 BPM:
+  // spacing 500 -> 666.7 ms over 16 beats = 16 x 583.3 = 9333 ms.
+  const ritGrid = (): BeatGrid => gradualAt(grid([1, 0], [5, 8000], [9, 17333]), 'p1')
+
+  it('changes the beat spacing evenly from the arriving tempo to the end tempo', () => {
+    const t = clickTimeline({ beatGrid: ritGrid(), bpm: 120, timeSignature: '4/4' })
+    expect(t.periodAfter(15)).toBeCloseTo(500, 0) // last beat before the stretch
+    expect(60000 / t.periodAfter(16)).toBeCloseTo(119, 0) // starts at ~120 BPM
+    expect(60000 / t.periodAfter(31)).toBeCloseTo(90.5, 0) // ends at ~90 BPM
+    // Monotonic slowing, and the stretch still lands exactly on its points.
+    for (let b = 16; b < 31; b++) expect(t.periodAfter(b + 1)).toBeGreaterThan(t.periodAfter(b))
+    expect(t.timeOfBeat(16)).toBeCloseTo(8000, 6)
+    expect(t.timeOfBeat(32)).toBeCloseTo(17333, 6)
+    // After the last point the end tempo carries on.
+    expect(t.periodAfter(40)).toBeCloseTo(666.7, 0)
+    expect(t.periodAfter(40)).toBeCloseTo(t.periodAfter(35), 9)
+  })
+
+  it('time and beat lookups stay exact inverses inside a gradual stretch', () => {
+    const t = clickTimeline({ beatGrid: ritGrid(), bpm: 120, timeSignature: '4/4' })
+    for (let b = 0; b < 40; b++) {
+      expect(t.beatAtOrBefore(t.timeOfBeat(b))).toBe(b)
+      expect(t.beatAtOrBefore(t.timeOfBeat(b) + 5)).toBe(b)
+    }
+  })
+
+  it('without the flag everything is constant exactly as before', () => {
+    const plain = grid([1, 0], [5, 8000], [9, 17333])
+    const t = clickTimeline({ beatGrid: plain, bpm: 120, timeSignature: '4/4' })
+    expect(t.periodAfter(16)).toBeCloseTo(t.periodAfter(30), 9)
+    expect(times(plain, 0, 2000)).toEqual([0, 500, 1000, 1500, 2000])
+  })
+
+  it('gridStretches reports start and end tempo of a gradual stretch', () => {
+    const [, rit] = gridStretches(ritGrid(), 120, '4/4')
+    expect(rit).toMatchObject({ fromBar: 5, toBar: 9, gradual: true })
+    expect(rit!.startBpm).toBeGreaterThan(115)
+    expect(rit!.endBpm).toBeLessThan(95)
+  })
+
+  it('setPoint keeps the flag when the point moves', () => {
+    expect(setPoint(ritGrid(), 5, 8100, '4/4')!.points.find((p) => p.bar === 5)!.gradual).toBe(true)
+  })
+})
+
+describe('gradual stretch vs. the real ritardando from #354', () => {
+  it('lands within ~25 ms of the real beats where the constant grid was off by up to 330 ms', () => {
+    // Issue table: ritardando 120 -> 90 BPM over 16 beats, beat 1 at 0 s, beat 16 at 8.75 s.
+    // Real beats: 5 -> 2.07 s, 9 -> 4.33 s, 13 -> 6.79 s (constant grid: 2.33 / 4.67 / 7.00 s).
+    // 1/4 bars: beat k = bar k. A constant stretch before it gives the arriving 120 BPM.
+    const ts = '1/4'
+    const g = gradualAt(grid([1, -2000], [5, 0], [20, 8750]), 'p1')
+    const t = clickTimeline({ beatGrid: g, bpm: 120, timeSignature: ts })
+    const at = (beatNo: number) => t.timeOfBeat(t.barStartBeat(5 + beatNo - 1))
+    const real: Array<[number, number]> = [[5, 2070], [9, 4330], [13, 6790], [16, 8750]]
+    for (const [beatNo, ms] of real) expect(Math.abs(at(beatNo) - ms)).toBeLessThan(30)
+    const constant = clickTimeline({ beatGrid: grid([1, -2000], [5, 0], [20, 8750]), bpm: 120, timeSignature: ts })
+    expect(Math.abs(constant.timeOfBeat(constant.barStartBeat(5 + 8)) - 4330)).toBeGreaterThan(300)
+  })
+})
+

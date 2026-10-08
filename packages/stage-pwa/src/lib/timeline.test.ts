@@ -105,30 +105,41 @@ describe('minimap (#327)', () => {
   })
 })
 
-describe('laneLayout (#328)', () => {
-  const sizes = { sectionH: 26, partsH: 28, notesH: 44, cueH: 44, defaultAudioH: 96, defaultGridH: 84, defaultTextH: 64 }
+describe('laneLayout (#328, #354)', () => {
+  const sizes = { sectionH: 26, tempoH: 96, compactTempoH: 40, maxGridH: 64, partsH: 28, notesH: 44, cueH: 44, defaultAudioH: 96, defaultGridH: 84, defaultTextH: 64 }
 
-  it('stacks all lanes; full screen shares the rest 40/38/22 and fills it exactly', () => {
+  it('stacks waveform, tempo, grid, lyrics, notes, cues and fills full screen exactly', () => {
     const l = laneLayout(1100, new Set(), sizes)
-    expect([l.audioH, l.gridH, l.textH]).toEqual([383, 364, 211])
+    expect([l.tempoTop, l.gridTop, l.textTop]).toEqual([l.audioH, l.audioH + 96, l.audioH + 96 + 26 + l.gridH])
     expect(l.cueTop + l.cueH).toBe(1100)
-    expect([l.gridTop, l.textTop, l.notesTop, l.cueTop]).toEqual([383, 773, 1012, 1056])
+  })
+
+  it('full screen: the grid stays small, waveform and lyrics share the rest 40/22', () => {
+    const l = laneLayout(1100, new Set(), sizes)
+    expect(l.gridH).toBe(64)
+    expect(l.audioH + l.textH).toBe(1100 - 26 - 96 - 64 - 28 - 44 - 44)
+    expect(l.audioH / l.textH).toBeCloseTo(0.4 / 0.22, 1)
   })
 
   it('a hidden lane takes no space; the others share it', () => {
-    const l = laneLayout(1100, new Set(['audio', 'notes'] as const), sizes)
-    expect(l.audioH).toBe(0)
-    expect(l.notesH).toBe(0)
+    const l = laneLayout(1100, new Set(['audio', 'tempo', 'notes'] as const), sizes)
+    expect([l.audioH, l.tempoH, l.notesH]).toEqual([0, 0, 0])
     expect(l.gridTop).toBe(0)
-    expect(l.gridH + l.textH).toBe(1100 - 26 - 28 - 44)
+    expect(l.gridH).toBe(64)
     expect(l.cueTop + l.cueH).toBe(1100)
   })
 
-  it('without the grid the remainder goes to the last flexible lane; compact layout sums the defaults', () => {
-    const l = laneLayout(500, new Set(['grid'] as const), sizes)
+  it('the grid alone takes all the room; without the grid waveform and lyrics share it', () => {
+    expect(laneLayout(500, new Set(['audio', 'tempo', 'text', 'notes', 'cues'] as const), sizes).gridH).toBe(500 - 26)
+    const l = laneLayout(500, new Set(['tempo', 'grid'] as const), sizes)
     expect(l.audioH + l.textH).toBe(500 - 28 - 44 - 44)
-    const compact = laneLayout(null, new Set(['text', 'cues'] as const), sizes)
-    expect(compact.totalH).toBe(96 + 26 + 84 + 44)
+  })
+
+  it('compact: the tempo lane comes out of the grid default, the lanes below stay where they were', () => {
+    const compact = laneLayout(null, new Set(), sizes)
+    expect([compact.tempoTop, compact.gridTop, compact.gridH, compact.tempoH]).toEqual([96, 136, 44, 40])
+    expect(compact.textTop).toBe(laneLayout(null, new Set(['tempo'] as const), sizes).textTop)
+    expect(laneLayout(null, new Set(['tempo', 'text', 'cues'] as const), sizes).totalH).toBe(96 + 26 + 84 + 44)
   })
 })
 
