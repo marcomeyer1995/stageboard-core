@@ -11,6 +11,7 @@
  * are checked against the app's own schemas before they are written. Runs on the Stage-Server
  * (CouchDB on localhost, as the backend sees it).
  */
+import { createHash } from 'node:crypto'
 import { SongSchema, SongVariantSchema } from 'shared-types'
 import { buildReferenceSong, encodeWav, synthesizeBeeps, synthesizeDrums } from '../packages/stage-pwa/src/lib/referenceSong.ts'
 
@@ -23,8 +24,6 @@ const db = `${couch}/stageboard-${bandId}`
 export const REFERENCE_IDS = {
   song: 'f1a7c0de-0464-4000-8000-000000000001',
   variant: 'f1a7c0de-0464-4000-8000-000000000002',
-  beeps: 'f1a7c0de-0464-4000-8000-000000000003',
-  drums: 'f1a7c0de-0464-4000-8000-000000000004',
 }
 
 async function put(id: string, doc: Record<string, unknown>) {
@@ -41,7 +40,13 @@ async function put(id: string, doc: Record<string, unknown>) {
 
 const rate = 44100
 const song = buildReferenceSong()
-const files = { [REFERENCE_IDS.beeps]: encodeWav(synthesizeBeeps(song, rate), rate), [REFERENCE_IDS.drums]: encodeWav(synthesizeDrums(song, rate), rate) }
+// A track's id carries a fingerprint of its audio: the devices cache tracks by variant + track id,
+// so changed audio under the same id would keep playing the old file there.
+const trackId = (n: number, bytes: Uint8Array) => `f1a7c0de-0464-400${n}-8000-${createHash('sha256').update(bytes).digest('hex').slice(0, 12)}`
+const beeps = encodeWav(synthesizeBeeps(song, rate), rate)
+const drums = encodeWav(synthesizeDrums(song, rate), rate)
+const ids = { beeps: trackId(3, beeps), drums: trackId(4, drums) }
+const files: Record<string, Uint8Array> = { [ids.beeps]: beeps, [ids.drums]: drums }
 const now = Date.now()
 const track = (id: string, label: string, kind: 'band-mix' | 'reference') => ({
   id,
@@ -76,7 +81,7 @@ const variantDoc = SongVariantSchema.parse({
   chordProContent: song.chordPro,
   timecodes: [],
   // The first band-mix plays by default (track-override): the beeps, for measuring.
-  tracks: [track(REFERENCE_IDS.beeps, 'Beeps (Messung)', 'band-mix'), track(REFERENCE_IDS.drums, 'Drums', 'reference')],
+  tracks: [track(ids.beeps, 'Beeps (Messung)', 'band-mix'), track(ids.drums, 'Drums', 'reference')],
   cues: [],
   beatGrid: song.grid,
   countInEnabled: true,
@@ -88,6 +93,12 @@ for (const [trackId, bytes] of Object.entries(files)) {
   const res = await fetch(`${serverUrl}/audio/${REFERENCE_IDS.variant}/${trackId}`, { method: 'PUT', headers: { 'Content-Type': 'audio/wav' }, body: bytes })
   if (res.status !== 204) throw new Error(`audio ${trackId}: HTTP ${res.status}`)
 }
+const previous = await fetch(`${db}/${encodeURIComponent(`song-variants:${REFERENCE_IDS.variant}`)}`, { headers: { Authorization: auth } })
+const oldTracks = previous.ok ? (((await previous.json()) as { tracks?: { id: string }[] }).tracks ?? []).map((t) => t.id) : []
 await put(`songs:${REFERENCE_IDS.song}`, songDoc)
 await put(`song-variants:${REFERENCE_IDS.variant}`, variantDoc)
+// Audio of an earlier version that no track names any more.
+for (const old of oldTracks.filter((id) => !(id in files))) {
+  await fetch(`${serverUrl}/audio/${REFERENCE_IDS.variant}/${old}`, { method: 'DELETE' })
+}
 console.log(JSON.stringify({ band: bandId, song: songDoc.title, variant: REFERENCE_IDS.variant, tracks: Object.keys(files).length, gridPoints: song.grid.points.length, durationS: song.durationMs / 1000 }))
