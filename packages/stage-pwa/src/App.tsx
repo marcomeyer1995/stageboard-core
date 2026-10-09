@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
 import { useMasterIdentity } from './lib/useMasterIdentity'
 import { EditBarSlot } from './components/EditBarSlot'
@@ -19,7 +20,7 @@ import { RosterSetupView } from './components/RosterSetupView'
 import { SystemView } from './components/SystemView'
 import { getDeviceId } from './lib/deviceId'
 import { useBackHandler } from './lib/backNavigation'
-import { MODE_LABEL, type Mode } from './lib/modes'
+import type { Mode } from './lib/modes'
 import { useModeDashboards } from './lib/useModeDashboards'
 import { StatusBar } from './components/StatusBar'
 import { type TrackedSync } from './lib/trackedSync'
@@ -72,6 +73,7 @@ function noopStart(): TrackedSync | null {
 }
 
 function App() {
+  const { t } = useTranslation('common')
   const [mode, setModeNow] = useState<Mode>('boards')
   // Switching the screen (☰ menu, Back) closes whatever editor is open - ask first if it has
   // unsaved changes (Marco, 2026-10-07: never lose edits silently).
@@ -296,7 +298,7 @@ function App() {
           <div className="absolute bottom-3 right-3 z-content flex items-center gap-2">
             <Button className="relative" onClick={() => setMenuOpen(true)}>
               <Icon name="menu" size="1.5rem" />
-              {MODE_LABEL[mode]}
+              {t(`mode.${mode}`)}
               {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
                   since this button is always on screen; the detailed SyncIndicator with its
                   text/percentage lives in SystemView's Einstellungen tab for when someone

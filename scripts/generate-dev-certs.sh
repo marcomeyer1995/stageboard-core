@@ -47,11 +47,10 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -addext "$SAN"
 mv -f "${CERT_FILE}.tmp" "$CERT_FILE"
 mv -f "${KEY_FILE}.tmp" "$KEY_FILE"
-# openssl defaults the key to 600 (owner-only) - CouchDB's container runs as its own
-# uid (docker-compose.yml's `user: "5984:5984"`, not whoever runs this script), so it
-# needs group/other read too. Not a real secret: dev-only, self-signed, never leaves
-# this machine's shared services.
-chmod 644 "$KEY_FILE"
+# Owner-only: the native app pins this certificate (#348), so whoever has the key could pose as
+# this Stage-Server. Only core-backend and Vite read it, both as this user (CouchDB no longer
+# does - docker-compose.yml, 2026-10-09).
+chmod 600 "$KEY_FILE"
 
 echo "Wrote ${CERT_FILE} and ${KEY_FILE}."
 echo "Each tablet needs one manual 'Proceed to site' tap on first visit (self-signed, no CA)."

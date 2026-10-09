@@ -15,18 +15,18 @@ const base: StatusBarInput = {
 
 describe('statusBarState', () => {
   it('maps the transport to ready / count-in / playing / paused / finished', () => {
-    expect(statusBarState(base)).toEqual({ kind: 'ready', label: 'Bereit' })
+    expect(statusBarState(base)).toEqual({ kind: 'ready', label: 'ready' })
     expect(statusBarState({ ...base, playbackStatus: 'playing', isCountIn: true }).kind).toBe('count-in')
     expect(statusBarState({ ...base, playbackStatus: 'playing' }).kind).toBe('playing')
     expect(statusBarState({ ...base, playbackStatus: 'paused' }).kind).toBe('paused')
-    expect(statusBarState({ ...base, finished: true })).toEqual({ kind: 'finished', label: 'Beendet' })
+    expect(statusBarState({ ...base, finished: true })).toEqual({ kind: 'finished', label: 'finished' })
   })
 
   it('shows faults - and only faults - in red, ahead of the transport state', () => {
-    expect(statusBarState({ ...base, playbackStatus: 'playing', audioError: 'kaputt' })).toEqual({ kind: 'fault', label: 'Audio-Fehler' })
-    expect(statusBarState({ ...base, syncStatus: 'error' }).label).toBe('Sync-Fehler')
-    expect(statusBarState({ ...base, syncStatus: 'offline' }).label).toBe('Offline')
-    expect(statusBarState({ ...base, noMaster: true }).label).toBe('Kein Master')
+    expect(statusBarState({ ...base, playbackStatus: 'playing', audioError: 'kaputt' })).toEqual({ kind: 'fault', label: 'audioError' })
+    expect(statusBarState({ ...base, syncStatus: 'error' }).label).toBe('syncError')
+    expect(statusBarState({ ...base, syncStatus: 'offline' }).label).toBe('offline')
+    expect(statusBarState({ ...base, noMaster: true }).label).toBe('noMaster')
   })
 
   it('does not count offline or a missing Master as faults in Solo Üben', () => {

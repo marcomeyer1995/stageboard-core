@@ -1,0 +1,15 @@
+{
+  "language": {
+    "name": "Deutsch",
+    "auto": "Automatisch (Gerätesprache: {{name}})"
+  },
+  "mode": {
+    "boards": "Boards",
+    "library": "Bibliothek",
+    "system": "System"
+  },
+  "session": {
+    "gig": "Gig",
+    "practice": "Solo"
+  }
+}

@@ -39,7 +39,8 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { FlashReportSchema } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema } from 'shared-types'
+import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
 import { isSafePluginId, readPluginBundle } from './plugins/pluginBundleStore.js'
@@ -323,7 +324,7 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
  * only caller that goes on to populate the registries and actually start the server.
  */
-export async function buildApp() {
+export async function buildApp(options: { backupService?: BackupService } = {}) {
   // Same shared cert as Vite and CouchDB (see #34, scripts/generate-dev-certs.sh) - the
   // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
   // server, but WSS/HTTPS here still matters once the PWA itself is HTTPS: an HTTPS page
@@ -1388,6 +1389,81 @@ export async function buildApp() {
   // /workspaces/:workspaceId since it describes the server, not a workspace, and needs no auth
   // for the same reason /server-info needs none: not new information beyond what's already
   // observable on the LAN.
+  // The Stage-Server's backups (#363, Marco 2026-10-08): targets chosen in the app (System →
+  // Backup), run by the server itself - backup.ts. Admin of the band this server serves.
+  const backups: BackupService =
+    options.backupService ??
+    createBackupService(
+      realBackupDeps(async () => {
+        const workspaceId = workspaceHardware.getActiveWorkspaceId()
+        if (!workspaceId) return false
+        const state = await getDoc<CouchDoc & { playbackStatus?: string }>(couch, workspaceDbName(workspaceId), 'show-state').catch(() => null)
+        return state?.playbackStatus === 'playing'
+      }, app.log),
+    )
+  async function backupAdmin(request: FastifyRequest, reply: FastifyReply, body: { adminUsername: string; adminPassword: string }): Promise<boolean> {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId) {
+      void reply.status(409).send({ status: 'error', message: 'Auf diesem Stage-Server ist keine Band aktiv.' })
+      return false
+    }
+    if (!(await isWorkspaceAdmin(request, workspaceId, body.adminUsername, body.adminPassword))) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Backup settings refused: not this band\'s admin')
+      void reply.status(403).send({ status: 'error', message: 'Nur ein Admin der aktiven Band.' })
+      return false
+    }
+    return true
+  }
+  app.post('/server/backup/overview', async (request, reply) => {
+    const parsed = BackupAdminRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    return reply.status(200).send(await backups.overview())
+  })
+  app.post('/server/backup/save', async (request, reply) => {
+    const parsed = BackupSaveRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    backups.save(parsed.data.target)
+    return reply.status(200).send(await backups.overview())
+  })
+  app.post('/server/backup/delete', async (request, reply) => {
+    const parsed = BackupTargetRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    backups.remove(parsed.data.targetId)
+    return reply.status(200).send(await backups.overview())
+  })
+  app.post('/server/backup/run', async (request, reply) => {
+    const parsed = BackupTargetRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    // Runs in the background (minutes with backing tracks); the app follows it via overview.
+    void backups.run(parsed.data.targetId, 'manual').catch((err) => app.log.error({ err }, 'Backup run failed'))
+    return reply.status(202).send({ status: 'started' })
+  })
+  app.post('/server/backup/test', async (request, reply) => {
+    const parsed = BackupTargetRequestSchema.safeParse(request.body)
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    if (!(await backupAdmin(request, reply, parsed.data))) return reply
+    return reply.status(200).send(await backups.test(parsed.data.targetId))
+  })
+
+  // The status line in the app (Geräte → Stage-Server): the configured targets' summary; before
+  // any target exists, the last run of a hand-started scripts/backup.mjs; null = never set up.
+  app.get('/server/backup-status', async (_request, reply) => {
+    const summary = backups.summary()
+    if (summary) return reply.status(200).send(summary)
+    const file = join(process.env.STAGEBOARD_STATE_DIR ?? './data', 'backup-status.json')
+    if (!existsSync(file)) return reply.status(200).send(null)
+    try {
+      return reply.status(200).send(JSON.parse(readFileSync(file, 'utf8')))
+    } catch (err) {
+      app.log.warn({ err }, 'backup-status.json unreadable')
+      return reply.status(200).send({ ok: false, error: 'Status-Datei unlesbar' })
+    }
+  })
+
   app.get('/server/active-workspace', async (_request, reply) =>
     reply.status(200).send({ activeWorkspaceId: workspaceHardware.getActiveWorkspaceId() }),
   )
@@ -1477,7 +1553,7 @@ export async function buildApp() {
     await app.register(fastifyStatic, { root: pwaDist })
   }
 
-  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog }
+  return { app, registry, lookupRegistry, couch, workspaceHardware, pluginLog, backups }
 }
 
 const port = Number(process.env.PORT ?? 3001)
@@ -1500,7 +1576,9 @@ function detectLanIp(): string | null {
 }
 
 async function main() {
-  const { app, lookupRegistry, workspaceHardware, pluginLog, couch } = await buildApp()
+  const { app, lookupRegistry, workspaceHardware, pluginLog, couch, backups } = await buildApp()
+  // Scheduled backups (daily time, USB medium plugged in) - checked every 30 s.
+  backups.start()
 
   try {
     // Validator rules added after a band was founded (protected dashboard templates, #16) reach

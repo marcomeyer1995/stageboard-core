@@ -1,3 +1,4 @@
+import { useLocale } from '../i18n'
 import { computeFestivalClock } from '../lib/festivalClock'
 import { useShowMode } from '../lib/showMode'
 import { festivalClockLayout } from '../lib/stageWidgetLayout'
@@ -8,8 +9,9 @@ import { DEFAULT_SIZE_RATIO, type FestivalClockConfig } from './festivalClockCon
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
 
-function formatTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+/** 24 hours in every language - a stage clock, no AM/PM to misread (#456). */
+function formatTime(ms: number, locale: string): string {
+  return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 }
 
 function formatMinutes(ms: number): string {
@@ -28,6 +30,7 @@ function formatMinutes(ms: number): string {
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
   const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
   const now = useNow(1000)
+  const locale = useLocale()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
   const [boxRef, box] = useElementSize()
@@ -60,11 +63,11 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
         style={{ fontSize }}
         className={`whitespace-nowrap font-bold tabular-nums ${overtime ? 'text-danger' : 'text-ink'}`}
       >
-        {formatTime(result.predictedEnd)}
+        {formatTime(result.predictedEnd, locale)}
       </span>
       {result.targetEnd !== null && result.overrunMs !== null ? (
         <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-danger' : 'text-ok'}`}>
-          Ziel {formatTime(result.targetEnd)} ·{' '}
+          Ziel {formatTime(result.targetEnd, locale)} ·{' '}
           {overtime ? `${formatMinutes(result.overrunMs)} Überzug` : `${formatMinutes(result.overrunMs)} Puffer`}
         </span>
       ) : (

@@ -2,6 +2,7 @@ import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import { clearLastKnownStageServer } from '../lib/stageServerStatusCache'
 import '@testing-library/jest-dom/vitest'
+import i18n from '../i18n'
 
 // Testing Library doesn't auto-register its cleanup without `test.globals: true` (which
 // this project deliberately doesn't use - every other test file imports describe/it/expect
@@ -13,3 +14,6 @@ afterEach(() => {
   // this, one test's "reachable" server would be shown instantly in the next test's render.
   clearLastKnownStageServer()
 })
+
+// The app's texts (#456): German in every test, whatever language the test environment reports.
+void i18n.changeLanguage('de')
