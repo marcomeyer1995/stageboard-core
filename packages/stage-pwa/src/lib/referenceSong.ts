@@ -55,7 +55,8 @@ export interface ReferenceBeat {
   bpm: number
   section: string
   silent: boolean
-  /** Pitch of this beat's beep in the "Beeps" track (one per bar, 400-940 Hz, clear of the click's 1000/1500 Hz). */
+  /** Pitch of this beat's beep in the "Beeps" track (one per bar, 300-840 Hz - at least 160 Hz clear of
+   * the click's 1000/1500 Hz, so a filter separates them even when both sound at the same moment). */
   pitchHz: number
 }
 
@@ -82,7 +83,8 @@ export interface ReferenceSong {
 }
 
 const beatsPerBar = (timeSignature: string) => Number(timeSignature.split('/')[0]) || 4
-export const beepPitchHz = (bar: number) => 400 + 60 * ((bar - 1) % 10)
+export const BEEP_PITCHES_HZ = Array.from({ length: 10 }, (_, i) => 300 + 60 * i)
+export const beepPitchHz = (bar: number) => BEEP_PITCHES_HZ[(bar - 1) % 10]!
 
 /** `74500` -> `01:14.50`, the app's ChordPro time tag (lib/chordpro.ts). */
 function timeTag(ms: number): string {
