@@ -109,21 +109,43 @@ describe('syncLocalTrackPosition (#468)', () => {
     expect(currentTimeMs()).toBe(0)
   })
 
-  it('leaves jitter inside the dead band alone', async () => {
+  /** Runs `ms` of playback in 16 ms frames; the master clock runs `ahead` ms ahead of the
+   * position the whole time, the element advances at its own playbackRate. */
+  function playFrames(ms: number, clockAt: () => number) {
+    for (let t = 0; t < ms; t += 16) {
+      advance(16, 16 * audio().playbackRate)
+      syncLocalTrackPosition(clockAt())
+    }
+  }
+
+  it('leaves jitter alone - no speed change at all while the drift stays under 80 ms', async () => {
     const at = await startRunning(10_000)
-    syncLocalTrackPosition(at + 30)
-    expect(audio().playbackRate).toBe(1)
-    expect(currentTimeMs()).toBe(at)
+    const rates = new Set<number>()
+    let i = 0
+    playFrames(5_000, () => {
+      rates.add(audio().playbackRate)
+      return currentTimeMs() + (i++ % 2 ? 60 : -60) // ±60 ms jitter
+    })
+    expect([...rates]).toEqual([1])
+    expect(currentTimeMs()).toBeGreaterThan(at)
   })
 
-  it('works off a small drift by speed, not by a seek (pitch kept)', async () => {
-    const at = await startRunning(10_000)
-    syncLocalTrackPosition(at + 100) // 100 ms behind
-    expect(currentTimeMs()).toBe(at)
-    expect(audio().playbackRate).toBeCloseTo(1.05)
+  it('works off a lasting drift at one fixed speed, then goes back to normal - two changes, no seek (pitch kept)', async () => {
+    let clock = await startRunning(10_000)
+    clock += 300 // the track is 300 ms behind from here on
+    const changes: number[] = []
+    let last = audio().playbackRate
+    const start = currentTimeMs()
+    for (let t = 0; t < 20_000; t += 16) {
+      clock += 16
+      advance(16, 16 * audio().playbackRate)
+      syncLocalTrackPosition(clock)
+      if (audio().playbackRate !== last) changes.push((last = audio().playbackRate))
+    }
+    expect(changes).toEqual([1.03, 1])
     expect(audio().preservesPitch).toBe(true)
-    syncLocalTrackPosition(at - 60) // 60 ms ahead
-    expect(audio().playbackRate).toBeCloseTo(0.97)
+    expect(Math.abs(currentTimeMs() - clock)).toBeLessThan(40)
+    expect(currentTimeMs() - start).toBeLessThan(20_500) // caught up by speed, never seeked
   })
 
   it('seeks for a drift over a second, but never within 3 s of the last start/seek', async () => {
@@ -153,14 +175,14 @@ describe('syncLocalTrackPosition (#468)', () => {
       advance(16)
       syncLocalTrackPosition(10_600 + 16 * (i + 1))
     }
-    expect(audio().playbackRate).toBeCloseTo(1.05)
+    expect(audio().playbackRate).toBeCloseTo(1.03)
     expect(currentTimeMs()).toBeLessThan(10_500) // never seeked
   })
 
   it('a start resets the speed to normal', async () => {
-    const at = await startRunning(10_000)
-    syncLocalTrackPosition(at + 300)
-    expect(audio().playbackRate).not.toBe(1)
+    await startRunning(10_000)
+    playFrames(1_000, () => currentTimeMs() + 300) // 300 ms behind for a second
+    expect(audio().playbackRate).toBeCloseTo(1.03)
     await playLocalTrack(0)
     expect(audio().playbackRate).toBe(1)
   })
