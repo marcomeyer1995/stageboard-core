@@ -10,6 +10,7 @@ import {
   parseWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
+import { ServerBackupTargets } from './ServerBackupTargets'
 import { Badge, Button } from './ui'
 
 /**
@@ -73,17 +74,11 @@ export function BackupManager() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Backup</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Automatische Backups laufen über ein installiertes Backup-Plugin, nicht über
-        StageBoard selbst - hier siehst du nur, ob eins installiert und gerade erreichbar
-        ist. Ein Plugin verwalten geht unter „Plugins".
-      </p>
+      <h1 className="mb-4 text-2xl font-bold">Backup</h1>
+      <ServerBackupTargets />
 
+      {backupPlugins.length > 0 && <h2 className="mb-2 mt-8 text-xl font-bold">Backup-Plugins</h2>}
       <div className="space-y-2">
-        {backupPlugins.length === 0 && (
-          <p className="text-sm text-ink-faint">Kein Backup-Plugin installiert.</p>
-        )}
         {backupPlugins.map((plugin) => (
           <div
             key={plugin.id}

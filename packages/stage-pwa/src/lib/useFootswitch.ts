@@ -56,7 +56,7 @@ export function useFootswitch(active: boolean): void {
       if (footswitchCapture.active || event.repeat || isTypingTarget(event.target)) return
       // A dialog or the ☰ menu is open: the pedal must not run the show behind it - and Enter/Space
       // would also press the focused button there (#394 review).
-      if (document.querySelector('[role="dialog"]')) return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
       const binding = bindingForKey(latest.current.bindings, event.key)
       if (!binding) return
