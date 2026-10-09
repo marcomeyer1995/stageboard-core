@@ -189,19 +189,37 @@ export function pauseLocalTrack(): void {
 const SEEK_THRESHOLD_MS = 1000
 /** Never two seeks closer together than this - a seek is an audible glitch. */
 const MIN_SEEK_INTERVAL_MS = 3000
-/** Drift this small is native `<audio>` jitter (±15 ms measured, #468) - left alone. */
-const DEADBAND_MS = 40
-/** Speed correction: the drift is worked off in about this long, at most `MAX_RATE_OFFSET` off
- * normal speed (with pitch kept, a few percent is inaudible on a backing track). */
-const CATCH_UP_MS = 2000
-const MAX_RATE_OFFSET = 0.05
+/** Speed correction starts only when the smoothed drift passes this, and then runs at one fixed
+ * speed (`CATCH_UP_RATE_OFFSET` off normal, pitch kept) until the drift is down to `CATCH_UP_END_MS`.
+ * Every `playbackRate` change costs Chrome a little time and is a small audible glitch: changing it
+ * continuously (1 % steps, every ~54 ms) made the Xiaomi lose 37 ms/s and stutter every ~2 s, while
+ * the same track at a steady rate 1 ran exactly with the clock (2026-10-09, #468). So: two
+ * changes per correction, and in normal play none at all. */
+const CATCH_UP_START_MS = 80
+const CATCH_UP_END_MS = 10
+const CATCH_UP_RATE_OFFSET = 0.03
+/** Smoothing of the measured drift (single readings jitter by ±15 ms). */
+const DRIFT_SMOOTHING_MS = 500
 /** After a start or seek, the position counts as running again once it advanced at least half
  * as fast as the wall clock over this long; at the latest after `SETTLE_TIMEOUT_MS`. */
 const SETTLE_WINDOW_MS = 150
 const SETTLE_TIMEOUT_MS = 3000
 
 /** Where the current element stands after its last start/seek (#468). `null` = not yet seen. */
-let tracking: { audio: HTMLAudioElement; seekAt: number; settled: boolean; probe: { at: number; positionMs: number } | null } | null = null
+let tracking: {
+  audio: HTMLAudioElement
+  seekAt: number
+  settled: boolean
+  probe: { at: number; positionMs: number } | null
+  /** Smoothed drift and when it was last updated; `null` until the first reading after settling. */
+  drift: { ms: number; at: number } | null
+  /** While catching up: +1 = track ahead (slowed down), -1 = behind (sped up). */
+  catchUp: 1 | -1 | null
+} | null = null
+
+function freshTracking(audio: HTMLAudioElement, seekAt: number, settled: boolean): NonNullable<typeof tracking> {
+  return { audio, seekAt, settled, probe: null, drift: null, catchUp: null }
+}
 
 function now(): number {
   return performance.now()
@@ -211,7 +229,7 @@ function now(): number {
 function seekTo(audio: HTMLAudioElement, atMs: number): void {
   audio.currentTime = atMs / 1000
   audio.playbackRate = 1
-  tracking = { audio, seekAt: now(), settled: false, probe: null }
+  tracking = freshTracking(audio, now(), false)
 }
 
 /** Whether the position runs again after the last start/seek - measured on 2026-10-09 (#468):
@@ -219,7 +237,7 @@ function seekTo(audio: HTMLAudioElement, atMs: number): void {
  * seek, then ran at exactly normal speed. */
 function hasSettled(audio: HTMLAudioElement, t: number): boolean {
   if (!tracking || tracking.audio !== audio) {
-    tracking = { audio, seekAt: t, settled: true, probe: null }
+    tracking = freshTracking(audio, t, true)
     return true
   }
   if (tracking.settled) return true
@@ -243,8 +261,8 @@ function hasSettled(audio: HTMLAudioElement, t: number): boolean {
  * It used to seek whenever the drift passed 200 ms. On an output that needs a moment to start
  * after a seek (Bluetooth on the S26+: up to 620 ms) every seek caused the next one - 195 seeks
  * in 45 s, heard as constant stutter (#468). Now: after a start or seek it waits until the
- * position runs again; then small drift is worked off by speed (pitch kept), and only a drift
- * over a second still seeks, at most every 3 s. */
+ * position runs again; a smoothed drift over 80 ms is worked off at one fixed speed (pitch kept),
+ * and only a drift over a second still seeks, at most every 3 s. */
 export function syncLocalTrackPosition(atMs: number): void {
   const audio = getAudioEl()
   if (audio.paused) return
@@ -255,12 +273,21 @@ export function syncLocalTrackPosition(atMs: number): void {
     seekTo(audio, atMs)
     return
   }
-  const offset = Math.abs(driftMs) <= DEADBAND_MS ? 0 : Math.max(-MAX_RATE_OFFSET, Math.min(MAX_RATE_OFFSET, -driftMs / CATCH_UP_MS))
-  // In 1 % steps, so the rate changes now and then rather than on every frame.
-  const rate = 1 + Math.round(offset * 100) / 100
-  if (audio.playbackRate !== rate) {
+  const track = tracking
+  if (!track) return
+  if (!track.drift) track.drift = { ms: driftMs, at: t }
+  else {
+    track.drift.ms += (driftMs - track.drift.ms) * Math.min(1, (t - track.drift.at) / DRIFT_SMOOTHING_MS)
+    track.drift.at = t
+  }
+  const smoothed = track.drift.ms
+  if (track.catchUp === null && Math.abs(smoothed) > CATCH_UP_START_MS) {
+    track.catchUp = smoothed > 0 ? 1 : -1
     audio.preservesPitch = true
-    audio.playbackRate = rate
+    audio.playbackRate = 1 - track.catchUp * CATCH_UP_RATE_OFFSET
+  } else if (track.catchUp !== null && smoothed * track.catchUp <= CATCH_UP_END_MS) {
+    track.catchUp = null
+    audio.playbackRate = 1
   }
 }
 
