@@ -111,6 +111,10 @@ export async function advanceToPreviousSong(): Promise<void> {
   await activateEntry(previousEntry.id)
 }
 
+/** How far ahead of Play a fresh song start lies (docs/00 §4 "Ahead-of-Time Dispatch") - long
+ * enough for the Play to reach every device over Wi-Fi and for each to schedule its audio. */
+export const PLAY_LEAD_MS = 400
+
 /** Starts or resumes playback of the current entry (ShowTransportWidget's Play, #13). Also
  * bootstraps activation bookkeeping for a song that was never explicitly advanced to - e.g.
  * the very first song of a session, before "Next Song" has ever been pressed.
@@ -139,17 +143,23 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const isFreshStart = state.activeEntryStartedAt === null
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
+  // Ahead-of-time start (docs/00 §4, #468): song time 0 lies at least PLAY_LEAD_MS in the future,
+  // so every device - this one included - learns about Play before it must sound and can start
+  // track and click exactly on 0. Started "now", the Web Audio track came in 165 ms into the song.
   const seededTransport: TransportState =
     seedCountIn && activeSong
       ? {
           ...currentTransport(state),
-          accumulatedMs: countInLeadMs(
-            clickTimeline({
-              beatGrid: currentVariant?.beatGrid,
-              bpm: activeSong.bpm,
-              timeSignature: activeSong.timeSignature,
-              countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
-            }),
+          accumulatedMs: Math.min(
+            -PLAY_LEAD_MS,
+            countInLeadMs(
+              clickTimeline({
+                beatGrid: currentVariant?.beatGrid,
+                bpm: activeSong.bpm,
+                timeSignature: activeSong.timeSignature,
+                countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
+              }),
+            ),
           ),
         }
       : currentTransport(state)

@@ -16,8 +16,17 @@ import {
   unloadLocalTrack,
 } from './localAudioEngine'
 import { triggerShowControl } from './showControlClient'
+import {
+  loadWebAudioTrack,
+  preloadWebAudioTrack,
+  syncWebAudioTrack,
+  unloadWebAudioTrack,
+  webAudioTrackEnabled,
+} from './webAudioTrackEngine'
 import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { holdAudioOutputAwake } from './sharedAudioContext'
 import { useShowMode } from './showMode'
+import { gigElapsedMsNow } from './usePlaybackElapsedMs'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -66,7 +75,10 @@ export function useAudioOutputDriver(): void {
     supportsLocalExecution(installed, CAPABILITIES.audioPlayback),
   )
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
-  const usesLocalEngine = engine === 'local-mine'
+  // Gig only, per device (#468 prototype): the track on the click's Web Audio clock instead of an
+  // <audio> element. Solo keeps the element.
+  const webAudio = isMyDeviceAudioOutput && webAudioTrackEnabled()
+  const usesLocalEngine = engine === 'local-mine' && !webAudio
 
   const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
 
@@ -105,9 +117,29 @@ export function useAudioOutputDriver(): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
 
+  // Web Audio track (#468): decode the current track, and always the next one in the background,
+  // so a song change doesn't wait for decoding.
+  useEffect(() => {
+    if (!webAudio) return
+    unloadLocalTrack()
+    if (!currentSong || !currentVariant || !track) {
+      unloadWebAudioTrack()
+      useLocalAudioOutputStore.setState({ error: null })
+      return
+    }
+    void loadWebAudioTrack(currentVariant.id, track.id).then((result) => {
+      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? 'Fehler') : null })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webAudio, currentSong?.id, currentVariant?.id, track?.id])
+
   // Buffers the next entry's track ahead of a `seamless` transition (#232), so the swap at the
   // current track's end has no Blob-fetch gap (loadLocalTrack picks the preloaded element up).
   const nextTrack = resolveTrackForEntry(nextEntry, nextVariant, null)
+  useEffect(() => {
+    if (webAudio && nextVariant && nextTrack) preloadWebAudioTrack(nextVariant.id, nextTrack.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webAudio, nextVariant?.id, nextTrack?.id])
   useEffect(() => {
     if (!usesLocalEngine || entryTransitionType(currentEntry) !== 'seamless' || !nextVariant || !nextTrack) return
     void preloadLocalTrack(nextVariant.id, nextTrack.id)
@@ -130,7 +162,7 @@ export function useAudioOutputDriver(): void {
   const lastAppliedStatusRef = useRef<PlaybackStatus | null>(null)
   const audioStartedForRunRef = useRef(false)
   useEffect(() => {
-    if (!isMyDeviceAudioOutput) return
+    if (!isMyDeviceAudioOutput || webAudio) return
     if (playbackStatus !== 'playing') {
       if (lastAppliedStatusRef.current !== playbackStatus) {
         lastAppliedStatusRef.current = playbackStatus
@@ -157,7 +189,19 @@ export function useAudioOutputDriver(): void {
     void playLocalTrack(elapsedMs).then((result) => {
       useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
     })
-  }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs, currentSong])
+  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, elapsedMs, currentSong])
+
+  // Web Audio track (#468): started, kept on the clock and stopped from here, every frame.
+  const webAudioBlockedRef = useRef(false)
+  useEffect(() => {
+    if (!webAudio) return
+    // The engine reads the song time itself, at the moment it reads the audio clock.
+    const { blocked } = syncWebAudioTrack(gigElapsedMsNow, playbackStatus === 'playing' && currentSong !== null)
+    if (blocked !== webAudioBlockedRef.current) {
+      webAudioBlockedRef.current = blocked
+      useLocalAudioOutputStore.setState({ audioBlocked: blocked })
+    }
+  }, [webAudio, playbackStatus, elapsedMs, currentSong])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
   // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.
@@ -167,9 +211,17 @@ export function useAudioOutputDriver(): void {
   // 2026-09-10). `elapsedMs` itself (not the ref) is the dependency here - unlike the load/play
   // effects above, this one is *meant* to re-run on every tick while playing.
   useEffect(() => {
-    if (!isMyDeviceAudioOutput || playbackStatus !== 'playing' || elapsedMs === null) return
+    if (!isMyDeviceAudioOutput || webAudio || playbackStatus !== 'playing' || elapsedMs === null) return
     syncLocalTrackPosition(elapsedMs)
-  }, [isMyDeviceAudioOutput, playbackStatus, elapsedMs])
+  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, elapsedMs])
+
+  // Bluetooth/wireless outputs fall asleep after a few seconds of silence and lose the beginning
+  // of the next song while waking up - keep the output awake while this device is the Gig audio
+  // output (sharedAudioContext.ts, #468).
+  useEffect(() => {
+    holdAudioOutputAwake('track', isMyDeviceAudioOutput)
+    return () => holdAudioOutputAwake('track', false)
+  }, [isMyDeviceAudioOutput])
 
   // Stops local audio the moment this device stops being the claimed output (someone released
   // it, or claimed a different device) - a stale claim must never keep making sound.
@@ -177,6 +229,7 @@ export function useAudioOutputDriver(): void {
     if (!isMyDeviceAudioOutput) return
     return () => {
       stopLocalTrack()
+      unloadWebAudioTrack()
       lastAppliedStatusRef.current = null
       audioStartedForRunRef.current = false
       useLocalAudioOutputStore.setState({ audioBlocked: false })

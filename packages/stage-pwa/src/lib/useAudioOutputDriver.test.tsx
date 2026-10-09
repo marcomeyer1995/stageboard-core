@@ -16,6 +16,15 @@ import { ShowTransportWidget } from '../widgets/ShowTransportWidget'
 // found live, 2026-09-10: switching away from the Live tab used to unmount ShowTransportWidget
 // and silently stop a live show's backing track mid-song).
 // Its own claim rules (masterTakeover.test.ts) pull in the real PouchDB-backed stores.
+vi.mock('./sharedAudioContext', () => ({ holdAudioOutputAwake: vi.fn(), getSharedAudioContext: vi.fn() }))
+vi.mock('./webAudioTrackEngine', () => ({
+  webAudioTrackEnabled: () => false,
+  loadWebAudioTrack: vi.fn(),
+  preloadWebAudioTrack: vi.fn(),
+  syncWebAudioTrack: vi.fn(() => ({ blocked: false })),
+  unloadWebAudioTrack: vi.fn(),
+  resumeWebAudio: vi.fn(),
+}))
 vi.mock('../components/MasterTakeoverButton', () => {
   return { MasterTakeoverButton: () => null }
 })

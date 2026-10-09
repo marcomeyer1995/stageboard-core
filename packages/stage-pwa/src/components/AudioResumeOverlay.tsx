@@ -1,4 +1,5 @@
 import { getServerTime } from '../lib/clockSync'
+import { resumeWebAudio, webAudioTrackEnabled } from '../lib/webAudioTrackEngine'
 import { playLocalTrack } from '../lib/localAudioEngine'
 import { computeActiveMs } from '../lib/playbackTransport'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
@@ -36,6 +37,11 @@ export function AudioResumeOverlay() {
   if (!audioBlocked) return null
 
   async function resume() {
+    if (webAudioTrackEnabled()) {
+      // Web Audio track (#468): the tap only has to let the context run - the driver restarts the track.
+      useLocalAudioOutputStore.setState({ audioBlocked: !(await resumeWebAudio()) })
+      return
+    }
     const { playbackStatus, playbackStartedAt, playbackAccumulatedMs } = useShowStateStore.getState().state
     const elapsedMs = computeActiveMs(
       { status: playbackStatus, startedAt: playbackStartedAt, accumulatedMs: playbackAccumulatedMs },

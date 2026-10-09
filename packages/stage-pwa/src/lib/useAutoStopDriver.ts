@@ -4,6 +4,7 @@ import { songDurationMs } from './entryDuration'
 import { resolveTrackForEntry } from './computeQueue'
 import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
+import { getWebAudioTrackDurationMs, webAudioTrackEnabled } from './webAudioTrackEngine'
 import { useShowMode } from './showMode'
 
 /**
@@ -50,7 +51,7 @@ export function useAutoStopDriver(): void {
     const durationMs =
       currentEntry && isSongEntry(currentEntry)
         ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
-          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? getLocalTrackDurationMs() : null))
+          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? ((webAudioTrackEnabled() ? getWebAudioTrackDurationMs() : null) ?? getLocalTrackDurationMs()) : null))
         : transitionItemEndMs(currentEntry)
     if (durationMs === null || elapsedMs < durationMs + clickExtendMs) return
     handledForRunRef.current = true

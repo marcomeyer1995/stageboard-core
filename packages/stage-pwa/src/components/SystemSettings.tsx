@@ -12,6 +12,7 @@ import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
+import { WebAudioTrackSettings } from './WebAudioTrackSettings'
 import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
 /**
@@ -78,6 +79,9 @@ export function SystemSettings() {
         </Section>
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
+        </Section>
+        <Section title="Wiedergabe (Test)">
+          <WebAudioTrackSettings />
         </Section>
         <Section title="Bibliothek - Geübt">
           <PracticeWindowSettings />
