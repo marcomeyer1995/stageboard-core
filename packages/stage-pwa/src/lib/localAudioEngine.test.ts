@@ -80,23 +80,89 @@ describe('getLocalTrackDurationMs (#231)', () => {
   })
 })
 
-describe('syncLocalTrackPosition', () => {
-  it('does nothing while paused - only an actively playing element should ever be re-seeked', () => {
-    __resetLocalAudioForTests() // paused, position 0
+describe('syncLocalTrackPosition (#468)', () => {
+  let clock = 0
+  beforeEach(() => {
+    clock = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => clock)
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  const audio = () => __getAudioElForTests()
+  /** Advances the wall clock and the element's position by `positionMs` (= what the output played). */
+  function advance(ms: number, positionMs = ms) {
+    clock += ms
+    audio().currentTime += positionMs / 1000
+  }
+  /** Starts at `atMs` and lets the output come up, so the correction is active. */
+  async function startRunning(atMs: number) {
+    await playLocalTrack(atMs)
+    syncLocalTrackPosition(atMs)
+    advance(200)
+    syncLocalTrackPosition(atMs + 200)
+    expect(audio().playbackRate).toBe(1)
+    return atMs + 200
+  }
+
+  it('does nothing while paused - only an actively playing element is corrected', () => {
     syncLocalTrackPosition(50_000)
     expect(currentTimeMs()).toBe(0)
   })
 
-  it('does not correct a small drift - normal, inaudible <audio> clock jitter must not cause a seek', () => {
-    playLocalTrack(10_000)
-    syncLocalTrackPosition(10_100) // 100ms drift, under the 200ms threshold
-    expect(currentTimeMs()).toBe(10_000)
+  it('leaves jitter inside the dead band alone', async () => {
+    const at = await startRunning(10_000)
+    syncLocalTrackPosition(at + 30)
+    expect(audio().playbackRate).toBe(1)
+    expect(currentTimeMs()).toBe(at)
   })
 
-  it('corrects a large drift while playing - the backing-track equivalent of the click engine re-anchoring to the synced clock', () => {
-    playLocalTrack(10_000)
-    syncLocalTrackPosition(15_000) // 5s drift, well past the threshold
-    expect(currentTimeMs()).toBe(15_000)
+  it('works off a small drift by speed, not by a seek (pitch kept)', async () => {
+    const at = await startRunning(10_000)
+    syncLocalTrackPosition(at + 100) // 100 ms behind
+    expect(currentTimeMs()).toBe(at)
+    expect(audio().playbackRate).toBeCloseTo(1.05)
+    expect(audio().preservesPitch).toBe(true)
+    syncLocalTrackPosition(at - 60) // 60 ms ahead
+    expect(audio().playbackRate).toBeCloseTo(0.97)
+  })
+
+  it('seeks for a drift over a second, but never within 3 s of the last start/seek', async () => {
+    let at = await startRunning(10_000)
+    syncLocalTrackPosition(at + 5_000)
+    expect(currentTimeMs()).toBe(at) // 200 ms after the start: too early
+    advance(3_000)
+    at += 3_000
+    syncLocalTrackPosition(at + 5_000)
+    expect(currentTimeMs()).toBe(at + 5_000)
+    advance(2_500)
+    syncLocalTrackPosition(at + 20_000)
+    expect(currentTimeMs()).toBe(at + 7_500)
+  })
+
+  it('waits after a seek until the output runs again - no seek loop on a slow-starting output (S26+ over Bluetooth)', async () => {
+    await playLocalTrack(10_000)
+    // The output stands still for 600 ms after the start; the master clock keeps going.
+    for (let t = 16; t <= 600; t += 16) {
+      advance(16, 0)
+      syncLocalTrackPosition(10_000 + t)
+      expect(currentTimeMs()).toBe(10_000)
+      expect(audio().playbackRate).toBe(1)
+    }
+    // Then it runs: once it advanced over the settle window, the 600 ms lag is worked off by speed.
+    for (let i = 0; i < 25; i++) {
+      advance(16)
+      syncLocalTrackPosition(10_600 + 16 * (i + 1))
+    }
+    expect(audio().playbackRate).toBeCloseTo(1.05)
+    expect(currentTimeMs()).toBeLessThan(10_500) // never seeked
+  })
+
+  it('a start resets the speed to normal', async () => {
+    const at = await startRunning(10_000)
+    syncLocalTrackPosition(at + 300)
+    expect(audio().playbackRate).not.toBe(1)
+    await playLocalTrack(0)
+    expect(audio().playbackRate).toBe(1)
   })
 })
 
