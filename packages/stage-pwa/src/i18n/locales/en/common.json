@@ -1,0 +1,15 @@
+{
+  "language": {
+    "name": "English",
+    "auto": "Automatic (device language: {{name}})"
+  },
+  "mode": {
+    "boards": "Boards",
+    "library": "Library",
+    "system": "System"
+  },
+  "session": {
+    "gig": "Gig",
+    "practice": "Solo"
+  }
+}

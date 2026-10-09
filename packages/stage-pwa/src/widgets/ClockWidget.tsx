@@ -1,3 +1,4 @@
+import { useLocale } from '../i18n'
 import { clockLayout } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { useNow } from '../lib/useNow'
@@ -18,14 +19,17 @@ export function ClockWidget({ config }: { config: ClockConfig }) {
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
   const [boxRef, box] = useElementSize()
   const { showSeconds } = clockLayout(box.width, fontSize)
+  const locale = useLocale()
 
   return (
     <div ref={boxRef} className="flex h-full w-full items-center justify-center overflow-hidden text-center">
       <span style={{ fontSize }} className="whitespace-nowrap font-bold tabular-nums text-ink">
-        {new Date(now).toLocaleTimeString('de-DE', {
+        {new Date(now).toLocaleTimeString(locale, {
           hour: '2-digit',
           minute: '2-digit',
           second: showSeconds ? '2-digit' : undefined,
+          // 24 hours in every language - a stage clock, no AM/PM to misread (#456).
+          hourCycle: 'h23',
         })}
       </span>
     </div>

@@ -11,9 +11,12 @@ import type { SyncStatus } from '../store/useSyncStore'
  */
 export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'paused' | 'finished' | 'fault'
 
+/** The word for the state - a key into the `statusbar` texts (state.*), translated where shown (#456). */
+export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster'
+
 export interface StatusBarState {
   kind: StatusBarKind
-  label: string
+  label: StatusBarLabel
 }
 
 export interface StatusBarInput {
@@ -33,15 +36,15 @@ export interface StatusBarInput {
 /** Faults first (they matter most, whatever the transport does), then the transport state.
  * Offline only counts in Gig mode - Solo Üben runs fine without the Stage-Server. */
 export function statusBarState(input: StatusBarInput): StatusBarState {
-  if (input.audioError) return { kind: 'fault', label: 'Audio-Fehler' }
-  if (input.syncStatus === 'error') return { kind: 'fault', label: 'Sync-Fehler' }
-  if (input.mode === 'gig' && input.syncStatus === 'offline') return { kind: 'fault', label: 'Offline' }
-  if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'Kein Master' }
+  if (input.audioError) return { kind: 'fault', label: 'audioError' }
+  if (input.syncStatus === 'error') return { kind: 'fault', label: 'syncError' }
+  if (input.mode === 'gig' && input.syncStatus === 'offline') return { kind: 'fault', label: 'offline' }
+  if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'noMaster' }
   if (input.playbackStatus === 'playing') {
-    return input.isCountIn ? { kind: 'count-in', label: 'Einzählen' } : { kind: 'playing', label: 'Spielt' }
+    return input.isCountIn ? { kind: 'count-in', label: 'countIn' } : { kind: 'playing', label: 'playing' }
   }
-  if (input.playbackStatus === 'paused') return { kind: 'paused', label: 'Pause' }
-  return input.finished ? { kind: 'finished', label: 'Beendet' } : { kind: 'ready', label: 'Bereit' }
+  if (input.playbackStatus === 'paused') return { kind: 'paused', label: 'paused' }
+  return input.finished ? { kind: 'finished', label: 'finished' } : { kind: 'ready', label: 'ready' }
 }
 
 /** Full-bar colours per state (Marco: "try the full bar"), each with its own readable text. */

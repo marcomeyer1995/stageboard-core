@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { DashboardMenuList } from './DashboardMenuList'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -7,7 +8,7 @@ import { isNativeApp } from '../lib/native'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { MODE_LABEL, MODES, type Mode } from '../lib/modes'
+import { MODES, type Mode } from '../lib/modes'
 import { Dialog, Section, Segmented, Switch } from './ui'
 import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 import { LOW_SCREEN, useMediaQuery } from '../lib/useMediaQuery'
@@ -41,6 +42,7 @@ interface AppMenuProps {
  * else: blank resets a non-admin account, is refused for an admin one).
  */
 export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
+  const { t } = useTranslation('common')
   const fullscreen = useFullscreen()
   // Two columns from tablet width in portrait too (Marco, 2026-10-08: on the Fire in portrait the
   // single 384 px column looked crowded and wasted half the screen, and scrolled with more
@@ -83,7 +85,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
             onSelectMode(candidate)
             onClose()
           }}
-          options={MODES.map((candidate) => ({ value: candidate, label: MODE_LABEL[candidate] }))}
+          options={MODES.map((candidate) => ({ value: candidate, label: t(`mode.${candidate}`) }))}
         />
       </Section>
     </>

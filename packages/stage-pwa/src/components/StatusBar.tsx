@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
@@ -6,7 +7,7 @@ import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm, beatAt, beatsPerBar } from '../lib/metronome'
-import { MODE_LABEL, type Mode } from '../lib/modes'
+import type { Mode } from '../lib/modes'
 import { useShowMode } from '../lib/showMode'
 import {
   COUNT_IN_FLASH_MS,
@@ -40,11 +41,11 @@ const STATE_ICON: Record<StatusBarKind, IconName> = {
   fault: 'warning',
 }
 
-const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
-  idle: { icon: 'check', label: 'Synchron' },
-  syncing: { icon: 'syncing', label: 'Synchronisiere…' },
-  offline: { icon: 'warning', label: 'Offline' },
-  error: { icon: 'close', label: 'Sync-Fehler' },
+const SYNC_ICON: Record<SyncStatus, IconName> = {
+  idle: 'check',
+  syncing: 'syncing',
+  offline: 'warning',
+  error: 'close',
 }
 
 /**
@@ -62,11 +63,12 @@ const SYNC_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
  * flashed the whole bar; on the tablet that "looked weird", Marco 2026-09-27.)
  */
 function CountBlock({ position, flash }: { position: CountInPosition; flash: boolean }) {
+  const { t } = useTranslation('statusbar')
   const { bar, bars, beat, beatsPerBar: beatsInBar } = position
   return (
     <span
       role="status"
-      aria-label={`Einzählen, Takt ${bar} von ${bars}, Schlag ${beat}`}
+      aria-label={t('countIn.aria', { bar, bars, beat })}
       data-flash={flash}
       className={`flex h-12 flex-shrink-0 items-center gap-3 rounded-control px-3 ${flash ? 'bg-state-count-in-ink text-state-count-in' : 'bg-scrim/25 text-state-count-in-ink'}`}
     >
@@ -81,7 +83,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
           ))}
         </span>
         <span className="text-xs font-bold uppercase leading-none tracking-wide">
-          {bars > 1 ? `Takt ${bar}/${bars}` : 'Einzählen'}
+          {bars > 1 ? t('countIn.bar', { bar, bars }) : t('countIn.single')}
         </span>
       </span>
     </span>
@@ -97,6 +99,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
   const audioError = useLocalAudioOutputStore((state) => state.error)
   const profile = useActiveProfile()
   const now = useNow(1000)
+  const { t, i18n } = useTranslation(['statusbar', 'common'])
 
   const durationMs =
     currentEntry && isSongEntry(currentEntry)
@@ -135,7 +138,8 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       : null
   const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
   const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
-  const sync = SYNC_TEXT[syncStatus]
+  const sync = { icon: SYNC_ICON[syncStatus], label: t(`sync.${syncStatus}`) }
+  const stateLabel = t(`state.${state.label}`)
 
   // Ranked items (lib/statusBarItems.ts, per device in Einstellungen): each one is measured -
   // also while it doesn't fit (then invisible and out of the flow) - and the bar keeps as many
@@ -207,12 +211,12 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       <button
         type="button"
         onClick={onOpenMenu}
-        aria-label="Menü öffnen"
+        aria-label={t('openMenu')}
         className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-scrim/15"
       >
         <Icon name="menu" size="1.75rem" />
         <span {...item('screen')}>
-          <span className="text-base">{MODE_LABEL[screen]}</span>
+          <span className="text-base">{t(`common:mode.${screen}`)}</span>
         </span>
       </button>
 
@@ -221,9 +225,9 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
       ) : (
         // The state as an icon - always there; its word is a ranked item (a fault keeps it:
         // the icon alone wouldn't say what is wrong).
-        <span className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap text-lg font-black uppercase tracking-wide" aria-label={state.label} title={state.label}>
+        <span className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap text-lg font-black uppercase tracking-wide" aria-label={stateLabel} title={stateLabel}>
           <Icon name={STATE_ICON[state.kind]} size="1.5rem" filled={['ready', 'playing', 'count-in', 'paused'].includes(state.kind)} />
-          <span {...item('stateText')}>{state.label}</span>
+          <span {...item('stateText')}>{stateLabel}</span>
         </span>
       )}
 
@@ -247,13 +251,13 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
 
       <span className="flex flex-shrink-0 items-center gap-3 whitespace-nowrap text-base">
         <span {...item('mode')}>
-          <span className="rounded-control bg-scrim/20 px-2 font-bold uppercase tracking-wide">{mode === 'gig' ? 'Gig' : 'Solo'}</span>
+          <span className="rounded-control bg-scrim/20 px-2 font-bold uppercase tracking-wide">{t(mode === 'gig' ? 'common:session.gig' : 'common:session.practice')}</span>
         </span>
         {mode === 'gig' && (canControl || holdsToken) && (
           <span {...item('master')}>
             <span
-              title={canControl ? 'Dieses Gerät hat das Master-Token' : 'Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht'}
-              aria-label={canControl ? 'Master' : 'Master, nicht bestätigt'}
+              title={canControl ? t('master.holds') : t('master.unconfirmed')}
+              aria-label={canControl ? t('master.holdsLabel') : t('master.unconfirmedLabel')}
               className={`flex items-center ${canControl ? '' : 'opacity-60'}`}
             >
               <Icon name="master" size="1.4rem" />
@@ -261,7 +265,7 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
           </span>
         )}
         <span {...item('clock')}>
-          <span className="font-bold tabular-nums">{new Date(now).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="font-bold tabular-nums">{new Date(now).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</span>
         </span>
         {profile && (
           <span {...item('profile')}>

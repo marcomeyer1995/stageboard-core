@@ -12,8 +12,3 @@ export type Mode = 'boards' | 'library' | 'system'
  */
 export const MODES: Mode[] = ['boards', 'library', 'system']
 
-export const MODE_LABEL: Record<Mode, string> = {
-  boards: 'Boards',
-  library: 'Bibliothek',
-  system: 'System',
-}

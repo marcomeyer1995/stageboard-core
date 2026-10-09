@@ -1,0 +1,31 @@
+{
+  "openMenu": "Menü öffnen",
+  "state": {
+    "ready": "Bereit",
+    "countIn": "Einzählen",
+    "playing": "Spielt",
+    "paused": "Pause",
+    "finished": "Beendet",
+    "audioError": "Audio-Fehler",
+    "syncError": "Sync-Fehler",
+    "offline": "Offline",
+    "noMaster": "Kein Master"
+  },
+  "sync": {
+    "idle": "Synchron",
+    "syncing": "Synchronisiere…",
+    "offline": "Offline",
+    "error": "Sync-Fehler"
+  },
+  "master": {
+    "holds": "Dieses Gerät hat das Master-Token",
+    "holdsLabel": "Master",
+    "unconfirmed": "Master laut eigener Kopie, aber nicht bestätigt - steuert die Show gerade nicht",
+    "unconfirmedLabel": "Master, nicht bestätigt"
+  },
+  "countIn": {
+    "aria": "Einzählen, Takt {{bar}} von {{bars}}, Schlag {{beat}}",
+    "bar": "Takt {{bar}}/{{bars}}",
+    "single": "Einzählen"
+  }
+}

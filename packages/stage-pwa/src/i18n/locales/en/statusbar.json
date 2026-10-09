@@ -1,0 +1,31 @@
+{
+  "openMenu": "Open menu",
+  "state": {
+    "ready": "Ready",
+    "countIn": "Count-in",
+    "playing": "Playing",
+    "paused": "Paused",
+    "finished": "Finished",
+    "audioError": "Audio error",
+    "syncError": "Sync error",
+    "offline": "Offline",
+    "noMaster": "No master"
+  },
+  "sync": {
+    "idle": "In sync",
+    "syncing": "Syncing…",
+    "offline": "Offline",
+    "error": "Sync error"
+  },
+  "master": {
+    "holds": "This device holds the master token",
+    "holdsLabel": "Master",
+    "unconfirmed": "Master by its own copy, but not confirmed - not running the show right now",
+    "unconfirmedLabel": "Master, not confirmed"
+  },
+  "countIn": {
+    "aria": "Count-in, bar {{bar}} of {{bars}}, beat {{beat}}",
+    "bar": "Bar {{bar}}/{{bars}}",
+    "single": "Count-in"
+  }
+}
