@@ -1,6 +1,6 @@
 # Testplan Synchronität (Referenz-Song, #464)
 
-Stand: 2026-10-09, ausführliche Fassung zur Freigabe durch Marco. Werkzeuge: Referenz-Song (`lib/referenceSong.ts`, `scripts/import-reference-song.mts`), Auswertung (`lib/syncAnalysis.ts`, `scripts/analyze-sync-recording.mts`). Methode und frühere Messwerte: docs/13 §6–§7, docs/09 (Uhrabgleich), docs/11 (Netzlast).
+Stand: 2026-10-09, ausführliche Fassung zur Freigabe durch Marco. Vorbereitung, Einkauf, Aufbauvarianten und Grenzen: docs/18. Werkzeuge: Referenz-Song (`lib/referenceSong.ts`, `scripts/import-reference-song.mts`), Auswertung (`lib/syncAnalysis.ts`, `scripts/analyze-sync-recording.mts`). Methode und frühere Messwerte: docs/13 §6–§7, docs/09 (Uhrabgleich), docs/11 (Netzlast).
 
 ## 0. Zweck
 
@@ -57,29 +57,13 @@ Werte aus docs/13 §7 (Lautsprecher, 2026-09-28) und den Messungen vom 2026-10-0
 
 - **Stage-Server:** Laptop (heutiger Produktivserver); für S14 der Dell-Mini-PC.
 - **Aufnahme:** Soundcraft **Ui24R per USB am Laptop** - wird als Soundkarte erkannt; alle Eingänge werden gleichzeitig mit einer Uhr aufgenommen.
-- **Ui24R-Kanäle** (Line-Eingänge, Gain so, dass die lautesten Pieps bei ca. −12 dBFS liegen):
-
-| Kanal | Gerät | Ausgang | Kabel/Adapter |
-|---|---|---|---|
-| 1 | Xiaomi-Tablet | Kopfhörer | Klinke 3,5 mm → 6,3 mm |
-| 2 | Xiaomi-Handy | USB-C | USB-C-Klinkenadapter + Klinke |
-| 3 | Fire HD 10 | Kopfhörer | Klinke 3,5 mm → 6,3 mm |
-| 4 | Samsung S26 | USB-C | USB-C-Klinkenadapter + Klinke |
-| 5 | Laptop/Chrome (Referenz) | Kopfhörer | Klinke |
-| 6 | Cue-Piepser (S9) | Laptop-USB → Ui24R-USB-Rückweg oder 2. Klinke | - |
-| 7–8 | Kalibrierung (S0, Y-Kabel) | - | Y-Kabel |
-
+- **Ui24R-Kanäle** (Line-Eingänge, Gain so, dass die lautesten Pieps bei ca. −12 dBFS liegen): Belegung, Ausgabewege (P1–P6), MIDI-Strecken (M1–M4) und Rollen (R1–R3) stehen in **docs/18 §4 und §7.2** - dort ist die maßgebliche Fassung.
 - **Kanal-Einstellungen am Ui24R:** alle Effekte, EQ, Kompressor, Gate, Hochpass **aus**, Phantomspeisung aus, Aufnahme-Abgriff **vor** der Bearbeitung (direkt nach dem Vorverstärker). Kein Monitoring über Lautsprecher nötig.
 - Jedes Gerät gibt **Klick und Track auf denselben Ausgang**, wie ein Musiker es im Ohr hat. Wo ein Szenario es verlangt, spielt ein Gerät nur den Klick oder nur den Track.
 
-### 4.2 Material (Einkaufs-/Packliste)
+### 4.2 Material
 
-- 5 × Klinkenkabel 3,5 mm Stereo → 6,3 mm (TRS) oder 2 × Mono, ca. 2 m
-- 2 × USB-C-Klinkenadapter (am besten dasselbe Modell für S26 und Xiaomi-Handy; Modell notieren)
-- 1 × Y-Kabel 3,5 mm → 2 × 6,3 mm (Kalibrierung)
-- USB-Kabel Ui24R → Laptop
-- Ladegeräte für alle Geräte, Mehrfachsteckdose
-- Optional: Bluetooth-Kopfhörer (S12), Stativ für das Handy-Video (S10)
+Einkaufs- und Packliste: **docs/18 §3**.
 
 ### 4.3 Software und Daten
 
@@ -108,6 +92,8 @@ Werte aus docs/13 §7 (Lautsprecher, 2026-09-28) und den Messungen vom 2026-10-0
 | K3 | Genauigkeit der Auswertung am echten Signal | Beeps-WAV vom Laptop direkt (ohne App) über Kanal 5 | alle Schläge gefunden, Streuung < 0,5 ms |
 | K4 | Kein Übersteuern | Pegel-Probe | Spitzen ≤ −6 dBFS auf allen Kanälen |
 | K5 | Auswertung erkennt Klick und Track auf einem Kanal getrennt | S2 auf dem Laptop, Vergleich mit der Monitor-Aufnahme (ohne Ui24R) | gleicher Versatz ± 1 ms |
+| K6 | Ui24R gegen UMC204HD | dasselbe Signal per Y-Kabel in beide Interfaces, beide auswerten | gleicher Versatz ± 1 ms |
+| K7 | Verzögerung MIDI-Strecke + Cue-Piepser | Laptop sendet MIDI über UMC204HD → UM-ONE → Piepser, piept gleichzeitig direkt | Wert wird von allen MIDI-Messungen abgezogen; Streuung ≤ 2 ms |
 
 ## 6. Instrumentierung (läuft bei jeder Aufnahme mit)
 
@@ -168,10 +154,13 @@ Siehe §5. Ohne bestandenes S0 keine weiteren Messungen.
 - a) Klick-Ausgabe-Gerät: Bildschirm bei Takt 16 aus, bei Takt 32 an.
 - b) App bei Takt 16 in den Hintergrund (Startbildschirm), bei Takt 32 zurück.
 
-### S9 Cues (MIDI) gegen Songzeit
-- **Ablauf:** Referenz-Song mit vier Cues (Takt 9, 17, 29, 53); Ziel ein **Cue-Piepser**: ein kleines Programm auf dem Laptop, das als MIDI-Gerät auftritt und bei jedem empfangenen Befehl sofort einen Piep über einen eigenen Ausgang in den Ui24R gibt. So landen Cue und Klick in derselben Aufnahme.
-- Je einmal: Cue vom Server gesendet (Server-Cue) und vom Tablet gesendet (lokales MIDI, sobald ein Gerät mit MIDI-Anschluss da ist).
-- **Bewertung:** Cue-Piep gegen Klick/Track des Schlags; Server-Log-Zeitstempel gegen Songzeit.
+### S9 Cues und MIDI
+Jede MIDI-Nachricht wird über den **Cue-Piepser** (Laptop, hört auf einen MIDI-Eingang, piept beim Empfang auf Ui24R-Kanal 7) zu einem Piep in derselben Aufnahme; seine Eigenverzögerung ist kalibriert (K7). Strecken (Einzelheiten docs/18 §4.6):
+- **M1 Server → Gerät:** Server-Cue über das UMC204HD am Server → UM-ONE → Piepser. Cue gegen Songzeit und gegen Klick/Track.
+- **M2 Tablet → Gerät:** Cue per WebMIDI über das UMC204HD am Tablet → UM-ONE → Piepser. Zusätzlich die Frage, ob WebMIDI am Tablet über ein Interface geht - im Browser und in der Android-App.
+- **M3 Pedal → App:** Laptop sendet zu bekannter Zeit (und piept dabei) über UM-ONE → UMC204HD am Tablet; gemessen bis zur Reaktion der App (Play/Weiter → erster Klick).
+- **M4 echtes Effektgerät** (wenn verfügbar): Patch-Wechsel hörbar über dessen Audio-Ausgang.
+Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den Schlag; Pedal bis Reaktion.
 
 ### S10 Bild: Blitze, Einzählen, Prompter
 - **Ablauf:** S26 im Zeitlupen-Video (240 oder 960 Bilder/s) auf zwei Bildschirme nebeneinander, das Handy-Mikrofon nimmt den Klick eines Geräts mit auf.
@@ -204,7 +193,8 @@ Siehe §5. Ohne bestandenes S0 keine weiteren Messungen.
 | Drift | ≤ 2 ms/min | ≤ 5 ms/min | > 5 ms/min |
 | Sprünge des Tracks | 0 | 1 je Song | mehr |
 | Wieder zusammen nach Störung | ≤ 1 Takt | ≤ 4 Takte | mehr |
-| Cue gegen Schlag | ≤ 20 ms | ≤ 50 ms | > 50 ms |
+| Cue gegen Schlag (M1, M2) | ≤ 20 ms | ≤ 50 ms | > 50 ms |
+| Pedal bis Reaktion (M3) | ≤ 50 ms | ≤ 100 ms | > 100 ms |
 | Bildschirm gegen Klick | ≤ 50 ms | ≤ 100 ms | > 100 ms |
 
 Hintergrund: Zwischen Klick und Musik hört man ab etwa 10–20 ms einen „Flam“, ab etwa 30 ms deutlich doppelt; ein Bild wird bis ~50–80 ms als gleichzeitig mit dem Ton empfunden. Bekannte Ausnahme: der Takt mit Tempowechsel **innerhalb** des Takts - berichtet, nicht bewertet.
@@ -267,7 +257,7 @@ Realistisch zwei Termine à 4–5 h (A–C, dann D–F).
 2. **Messleitstand:** ein Befehl je Lauf - setzt die Rollen, startet Aufnahme (Ui24R-Kanäle) und Instrumentierung, drückt Play, stoppt am Ende, benennt die Dateien, wertet aus, schreibt das Protokoll; stellt am Ende den Ausgangszustand der Band wieder her.
 3. **Instrumentierung** (§6) für alle Geräte gleichzeitig.
 4. **Störungs-Auswertung** (S6): „bis wieder zusammen“ aus Ereignissen und Versatz.
-5. **Cue-Piepser** (S9): virtuelles MIDI-Gerät, das bei jedem Befehl piept.
+5. **Cue-Piepser** (S9): hört auf einen MIDI-Eingang und piept beim Empfang; sendet für M3 zu bekannten Zeiten und piept dabei.
 6. **Video-Hilfe** (S10): Anleitung zum Bild-für-Bild-Auswerten, ggf. Werkzeug für die Tonspur im Video.
 7. **Bericht:** Diagramme und Tabellen als Seite.
 
@@ -279,5 +269,5 @@ Mit dem Laptop-Monitor (ohne Ui24R, ohne Ton im Raum) lassen sich 1–4 vorab vo
 2. Welche Geräte genau, und ist ein Windows-Tablet dabei?
 3. Welche USB-C-Klinkenadapter sind vorhanden (Modell)?
 4. Hat der Ui24R freie Eingänge 1–8 für den Test, und ist die Aufnahme pro Kanal vor der Bearbeitung möglich (Einstellung „USB-Abgriff“)?
-5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für S9 verfügbar, oder zuerst nur der Cue-Piepser?
+5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für M4 verfügbar? (M1–M3 gehen mit UMC204HD + UM-ONE.)
 6. Termine für die zwei Blöcke.
