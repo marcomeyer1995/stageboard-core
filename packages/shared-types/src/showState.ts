@@ -76,6 +76,11 @@ export const ShowStateSchema = z.object({
    * master is master (Marco, 2026-10-08: "the last active one"). Optional: older devices leave it
    * out; without it every master device drives, as before. */
   drivingDeviceId: z.string().nullable().optional(),
+  /** Server time at which the master issued the last change (#468). The change reaches the other
+   * devices twice - first pushed through the Stage-Server (showStatePush), then through database
+   * replication; a device keeps whichever is newer, so a late replication of an older state can't
+   * undo a newer Play. Optional: older devices leave it out. */
+  stateIssuedAt: z.number().nullable().optional(),
   /** The id of the Ready Check the Master has open (#60), or null when none is. Only the OPEN/CLOSE
    * state lives here (Master-gated like everything else in this doc); the musicians' answers do not -
    * every tablet would write the same doc, so they go to the Stage-Server's in-memory presence
@@ -108,3 +113,25 @@ export const DEFAULT_SHOW_STATE: ShowState = {
   currentShowId: null,
   lastActivityAt: null,
 }
+
+/** A master's change to the show state, pushed through the Stage-Server to every device at once
+ * (#468) - the database replication alone took up to 1 s from a slow tablet, too late for an
+ * ahead-of-time Play. */
+export const ShowStatePushSchema = z.object({
+  deviceId: z.string().min(1).max(200),
+  issuedAt: z.number(),
+  patch: ShowStateSchema.partial(),
+})
+export type ShowStatePush = z.infer<typeof ShowStatePushSchema>
+
+/** A device reporting when a pushed change reached it - logged by the server, to measure how much
+ * ahead-of-time a Play needs (`PLAY_LEAD_MS`). Times are server time (ms). */
+export const ShowStatePushAckSchema = z.object({
+  deviceId: z.string().min(1).max(200),
+  deviceName: z.string().max(120).optional(),
+  issuedAt: z.number(),
+  receivedAt: z.number(),
+  /** 'push' (Stage-Server) or 'db' (replication) - whichever brought the change first. */
+  via: z.enum(['push', 'db']),
+})
+export type ShowStatePushAck = z.infer<typeof ShowStatePushAckSchema>

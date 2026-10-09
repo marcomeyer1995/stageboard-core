@@ -4,6 +4,9 @@ import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { randomId } from '../lib/id'
 import { getShowState, putShowState, showStateChanges, switchShowStateWorkspace } from '../lib/showStateDb'
+import { getServerTime } from '../lib/clockSync'
+import { rememberedDeviceName } from '../lib/ownDeviceName'
+import { pushShowState, reportShowStateArrival, subscribeToShowStatePush } from '../lib/showStatePush'
 import type { MasterSelfCheck } from '../lib/masterTakeover'
 
 interface ShowStateStore {
@@ -45,6 +48,20 @@ interface ShowStateStore {
 }
 
 let changesHandle: LocalChangesHandle<ShowState> | null = null
+/** The fast lane (#468): the band whose pushes this device listens to, and the subscription. */
+let pushWorkspaceId: string | null = null
+let unsubscribePush: (() => void) | null = null
+/** A pushed change newer than what replication has brought so far - kept on top of the database
+ * state until replication catches up, so a late replication of an older state can't undo it. */
+let pushedAhead: { issuedAt: number; patch: Partial<ShowState> } | null = null
+/** The newest change this device already reported as arrived (each one once, by its first path). */
+let lastReportedIssuedAt = 0
+
+function reportArrival(issuedAt: number, via: 'push' | 'db', deviceId: string): void {
+  if (!pushWorkspaceId || issuedAt <= lastReportedIssuedAt) return
+  lastReportedIssuedAt = issuedAt
+  reportShowStateArrival(pushWorkspaceId, { deviceId, deviceName: rememberedDeviceName() ?? undefined, issuedAt, receivedAt: getServerTime(), via })
+}
 
 function mastership(holdsToken: boolean, selfCheck: MasterSelfCheck): { holdsToken: boolean; isMaster: boolean } {
   return { holdsToken, isMaster: holdsToken && selfCheck === 'ok' }
@@ -68,6 +85,10 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
   init: async (workspaceId) => {
     changesHandle?.cancel()
     changesHandle = null
+    unsubscribePush?.()
+    unsubscribePush = null
+    pushedAhead = null
+    pushWorkspaceId = workspaceId
     switchShowStateWorkspace(workspaceId)
     set({ state: DEFAULT_SHOW_STATE, holdsToken: false, isMaster: false })
 
@@ -77,7 +98,22 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     changesHandle = showStateChanges()
     changesHandle.on('change', async () => {
       const fresh = await getShowState()
-      set({ state: fresh, ...mastership(fresh.masterHolderId === get().masterIdentity, get().selfCheck) })
+      const issuedAt = fresh.stateIssuedAt ?? 0
+      let merged = fresh
+      if (pushedAhead && issuedAt < pushedAhead.issuedAt) merged = { ...fresh, ...pushedAhead.patch }
+      else pushedAhead = null
+      if (issuedAt && fresh.drivingDeviceId !== get().deviceId) reportArrival(issuedAt, 'db', get().deviceId)
+      set({ state: merged, ...mastership(merged.masterHolderId === get().masterIdentity, get().selfCheck) })
+    })
+
+    // The master's changes, pushed through the Stage-Server - usually long before replication.
+    unsubscribePush = subscribeToShowStatePush(workspaceId, (push) => {
+      if (push.deviceId === get().deviceId) return // this device already applied its own change
+      if (push.issuedAt <= (get().state.stateIssuedAt ?? 0)) return // older than what we have
+      reportArrival(push.issuedAt, 'push', get().deviceId)
+      pushedAhead = { issuedAt: push.issuedAt, patch: push.patch }
+      const next = { ...get().state, ...push.patch }
+      set({ state: next, ...mastership(next.masterHolderId === get().masterIdentity, get().selfCheck) })
     })
   },
   claimMaster: async () => {
@@ -115,8 +151,12 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // 2026-09-27 - the backing track and click kept going after the tap). Every other tablet
     // still learns it through replication; the feed's echo then just re-sets the same values.
     // Whoever acts as master is the one that drives the automatic steps from now on (drivingDeviceId).
-    const mine = { ...patch, drivingDeviceId: get().deviceId }
+    // Stamped with server time, pushed to every device at once (#468); the database write follows
+    // as the record - devices keep whichever of the two is newer (stateIssuedAt).
+    const issuedAt = getServerTime()
+    const mine = { ...patch, drivingDeviceId: get().deviceId, stateIssuedAt: issuedAt }
     set({ state: { ...get().state, ...mine } })
+    if (pushWorkspaceId) pushShowState(pushWorkspaceId, { deviceId: get().deviceId, issuedAt, patch: mine })
     await putShowState(mine)
   },
 }))
