@@ -28,7 +28,9 @@ describe('WidgetLibrary', () => {
     fireEvent.click(screen.getByText('Widget hinzufügen'))
     expect(onClose).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('dialog', { name: 'Widget hinzufügen' }).parentElement!)
+    const backdrop = screen.getByRole('dialog', { name: 'Widget hinzufügen' }).parentElement!
+    fireEvent.pointerDown(backdrop)
+    fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalled()
   })
 

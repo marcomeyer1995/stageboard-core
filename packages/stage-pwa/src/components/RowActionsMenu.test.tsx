@@ -49,6 +49,7 @@ describe('RowActionsMenu', () => {
     fireEvent.click(card)
     expect(onClose).not.toHaveBeenCalled()
 
+    fireEvent.pointerDown(backdrop)
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
   })

@@ -101,8 +101,26 @@ describe('UI system (docs/15)', () => {
     expect(screen.queryByRole('button', { name: /Schließen/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
     expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.pointerDown(dialog.parentElement!)
     fireEvent.click(dialog.parentElement!)
     expect(onClose).toHaveBeenCalledTimes(2)
+    // A press that started inside (e.g. in a field) and ended beside it is no tap beside it.
+    fireEvent.pointerDown(screen.getByText('Transpose'))
+    fireEvent.click(dialog.parentElement!)
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it('Dialog with closeOnBackdrop={false}: a tap beside it does nothing', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog title="Neuer Song" onClose={onClose} closeOnBackdrop={false} actions={<Button onClick={onClose}>Abbrechen</Button>}>
+        <Field label="Titel" />
+      </Dialog>,
+    )
+    const backdrop = screen.getByRole('dialog', { name: 'Neuer Song' }).parentElement!
+    fireEvent.pointerDown(backdrop)
+    fireEvent.click(backdrop)
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('Dialog: while typing on a touchscreen it moves up to half the screen, so the bottom row stays above the keyboard', () => {

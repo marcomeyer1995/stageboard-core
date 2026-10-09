@@ -85,6 +85,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
   return (
     <Dialog
       title="Neuer Song"
+      closeOnBackdrop={false}
       onClose={() => !importing && onCancel()}
       actions={
         <>
