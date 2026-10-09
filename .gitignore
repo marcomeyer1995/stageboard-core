@@ -9,3 +9,6 @@ coverage/
 certs/
 packages/core-backend/data/
 docker/couchdb-credentials.env
+
+# Output of scripts/make-reference-song.mts (#464)
+reference-song/
