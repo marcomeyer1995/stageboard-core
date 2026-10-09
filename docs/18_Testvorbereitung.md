@@ -130,7 +130,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - **USB-DMX-Wandler:** usangreen „USB zu DMX“, FTDI-basiert, XLR 3-pol - Bauart „Open DMX“ **ohne eigenen Mikrocontroller**: der Rechner erzeugt jeden DMX-Rahmen selbst (Break, 512 Kanäle, Wiederholrate). Zeitverhalten hängt damit von Rechner, Treiber und Last ab - genau das wird quantifiziert. QLC+ kann diese Bauart („Enttec Open DMX“).
 - **Scheinwerfer:** U'King LED-Moving-Head (klein). Gemessen wird über den **Dimmer-/Shutter-Kanal** (Licht an/aus), nicht über Bewegung. Kanalmodus und DMX-Adresse notieren; interne Glättung des Dimmers ist Teil der Messung.
 - **QLC+:** läuft heute eigenständig (nicht ferngesteuert).
-- **Maestro DMX** (Mini, neueste Software): noch nicht gekoppelt; nimmt **MIDI über einen USB-MIDI-Adapter** und **OSC über Ethernet** an.
+- **Maestro DMX** (neueste Software): noch nicht gekoppelt; nimmt **MIDI über einen USB-MIDI-Adapter** und **OSC über Ethernet** an.
 
 | Kürzel | Strecke | Was gemessen wird | Voraussetzung |
 |---|---|---|---|
@@ -225,7 +225,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - [ ] usangreen-Wandler am Laptop anstecken - Claude prüft Erkennung (FTDI) und baut das Testprogramm L0
 - [ ] U'King Moving-Head: Kanalmodus und Adresse notieren, Dimmer-/Shutter-Kanal heraussuchen (Handbuch)
 - [ ] Drei Lichtsensoren bauen (Anleitung §4.7) und mit Taschenlampe am Ui24R prüfen
-- [ ] Maestro DMX Mini: neueste Software, MIDI-Zuordnung (Note/PC → Szene „an“/„aus“) und OSC-Adresse für dieselbe Szene einrichten; IP-Adresse und OSC-Port notieren
+- [ ] Maestro DMX: neueste Software, MIDI-Zuordnung (Note/PC → Szene „an“/„aus“) und OSC-Adresse für dieselbe Szene einrichten; IP-Adresse und OSC-Port notieren
 - [ ] QLC+: MIDI-Eingangsprofil (Note → Szene „an“/„aus“) und Ausgabe über den usangreen-Wandler
 
 **Netz**

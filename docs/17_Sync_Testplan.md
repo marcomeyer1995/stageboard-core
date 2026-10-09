@@ -278,4 +278,4 @@ Mit dem Laptop-Monitor (ohne Ui24R, ohne Ton im Raum) lassen sich 1–4 vorab vo
 4. Hat der Ui24R freie Eingänge 1–8 für den Test, und ist die Aufnahme pro Kanal vor der Bearbeitung möglich (Einstellung „USB-Abgriff“)?
 5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für M4 verfügbar? (M1–M3 gehen mit UMC204HD + UM-ONE.)
 6. Termine für die zwei Blöcke.
-7. ~~Maestro-Protokoll~~ geklärt: Maestro DMX Mini, MIDI per USB-Adapter, OSC per Ethernet.
+7. ~~Maestro-Protokoll~~ geklärt: Maestro DMX, MIDI per USB-Adapter, OSC per Ethernet.
