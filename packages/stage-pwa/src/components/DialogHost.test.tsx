@@ -209,5 +209,14 @@ describe('DialogHost - destructive confirmation (#361)', () => {
     })
     expect(screen.getByTestId('dialog-host').className).toContain('items-center')
   })
+
+  it('is a real (alert)dialog named by its title - screen readers and the foot switch guard see it', () => {
+    render(<DialogHost />)
+    act(() => {
+      void useDialogStore.getState().confirm('Song wirklich löschen?', { title: 'Löschen' })
+    })
+    const dialog = screen.getByRole('alertdialog', { name: 'Löschen' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+  })
 })
 

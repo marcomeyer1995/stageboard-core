@@ -95,6 +95,19 @@ describe('useFootswitch (#27)', () => {
     expect(show.play).not.toHaveBeenCalled()
   })
 
+  it('does nothing while a confirmation (alertdialog, DialogHost) is open - and acts again once it closed', () => {
+    useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
+    renderHook(() => useFootswitch(true))
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'alertdialog')
+    document.body.appendChild(dialog)
+    fireEvent.keyDown(window, { key: 'PageDown' })
+    expect(show.next).not.toHaveBeenCalled()
+    dialog.remove()
+    fireEvent.keyDown(window, { key: 'PageDown' })
+    expect(show.next).toHaveBeenCalledTimes(1)
+  })
+
   it('does nothing while a dialog or the menu is open (#394 review)', () => {
     useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
     renderHook(() => useFootswitch(true))

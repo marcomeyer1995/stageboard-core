@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { useVisualViewport } from '../lib/useVisualViewport'
@@ -37,6 +37,7 @@ export function DialogHost() {
   const resolveUnsaved = useDialogStore((state) => state.resolveUnsaved)
   useBackHandler(request ? cancel : null)
   const visible = useVisualViewport()
+  const titleId = useId()
 
   if (!request) return null
 
@@ -52,8 +53,16 @@ export function DialogHost() {
         if (e.key === 'Escape') cancel()
       }}
     >
-      <div className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-4 text-ink shadow-sb">
-        <h2 className="border-b border-line pb-3 text-lg font-bold">{request.title}</h2>
+      {/* A real dialog for screen readers and for the foot switch, which does nothing while one is
+          open (useFootswitch.ts) - the backdrop alone said "presentation", so the pedal still ran
+          the show behind "Wirklich löschen?". A question that needs an answer is an alertdialog. */}
+      <div
+        role={request.kind === 'prompt' ? 'dialog' : 'alertdialog'}
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="max-h-full w-full max-w-sm space-y-4 overflow-y-auto rounded-container border border-line bg-surface p-4 text-ink shadow-sb"
+      >
+        <h2 id={titleId} className="border-b border-line pb-3 text-lg font-bold">{request.title}</h2>
 
         {request.kind === 'prompt' && (
           <PromptFields fields={request.fields} submitLabel={request.submitLabel} onSubmit={submit} onCancel={cancel} />
