@@ -28,13 +28,40 @@ export async function getShowState(): Promise<ShowState> {
   }
 }
 
-export async function putShowState(patch: Partial<ShowState>): Promise<void> {
-  const existing = await db.get(SHOW_STATE_DOC_ID).catch(() => null)
-  const merged: ShowState = { ...DEFAULT_SHOW_STATE, ...existing, ...patch }
-  const doc: PouchDB.Core.PutDocument<ShowState> = existing
-    ? { ...merged, _id: SHOW_STATE_DOC_ID, _rev: existing._rev }
-    : { ...merged, _id: SHOW_STATE_DOC_ID }
-  await db.put(doc)
+/** Writes queue up behind each other (per database) - see putShowState. */
+const writeQueues = new WeakMap<object, Promise<void>>()
+const MAX_PUT_ATTEMPTS = 5
+
+async function writeOnce(target: PouchDB.Database<ShowState>, patch: Partial<ShowState>): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    const existing = await target.get(SHOW_STATE_DOC_ID).catch(() => null)
+    const merged: ShowState = { ...DEFAULT_SHOW_STATE, ...existing, ...patch }
+    const doc: PouchDB.Core.PutDocument<ShowState> = existing
+      ? { ...merged, _id: SHOW_STATE_DOC_ID, _rev: existing._rev }
+      : { ...merged, _id: SHOW_STATE_DOC_ID }
+    try {
+      await target.put(doc)
+      return
+    } catch (err) {
+      // A replication landed between read and write - read again and re-apply the same patch.
+      if ((err as { status?: number }).status !== 409 || attempt >= MAX_PUT_ATTEMPTS) throw err
+    }
+  }
+}
+
+/**
+ * Merges `patch` into the show state. Writes are queued one after another and retried on a revision
+ * conflict: "Weiter, Weiter, Play" within a second used to overlap, the later write failed with a 409
+ * and was silently dropped - the master's own tablet fell back to "BEREIT" while every other device,
+ * which got the Play through the Stage-Server push, kept playing (2026-10-10, #468). Same fix as
+ * workspaceCollection.ts's queuedWrite.
+ */
+export function putShowState(patch: Partial<ShowState>): Promise<void> {
+  const target = db
+  const previous = writeQueues.get(target) ?? Promise.resolve()
+  const write = previous.catch(() => {}).then(() => writeOnce(target, patch))
+  writeQueues.set(target, write)
+  return write
 }
 
 /** Live local changes to just the show-state doc, from now on - through the shared feed
