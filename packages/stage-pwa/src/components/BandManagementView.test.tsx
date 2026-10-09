@@ -499,6 +499,7 @@ describe('BandManagementView', () => {
       fireEvent.click(card)
       expect(screen.getByText('Umbenennen')).toBeInTheDocument()
 
+      fireEvent.pointerDown(backdrop)
       fireEvent.click(backdrop)
       expect(screen.queryByText('Umbenennen')).not.toBeInTheDocument()
     })

@@ -17,6 +17,9 @@ export interface DialogProps {
    * "Abbrechen" for a menu where choosing an entry already closes it. */
   closeLabel?: string
   size?: keyof typeof WIDTH
+  /** false: a tap beside the dialog does nothing - for a form whose input a stray tap would throw
+   * away ("Neuer Song": only "Abbrechen"/"Weiter" close it, Marco 2026-10-09). */
+  closeOnBackdrop?: boolean
 }
 
 /**
@@ -24,10 +27,14 @@ export interface DialogProps {
  * scrolls away and sits under the thumb (Marco, 2026-10-07: top in one dialog and bottom in the
  * next was inconsistent; "Schließen" and "Abbrechen" twice was redundant). With something to
  * confirm: "Abbrechen" left, main action right. Without: one "Fertig" on the right. The title row
- * only names the dialog. Back gesture and a tap beside the dialog close it.
+ * only names the dialog. Back gesture and a tap beside the dialog close it (unless `closeOnBackdrop`
+ * is false).
  */
-export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm' }: DialogProps) {
+export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm', closeOnBackdrop = true }: DialogProps) {
   useBackHandler(onClose)
+  // Only a tap that also started on the backdrop closes: a press in a field that ends beside the
+  // dialog - or one the dialog moved away from when the keyboard went down - is not "beside it".
+  const pressedBackdrop = useRef(false)
   const typing = useTypingOnTouch()
   // Phone in landscape (under 300 px of height in the browser): no title row - the dialog keeps
   // its name for screen readers - and slimmer rows, so the content gets the height.
@@ -35,7 +42,13 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   return createPortal(
     // h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
     // with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review).
-    <div className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`} onClick={onClose}>
+    <div className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`}
+      onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
+      onClick={(e) => {
+        if (closeOnBackdrop && pressedBackdrop.current && e.target === e.currentTarget) onClose()
+        pressedBackdrop.current = false
+      }}
+    >
       <div
         role="dialog"
         aria-modal="true"
