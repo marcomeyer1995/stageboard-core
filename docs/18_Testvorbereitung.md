@@ -40,6 +40,8 @@ Für jeden Aufbau, den eine Band realistisch nutzen würde, eine **Zahl mit Fehl
 
 | Teil | Wofür |
 |---|---|
+| Fotodiode (z. B. BPW34) oder kleine Solarzelle + Klinkenkabel zum Anlöten | Lichtsensor für S17, Licht in derselben Aufnahme |
+| DMX-Kabel (3- bzw. 5-pol, passend zu Wandler und Scheinwerfer) | S17 |
 | Masseschleifen-Trenner 3,5 mm (2 Stück) | falls es brummt, wenn Laptop, Pult und Tablets gleichzeitig am Netz hängen |
 | Handy-Stativ / Halterung | Zeitlupen-Video der Bildschirme (S10) |
 | Einfache Bluetooth-Kopfhörer | S12 (nur wenn geklärt werden soll, ob BT auf der Bühne geht) |
@@ -104,6 +106,7 @@ Jeder Ausgang, der gemessen wird, geht auf **einen eigenen Ui24R-Eingang**. Der 
 | S14 Langlauf | P1, P2, P3 | R3 | S-B |
 | S15 Server-Varianten | P1 | R1, R3 | S-B (S-C) |
 | neu: S16 Interface am Tablet | P3, P4 gegen P1 desselben Geräts | R1 | S-A |
+| neu: S17 Licht/DMX | L0 (zuerst), L1, L2, später L3 | R1 | S-A |
 
 ### 4.6 MIDI-Strecken
 
@@ -117,6 +120,21 @@ Jede MIDI-Nachricht wird in einen **Piep in derselben Aufnahme** verwandelt: ein
 | **M4** | Tablet/Server → echtes Effektgerät (Kemper, MG-30, RC-500) → dessen Audio-Ausgang in den Ui24R | Patch-Wechsel hörbar gegen den Schlag - inklusive der Zeit, die das Gerät intern braucht | echtes Bühnengerät (nur wenn verfügbar) |
 
 Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/M3 am Tablet - also nacheinander, nicht gleichzeitig.
+
+### 4.7 Licht (DMX)
+
+Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`, Stellvertreter für eine Brücke zu QLC+/Maestro) - es gibt noch keinen echten DMX-Weg. Gemessen wird deshalb zuerst, was die Hardware kann, und dann, ob sich ein direkter Weg lohnt (interessant für kleine Bands ohne Lichtpult).
+
+| Kürzel | Strecke | Was gemessen wird | Voraussetzung |
+|---|---|---|---|
+| **L0** | Testprogramm auf dem Laptop → USB-DMX-Wandler → LED-Scheinwerfer | Eigenverzögerung von Wandler + Scheinwerfer, Gleichmäßigkeit (Jitter) | nur Testprogramm (Claude) |
+| **L1** | StageBoard-Cue → MIDI (M1/M2) → QLC+ → DMX → Scheinwerfer | heutige Kette mit QLC+ | QLC+ auf dem Laptop, MIDI-Zuordnung in QLC+ |
+| **L2** | StageBoard-Cue → MIDI → Maestro DMX → Scheinwerfer | heutige Kette mit Maestro | Maestro-Modell und seine Ansteuerung (MIDI?) |
+| **L3** | StageBoard-Server → USB-DMX-Wandler direkt → Scheinwerfer | direkter Weg ohne Lichtpult | ein kleines DMX-Plugin für den Server (Funktion, nicht nur Test) - nur bauen, wenn L0 gut aussieht |
+
+**Messung des Lichts** (eins von beiden):
+- **Zeitlupen-Video** (S26, 240/960 Bilder/s) auf den Scheinwerfer, Klick hörbar auf der Tonspur des Videos. Auswertung automatisch: Helligkeit je Bild gegen den Klick im Ton. Keine Zusatz-Hardware, ±1–4 ms.
+- **Lichtsensor in den Ui24R:** Fotodiode oder kleine Solarzelle an ein Klinkenkabel gelötet, auf einen Line-Eingang (Kanal 8). Licht landet in derselben Aufnahme wie Klick, Track und MIDI, ±0,1 ms, vollautomatisch. Wenige Euro, braucht Löten.
 
 **S16 (neu, Marcos Frage):** Kann ein Tablet ein USB-Audio-Interface betreiben, und ist das besser als die Kopfhörerbuchse? Je Gerät: wird das UMC204HD erkannt (Android gibt dann allen Ton dorthin), Versatz und Streuung gegen P1, Akku unter Last, Knackser bei Ein-/Ausstecken. Gleiches mit dem Ui24R als Soundkarte (P4), falls es am Tablet funktioniert.
 
@@ -132,8 +150,9 @@ Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/
 8. **Bild:** Zeitlupe mit 240 Bildern/s löst ±4 ms auf, 960 Bilder/s ±1 ms (dann aber kurze Clips).
 9. **MIDI:** gemessen wird bis zum Empfang im Cue-Piepser (dessen eigene Verzögerung ist kalibriert, K7). Was ein echtes Effektgerät intern braucht, bis der Patch umschaltet, kommt nur in M4 vor, und nur für die Geräte, die da sind. Eine MIDI-Nachricht selbst braucht auf dem Kabel ca. 1 ms (31,25 kBit/s); USB-MIDI-Interfaces fügen typischerweise 1–5 ms hinzu - das ist Teil der Messung, und deshalb ein Markengerät.
 10. **MIDI am Tablet:** ob ein Android-Gerät ein USB-Interface mit MIDI über WebMIDI ansprechen kann, hängt von Gerät, Android-Version und Laufzeit ab (Chrome kann WebMIDI, die Android-WebView der App womöglich nicht). Ergebnis ist Teil des Tests, nicht Voraussetzung.
-11. **Server-Klick (P6):** heute nicht messbar (#25 nicht gebaut).
-12. **Wahrnehmungsgrenzen:** die Grenzwerte (docs/17 §8) stützen sich auf übliche Erfahrungswerte (Flam ab ~10–20 ms, deutlich doppelt ab ~30 ms); jeder Musiker ist anders empfindlich - deshalb gehört zum Abschluss auch ein Hörtest durch die Band.
+11. **Licht:** DMX sendet den ganzen Datenrahmen nur etwa 25–44-mal pro Sekunde - eine Änderung kommt im Mittel einen halben Rahmen später an (ca. 10–20 ms), außer der Wandler sendet kürzere Rahmen. Viele LED-Scheinwerfer glätten oder dimmen intern nach - diese Zeit gehört zum Scheinwerfer, nicht zu StageBoard, ist aber in der Messung enthalten. Ergebnisse gelten für **diesen** Wandler und **diesen** Scheinwerfer. L3 ist erst messbar, wenn das DMX-Plugin gebaut ist.
+12. **Server-Klick (P6):** heute nicht messbar (#25 nicht gebaut).
+13. **Wahrnehmungsgrenzen:** die Grenzwerte (docs/17 §8) stützen sich auf übliche Erfahrungswerte (Flam ab ~10–20 ms, deutlich doppelt ab ~30 ms); jeder Musiker ist anders empfindlich - deshalb gehört zum Abschluss auch ein Hörtest durch die Band.
 
 ## 5a. Zusätzliche Kalibrierungen (ergänzen docs/17 §5, K1–K5)
 
@@ -160,6 +179,7 @@ Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/
 - [ ] Cue-Piepser: hört auf einen MIDI-Eingang (UM-ONE bzw. UMC204HD), piept beim Empfang auf einem eigenen Laptop-Ausgang; kann umgekehrt zu bekannten Zeiten MIDI senden und dabei piepen (M3)
 - [ ] Prüfen, wie Server-Cues heute ausgegeben werden; für M1 ein MIDI-Ausgang des Servers für einen Test-Cue (kleines Test-Plugin, falls nötig)
 - [ ] Test-Cues im Referenz-Song auf das MIDI-Testgerät (Takt 9, 17, 29, 53)
+- [ ] DMX-Testprogramm (L0): setzt einen DMX-Kanal zu bekannten Zeiten und piept dabei; Auswertung Licht (Sensor-Kanal oder Video-Helligkeit) gegen den Piep
 - [ ] Bericht (Tabellen, Diagramme, Freigabe-Matrix) als Seite
 - [ ] Trockenlauf aller Werkzeuge mit der Laptop-Ausgabe (ohne Pult, ohne Ton; Laptop-Bildschirm entsperrt)
 
@@ -186,6 +206,12 @@ Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/
 - [ ] Referenz-Song lokal vorhanden (Einstellungen → Speicher & Sync)
 - [ ] Gerätename in StageBoard eindeutig (z. B. „Xiaomi-Tablet“)
 - [ ] Modell, Android-Version, Chrome-/WebView-Version notieren (Claude liest es per USB aus)
+
+**Licht (S17)**
+- [ ] USB-DMX-Wandler: Modell an Claude (z. B. Enttec Open DMX / DMX USB Pro / uDMX / Nachbau) - danach baut Claude das Testprogramm L0
+- [ ] Ein **LED**-Scheinwerfer mit DMX (kein Halogen - viel zu träge), Kanalbelegung/Modus notieren, DMX-Adresse 1
+- [ ] Wie werden QLC+ und Maestro heute angesteuert (MIDI, OSC, Art-Net)? Maestro-Modell notieren
+- [ ] Lichtsensor bauen (falls gelötet wird) oder Handy-Stativ für die Zeitlupe
 
 **Netz**
 - [ ] Router wie auf der Bühne, alle Geräte im selben WLAN (Band notieren: 2,4/5 GHz)
@@ -240,7 +266,7 @@ Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/
 | 5 | Laptop (Chrome, Server-Uhr) | Kopfhörer - absoluter Bezug |
 | 6 | UMC204HD Ausgang 1 (Tablet über P3) | TRS |
 | 7 | Cue-Piepser (MIDI-Empfang/-Senden) | Laptop-Ausgang 2 bzw. UMC204HD-Ausgang 2 |
-| 8 | Kalibrierung (Y-Kabel), bei M4 das echte Effektgerät | Y-Kabel / Geräteausgang |
+| 8 | Kalibrierung (Y-Kabel), bei M4 das echte Effektgerät, bei S17 der Lichtsensor | Y-Kabel / Geräteausgang / Sensor |
 
 Für S16 wechselt jeweils **ein** Tablet von Kanal 1/3 auf das UMC204HD (Kanal 6), damit P1 und P3 desselben Geräts direkt verglichen werden.
 
@@ -267,7 +293,7 @@ Für jede Kombination aus Gerät, Ausgabeweg, Modus und Rolle:
 - **Abstand zu den anderen Geräten** (Matrix)
 - **Lage gegen die Songzeit** (absolut, ±5 ms)
 - **Erholung nach Störungen**
-- **Cue-, MIDI- und Bild-Latenz** (M1 Server → Gerät, M2 Tablet → Gerät, M3 Pedal → App)
+- **Cue-, MIDI-, Licht- und Bild-Latenz** (M1 Server → Gerät, M2 Tablet → Gerät, M3 Pedal → App, L0–L3 Licht)
 - Erklärung aus der Instrumentierung (z. B. „Sprünge fallen mit WLAN-Einbrüchen zusammen“)
 
 ### 9.2 Freigabe-Matrix

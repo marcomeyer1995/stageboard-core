@@ -177,6 +177,12 @@ Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den S
 ### S13 Echtes Material
 - Referenz-Song mit Track „Drums“ statt der Pieps: Klick gegen Drum-Einsätze (Auswertung über Onsets wie docs/13 §6). Zeigt, ob die Pieps-Ergebnisse auf echte Musik übertragbar sind.
 
+### S16 Audio-Interface am Tablet
+Je Gerät: UMC204HD (und ggf. Ui24R als Soundkarte) über USB-C-Hub mit Laden am Tablet, gegen den Kopfhörerausgang desselben Geräts. Wird es erkannt, Versatz, Streuung, Akku, Knackser (docs/18 §4.2, P3/P4).
+
+### S17 Licht (DMX)
+Wege L0 (Wandler allein, Testprogramm), L1 (über QLC+), L2 (über Maestro), später L3 (StageBoard direkt, braucht ein DMX-Plugin) - docs/18 §4.7. Licht gemessen per Lichtsensor im Ui24R oder per Zeitlupen-Video. **Bewertung:** Licht gegen den Schlag; Streuung.
+
 ### S14 Langer Lauf
 - Setlist aus 20 × Referenz-Song (~45 min) ohne Neustart, Gig-Modus, alle Geräte. Drift, Sprünge, Speicher, Akku, Temperatur.
 
@@ -195,6 +201,7 @@ Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den S
 | Wieder zusammen nach Störung | ≤ 1 Takt | ≤ 4 Takte | mehr |
 | Cue gegen Schlag (M1, M2) | ≤ 20 ms | ≤ 50 ms | > 50 ms |
 | Pedal bis Reaktion (M3) | ≤ 50 ms | ≤ 100 ms | > 100 ms |
+| Licht gegen Schlag (S17) | ≤ 30 ms | ≤ 60 ms | > 60 ms |
 | Bildschirm gegen Klick | ≤ 50 ms | ≤ 100 ms | > 100 ms |
 
 Hintergrund: Zwischen Klick und Musik hört man ab etwa 10–20 ms einen „Flam“, ab etwa 30 ms deutlich doppelt; ein Bild wird bis ~50–80 ms als gleichzeitig mit dem Ton empfunden. Bekannte Ausnahme: der Takt mit Tempowechsel **innerhalb** des Takts - berichtet, nicht bewertet.
@@ -271,3 +278,4 @@ Mit dem Laptop-Monitor (ohne Ui24R, ohne Ton im Raum) lassen sich 1–4 vorab vo
 4. Hat der Ui24R freie Eingänge 1–8 für den Test, und ist die Aufnahme pro Kanal vor der Bearbeitung möglich (Einstellung „USB-Abgriff“)?
 5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für M4 verfügbar? (M1–M3 gehen mit UMC204HD + UM-ONE.)
 6. Termine für die zwei Blöcke.
+7. USB-DMX-Wandler (Modell), LED-Scheinwerfer, wie QLC+ und Maestro heute angesteuert werden; wird ein Lichtsensor gelötet?
