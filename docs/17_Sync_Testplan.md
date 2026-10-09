@@ -162,10 +162,10 @@ Jede MIDI-Nachricht wird über den **Cue-Piepser** (Laptop, hört auf einen MIDI
 - **M4 echtes Effektgerät** (wenn verfügbar): Patch-Wechsel hörbar über dessen Audio-Ausgang.
 Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den Schlag; Pedal bis Reaktion.
 
-### S10 Bild: Blitze, Einzählen, Prompter
-- **Ablauf:** S26 im Zeitlupen-Video (240 oder 960 Bilder/s) auf zwei Bildschirme nebeneinander, das Handy-Mikrofon nimmt den Klick eines Geräts mit auf.
-- Gemessen am Video Bild für Bild: Blitz „Ritardando in 2 Takten“ (Takt 15) und „Pause in 1 Takt“ (Takt 55), Zählblock beim Einzählen, Prompter-Zeilenwechsel bei Taktanfängen, gegen den hörbaren Klick.
-- **Bewertung:** Bildschirm gegen Klick (Anzeige-Latenz) und Bildschirm A gegen Bildschirm B.
+### S10 Bild: Blitze, Einzählen, Statusleiste
+- **Ablauf:** je ein **Lichtsensor** (Fotodiode, docs/18 §4.7) auf zwei Bildschirme geklebt (Ui24R-Kanal 10 und 11), gleiche Stelle (z. B. Statusleiste bzw. Mitte für den Vollbild-Blitz).
+- Gemessen in derselben Aufnahme wie Klick und Track: Blitz „Ritardando in 2 Takten“ (Takt 15) und „Pause in 1 Takt“ (Takt 55), Farbwechsel der Statusleiste beim Einzählen (blinkt je Schlag), Start „Spielt“.
+- **Bewertung:** Bildschirm gegen Klick (Anzeige-Latenz) und Bildschirm A gegen Bildschirm B. Bildwechsel-Raster (60 Hz) und Flimmern werden mit ausgewertet.
 
 ### S11 Builds und Laufzeiten (Querschnitt)
 - S2 und S3 je Gerät mit **main** und **#460**, jeweils **Browser** und **Android-App**.
@@ -181,7 +181,7 @@ Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den S
 Je Gerät: UMC204HD (und ggf. Ui24R als Soundkarte) über USB-C-Hub mit Laden am Tablet, gegen den Kopfhörerausgang desselben Geräts. Wird es erkannt, Versatz, Streuung, Akku, Knackser (docs/18 §4.2, P3/P4).
 
 ### S17 Licht (DMX)
-Wege L0 (Wandler allein, Testprogramm), L1 (über QLC+), L2 (über Maestro), später L3 (StageBoard direkt, braucht ein DMX-Plugin) - docs/18 §4.7. Licht gemessen per Lichtsensor im Ui24R oder per Zeitlupen-Video. **Bewertung:** Licht gegen den Schlag; Streuung.
+Wege (docs/18 §4.7): **L0** usangreen-Wandler allein mit Testprogramm, **L1** über QLC+ (MIDI-Eingang), **L2a** über Maestro DMX per MIDI-Kabel, **L2b** über Maestro per Ethernet, später **L3** StageBoard direkt (braucht ein DMX-Plugin). Scheinwerfer: U'King LED-Moving-Head, Dimmer-/Shutter-Kanal. Licht gemessen per Lichtsensor im Ui24R (Kanal 9). **Bewertung:** Licht gegen den Schlag; Streuung (Jitter); bei L0 zusätzlich die tatsächliche DMX-Rahmenrate.
 
 ### S14 Langer Lauf
 - Setlist aus 20 × Referenz-Song (~45 min) ohne Neustart, Gig-Modus, alle Geräte. Drift, Sprünge, Speicher, Akku, Temperatur.
@@ -237,7 +237,7 @@ Hintergrund: Zwischen Klick und Musik hört man ab etwa 10–20 ms einen „Flam
 
 ## 12. Rollen und Ablauf am Testtag
 
-- **Marco (vor Ort):** Aufbau, Kabel und Pegel am Ui24R, Geräte bereitstellen, Aktionen, die einen echten Finger brauchen (Audio-Freigabe nach Neuladen, Bildschirm aus/an, WLAN aus/an), Zeitlupen-Video.
+- **Marco (vor Ort):** Aufbau, Kabel und Pegel am Ui24R, Geräte bereitstellen, Aktionen, die einen echten Finger brauchen (Audio-Freigabe nach Neuladen, Bildschirm aus/an, WLAN aus/an), Lichtsensoren anbringen.
 - **Claude (am Laptop):** Rollen der Geräte setzen und zurücksetzen, Play/Stop per Werkzeug, Aufnahme starten/benennen, Instrumentierung, Auswertung direkt nach jedem Lauf, Protokoll, Bericht.
 
 | Block | Inhalt | Dauer (ca.) |
@@ -278,4 +278,4 @@ Mit dem Laptop-Monitor (ohne Ui24R, ohne Ton im Raum) lassen sich 1–4 vorab vo
 4. Hat der Ui24R freie Eingänge 1–8 für den Test, und ist die Aufnahme pro Kanal vor der Bearbeitung möglich (Einstellung „USB-Abgriff“)?
 5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für M4 verfügbar? (M1–M3 gehen mit UMC204HD + UM-ONE.)
 6. Termine für die zwei Blöcke.
-7. USB-DMX-Wandler (Modell), LED-Scheinwerfer, wie QLC+ und Maestro heute angesteuert werden; wird ein Lichtsensor gelötet?
+7. Maestro DMX: Modell, Firmware, welches Netzwerk-Protokoll für MIDI (RTP-MIDI? OSC?).

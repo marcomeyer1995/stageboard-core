@@ -33,6 +33,9 @@ Für jeden Aufbau, den eine Band realistisch nutzen würde, eine **Zahl mit Fehl
 | Y-Kabel 3,5 mm Stecker → 2 × 6,3 mm | 1 | Kalibrierung K1 (ein Signal auf zwei Kanäle) | |
 | Mehrfachsteckdose, Ladekabel für alle Geräte | - | alles am Strom | |
 | Kabel-Etiketten | 1 Rolle | Kanalnummer an jedes Kabel | verhindert vertauschte Kanäle |
+| Fotodiode **BPW34** (oder SFH 203 P) | 3 (+1 Reserve) | Lichtsensoren: Scheinwerfer, Bildschirm A, Bildschirm B | wenige Cent bis 1 € |
+| 6,3-mm-Mono-Klinkenkabel (TS) zum Anlöten, oder Stecker + Kabel | 3 | Sensor → Ui24R | |
+| Widerstand 10 kΩ, Schrumpfschlauch, schwarzes Isolierband | je 3 | Sensoren | Lötkolben vorhanden? |
 | MIDI-Kabel 5-pol DIN, 1–2 m | 3 | MIDI-Strecken M1–M3 (§4.6) | |
 | USB-MIDI-Interface mit In und Out, **Markengerät** (z. B. Roland UM-ONE mk2) | 1 | zweiter MIDI-Anschluss am Laptop: Empfänger für die Cue-Messung bzw. Sender für die Fußschalter-Messung | billige No-Name-Kabel haben oft unsaubere Zeitstempel - die verfälschen genau das, was gemessen wird |
 
@@ -40,10 +43,8 @@ Für jeden Aufbau, den eine Band realistisch nutzen würde, eine **Zahl mit Fehl
 
 | Teil | Wofür |
 |---|---|
-| Fotodiode (z. B. BPW34) oder kleine Solarzelle + Klinkenkabel zum Anlöten | Lichtsensor für S17, Licht in derselben Aufnahme |
-| DMX-Kabel (3- bzw. 5-pol, passend zu Wandler und Scheinwerfer) | S17 |
+| DMX-Kabel 3-pol XLR (Wandler → Moving-Head), ggf. Abschlusswiderstand 120 Ω | S17 |
 | Masseschleifen-Trenner 3,5 mm (2 Stück) | falls es brummt, wenn Laptop, Pult und Tablets gleichzeitig am Netz hängen |
-| Handy-Stativ / Halterung | Zeitlupen-Video der Bildschirme (S10) |
 | Einfache Bluetooth-Kopfhörer | S12 (nur wenn geklärt werden soll, ob BT auf der Bühne geht) |
 
 ### 3.4 Später, nicht für den ersten Test
@@ -125,16 +126,27 @@ Für M1 wird das UMC204HD am Stage-Server (Laptop bzw. Dell) betrieben, für M2/
 
 Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`, Stellvertreter für eine Brücke zu QLC+/Maestro) - es gibt noch keinen echten DMX-Weg. Gemessen wird deshalb zuerst, was die Hardware kann, und dann, ob sich ein direkter Weg lohnt (interessant für kleine Bands ohne Lichtpult).
 
+**Vorhanden (Marco, 2026-10-09):**
+- **USB-DMX-Wandler:** usangreen „USB zu DMX“, FTDI-basiert, XLR 3-pol - Bauart „Open DMX“ **ohne eigenen Mikrocontroller**: der Rechner erzeugt jeden DMX-Rahmen selbst (Break, 512 Kanäle, Wiederholrate). Zeitverhalten hängt damit von Rechner, Treiber und Last ab - genau das wird quantifiziert. QLC+ kann diese Bauart („Enttec Open DMX“).
+- **Scheinwerfer:** U'King LED-Moving-Head (klein). Gemessen wird über den **Dimmer-/Shutter-Kanal** (Licht an/aus), nicht über Bewegung. Kanalmodus und DMX-Adresse notieren; interne Glättung des Dimmers ist Teil der Messung.
+- **QLC+:** läuft heute eigenständig (nicht ferngesteuert).
+- **Maestro DMX:** noch nicht gekoppelt; nimmt MIDI über einen USB-MIDI-Adapter und (neueste Firmware) über Ethernet an.
+
 | Kürzel | Strecke | Was gemessen wird | Voraussetzung |
 |---|---|---|---|
-| **L0** | Testprogramm auf dem Laptop → USB-DMX-Wandler → LED-Scheinwerfer | Eigenverzögerung von Wandler + Scheinwerfer, Gleichmäßigkeit (Jitter) | nur Testprogramm (Claude) |
-| **L1** | StageBoard-Cue → MIDI (M1/M2) → QLC+ → DMX → Scheinwerfer | heutige Kette mit QLC+ | QLC+ auf dem Laptop, MIDI-Zuordnung in QLC+ |
-| **L2** | StageBoard-Cue → MIDI → Maestro DMX → Scheinwerfer | heutige Kette mit Maestro | Maestro-Modell und seine Ansteuerung (MIDI?) |
-| **L3** | StageBoard-Server → USB-DMX-Wandler direkt → Scheinwerfer | direkter Weg ohne Lichtpult | ein kleines DMX-Plugin für den Server (Funktion, nicht nur Test) - nur bauen, wenn L0 gut aussieht |
+| **L0** | DMX-Testprogramm auf dem Laptop → usangreen-Wandler → Moving-Head | Eigenverzögerung und Jitter von Wandler + Scheinwerfer | nur das Testprogramm (Claude) |
+| **L1** | StageBoard-Cue → MIDI → **QLC+** (Laptop) → usangreen-Wandler → Moving-Head | Kette mit QLC+ | in QLC+ ein MIDI-Eingangsprofil: Note/Program Change → Szene |
+| **L2a** | StageBoard-Cue → MIDI (5-pol, über UMC204HD/UM-ONE) → **Maestro DMX** → Moving-Head | Kette mit Maestro über MIDI-Kabel | Maestro: MIDI-Zuordnung Note/PC → Szene |
+| **L2b** | StageBoard-Cue → Netzwerk → **Maestro DMX** (Ethernet) → Moving-Head | Kette mit Maestro übers Netz | Protokoll klären (Netzwerk-MIDI/RTP-MIDI oder OSC) und in StageBoard vorhanden? |
+| **L3** | StageBoard-Server → usangreen-Wandler **direkt** → Moving-Head | Weg ohne Lichtpult (kleine Bands) | ein kleines DMX-Plugin für den Server - Funktion, nicht nur Test; nur bauen, wenn L0 gut aussieht |
 
-**Messung des Lichts** (eins von beiden):
-- **Zeitlupen-Video** (S26, 240/960 Bilder/s) auf den Scheinwerfer, Klick hörbar auf der Tonspur des Videos. Auswertung automatisch: Helligkeit je Bild gegen den Klick im Ton. Keine Zusatz-Hardware, ±1–4 ms.
-- **Lichtsensor in den Ui24R:** Fotodiode oder kleine Solarzelle an ein Klinkenkabel gelötet, auf einen Line-Eingang (Kanal 8). Licht landet in derselben Aufnahme wie Klick, Track und MIDI, ±0,1 ms, vollautomatisch. Wenige Euro, braucht Löten.
+**Licht messen: Lichtsensor in den Ui24R** (Marcos Wahl). Eine Fotodiode an einem Klinkenkabel auf einem Line-/Mic-Eingang des Ui24R - Licht wird zu einem Signal in derselben Aufnahme wie Klick, Track und MIDI, auf ±0,1 ms. Derselbe Sensor auf einen **Tablet-Bildschirm** geklebt misst Blitze, Einzählen und Statusleiste (S10) - deshalb **drei** Sensoren bauen: Scheinwerfer, Bildschirm A, Bildschirm B. Später auch als **Licht-Kalibrierung für Bands** denkbar (wie der Referenz-Song für den Ton).
+
+**Sensor bauen** (je Sensor ca. 10 min, Material §3.2):
+1. Fotodiode BPW34 (oder SFH 203 P): Anode an die Spitze (Tip), Kathode an den Schirm (Sleeve) eines 6,3-mm-Mono-Klinkensteckers bzw. eines Kabels mit Stecker. 10-kΩ-Widerstand parallel zur Diode (macht sie schnell und gleichmäßig).
+2. Lötstellen mit Schrumpfschlauch isolieren, die Diode in schwarzes Isolierband/eine kleine Kappe, so dass nur die Vorderseite Licht sieht (Raumlicht stört sonst).
+3. In einen **Eingang ohne Phantomspeisung** stecken (Phantom aus! sie würde über die Diode liegen), Gain hochdrehen, bis ein Lichtwechsel deutlich ausschlägt.
+4. Probe: Taschenlampe an/aus - der Kanal muss klar springen.
 
 **S16 (neu, Marcos Frage):** Kann ein Tablet ein USB-Audio-Interface betreiben, und ist das besser als die Kopfhörerbuchse? Je Gerät: wird das UMC204HD erkannt (Android gibt dann allen Ton dorthin), Versatz und Streuung gegen P1, Akku unter Last, Knackser bei Ein-/Ausstecken. Gleiches mit dem Ui24R als Soundkarte (P4), falls es am Tablet funktioniert.
 
@@ -147,10 +159,10 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 5. **Nur unsere Software-Stände:** main und #460 vom Testtag. Jede spätere Änderung an Uhrabgleich, Klick oder Audio braucht einen Wiederholungslauf (deshalb ist der Test als Werkzeug wiederholbar gebaut).
 6. **Stichprobe:** 3 Läufe je Fall zeigen Lage und Wiederholbarkeit; seltene Ereignisse (ein Aussetzer pro Stunde) zeigt nur der Langlauf S14, und auch der nur, wenn sie in der Stunde vorkommen.
 7. **WLAN:** die Last am Veranstaltungsort (Publikumshandys, fremde Netze) lässt sich nicht nachbauen; S7 simuliert Last und schwachen Empfang nur.
-8. **Bild:** Zeitlupe mit 240 Bildern/s löst ±4 ms auf, 960 Bilder/s ±1 ms (dann aber kurze Clips).
+8. **Bild:** gemessen mit Lichtsensor auf dem Bildschirm. Bildschirme zeigen nur alle ~16,7 ms (60 Hz) ein neues Bild und dimmen oft per Flimmern (PWM) - das ist Teil des Ergebnisses; die Auswertung glättet das Flimmern.
 9. **MIDI:** gemessen wird bis zum Empfang im Cue-Piepser (dessen eigene Verzögerung ist kalibriert, K7). Was ein echtes Effektgerät intern braucht, bis der Patch umschaltet, kommt nur in M4 vor, und nur für die Geräte, die da sind. Eine MIDI-Nachricht selbst braucht auf dem Kabel ca. 1 ms (31,25 kBit/s); USB-MIDI-Interfaces fügen typischerweise 1–5 ms hinzu - das ist Teil der Messung, und deshalb ein Markengerät.
 10. **MIDI am Tablet:** ob ein Android-Gerät ein USB-Interface mit MIDI über WebMIDI ansprechen kann, hängt von Gerät, Android-Version und Laufzeit ab (Chrome kann WebMIDI, die Android-WebView der App womöglich nicht). Ergebnis ist Teil des Tests, nicht Voraussetzung.
-11. **Licht:** DMX sendet den ganzen Datenrahmen nur etwa 25–44-mal pro Sekunde - eine Änderung kommt im Mittel einen halben Rahmen später an (ca. 10–20 ms), außer der Wandler sendet kürzere Rahmen. Viele LED-Scheinwerfer glätten oder dimmen intern nach - diese Zeit gehört zum Scheinwerfer, nicht zu StageBoard, ist aber in der Messung enthalten. Ergebnisse gelten für **diesen** Wandler und **diesen** Scheinwerfer. L3 ist erst messbar, wenn das DMX-Plugin gebaut ist.
+11. **Licht:** DMX sendet den ganzen Datenrahmen nur etwa 25–44-mal pro Sekunde - eine Änderung kommt im Mittel einen halben Rahmen später an (ca. 10–20 ms), außer es werden kürzere Rahmen gesendet. Beim usangreen-Wandler (ohne eigenen Mikrocontroller) erzeugt der Rechner die Rahmen - Last auf dem Rechner kann Rahmen verzögern (Jitter). Der Moving-Head verarbeitet DMX intern und glättet ggf. den Dimmer - diese Zeit gehört zum Scheinwerfer, ist aber in der Messung enthalten. Ergebnisse gelten für **diesen** Wandler und **diesen** Scheinwerfer. L3 ist erst messbar, wenn das DMX-Plugin gebaut ist; L2b erst, wenn das Netzwerk-Protokoll des Maestro geklärt und angebunden ist.
 12. **Server-Klick (P6):** heute nicht messbar (#25 nicht gebaut).
 13. **Wahrnehmungsgrenzen:** die Grenzwerte (docs/17 §8) stützen sich auf übliche Erfahrungswerte (Flam ab ~10–20 ms, deutlich doppelt ab ~30 ms); jeder Musiker ist anders empfindlich - deshalb gehört zum Abschluss auch ein Hörtest durch die Band.
 
@@ -179,7 +191,8 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - [ ] Cue-Piepser: hört auf einen MIDI-Eingang (UM-ONE bzw. UMC204HD), piept beim Empfang auf einem eigenen Laptop-Ausgang; kann umgekehrt zu bekannten Zeiten MIDI senden und dabei piepen (M3)
 - [ ] Prüfen, wie Server-Cues heute ausgegeben werden; für M1 ein MIDI-Ausgang des Servers für einen Test-Cue (kleines Test-Plugin, falls nötig)
 - [ ] Test-Cues im Referenz-Song auf das MIDI-Testgerät (Takt 9, 17, 29, 53)
-- [ ] DMX-Testprogramm (L0): setzt einen DMX-Kanal zu bekannten Zeiten und piept dabei; Auswertung Licht (Sensor-Kanal oder Video-Helligkeit) gegen den Piep
+- [ ] DMX-Testprogramm (L0): erzeugt die DMX-Rahmen über den FTDI-Wandler, schaltet den Dimmer zu bekannten Zeiten und piept dabei; misst auch die tatsächliche Rahmenrate
+- [ ] Auswertung Lichtsensor: Einsatz des Lichts (Flanke, PWM-Flimmern geglättet) gegen Piep bzw. Schlag; für Bildschirme auch die Bildwechsel-Raster (60 Hz)
 - [ ] Bericht (Tabellen, Diagramme, Freigabe-Matrix) als Seite
 - [ ] Trockenlauf aller Werkzeuge mit der Laptop-Ausgabe (ohne Pult, ohne Ton; Laptop-Bildschirm entsperrt)
 
@@ -208,10 +221,11 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - [ ] Modell, Android-Version, Chrome-/WebView-Version notieren (Claude liest es per USB aus)
 
 **Licht (S17)**
-- [ ] USB-DMX-Wandler: Modell an Claude (z. B. Enttec Open DMX / DMX USB Pro / uDMX / Nachbau) - danach baut Claude das Testprogramm L0
-- [ ] Ein **LED**-Scheinwerfer mit DMX (kein Halogen - viel zu träge), Kanalbelegung/Modus notieren, DMX-Adresse 1
-- [ ] Wie werden QLC+ und Maestro heute angesteuert (MIDI, OSC, Art-Net)? Maestro-Modell notieren
-- [ ] Lichtsensor bauen (falls gelötet wird) oder Handy-Stativ für die Zeitlupe
+- [ ] usangreen-Wandler am Laptop anstecken - Claude prüft Erkennung (FTDI) und baut das Testprogramm L0
+- [ ] U'King Moving-Head: Kanalmodus und Adresse notieren, Dimmer-/Shutter-Kanal heraussuchen (Handbuch)
+- [ ] Drei Lichtsensoren bauen (Anleitung §4.7) und mit Taschenlampe am Ui24R prüfen
+- [ ] Maestro DMX: Modell, Firmware, MIDI-Zuordnung (Note/PC → Szene) einrichten; Netzwerk-Protokoll klären (RTP-MIDI? OSC?)
+- [ ] QLC+: MIDI-Eingangsprofil (Note → Szene „an“/„aus“) und Ausgabe über den usangreen-Wandler
 
 **Netz**
 - [ ] Router wie auf der Bühne, alle Geräte im selben WLAN (Band notieren: 2,4/5 GHz)
@@ -266,7 +280,10 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 | 5 | Laptop (Chrome, Server-Uhr) | Kopfhörer - absoluter Bezug |
 | 6 | UMC204HD Ausgang 1 (Tablet über P3) | TRS |
 | 7 | Cue-Piepser (MIDI-Empfang/-Senden) | Laptop-Ausgang 2 bzw. UMC204HD-Ausgang 2 |
-| 8 | Kalibrierung (Y-Kabel), bei M4 das echte Effektgerät, bei S17 der Lichtsensor | Y-Kabel / Geräteausgang / Sensor |
+| 8 | Kalibrierung (Y-Kabel), bei M4 das echte Effektgerät | Y-Kabel / Geräteausgang |
+| 9 | Lichtsensor Scheinwerfer (S17) | Fotodiode, Phantom aus |
+| 10 | Lichtsensor Bildschirm A (S10) | Fotodiode, Phantom aus |
+| 11 | Lichtsensor Bildschirm B (S10) | Fotodiode, Phantom aus |
 
 Für S16 wechselt jeweils **ein** Tablet von Kanal 1/3 auf das UMC204HD (Kanal 6), damit P1 und P3 desselben Geräts direkt verglichen werden.
 
