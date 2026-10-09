@@ -181,7 +181,7 @@ Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den S
 Je Gerät: UMC204HD (und ggf. Ui24R als Soundkarte) über USB-C-Hub mit Laden am Tablet, gegen den Kopfhörerausgang desselben Geräts. Wird es erkannt, Versatz, Streuung, Akku, Knackser (docs/18 §4.2, P3/P4).
 
 ### S17 Licht (DMX)
-Wege (docs/18 §4.7): **L0** usangreen-Wandler allein mit Testprogramm, **L1** über QLC+ (MIDI-Eingang), **L2a** über Maestro DMX per MIDI-Kabel, **L2b** über Maestro per Ethernet, später **L3** StageBoard direkt (braucht ein DMX-Plugin). Scheinwerfer: U'King LED-Moving-Head, Dimmer-/Shutter-Kanal. Licht gemessen per Lichtsensor im Ui24R (Kanal 9). **Bewertung:** Licht gegen den Schlag; Streuung (Jitter); bei L0 zusätzlich die tatsächliche DMX-Rahmenrate.
+Wege (docs/18 §4.7): **L0** usangreen-Wandler allein mit Testprogramm, **L1** über QLC+ (MIDI-Eingang), **L2a** über Maestro DMX per MIDI-Kabel, **L2b** über Maestro per OSC/Ethernet (zuerst per Testprogramm, aus StageBoard erst mit OSC-Sender), später **L3** StageBoard direkt (braucht ein DMX-Plugin). Scheinwerfer: U'King LED-Moving-Head, Dimmer-/Shutter-Kanal. Licht gemessen per Lichtsensor im Ui24R (Kanal 9). **Bewertung:** Licht gegen den Schlag; Streuung (Jitter); bei L0 zusätzlich die tatsächliche DMX-Rahmenrate.
 
 ### S14 Langer Lauf
 - Setlist aus 20 × Referenz-Song (~45 min) ohne Neustart, Gig-Modus, alle Geräte. Drift, Sprünge, Speicher, Akku, Temperatur.
@@ -278,4 +278,4 @@ Mit dem Laptop-Monitor (ohne Ui24R, ohne Ton im Raum) lassen sich 1–4 vorab vo
 4. Hat der Ui24R freie Eingänge 1–8 für den Test, und ist die Aufnahme pro Kanal vor der Bearbeitung möglich (Einstellung „USB-Abgriff“)?
 5. Ist ein echtes MIDI-Gerät (Kemper/MG-30/RC-500) für M4 verfügbar? (M1–M3 gehen mit UMC204HD + UM-ONE.)
 6. Termine für die zwei Blöcke.
-7. Maestro DMX: Modell, Firmware, welches Netzwerk-Protokoll für MIDI (RTP-MIDI? OSC?).
+7. ~~Maestro-Protokoll~~ geklärt: Maestro DMX Mini, MIDI per USB-Adapter, OSC per Ethernet.

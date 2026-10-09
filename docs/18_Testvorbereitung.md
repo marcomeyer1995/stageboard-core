@@ -130,14 +130,14 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - **USB-DMX-Wandler:** usangreen „USB zu DMX“, FTDI-basiert, XLR 3-pol - Bauart „Open DMX“ **ohne eigenen Mikrocontroller**: der Rechner erzeugt jeden DMX-Rahmen selbst (Break, 512 Kanäle, Wiederholrate). Zeitverhalten hängt damit von Rechner, Treiber und Last ab - genau das wird quantifiziert. QLC+ kann diese Bauart („Enttec Open DMX“).
 - **Scheinwerfer:** U'King LED-Moving-Head (klein). Gemessen wird über den **Dimmer-/Shutter-Kanal** (Licht an/aus), nicht über Bewegung. Kanalmodus und DMX-Adresse notieren; interne Glättung des Dimmers ist Teil der Messung.
 - **QLC+:** läuft heute eigenständig (nicht ferngesteuert).
-- **Maestro DMX:** noch nicht gekoppelt; nimmt MIDI über einen USB-MIDI-Adapter und (neueste Firmware) über Ethernet an.
+- **Maestro DMX** (Mini, neueste Software): noch nicht gekoppelt; nimmt **MIDI über einen USB-MIDI-Adapter** und **OSC über Ethernet** an.
 
 | Kürzel | Strecke | Was gemessen wird | Voraussetzung |
 |---|---|---|---|
 | **L0** | DMX-Testprogramm auf dem Laptop → usangreen-Wandler → Moving-Head | Eigenverzögerung und Jitter von Wandler + Scheinwerfer | nur das Testprogramm (Claude) |
 | **L1** | StageBoard-Cue → MIDI → **QLC+** (Laptop) → usangreen-Wandler → Moving-Head | Kette mit QLC+ | in QLC+ ein MIDI-Eingangsprofil: Note/Program Change → Szene |
 | **L2a** | StageBoard-Cue → MIDI (5-pol, über UMC204HD/UM-ONE) → **Maestro DMX** → Moving-Head | Kette mit Maestro über MIDI-Kabel | Maestro: MIDI-Zuordnung Note/PC → Szene |
-| **L2b** | StageBoard-Cue → Netzwerk → **Maestro DMX** (Ethernet) → Moving-Head | Kette mit Maestro übers Netz | Protokoll klären (Netzwerk-MIDI/RTP-MIDI oder OSC) und in StageBoard vorhanden? |
+| **L2b** | OSC über Ethernet → **Maestro DMX** → Moving-Head | Kette mit Maestro übers Netz | zuerst mit einem **OSC-Testprogramm** (sendet zu bekannter Zeit und piept dabei); aus StageBoard erst, wenn ein OSC-Sender gebaut ist - heute ist „Netzwerk (OSC)“ nur im Plugin-Katalog beschrieben, es gibt keinen Sender |
 | **L3** | StageBoard-Server → usangreen-Wandler **direkt** → Moving-Head | Weg ohne Lichtpult (kleine Bands) | ein kleines DMX-Plugin für den Server - Funktion, nicht nur Test; nur bauen, wenn L0 gut aussieht |
 
 **Licht messen: Lichtsensor in den Ui24R** (Marcos Wahl). Eine Fotodiode an einem Klinkenkabel auf einem Line-/Mic-Eingang des Ui24R - Licht wird zu einem Signal in derselben Aufnahme wie Klick, Track und MIDI, auf ±0,1 ms. Derselbe Sensor auf einen **Tablet-Bildschirm** geklebt misst Blitze, Einzählen und Statusleiste (S10) - deshalb **drei** Sensoren bauen: Scheinwerfer, Bildschirm A, Bildschirm B. Später auch als **Licht-Kalibrierung für Bands** denkbar (wie der Referenz-Song für den Ton).
@@ -162,7 +162,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 8. **Bild:** gemessen mit Lichtsensor auf dem Bildschirm. Bildschirme zeigen nur alle ~16,7 ms (60 Hz) ein neues Bild und dimmen oft per Flimmern (PWM) - das ist Teil des Ergebnisses; die Auswertung glättet das Flimmern.
 9. **MIDI:** gemessen wird bis zum Empfang im Cue-Piepser (dessen eigene Verzögerung ist kalibriert, K7). Was ein echtes Effektgerät intern braucht, bis der Patch umschaltet, kommt nur in M4 vor, und nur für die Geräte, die da sind. Eine MIDI-Nachricht selbst braucht auf dem Kabel ca. 1 ms (31,25 kBit/s); USB-MIDI-Interfaces fügen typischerweise 1–5 ms hinzu - das ist Teil der Messung, und deshalb ein Markengerät.
 10. **MIDI am Tablet:** ob ein Android-Gerät ein USB-Interface mit MIDI über WebMIDI ansprechen kann, hängt von Gerät, Android-Version und Laufzeit ab (Chrome kann WebMIDI, die Android-WebView der App womöglich nicht). Ergebnis ist Teil des Tests, nicht Voraussetzung.
-11. **Licht:** DMX sendet den ganzen Datenrahmen nur etwa 25–44-mal pro Sekunde - eine Änderung kommt im Mittel einen halben Rahmen später an (ca. 10–20 ms), außer es werden kürzere Rahmen gesendet. Beim usangreen-Wandler (ohne eigenen Mikrocontroller) erzeugt der Rechner die Rahmen - Last auf dem Rechner kann Rahmen verzögern (Jitter). Der Moving-Head verarbeitet DMX intern und glättet ggf. den Dimmer - diese Zeit gehört zum Scheinwerfer, ist aber in der Messung enthalten. Ergebnisse gelten für **diesen** Wandler und **diesen** Scheinwerfer. L3 ist erst messbar, wenn das DMX-Plugin gebaut ist; L2b erst, wenn das Netzwerk-Protokoll des Maestro geklärt und angebunden ist.
+11. **Licht:** DMX sendet den ganzen Datenrahmen nur etwa 25–44-mal pro Sekunde - eine Änderung kommt im Mittel einen halben Rahmen später an (ca. 10–20 ms), außer es werden kürzere Rahmen gesendet. Beim usangreen-Wandler (ohne eigenen Mikrocontroller) erzeugt der Rechner die Rahmen - Last auf dem Rechner kann Rahmen verzögern (Jitter). Der Moving-Head verarbeitet DMX intern und glättet ggf. den Dimmer - diese Zeit gehört zum Scheinwerfer, ist aber in der Messung enthalten. Ergebnisse gelten für **diesen** Wandler und **diesen** Scheinwerfer. L3 ist erst messbar, wenn das DMX-Plugin gebaut ist; L2b aus StageBoard heraus erst mit einem OSC-Sender (bis dahin per Testprogramm).
 12. **Server-Klick (P6):** heute nicht messbar (#25 nicht gebaut).
 13. **Wahrnehmungsgrenzen:** die Grenzwerte (docs/17 §8) stützen sich auf übliche Erfahrungswerte (Flam ab ~10–20 ms, deutlich doppelt ab ~30 ms); jeder Musiker ist anders empfindlich - deshalb gehört zum Abschluss auch ein Hörtest durch die Band.
 
@@ -191,6 +191,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - [ ] Cue-Piepser: hört auf einen MIDI-Eingang (UM-ONE bzw. UMC204HD), piept beim Empfang auf einem eigenen Laptop-Ausgang; kann umgekehrt zu bekannten Zeiten MIDI senden und dabei piepen (M3)
 - [ ] Prüfen, wie Server-Cues heute ausgegeben werden; für M1 ein MIDI-Ausgang des Servers für einen Test-Cue (kleines Test-Plugin, falls nötig)
 - [ ] Test-Cues im Referenz-Song auf das MIDI-Testgerät (Takt 9, 17, 29, 53)
+- [ ] OSC-Testprogramm (L2b): sendet zu bekannten Zeiten eine OSC-Nachricht an den Maestro und piept dabei
 - [ ] DMX-Testprogramm (L0): erzeugt die DMX-Rahmen über den FTDI-Wandler, schaltet den Dimmer zu bekannten Zeiten und piept dabei; misst auch die tatsächliche Rahmenrate
 - [ ] Auswertung Lichtsensor: Einsatz des Lichts (Flanke, PWM-Flimmern geglättet) gegen Piep bzw. Schlag; für Bildschirme auch die Bildwechsel-Raster (60 Hz)
 - [ ] Bericht (Tabellen, Diagramme, Freigabe-Matrix) als Seite
@@ -224,7 +225,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 - [ ] usangreen-Wandler am Laptop anstecken - Claude prüft Erkennung (FTDI) und baut das Testprogramm L0
 - [ ] U'King Moving-Head: Kanalmodus und Adresse notieren, Dimmer-/Shutter-Kanal heraussuchen (Handbuch)
 - [ ] Drei Lichtsensoren bauen (Anleitung §4.7) und mit Taschenlampe am Ui24R prüfen
-- [ ] Maestro DMX: Modell, Firmware, MIDI-Zuordnung (Note/PC → Szene) einrichten; Netzwerk-Protokoll klären (RTP-MIDI? OSC?)
+- [ ] Maestro DMX Mini: neueste Software, MIDI-Zuordnung (Note/PC → Szene „an“/„aus“) und OSC-Adresse für dieselbe Szene einrichten; IP-Adresse und OSC-Port notieren
 - [ ] QLC+: MIDI-Eingangsprofil (Note → Szene „an“/„aus“) und Ausgabe über den usangreen-Wandler
 
 **Netz**
