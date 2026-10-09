@@ -51,9 +51,16 @@ let changesHandle: LocalChangesHandle<ShowState> | null = null
 /** The fast lane (#468): the band whose pushes this device listens to, and the subscription. */
 let pushWorkspaceId: string | null = null
 let unsubscribePush: (() => void) | null = null
-/** A pushed change newer than what replication has brought so far - kept on top of the database
- * state until replication catches up, so a late replication of an older state can't undo it. */
+/** Changes newer than what the database has delivered so far - pushed ones and this device's own -
+ * kept on top of the database state until it catches up, so a late echo of an older state can't
+ * undo them. They accumulate: keeping only the last one, a Play (playback fields only) dropped the
+ * song change pushed just before it, and an older replication then brought the previous song back -
+ * the Xiaomi played AC/DC while the Fire showed the new song (2026-10-10). */
 let pushedAhead: { issuedAt: number; patch: Partial<ShowState> } | null = null
+
+function keepAhead(issuedAt: number, patch: Partial<ShowState>): void {
+  pushedAhead = { issuedAt: Math.max(pushedAhead?.issuedAt ?? 0, issuedAt), patch: { ...pushedAhead?.patch, ...patch } }
+}
 /** The newest change this device already reported as arrived (each one once, by its first path). */
 let lastReportedIssuedAt = 0
 
@@ -111,7 +118,7 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
       if (push.deviceId === get().deviceId) return // this device already applied its own change
       if (push.issuedAt <= (get().state.stateIssuedAt ?? 0)) return // older than what we have
       reportArrival(push.issuedAt, 'push', get().deviceId)
-      pushedAhead = { issuedAt: push.issuedAt, patch: push.patch }
+      keepAhead(push.issuedAt, push.patch)
       const next = { ...get().state, ...push.patch }
       set({ state: next, ...mastership(next.masterHolderId === get().masterIdentity, get().selfCheck) })
     })
@@ -153,8 +160,10 @@ export const useShowStateStore = create<ShowStateStore>((set, get) => ({
     // Whoever acts as master is the one that drives the automatic steps from now on (drivingDeviceId).
     // Stamped with server time, pushed to every device at once (#468); the database write follows
     // as the record - devices keep whichever of the two is newer (stateIssuedAt).
-    const issuedAt = getServerTime()
+    // Strictly increasing, also for two changes within the same millisecond - the order decides.
+    const issuedAt = Math.max(getServerTime(), (get().state.stateIssuedAt ?? 0) + 0.001)
     const mine = { ...patch, drivingDeviceId: get().deviceId, stateIssuedAt: issuedAt }
+    keepAhead(issuedAt, mine)
     set({ state: { ...get().state, ...mine } })
     if (pushWorkspaceId) pushShowState(pushWorkspaceId, { deviceId: get().deviceId, issuedAt, patch: mine })
     await putShowState(mine)

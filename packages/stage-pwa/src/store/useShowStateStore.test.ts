@@ -180,6 +180,24 @@ describe('fast lane for show-state changes (#468)', () => {
     expect(useShowStateStore.getState().state.playbackStatus).toBe('paused')
   })
 
+  it('a song change and a Play pushed right after it both survive an older replication - never the previous song (2026-10-10)', async () => {
+    onPush({ deviceId: 'fire', issuedAt: 200, patch: { activeEntryId: 'knocking', playbackStatus: 'stopped', stateIssuedAt: 200 } })
+    onPush({ deviceId: 'fire', issuedAt: 300, patch: { playbackStatus: 'playing', playbackStartedAt: 700, stateIssuedAt: 300 } })
+    vi.mocked(getShowState).mockResolvedValue({ ...DEFAULT_SHOW_STATE, activeEntryId: 'acdc', playbackStatus: 'stopped', stateIssuedAt: 100 })
+    await onDbChange()
+    expect(useShowStateStore.getState().state).toMatchObject({ activeEntryId: 'knocking', playbackStatus: 'playing' })
+  })
+
+  it("the master's own Play is not undone by the late echo of its own song change just before", async () => {
+    useShowStateStore.setState({ isMaster: true, holdsToken: true })
+    await useShowStateStore.getState().applyPatch({ activeEntryId: 'knocking', playbackStatus: 'stopped' })
+    const songChange = vi.mocked(putShowState).mock.calls[0][0]
+    await useShowStateStore.getState().applyPatch({ playbackStatus: 'playing' })
+    vi.mocked(getShowState).mockResolvedValue({ ...DEFAULT_SHOW_STATE, ...songChange } as ShowState)
+    await onDbChange()
+    expect(useShowStateStore.getState().state).toMatchObject({ activeEntryId: 'knocking', playbackStatus: 'playing' })
+  })
+
   it('ignores its own pushes and pushes older than what it has', () => {
     onPush({ deviceId: 'me', issuedAt: 500, patch: { playbackStatus: 'playing' } })
     onPush({ deviceId: 'fire', issuedAt: 50, patch: { playbackStatus: 'playing' } })
