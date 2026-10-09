@@ -19,7 +19,10 @@ Diese Datei dokumentiert die Untersuchung, die mit „der Backing-Track stottert
 | 9 | Prototyp C: Streaming (mediabunny + WebCodecs) | Vorbereitung **0,17-0,94 s** je Song, 0 verspätete Stücke | Schnelles Weiterschalten ohne Warten |
 | 10 | Anfang von „Highway to Hell“ fehlt | Start-Protokoll: Start bei **0,165 s** statt 0 | Play startete den Song „jetzt“ - **Ahead-of-Time: 400 ms Vorlauf** (`PLAY_LEAD_MS`, queue.ts) → Start bei 0 |
 | 11 | Anfang fehlt trotzdem, auch in der Timeline-Ansicht | Logcat: Bluetooth-Strom nach 2-3 s Stille im Standby, App öffnet beim Start neuen Audio-Strom | Unhörbares Signal (40 Hz, −80 dB) per CDP: **Anfang vollständig** → eingebaut (`holdAudioOutputAwake`) |
-| 12 | Play vom Fire: Anfang fehlt am Xiaomi | Start-Protokoll: Play kam **0,9-1 s** zu spät an; Server bekam den Schreibvorgang 0,6 s nach dem Zeitstempel | Offen (Abschnitt 6.1): Play über die Datenbank-Replikation ist zu langsam |
+| 12 | Play vom Fire: Anfang fehlt am Xiaomi | Start-Protokoll: Play kam **0,9-1 s** zu spät an; Server bekam den Schreibvorgang 0,6 s nach dem Zeitstempel | Play über die Datenbank-Replikation zu langsam → **#472**: Master-Änderungen direkt über den Stage-Server an alle Geräte (SSE) |
+| 13 | Mit #472: Ankunft gemessen | Server-Log „Show state reached device“: **11-130 ms** je Gerät und Play | Schneller Weg trägt |
+| 14 | Fire zeigt „BEREIT“, Xiaomi spielt; einmal spielte der Xiaomi AC/DC, der Fire zeigte einen anderen Song | Server-DB stand auf dem zweiten „Weiter“, Play fehlte; Overlay hielt nur die letzte Push-Änderung | `putShowState` verlor bei „Weiter, Weiter, Play“ den späteren Schreibvorgang (409, still verworfen); nur der letzte Push lag über der DB → **#473**: Schreiben in Warteschlange mit Wiederholung, Pushes sammeln sich bis die DB aufholt |
+| 15 | Anfang nach schnellem Wechsel weiter angeschnitten | Start-Protokoll: 26 von 30 Starts bei Song-Zeit +10 bis +151 ms, Track ab 160-300 ms; Songs waren rechtzeitig vorbereitet | Vorlauf (und Einzählung!) galt nur, wenn `activeEntryStartedAt` leer war - „Weiter“ setzt es sofort → jetzt für jeden neuen Durchgang (Transport gestoppt), nur Fortsetzen nach Pause ohne |
 
 Nebenbefunde am selben Abend: das eero-Mesh ließ S26+ und Laptop auf demselben Knoten nicht miteinander sprechen (zufällige MAC, später Gerät überall entfernt und neu verbunden); am Laptop (Stage-Server) war WLAN-Energiesparen an (`wifi.powersave = 3`, 3-118 ms zur Fritz!Box) - jetzt aus, 1-9 ms. Der Stage-Server hängt weiter im WLAN; Kabel empfohlen.
 
@@ -64,11 +67,13 @@ Einstellungen → Dieses Gerät → „Wiedergabe (Test)“ → „Backing-Track
 
 ## 6. Offen
 
-1. **Schneller Weg für Transport-Befehle** (nächster Schritt): Play/Pause/Stop/Sprung direkt über den Stage-Server an alle Geräte (docs/00 §4), Datenbank bleibt Protokoll und Rückfall. Je Gerät messen, wie viele ms nach Play es Bescheid wusste; danach `PLAY_LEAD_MS` festlegen.
-2. **Fortsetzen nach Pause** startet weiter „jetzt“ (verliert ~150 ms) - braucht denselben Vorlauf.
+1. ~~Schneller Weg für Transport-Befehle~~ - erledigt (#472, 11-130 ms). `PLAY_LEAD_MS` bleibt 400 ms; nach mehr Messungen (`journalctl --user -u stageboard | grep "Show state reached device"`) ggf. kürzen.
+2. **Fortsetzen nach Pause** und **nahtlose Übergänge** (#232, `skipCountIn`) starten weiter „jetzt“ (Track ~150 ms später) - brauchen einen eigenen Vorlauf (bei nahtlos: Start schon vor dem Ende des Vorgängers planen).
+2a. **Setlist-Köpfe vorab dekodieren** (erste 1,5 s jedes Setlist-Songs, ~0,6 MB je Song) ist gebaut, aber geparkt (`git stash`, „setlist head cache“) - die Songs waren rechtzeitig bereit, Ursache war der fehlende Vorlauf. Wieder aufnehmen, falls Vorbereitungszeiten auf langsamen Geräten (Fire) zu lang sind.
 3. **Prüfspur + Mitschnitt:** Testtrack mit Marke bei 0,000 s und Pieps alle 100 ms mit eigener Tonhöhe (WAV, MP3, AAC, Opus); Mitschnitt dessen, was der Motor ausgibt, um „beginnt genau bei 0 und ist vollständig“ je Format zu messen. Danach der echte Ausgang im Synchronitätstest (docs/17/18).
 4. **Fire HD 10:** neue App, Codecs prüfen (WebView 138), Speicher, Last (#457/#460).
 5. **Klangqualität beim Umrechnen** 44,1 → 48 kHz (die Stücke werden von der Web-Audio-Quelle umgerechnet) - Hörvergleich.
 6. **Hintergrund / Bildschirm aus**, **Android-Audiofokus** (Anruf), Ausgabewechsel mitten im Song (Bluetooth an/aus).
 7. **Solo und Timeline** auf den neuen Motor umstellen; danach `<audio>`-Pfad und #469-Nachführung zurückbauen.
-8. Zwei Neustarts kurz nach Song-Beginn (0,7-2,3 s) sind noch ungeklärt - mit dem Start-Trace ansehen.
+8. Einzelne Neustarts kurz nach Song-Beginn (0,7-2,3 s, früher gesehen) - seit #473 nicht mehr aufgetreten; beobachten.
+9. Die Einzählung nach „Weiter“ fehlte bisher ganz (gleiche Ursache wie Nr. 15) - mit diesem Fix zählt jeder neue Durchgang ein, wenn die Variante eine Einzählung hat.

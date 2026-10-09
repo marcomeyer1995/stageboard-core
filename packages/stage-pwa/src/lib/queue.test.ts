@@ -73,6 +73,20 @@ describe('Gig transport timestamps (server time, not the Master\'s own clock)', 
     expect(elapsed()).toBe(0)
   })
 
+  it('a Play right after Weiter (entry already stamped) also starts ahead of time - not "now" (2026-10-10)', async () => {
+    state = { ...state, activeEntryStartedAt: getServerTime() - 1000, playbackStatus: 'stopped', playbackAccumulatedMs: 0, playbackStartedAt: null }
+    useShowStateStore.setState({ state })
+    await playSong()
+    expect(elapsed()).toBe(-PLAY_LEAD_MS)
+  })
+
+  it('a resume from Pause continues where it was, without a lead', async () => {
+    state = { ...state, activeEntryStartedAt: getServerTime() - 5000, playbackStatus: 'paused', playbackAccumulatedMs: 3000, playbackStartedAt: null }
+    useShowStateStore.setState({ state })
+    await playSong()
+    expect(elapsed()).toBe(3000)
+  })
+
   it('pauses at the elapsed time every tablet saw', async () => {
     await playSong()
     vi.advanceTimersByTime(3000)

@@ -141,7 +141,12 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const now = getServerTime()
 
   const isFreshStart = state.activeEntryStartedAt === null
-  const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
+  // A new take - after Weiter/Zurück as much as after Stop - gets the count-in and the
+  // ahead-of-time lead; only a resume from Pause continues where it was. Keyed on
+  // activeEntryStartedAt, a Play right after Weiter (which already stamps it) had neither: the
+  // track came in 160-300 ms into the song on 26 of 30 starts (2026-10-10, #468).
+  const isNewTake = state.playbackStatus === 'stopped'
+  const seedCountIn = isNewTake && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
   // Ahead-of-time start (docs/00 §4, #468): song time 0 lies at least PLAY_LEAD_MS in the future,
   // so every device - this one included - learns about Play before it must sound and can start
