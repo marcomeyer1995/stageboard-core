@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { CAPABILITIES } from 'shared-types'
 import { BackupManager } from './BackupManager'
 import { BandManagementView } from './BandManagementView'
 import { DeviceLedgerView } from './DeviceLedgerView'
@@ -7,8 +6,6 @@ import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
 import { PostShowReport } from './PostShowReport'
 import { SystemSettings } from './SystemSettings'
-import { capabilityStatusFor } from '../lib/capabilities'
-import { useCapabilities } from '../lib/useCapabilities'
 import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 import { DebugConsoleView } from './DebugConsoleView'
@@ -58,19 +55,13 @@ function useIsWideScreen(): boolean {
  * App.tsx's mode switch instead of many, with its own tab bar here - none of this is touched
  * during a live show, so it doesn't need to cost rows in the main menu just to be reachable.
  *
- * Backup is the only tab still capability-gated (matches BackupManager.tsx's own doc comment:
- * StageBoard never triggers a backup itself, only reports on an installed plugin) - everything
- * else is always relevant regardless of what's installed.
+ * Backup is always there: the Stage-Server's own backup targets (admins, #363) and local snapshots.
  */
 export function SystemView() {
-  const capabilities = useCapabilities()
-  const hasBackup = capabilityStatusFor([CAPABILITIES.backup], capabilities) !== 'missing'
   // Live-Debug-Console (#14) only for crew and admins - nothing a musician needs on stage.
   const roles = useActiveProfile()?.stageRoles ?? []
   const showDebug = roles.includes('admin') || roles.includes('crew')
-  const baseTabs: SystemTab[] = hasBackup
-    ? ['band', 'plugins', 'hardware', 'devices', 'backup', 'post-show', 'settings']
-    : ['band', 'plugins', 'hardware', 'devices', 'post-show', 'settings']
+  const baseTabs: SystemTab[] = ['band', 'plugins', 'hardware', 'devices', 'backup', 'post-show', 'settings']
   const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('band')
   const activeTab = tabs.includes(tab) ? tab : 'band'

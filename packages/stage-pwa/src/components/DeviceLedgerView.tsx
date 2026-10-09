@@ -10,6 +10,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
 import { ActionMenu, Badge, Button } from './ui'
+import { BackupStatusLine } from './BackupStatusLine'
 
 /** How long the Stage-Server has to collect reports before a missing one means "inactive". */
 const COLLECT_MS = 5 * 60 * 1000
@@ -165,6 +166,7 @@ export function DeviceLedgerView() {
               </span>
               <span>Stage-Server</span>
               <span>Aktive Band: {stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? 'keine'}</span>
+              <BackupStatusLine />
             </>
           ) : (
             <span className="text-ink-faint">
