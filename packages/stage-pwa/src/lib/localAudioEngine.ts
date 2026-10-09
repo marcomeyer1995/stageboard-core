@@ -88,7 +88,7 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
       currentObjectUrl = preloaded.objectUrl
       preloaded = null
       activeKey = key
-      audioEl.currentTime = atMs / 1000
+      seekTo(audioEl, atMs)
       return { status: 'ok' }
     }
     const blob = await getTrack(variantId, trackId)
@@ -99,7 +99,7 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
 
     const audio = getAudioEl()
     audio.src = currentObjectUrl
-    audio.currentTime = atMs / 1000
+    seekTo(audio, atMs)
     activeKey = key
     return { status: 'ok' }
   })()
@@ -137,7 +137,7 @@ export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   const audio = getAudioEl()
   // A Play right after Stop/Pause must not be cut off by that fade's closing pause().
   cancelFade(audio)
-  audio.currentTime = atMs / 1000
+  seekTo(audio, atMs)
   try {
     await audio.play()
     return { status: 'ok' }
@@ -184,25 +184,84 @@ export function pauseLocalTrack(): void {
   fadeOutAndPause(getAudioEl())
 }
 
-/** How far `audio.currentTime` may drift from the synced position before we forcibly correct
- * it - large enough that normal, inaudible native-`<audio>` clock jitter never triggers a seek
- * (a seek itself is a small audible glitch), small enough that the backing track can't
- * noticeably drift out of alignment with the click track or another tablet's copy of the same
- * file over a long song. */
-const DRIFT_CORRECTION_THRESHOLD_MS = 200
+/** Above this a seek is the only sensible correction (a song jumped, a late join) - below it the
+ * track catches up through a slightly different speed instead. */
+const SEEK_THRESHOLD_MS = 1000
+/** Never two seeks closer together than this - a seek is an audible glitch. */
+const MIN_SEEK_INTERVAL_MS = 3000
+/** Drift this small is native `<audio>` jitter (±15 ms measured, #468) - left alone. */
+const DEADBAND_MS = 40
+/** Speed correction: the drift is worked off in about this long, at most `MAX_RATE_OFFSET` off
+ * normal speed (with pitch kept, a few percent is inaudible on a backing track). */
+const CATCH_UP_MS = 2000
+const MAX_RATE_OFFSET = 0.05
+/** After a start or seek, the position counts as running again once it advanced at least half
+ * as fast as the wall clock over this long; at the latest after `SETTLE_TIMEOUT_MS`. */
+const SETTLE_WINDOW_MS = 150
+const SETTLE_TIMEOUT_MS = 3000
 
-/** Re-locks `audio.currentTime` to the synced master clock if (and only if) it has drifted past
- * the threshold - the backing-track equivalent of clickEngine.ts's scheduler continuously
- * re-anchoring to `elapsedMs` every tick. Meant to be called periodically (useAudioOutputDriver.ts)
- * while this device is the claimed local output and actively playing - a native `<audio>`
- * element isn't guaranteed sample-accurate or perfectly clock-locked, and nothing else ever
- * re-checks it once playback starts (found live, 2026-09-10: the backing track and the click
- * had no ongoing synchronization with each other, or with another tablet's own copy, at all). */
+/** Where the current element stands after its last start/seek (#468). `null` = not yet seen. */
+let tracking: { audio: HTMLAudioElement; seekAt: number; settled: boolean; probe: { at: number; positionMs: number } | null } | null = null
+
+function now(): number {
+  return performance.now()
+}
+
+/** Every start and seek goes through here, so the correction knows to wait for it (#468). */
+function seekTo(audio: HTMLAudioElement, atMs: number): void {
+  audio.currentTime = atMs / 1000
+  audio.playbackRate = 1
+  tracking = { audio, seekAt: now(), settled: false, probe: null }
+}
+
+/** Whether the position runs again after the last start/seek - measured on 2026-10-09 (#468):
+ * on a Galaxy S26+ over Bluetooth the position stood still for 0-620 ms after every start or
+ * seek, then ran at exactly normal speed. */
+function hasSettled(audio: HTMLAudioElement, t: number): boolean {
+  if (!tracking || tracking.audio !== audio) {
+    tracking = { audio, seekAt: t, settled: true, probe: null }
+    return true
+  }
+  if (tracking.settled) return true
+  const positionMs = audio.currentTime * 1000
+  if (t - tracking.seekAt >= SETTLE_TIMEOUT_MS) tracking.settled = true
+  else if (!tracking.probe) tracking.probe = { at: t, positionMs }
+  else if (t - tracking.probe.at >= SETTLE_WINDOW_MS) {
+    const advanced = positionMs - tracking.probe.positionMs
+    if (advanced >= (t - tracking.probe.at) / 2) tracking.settled = true
+    else tracking.probe = { at: t, positionMs }
+  }
+  return tracking.settled
+}
+
+/** Keeps the local track on the synced master clock while playing - the backing-track
+ * equivalent of clickEngine.ts's scheduler re-anchoring to `elapsedMs` every tick. Called on
+ * every frame (useAudioOutputDriver.ts) while this device is the claimed local output - a native
+ * `<audio>` element isn't clock-locked, and nothing else re-checks it once playback starts (found
+ * live, 2026-09-10).
+ *
+ * It used to seek whenever the drift passed 200 ms. On an output that needs a moment to start
+ * after a seek (Bluetooth on the S26+: up to 620 ms) every seek caused the next one - 195 seeks
+ * in 45 s, heard as constant stutter (#468). Now: after a start or seek it waits until the
+ * position runs again; then small drift is worked off by speed (pitch kept), and only a drift
+ * over a second still seeks, at most every 3 s. */
 export function syncLocalTrackPosition(atMs: number): void {
   const audio = getAudioEl()
   if (audio.paused) return
+  const t = now()
+  if (!hasSettled(audio, t)) return
   const driftMs = audio.currentTime * 1000 - atMs
-  if (Math.abs(driftMs) > DRIFT_CORRECTION_THRESHOLD_MS) audio.currentTime = atMs / 1000
+  if (Math.abs(driftMs) > SEEK_THRESHOLD_MS && t - (tracking?.seekAt ?? -Infinity) >= MIN_SEEK_INTERVAL_MS) {
+    seekTo(audio, atMs)
+    return
+  }
+  const offset = Math.abs(driftMs) <= DEADBAND_MS ? 0 : Math.max(-MAX_RATE_OFFSET, Math.min(MAX_RATE_OFFSET, -driftMs / CATCH_UP_MS))
+  // In 1 % steps, so the rate changes now and then rather than on every frame.
+  const rate = 1 + Math.round(offset * 100) / 100
+  if (audio.playbackRate !== rate) {
+    audio.preservesPitch = true
+    audio.playbackRate = rate
+  }
 }
 
 /** This tablet's own loaded track's length, once the browser has parsed its metadata - `null`
@@ -253,6 +312,8 @@ export function __resetLocalAudioForTests(): void {
   cancelFade(audio)
   audio.pause()
   audio.currentTime = 0
+  audio.playbackRate = 1
+  tracking = null
 }
 
 export function __getAudioElForTests(): HTMLAudioElement {
