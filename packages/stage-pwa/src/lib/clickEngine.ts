@@ -1,4 +1,6 @@
 import type { ClickTimeline } from './beatGrid'
+import { createAudioClock } from './audioClock'
+import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -29,7 +31,6 @@ export interface ClickEngineState {
   loop?: { startMs: number; endMs: number } | null
 }
 
-let audioContext: AudioContext | null = null
 let intervalId: ReturnType<typeof setInterval> | null = null
 /** The next not-yet-scheduled beat (its number on the timeline) and its song time. On a rigid
  * grid (≥ 2 points) the time is read from the grid for every beat - exact, and a grid edited
@@ -54,33 +55,10 @@ let nextBeatAudioTime: number | null = null
  * Catches real discontinuities the stall/wrap checks don't, e.g. a clock-sync offset update. */
 const AUDIO_TIME_TOLERANCE_S = 0.05
 
-/** Recent readings of `currentTime - wall clock`, s. The band's Fire tablet advances
- * `currentTime` in 64 ms steps (sometimes 128/192 ms - measured 2026-09-27, output latency
- * 260 ms), so a single reading can be up to ~130 ms behind the real audio clock: converting with
- * it tripped AUDIO_TIME_TOLERANCE_S every few beats, and each re-derivation was an audible jump.
- * Right after a step the reading is exact, so the upper edge of the recent readings tracks the
- * true clock; the window keeps the edge current if the clock pauses or drifts. */
-const clockOffsets: number[] = []
-const CLOCK_WINDOW = 40 // ticks, ~2 s
-/** The previous reading and whether the clock moved within the window - a clock that isn't
- * running (a context not resumed yet) is read as-is, not extrapolated along the wall clock. */
-let lastClockReading: number | null = null
-let ticksSinceClockMoved = Infinity
-
-/** The audio clock's current time, smoothed over its step size (see `clockOffsets`). */
-function smoothedAudioNow(ctx: AudioContext): number {
-  const now = ctx.currentTime
-  ticksSinceClockMoved = lastClockReading !== null && now > lastClockReading ? 0 : ticksSinceClockMoved + 1
-  lastClockReading = now
-  if (ticksSinceClockMoved > CLOCK_WINDOW) {
-    clockOffsets.length = 0
-    return now
-  }
-  const wall = Date.now() / 1000
-  clockOffsets.push(now - wall)
-  if (clockOffsets.length > CLOCK_WINDOW) clockOffsets.shift()
-  return Math.max(now, wall + Math.max(...clockOffsets))
-}
+/** The audio clock, smoothed over its step size (audioClock.ts) - converting with a single raw
+ * reading tripped AUDIO_TIME_TOLERANCE_S every few beats on the Fire, each re-derivation an
+ * audible jump (2026-09-27). */
+const audioClock = createAudioClock()
 
 /** How large a jump in `elapsedMs` between two consecutive ticks counts as "the browser stalled
  * this tab's timers," not just normal scheduling - comfortably above the ~TICK_INTERVAL_MS gap a
@@ -93,8 +71,7 @@ function smoothedAudioNow(ctx: AudioContext): number {
 const RESYNC_GAP_MS = 500
 
 function getAudioContext(): AudioContext {
-  if (!audioContext) audioContext = new AudioContext()
-  return audioContext
+  return getSharedAudioContext()
 }
 
 /** One click burst: a short, fast-decaying oscillator tone - higher-pitched and louder on the
@@ -148,7 +125,7 @@ function tick(getState: () => ClickEngineState): void {
   lastTickElapsedMs = elapsedMs
 
   const ctx = getAudioContext()
-  const audioNow = smoothedAudioNow(ctx)
+  const audioNow = audioClock.now(ctx)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
   const lookaheadSongMs = LOOKAHEAD_MS * playbackRate
   while (nextBeat !== null) {
@@ -190,9 +167,7 @@ export function stopClick(): void {
   intervalId = null
   nextBeat = null
   nextBeatAudioTime = null
-  clockOffsets.length = 0
-  lastClockReading = null
-  ticksSinceClockMoved = Infinity
+  audioClock.reset()
   lastTickElapsedMs = null
 }
 
@@ -200,5 +175,5 @@ export function stopClick(): void {
  * otherwise has no way to reset its module-level scheduler state between tests. */
 export function __resetClickEngineForTests(): void {
   stopClick()
-  audioContext = null
+  __resetSharedAudioContextForTests()
 }

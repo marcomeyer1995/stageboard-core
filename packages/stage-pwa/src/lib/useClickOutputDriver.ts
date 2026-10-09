@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
+import { holdAudioOutputAwake } from './sharedAudioContext'
 import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm, effectiveClickEnabled } from './metronome'
 import { useCapabilityRouting } from './useCapabilityRouting'
@@ -102,6 +103,14 @@ export function useClickOutputDriver(): void {
       ...loopClickState(loopActive),
     }
   })
+
+  // The click's output stays awake between songs, or a Bluetooth/wireless output would swallow the
+  // first clicks while waking up (sharedAudioContext.ts, #468).
+  const holdsOutput = isMyDeviceClickOutput && enabled
+  useEffect(() => {
+    holdAudioOutputAwake('click', holdsOutput)
+    return () => holdAudioOutputAwake('click', false)
+  }, [holdsOutput])
 
   useEffect(() => {
     if (!shouldPlay) {

@@ -7,6 +7,14 @@ import { playLocalTrack } from '../lib/localAudioEngine'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
+vi.mock('../lib/webAudioTrackEngine', () => ({
+  webAudioTrackEnabled: () => false,
+  loadWebAudioTrack: vi.fn(),
+  preloadWebAudioTrack: vi.fn(),
+  syncWebAudioTrack: vi.fn(() => ({ blocked: false })),
+  unloadWebAudioTrack: vi.fn(),
+  resumeWebAudio: vi.fn(),
+}))
 vi.mock('../lib/localAudioEngine', () => ({ playLocalTrack: vi.fn() }))
 vi.mock('../lib/clockSync', () => ({ getServerTime: vi.fn() }))
 // Deliberately not useShowMode/useQueue - the whole point of this rewrite (found live,

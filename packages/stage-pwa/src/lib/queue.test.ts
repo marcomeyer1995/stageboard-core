@@ -20,7 +20,7 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-const { playSong, pauseSong } = await import('./queue')
+const { playSong, pauseSong, PLAY_LEAD_MS } = await import('./queue')
 const { computeActiveMs } = await import('./playbackTransport')
 const { getServerTime } = await import('./clockSync')
 const { useClockSyncStore } = await import('../store/useClockSyncStore')
@@ -61,8 +61,16 @@ describe('Gig transport timestamps (server time, not the Master\'s own clock)', 
     expect(state.activeEntryStartedAt).toBe(Date.now() - 2126)
 
     vi.advanceTimersByTime(500)
-    // With Date.now() the clock stood at 0 for 2.1 s (max(0, serverNow - localStart)).
-    expect(elapsed()).toBe(500)
+    // With Date.now() the clock stood at 0 for 2.1 s (max(0, serverNow - localStart)). Song time
+    // starts PLAY_LEAD_MS before 0 (ahead-of-time start, #468).
+    expect(elapsed()).toBe(500 - PLAY_LEAD_MS)
+  })
+
+  it('starts a fresh song ahead of time: song time 0 lies PLAY_LEAD_MS after Play, so every device can start exactly on it (#468)', async () => {
+    await playSong()
+    expect(elapsed()).toBe(-PLAY_LEAD_MS)
+    vi.advanceTimersByTime(PLAY_LEAD_MS)
+    expect(elapsed()).toBe(0)
   })
 
   it('pauses at the elapsed time every tablet saw', async () => {
@@ -70,6 +78,6 @@ describe('Gig transport timestamps (server time, not the Master\'s own clock)', 
     vi.advanceTimersByTime(3000)
     await pauseSong()
     expect(state.playbackStatus).toBe('paused')
-    expect(state.playbackAccumulatedMs).toBe(3000)
+    expect(state.playbackAccumulatedMs).toBe(3000 - PLAY_LEAD_MS)
   })
 })
