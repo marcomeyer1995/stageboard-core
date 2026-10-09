@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import * as showStatePushHub from './showStatePushHub.js'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, Server as HttpsServer } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -1617,6 +1618,48 @@ describe('Fastify routes', () => {
         { workspaceId: 'band-a', workspaceName: 'Band A' },
         { workspaceId: 'band-c', workspaceName: 'Band C' },
       ])
+    })
+  })
+
+  describe('show-state push (#468)', () => {
+    const basic = (username: string, password: string) => ({ authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` })
+    const session = (name: string) => vi.fn(async () => new Response(JSON.stringify({ ok: true, userCtx: { name, roles: ['member'] } }), { status: 200 }))
+    const push = { deviceId: 'tablet-1', issuedAt: 1_000, patch: { playbackStatus: 'playing', playbackStartedAt: 1_400, playbackAccumulatedMs: 0 } }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('only takes pushes from a device signed in to this band', async () => {
+      const send = (headers: Record<string, string>) => app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })
+      expect((await send({})).statusCode).toBe(401)
+      expect((await send(basic('stageboard-band-b-p9~d9', 'pw'))).statusCode).toBe(401) // another band's device
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
+      expect((await send(basic('stageboard-band-a-p9~d9', 'wrong'))).statusCode).toBe(401)
+    })
+
+    it('passes the change to every device of the band at once, and checks a login only once', async () => {
+      const fetchMock = session('stageboard-band-a-p7~d7')
+      vi.stubGlobal('fetch', fetchMock)
+      const received: unknown[] = []
+      const other: unknown[] = []
+      const off = showStatePushHub.subscribe('band-a', (event) => received.push(event))
+      const offOther = showStatePushHub.subscribe('band-b', (event) => other.push(event))
+      const headers = basic('stageboard-band-a-p7~d7', 'pw')
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: push, headers })).statusCode).toBe(204)
+      expect(received).toEqual([push, push])
+      expect(other).toEqual([])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      off()
+      offOther()
+    })
+
+    it('rejects a malformed push and takes the arrival reports', async () => {
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/push', payload: { patch: {} } })).statusCode).toBe(400)
+      const ack = { deviceId: 'tablet-2', issuedAt: 1_000, receivedAt: 1_035, via: 'push' }
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/ack', payload: ack })).statusCode).toBe(204)
+      expect((await app.inject({ method: 'POST', url: '/workspaces/band-a/show-state/ack', payload: { ...ack, via: 'mail' } })).statusCode).toBe(400)
     })
   })
 

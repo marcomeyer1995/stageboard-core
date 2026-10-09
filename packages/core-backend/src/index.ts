@@ -39,7 +39,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -58,6 +58,7 @@ import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
+import * as showStatePushHub from './showStatePushHub.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
@@ -307,6 +308,10 @@ async function verifyAdminPin(couch: CouchConfig, workspaceId: string, profileId
  * (#129's `http2: true` + `allowHTTP1: true`) - `request.raw.httpVersionMajor` tells us which
  * protocol this particular request actually negotiated.
  */
+/** Band logins already verified (key: workspace + Authorization header), until when (ms). */
+const verifiedBandLogins = new Map<string, number>()
+const BAND_LOGIN_CACHE_MS = 10 * 60 * 1000
+
 function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
   reply.hijack()
   for (const [name, value] of Object.entries(reply.getHeaders())) {
@@ -347,6 +352,18 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     user: process.env.COUCHDB_USER ?? 'admin',
     password: process.env.COUCHDB_PASSWORD ?? 'admin',
   }
+  /** Whether `authorization` is a login of this band (its CouchDB user) - remembered for
+   * BAND_LOGIN_CACHE_MS, so a Play doesn't wait for a database round trip each time. */
+  async function isBandDevice(workspaceId: string, authorization: string | undefined): Promise<boolean> {
+    const key = `${workspaceId}|${authorization ?? ''}`
+    if ((verifiedBandLogins.get(key) ?? 0) > Date.now()) return true
+    const login = basicAuthCredentials(authorization)
+    if (!login || !login.username.startsWith(`${workspaceDbName(workspaceId)}-`)) return false
+    if ((await verifyUser(couch, login.username, login.password)) === null) return false
+    verifiedBandLogins.set(key, Date.now() + BAND_LOGIN_CACHE_MS)
+    return true
+  }
+
 
   // HTTP/2 (#129): browsers only ever negotiate h2 over TLS (ALPN), so this only applies to the
   // HTTPS branch - the plain-HTTP fallback below (no certs generated yet) stays HTTP/1.1, same
@@ -540,6 +557,47 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     const flash = presenceStore.setFlash(workspaceId, parsed.data.text, parsed.data.from, parsed.data.to)
     app.log.info({ workspaceId, flashId: flash.id, from: flash.from, to: flash.to ?? 'all', remoteAddress: request.ip }, 'Flash message sent')
     return reply.status(201).send(flash)
+  })
+
+  // Fast lane for the master's show-state changes (#468): Play, Pause, Stop, Weiter reach every
+  // device at once instead of through database replication (up to 1 s from the Fire). The database
+  // write still happens on the master; devices keep whichever copy is newer (stateIssuedAt).
+  app.get('/workspaces/:workspaceId/show-state/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    beginSseStream(request, reply)
+    const unsubscribe = showStatePushHub.subscribe(workspaceId, (push) => {
+      reply.raw.write(`data: ${JSON.stringify(push)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/show-state/push', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = ShowStatePushSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    // Only a device of this band may change what every tablet plays - its own CouchDB login, as for
+    // flash messages. Checked logins are remembered for a while: this is on the Play path.
+    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Show-state push refused - not signed in to this band')
+      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can push the show state' })
+    }
+    const devices = showStatePushHub.broadcast(workspaceId, parsed.data)
+    app.log.info({ workspaceId, deviceId: parsed.data.deviceId, issuedAt: parsed.data.issuedAt, receivedMs: Date.now() - parsed.data.issuedAt, keys: Object.keys(parsed.data.patch), devices }, 'Show state pushed')
+    return reply.status(204).send()
+  })
+
+  // Each device reports when a change reached it - the measurement behind PLAY_LEAD_MS.
+  app.post('/workspaces/:workspaceId/show-state/ack', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = ShowStatePushAckSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    const { deviceId, deviceName, issuedAt, receivedAt, via } = parsed.data
+    app.log.info({ workspaceId, deviceId, deviceName, issuedAt, via, delayMs: Math.round(receivedAt - issuedAt), remoteAddress: request.ip }, 'Show state reached device')
+    return reply.status(204).send()
   })
 
   // Ready Check answers (#60): a tablet says "this profile is ready" for the check the Master opened

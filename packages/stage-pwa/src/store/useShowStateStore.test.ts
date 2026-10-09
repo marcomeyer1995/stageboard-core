@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SHOW_STATE, type ShowState } from 'shared-types'
 import { drivesAutomation, useShowStateStore } from './useShowStateStore'
-import { getShowState, putShowState } from '../lib/showStateDb'
+import { getShowState, putShowState, showStateChanges } from '../lib/showStateDb'
+import { pushShowState, reportShowStateArrival, subscribeToShowStatePush } from '../lib/showStatePush'
 
 vi.mock('../lib/deviceId', () => ({ getDeviceId: () => 'me' }))
+vi.mock('../lib/showStatePush', () => ({ pushShowState: vi.fn(), reportShowStateArrival: vi.fn(), subscribeToShowStatePush: vi.fn(() => () => {}) }))
 vi.mock('../lib/showStateDb', () => ({
   getShowState: vi.fn(),
   putShowState: vi.fn(),
@@ -134,3 +136,53 @@ describe('master self-check gating (#378 option B)', () => {
   })
 })
 
+
+describe('fast lane for show-state changes (#468)', () => {
+  let onPush: (push: { deviceId: string; issuedAt: number; patch: Partial<ShowState> }) => void = () => {}
+  let onDbChange: () => Promise<void> = async () => {}
+
+  beforeEach(async () => {
+    vi.mocked(putShowState).mockReset().mockResolvedValue(undefined)
+    vi.mocked(pushShowState).mockReset()
+    vi.mocked(reportShowStateArrival).mockReset()
+    vi.mocked(getShowState).mockReset().mockResolvedValue({ ...DEFAULT_SHOW_STATE, stateIssuedAt: 100 })
+    vi.mocked(showStateChanges).mockReturnValue({ on: (_event: string, cb: () => Promise<void>) => (onDbChange = cb), cancel: vi.fn() } as never)
+    vi.mocked(subscribeToShowStatePush).mockImplementation((_ws, cb) => {
+      onPush = cb as typeof onPush
+      return () => {}
+    })
+    useShowStateStore.setState({ deviceId: 'me', masterIdentity: 'me', selfCheck: 'ok' })
+    await useShowStateStore.getState().init('band')
+  })
+
+  it('the master pushes every change through the Stage-Server and stamps it, then writes the database', async () => {
+    useShowStateStore.setState({ isMaster: true, holdsToken: true })
+    await useShowStateStore.getState().applyPatch({ playbackStatus: 'playing' })
+    const push = vi.mocked(pushShowState).mock.calls[0]
+    expect(push[0]).toBe('band')
+    expect(push[1]).toMatchObject({ deviceId: 'me', patch: { playbackStatus: 'playing' } })
+    expect(putShowState).toHaveBeenCalledWith(expect.objectContaining({ playbackStatus: 'playing', stateIssuedAt: push[1].issuedAt }))
+  })
+
+  it('another device applies a pushed Play at once and reports when it arrived', () => {
+    onPush({ deviceId: 'fire', issuedAt: 200, patch: { playbackStatus: 'playing', playbackStartedAt: 600, stateIssuedAt: 200 } })
+    expect(useShowStateStore.getState().state.playbackStatus).toBe('playing')
+    expect(reportShowStateArrival).toHaveBeenCalledWith('band', expect.objectContaining({ deviceId: 'me', issuedAt: 200, via: 'push' }))
+  })
+
+  it('a late replication of an older state does not undo a pushed change; once it catches up it takes over', async () => {
+    onPush({ deviceId: 'fire', issuedAt: 200, patch: { playbackStatus: 'playing', stateIssuedAt: 200 } })
+    vi.mocked(getShowState).mockResolvedValue({ ...DEFAULT_SHOW_STATE, playbackStatus: 'stopped', stateIssuedAt: 100 })
+    await onDbChange()
+    expect(useShowStateStore.getState().state.playbackStatus).toBe('playing')
+    vi.mocked(getShowState).mockResolvedValue({ ...DEFAULT_SHOW_STATE, playbackStatus: 'paused', stateIssuedAt: 300 })
+    await onDbChange()
+    expect(useShowStateStore.getState().state.playbackStatus).toBe('paused')
+  })
+
+  it('ignores its own pushes and pushes older than what it has', () => {
+    onPush({ deviceId: 'me', issuedAt: 500, patch: { playbackStatus: 'playing' } })
+    onPush({ deviceId: 'fire', issuedAt: 50, patch: { playbackStatus: 'playing' } })
+    expect(useShowStateStore.getState().state.playbackStatus).toBe('stopped')
+  })
+})
