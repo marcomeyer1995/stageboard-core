@@ -24,7 +24,7 @@ Werte aus docs/13 §7 (Lautsprecher, 2026-09-28) und den Messungen vom 2026-10-0
 | Nr. | Hypothese | Erwartung |
 |---|---|---|
 | H1 | Im **Timeline-Editor** folgt der Klick der Track-Position: Versatz ≈ Unterschied der Ausgabewege des Geräts, stabil. | Xiaomi: Klick ~100–160 ms vor dem Track; Fire: Klick ~50–100 ms nach dem Track; Laptop: ~0–10 ms |
-| H2 | In **Solo und Gig** folgt der Track der Songzeit, wird aber erst ab 200 ms Abweichung nachgeführt - der Versatz liegt dauerhaft im Bereich bis ±200 ms, je Gerät verschieden. | |Versatz| 50–200 ms, je Gerät konstant |
+| H2 | In **Solo und Gig** folgt der Track der Songzeit, wird aber erst ab 200 ms Abweichung nachgeführt - der Versatz liegt dauerhaft im Bereich bis ±200 ms, je Gerät verschieden. **Mit #469** (Gig): Nachführung über die Geschwindigkeit ab 40 ms, Seek erst ab 1 s - Positionsabweichung im Gig < 40 ms; Solo führt weiterhin nicht nach. | main: |Versatz| 50–200 ms; #469 (Gig): Position < 40 ms, der Rest ist Ausgabeweg |
 | H3 | Auf dem **Xiaomi mit main** sägt der Track (fällt ~35 ms/s zurück, Sprung bei −200 ms); mit **#460** nicht. | main: ≥ 5 Sprünge/40 s; #460: 0 |
 | H4 | **Zwischen Geräten** liegen die Klicks so weit auseinander wie ihre Ausgabewege (bis ~370 ms Fire gegen Xiaomi), der Uhrabgleich selbst trägt < 10 ms bei. | Klick A gegen Klick B bis ~370 ms |
 | H5 | **Tempowechsel, Ritardando, Taktartwechsel, Pause** erzeugen keinen zusätzlichen Fehler - außer im Takt mit Wechsel innerhalb des Takts. | Abschnitte wie „gleichmäßig“ ± 2 ms |
@@ -33,6 +33,7 @@ Werte aus docs/13 §7 (Lautsprecher, 2026-09-28) und den Messungen vom 2026-10-0
 | H8 | **Netzlast** verschiebt den Klick nicht (lokal geplant), kann aber die Track-Nachführung stören. | Klick unverändert, Track ggf. Sprünge |
 | H9 | **Bildschirm aus** hält den Klick an oder verschiebt ihn (bewusst so entschieden, „Synchron vor Hintergrund“). | Klick stoppt/Lücke, danach Wiedereinstieg |
 | H10 | **Server-Hardware** (Laptop vs. Mini-PC) beeinflusst nur den Uhrabgleich, nicht die Ausgabe. | Unterschied < 5 ms |
+| H11 | **Bluetooth** (Fender Mustang Micro Plus) addiert eine große, feste Verzögerung je Gerät; nach jedem Start/Seek steht die Position zusätzlich eine wechselnde Anlaufzeit still (S26+: 0–620 ms gemessen, #468). Mit #469 springt der Track im Gig nicht mehr; ohne #469 sägt er. | Versatz gegen Kabel 150–350 ms je Gerät, Streuung je Start bis ~600 ms, danach stabil; main ohne #469: Sprung alle ~230 ms |
 
 ## 3. Einflussgrößen
 
@@ -171,8 +172,14 @@ Referenz-Song mit vier Cues (Takt 9, 17, 29, 53). **Bewertung:** Cue gegen den S
 - S2 und S3 je Gerät mit **main** und **#460**, jeweils **Browser** und **Android-App**.
 - Reihenfolge ABBA (main, #460, #460, main), damit ein zeitlicher Trend nicht als Unterschied erscheint.
 
-### S12 Bluetooth-Kopfhörer (informativ)
-- Ein Gerät mit BT-Kopfhörer; Kopfhörer-Ausgang per Mikrofon/Klinke-Adapter in den Ui24R, wenn möglich, sonst Mikrofon am Hörer. Erwartet: 150–300 ms - die Frage ist nur, ob man BT auf der Bühne ausschließen muss.
+### S12 Bluetooth: Fender Mustang Micro Plus (Marco, 2026-10-09)
+Anlass: #468 - im Gig sägte der Track am S26+ über Bluetooth (Seek-Schleife), behoben mit #469. Der Mustang Micro Plus ist ein echtes Bühnen-/Probengerät (Gitarrist hört Track und Klick darüber), deshalb nicht mehr nur informativ.
+- **Aufbau (P5):** Gerät → Bluetooth → Mustang Micro Plus → dessen Kopfhörerausgang (3,5 mm) → Ui24R Kanal 12. Gitarreneingang des Mustang leer bzw. stumm, Effekte aus, Lautstärke am Mustang fest (notieren). Zum Vergleich dasselbe Gerät gleichzeitig per Kabel (P1/P2) auf seinem üblichen Kanal - Android gibt dann nur auf einen Ausgang aus, also **nacheinander**: Lauf mit Kabel, Lauf mit Mustang, Lauf mit Kabel.
+- **Geräte:** S26+ (Fall aus #468), Fire HD 10, Xiaomi-Tablet - je Gerät mit **#469** (und, falls noch vorhanden, ein Lauf main ohne #469 auf dem S26+ als Beleg der Seek-Schleife).
+- **Szenarien:** S2 (Solo) und S3 (Gig ein Gerät) je 2 Läufe; dazu 5 × Play/Stop/Play im Abstand von 10 s (Anlaufzeit je Start), 1 × Sprung zu einem anderen Abschnitt (Seek), 1 × Stop mitten im Song und Wiedereinstieg.
+- **Messen:** Versatz Klick und Track gegen den Kabel-Lauf desselben Geräts und gegen den Laptop-Bezug (Kanal 5); Streuung über die 5 Starts; Stabilität über den Song (Drift); Pieps-Aussetzer. Instrumentierung (§6) zusätzlich: Seeks und `playbackRate`-Wechsel des Audio-Elements (Hook auf den `currentTime`-Setter, wie bei #468), AudioFlinger-Underruns und Ausgabe-Latenz per `dumpsys media.audio_flinger`, Bluetooth-Codec und A2DP-Offload (`dumpsys bluetooth_manager`).
+- **Varianten (wenn Zeit):** S26+ mit A2DP-Hardware-Offload aus (Entwickleroptionen) - ändert das Anlaufzeit oder Versatz? Codec SBC gegen AAC, falls der Mustang beide kann.
+- **Frage dahinter:** Ist der BT-Versatz je Gerät so **fest**, dass ein Ausgleich (#302) ihn herausrechnen kann - oder streut er je Start so stark, dass Bluetooth für Klick im Gig ausgeschlossen werden muss (nur Track/Üben)?
 
 ### S13 Echtes Material
 - Referenz-Song mit Track „Drums“ statt der Pieps: Klick gegen Drum-Einsätze (Auswertung über Onsets wie docs/13 §6). Zeigt, ob die Pieps-Ergebnisse auf echte Musik übertragbar sind.
@@ -247,7 +254,7 @@ Hintergrund: Zwischen Klick und Musik hört man ab etwa 10–20 ms einen „Flam
 | C | S3, S4, S5 | 1,5 h |
 | D | S11 (#460, App/Browser) | 1,5 h |
 | E | S6, S7, S8 | 1,5 h |
-| F | S9, S10, S12, S13 | 1,5 h |
+| F | S9, S10, S12, S13 | 2 h (S12 mit drei Geräten über den Mustang) |
 | später | S14 (Langlauf), S15 (Dell) | eigene Termine |
 
 Realistisch zwei Termine à 4–5 h (A–C, dann D–F).

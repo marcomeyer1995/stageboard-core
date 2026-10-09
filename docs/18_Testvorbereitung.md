@@ -45,7 +45,7 @@ Für jeden Aufbau, den eine Band realistisch nutzen würde, eine **Zahl mit Fehl
 |---|---|
 | DMX-Kabel 3-pol XLR (Wandler → Moving-Head), ggf. Abschlusswiderstand 120 Ω | S17 |
 | Masseschleifen-Trenner 3,5 mm (2 Stück) | falls es brummt, wenn Laptop, Pult und Tablets gleichzeitig am Netz hängen |
-| Einfache Bluetooth-Kopfhörer | S12 (nur wenn geklärt werden soll, ob BT auf der Bühne geht) |
+| **Fender Mustang Micro Plus** (vorhanden) + Kabel 3,5 mm Klinke → 6,3 mm Klinke/XLR-DI ins Ui24R | S12 Bluetooth (#468) - Ladestand voll, Gitarreneingang stumm |
 
 ### 3.4 Später, nicht für den ersten Test
 
@@ -67,7 +67,7 @@ Jeder Ausgang, der gemessen wird, geht auf **einen eigenen Ui24R-Eingang**. Der 
 | **P2** | Handy USB-C → Klinkenadapter → Pult | Handy ohne Kopfhörerbuchse |
 | **P3** | Tablet → USB → **UMC204HD** → Pult | Tablet mit eigenem Audio-Interface (sauberer Pegel, symmetrisch) |
 | **P4** | Tablet → USB → **Ui24R** (als Soundkarte) | Tablet speist das Pult digital, ohne Kabel-DAC (nur wenn der Ui24R am Tablet funktioniert) |
-| **P5** | Tablet → Bluetooth-Kopfhörer | Musiker mit BT-In-Ear (nur informativ) |
+| **P5** | Gerät → Bluetooth → Fender Mustang Micro Plus → Kopfhörerausgang → Pult | Gitarrist hört Track/Klick über seinen Mustang (#468) |
 | **P6** | Stage-Server → UMC204HD/Ui24R → Pult | Klick/Track vom Server statt von einem Tablet - **heute nicht messbar**, der Server-Klick ist noch nicht gebaut (#25); wird nachgeholt |
 
 ### 4.3 Server-Varianten
@@ -285,6 +285,7 @@ Heute hat StageBoard für Licht nur ein **Platzhalter-Plugin** (`mock-lighting`,
 | 9 | Lichtsensor Scheinwerfer (S17) | Fotodiode, Phantom aus |
 | 10 | Lichtsensor Bildschirm A (S10) | Fotodiode, Phantom aus |
 | 11 | Lichtsensor Bildschirm B (S10) | Fotodiode, Phantom aus |
+| 12 | Fender Mustang Micro Plus (S12, Bluetooth) | Kopfhörerausgang 3,5 mm, Pegel niedrig anfangen |
 
 Für S16 wechselt jeweils **ein** Tablet von Kanal 1/3 auf das UMC204HD (Kanal 6), damit P1 und P3 desselben Geräts direkt verglichen werden.
 
