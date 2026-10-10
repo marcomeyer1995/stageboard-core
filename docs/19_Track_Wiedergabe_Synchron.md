@@ -68,7 +68,13 @@ Einstellungen → Dieses Gerät → „Wiedergabe (Test)“ → „Backing-Track
 ## 6. Offen
 
 1. ~~Schneller Weg für Transport-Befehle~~ - erledigt (#472, 11-130 ms). `PLAY_LEAD_MS` bleibt 400 ms; nach mehr Messungen (`journalctl --user -u stageboard | grep "Show state reached device"`) ggf. kürzen.
-2. **Fortsetzen nach Pause** und **nahtlose Übergänge** (#232, `skipCountIn`) starten weiter „jetzt“ (Track ~150 ms später) - brauchen einen eigenen Vorlauf (bei nahtlos: Start schon vor dem Ende des Vorgängers planen).
+2. **Fortsetzen nach Pause** startet weiter „jetzt“ - der Track setzt ~0,2 s nach der Pausenstelle ein. Klein (meist wird in Ansagen pausiert). Lösung: Fortsetzen mit Vorlauf, die Song-Zeit steht dabei 0,4 s still (sonst würde das Stück davor doppelt gespielt).
+2b. **Nahtlose Übergänge** (#232, `skipCountIn`) starten Song B erst, wenn A endet, und ohne Vorlauf - B kommt ~0,15-0,3 s zu spät. **Zurückgestellt (Marco, 2026-10-10, nicht in Benutzung):** genaues Timing allein macht den Übergang nicht gut. Heute wird B nur an das Dateiende von A gehängt; hat A Ausklang oder Stille am Ende, oder einen unvollständigen letzten Takt, holpert es trotzdem. Wer das angeht, beginnt mit der Frage nach dem **Takt**, nicht nach dem Timing:
+    - Wo setzt B ein: auf der nächsten Eins von A, nach N Takten, an einem festen Punkt in A? Grundlage ist das Beat-Raster beider Songs (docs/14).
+    - Unterschiedliche Tempi: bewusster Tempowechsel an einer Taktgrenze oder allmählicher Übergang (der Track kann das ohne Time-Stretching nicht mitgehen).
+    - Der Klick muss den Übergang mitgehen, ohne Bruch.
+    - DJ-Übergang oder „zusammengehörende Songs als ein vorbereiteter Block“ - Gestaltungsfrage vorab klären.
+    Erst danach: B im Voraus auf den so bestimmten Zeitpunkt planen (gleiche Technik wie der Ahead-of-Time-Start, Bezug ist dann das Raster statt des Dateiendes).
 2a. **Setlist-Köpfe vorab dekodieren** (erste 1,5 s jedes Setlist-Songs, ~0,6 MB je Song) ist gebaut, aber geparkt (`git stash`, „setlist head cache“) - die Songs waren rechtzeitig bereit, Ursache war der fehlende Vorlauf. Wieder aufnehmen, falls Vorbereitungszeiten auf langsamen Geräten (Fire) zu lang sind.
 3. **Prüfspur + Mitschnitt:** Testtrack mit Marke bei 0,000 s und Pieps alle 100 ms mit eigener Tonhöhe (WAV, MP3, AAC, Opus); Mitschnitt dessen, was der Motor ausgibt, um „beginnt genau bei 0 und ist vollständig“ je Format zu messen. Danach der echte Ausgang im Synchronitätstest (docs/17/18).
 4. **Fire HD 10:** neue App, Codecs prüfen (WebView 138), Speicher, Last (#457/#460).
