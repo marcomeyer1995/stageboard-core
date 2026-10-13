@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DebugConsoleView } from '../components/DebugConsoleView'
 import { entriesAsText, formatArg, installConsoleCapture, LOG_CAPACITY, useDebugLogStore } from './debugLog'
 
+// The Diagnose tab's sync test shows this device's audio latency (#491) - read from the latency-profile
+// store (PouchDB), not needed here.
+vi.mock('./latencyCompensation', () => ({ useAudioOutputLatencyMs: () => 0 }))
+
 beforeEach(() => {
   useDebugLogStore.getState().clear()
   localStorage.removeItem('sb:debug:grid')
