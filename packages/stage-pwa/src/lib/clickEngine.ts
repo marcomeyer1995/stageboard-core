@@ -77,7 +77,7 @@ function getAudioContext(): AudioContext {
 /** One click burst: a short, fast-decaying oscillator tone - higher-pitched and louder on the
  * downbeat, exactly the same accent Visual Metronome draws visually (metronome.ts's
  * Beat.isDownbeat), so the two are recognizably "the same beat" to anyone comparing them. */
-function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void {
+export function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean): void {
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
   osc.frequency.value = isDownbeat ? 1500 : 1000
