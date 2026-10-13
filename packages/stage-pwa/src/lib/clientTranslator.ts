@@ -73,16 +73,6 @@ const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [UI24R_CAPABILITY]: ui24rTranslator,
 }
 
-/** Translators that honour an event's `scheduledAt` themselves - their MIDI goes out at that
- * moment via a WebMIDI timestamp (#477, `midiSendTime`). Every other Translator (local mixer/
- * lighting stores, Ui24R WebSocket, a dynamically-loaded one) acts on receipt, so cueFiring.ts
- * waits until the moment before calling it. */
-const SCHEDULING_TRANSLATORS = new Set<CapabilityId>([KEMPER_CAPABILITY, CQ18T_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY])
-
-export function translatorHonoursScheduledAt(capability: CapabilityId): boolean {
-  return SCHEDULING_TRANSLATORS.has(capability)
-}
-
 /** Translators registered by a dynamically-loaded plugin (#109), keyed by capability - filled
  * in by `preloadDynamicTranslator` below, read by `hasClientTranslator`/`getTranslator`
  * alongside the static registry above. Deliberately never evicted when a plugin is later

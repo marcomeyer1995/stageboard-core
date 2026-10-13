@@ -21,6 +21,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // separate HardwareSetup routing decision.
     runtime: 'both',
     capabilities: [CAPABILITIES.mixer],
+    // In-ear levels: a few tens of ms don't matter (docs/21 §2).
+    timing: [{ capability: CAPABILITIES.mixer, timingClass: 'soft', honoursScheduledAt: false }],
     // Example transport (#100) - a real mixer adapter would offer this so a tablet claimed as
     // its executor can pick which desk it's actually talking to.
     transports: [
@@ -61,6 +63,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Own dedicated capability (kemperTranslator.ts), not CAPABILITIES.midiInput/showControl -
     // a device-specific plugin brings its own vocabulary (capability.ts's doc comment).
     capabilities: ['kemper-control'],
+    // Rig/stomp changes land on the beat; the Translator sends with a WebMIDI timestamp (#477).
+    timing: [{ capability: 'kemper-control', timingClass: 'realtime', honoursScheduledAt: true }],
     transports: [
       {
         id: 'usb-midi',
@@ -94,6 +98,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Own dedicated capability (cq18tTranslator.ts) - see its own doc comment for why not
     // CAPABILITIES.mixer (that slot is a fixed, single local translator, not plugin-swappable).
     capabilities: ['cq18t-control'],
+    // An in-ear mixer: soft (docs/21 §2), though its NRPNs go out timestamped anyway (#477).
+    timing: [{ capability: 'cq18t-control', timingClass: 'soft', honoursScheduledAt: true }],
     transports: [
       {
         id: 'usb-midi',
@@ -131,6 +137,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Own dedicated capability (mg30Translator.ts) - a multi-effects unit's patch/knob
     // vocabulary doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['mg30-control'],
+    timing: [{ capability: 'mg30-control', timingClass: 'realtime', honoursScheduledAt: true }],
     transports: [
       {
         id: 'usb-midi',
@@ -156,6 +163,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Own dedicated capability (rc500Translator.ts) - a looper's memory/track vocabulary
     // doesn't fit any of capability.ts's core CAPABILITIES.
     capabilities: ['rc500-control'],
+    timing: [{ capability: 'rc500-control', timingClass: 'realtime', honoursScheduledAt: true }],
     transports: [
       {
         id: 'usb-midi',
@@ -182,6 +190,8 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Own dedicated capability (ui24rTranslator.ts), same reasoning cq18t-mixer above
     // already documents for why not CAPABILITIES.mixer.
     capabilities: ['ui24r-control'],
+    // WebSocket, acts on receipt - the core waits for the moment before calling it.
+    timing: [{ capability: 'ui24r-control', timingClass: 'soft', honoursScheduledAt: false }],
     transports: [
       {
         id: 'network-ws',
@@ -206,6 +216,17 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // 'both', same reasoning as mock-mixer above - #98.
     runtime: 'both',
     capabilities: [CAPABILITIES.lighting, CAPABILITIES.showControl],
+    // Light is the case docs/21 was written for: realtime, calibratable with a light sensor
+    // (full on, then off again). A real DMX plugin would also declare its interface's latency.
+    timing: [
+      {
+        capability: CAPABILITIES.lighting,
+        timingClass: 'realtime',
+        honoursScheduledAt: false,
+        calibration: { stimulus: { type: 'calibration.flash' }, reset: { type: 'calibration.dark' }, detectableBy: ['light'] },
+      },
+      { capability: CAPABILITIES.showControl, timingClass: 'realtime', honoursScheduledAt: false },
+    ],
     transports: [],
     hardwareIds: [],
   },
@@ -224,6 +245,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     version: '0.0.1',
     runtime: 'server',
     capabilities: [CAPABILITIES.audioPlayback],
+    timing: [{ capability: CAPABILITIES.audioPlayback, timingClass: 'sample', honoursScheduledAt: false }],
     transports: [],
     hardwareIds: [],
   },
@@ -253,6 +275,7 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // still-unbuilt hardware-routed half - a real server-side click/MIDI-Clock plugin).
     runtime: 'server',
     capabilities: [CAPABILITIES.clickTrack],
+    timing: [{ capability: CAPABILITIES.clickTrack, timingClass: 'sample', honoursScheduledAt: false }],
     transports: [],
     hardwareIds: [],
   },

@@ -3,6 +3,7 @@ import { CapabilityIdSchema } from './capability.js'
 import { TransportDescriptorSchema } from './transport.js'
 import { HardwareIdSchema } from './hardwareId.js'
 import { DiscoveryTriggerSchema } from './discoveryTrigger.js'
+import { CapabilityTimingSchema } from './timing.js'
 
 /**
  * Where a plugin actually runs. WebMIDI is a browser API and therefore lives on the
@@ -47,6 +48,11 @@ export const PluginInstallationSchema = z.object({
    * discoveryTrigger.ts. Absent for a plugin with no such action (or nothing that needs
    * disambiguating - a workspace rarely has two of the same server-only mixer, say). */
   discoveryTrigger: DiscoveryTriggerSchema.optional(),
+  /** How precisely each of `capabilities` must land on the song time, whether its Translator
+   * sends at `scheduledAt` itself, its known latency and how it can be calibrated (docs/21) - one
+   * entry per capability that has an output. A capability without an entry is treated as class
+   * `none`, acting on receipt; absent altogether on manifests installed before docs/21. */
+  timing: z.array(CapabilityTimingSchema).optional(),
   enabled: z.boolean().default(true),
   installedAt: z.number().int().nonnegative(),
 })

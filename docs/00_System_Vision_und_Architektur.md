@@ -55,6 +55,7 @@ To achieve the sub-5ms latency required for professional stage production over l
   * **Audio:** Future timestamps are mapped to the Web Audio API's `audioContext.currentTime` space, allowing the browser's C++ audio thread to trigger backing tracks with sample accuracy (`sourceNode.start(time)`).
   * **MIDI:** Future timestamps are mapped to the local `performance.now()` timeline and handed to the WebMIDI API (`midiOutput.send(data, time)`).
   * **UI:** The PrompterWidget relies on a `requestAnimationFrame` loop mathematically locked to the master ServerTime for perfectly smooth, 60Hz scrolling.
+* **Timing Classes, Latency & Calibration (docs/21):** Not every device needs the same precision. Each plugin declares per capability a timing class (`sample` / `realtime` / `soft` / `none`), whether its translator honours `scheduledAt` itself, its known output latency and how it can be calibrated. The scheduler sends every cue its output's latency early; calibration with a sensor (light, sound, MIDI loopback, video) replaces the declared latency with a measured one per output route, checked again at each soundcheck.
 * **Vamping & Transport:** Supports standard pause commands (freezing the audio and timeline) and configurable section looping via Web Audio API nodes (`AudioBufferSourceNode`) for gapless, sample-accurate cyclic playback.
 
 ## 5. Hardware Abstraction Layer (HAL) & Auto-Binding
@@ -82,6 +83,7 @@ To keep the StageBoard core lean and maintainable, specific hardware integration
   * **Client-Side UI (React):** Custom widgets for the performer dashboard and custom cue editing panels for the Song Editor.
   * **Client-Side Execution (Translator):** Logic translating standardized JSON cue payloads from PouchDB into native browser API calls (WebMIDI, Web Audio, WebSockets).
   * **Server-Side API (Fastify - Optional):** Backend routes when hardware control requires server-level execution or direct serial/network access on the Stage-Server.
+  * **Timing Declaration (docs/21 §6):** The manifest's `timing` field - timing class, `honoursScheduledAt`, default latency and an optional calibration stimulus per capability. The core uses it to decide how far ahead to hand a cue over and how much earlier to send it.
 
 ### Integration Hooks (The Kemper Example)
 * **Hardware Discovery Probe (`StageBoard.HAL.registerProbe`):** Plugins register probe functions with HAL. When a USB device is attached, HAL queries active probes to identify the gear and register its logical capability roles (e.g., `lead_guitar_fx`).
