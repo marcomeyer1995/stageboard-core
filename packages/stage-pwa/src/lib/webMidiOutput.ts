@@ -25,6 +25,12 @@ export async function getMidiOutputById(outputId: string, sendAt?: number): Prom
   return output && sendAt !== undefined ? scheduledOutput(output, sendAt) : output
 }
 
+/** The connected MIDI outputs (id and name) - empty when WebMIDI is unsupported or denied. */
+export async function listMidiOutputs(): Promise<{ id: string; name: string }[]> {
+  const access = await getAccess()
+  return access ? [...access.outputs.values()].map((output) => ({ id: output.id, name: output.name ?? output.id })) : []
+}
+
 /** Per output, the latest moment (`performance.now()` time base) a message was scheduled for -
  * what `recallScheduledMidi` would have to take back. */
 const pendingUntil = new Map<MIDIOutput, number>()
