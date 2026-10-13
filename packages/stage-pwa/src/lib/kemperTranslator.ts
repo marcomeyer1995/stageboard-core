@@ -3,6 +3,7 @@ import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
 import { KEMPER_CAPABILITY, KEMPER_CC, KEMPER_STOMP_CC as STOMP_CC, KEMPER_STOMP_CC_WITH_TAIL as STOMP_CC_WITH_TAIL } from './midiDeviceProtocols'
 import { getMidiOutputById, sendControlChange } from './webMidiOutput'
+import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { resolveTargetDevice } from './hardwareRouting'
@@ -26,7 +27,7 @@ interface KemperOutput {
  * that names none the first one declaring `kemper-control`, bound (via DeviceTransportConfig) on
  * this device - hardwareRouting.ts's resolveTargetDevice.
  */
-async function resolveKemperOutput(logicalDeviceId?: string): Promise<KemperOutput | null> {
+async function resolveKemperOutput(logicalDeviceId?: string, sendAt?: number): Promise<KemperOutput | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, KEMPER_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
@@ -37,7 +38,7 @@ async function resolveKemperOutput(logicalDeviceId?: string): Promise<KemperOutp
   const outputId = config?.values.midiOutputId
   if (!outputId) return null
 
-  const output = await getMidiOutputById(outputId)
+  const output = await getMidiOutputById(outputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)
@@ -77,7 +78,7 @@ async function test(kemper: KemperOutput): Promise<ShowControlResult> {
 }
 
 export const kemperTranslator: Translator = async (event) => {
-  const kemper = await resolveKemperOutput(event.logicalDeviceId)
+  const kemper = await resolveKemperOutput(event.logicalDeviceId, midiSendTime(event))
   if (!kemper) return { status: 'error', message: 'Kemper: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

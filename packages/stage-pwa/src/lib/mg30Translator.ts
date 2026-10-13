@@ -3,6 +3,7 @@ import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
 import { isWebMidiSupported } from './webMidi'
 import { getMidiOutputById, sendSysEx } from './webMidiOutput'
+import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { MG30_CAPABILITY, MG30_KNOBS } from './midiDeviceProtocols'
@@ -42,7 +43,7 @@ interface Mg30Output {
 
 /** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts/cq18tTranslator.ts - see their own doc comments for why. */
-async function resolveMg30Output(logicalDeviceId?: string): Promise<Mg30Output | null> {
+async function resolveMg30Output(logicalDeviceId?: string, sendAt?: number): Promise<Mg30Output | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, MG30_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
@@ -53,7 +54,7 @@ async function resolveMg30Output(logicalDeviceId?: string): Promise<Mg30Output |
   const outputId = config?.values.midiOutputId
   if (!outputId) return null
 
-  const output = await getMidiOutputById(outputId)
+  const output = await getMidiOutputById(outputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)
@@ -164,7 +165,7 @@ async function test(mg30: Mg30Output): Promise<ShowControlResult> {
 
 export const mg30Translator: Translator = async (event) => {
   if (!isWebMidiSupported()) return { status: 'error', message: 'MG-30: WebMIDI nicht unterstützt.' }
-  const mg30 = await resolveMg30Output(event.logicalDeviceId)
+  const mg30 = await resolveMg30Output(event.logicalDeviceId, midiSendTime(event))
   if (!mg30) return { status: 'error', message: 'MG-30: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

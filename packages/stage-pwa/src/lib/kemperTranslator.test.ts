@@ -75,7 +75,7 @@ describe('kemperTranslator', () => {
     })
     vi.mocked(getMidiOutputById).mockImplementation(async (id: string) => (id === 'midi-out-2' ? backupOutput : OUTPUT))
     await kemperTranslator({ type: 'kemper.selectRig', payload: { performance: 0, slot: 1 }, logicalDeviceId: 'kemper-2' })
-    expect(getMidiOutputById).toHaveBeenCalledWith('midi-out-2')
+    expect(getMidiOutputById).toHaveBeenCalledWith('midi-out-2', undefined)
     expect(sendControlChange).toHaveBeenNthCalledWith(1, backupOutput, 2, 47, 0)
   })
 

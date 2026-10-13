@@ -19,9 +19,68 @@ function getAccess(): Promise<MIDIAccess | null> {
  * `values.midiOutputId` stores) - null whenever WebMIDI is unsupported/denied, or the id no
  * longer names a connected output, both normal states (Graceful Degradation) rather than errors.
  */
-export async function getMidiOutputById(outputId: string): Promise<MIDIOutput | null> {
+export async function getMidiOutputById(outputId: string, sendAt?: number): Promise<MIDIOutput | null> {
   const access = await getAccess()
-  return access?.outputs.get(outputId) ?? null
+  const output = access?.outputs.get(outputId) ?? null
+  return output && sendAt !== undefined ? scheduledOutput(output, sendAt) : output
+}
+
+/** Per output, the latest moment (`performance.now()` time base) a message was scheduled for -
+ * what `recallScheduledMidi` would have to take back. */
+const pendingUntil = new Map<MIDIOutput, number>()
+
+/** Chrome does not keep the order of messages scheduled for the same timestamp (measured
+ * 2026-10-13: an NRPN's four CCs arrived in a different order on each run) - so each further
+ * message of one scheduled event goes out this much later, which keeps them in order. */
+const SEQUENCE_STEP_MS = 0.1
+
+/**
+ * The same output, but every `send()` without its own timestamp goes out at `sendAt`
+ * (`performance.now()` time base) - WebMIDI delivers it then, independent of the main thread
+ * (#477: ~0.05 ms jitter instead of up to a frame). Lets a Translator schedule a cue without each
+ * of its send helpers taking a time: it resolves its output once with the event's time
+ * (`midiSendTime`) and sends as usual; multi-message sequences (NRPN, preselect + slot) keep their
+ * order, SEQUENCE_STEP_MS apart.
+ */
+function scheduledOutput(output: MIDIOutput, sendAt: number): MIDIOutput {
+  let next = sendAt
+  return new Proxy(output, {
+    get(target, prop) {
+      if (prop === 'send') {
+        return (data: number[] | Uint8Array, timestamp?: number) => {
+          const at = timestamp ?? next
+          next = at + SEQUENCE_STEP_MS
+          pendingUntil.set(target, Math.max(pendingUntil.get(target) ?? 0, at))
+          target.send(data, at)
+        }
+      }
+      const value: unknown = Reflect.get(target, prop, target)
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+    },
+  })
+}
+
+/** `clear()` is in the WebMIDI spec but not in TypeScript's DOM types (nor in Chrome). */
+type MidiOutputWithClear = MIDIOutput & { clear?: () => void }
+
+/**
+ * Takes back every MIDI message still scheduled for the future (Pause/Stop/seek right after a cue
+ * was handed over). Only possible where `MIDIOutput.clear()` exists - Chrome 154 has none (#477) -
+ * so returns whether everything pending was really cleared; false means some still go out.
+ */
+export function recallScheduledMidi(now = performance.now()): boolean {
+  let allCleared = true
+  for (const [output, until] of pendingUntil) {
+    if (until <= now) {
+      pendingUntil.delete(output)
+    } else if (typeof (output as MidiOutputWithClear).clear === 'function') {
+      ;(output as MidiOutputWithClear).clear?.()
+      pendingUntil.delete(output)
+    } else {
+      allCleared = false
+    }
+  }
+  return allCleared
 }
 
 /**
