@@ -194,7 +194,20 @@ Diagnose-Tab „Synchron-Test“ (#494) auf mehreren Geräten gleichzeitig, jede
 - Lautstärke per adb: `cmd media_session volume --set` meldet Erfolg, ändert auf den Xiaomis aber nichts - Tablet: Lautstärketasten (`input keyevent`), Handy: `cmd audio set-volume 3 N`, Fire: `media volume --stream 3 --set N`.
 - Release-Apps sind nicht inspizierbar: Messwerte deshalb im Diagnose-Tab anzeigen und per `adb exec-out screencap` ablesen; Silk lehnt das Zertifikat des Stage-Servers ab.
 
-### 8.6 Noch offen
+### 8.6 Automatische Kalibrierung („Messen“/„Prüfen“, #498)
+
+Mikrofon des Stage-Servers, 12 Klicks in unregelmäßigem Abstand, Geräte neben dem Laptop:
+
+| Gerät | Messen | Prüfen mit gespeichertem Wert |
+|---|---|---|
+| Xiaomi Redmi Pad SE | **73 ms** (12/12 Klicks, Streuung 1 ms) - wie von Hand gemessen (72,7) | **0 ms** |
+| Fire HD 10 | 408 / 436 / 444 ms (je 8-12/12 Klicks) | +41 / +31 / +29 ms (mit 408), −17 ms (mit 444) |
+
+- Das Verfahren rechnet richtig: „Prüfen“ weicht genau um den Unterschied zwischen gespeichertem und aktuellem Wert ab.
+- **Der Fire schwankt selbst** um etwa ±18 ms zwischen Messungen (408-444 ms); genauer als das lässt er sich nicht ausgleichen. Die Xiaomis sind stabil. Idee: „Messen“ mehrfach laufen lassen und den Median speichern.
+- Fallstrick: PipeWires `default`-Quelle nahm den Klick eines Tablets nicht wahr (0 Einsätze), das Hardware-Gerät schon (30 dB Aufnahmeverstärkung) → `CALIBRATION_AUDIO_DEVICE=plughw:CARD=Generic_1,DEV=0` in der systemd-Unit des Stage-Servers (per Name, weil USB-MIDI-Geräte die Kartennummern verschieben).
+
+### 8.7 Noch offen
 
 Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
 
