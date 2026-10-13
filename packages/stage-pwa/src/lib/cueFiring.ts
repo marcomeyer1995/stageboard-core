@@ -1,6 +1,7 @@
 import type { LogicalDevice, PluginInstallation, ShowCue } from 'shared-types'
 import { pluginProviding } from './capabilities'
-import { getTranslator, supportsLocalExecution, translatorHonoursScheduledAt } from './clientTranslator'
+import { capabilityTiming } from './capabilityTiming'
+import { getTranslator, supportsLocalExecution } from './clientTranslator'
 import { resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 import { triggerShowControl } from './showControlClient'
 
@@ -12,8 +13,8 @@ export interface FireContext {
    * scheduler, and each one used to send them - a light cue arrived once per tablet (a toggle
    * undid itself). Only the master does now (2026-10-08). */
   sendsServerCues: boolean
-  /** Ahead-of-time dispatch (#477): the server-time moment the cue is due, and the synced clock to
-   * compare it with. Absent: fire now (the old behaviour). */
+  /** Ahead-of-time dispatch (#477): the server-time moment to send at (the due moment minus the
+   * output's latency, docs/21 §3), and the synced clock to compare it with. Absent: fire now. */
   timing?: { scheduledAt: number; serverNow: () => number }
 }
 
@@ -60,7 +61,7 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
   try {
     if (engine === 'local-mine') {
       const translator = getTranslator(logicalDevice.capability)
-      if (ctx.timing && translatorHonoursScheduledAt(logicalDevice.capability)) {
+      if (ctx.timing && capabilityTiming(ctx.installed, logicalDevice.capability, pluginId).honoursScheduledAt) {
         return { ...outcome(await translator?.({ ...event, scheduledAt })), scheduledLocally: true }
       }
       // A Translator that acts on receipt: wait for the moment here.

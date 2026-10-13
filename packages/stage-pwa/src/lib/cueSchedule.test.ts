@@ -25,7 +25,7 @@ describe('cue schedule (#477)', () => {
     const transport = playing(10_400)
     expect(passedCueIds(cues, transport, 10_000)).toEqual([])
     expect(cuesToSchedule(cues, transport, 10_000, new Set())).toEqual([])
-    expect(cuesToSchedule(cues, transport, 10_320, new Set())).toEqual([{ cue: cues[0], dueAt: 10_400 }])
+    expect(cuesToSchedule(cues, transport, 10_320, new Set())).toEqual([{ cue: cues[0], dueAt: 10_400, sendAt: 10_400 }])
   })
 
   it('a device joining mid-song skips cues behind the position', () => {
@@ -41,12 +41,20 @@ describe('cue schedule (#477)', () => {
   })
 
   it('still hands over a cue whose moment a late tick already missed', () => {
-    expect(cuesToSchedule([cue('a', 1_000)], playing(0), 1_200, new Set())).toEqual([{ cue: cue('a', 1_000), dueAt: 1_000 }])
+    expect(cuesToSchedule([cue('a', 1_000)], playing(0), 1_200, new Set())).toEqual([{ cue: cue('a', 1_000), dueAt: 1_000, sendAt: 1_000 }])
   })
 
   it('schedules nothing while paused or stopped', () => {
     const cues = [cue('a', 1_000)]
     expect(cuesToSchedule(cues, { status: 'paused', startedAt: null, accumulatedMs: 900 }, 0, new Set())).toEqual([])
     expect(cuesToSchedule(cues, { status: 'stopped', startedAt: null, accumulatedMs: 0 }, 0, new Set())).toEqual([])
+  })
+
+  it("sends a cue its output's latency early (docs/21 §3), in send order", () => {
+    const cues = [cue('sound', 1_000), cue('light', 1_000)]
+    const latency = (c: ShowCue) => (c.id === 'light' ? 40 : 0)
+    // At 870 the light (send 960) is inside the 100 ms window, the sound (send 1000) not yet.
+    expect(cuesToSchedule(cues, playing(0), 870, new Set(), 100, latency)).toEqual([{ cue: cues[1], dueAt: 1_000, sendAt: 960 }])
+    expect(cuesToSchedule(cues, playing(0), 900, new Set(), 100, latency).map((d) => d.cue.id)).toEqual(['light', 'sound'])
   })
 })

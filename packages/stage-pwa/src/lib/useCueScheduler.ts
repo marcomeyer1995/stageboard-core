@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import type { ShowCue } from 'shared-types'
+import { cueLatencyMs } from './capabilityTiming'
 import { getServerTime } from './clockSync'
 import { fireCue } from './cueFiring'
-import { CUE_TICK_MS, cuesToSchedule, passedCueIds, type CueTransport } from './cueSchedule'
+import { CUE_LOOKAHEAD_MS, CUE_TICK_MS, cuesToSchedule, passedCueIds, type CueTransport } from './cueSchedule'
 import { useShowModeSong } from './showMode'
 import { recallScheduledMidi } from './webMidiOutput'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -23,7 +24,7 @@ import { useShowLogStore } from '../store/useShowLogStore'
  * late, far more on a busy tablet). A timer looks CUE_LOOKAHEAD_MS ahead and hands each cue over
  * with its server-time due moment (`cueSchedule.ts`): local MIDI goes out at that moment through a
  * WebMIDI timestamp, a Stage-Server cue is held by the gateway until then, anything else waits for
- * it in cueFiring.ts. The due moment comes straight from the transport anchor (startedAt +
+ * it in cueFiring.ts. Each cue is sent its output's latency early (docs/21 §3, `cueLatencyMs`). The due moment comes straight from the transport anchor (startedAt +
  * timeMs - accumulatedMs), so a cue at 0:00 also lands on song time 0 after the Play lead
  * (docs/19), not at the Play press.
  */
@@ -46,7 +47,7 @@ export function useCueScheduler(): void {
   // clears it to null, playSong sets a new one), or advancing to a different entry
   // (activateEntry always sets a fresh one too).
   const firedRef = useRef<{ sessionKey: number | null; ids: Set<string> }>({ sessionKey: null, ids: new Set() })
-  // Cues whose MIDI was handed to WebMIDI for a moment still ahead (id -> due server time).
+  // Cues whose MIDI was handed to WebMIDI for a moment still ahead (id -> send server time).
   const scheduledRef = useRef(new Map<string, number>())
 
   const cues: readonly ShowCue[] | undefined = queue.currentVariant?.cues
@@ -65,16 +66,17 @@ export function useCueScheduler(): void {
 
     const tick = () => {
       const fired = firedRef.current.ids
-      for (const { cue, dueAt } of cuesToSchedule(cues, transport, getServerTime(), fired)) {
+      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed)
+      for (const { cue, sendAt } of cuesToSchedule(cues, transport, getServerTime(), fired, CUE_LOOKAHEAD_MS, latencyMs)) {
         fired.add(cue.id)
         void fireCue(cue, {
           deviceId,
           logicalDevices,
           installed,
           sendsServerCues: isMaster,
-          timing: { scheduledAt: dueAt, serverNow: getServerTime },
+          timing: { scheduledAt: sendAt, serverNow: getServerTime },
         }).then((outcome) => {
-          if (outcome?.scheduledLocally) scheduledRef.current.set(cue.id, dueAt)
+          if (outcome?.scheduledLocally) scheduledRef.current.set(cue.id, sendAt)
           // Into the Nachbericht (#8): every cue sent, failed ones with the reason. One id per
           // show + play-through + cue, so the same cue reported by two devices is one entry.
           const showId = useShowStateStore.getState().state.currentShowId

@@ -42,21 +42,25 @@ export function passedCueIds(cues: readonly ShowCue[], transport: CueTransport, 
   return cues.filter((cue) => cue.timeMs < position).map((cue) => cue.id)
 }
 
-/** The not-yet-fired cues due within the lookahead window, each with its server-time due moment,
- * in time order. A cue whose moment already passed (a late tick) is included - better a few ms
- * late than never; WebMIDI sends a past timestamp at once. */
+/** The not-yet-fired cues to send within the lookahead window, in send order. `sendAt` is the
+ * server-time due moment minus the output's latency (`latencyMs`, docs/21 §3) - a lamp that
+ * needs 30 ms to light is sent 30 ms early. A cue whose send moment already passed (a late tick)
+ * is included - better a few ms late than never; WebMIDI sends a past timestamp at once. */
 export function cuesToSchedule(
   cues: readonly ShowCue[],
   transport: CueTransport,
   now: number,
   fired: ReadonlySet<string>,
   lookaheadMs = CUE_LOOKAHEAD_MS,
-): { cue: ShowCue; dueAt: number }[] {
-  const due: { cue: ShowCue; dueAt: number }[] = []
+  latencyMs: (cue: ShowCue) => number = () => 0,
+): { cue: ShowCue; dueAt: number; sendAt: number }[] {
+  const due: { cue: ShowCue; dueAt: number; sendAt: number }[] = []
   for (const cue of cues) {
     if (fired.has(cue.id)) continue
     const dueAt = cueDueAt(transport, cue.timeMs)
-    if (dueAt !== null && dueAt <= now + lookaheadMs) due.push({ cue, dueAt })
+    if (dueAt === null) continue
+    const sendAt = dueAt - latencyMs(cue)
+    if (sendAt <= now + lookaheadMs) due.push({ cue, dueAt, sendAt })
   }
-  return due.sort((a, b) => a.dueAt - b.dueAt)
+  return due.sort((a, b) => a.sendAt - b.sendAt)
 }

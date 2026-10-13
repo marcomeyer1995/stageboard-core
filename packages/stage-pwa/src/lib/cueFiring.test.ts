@@ -179,5 +179,19 @@ describe('fireCue', () => {
         vi.useRealTimers()
       }
     })
+
+    it("a Translator whose plugin declares honoursScheduledAt gets the event at once, with scheduledAt", async () => {
+      const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult', executionTarget: 'me' })
+      const scheduling = plugin({ timing: [{ capability: 'mixer', timingClass: 'soft', honoursScheduledAt: true }] })
+      const outcome = await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), {
+        deviceId: 'me',
+        logicalDevices: [mixer1],
+        installed: [scheduling],
+        sendsServerCues: true,
+        timing: { scheduledAt: 99_000, serverNow: () => 1_000 },
+      })
+      expect(localMixerApplyEvent).toHaveBeenCalledWith(expect.objectContaining({ scheduledAt: 99_000 }))
+      expect(outcome?.scheduledLocally).toBe(true)
+    })
   })
 })
