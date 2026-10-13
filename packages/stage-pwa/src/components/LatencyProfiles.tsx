@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { runAudioCalibration, type AudioCalibrationOutcome } from '../lib/audioCalibration'
 import { AUDIO_OUTPUT, SERVER_EXECUTION_TARGET, latencyProfileId, type AudioRoute, type LatencyProfileDoc } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
-import { ROUTE_LABEL } from '../lib/latencyProfiles'
+import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
 import { Button, Dialog, Field, Select } from './ui'
 
 
@@ -26,6 +27,98 @@ export function LatencySummary({ deviceId }: { deviceId: string }) {
   const outputName = useOutputName()
   if (profiles.length === 0) return null
   return <p className="mt-2 text-sm text-ink-soft">Latenz: {profiles.map((p) => profileLabel(p, outputName)).join(' · ')}</p>
+}
+
+/** A check passes when the click lands this close to the server second - above the laptop
+ * microphone's own capture bias and the session-to-session clock-sync offset (docs/21 §8). */
+const CHECK_TOLERANCE_MS = 15
+
+/**
+ * Measure / check this device's own audio latency with the Stage-Server's microphone (docs/21 §4,
+ * #491) - only on the device itself, it has to play the clicks. "Messen" finds the raw latency of
+ * the current route; "Prüfen" plays with the stored value and should land near 0 (soundcheck).
+ */
+function AudioCalibrationSection({ deviceId }: { deviceId: string }) {
+  const profiles = useLatencyProfilesStore((state) => state.profiles)
+  const save = useLatencyProfilesStore((state) => state.save)
+  const route = useAudioRouteStore((state) => state.route)
+  const stored = audioOutputLatencyMs(profiles, deviceId, route, true)
+  const [running, setRunning] = useState<'measure' | 'check' | null>(null)
+  const [msLeft, setMsLeft] = useState(0)
+  const [outcome, setOutcome] = useState<{ kind: 'measure' | 'check'; outcome: AudioCalibrationOutcome } | null>(null)
+
+  async function run(kind: 'measure' | 'check') {
+    setRunning(kind)
+    setOutcome(null)
+    const result = await runAudioCalibration(kind === 'check' ? stored : 0, setMsLeft)
+    setRunning(null)
+    setOutcome({ kind, outcome: result })
+  }
+
+  const match = outcome?.outcome.ok && outcome.outcome.status.state === 'done' ? outcome.outcome.status.result : null
+  let message: string | null = null
+  if (outcome && !outcome.outcome.ok) message = outcome.outcome.message
+  else if (outcome?.outcome.ok && outcome.outcome.status.state === 'failed') message = outcome.outcome.status.error
+  else if (outcome && (!match || !match.reliable))
+    message = `Nicht eindeutig (${match?.matched ?? 0} von ${match?.total ?? 12} Klicks erkannt) - lauter stellen oder näher an den Stage-Server und wiederholen.`
+  else if (outcome?.kind === 'check' && match)
+    message =
+      Math.abs(match.latencyMs) <= CHECK_TOLERANCE_MS
+        ? `Passt: der Klick landet ${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)} ms neben dem Schlag.`
+        : `Weicht um ${match.latencyMs >= 0 ? '+' : ''}${Math.round(match.latencyMs)} ms ab - neu messen.`
+
+  return (
+    <section className="flex flex-col gap-2 rounded-container border border-line p-3" aria-label="Mit Mikrofon messen">
+      <h3 className="text-base font-bold text-ink">Mit dem Mikrofon des Stage-Servers ({ROUTE_LABEL[route]})</h3>
+      <p className="text-sm text-ink-muted">
+        Spielt 12 Klicks in unregelmäßigem Abstand; der Stage-Server hört mit und findet die Verzögerung. Gerät nah an den Stage-Server, Ton deutlich hörbar.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" disabled={running !== null} onClick={() => void run('measure')}>
+          Messen
+        </Button>
+        <Button disabled={running !== null || stored === 0} onClick={() => void run('check')}>
+          Prüfen
+        </Button>
+      </div>
+      {running && (
+        <p role="status" className="text-base text-ink">
+          {running === 'measure' ? 'Misst' : 'Prüft'} … noch {Math.ceil(msLeft / 1000)} s
+        </p>
+      )}
+      {outcome?.kind === 'measure' && match?.reliable && (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-base text-ink">
+            Gemessen: <strong>{Math.round(match.latencyMs)} ms</strong> ({match.matched} von {match.total} Klicks, Streuung {Math.round(match.jitterMs)} ms)
+          </p>
+          <Button
+            variant="primary"
+            onClick={() =>
+              void save({
+                id: latencyProfileId(deviceId, AUDIO_OUTPUT, route),
+                deviceId,
+                output: AUDIO_OUTPUT,
+                route,
+                latencyMs: Math.round(match.latencyMs),
+                jitterMs: Math.round(match.jitterMs * 10) / 10,
+                source: 'measured',
+                measuredAt: Date.now(),
+                sensor: 'sound',
+                samples: match.matched,
+              }).then(() => setOutcome(null))
+            }
+          >
+            Übernehmen
+          </Button>
+        </div>
+      )}
+      {message && (
+        <p role="status" className="text-base text-ink">
+          {message}
+        </p>
+      )}
+    </section>
+  )
 }
 
 /**
@@ -85,6 +178,7 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
             ))}
           </ul>
         )}
+        {deviceId === getDeviceId() && <AudioCalibrationSection deviceId={deviceId} />}
         {outputs.length === 0 ? (
           <p className="text-base text-ink-faint">Dieses Gerät steuert keinen Ausgang.</p>
         ) : (

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +18,7 @@ import {
   DiscoveryReportCandidateRequestSchema,
   DiscoveryStartRequestSchema,
   DiscoveryTriggeredRequestSchema,
+  CalibrationRunRequestSchema,
   HealthReportSchema,
   GetAccessCodeRequestSchema,
   JoinAsMemberRequestSchema,
@@ -420,6 +422,26 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // below already broadcasts - exposed here too for a device that's never seen that broadcast
   // (e.g. connected via a typed raw IP) but still wants to show this box's name, not just its
   // address.
+  // Latency calibration with the Stage-Server's microphone (docs/21 §4, #491): a device asks for a
+  // run, plays its click at the irregular times returned, and polls for the delay the server heard.
+  const calibrationRuns = new CalibrationRuns()
+  app.post('/calibration/runs', async (request, reply) => {
+    const parsed = CalibrationRunRequestSchema.safeParse(request.body ?? {})
+    if (!parsed.success) return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    const run = calibrationRuns.start(parsed.data.count)
+    if (!run) return reply.status(409).send({ status: 'error', message: 'Gerade läuft schon eine Messung - bitte kurz warten.' })
+    app.log.info({ runId: run.id, deviceId: parsed.data.deviceId, clicks: run.times.length, recordUntil: run.recordUntil }, 'Calibration run started')
+    return run
+  })
+  app.get('/calibration/runs/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const status = calibrationRuns.get(id)
+    if (!status) return reply.status(404).send({ status: 'error', message: 'Unbekannte Messung' })
+    if (status.state === 'failed') app.log.error({ runId: id, error: status.error }, 'Calibration run failed')
+    if (status.state === 'done') app.log.info({ runId: id, onsets: status.onsets, result: status.result }, 'Calibration run finished')
+    return status
+  })
+
   app.get('/server-info', async () => ({
     lanIp: process.env.LAN_IP ?? detectLanIp(),
     hostname: process.env.MDNS_HOSTNAME ?? 'stageboard.local',

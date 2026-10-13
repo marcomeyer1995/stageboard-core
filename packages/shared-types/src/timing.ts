@@ -97,3 +97,35 @@ export type LatencyProfileDoc = z.infer<typeof LatencyProfileDocSchema>
 export function latencyProfileId(deviceId: string, output: string, route: AudioRoute | null): string {
   return `${deviceId}:${output}:${route ?? '-'}`
 }
+
+/** Body of `POST /calibration/runs` (docs/21 §4, #491). */
+export const CalibrationRunRequestSchema = z.object({
+  count: z.number().int().min(6).max(24).optional(),
+  /** Only for the server log. */
+  deviceId: z.string().optional(),
+})
+export type CalibrationRunRequest = z.infer<typeof CalibrationRunRequestSchema>
+
+/** Answer of `POST /calibration/runs`: the irregular click times (server time, ms). */
+export interface CalibrationRunStart {
+  id: string
+  times: number[]
+  recordUntil: number
+}
+
+/** The delay at which the heard clicks fit the planned pattern (core-backend matchLatency.ts). */
+export interface CalibrationMatch {
+  latencyMs: number
+  jitterMs: number
+  matched: number
+  total: number
+  /** Clicks the best other delay would explain - far below `matched` for a clear result. */
+  runnerUp: number
+  reliable: boolean
+}
+
+/** Answer of `GET /calibration/runs/:id`. */
+export type CalibrationRunStatus =
+  | { state: 'recording'; recordUntil: number }
+  | { state: 'done'; result: CalibrationMatch | null; onsets: number }
+  | { state: 'failed'; error: string }
