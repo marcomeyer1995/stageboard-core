@@ -23,7 +23,7 @@ describe('audio calibration on the device (#491)', () => {
     serverTime.now = 10_000
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string, init?: RequestInit) => {
+      vi.fn(async (_url: string, init?: RequestInit) => {
         if (init?.method === 'POST') return new Response(JSON.stringify({ id: 'r1', times, recordUntil: 15_400 }))
         return new Response(JSON.stringify({ state: 'done', onsets: 3, result: { latencyMs: 433, jitterMs: 4, matched: 3, total: 3, runnerUp: 0, reliable: true } }))
       }),
