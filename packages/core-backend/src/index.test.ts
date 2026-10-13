@@ -162,6 +162,18 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('latency calibration routes (#491)', () => {
+    it('rejects a click count outside 6-24', async () => {
+      const response = await app.inject({ method: 'POST', url: '/calibration/runs', payload: { count: 3 } })
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('answers 404 for an unknown run', async () => {
+      const response = await app.inject({ method: 'GET', url: '/calibration/runs/nope' })
+      expect(response.statusCode).toBe(404)
+    })
+  })
+
   describe('GET /server-info', () => {
     afterEach(() => {
       delete process.env.LAN_IP

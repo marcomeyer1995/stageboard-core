@@ -59,6 +59,20 @@ Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestim
 4. Latenz = Median(Dᵢ - Tᵢ) - Eigenlatenz des Sensors; Streuung aus der Verteilung. Ausreißer (verpasste Erkennungen) werden verworfen; zu wenige gültige Messungen = Fehlschlag mit Grund.
 5. Ergebnis als `LatencyProfile` mit `source: 'measured'` speichern.
 
+### Unregelmäßige Reize - kein Verwechseln der Sekunden (gebaut, 2026-10-13)
+
+Ein Reiz pro Sekunde macht die Latenz nur **bis auf ganze Sekunden** bestimmbar: Ein Klick, der 1,2 s zu spät kommt, landet neben dem *nächsten* Sollzeitpunkt und sieht wie 0,2 s aus (Hinweis Marco, 2026-10-13; schon die Fire-Latenz von 433 ms lag nahe an der Grenze von 500 ms, Bluetooth darüber). Deshalb:
+
+- Der Stage-Server plant die Reize mit **lauter verschiedenen Abständen** (700-1500 ms, gemischt, `irregularSchedule`).
+- Ausgewertet wird das **ganze Muster**: für jede mögliche Verzögerung von −50 ms bis 2 s zählt der Server, wie viele geplante Reize einen erkannten Einsatz im Abstand ≤ 15 ms haben, und nimmt die Verzögerung mit den meisten Treffern (`matchLatency`). Nur bei der richtigen passt die ganze Folge.
+- **Eindeutig** heißt: mindestens 60 % der Reize erkannt, und keine andere Verzögerung (> 50 ms entfernt) erklärt mehr als die Hälfte davon. Bei einem regelmäßigen Muster schlägt genau diese Prüfung an (Test).
+
+### Gebaut: Mikrofon des Stage-Servers als erster Sensor
+
+- `POST /calibration/runs` → unregelmäßige Klickzeiten (Server-Zeit), Aufnahme läuft bis 2 s nach dem letzten; `GET /calibration/runs/:id` → Ergebnis (Latenz, Streuung, Treffer, eindeutig). Eine Messung zur Zeit.
+- Aufnahme mit `arecord` (Gerät `CALIBRATION_AUDIO_DEVICE`, Standard `default`), Einsatzerkennung wie in `sync-receiver.py`, Zeitbezug über den am wenigsten gepufferten Block - übrig bleibt ein konstanter Aufnahmeversatz von wenigen ms, für alle Geräte gleich.
+- Im Gerät: Geräte-Tab → „Latenz…“ beim eigenen Gerät → **Messen** (rohe Latenz des aktuellen Ausgabewegs, „Übernehmen“ speichert als `gemessen`) und **Prüfen** (mit gespeichertem Wert; passt, wenn der Klick ≤ 15 ms neben dem Schlag landet - die Kurzprüfung zum Soundcheck).
+
 ### Sensoren - Hardware bewusst offen
 
 Ein Sensor ist selbst ein Plugin mit einer eigenen Fähigkeit (Vorschlag: `timing-sensor`) und meldet Erkennungen als Ereignisse mit Server-Zeitstempel. Welche Hardware, ist offen (Entscheidung 2026-10-13); die Schnittstelle trägt alle:
@@ -119,8 +133,8 @@ Die Katalog-Einträge (`pluginCatalog.ts`) deklarieren heute: Kemper, MG-30, RC-
 1. ~~Vertrag im Plugin-Manifest, Ausgleich mit Plugin-Latenz im Cue-Planer~~ (gebaut, 2026-10-13).
 2. ~~Tablet-Messung #477 → Vorlauf~~ (erledigt: 200 ms für alle, §8.2 - größere Latenzen gehen automatisch, weil der Vorlauf ab dem früheren Sendezeitpunkt zählt).
 3. ~~Speicherort und Anzeige der Latenzprofile (Geräte-Tab, #303), manuelle Eingabe, Ausgleich für Cues, Klick und Track (#302)~~ (gebaut, 2026-10-13).
-4. Sensor-Schnittstelle (`timing-sensor`) und ein erster Sensor (Hardware-Entscheidung).
-5. Kalibrierlauf und Soundcheck-Prüfung (§4/§5), zuerst für Licht und Audio-Ausgänge (#302).
+4. ~~Erster Sensor: Mikrofon des Stage-Servers~~ (gebaut, 2026-10-13); allgemeine Sensor-Schnittstelle (`timing-sensor`) für weitere Sensoren offen.
+5. ~~Kalibrierlauf und Prüfung für Audio-Ausgänge (#302)~~ (gebaut, 2026-10-13: Messen/Prüfen); für Licht offen (braucht Lichtsensor und Licht-Plugin).
 6. Ein echtes DMX-Plugin mit deklarierter Interface-Latenz und Kalibrier-Reiz.
 
 ## 8. Messungen 2026-10-13
