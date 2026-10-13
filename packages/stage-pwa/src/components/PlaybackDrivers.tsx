@@ -6,6 +6,7 @@ import { useCueScheduler } from '../lib/useCueScheduler'
 import { useFootswitch } from '../lib/useFootswitch'
 import { useMasterSelfCheck } from '../lib/useMasterSelfCheck'
 import { useSongAlerts } from '../lib/useSongAlerts'
+import { useStallMonitor } from '../lib/useStallMonitor'
 import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
 
 /**
@@ -26,6 +27,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
   useSongAlerts()
   useCueScheduler()
+  // Main-thread stalls while a song plays - sets the cue look-ahead (#477, Diagnose tab).
+  useStallMonitor()
   useAudioOutputDriver()
   useClickOutputDriver()
   useAutoStopDriver()

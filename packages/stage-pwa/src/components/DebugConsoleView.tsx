@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Segmented, Switch, Button } from './ui'
+import { CueTimingPanel } from './CueTimingPanel'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
 
@@ -89,6 +90,8 @@ export function DebugConsoleView() {
           </li>
         ))}
       </ol>
+
+      <CueTimingPanel />
 
       <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4">
         <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
