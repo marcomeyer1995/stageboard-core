@@ -29,4 +29,12 @@ if base and onsets:
         ms = (b + o["onset_frame"] * 10**9 // fs) / 1e6
         second = round(ms / 1000) * 1000
         offs.append(ms - second)
-    print(f"mic click onsets vs server second (includes laptop capture bias): {summary(offs)}")
+    print(f"mic onsets vs server second, all (room noise included): {summary(offs)}")
+    # The device's clicks form one tight cluster; room noise is spread out. Take the 2 ms bin with
+    # the most onsets and everything within 10 ms of it.
+    bins = {}
+    for o in offs:
+        bins[round(o / 2)] = bins.get(round(o / 2), 0) + 1
+    mode = max(bins, key=bins.get) * 2
+    cluster = [o for o in offs if abs(o - mode) <= 10]
+    print(f"mic click cluster (noise removed, includes the laptop's capture bias of a few ms): {summary(cluster)} - {len(offs) - len(cluster)} noise onsets dropped")
