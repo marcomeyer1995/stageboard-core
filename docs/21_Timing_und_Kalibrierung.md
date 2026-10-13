@@ -1,6 +1,6 @@
 # 21 · Timing-Klassen, Latenz und Kalibrierung verteilter Geräte
 
-Stand 2026-10-13 (#491). Konzept, das festlegt, wie StageBoard Geräte unterschiedlicher Wichtigkeit zeitgenau ansteuert, ihre Verzögerung misst und ausgleicht - verankert in der Plugin-Architektur (docs/00 §4/§6). Der Vertrag (§6) ist gebaut; Messung und Kalibrierung (§4/§5) sind Konzept. Bündelt #302 (Audio-Ausgabelatenz), #303 (Geräteprofil) und #317 (Latenz externer Geräte).
+Stand 2026-10-13 (#491), mit ersten Messungen (§8). Konzept, das festlegt, wie StageBoard Geräte unterschiedlicher Wichtigkeit zeitgenau ansteuert, ihre Verzögerung misst und ausgleicht - verankert in der Plugin-Architektur (docs/00 §4/§6). Der Vertrag (§6) ist gebaut; Messung und Kalibrierung (§4/§5) sind Konzept. Bündelt #302 (Audio-Ausgabelatenz), #303 (Geräteprofil) und #317 (Latenz externer Geräte).
 
 ## 1. Warum
 
@@ -115,6 +115,66 @@ Die Katalog-Einträge (`pluginCatalog.ts`) deklarieren heute: Kemper, MG-30, RC-
 4. Sensor-Schnittstelle (`timing-sensor`) und ein erster Sensor (Hardware-Entscheidung).
 5. Kalibrierlauf und Soundcheck-Prüfung (§4/§5), zuerst für Licht und Audio-Ausgänge (#302).
 6. Ein echtes DMX-Plugin mit deklarierter Interface-Latenz und Kalibrier-Reiz.
+
+## 8. Messungen 2026-10-13
+
+Erste Messreihe zu allen Wegen, die heute ohne Zusatzhardware messbar sind. Rohdaten und Tabellen in den Kommentaren zu #477 und #491, Skripte in `scripts/midi-timing-probe/` (README). Geräte: Laptop (Stage-Server, Chrome 154), Xiaomi Redmi Pad SE (Android 16, WebView 153), Xiaomi 14T Pro (WebView 153), Fire HD 10 (Android 9, WebView/Silk 138).
+
+**Methode:** Die Tablets stehen im USB-Modus „MIDI“ am Laptop, der Laptop sieht sie als MIDI-Geräte. Weil der Laptop der Stage-Server ist, ist seine Uhr die Server-Zeit - jede Ankunft lässt sich direkt gegen den Sollzeitpunkt messen (`time.time_ns()`, USB-MIDI-Weg ~1 ms). Ton über das Laptop-Mikrofon (ein Gerät zur Zeit, Klick-Cluster gegen Raumgeräusche getrennt; absolute Werte enthalten einige ms Aufnahmeversatz des Laptops, für alle Geräte gleich).
+
+### 8.1 Senden mit WebMIDI-Zeitstempel (#477)
+
+- Mit Zeitstempel geplante Nachrichten kommen auf allen Geräten auf ~0,3 ms genau an (Median), schlimmstenfalls ~5 ms - **unabhängig von der Last**, auch mit allen Kernen ausgelastet.
+- `MIDIOutput.clear()` gibt es auf keinem Gerät (Chrome 154, WebView 153 und 138): Übergebene Cues lassen sich nicht zurückholen.
+- Chrome hält die Reihenfolge von Nachrichten mit gleichem Zeitstempel nicht ein → je weitere Nachricht eines Ereignisses 0,1 ms später (`SEQUENCE_STEP_MS`).
+- Was Cues verspätet, sind **Stillstände des Hauptthreads**, nicht die CPU-Last: Mit 100 ms Vorlauf kamen bei 150-ms-Stillständen 3-7 von 48 Noten bis 54 ms zu spät, mit 150 ms keine (Xiaomi und Fire gleich). Der alte Weg (Senden „jetzt“) lag dabei bis 125 ms daneben.
+
+### 8.2 Stillstände in der echten App
+
+Diagnose-Tab „Cue-Timing auf diesem Gerät“ (#493) bzw. Long-Task-Beobachter, Gig-Läufe in der Test-Band:
+
+| Gerät / Rolle | Stillstände ≥ 50 ms | längster |
+|---|---|---|
+| Fire, Master + Prompter | 5-9 in ~1,5 min | 84-93 ms |
+| Xiaomi-Tablet, Audio-Gerät (Track + Klick) | 9 in ~1,5 min | 76 ms |
+
+Die kritische Grenze bei 100 ms Vorlauf ist 75 ms (Vorlauf minus ein Takt) - sie wird im echten Betrieb gelegentlich überschritten. **Offen:** der Fire als Audio-Gerät (schlimmster Fall), danach Entscheidung 100 → 150 ms.
+
+### 8.3 Synchronität zwischen Geräten
+
+Diagnose-Tab „Synchron-Test“ (#494) auf mehreren Geräten gleichzeitig, jede volle Server-Sekunde eine MIDI-Note:
+
+| Gerät | Versatz zur Server-Zeit (Median, zwei Läufe) | Streuung im Lauf |
+|---|---|---|
+| Fire HD 10 | +0,1 / +1,0 ms | ±1-2 ms |
+| Xiaomi Redmi Pad SE | +5,7 / +2,9 ms | ±1-2 ms |
+| Xiaomi 14T Pro | +7,9 ms | ±1 ms |
+
+- Alle Geräte treffen dieselbe Server-Sekunde innerhalb ~8 ms, das größte Paar liegt ~7 ms auseinander - knapp innerhalb `realtime` (≤ 10 ms).
+- Der Versatz je Gerät ist innerhalb einer Sitzung konstant, wandert aber zwischen Sitzungen um einige ms (Schätzung der Uhr-Synchronisation, docs/09). Das ist korrigierbar (erneute Synchronisation, Kalibrierung), kein Zittern.
+
+### 8.4 Ausgabelatenz des Klicks (#302)
+
+| Gerät (Lautsprecher) | MIDI derselben Sekunde | Klick im Mikrofon | Tonweg hinter MIDI |
+|---|---|---|---|
+| Xiaomi Redmi Pad SE | +3,7 ms | +72,7 ms (sd 1,4) | ~69 ms |
+| Xiaomi 14T Pro | +1,3 ms | +67,9 ms (sd 3,8) | ~67 ms |
+| Fire HD 10 | +3,5 ms | +433 ms (sd 5,0) | ~430 ms |
+
+- Je Gerät stabil (sd 1-5 ms), also eine Konstante je Ausgabeweg - genau das, was der Ausgleich (§3) braucht.
+- Zwischen Geräten riesig: Der Klick des Fire kommt ~360 ms nach dem der Xiaomis. Ohne Ausgleich ist der Fire als Audio-Gerät zusammen mit anderen Audio-Geräten unbrauchbar.
+- Der vom Browser gemeldete Wert stimmt nicht (docs/13 §7: 40 ms beim Xiaomi-Tablet).
+- Der Synchron-Test misst das in einer Minute je Gerät - Vorlage für den Kalibrierlauf (§4, Sensor `sound`).
+
+### 8.5 Fallstricke
+
+- MIUI setzt den USB-Modus „MIDI“ von selbst zurück (Bildschirmsperre); die App zeigt dann einen veralteten Ausgang, Noten gehen ins Leere → Modus neu setzen, Diagnose-Tab neu öffnen.
+- Lautstärke per adb: `cmd media_session volume --set` meldet Erfolg, ändert auf den Xiaomis aber nichts - Tablet: Lautstärketasten (`input keyevent`), Handy: `cmd audio set-volume 3 N`, Fire: `media volume --stream 3 --set N`.
+- Release-Apps sind nicht inspizierbar: Messwerte deshalb im Diagnose-Tab anzeigen und per `adb exec-out screencap` ablesen; Silk lehnt das Zertifikat des Stage-Servers ab.
+
+### 8.6 Noch offen
+
+Fire als Audio-Gerät (eindeutige Gerätenamen nötig, alle heißen „Android-Tablet“), Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
 
 ## Verwandt
 
