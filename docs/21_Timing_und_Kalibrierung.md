@@ -36,7 +36,7 @@ Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestim
 
 **Ausgleich = früher senden:** Der Cue-Planer (#477) sendet jeden Cue um die Latenz seines Ausgangs früher (`sendAt = dueAt - latencyMs`, `cueLatencyMs`). Bei Audio verschiebt der Motor den Startzeitpunkt auf der Audio-Uhr (#302). Gebaut ist der Ausgleich mit dem Plugin-Wert; kalibrierte Werte ersetzen ihn, sobald §4 gebaut ist.
 
-**Vorlauf-Budget:** Ein Cue kann nur so früh gesendet werden, wie er übergeben wird. Der Vorlauf je Klasse muss größer sein als die größte Latenz plus Streuung in dieser Klasse (heute einheitlich `CUE_LOOKAHEAD_MS` = 100 ms). Ein Gerät mit 300 ms Latenz braucht mehr Vorlauf - der Planer muss den Vorlauf dann je Cue aus der Latenz ableiten. Grenze: Nach Pause/Stop kann ein bereits übergebener Cue nicht immer zurückgeholt werden (`MIDIOutput.clear()` fehlt in Chrome, #477).
+**Vorlauf-Budget:** Ein Cue kann nur so früh gesendet werden, wie er übergeben wird. Der Vorlauf je Klasse muss größer sein als die größte Latenz plus Streuung in dieser Klasse (heute einheitlich `CUE_LOOKAHEAD_MS` = 200 ms, §8.2). Ein Gerät mit 300 ms Latenz braucht mehr Vorlauf - der Planer muss den Vorlauf dann je Cue aus der Latenz ableiten. Grenze: Nach Pause/Stop kann ein bereits übergebener Cue nicht zurückgeholt werden (`MIDIOutput.clear()` gibt es auf keinem unserer Geräte, #477).
 
 **Speicherort (offen):** Das Profil hängt am Ausgabeweg, also an der Kombination Gerät + logisches Gerät (wie `DeviceTransportConfig`). Ausgänge, die der Stage-Server selbst bedient, brauchen denselben Platz mit `deviceId` = Server. Wird mit der Kalibrierung entschieden.
 
@@ -137,8 +137,9 @@ Diagnose-Tab „Cue-Timing auf diesem Gerät“ (#493) bzw. Long-Task-Beobachter
 |---|---|---|
 | Fire, Master + Prompter | 5-9 in ~1,5 min | 84-93 ms |
 | Xiaomi-Tablet, Audio-Gerät (Track + Klick) | 9 in ~1,5 min | 76 ms |
+| Fire, Audio-Gerät (Web-Audio-Track + Klick) | 8 in ~1,5 min / 8 in ~1 min mit schnellem Weiterschalten | 92 / 87 ms |
 
-Die kritische Grenze bei 100 ms Vorlauf ist 75 ms (Vorlauf minus ein Takt) - sie wird im echten Betrieb gelegentlich überschritten. **Offen:** der Fire als Audio-Gerät (schlimmster Fall), danach Entscheidung 100 → 150 ms.
+Die kritische Grenze bei 100 ms Vorlauf ist 75 ms (Vorlauf minus ein Takt) - sie wurde in jedem Lauf einige Male überschritten. **Entscheidung (Marco, 2026-10-13): `CUE_LOOKAHEAD_MS` = 200 ms**, Grenze 175 ms - fast doppelt so viel wie der längste gemessene Stillstand (93 ms). Preis: Ein Cue in den letzten 200 ms vor Pause/Stop geht noch raus. Der Diagnose-Tab misst bei jeder Probe weiter.
 
 ### 8.3 Synchronität zwischen Geräten
 
@@ -174,7 +175,7 @@ Diagnose-Tab „Synchron-Test“ (#494) auf mehreren Geräten gleichzeitig, jede
 
 ### 8.6 Noch offen
 
-Fire als Audio-Gerät (eindeutige Gerätenamen nötig, alle heißen „Android-Tablet“), Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
+Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
 
 ## Verwandt
 

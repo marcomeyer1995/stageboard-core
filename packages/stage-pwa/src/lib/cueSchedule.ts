@@ -3,12 +3,15 @@ import type { PlaybackStatus, ShowCue } from 'shared-types'
 /**
  * How far ahead (server-time ms) the cue scheduler hands cues over (#477). A MIDI cue handed to
  * WebMIDI with a timestamp leaves the device at exactly that moment, independent of the main
- * thread - but it can't be taken back where `MIDIOutput.clear()` is missing (Chrome 154 has none,
- * measured 2026-10-13), so Pause/Stop inside this window still lets it out. Short on purpose,
- * like the click's own LOOKAHEAD_MS (clickEngine.ts); the final value waits on the tablet
- * measurement in #477.
+ * thread - but it can't be taken back: `MIDIOutput.clear()` exists on none of our devices (measured
+ * 2026-10-13), so Pause/Stop inside this window still lets it out.
+ *
+ * A cue comes late only when the main thread stalls longer than this minus one tick. Measured
+ * 2026-10-13 (docs/21 §8.2): real stalls up to 93 ms on the Fire, as display and as audio device -
+ * 100 ms (limit 75) let a few through per run. Marco chose 200 ms (limit 175) for margin over
+ * unknown worse cases; the Diagnose tab keeps measuring stalls at every rehearsal.
  */
-export const CUE_LOOKAHEAD_MS = 100
+export const CUE_LOOKAHEAD_MS = 200
 /** How often the scheduler looks ahead - well under CUE_LOOKAHEAD_MS, so a single late tick
  * (a busy main thread) still hands every cue over before its time. */
 export const CUE_TICK_MS = 25
