@@ -38,7 +38,14 @@ Für jeden **Ausgabeweg** (eine logische Ressource, angesteuert von einem bestim
 
 **Vorlauf-Budget:** Ein Cue kann nur so früh gesendet werden, wie er übergeben wird. Der Vorlauf je Klasse muss größer sein als die größte Latenz plus Streuung in dieser Klasse (heute einheitlich `CUE_LOOKAHEAD_MS` = 200 ms, §8.2). Ein Gerät mit 300 ms Latenz braucht mehr Vorlauf - der Planer muss den Vorlauf dann je Cue aus der Latenz ableiten. Grenze: Nach Pause/Stop kann ein bereits übergebener Cue nicht zurückgeholt werden (`MIDIOutput.clear()` gibt es auf keinem unserer Geräte, #477).
 
-**Speicherort (offen):** Das Profil hängt am Ausgabeweg, also an der Kombination Gerät + logisches Gerät (wie `DeviceTransportConfig`). Ausgänge, die der Stage-Server selbst bedient, brauchen denselben Platz mit `deviceId` = Server. Wird mit der Kalibrierung entschieden.
+**Speicherort (gebaut, 2026-10-13):** eigene synchronisierte Sammlung `latency-profile`, ein Dokument je Ausgabeweg mit Id `Gerät:Ausgang:Weg` (`LatencyProfileDoc`): `deviceId` ist das Gerät, das den Ausgang bedient (für Stage-Server-Ausgänge `server`), `output` ein logisches Gerät oder `audio` für den eigenen Ton (Klick, Track), `route` der Audio-Ausgabeweg. Der Weg wird in der nativen App erkannt (`AudioRoutePlugin`: Lautsprecher, Kabel, Bluetooth, USB; Entscheidung Marco: je erkanntem Weg), im Browser `unbekannt`.
+
+**Anwendung (gebaut):**
+- Cues: gespeicherter Wert des ausführenden Geräts vor dem Plugin-Wert (`cueLatencyMs`).
+- Klick: jeder Schlag um die Latenz früher geplant, das Vorausfenster um sie erweitert; ein Schlag, dessen früher Zeitpunkt schon vorbei ist (Latenz länger als der Play-Vorlauf, Fire 430 > 400 ms), klingt sofort statt zu entfallen.
+- Backing-Track (`<audio>` und Web Audio): läuft um die Latenz der Song-Zeit voraus.
+- Automatisch, sobald ein Wert existiert; je Gerät abschaltbar (Einstellungen → „Ton-Latenz ausgleichen“, Entscheidung Marco).
+- Eintragen von Hand im Tab Geräte (`Latenz…` je Gerät und beim Stage-Server); die Zeile je Gerät zeigt die Werte mit Quelle.
 
 **Abgrenzung zur Uhr-Synchronisation:** Der Uhr-Versatz zwischen Gerät und Server (docs/09) bleibt die Grundlage. Das Latenzprofil beschreibt nur, was **nach** dem Senden im Ausgabeweg passiert.
 
@@ -110,8 +117,8 @@ Die Katalog-Einträge (`pluginCatalog.ts`) deklarieren heute: Kemper, MG-30, RC-
 ## 7. Reihenfolge
 
 1. ~~Vertrag im Plugin-Manifest, Ausgleich mit Plugin-Latenz im Cue-Planer~~ (gebaut, 2026-10-13).
-2. Tablet-Messung #477 (`clear()`, Zeitstempel-Genauigkeit im Android-WebView) → Vorlauf je Klasse festlegen.
-3. Speicherort und Anzeige der Latenzprofile (Geräte-Tab, #303), manuelle Eingabe (`source: 'manual'`).
+2. ~~Tablet-Messung #477 → Vorlauf~~ (erledigt: 200 ms für alle, §8.2 - größere Latenzen gehen automatisch, weil der Vorlauf ab dem früheren Sendezeitpunkt zählt).
+3. ~~Speicherort und Anzeige der Latenzprofile (Geräte-Tab, #303), manuelle Eingabe, Ausgleich für Cues, Klick und Track (#302)~~ (gebaut, 2026-10-13).
 4. Sensor-Schnittstelle (`timing-sensor`) und ein erster Sensor (Hardware-Entscheidung).
 5. Kalibrierlauf und Soundcheck-Prüfung (§4/§5), zuerst für Licht und Audio-Ausgänge (#302).
 6. Ein echtes DMX-Plugin mit deklarierter Interface-Latenz und Kalibrier-Reiz.

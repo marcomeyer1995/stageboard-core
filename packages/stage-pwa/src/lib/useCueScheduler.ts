@@ -7,6 +7,7 @@ import { CUE_LOOKAHEAD_MS, CUE_TICK_MS, cuesToSchedule, passedCueIds, type CueTr
 import { recordHandover, recordTick } from './cueTimingStats'
 import { useShowModeSong } from './showMode'
 import { recallScheduledMidi } from './webMidiOutput'
+import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
@@ -41,6 +42,7 @@ export function useCueScheduler(): void {
   const isMaster = useShowStateStore(drivesAutomation)
   const logicalDevices = useLogicalDevicesStore((state) => state.devices)
   const installed = usePluginsStore((state) => state.installed)
+  const latencyProfiles = useLatencyProfilesStore((state) => state.profiles)
 
   // Keyed on activeEntryStartedAt, not activeEntryId: stable across a Pause/Resume cycle (so
   // resuming never re-fires an already-crossed cue), but a fresh, distinct value on every
@@ -73,7 +75,7 @@ export function useCueScheduler(): void {
       lastTick = tickAt
       const fired = firedRef.current.ids
       const now = getServerTime()
-      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed)
+      const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles)
       for (const { cue, sendAt } of cuesToSchedule(cues, transport, now, fired, CUE_LOOKAHEAD_MS, latencyMs)) {
         fired.add(cue.id)
         recordHandover(now - sendAt)
@@ -108,7 +110,7 @@ export function useCueScheduler(): void {
     tick()
     const timer = setInterval(tick, CUE_TICK_MS)
     return () => clearInterval(timer)
-  }, [mode, status, startedAt, accumulatedMs, cues, song, activeEntryStartedAt, logicalDevices, installed, deviceId, isMaster])
+  }, [mode, status, startedAt, accumulatedMs, cues, song, activeEntryStartedAt, logicalDevices, installed, latencyProfiles, deviceId, isMaster])
 
   // Pause/Stop/seek: MIDI already handed over for a moment that is now not coming. Where WebMIDI
   // can take it back (`MIDIOutput.clear()`), do, and let those cues fire again later; elsewhere

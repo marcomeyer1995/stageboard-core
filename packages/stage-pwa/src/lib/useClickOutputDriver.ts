@@ -8,6 +8,7 @@ import { useCapabilityRouting } from './useCapabilityRouting'
 import { useShowMode } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { clickTimeline } from './beatGrid'
+import { useAudioOutputLatencyMs } from './latencyCompensation'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -76,6 +77,8 @@ export function useClickOutputDriver(): void {
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
+  // Heard that much later than scheduled on this device's current output (#491).
+  const outputLatencyMs = useAudioOutputLatencyMs()
 
   const song = queue.currentVariant ?? queue.currentSong
   const isMyDeviceClickOutput = engine === 'local-mine'
@@ -101,6 +104,7 @@ export function useClickOutputDriver(): void {
       // Rehearsal Looper (#61): the click follows the trainer's current pass speed and stays inside
       // the looped section. Read at render time - elapsedMs re-renders this every animation frame.
       ...loopClickState(loopActive),
+      outputLatencyMs,
     }
   })
 

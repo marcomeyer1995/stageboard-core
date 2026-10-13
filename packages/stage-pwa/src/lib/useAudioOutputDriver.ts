@@ -27,6 +27,7 @@ import { useHardwareBindingFor } from './useHardwareBindingFor'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { useShowMode } from './showMode'
 import { gigElapsedMsNow } from './usePlaybackElapsedMs'
+import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -159,6 +160,12 @@ export function useAudioOutputDriver(): void {
   // this re-checks every tick while still counting in - `audioStartedForRunRef` then ensures
   // playLocalTrack itself still only ever fires once per run (syncLocalTrackPosition, below,
   // takes over from there).
+  // Output latency compensation (#491): the track runs that much ahead of the song time, so it is
+  // heard on it - same shift for the <audio> element and the Web Audio engine.
+  const outputLatencyMs = useAudioOutputLatencyMs()
+  const latencyRef = useRef(outputLatencyMs)
+  latencyRef.current = outputLatencyMs
+  const audioElapsedMs = elapsedMs === null ? null : elapsedMs + outputLatencyMs
   const lastAppliedStatusRef = useRef<PlaybackStatus | null>(null)
   const audioStartedForRunRef = useRef(false)
   useEffect(() => {
@@ -179,29 +186,33 @@ export function useAudioOutputDriver(): void {
     }
     if (audioStartedForRunRef.current) return // already started this run
     if (!currentSong) return // a transition item (#29) plays silently - there is no audio to start
-    if (elapsedMs === null || elapsedMs < 0) return // still counting in, or not ready yet
+    if (audioElapsedMs === null || audioElapsedMs < 0) return // still counting in, or not ready yet
     audioStartedForRunRef.current = true
     // Gestureless - this can run on a bare reload while ShowState already says "playing", the
     // exact case the browser's autoplay policy exists to block. Unlike a load failure, the
     // driver has no retry of its own for this (audioStartedForRunRef is already true and stays
     // true), so a rejection here surfaces as `audioBlocked` for ShowTransportWidget.tsx's "tap to
     // resume" control - a real tap satisfies the same gesture requirement play() lacked here.
-    void playLocalTrack(elapsedMs).then((result) => {
+    void playLocalTrack(audioElapsedMs).then((result) => {
       useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
     })
-  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, elapsedMs, currentSong])
+  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, audioElapsedMs, currentSong])
 
   // Web Audio track (#468): started, kept on the clock and stopped from here, every frame.
   const webAudioBlockedRef = useRef(false)
+  const compensatedElapsedNow = useRef(() => {
+    const elapsed = gigElapsedMsNow()
+    return elapsed === null ? null : elapsed + latencyRef.current
+  }).current
   useEffect(() => {
     if (!webAudio) return
     // The engine reads the song time itself, at the moment it reads the audio clock.
-    const { blocked } = syncWebAudioTrack(gigElapsedMsNow, playbackStatus === 'playing' && currentSong !== null)
+    const { blocked } = syncWebAudioTrack(compensatedElapsedNow, playbackStatus === 'playing' && currentSong !== null)
     if (blocked !== webAudioBlockedRef.current) {
       webAudioBlockedRef.current = blocked
       useLocalAudioOutputStore.setState({ audioBlocked: blocked })
     }
-  }, [webAudio, playbackStatus, elapsedMs, currentSong])
+  }, [webAudio, playbackStatus, elapsedMs, currentSong, compensatedElapsedNow])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
   // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.
@@ -211,9 +222,9 @@ export function useAudioOutputDriver(): void {
   // 2026-09-10). `elapsedMs` itself (not the ref) is the dependency here - unlike the load/play
   // effects above, this one is *meant* to re-run on every tick while playing.
   useEffect(() => {
-    if (!isMyDeviceAudioOutput || webAudio || playbackStatus !== 'playing' || elapsedMs === null) return
-    syncLocalTrackPosition(elapsedMs)
-  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, elapsedMs])
+    if (!isMyDeviceAudioOutput || webAudio || playbackStatus !== 'playing' || audioElapsedMs === null) return
+    syncLocalTrackPosition(audioElapsedMs)
+  }, [isMyDeviceAudioOutput, webAudio, playbackStatus, audioElapsedMs])
 
   // Bluetooth/wireless outputs fall asleep after a few seconds of silence and lose the beginning
   // of the next song while waking up - keep the output awake while this device is the Gig audio
