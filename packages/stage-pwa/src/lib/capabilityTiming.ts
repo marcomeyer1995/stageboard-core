@@ -1,5 +1,6 @@
-import { CAPABILITIES, type CapabilityId, type CapabilityTiming, type LogicalDevice, type PluginInstallation, type ShowCue } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type CapabilityTiming, type LatencyProfileDoc, type LogicalDevice, type PluginInstallation, type ShowCue } from 'shared-types'
 import { resolveHardwareBindingById } from './hardwareRouting'
+import { findLatencyProfile } from './latencyProfiles'
 import { PLUGIN_CATALOG } from './pluginCatalog'
 
 /** The built-ins that need no plugin on a tablet: the click (clickEngine.ts) and the backing
@@ -27,10 +28,18 @@ export function capabilityTiming(installed: PluginInstallation[], capability: Ca
 }
 
 /** How much earlier than its due moment a cue must be sent so its output really happens on time
- * (docs/21 §3) - the plugin's declared latency for now; a calibrated value per route replaces it
- * once calibration exists. 0 when unknown. */
-export function cueLatencyMs(cue: ShowCue, logicalDevices: LogicalDevice[], installed: PluginInstallation[]): number {
+ * (docs/21 §3): the stored (measured or entered) latency of the device that drives the output -
+ * its executing tablet, or the Stage-Server - else the plugin's declared latency, else 0. */
+export function cueLatencyMs(
+  cue: ShowCue,
+  logicalDevices: LogicalDevice[],
+  installed: PluginInstallation[],
+  profiles: readonly LatencyProfileDoc[] = [],
+): number {
   const device = resolveHardwareBindingById(logicalDevices, cue.targetLogicalDeviceId)
   if (!device) return 0
+  const executor = device.executionTarget && device.executionTarget !== SERVER_EXECUTION_TARGET ? device.executionTarget : SERVER_EXECUTION_TARGET
+  const stored = findLatencyProfile(profiles, executor, device.id, null)
+  if (stored) return Math.max(0, stored.latencyMs)
   return capabilityTiming(installed, device.capability, device.pluginId).defaultLatencyMs ?? 0
 }

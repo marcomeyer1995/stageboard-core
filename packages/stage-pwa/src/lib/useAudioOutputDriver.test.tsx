@@ -41,6 +41,9 @@ vi.mock('./localAudioEngine', () => ({
   syncLocalTrackPosition: vi.fn(),
   unloadLocalTrack: vi.fn(),
 }))
+// Output latency compensation (#491) reads the latency-profile store (PouchDB) - none here.
+const latency = vi.hoisted(() => ({ ms: 0 }))
+vi.mock('./latencyCompensation', () => ({ useAudioOutputLatencyMs: () => latency.ms }))
 
 function track(id: string): TrackMeta {
   return { id, kind: 'band-mix', label: 'Band', source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }
@@ -140,6 +143,7 @@ function mockLogicalDevices(devices: unknown[]) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  latency.ms = 0
   vi.mocked(useShowStateStore).mockImplementation((selector) =>
     selector({
       state: {},
@@ -418,5 +422,30 @@ describe('surviving a top-level tab switch (Live -> Bibliothek/System, #13/#25 f
     rerender(<Scene onLiveTab={false} />)
 
     expect(stopLocalTrack).not.toHaveBeenCalled()
+  })
+})
+
+describe('output latency compensation (#491)', () => {
+  const playing = (elapsedMs: number) =>
+    mockShowMode({
+      currentEntry: entry('e2', 'song-a'),
+      currentSong: song('song-a', 'Sweet Home Chicago'),
+      currentVariant: variant('v2', 'song-a', [track('t1')]),
+      playbackStatus: 'playing',
+      elapsedMs,
+    })
+
+  it('keeps the track that much ahead of the song time, so it is heard on it', () => {
+    latency.ms = 430
+    playing(1000)
+    render(<DriverHost />)
+    expect(syncLocalTrackPosition).toHaveBeenLastCalledWith(1430)
+  })
+
+  it('starts the track that much before song time 0', () => {
+    latency.ms = 300
+    playing(-250) // heard at -250 + 300 = +50: time to start
+    render(<DriverHost />)
+    expect(playLocalTrack).toHaveBeenCalledWith(50)
   })
 })

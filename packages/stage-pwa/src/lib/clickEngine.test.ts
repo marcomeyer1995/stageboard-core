@@ -393,3 +393,28 @@ describe('click spacing with a coarse audio clock (2026-09-27)', () => {
   })
 })
 
+describe('output latency compensation (#491)', () => {
+  const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 })
+  const startTimes = () =>
+    fakeCtx.createOscillator.mock.results.map((result) => (result.value as FakeOscillator).start.mock.calls[0][0] as number)
+
+  it('schedules each click its output latency earlier, and reaches that much further ahead', () => {
+    // Without latency, from 100 ms the 150 ms window doesn't reach the beat at 500 ms yet.
+    startClick(() => ({ elapsedMs: 100, timeline }))
+    vi.advanceTimersByTime(50)
+    expect(fakeCtx.createOscillator).not.toHaveBeenCalled()
+    __resetClickEngineForTests()
+
+    // 300 ms latency: queued now, 300 ms before its time - heard on the beat.
+    startClick(() => ({ elapsedMs: 100, timeline, outputLatencyMs: 300 }))
+    vi.advanceTimersByTime(50)
+    expect(startTimes()[0]).toBeCloseTo(1000 + 0.4 - 0.3, 3)
+  })
+
+  it('still plays a click whose early moment already passed (latency longer than the time left), instead of skipping it', () => {
+    startClick(() => ({ elapsedMs: 400, timeline, outputLatencyMs: 430 }))
+    vi.advanceTimersByTime(50)
+    expect(startTimes()).toHaveLength(1)
+    expect(startTimes()[0]).toBeCloseTo(1000 + 0.1 - 0.43, 3)
+  })
+})

@@ -41,4 +41,22 @@ describe('capabilityTiming (docs/21)', () => {
     expect(cueLatencyMs(cue('iem'), devices, [dmx])).toBe(0)
     expect(cueLatencyMs(cue('gone'), devices, [dmx])).toBe(0)
   })
+
+  it('a stored latency of the executing device beats the plugin value (#491)', () => {
+    const dmx = plugin({ id: 'dmx', capabilities: ['lighting'], timing: [{ capability: 'lighting', timingClass: 'realtime', honoursScheduledAt: false, defaultLatencyMs: 25 }] })
+    const devices: LogicalDevice[] = [
+      { id: 'front', name: 'Frontlicht', capability: 'lighting', pluginId: null, executionTarget: 'server' },
+      { id: 'kemper', name: 'Kemper', capability: 'kemper-control', pluginId: null, executionTarget: 'tablet-1' },
+    ]
+    const cue = (target: string) => ({ id: 'c', timeMs: 0, type: 'x', targetLogicalDeviceId: target })
+    const stored = [
+      { id: 'server:front:-', deviceId: 'server', output: 'front', route: null, latencyMs: 41, source: 'measured' as const },
+      { id: 'tablet-1:kemper:-', deviceId: 'tablet-1', output: 'kemper', route: null, latencyMs: 9, source: 'manual' as const },
+      // Another tablet's value for the same Kemper doesn't apply - tablet-1 drives it.
+      { id: 'tablet-2:kemper:-', deviceId: 'tablet-2', output: 'kemper', route: null, latencyMs: 300, source: 'manual' as const },
+    ]
+    expect(cueLatencyMs(cue('front'), devices, [dmx], stored)).toBe(41)
+    expect(cueLatencyMs(cue('kemper'), devices, [dmx], stored)).toBe(9)
+    expect(cueLatencyMs(cue('front'), devices, [dmx], [])).toBe(25)
+  })
 })

@@ -29,6 +29,9 @@ export interface ClickEngineState {
   /** The song-time section a Rehearsal Loop (#61) repeats. Beats are never scheduled past its end -
    * the loop wraps there, so a beat queued beyond it would sound in the wrong place. */
   loop?: { startMs: number; endMs: number } | null
+  /** How much later than scheduled this device's audio is heard (#491, latencyCompensation.ts) -
+   * every click is scheduled that much earlier so it is heard on the beat. Absent means 0. */
+  outputLatencyMs?: number
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
@@ -109,7 +112,7 @@ function anchorSchedule(timeline: ClickTimeline, fromMs: number, inclusive: bool
  * (instead of bursting through a backlog) when `elapsedMs` jumped by more than RESYNC_GAP_MS
  * since the last tick (a throttled/backgrounded tab), or went backwards (a loop wrap or seek). */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, timeline, playbackRate = 1, loop = null } = getState()
+  const { elapsedMs, timeline, playbackRate = 1, loop = null, outputLatencyMs = 0 } = getState()
   if (elapsedMs === null) {
     nextBeat = null
     nextBeatAudioTime = null
@@ -127,12 +130,16 @@ function tick(getState: () => ClickEngineState): void {
   const ctx = getAudioContext()
   const audioNow = audioClock.now(ctx)
   // The lookahead window is wall time, `elapsedMs` is song time - a slowed pass covers less song per ms.
-  const lookaheadSongMs = LOOKAHEAD_MS * playbackRate
+  // Output latency compensation (#491) widens it: a click heard 430 ms after scheduling must be
+  // queued 430 ms earlier. The schedule still anchors on the real song time, so a click whose early
+  // moment already passed (latency longer than the Play lead) plays at once instead of being skipped.
+  const lookaheadSongMs = (LOOKAHEAD_MS + outputLatencyMs) * playbackRate
+  const latencyS = outputLatencyMs / 1000
   while (nextBeat !== null) {
     if (timeline.rigid) nextBeatOnsetMs = timeline.timeOfBeat(nextBeat)
     if (nextBeatOnsetMs >= elapsedMs + lookaheadSongMs) break
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    const converted = audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate
+    const converted = audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
     }

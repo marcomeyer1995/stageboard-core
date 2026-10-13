@@ -46,6 +46,8 @@ import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { FlashOverlay } from './components/FlashOverlay'
+import { useLatencyProfilesStore } from './store/useLatencyProfilesStore'
+import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
 import { usePluginsStore } from './store/usePluginsStore'
 import { usePresenceStore } from './store/usePresenceStore'
@@ -156,6 +158,7 @@ function App() {
   const myDeviceRevoked = useDevicesStore((state) => state.devices.find((d) => d.id === getDeviceId())?.revoked ?? false)
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useLatencyProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)
@@ -173,6 +176,8 @@ function App() {
   useWorkspaceResource(useDiscoverySessionStore((state) => state.init), noopStart, activeWorkspaceId)
   useAudioSyncReconciler(activeWorkspaceId)
   useClockSync()
+  // Which output this device's audio goes to - the key of its audio latency profile (#491).
+  useEffect(() => useAudioRouteStore.getState().start(), [])
   useReadyCheckResponder()
   useHardwareDetection()
   useDiscoveryTrigger()

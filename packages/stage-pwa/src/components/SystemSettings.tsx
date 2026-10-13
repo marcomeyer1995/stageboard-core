@@ -13,6 +13,7 @@ import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
 import { WebAudioTrackSettings } from './WebAudioTrackSettings'
+import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
 /**
@@ -82,6 +83,7 @@ export function SystemSettings() {
         </Section>
         <Section title="Wiedergabe (Test)">
           <WebAudioTrackSettings />
+          <LatencyCompensationSettings />
         </Section>
         <Section title="Bibliothek - Geübt">
           <PracticeWindowSettings />

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Select, Switch } from './ui'
 import { getDeviceId } from '../lib/deviceId'
 import { getSyncTestStatus, startSyncTest, stopSyncTest } from '../lib/syncTest'
+import { useAudioOutputLatencyMs } from '../lib/latencyCompensation'
 import { listMidiOutputs } from '../lib/webMidiOutput'
 
 const DURATION_S = 60
@@ -23,6 +24,8 @@ export function SyncTestPanel() {
   const [outputId, setOutputId] = useState('')
   const [channel, setChannel] = useState(defaultChannel)
   const [click, setClick] = useState(false)
+  const [compensate, setCompensate] = useState(false)
+  const latencyMs = useAudioOutputLatencyMs()
   const [, rerender] = useState(0)
 
   useEffect(() => {
@@ -56,6 +59,14 @@ export function SyncTestPanel() {
         options={Array.from({ length: 16 }, (_, i) => ({ value: String(i), label: String(i + 1) }))}
       />
       <Switch label="Klick hörbar (Lautstärke vorher prüfen)" checked={click} onChange={setClick} />
+      {click && (
+        <Switch
+          label={`Mit Latenz-Ausgleich (${latencyMs} ms)`}
+          description="Aus: misst die rohe Latenz (zum Eintragen). An: prüft den Ausgleich - der Klick sollte dann auf der Sekunde landen."
+          checked={compensate}
+          onChange={setCompensate}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-3">
         {status.running ? (
           <Button onClick={() => { stopSyncTest(); rerender((n) => n + 1) }}>Stoppen</Button>
@@ -63,7 +74,7 @@ export function SyncTestPanel() {
           <Button
             variant="primary"
             disabled={!outputId && !click}
-            onClick={() => void startSyncTest({ outputId: outputId || null, channel, click, durationS: DURATION_S }).then(() => rerender((n) => n + 1))}
+            onClick={() => void startSyncTest({ outputId: outputId || null, channel, click, durationS: DURATION_S, clickLatencyMs: click && compensate ? latencyMs : 0 }).then(() => rerender((n) => n + 1))}
           >
             Starten
           </Button>

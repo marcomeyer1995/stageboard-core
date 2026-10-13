@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { DEVICE_INFO_TIMEOUT_MS, type Device } from 'shared-types'
+import { useEffect, useRef, useState } from 'react'
+import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type Device } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
@@ -11,6 +11,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
 import { ActionMenu, Badge, Button } from './ui'
 import { BackupStatusLine } from './BackupStatusLine'
+import { LatencyProfileDialog, LatencySummary } from './LatencyProfiles'
 
 /** How long the Stage-Server has to collect reports before a missing one means "inactive". */
 const COLLECT_MS = 5 * 60 * 1000
@@ -63,6 +64,8 @@ export function DeviceLedgerView() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const isAdmin = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === activeWorkspaceId)?.isAdmin ?? false)
   const confirm = useDialogStore((state) => state.confirm)
+  // Latency entry (#491): which device's dialog is open - a tablet, or the Stage-Server.
+  const [latencyFor, setLatencyFor] = useState<{ id: string; name: string } | null>(null)
 
   // Opens the live diagnostic SSE subscription only while this screen is actually mounted (see
   // useDeviceInfoStore.ts's own doc comment for why this isn't wired always-on in App.tsx).
@@ -174,6 +177,12 @@ export function DeviceLedgerView() {
             </span>
           )}
         </div>
+        <LatencySummary deviceId={SERVER_EXECUTION_TARGET} />
+        {isAdmin && (
+          <Button className="mt-2" onClick={() => setLatencyFor({ id: SERVER_EXECUTION_TARGET, name: 'Stage-Server' })}>
+            Latenz…
+          </Button>
+        )}
       </div>
 
       {sorted.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte registriert.</p>}
@@ -218,16 +227,21 @@ export function DeviceLedgerView() {
                     Zuerst gesehen {formatDateTime(device.firstSeenAt)} · Zuletzt {formatDateTime(device.lastSeenAt)}
                   </p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || device.id === myId) && (
                   <ActionMenu
                     title={device.name}
                     actions={[
-                      ...(!device.revoked && device.id !== myId
+                      { label: 'Latenz…', onClick: () => setLatencyFor({ id: device.id, name: device.name }) },
+                      ...(!isAdmin ? [] : !device.revoked && device.id !== myId
                         ? [{ label: 'Aus Liste entfernen', disabled: used.length > 0, onClick: () => void forgetOne(device) }]
                         : []),
-                      device.revoked
-                        ? { label: 'Wieder zulassen', onClick: () => void toggleRevoked(device) }
-                        : { label: 'Blockieren', danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
+                      ...(!isAdmin
+                        ? []
+                        : [
+                            device.revoked
+                              ? { label: 'Wieder zulassen', onClick: () => void toggleRevoked(device) }
+                              : { label: 'Blockieren', danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
+                          ]),
                     ]}
                   />
                 )}
@@ -256,6 +270,7 @@ export function DeviceLedgerView() {
                   <span className="text-ink-faint">Noch keine Diagnosedaten von diesem Gerät.</span>
                 )}
               </div>
+              <LatencySummary deviceId={device.id} />
               {used.length > 0 && (
                 <p className="mt-2 text-sm text-warn">
                   In Verwendung: {used.join(', ')} - im Tab Hardware ein anderes Gerät wählen, dann lässt es sich entfernen.
@@ -265,6 +280,7 @@ export function DeviceLedgerView() {
           )
         })}
       </div>
+      {latencyFor && <LatencyProfileDialog deviceId={latencyFor.id} deviceName={latencyFor.name} onClose={() => setLatencyFor(null)} />}
     </div>
   )
 }

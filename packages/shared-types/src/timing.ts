@@ -68,3 +68,32 @@ export const LatencyProfileSchema = z.object({
   samples: z.number().int().positive().optional(),
 })
 export type LatencyProfile = z.infer<typeof LatencyProfileSchema>
+
+/** Which output a device's audio currently goes to - latency differs a lot between them (docs/21
+ * §8.4: speaker vs. Bluetooth adds 150-250 ms). Detected by the native app (Android AudioManager);
+ * a browser can't tell and reports `unknown`. */
+export const AudioRouteSchema = z.enum(['speaker', 'wired', 'bluetooth', 'usb', 'unknown'])
+export type AudioRoute = z.infer<typeof AudioRouteSchema>
+
+/** The `output` of a profile for a device's own audio (click, backing track) - every other output
+ * is a Logical Device id. */
+export const AUDIO_OUTPUT = 'audio'
+
+/**
+ * A stored latency profile for one output path (docs/21 §3, #491): `deviceId` drives `output`
+ * (a Logical Device id, or AUDIO_OUTPUT for its own audio) over `route` (audio only; null for
+ * everything else). `deviceId` is `server` for outputs the Stage-Server drives. Replicates
+ * band-wide so the Geräte tab shows every device's values; the scheduler of the device that
+ * drives the output uses it.
+ */
+export const LatencyProfileDocSchema = LatencyProfileSchema.extend({
+  id: z.string().min(1),
+  deviceId: z.string().min(1),
+  output: z.string().min(1),
+  route: AudioRouteSchema.nullable(),
+})
+export type LatencyProfileDoc = z.infer<typeof LatencyProfileDocSchema>
+
+export function latencyProfileId(deviceId: string, output: string, route: AudioRoute | null): string {
+  return `${deviceId}:${output}:${route ?? '-'}`
+}

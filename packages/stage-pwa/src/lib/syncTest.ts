@@ -20,6 +20,10 @@ export interface SyncTestOptions {
   channel: number
   click: boolean
   durationS: number
+  /** Schedule the click earlier by this device's stored output latency (#491) - to check the
+   * compensation: the click then lands on the server second. 0 (default) = the raw latency, what a
+   * calibration measures. */
+  clickLatencyMs?: number
 }
 
 export interface SyncTestStatus {
@@ -57,7 +61,7 @@ export async function startSyncTest(options: SyncTestOptions): Promise<void> {
 
   const tick = () => {
     const now = getServerTime()
-    const until = Math.min(now + SCHEDULE_AHEAD_MS, endsAt)
+    const until = Math.min(now + SCHEDULE_AHEAD_MS + (options.clickLatencyMs ?? 0), endsAt)
     const audioNow = ctx ? clock.now(ctx) : 0
     for (const second of secondsToMark(lastMarked, until, now)) {
       const inMs = second - now
@@ -67,7 +71,7 @@ export async function startSyncTest(options: SyncTestOptions): Promise<void> {
         output.send([0x90 | (options.channel & 0x0f), note, 100], at)
         output.send([0x80 | (options.channel & 0x0f), note, 0], at + 50)
       }
-      if (ctx) playClickAt(ctx, audioNow + inMs / 1000, true)
+      if (ctx) playClickAt(ctx, audioNow + (inMs - (options.clickLatencyMs ?? 0)) / 1000, true)
       lastMarked = second
       status = { ...status, marked: status.marked + 1 }
     }

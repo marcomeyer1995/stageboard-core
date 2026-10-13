@@ -21,6 +21,8 @@ vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
 vi.mock('./clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
+// Output latency compensation (#491) reads the latency-profile store (PouchDB) - none here.
+vi.mock('./latencyCompensation', () => ({ useAudioOutputLatencyMs: () => 0 }))
 
 function song(clickTrackEnabled: boolean): Song {
   return { id: 'song-1', title: 'Test Song', bpm: 120, timeSignature: '4/4', clickTrackEnabled, chordProContent: '', timecodes: [] }
