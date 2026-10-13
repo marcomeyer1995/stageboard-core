@@ -4,6 +4,7 @@ import { cueLatencyMs } from './capabilityTiming'
 import { getServerTime } from './clockSync'
 import { fireCue } from './cueFiring'
 import { CUE_LOOKAHEAD_MS, CUE_TICK_MS, cuesToSchedule, passedCueIds, type CueTransport } from './cueSchedule'
+import { recordHandover, recordTick } from './cueTimingStats'
 import { useShowModeSong } from './showMode'
 import { recallScheduledMidi } from './webMidiOutput'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -64,11 +65,18 @@ export function useCueScheduler(): void {
       scheduledRef.current.clear()
     }
 
+    // How late each tick comes and each cue is handed over (Diagnose tab, `cueTimingStats.ts`).
+    let lastTick: number | null = null
     const tick = () => {
+      const tickAt = performance.now()
+      if (lastTick !== null) recordTick(tickAt - lastTick)
+      lastTick = tickAt
       const fired = firedRef.current.ids
+      const now = getServerTime()
       const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed)
-      for (const { cue, sendAt } of cuesToSchedule(cues, transport, getServerTime(), fired, CUE_LOOKAHEAD_MS, latencyMs)) {
+      for (const { cue, sendAt } of cuesToSchedule(cues, transport, now, fired, CUE_LOOKAHEAD_MS, latencyMs)) {
         fired.add(cue.id)
+        recordHandover(now - sendAt)
         void fireCue(cue, {
           deviceId,
           logicalDevices,
