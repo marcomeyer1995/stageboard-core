@@ -147,3 +147,50 @@ describe('sendSysEx', () => {
     expect(send).toHaveBeenCalledWith([0xf0, 0x43, 0x58, 0x00, 0xf7])
   })
 })
+
+describe('scheduled sends (#477)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubOutput(withClear: boolean) {
+    const output: { id: string; name: string; send: ReturnType<typeof vi.fn>; clear?: ReturnType<typeof vi.fn> } = { id: 'out-1', name: 'Kemper', send: vi.fn() }
+    if (withClear) output.clear = vi.fn()
+    vi.stubGlobal('navigator', { requestMIDIAccess: vi.fn().mockResolvedValue({ outputs: new Map([['out-1', output]]) }) })
+    return output
+  }
+
+  it('an output resolved with a send time sends its messages from that time on, in order, other properties unchanged', async () => {
+    const raw = stubOutput(false)
+    const { getMidiOutputById: fresh, sendNrpn: nrpn } = await freshModule()
+    const output = await fresh('out-1', 1234.5)
+    expect(output?.name).toBe('Kemper')
+    nrpn(output as MIDIOutput, 0, 1, 2, 3, 4)
+    expect(raw.send).toHaveBeenCalledTimes(4)
+    // In order, a hair apart - Chrome reorders messages that share one timestamp.
+    expect(raw.send.mock.calls.map((call) => call[1])).toEqual([1234.5, 1234.6, 1234.7, 1234.8].map((t) => expect.closeTo(t, 6)))
+  })
+
+  it('without a send time the output is the plain one', async () => {
+    const raw = stubOutput(false)
+    const { getMidiOutputById: fresh } = await freshModule()
+    expect(await fresh('out-1')).toBe(raw)
+  })
+
+  it('recall clears outputs with messages still ahead where clear() exists, and says so', async () => {
+    const raw = stubOutput(true)
+    const { getMidiOutputById: fresh, recallScheduledMidi } = await freshModule()
+    ;(await fresh('out-1', 500))?.send([0x90, 1, 1])
+    expect(recallScheduledMidi(400)).toBe(true)
+    expect(raw.clear).toHaveBeenCalledTimes(1)
+  })
+
+  it('recall reports false where clear() is missing (Chrome) - the message still goes out', async () => {
+    stubOutput(false)
+    const { getMidiOutputById: fresh, recallScheduledMidi } = await freshModule()
+    ;(await fresh('out-1', 500))?.send([0x90, 1, 1])
+    expect(recallScheduledMidi(400)).toBe(false)
+    // Once its moment has passed there is nothing left to recall.
+    expect(recallScheduledMidi(600)).toBe(true)
+  })
+})

@@ -3,6 +3,7 @@ import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
 import { isWebMidiSupported } from './webMidi'
 import { getMidiOutputById, sendNrpn } from './webMidiOutput'
+import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { resolveTargetDevice } from './hardwareRouting'
@@ -78,7 +79,7 @@ interface Cq18tOutput {
 
 /** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts's `resolveKemperOutput` - see its own doc comment for why. */
-async function resolveCq18tOutput(logicalDeviceId?: string): Promise<Cq18tOutput | null> {
+async function resolveCq18tOutput(logicalDeviceId?: string, sendAt?: number): Promise<Cq18tOutput | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, CQ18T_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
@@ -89,7 +90,7 @@ async function resolveCq18tOutput(logicalDeviceId?: string): Promise<Cq18tOutput
   const outputId = config?.values.midiOutputId
   if (!outputId) return null
 
-  const output = await getMidiOutputById(outputId)
+  const output = await getMidiOutputById(outputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)
@@ -138,7 +139,7 @@ function test(cq18t: Cq18tOutput): ShowControlResult {
 
 export const cq18tTranslator: Translator = async (event) => {
   if (!isWebMidiSupported()) return { status: 'error', message: 'CQ-18T: WebMIDI nicht unterstützt.' }
-  const cq18t = await resolveCq18tOutput(event.logicalDeviceId)
+  const cq18t = await resolveCq18tOutput(event.logicalDeviceId, midiSendTime(event))
   if (!cq18t) return { status: 'error', message: 'CQ-18T: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

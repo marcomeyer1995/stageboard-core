@@ -3,6 +3,7 @@ import { getDeviceId } from './deviceId'
 import type { Translator } from './clientTranslator'
 import { RC500_CAPABILITY } from './midiDeviceProtocols'
 import { getMidiOutputById } from './webMidiOutput'
+import { midiSendTime } from './midiSendTime'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { resolveTargetDevice } from './hardwareRouting'
@@ -22,7 +23,7 @@ interface Rc500Output {
 /** Same resolution as (the device the event names, else the first with this capability) -
  * kemperTranslator.ts/cq18tTranslator.ts/mg30Translator.ts - see their own doc comments for
  * why. */
-async function resolveRc500Output(logicalDeviceId?: string): Promise<Rc500Output | null> {
+async function resolveRc500Output(logicalDeviceId?: string, sendAt?: number): Promise<Rc500Output | null> {
   const logicalDevice = resolveTargetDevice(useLogicalDevicesStore.getState().devices, RC500_CAPABILITY, logicalDeviceId)
   if (!logicalDevice) return null
 
@@ -33,7 +34,7 @@ async function resolveRc500Output(logicalDeviceId?: string): Promise<Rc500Output
   const outputId = config?.values.midiOutputId
   if (!outputId) return null
 
-  const output = await getMidiOutputById(outputId)
+  const output = await getMidiOutputById(outputId, sendAt)
   if (!output) return null
 
   const channel = Number(config?.values.midiChannel)
@@ -73,7 +74,7 @@ function test(): ShowControlResult {
 }
 
 export const rc500Translator: Translator = async (event) => {
-  const rc500 = await resolveRc500Output(event.logicalDeviceId)
+  const rc500 = await resolveRc500Output(event.logicalDeviceId, midiSendTime(event))
   if (!rc500) return { status: 'error', message: 'RC-500: kein MIDI-Ausgang konfiguriert.' }
 
   switch (event.type) {

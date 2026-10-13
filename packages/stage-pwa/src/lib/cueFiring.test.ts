@@ -141,4 +141,43 @@ describe('fireCue', () => {
     expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: false, message: 'Pult antwortet nicht' })
     expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsServerCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
   })
+
+  describe('ahead-of-time dispatch (#477)', () => {
+    it('a Stage-Server cue carries scheduledAt - the gateway holds it until then', async () => {
+      const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult' })
+      await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), {
+        deviceId: 'me',
+        logicalDevices: [mixer1],
+        installed: [plugin()],
+        sendsServerCues: true,
+        timing: { scheduledAt: 5_000.4, serverNow: () => 4_920 },
+      })
+      expect(triggerShowControl).toHaveBeenCalledWith('mock-mixer', expect.objectContaining({ scheduledAt: 5_000 }))
+    })
+
+    it('a Translator that acts on receipt is called only once the moment has come', async () => {
+      vi.useFakeTimers()
+      try {
+        const mixer1 = mixerDevice({ id: 'mixer-1', name: 'Pult', executionTarget: 'me' })
+        let now = 1_000
+        const fired = fireCue(cue({ targetLogicalDeviceId: mixer1.id }), {
+          deviceId: 'me',
+          logicalDevices: [mixer1],
+          installed: [plugin()],
+          sendsServerCues: true,
+          timing: { scheduledAt: 1_080, serverNow: () => now },
+        })
+        await vi.advanceTimersByTimeAsync(79)
+        expect(localMixerApplyEvent).not.toHaveBeenCalled()
+        now = 1_080
+        await vi.advanceTimersByTimeAsync(1)
+        await fired
+        expect(localMixerApplyEvent).toHaveBeenCalledTimes(1)
+        // No scheduledAt for a Translator that wouldn't honour it.
+        expect(localMixerApplyEvent.mock.calls[0]?.[0]).not.toHaveProperty('scheduledAt')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
 })
