@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BeatGrid, ShowCue } from 'shared-types'
+import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
 import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { startClick, stopClick } from '../../lib/clickEngine'
@@ -39,6 +39,12 @@ import { CueRecorder } from '../CueRecorder'
 import { TargetPicker } from '../CommentListEditor'
 import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
+import { describeCuePattern, PartCueDialog } from './PartCueDialog'
+import { nearestBar, spokenTexts } from '../../lib/announcements'
+import { pluginProviding } from '../../lib/capabilities'
+import { isSilentCue, partHeads, setPartCue } from '../../lib/partCues'
+import { bandAnnouncementSettings } from '../../lib/speechVoices'
+import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
 import { Button } from '../ui'
@@ -165,12 +171,12 @@ function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
 
 // `x` / `effectiveX` is where the finger counts as being - in fine mode (#334) that lags behind the
 // real `rawX`; `startY` is what the vertical distance for fine mode is measured from.
-type Pan = { pointerId: number; startX: number; startY: number; rawX: number; effectiveX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | null }
+type Pan = { pointerId: number; startX: number; startY: number; rawX: number; effectiveX: number; startView: TimelineView; moved: boolean; lane: 'cue' | 'notes' | 'parts' | null }
 type Drag = { pointerId: number; startX: number; startY: number; rawX: number; x: number; moved: boolean } & ({ kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'ripple' })
 /** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
  * dragged (snapping and the readout follow it). */
 type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
-type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | null
+type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'part'; partIndex: number } | null
 type TapMode = 'tempo' | 'lines' | null
 
 /** A lyric shortened to fit `maxPx` at roughly 8 px per character. */
@@ -289,6 +295,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [recordingCues, setRecordingCues] = useState(false)
   /** The open cue window: a new cue at `timeMs`, or the cue `cueId` being edited. */
   const [cueDialog, setCueDialog] = useState<{ timeMs: number; cueId?: string } | null>(null)
+  /** The open announcement window of the selected part (#63). */
+  const [partCueOpen, setPartCueOpen] = useState(false)
+  const installed = usePluginsStore((state) => state.installed)
+  const announcing = pluginProviding(installed, CAPABILITIES.sectionAnnouncements) !== null
+  const announcementSettings = useMemo(() => bandAnnouncementSettings(installed), [installed])
   const lastLaneTap = useRef<{ at: number; x: number; lane: 'cue' | 'notes' } | null>(null)
   const [undoStack, setUndoStack] = useState<TimelineEditState[]>([])
   const [redoStack, setRedoStack] = useState<TimelineEditState[]>([])
@@ -298,6 +309,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedLine = selection?.kind === 'line' ? selection.rawIndex : null
   const selectedCueId = selection?.kind === 'cue' ? selection.id : null
   const selectedNoteStart = selection?.kind === 'note' ? selection.start : null
+  const selectedPartIndex = selection?.kind === 'part' ? selection.partIndex : null
 
   /** A time pulled onto the nearest detected drum hit within ONSET_MAGNET_MS. */
   function magnet(ms: number): number {
@@ -356,6 +368,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const notes = useMemo(() => timelineNotes(content), [content])
   const durationMs = analysis?.durationMs ?? (clock.duration > 0 ? clock.duration * 1000 : timeline.bar1Ms + 60000)
   const blocks = useMemo(() => partBlocks(lines, durationMs), [lines, durationMs])
+  /** Each part's own announcement (#63), by part index - null: the band's pattern. */
+  const partCues = useMemo(() => new Map(partHeads(shownContent).map((head) => [head.partIndex, head.cue])), [shownContent])
   const countInStartMs = timeline.timeOfBeat(timeline.firstBeat)
   const minMs = Math.min(0, countInStartMs)
   const minimapRange = useMemo(() => ({ fromMs: minMs, toMs: durationMs }), [minMs, durationMs])
@@ -705,7 +719,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
         partsUsed.push([x0, x1])
         t.fillStyle = PART_FILL[i % 2]!
         t.fillRect(x0, 2, Math.max(1, x1 - x0 - 2), PARTS_H - 4)
-        const name = fitText(block.label ?? 'Teil', x1 - x0 - 12)
+        if (block.partIndex === selectedPartIndex) {
+          t.strokeStyle = accent
+          t.lineWidth = 2
+          t.strokeRect(x0 + 1, 3, Math.max(1, x1 - x0 - 4), PARTS_H - 6)
+        }
+        const cue = announcing ? partCues.get(block.partIndex) : null
+        // In front, so a narrow block still shows it: 🔇 silent, 🗣 an announcement of its own.
+        const name = fitText(`${cue ? (isSilentCue(cue) ? '🔇 ' : '🗣 ') : ''}${block.label ?? 'Teil'}`, x1 - x0 - 12)
         if (name) {
           t.fillStyle = ink
           t.fillText(name, x0 + 6, PARTS_H - 9)
@@ -827,7 +848,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (shownCues.length === 0) drawLaneHint(q, ['Cues · Doppeltipp: Cue hinzufügen', 'Doppeltipp: Cue'], width, CUE_H, faint)
       else drawLaneLabel(q, 'Cues', CUE_H - 6, cuesUsed, faint)
     }
-  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, lines, blocks, shownCues, logicalDevices, notes, content, dragMs, tempoPreview, tempoH])
+  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, selectedPartIndex, announcing, partCues, lines, blocks, shownCues, logicalDevices, notes, content, dragMs, tempoPreview, tempoH])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -933,7 +954,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         return
       }
     }
-    pan.current = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, effectiveX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : null }
+    pan.current = { pointerId: e.pointerId, startX: x, startY: y, rawX: x, effectiveX: x, startView: view, moved: false, lane: y >= cueTop ? 'cue' : y >= notesTop ? 'notes' : y >= textTop && y < textTop + partsH ? 'parts' : null }
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -1013,6 +1034,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const p = pan.current
+    if (p && p.pointerId === e.pointerId && !p.moved && p.lane === 'parts' && announcing) {
+      // A tap on a part selects it - its announcement (#63) is set in the selection bar.
+      const at = xToTime(p.startX, view)
+      const block = blocks.find((b) => at >= b.startMs && at < b.endMs)
+      setSelection(block ? { kind: 'part', partIndex: block.partIndex } : null)
+      lastLaneTap.current = null
+      pan.current = null
+      return
+    }
     if (p && p.pointerId === e.pointerId && !p.moved) {
       // A double tap in the cue or notes lane adds a cue or a note there; a single tap moves the
       // playhead.
@@ -1024,7 +1054,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         if (p.lane === 'cue') openCueDialog(snapToBeat(at))
         else void addNoteAt(at)
       } else {
-        lastLaneTap.current = p.lane ? { at: now, x: p.startX, lane: p.lane } : null
+        lastLaneTap.current = p.lane === 'cue' || p.lane === 'notes' ? { at: now, x: p.startX, lane: p.lane } : null
         setSelection(null)
         seek(xToTime(p.startX, view))
       }
@@ -1290,6 +1320,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedCue = selectedCueId !== null ? cues.find((c) => c.id === selectedCueId) : undefined
   const selectedCueDevice = selectedCue ? logicalDevices.find((d) => d.id === selectedCue.targetLogicalDeviceId) : undefined
   const selectedNote = selectedNoteStart !== null ? notes.find((note) => note.start === selectedNoteStart) : undefined
+  const selectedPart = selectedPartIndex !== null ? blocks.find((b) => b.partIndex === selectedPartIndex) : undefined
+  const selectedPartCue = selectedPart ? (partCues.get(selectedPart.partIndex) ?? null) : null
+  const selectedPartName = (selectedPart && spokenTexts(announcementSettings.texts)(selectedPart.label)) ?? selectedPart?.label ?? 'Teil'
+  const selectedPartOnBar1 = selectedPart ? nearestBar(timeline, selectedPart.startMs) <= 1 : false
 
   // --- playhead quick actions (#326): the playhead as the target of an edit ---
   /** Where the playhead is right now - the same clock tapping reads, exact while playing too. */
@@ -1794,6 +1828,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </div>
           <TargetPicker profiles={profiles} targets={selectedNote.targets} onChange={(targets) => commitText(setNoteTargets(content, selectedNote.start, targets))} />
         </div>
+      )}
+
+      {selectedPart && (
+        <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
+          <span className="font-semibold">
+            {selectedPart.label ?? 'Teil'} · Ansage: {selectedPartCue === null ? 'Standard' : isSilentCue(selectedPartCue) ? 'stumm' : describeCuePattern(selectedPartCue, selectedPartName)}
+          </span>
+          <Button onClick={() => setPartCueOpen(true)}>Ansage ändern</Button>
+        </div>
+      )}
+
+      {selectedPart && partCueOpen && (
+        <PartCueDialog
+          name={selectedPartName}
+          own={selectedPartCue}
+          countIn={selectedPartOnBar1}
+          bandPattern={selectedPartOnBar1 ? announcementSettings.countInCue : announcementSettings.partCue}
+          onSave={(pattern) => {
+            commitText(setPartCue(content, selectedPart.partIndex, pattern))
+            setPartCueOpen(false)
+          }}
+          onClose={() => setPartCueOpen(false)}
+        />
       )}
 
       {cueDialog && (

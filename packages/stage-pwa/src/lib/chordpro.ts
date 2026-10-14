@@ -220,6 +220,12 @@ export function songAlerts(content: string): Array<{ timeMs: number; text: strin
   return alerts.sort((a, b) => a.timeMs - b.timeMs)
 }
 
+/** A ChordPro custom directive (`{x_announce: …}`, #63) - for programs, never shown or tapped;
+ * the spec's `x_` prefix lets every other program ignore it too. */
+export function isCustomDirective(line: string): boolean {
+  return /^\{\s*x_/i.test(line.trim())
+}
+
 /**
  * Which raw lines Tap-to-Sync may put a timestamp on: lyric lines only. Blank lines, part and
  * comment directives, and everything belonging to a tab block are skipped - a time tag in front
@@ -239,6 +245,7 @@ export function tappableLines(rawLines: readonly string[]): boolean[] {
       parsePartDirective(line) === null &&
       parseCommentDirective(line) === null &&
       parseAlertDirective(line) === null &&
+      !isCustomDirective(line) &&
       !isTabEndDirective(line)
   }
   return tappable
@@ -372,6 +379,7 @@ export function parseChordPro(content: string): ChordProLine[] {
 
     // Stage-Messenger alerts (#26) are cues for the flash overlay, not lyrics.
     if (parseAlertDirective(raw)) continue
+    if (isCustomDirective(raw)) continue
 
     // Checked after stripping a time tag too: Tap-to-Sync used to stamp comment lines
     // (`[00:12.00] {c: ...}`), which then rendered as literal lyric text.
