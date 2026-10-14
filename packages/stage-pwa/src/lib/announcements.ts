@@ -1,38 +1,72 @@
+import { AnnouncementSettingsSchema, type AnnouncementSettings } from 'shared-types'
 import type { ClickTimeline } from './beatGrid'
 import { parsePartDirective } from './chordpro'
 import { partBlocks, timelineLines } from './timelineText'
 
-/** One spoken section announcement (#63): what is said, and when (song time). */
+/** One spoken word or phrase (#63): what is said, and when (song time). */
 export interface Announcement {
   text: string
-  /** Song time the voice starts: the downbeat `LEAD_BARS` before the section's bar. */
+  /** Song time the voice starts - always on a beat of the click grid. */
   atMs: number
-  /** Bar the section starts on. */
+  /** Bar the announced part starts on (count-in words: 1). */
   bar: number
+  /** The part's name, a countdown number, the word on the part's first beat, or a spoken count-in beat. */
+  kind: 'name' | 'count' | 'go' | 'count-in'
 }
 
-/** Announced a bar ahead - what Prime does, and time enough to hear it and get ready. */
-export const LEAD_BARS = 1
+const KIND_ORDER: Record<Announcement['kind'], number> = { 'count-in': 0, name: 1, count: 2, go: 3 }
 
 /**
- * The spoken announcements of a song: one per part with a name (`{start_of_chorus}`,
- * `{part: Bridge}` …, docs/14 §6) whose first line has a time. The part start is rounded to the
- * nearest bar line - sung lines often begin just before the beat - and the voice starts on the
- * downbeat one bar earlier, on the click grid (tempo changes included). An announcement that would
- * fall before the first click (a part on bar 1 without a count-in) is left out.
+ * The spoken announcements of a song, from the band's settings (AnnouncementSettings): for every
+ * part with a name (`{start_of_chorus}`, `{part: Bridge}` …, docs/14 §6) whose first line has a
+ * time - the part start rounded to the nearest bar line, sung lines often begin just before the
+ * beat - its name `nameBarsBefore` bars ahead on the downbeat, optionally a countdown on the last
+ * beats before it ("3, 2, 1") and a word on its first beat ("Los"). All on the click grid, so
+ * tempo changes and curves are followed.
+ *
+ * The count-in (`countIn`): `announce` treats the part on bar 1 like any other, inside the count-in
+ * bars; `count` speaks the count-in beats instead ("1, 2, 3, 4"); `click` says nothing before bar 1.
+ * Nothing is said before the first click. Words never pile up: one that would not come strictly
+ * after the word before it is left out - parts close together lose their name first, then
+ * countdown numbers.
  */
-export function sectionAnnouncements(content: string, timeline: ClickTimeline, texts: Readonly<Record<string, string | null>> = {}): Announcement[] {
-  const firstClickMs = timeline.timeOfBeat(timeline.firstBeat)
-  const spoken = spokenTexts(texts)
-  const out: Announcement[] = []
+export function sectionAnnouncements(content: string, timeline: ClickTimeline, settings: Partial<AnnouncementSettings> = {}): Announcement[] {
+  const opts = AnnouncementSettingsSchema.parse(settings)
+  const firstClickMs = timeline.timeOfBeat(timeline.firstBeat) - 1e-6
+  const bar1Ms = timeline.timeOfBeat(0) - 1e-6
+  const spoken = spokenTexts(opts.texts)
+  const number = (n: number) => opts.countdown.words[n - 1]?.trim() || String(n)
+
+  const events: Announcement[] = []
+  if (opts.countIn === 'count') {
+    for (let beat = timeline.firstBeat; beat < 0; beat++) {
+      events.push({ text: number(timeline.beatInBar(beat) + 1), atMs: timeline.timeOfBeat(beat), bar: 1, kind: 'count-in' })
+    }
+  }
   for (const part of partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)) {
     const text = spoken(part.label)
     if (!text) continue
     const bar = nearestBar(timeline, part.startMs)
-    const atMs = timeline.timeOfBeat(timeline.barStartBeat(bar - LEAD_BARS))
-    if (atMs < firstClickMs - 1e-6) continue
-    if (out.length > 0 && out[out.length - 1]!.bar === bar) continue // two parts snapped onto one bar: the first one
-    out.push({ text, atMs, bar })
+    if (bar <= 1 && opts.countIn !== 'announce') continue
+    const startBeat = timeline.barStartBeat(bar)
+    const words: Announcement[] = [{ text, atMs: timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore)), bar, kind: 'name' }]
+    if (opts.countdown.enabled) {
+      for (let n = opts.countdown.beats; n >= 1; n--) words.push({ text: number(n), atMs: timeline.timeOfBeat(startBeat - n), bar, kind: 'count' })
+    }
+    const go = opts.countdown.enabled ? opts.countdown.go?.trim() : undefined
+    if (go) words.push({ text: go, atMs: timeline.timeOfBeat(startBeat), bar, kind: 'go' })
+    words.sort((a, b) => a.atMs - b.atMs || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+    for (const word of words) {
+      if (word.atMs < firstClickMs) continue
+      if (opts.countIn !== 'announce' && word.atMs < bar1Ms) continue
+      events.push(word)
+    }
+  }
+  const out: Announcement[] = []
+  for (const event of events) {
+    const last = out[out.length - 1]
+    if (last && event.atMs <= last.atMs + 1e-6) continue
+    out.push(event)
   }
   return out
 }

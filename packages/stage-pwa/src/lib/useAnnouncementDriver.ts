@@ -11,7 +11,7 @@ import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip } from './speechClips'
-import { bandAnnouncementTexts, bandSpeechVoice } from './speechVoices'
+import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -58,8 +58,8 @@ export function useAnnouncementDriver(): void {
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)
   const outputLatencyMs = useAudioOutputLatencyMs()
 
-  const voice = bandSpeechVoice(installed)
-  const texts = useMemo(() => bandAnnouncementTexts(installed), [installed])
+  const voice = useMemo(() => bandSpeechVoice(installed), [installed])
+  const settings = useMemo(() => bandAnnouncementSettings(installed), [installed])
   const active = pluginProviding(installed, CAPABILITIES.sectionAnnouncements) !== null && enabledHere && engine === 'local-mine'
 
   const variant = queue.currentVariant
@@ -68,8 +68,8 @@ export function useAnnouncementDriver(): void {
   const items: Announcement[] = useMemo(() => {
     if (!variant || bpm === null) return []
     const countInBars = variant.countInEnabled ? (variant.countInBars ?? 0) : 0
-    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }), texts)
-  }, [variant, bpm, texts])
+    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }), settings)
+  }, [variant, bpm, settings])
 
   // Clips ahead of time: this song's, and the next one's.
   useEffect(() => {
@@ -77,10 +77,10 @@ export function useAnnouncementDriver(): void {
     const wanted = new Set(items.map((item) => item.text))
     if (nextVariant) {
       const nextTimeline = clickTimeline({ bpm: nextVariant.bpm, timeSignature: nextVariant.timeSignature, beatGrid: nextVariant.beatGrid })
-      for (const part of sectionAnnouncements(nextVariant.chordProContent, nextTimeline, texts)) wanted.add(part.text)
+      for (const part of sectionAnnouncements(nextVariant.chordProContent, nextTimeline, settings)) wanted.add(part.text)
     }
     for (const text of wanted) void loadSpeechClip(text, voice)
-  }, [active, items, nextVariant, voice, texts])
+  }, [active, items, nextVariant, voice, settings])
 
   const latest = useRef({ items, elapsedNow, outputLatencyMs, voice })
   latest.current = { items, elapsedNow, outputLatencyMs, voice }
@@ -93,6 +93,7 @@ export function useAnnouncementDriver(): void {
     let done = new Set<number>()
     let lastElapsed: number | null = null
     let pending: { node: AudioBufferSourceNode; when: number }[] = []
+    let last: { node: AudioBufferSourceNode; gain: GainNode; when: number } | null = null
     const cancelPending = () => {
       for (const { node, when } of pending) if (when > ctx.currentTime) node.stop()
       pending = []
@@ -115,8 +116,16 @@ export function useAnnouncementDriver(): void {
         const when = Math.max(ctx.currentTime, audioNow + inMs / 1000 / rate - latencyMs / 1000)
         const node = ctx.createBufferSource()
         node.buffer = buffer
-        node.connect(ctx.destination)
+        const gain = ctx.createGain()
+        node.connect(gain).connect(ctx.destination)
         node.start(when)
+        // A word longer than its beat (a fast song) gives way to the next one with a short fade,
+        // so countdown numbers never pile up.
+        if (last && last.when < when) {
+          last.gain.gain.setTargetAtTime(0, when, 0.005)
+          last.node.stop(when + 0.03)
+        }
+        last = { node, gain, when }
         pending = [...pending.filter((p) => p.when > ctx.currentTime), { node, when }]
       }
     }

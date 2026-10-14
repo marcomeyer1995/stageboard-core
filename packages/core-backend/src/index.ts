@@ -43,7 +43,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SpeechVoiceKeySchema } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SpeechSpeedSchema, SpeechVoiceKeySchema } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -860,13 +860,15 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     return false
   }
   app.get('/speech', async (request, reply) => {
-    const query = request.query as { text?: unknown; voice?: unknown }
+    const query = request.query as { text?: unknown; voice?: unknown; speed?: unknown }
     const text = PiperSpeech.normalise(String(query.text ?? ''))
     if (!text) return reply.status(400).send({ status: 'error', message: 'text fehlt' })
     const voice = query.voice === undefined || query.voice === '' ? undefined : SpeechVoiceKeySchema.safeParse(query.voice)
     if (voice && !voice.success) return reply.status(400).send({ status: 'error', message: 'Ungültige Stimme' })
+    const speed = query.speed === undefined || query.speed === '' ? undefined : SpeechSpeedSchema.safeParse(Number(query.speed))
+    if (speed && !speed.success) return reply.status(400).send({ status: 'error', message: 'Ungültiges Tempo' })
     if (!speechReady(reply)) return reply
-    const result = await serverSpeech.speak(text, voice?.data)
+    const result = await serverSpeech.speak(text, voice?.data, speed?.data)
     if (!result.ok) {
       app.log.error({ text, voice: voice?.data, reason: result.reason, message: result.message }, 'Speech clip failed')
       return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message })

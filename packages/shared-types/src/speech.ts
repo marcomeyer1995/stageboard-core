@@ -12,8 +12,14 @@ export const SpeechVoiceKeySchema = z.string().regex(/^[\p{L}\p{N}_-]{1,80}$/u)
 export const DEFAULT_SPEECH_VOICE = 'de_DE-thorsten-medium'
 
 /** `piper-speech`'s settings: which voice the band uses. */
+export const SPEECH_SPEED_MIN = 0.6
+export const SPEECH_SPEED_MAX = 1.6
+export const SpeechSpeedSchema = z.number().min(SPEECH_SPEED_MIN).max(SPEECH_SPEED_MAX)
+
 export const SpeechSettingsSchema = z.object({
   voice: SpeechVoiceKeySchema.optional(),
+  /** How fast the voice speaks: 1 = the voice's own pace, 1.3 = 30 % faster (Piper's length scale is 1/speed). */
+  speed: SpeechSpeedSchema.optional(),
 })
 export type SpeechSettings = z.infer<typeof SpeechSettingsSchema>
 
@@ -70,5 +76,25 @@ export type SpeechVoiceLicense = z.infer<typeof SpeechVoiceLicenseSchema>
  */
 export const AnnouncementSettingsSchema = z.object({
   texts: z.record(z.string().max(80), z.string().max(80).nullable()).default({}),
+  /** The part's name is said on the downbeat this many bars before the part. */
+  nameBarsBefore: z.number().int().min(1).max(4).default(1),
+  /** "Chorus in 3, 2, 1": the last beats before the part counted down, one word per beat. */
+  countdown: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** How many beats are counted (3 = "3, 2, 1" on the last three beats of the bar before). */
+      beats: z.number().int().min(1).max(8).default(3),
+      /** Word per number, index 0 = "1". Empty entries: the digit, which every voice reads in its language. */
+      words: z.array(z.string().max(30)).max(8).default([]),
+      /** Said on the part's first beat ("Los", "Go"); null = nothing. */
+      go: z.string().max(30).nullable().default(null),
+    })
+    .default({ enabled: false, beats: 3, words: [], go: null }),
+  /**
+   * The count-in before bar 1: `announce` = the part on bar 1 (Intro) is announced like any other,
+   * inside the count-in bars; `count` = the count-in beats are spoken ("1, 2, 3, 4") instead;
+   * `click` = nothing spoken during the count-in.
+   */
+  countIn: z.enum(['announce', 'count', 'click']).default('announce'),
 })
 export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>

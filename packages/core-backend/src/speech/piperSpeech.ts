@@ -69,9 +69,13 @@ export class PiperSpeech {
     return text.replace(/\s+/g, ' ').trim().slice(0, MAX_SPEECH_TEXT)
   }
 
-  async speak(rawText: string, voiceKey?: string): Promise<SpeechResult> {
+  /** `speed`: 1 = the voice's own pace, 1.3 = 30 % faster (Piper's length scale is 1/speed). */
+  async speak(rawText: string, voiceKey?: string, speed = 1): Promise<SpeechResult> {
     const text = PiperSpeech.normalise(rawText)
-    const key = createHash('sha1').update(`${CLIP_FORMAT}\n${this.voiceName(voiceKey)}\n${text}`).digest('hex')
+    const pace = Math.round(speed * 100) / 100
+    const key = createHash('sha1')
+      .update(`${CLIP_FORMAT}\n${this.voiceName(voiceKey)}\n${pace === 1 ? '' : `${pace}\n`}${text}`)
+      .digest('hex')
     const file = join(this.config.cacheDir, `${key}.wav`)
     if (existsSync(file)) return { ok: true, wav: await readFile(file), generated: false }
     const model = this.voiceFile(voiceKey)
@@ -79,7 +83,7 @@ export class PiperSpeech {
     const running = this.inFlight.get(key)
     if (running) return running
     // One Piper at a time: a song's clips are requested together, the laptop must keep its CPU for audio.
-    const job = this.queue.then(() => this.generate(text, model, file))
+    const job = this.queue.then(() => this.generate(text, model, pace, file))
     this.queue = job.catch(() => undefined)
     this.inFlight.set(key, job)
     try {
@@ -89,11 +93,11 @@ export class PiperSpeech {
     }
   }
 
-  private async generate(text: string, model: string, file: string): Promise<SpeechResult> {
+  private async generate(text: string, model: string, pace: number, file: string): Promise<SpeechResult> {
     await mkdir(this.config.cacheDir, { recursive: true })
     const raw = `${file}.piper.wav`
     try {
-      await runPiper(this.config.piperBin, model, text, raw)
+      await runPiper(this.config.piperBin, model, pace, text, raw)
       const wav = writeWav16Mono(trimSpeech(readWav16Mono(await readFile(raw))))
       await writeFile(`${file}.tmp`, wav)
       await rename(`${file}.tmp`, file)
@@ -106,9 +110,9 @@ export class PiperSpeech {
   }
 }
 
-function runPiper(piperBin: string, model: string, text: string, outFile: string): Promise<void> {
+function runPiper(piperBin: string, model: string, pace: number, text: string, outFile: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(piperBin, ['--model', model, '--output_file', outFile], { stdio: ['pipe', 'ignore', 'pipe'] })
+    const proc = spawn(piperBin, ['--model', model, '--length_scale', String(Math.round((1 / pace) * 1000) / 1000), '--output_file', outFile], { stdio: ['pipe', 'ignore', 'pipe'] })
     let stderr = ''
     proc.stderr.on('data', (chunk: Buffer) => {
       stderr = (stderr + chunk.toString()).slice(-2000)

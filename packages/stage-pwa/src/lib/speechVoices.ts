@@ -3,30 +3,32 @@ import {
   SpeechSettingsSchema,
   SpeechVoiceLicenseSchema,
   SpeechVoicesResponseSchema,
+  type AnnouncementSettings,
   type PluginInstallation,
   type SpeechVoiceLicense,
   type SpeechVoicesResponse,
 } from 'shared-types'
+import type { ClipVoice } from './speechClips'
 import { getStageServerUrl } from './stageServer'
 
 /** piper-speech's plugin id - the voice lives in its installation's settings. */
 export const PIPER_SPEECH_PLUGIN = 'piper-speech'
 
-/** The band's voice (#63), or undefined: the Stage-Server's default voice. */
-export function bandSpeechVoice(installed: readonly PluginInstallation[]): string | undefined {
+/** The band's voice and pace (#63) - an empty voice: the Stage-Server's default voice. */
+export function bandSpeechVoice(installed: readonly PluginInstallation[]): ClipVoice {
   const settings = SpeechSettingsSchema.safeParse(installed.find((p) => p.id === PIPER_SPEECH_PLUGIN)?.settings ?? {})
-  return settings.success ? settings.data.voice : undefined
+  return settings.success ? { voice: settings.data.voice, speed: settings.data.speed } : {}
 }
 
 /** section-announcements' plugin id - the band's spoken texts live in its installation's settings. */
 export const ANNOUNCEMENTS_PLUGIN = 'section-announcements'
 
-const NO_TEXTS: Record<string, string | null> = {}
+const DEFAULT_ANNOUNCEMENTS = AnnouncementSettingsSchema.parse({})
 
-/** The band's spoken texts per part name (#63) - empty when none are set. */
-export function bandAnnouncementTexts(installed: readonly PluginInstallation[]): Record<string, string | null> {
+/** The band's announcement settings (#63): spoken texts, when the name comes, countdown, count-in. */
+export function bandAnnouncementSettings(installed: readonly PluginInstallation[]): AnnouncementSettings {
   const settings = AnnouncementSettingsSchema.safeParse(installed.find((p) => p.id === ANNOUNCEMENTS_PLUGIN)?.settings ?? {})
-  return settings.success ? settings.data.texts : NO_TEXTS
+  return settings.success ? settings.data : DEFAULT_ANNOUNCEMENTS
 }
 
 async function call<T>(path: string, parse: (body: unknown) => T, init?: RequestInit): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
