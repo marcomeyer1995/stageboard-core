@@ -109,14 +109,19 @@ export function CuePatternEditor({ label, pattern, presets, onChange }: { label:
       {bars.map((cells, b) => (
         <div key={b} className="flex flex-col gap-1">
           <span className="text-sm text-ink-muted">{bars.length - b === 1 ? 'Takt davor' : `${bars.length - b} Takte davor`}</span>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+          <div className="flex flex-wrap gap-2">
             {cells.map((cell, c) => (
-              <Button key={c} aria-label={`Takt ${b + 1}, Schlag ${c + 1}: ${cellLabel(cell, c + 1)}`} onClick={() => setEditing({ bar: b, cell: c })} className="min-w-0 truncate">
+              <Button
+                key={c}
+                aria-label={`Takt ${b + 1}, Schlag ${c + 1}: ${cellLabel(cell, c + 1)}`}
+                onClick={() => setEditing({ bar: b, cell: c })}
+                className="min-w-16 flex-1 basis-0 truncate"
+              >
                 <span className={cell.trim() ? 'text-ink' : 'text-ink-faint'}>{cellLabel(cell, c + 1)}</span>
               </Button>
             ))}
             {cells.length < MAX_CELLS && (
-              <Button variant="quiet" aria-label={`Takt ${b + 1}: Schlag dazu`} onClick={() => setCell(b, cells.length, '')}>
+              <Button variant="quiet" className="shrink-0" aria-label={`Takt ${b + 1}: Schlag dazu`} onClick={() => setCell(b, cells.length, '')}>
                 +
               </Button>
             )}
