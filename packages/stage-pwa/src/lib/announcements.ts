@@ -1,6 +1,7 @@
 import { AnnouncementSettingsSchema, type AnnouncementSettings } from 'shared-types'
 import type { ClickTimeline } from './beatGrid'
 import { parsePartDirective } from './chordpro'
+import { beatsPerBar } from './metronome'
 import { partBlocks, timelineLines } from './timelineText'
 
 /** One spoken word or phrase (#63): what is said, and when (song time). */
@@ -20,12 +21,13 @@ const KIND_ORDER: Record<Announcement['kind'], number> = { 'count-in': 0, name: 
  * The spoken announcements of a song, from the band's settings (AnnouncementSettings): for every
  * part with a name (`{start_of_chorus}`, `{part: Bridge}` …, docs/14 §6) whose first line has a
  * time - the part start rounded to the nearest bar line, sung lines often begin just before the
- * beat - its name `nameBarsBefore` bars ahead on the downbeat, optionally a countdown on the last
- * beats before it ("3, 2, 1") and a word on its first beat ("Los"). All on the click grid, so
- * tempo changes and curves are followed.
+ * beat - optionally a countdown on the last pulses before it ("3, 2, 1", by default on the meter's
+ * main pulses so the numbers aren't crammed onto every beat), its name on the pulse before the
+ * countdown or `nameBarsBefore` bars ahead on the downbeat, and a word on its first beat ("Los").
+ * All on the click grid, so tempo and meter changes are followed.
  *
  * The count-in (`countIn`): `announce` treats the part on bar 1 like any other, inside the count-in
- * bars; `count` speaks the count-in beats instead ("1, 2, 3, 4"); `click` says nothing before bar 1.
+ * bars; `count` speaks the count-in instead (countInWords); `click` says nothing before bar 1.
  * Nothing is said before the first click. Words never pile up: one that would not come strictly
  * after the word before it is left out - parts close together lose their name first, then
  * countdown numbers.
@@ -38,21 +40,21 @@ export function sectionAnnouncements(content: string, timeline: ClickTimeline, s
   const number = (n: number) => opts.countdown.words[n - 1]?.trim() || String(n)
 
   const events: Announcement[] = []
-  if (opts.countIn === 'count') {
-    for (let beat = timeline.firstBeat; beat < 0; beat++) {
-      events.push({ text: number(timeline.beatInBar(beat) + 1), atMs: timeline.timeOfBeat(beat), bar: 1, kind: 'count-in' })
-    }
-  }
+  if (opts.countIn === 'count') events.push(...countInWords(timeline, opts, number))
   for (const part of partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)) {
     const text = spoken(part.label)
     if (!text) continue
     const bar = nearestBar(timeline, part.startMs)
     if (bar <= 1 && opts.countIn !== 'announce') continue
     const startBeat = timeline.barStartBeat(bar)
-    const words: Announcement[] = [{ text, atMs: timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore)), bar, kind: 'name' }]
+    const words: Announcement[] = []
     if (opts.countdown.enabled) {
-      for (let n = opts.countdown.beats; n >= 1; n--) words.push({ text: number(n), atMs: timeline.timeOfBeat(startBeat - n), bar, kind: 'count' })
+      const pulses = pulsesBefore(timeline, startBeat, opts.countdown.beats + 1, opts.countdown.spacing)
+      // pulses[0] is the one before the first number - the name's place by default.
+      pulses.slice(1).forEach((beat, i) => words.push({ text: number(opts.countdown.beats - i), atMs: timeline.timeOfBeat(beat), bar, kind: 'count' }))
+      if (opts.nameAt === 'before-countdown') words.push({ text, atMs: timeline.timeOfBeat(pulses[0]!), bar, kind: 'name' })
     }
+    if (!opts.countdown.enabled || opts.nameAt === 'bars') words.push({ text, atMs: timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore)), bar, kind: 'name' })
     const go = opts.countdown.enabled ? opts.countdown.go?.trim() : undefined
     if (go) words.push({ text: go, atMs: timeline.timeOfBeat(startBeat), bar, kind: 'go' })
     words.sort((a, b) => a.atMs - b.atMs || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
@@ -97,6 +99,64 @@ export function partNames(contents: Iterable<string>): string[] {
     }
   }
   return [...names.values()].sort((a, b) => a.localeCompare(b, 'de'))
+}
+
+/**
+ * The spoken count-in (#63): `half-then-full` counts the earlier count-in bars on the meter's main
+ * pulses ("1 – 2 –") and the last one on every beat ("1 2 3 4") - the classic band count-in;
+ * `every-beat` counts every beat; `last-bar` only the last count-in bar. The last beat can be
+ * silent or a word of its own ("1 2 3 Los").
+ */
+function countInWords(timeline: ClickTimeline, opts: AnnouncementSettings, number: (n: number) => string): Announcement[] {
+  const words: Announcement[] = []
+  for (let beat = timeline.firstBeat; beat < 0; beat++) {
+    const inBar = timeline.beatInBar(beat)
+    let n = inBar + 1
+    if (timeline.barOf(beat) < 0) {
+      if (opts.countInPattern === 'last-bar') continue
+      if (opts.countInPattern === 'half-then-full') {
+        const pulses = pulseOffsets(timeline.timeSignatureAt(beat), 'pulse')
+        if (!pulses.includes(inBar)) continue
+        n = pulses.indexOf(inBar) + 1
+      }
+    }
+    let text = number(n)
+    if (beat === -1 && opts.countInEnd === 'silent') continue
+    if (beat === -1 && opts.countInEnd === 'word' && opts.countInEndWord.trim()) text = opts.countInEndWord.trim()
+    words.push({ text, atMs: timeline.timeOfBeat(beat), bar: 1, kind: 'count-in' })
+  }
+  return words
+}
+
+type Spacing = AnnouncementSettings['countdown']['spacing']
+
+/**
+ * The beats inside a bar (0 = downbeat) a countdown lands on. `pulse` = the meter's main pulses,
+ * how musicians feel it: 4/4 on 1 and 3, 2/4 and 3/4 once a bar, compound meters (6/8, 9/8, 12/8)
+ * every dotted beat, 5/x as 3+2, 7/8 as 2+2+3, other odd meters as twos ending in a three.
+ */
+export function pulseOffsets(timeSignature: string, spacing: Spacing): number[] {
+  const [num, den] = timeSignature.split('/').map((n) => Number.parseInt(n, 10))
+  const perBar = beatsPerBar(timeSignature)
+  const every = (step: number) => Array.from({ length: Math.ceil(perBar / step) }, (_, i) => i * step)
+  if (spacing === 'beat') return every(1)
+  if (spacing === 'bar') return [0]
+  if (spacing === 'half') return every(2)
+  if (den === 8 && num !== undefined && num % 3 === 0) return every(3)
+  if (perBar <= 3) return [0]
+  if (perBar === 5) return [0, 3]
+  if (perBar % 2 === 0) return every(2)
+  // Odd: twos, the last group a three (7 = 2+2+3, 9/4 = 2+2+2+3).
+  return every(2).slice(0, -1)
+}
+
+/** The last `count` countdown pulses before `beat`, earliest first - across bar lines and meter changes. */
+function pulsesBefore(timeline: ClickTimeline, beat: number, count: number, spacing: Spacing): number[] {
+  const found: number[] = []
+  for (let b = beat - 1; found.length < count && b > beat - count * 32; b--) {
+    if (pulseOffsets(timeline.timeSignatureAt(b), spacing).includes(timeline.beatInBar(b))) found.unshift(b)
+  }
+  return found
 }
 
 function nearestBar(timeline: ClickTimeline, timeMs: number): number {

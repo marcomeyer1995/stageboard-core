@@ -76,25 +76,46 @@ export type SpeechVoiceLicense = z.infer<typeof SpeechVoiceLicenseSchema>
  */
 export const AnnouncementSettingsSchema = z.object({
   texts: z.record(z.string().max(80), z.string().max(80).nullable()).default({}),
-  /** The part's name is said on the downbeat this many bars before the part. */
+  /**
+   * Where the part's name is said: `before-countdown` = on the pulse right before the countdown's
+   * first number (without a countdown: as `bars`); `bars` = on the downbeat `nameBarsBefore` bars
+   * before the part.
+   */
+  nameAt: z.enum(['before-countdown', 'bars']).default('before-countdown'),
+  /** The part's name is said on the downbeat this many bars before the part (`nameAt: 'bars'`). */
   nameBarsBefore: z.number().int().min(1).max(4).default(1),
-  /** "Chorus in 3, 2, 1": the last beats before the part counted down, one word per beat. */
+  /** "Chorus in 3, 2, 1": the last pulses before the part counted down, one word per pulse. */
   countdown: z
     .object({
       enabled: z.boolean().default(false),
-      /** How many beats are counted (3 = "3, 2, 1" on the last three beats of the bar before). */
+      /** How many pulses are counted (3 = "3, 2, 1"). */
       beats: z.number().int().min(1).max(8).default(3),
+      /**
+       * How far apart the numbers are: `pulse` = the meter's main pulses (4/4 beats 1 and 3, 3/4
+       * once a bar, 6/8 beats 1 and 4, 7/8 2+2+3 …), `beat` = every beat, `half` = every second
+       * beat, `bar` = once a bar on the downbeat.
+       */
+      spacing: z.enum(['pulse', 'beat', 'half', 'bar']).default('pulse'),
       /** Word per number, index 0 = "1". Empty entries: the digit, which every voice reads in its language. */
       words: z.array(z.string().max(30)).max(8).default([]),
       /** Said on the part's first beat ("Los", "Go"); null = nothing. */
       go: z.string().max(30).nullable().default(null),
     })
-    .default({ enabled: false, beats: 3, words: [], go: null }),
+    .default({ enabled: false, beats: 3, spacing: 'pulse', words: [], go: null }),
   /**
    * The count-in before bar 1: `announce` = the part on bar 1 (Intro) is announced like any other,
    * inside the count-in bars; `count` = the count-in beats are spoken ("1, 2, 3, 4") instead;
    * `click` = nothing spoken during the count-in.
    */
   countIn: z.enum(['announce', 'count', 'click']).default('announce'),
+  /**
+   * How the count-in is spoken (`countIn: 'count'`): `half-then-full` = the earlier count-in bars
+   * on the meter's main pulses ("1 – 2 –"), the last one on every beat ("1 2 3 4"); `every-beat`;
+   * `last-bar` = only the last count-in bar is spoken. With one count-in bar all three are the same.
+   */
+  countInPattern: z.enum(['half-then-full', 'every-beat', 'last-bar']).default('half-then-full'),
+  /** The count-in's last beat: its number, nothing (the song starts in silence), or `countInEndWord`. */
+  countInEnd: z.enum(['number', 'silent', 'word']).default('number'),
+  countInEndWord: z.string().max(30).default('Los'),
 })
 export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>
