@@ -1,4 +1,5 @@
 import type { ClickTimeline } from './beatGrid'
+import { parsePartDirective } from './chordpro'
 import { partBlocks, timelineLines } from './timelineText'
 
 /** One spoken section announcement (#63): what is said, and when (song time). */
@@ -20,11 +21,12 @@ export const LEAD_BARS = 1
  * downbeat one bar earlier, on the click grid (tempo changes included). An announcement that would
  * fall before the first click (a part on bar 1 without a count-in) is left out.
  */
-export function sectionAnnouncements(content: string, timeline: ClickTimeline): Announcement[] {
+export function sectionAnnouncements(content: string, timeline: ClickTimeline, texts: Readonly<Record<string, string | null>> = {}): Announcement[] {
   const firstClickMs = timeline.timeOfBeat(timeline.firstBeat)
+  const spoken = spokenTexts(texts)
   const out: Announcement[] = []
   for (const part of partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)) {
-    const text = part.label?.trim()
+    const text = spoken(part.label)
     if (!text) continue
     const bar = nearestBar(timeline, part.startMs)
     const atMs = timeline.timeOfBeat(timeline.barStartBeat(bar - LEAD_BARS))
@@ -33,6 +35,34 @@ export function sectionAnnouncements(content: string, timeline: ClickTimeline): 
     out.push({ text, atMs, bar })
   }
   return out
+}
+
+/**
+ * What is said for a part name, from the band's list (AnnouncementSettings): its own text, `null`
+ * = not announced, no entry or an empty text = the name as written. Matched ignoring case and
+ * surrounding spaces, so "chorus" in one song and "Chorus" in another share one entry.
+ */
+export function spokenTexts(texts: Readonly<Record<string, string | null>>): (label: string | null) => string | null {
+  const byName = new Map(Object.entries(texts).map(([name, text]) => [name.trim().toLowerCase(), text]))
+  return (label) => {
+    const name = label?.trim()
+    if (!name) return null
+    const entry = byName.get(name.toLowerCase())
+    if (entry === null) return null
+    return entry?.trim() || name
+  }
+}
+
+/** Every part name used in these songs, as first written - the rows of the band's list. */
+export function partNames(contents: Iterable<string>): string[] {
+  const names = new Map<string, string>()
+  for (const content of contents) {
+    for (const line of content.split('\n')) {
+      const label = parsePartDirective(line)?.label?.trim()
+      if (label && !names.has(label.toLowerCase())) names.set(label.toLowerCase(), label)
+    }
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b, 'de'))
 }
 
 function nearestBar(timeline: ClickTimeline, timeMs: number): number {

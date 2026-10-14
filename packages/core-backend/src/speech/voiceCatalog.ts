@@ -56,7 +56,12 @@ type Fetch = typeof globalThis.fetch
 
 /** Model-card lines: `* License: CC0`, and `Finetuned from U.S. English lessac voice …`. */
 export function parseModelCard(card: string): { license: string | null; finetunedFrom: string | null } {
-  const license = /License:\s*(.+)/i.exec(card)?.[1]?.trim() ?? null
+  let license = /License:\s*(.+)/i.exec(card)?.[1]?.trim() ?? null
+  // Several cards only say "See URL" - the licence is behind the dataset's link.
+  if (license && /^see url$/i.test(license)) {
+    const url = /URL:\s*(\S+)/i.exec(card)?.[1]
+    license = url ? `siehe ${url}` : null
+  }
   const finetunedFrom = /Fine-?tuned from\s+(.+?)\.?\s*$/im.exec(card)?.[1]?.trim() ?? null
   return { license, finetunedFrom }
 }

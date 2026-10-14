@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { clickTimeline } from './beatGrid'
-import { announcementsDue, sectionAnnouncements } from './announcements'
+import { announcementsDue, partNames, sectionAnnouncements, spokenTexts } from './announcements'
 
 // 120 BPM 4/4: a bar is 2000 ms, bar 1 at 0.
 const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4' })
@@ -51,5 +51,18 @@ describe('announcementsDue', () => {
     expect(announcementsDue(items, 1200, 300, done)).toEqual([])
     expect(done.has(0)).toBe(true)
     expect(announcementsDue(items, 1100, 300, new Set())).toEqual([{ index: 0, inMs: -100 }])
+  })
+})
+
+describe("the band's spoken texts", () => {
+  it("says the band's own text, skips muted parts, else the name as written", () => {
+    const items = sectionAnnouncements(song, timeline, { chorus: 'Refrää', Bridge: null })
+    expect(items.map((a) => a.text)).toEqual(['Refrää'])
+    const say = spokenTexts({ Chorus: '  ', 'Verse 2': 'Zwodde Strophe' })
+    expect([say('Chorus'), say('verse 2'), say('Outro'), say(null)]).toEqual(['Chorus', 'Zwodde Strophe', 'Outro', null])
+  })
+
+  it('collects every part name once, as first written', () => {
+    expect(partNames(['{start_of_chorus}\n{part: Bridge}', '{part: bridge}\n{start_of_verse: Strophe 1}'])).toEqual(['Bridge', 'Chorus', 'Strophe 1'])
   })
 })

@@ -61,3 +61,14 @@ export const SpeechVoiceLicenseSchema = z.object({
   finetunedFrom: z.string().nullable(),
 })
 export type SpeechVoiceLicense = z.infer<typeof SpeechVoiceLicenseSchema>
+
+/**
+ * `section-announcements`' settings: what is said for a part name, band-wide (#63) - "Chorus" →
+ * "Refrää" for a dialect, "Verse 2" → "Zwodde Strophe". Keyed by the part name as written in the
+ * songs (matched ignoring case); `null` = never announce this part. A name without an entry is
+ * spoken as written.
+ */
+export const AnnouncementSettingsSchema = z.object({
+  texts: z.record(z.string().max(80), z.string().max(80).nullable()).default({}),
+})
+export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>
