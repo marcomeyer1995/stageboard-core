@@ -7,40 +7,15 @@ import { ANNOUNCEMENTS_PLUGIN, bandAnnouncementSettings, bandSpeechVoice } from 
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
-import { Button, Dialog, Field, Section, Segmented, Select, Switch } from './ui'
+import { COUNT_IN_CUE_PRESETS, CuePatternEditor, PART_CUE_PRESETS } from './CuePatternEditor'
+import { Button, Dialog, Field, Section, Select, Switch } from './ui'
 
-const COUNT_IN_OPTIONS = [
-  { value: 'announce' as const, label: 'Wie die Teile' },
-  { value: 'count' as const, label: 'Gesprochen zählen' },
-  { value: 'click' as const, label: 'Nur Klick' },
-]
-const COUNT_IN_HINT: Record<AnnouncementSettings['countIn'], string> = {
-  announce: 'Der Teil auf Takt 1 (Intro) wird wie jeder andere angesagt, in den Einzähltakten. Was vor dem ersten Klick läge, entfällt.',
-  count: 'Das Einzählen wird gesprochen (mit den Zahlwörtern unten); der Teil auf Takt 1 wird nicht angesagt.',
-  click: 'Während des Einzählens wird nichts gesagt.',
-}
-const SPACING_OPTIONS: { value: AnnouncementSettings['countdown']['spacing']; label: string }[] = [
-  { value: 'pulse', label: 'Hauptschläge der Taktart (4/4: 1 und 3, 3/4: jeder Takt, 6/8: 1 und 4)' },
-  { value: 'beat', label: 'Jeder Schlag' },
-  { value: 'half', label: 'Jeder zweite Schlag' },
-  { value: 'bar', label: 'Einmal pro Takt' },
-]
-const PATTERN_OPTIONS: { value: AnnouncementSettings['countInPattern']; label: string }[] = [
-  { value: 'half-then-full', label: 'Erst halb, dann voll: 1 – 2 – | 1 2 3 4' },
-  { value: 'every-beat', label: 'Jeder Schlag: 1 2 3 4 | 1 2 3 4' },
-  { value: 'last-bar', label: 'Nur der letzte Takt: … | 1 2 3 4' },
-]
-const END_OPTIONS: { value: AnnouncementSettings['countInEnd']; label: string }[] = [
-  { value: 'number', label: 'Die Zahl („… 3, 4“)' },
-  { value: 'silent', label: 'Stille („… 3, –“)' },
-  { value: 'word', label: 'Ein eigenes Wort („… 3, Los“)' },
-]
 const METERS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8']
 
 /**
- * section-announcements' settings (#63), for the whole band: when a part's name is said, a
- * countdown before it ("Chorus … 3, 2, 1, Los"), what happens in the count-in, what is said for
- * each part name - and "Ablauf anhören" to hear it all with the click before a gig.
+ * section-announcements' settings (#63), for the whole band: two cue patterns - the bars before
+ * every part, and the count-in - the number words, what is said for each part name, and "Ablauf
+ * anhören" to hear it all with the click before a gig.
  */
 export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
   const installed = usePluginsStore((state) => state.installed)
@@ -49,8 +24,10 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
   const variants = useSongVariantsStore((state) => state.variants)
   const settings = bandAnnouncementSettings(installed)
   const voice = bandSpeechVoice(installed)
-  const { texts, countdown } = settings
+  const { texts } = settings
   const save = (patch: Partial<AnnouncementSettings>) => void updateSettings(ANNOUNCEMENTS_PLUGIN, patch)
+  // A word field for every beat a pattern can number.
+  const wordCount = Math.max(4, ...[...settings.partCue, ...settings.countInCue].map((bar) => bar.length))
 
   const names = useMemo(() => {
     const used = partNames([...songs.map((s) => s.chordProContent), ...variants.map((v) => v.chordProContent)])
@@ -69,82 +46,37 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title="Ansagen - Einstellungen" onClose={onClose} size="l">
       <div className="flex flex-col gap-6">
-        <Section title="Ablauf">
-          <Switch
-            label="Countdown"
-            description="Vor dem Teil wird heruntergezählt: „Chorus … 3, 2, 1“."
-            checked={countdown.enabled}
-            onChange={(on) => save({ countdown: { ...countdown, enabled: on } })}
-          />
-          {countdown.enabled && (
-            <>
-              <Select
-                label="Zählen ab"
-                value={String(countdown.beats)}
-                onChange={(e) => save({ countdown: { ...countdown, beats: Number(e.target.value) } })}
-                options={[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ value: String(n), label: Array.from({ length: n }, (_, i) => n - i).join(', ') }))}
-              />
-              <Select
-                label="Abstand der Zahlen"
-                value={countdown.spacing}
-                onChange={(e) => save({ countdown: { ...countdown, spacing: e.target.value as AnnouncementSettings['countdown']['spacing'] } })}
-                options={SPACING_OPTIONS}
-              />
-            </>
-          )}
-          <Select
-            label="Name ansagen"
-            value={countdown.enabled && settings.nameAt === 'before-countdown' ? 'before' : String(settings.nameBarsBefore)}
-            onChange={(e) => save(e.target.value === 'before' ? { nameAt: 'before-countdown' } : { nameAt: 'bars', nameBarsBefore: Number(e.target.value) })}
-            options={[
-              ...(countdown.enabled ? [{ value: 'before', label: 'Direkt vor dem Countdown' }] : []),
-              ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: n === 1 ? '1 Takt vorher, auf der Eins' : `${n} Takte vorher, auf der Eins` })),
-            ]}
-          />
-          {countdown.enabled && <GoWord countdown={countdown} onSave={(go) => save({ countdown: { ...countdown, go } })} />}
+        <Section title="Vor jedem Teil" hint="Was in den Takten vor einem Teil gesagt wird, ein Feld pro Schlag. Antippen zum Ändern.">
+          <CuePatternEditor label="Muster" pattern={settings.partCue} presets={PART_CUE_PRESETS} onChange={(partCue) => save({ partCue })} />
         </Section>
 
-        <Section title="Einzählen" hint={COUNT_IN_HINT[settings.countIn]}>
-          <Segmented label="Einzählen" options={COUNT_IN_OPTIONS} value={settings.countIn} onChange={(countIn) => save({ countIn })} />
-          {settings.countIn === 'count' && (
-            <>
-              <Select
-                label="Zählweise"
-                value={settings.countInPattern}
-                onChange={(e) => save({ countInPattern: e.target.value as AnnouncementSettings['countInPattern'] })}
-                options={PATTERN_OPTIONS}
-              />
-              <p className="text-sm text-ink-muted">„Erst halb“ braucht mindestens zwei Einzähltakte; die halben Takte zählen auf den Hauptschlägen der Taktart.</p>
-              <Select
-                label="Letzter Schlag"
-                value={settings.countInEnd}
-                onChange={(e) => save({ countInEnd: e.target.value as AnnouncementSettings['countInEnd'] })}
-                options={END_OPTIONS}
-              />
-              {settings.countInEnd === 'word' && <EndWord value={settings.countInEndWord} onSave={(countInEndWord) => save({ countInEndWord })} />}
-            </>
-          )}
+        <Section
+          title="Einzählen"
+          hint="Was in den Einzähltakten vor Takt 1 gesagt wird; „Name“ ist hier der Teil auf Takt 1 (Intro). Hat ein Song weniger Einzähltakte, gilt der hintere Teil."
+        >
+          <CuePatternEditor label="Muster" pattern={settings.countInCue} presets={COUNT_IN_CUE_PRESETS} onChange={(countInCue) => save({ countInCue })} />
         </Section>
 
-        {(countdown.enabled || settings.countIn === 'count') && (
-          <Section title="Zahlwörter" hint="Leer = die Ziffer, die jede Stimme in ihrer Sprache liest. Für Dialekt so schreiben, wie es klingen soll („zwaa“).">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {Array.from({ length: Math.max(countdown.enabled ? countdown.beats : 0, settings.countIn === 'count' ? 4 : 0) }, (_, i) => (
-                <NumberWord
-                  key={i}
-                  n={i + 1}
-                  value={countdown.words[i] ?? ''}
-                  onSave={(word) => {
-                    const words = [...countdown.words]
-                    while (words.length <= i) words.push('')
-                    words[i] = word.trim()
-                    save({ countdown: { ...countdown, words } })
-                  }}
-                />
-              ))}
-            </div>
-          </Section>
-        )}
+        <Section
+          title="Zahlwörter"
+          hint="Was für die Zahl eines Schlags gesagt wird. Leer = die Ziffer, die jede Stimme in ihrer Sprache liest. Für Dialekt so schreiben, wie es klingen soll („zwaa“)."
+        >
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {Array.from({ length: wordCount }, (_, i) => (
+              <NumberWord
+                key={i}
+                n={i + 1}
+                value={settings.numberWords[i] ?? ''}
+                onSave={(word) => {
+                  const words = [...settings.numberWords]
+                  while (words.length <= i) words.push('')
+                  words[i] = word.trim()
+                  save({ numberWords: words })
+                }}
+              />
+            ))}
+          </div>
+        </Section>
 
         <PreviewSection names={names} settings={settings} voice={voice} />
 
@@ -161,28 +93,6 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
       </div>
     </Dialog>
   )
-}
-
-function GoWord({ countdown, onSave }: { countdown: AnnouncementSettings['countdown']; onSave: (go: string | null) => void }) {
-  const [draft, setDraft] = useState(countdown.go ?? 'Los')
-  return (
-    <>
-      <Switch
-        label="Wort auf dem ersten Schlag"
-        description="Fällt genau auf den Einsatz des Teils - dort beginnt auch die Musik."
-        checked={countdown.go !== null}
-        onChange={(on) => onSave(on ? draft.trim() || 'Los' : null)}
-      />
-      {countdown.go !== null && (
-        <Field label="Wort" value={draft} maxLength={30} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft.trim() && draft !== countdown.go && onSave(draft.trim())} />
-      )}
-    </>
-  )
-}
-
-function EndWord({ value, onSave }: { value: string; onSave: (word: string) => void }) {
-  const [draft, setDraft] = useState(value)
-  return <Field label="Wort" value={draft} maxLength={30} onChange={(e) => setDraft(e.target.value)} onBlur={() => draft.trim() && draft !== value && onSave(draft.trim())} />
 }
 
 function NumberWord({ n, value, onSave }: { n: number; value: string; onSave: (word: string) => void }) {
