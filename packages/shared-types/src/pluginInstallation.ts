@@ -55,5 +55,9 @@ export const PluginInstallationSchema = z.object({
   timing: z.array(CapabilityTimingSchema).optional(),
   enabled: z.boolean().default(true),
   installedAt: z.number().int().nonnegative(),
+  /** The band's own settings for this plugin (e.g. piper-speech's voice, #63) - replicated with the
+   * installation, so every device and the Stage-Server see the same. Free-form here; each plugin
+   * parses its part with its own schema (speech.ts). */
+  settings: z.record(z.string(), z.unknown()).optional(),
 })
 export type PluginInstallation = z.infer<typeof PluginInstallationSchema>

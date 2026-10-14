@@ -1,8 +1,12 @@
 import { CAPABILITIES, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 import { PiperSpeech, speechConfigFromEnv } from '../speech/piperSpeech.js'
+import { SpeechVoices } from '../speech/voiceCatalog.js'
 
 /** The one speech generator of this server - shared by the plugin and the `/speech` route. */
-export const serverSpeech = new PiperSpeech(speechConfigFromEnv())
+const config = speechConfigFromEnv()
+export const serverSpeech = new PiperSpeech(config)
+/** The voices it can speak with - listed, licensed and downloaded on request. */
+export const serverVoices = new SpeechVoices(config.voicesDir)
 
 export const PIPER_SPEECH_PLUGIN_ID = 'piper-speech'
 

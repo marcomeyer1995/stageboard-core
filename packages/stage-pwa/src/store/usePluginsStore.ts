@@ -26,6 +26,7 @@ function toInstallation(doc: PluginInstallationDoc): PluginInstallation {
     hardwareIds: doc.hardwareIds ?? [],
     enabled: doc.enabled,
     installedAt: doc.installedAt,
+    ...(doc.settings ? { settings: doc.settings } : {}),
   }
 }
 
@@ -36,6 +37,8 @@ interface PluginsState {
   init: (workspaceId: string) => Promise<void>
   install: (installation: PluginInstallation) => Promise<void>
   setEnabled: (id: string, enabled: boolean) => Promise<void>
+  /** Merges into the plugin's band-wide settings (e.g. piper-speech's voice, #63). */
+  updateSettings: (id: string, patch: Record<string, unknown>) => Promise<void>
   uninstall: (id: string) => Promise<void>
 }
 
@@ -74,6 +77,11 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     const existing = get().installed.find((plugin) => plugin.id === id)
     if (!existing) return
     await putPlugin({ ...existing, enabled })
+  },
+  updateSettings: async (id, patch) => {
+    const existing = get().installed.find((plugin) => plugin.id === id)
+    if (!existing) return
+    await putPlugin({ ...existing, settings: { ...existing.settings, ...patch } })
   },
   uninstall: async (id) => {
     await removePlugin(id)

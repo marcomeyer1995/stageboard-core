@@ -19,7 +19,10 @@ const GENERATE_TIMEOUT_MS = 15_000
 
 export interface SpeechConfig {
   piperBin: string
+  /** The voice used when a request names none (PIPER_VOICE, default Thorsten). */
   voice: string
+  /** Where downloaded voices live (`<key>.onnx` + `<key>.onnx.json`, voiceCatalog.ts). */
+  voicesDir: string
   cacheDir: string
 }
 
@@ -28,6 +31,7 @@ export function speechConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Speec
   return {
     piperBin: env.PIPER_BIN ?? join(base, 'piper', 'piper', 'piper'),
     voice: env.PIPER_VOICE ?? join(base, 'piper', 'voices', 'de_DE-thorsten-medium.onnx'),
+    voicesDir: join(base, 'piper', 'voices'),
     cacheDir: join(base, 'cache'),
   }
 }
@@ -40,13 +44,24 @@ export class PiperSpeech {
 
   constructor(private readonly config: SpeechConfig) {}
 
-  /** Whether Piper and the voice are installed on this server. */
-  available(): boolean {
-    return existsSync(this.config.piperBin) && existsSync(this.config.voice)
+  /** Whether the Piper program is installed on this server. */
+  piperInstalled(): boolean {
+    return existsSync(this.config.piperBin)
   }
 
-  voiceName(): string {
-    return basename(this.config.voice).replace(/\.onnx$/, '')
+  /** The model file of a voice (`voiceKey`, else the default voice), if installed. */
+  private voiceFile(voiceKey?: string): string | null {
+    const file = voiceKey ? join(this.config.voicesDir, `${voiceKey}.onnx`) : this.config.voice
+    return existsSync(file) && existsSync(`${file}.json`) ? file : null
+  }
+
+  /** Whether Piper and the voice are installed on this server. */
+  available(voiceKey?: string): boolean {
+    return this.piperInstalled() && this.voiceFile(voiceKey) !== null
+  }
+
+  voiceName(voiceKey?: string): string {
+    return voiceKey ?? basename(this.config.voice).replace(/\.onnx$/, '')
   }
 
   /** Normalised text: one line, single spaces - "Chorus " and "Chorus" are the same clip. */
@@ -54,16 +69,17 @@ export class PiperSpeech {
     return text.replace(/\s+/g, ' ').trim().slice(0, MAX_SPEECH_TEXT)
   }
 
-  async speak(rawText: string): Promise<SpeechResult> {
+  async speak(rawText: string, voiceKey?: string): Promise<SpeechResult> {
     const text = PiperSpeech.normalise(rawText)
-    const key = createHash('sha1').update(`${CLIP_FORMAT}\n${this.voiceName()}\n${text}`).digest('hex')
+    const key = createHash('sha1').update(`${CLIP_FORMAT}\n${this.voiceName(voiceKey)}\n${text}`).digest('hex')
     const file = join(this.config.cacheDir, `${key}.wav`)
     if (existsSync(file)) return { ok: true, wav: await readFile(file), generated: false }
-    if (!this.available()) return { ok: false, reason: 'unavailable', message: `Piper nicht installiert (${this.config.piperBin}, ${this.config.voice})` }
+    const model = this.voiceFile(voiceKey)
+    if (!this.piperInstalled() || !model) return { ok: false, reason: 'unavailable', message: `Piper oder Stimme ${this.voiceName(voiceKey)} nicht installiert` }
     const running = this.inFlight.get(key)
     if (running) return running
     // One Piper at a time: a song's clips are requested together, the laptop must keep its CPU for audio.
-    const job = this.queue.then(() => this.generate(text, file))
+    const job = this.queue.then(() => this.generate(text, model, file))
     this.queue = job.catch(() => undefined)
     this.inFlight.set(key, job)
     try {
@@ -73,11 +89,11 @@ export class PiperSpeech {
     }
   }
 
-  private async generate(text: string, file: string): Promise<SpeechResult> {
+  private async generate(text: string, model: string, file: string): Promise<SpeechResult> {
     await mkdir(this.config.cacheDir, { recursive: true })
     const raw = `${file}.piper.wav`
     try {
-      await runPiper(this.config, text, raw)
+      await runPiper(this.config.piperBin, model, text, raw)
       const wav = writeWav16Mono(trimSpeech(readWav16Mono(await readFile(raw))))
       await writeFile(`${file}.tmp`, wav)
       await rename(`${file}.tmp`, file)
@@ -90,9 +106,9 @@ export class PiperSpeech {
   }
 }
 
-function runPiper(config: SpeechConfig, text: string, outFile: string): Promise<void> {
+function runPiper(piperBin: string, model: string, text: string, outFile: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(config.piperBin, ['--model', config.voice, '--output_file', outFile], { stdio: ['pipe', 'ignore', 'pipe'] })
+    const proc = spawn(piperBin, ['--model', model, '--output_file', outFile], { stdio: ['pipe', 'ignore', 'pipe'] })
     let stderr = ''
     proc.stderr.on('data', (chunk: Buffer) => {
       stderr = (stderr + chunk.toString()).slice(-2000)
