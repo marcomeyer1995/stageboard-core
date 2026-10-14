@@ -279,4 +279,24 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     transports: [],
     hardwareIds: [],
   },
+  {
+    id: 'midi-clock',
+    name: 'MIDI-Clock',
+    version: '0.0.1',
+    runtime: 'client',
+    // Generic (#478, Marco 2026-10-13): one "MIDI-Clock" device per piece of gear that should
+    // follow the song tempo, bound to that gear's MIDI port - its own capability, no switch on the
+    // gear's own device. 24 ticks per beat need exact timing: sent with WebMIDI timestamps.
+    capabilities: [CAPABILITIES.midiClock],
+    timing: [{ capability: CAPABILITIES.midiClock, timingClass: 'realtime', honoursScheduledAt: true }],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [{ key: 'midiOutputId', label: 'MIDI-Ausgang', type: 'midi-output' }],
+      },
+    ],
+    // Nothing to detect: the port belongs to the gear (Kemper, RC-500 …), whose own plugin claims it.
+    hardwareIds: [],
+  },
 ]

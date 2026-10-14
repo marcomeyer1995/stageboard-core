@@ -4,6 +4,7 @@ import { useAutoStopDriver } from '../lib/useAutoStopDriver'
 import { useClickOutputDriver } from '../lib/useClickOutputDriver'
 import { useCueScheduler } from '../lib/useCueScheduler'
 import { useFootswitch } from '../lib/useFootswitch'
+import { useMidiClock } from '../lib/useMidiClock'
 import { useMasterSelfCheck } from '../lib/useMasterSelfCheck'
 import { useSongAlerts } from '../lib/useSongAlerts'
 import { useStallMonitor } from '../lib/useStallMonitor'
@@ -27,6 +28,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
   useSongAlerts()
   useCueScheduler()
+  // MIDI beat clock to the MIDI-Clock devices this device drives (#478).
+  useMidiClock()
   // Main-thread stalls while a song plays - sets the cue look-ahead (#477, Diagnose tab).
   useStallMonitor()
   useAudioOutputDriver()
