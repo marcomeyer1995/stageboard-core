@@ -203,11 +203,21 @@ Mikrofon des Stage-Servers, 12 Klicks in unregelmäßigem Abstand, Geräte neben
 | Xiaomi Redmi Pad SE | **73 ms** (12/12 Klicks, Streuung 1 ms) - wie von Hand gemessen (72,7) | **0 ms** |
 | Fire HD 10 | 408 / 436 / 444 ms (je 8-12/12 Klicks) | +41 / +31 / +29 ms (mit 408), −17 ms (mit 444) |
 
+- 2026-10-14 früh, von Marco von Hand an allen drei Geräten: Handy 80 ms (8/12) bzw. **67 ms** (12/12, Streuung 0,2) → „Prüfen“ −0,1 ms; Xiaomi-Tablet 72 ms → −1 ms; Fire 447/446 ms → −1,4/−0,8 ms. Ein „Prüfen“ mit nur 2-6 von 12 erkannten Klicks (−24/−12 ms) ist nicht eindeutig und zählt nicht.
 - Das Verfahren rechnet richtig: „Prüfen“ weicht genau um den Unterschied zwischen gespeichertem und aktuellem Wert ab.
 - **Der Fire schwankt selbst** um etwa ±18 ms zwischen Messungen (408-444 ms); genauer als das lässt er sich nicht ausgleichen. Die Xiaomis sind stabil. Idee: „Messen“ mehrfach laufen lassen und den Median speichern.
 - Fallstrick: PipeWires `default`-Quelle nahm den Klick eines Tablets nicht wahr (0 Einsätze), das Hardware-Gerät schon (30 dB Aufnahmeverstärkung) → `CALIBRATION_AUDIO_DEVICE=plughw:CARD=Generic_1,DEV=0` in der systemd-Unit des Stage-Servers (per Name, weil USB-MIDI-Geräte die Kartennummern verschieben).
 
-### 8.7 Noch offen
+### 8.7 MIDI-Clock (#478)
+
+Eigenes Gerät „MIDI-Clock“ (Fähigkeit `midi-clock`, generisch, an den MIDI-Ausgang des Geräts gebunden, das dem Tempo folgen soll; im Einrichten eine Auswahl der MIDI-Ausgänge dieses Geräts). Jedes Gerät sendet die Clock für seine eigenen MIDI-Clock-Geräte selbst (`lib/useMidiClock.ts`, `midiClockEngine.ts`): 24 Ticks je Schlag aus dem Klick-Raster (Tempowechsel und Tempokurven Schlag für Schlag), mit WebMIDI-Zeitstempel 200 ms im Voraus, um die gespeicherte Latenz des Ausgangs früher. Entscheidungen Marco (2026-10-13): läuft immer (zwischen den Songs im Tempo des gewählten Songs), läuft durch den Einzähler, Start auf dem ersten Schlag von Takt 1 (nicht Dateianfang), Pause → Stop, Weiter/Sprung → Song Position Pointer + Continue auf der nächsten Sechzehntel. Im Üben-Modus läuft sie frei im Song-Tempo (noch ohne Start/Stop).
+
+Messung 2026-10-14 (Xiaomi-Tablet im USB-Modus MIDI am Laptop, Referenz-Song 120 BPM): Abstand 20,83 ms (Soll 500/24), Streuung 0,7 ms (USB-MIDI-Weg); Start 0,09 ms vor dem ersten Tick; Pause → Stop; Weiter → SPP (Schlag 8,0) + Continue, der nächste Tick genau auf dieser Sechzehntel.
+
+- Bereits übergebene Ticks lassen sich nicht zurückholen (kein `clear()`, §8.1): nach Stop kommen noch bis zu 200 ms Ticks an - ein gestopptes Gerät zählt sie nicht. Deshalb setzt Weiter erst hinter diesen Ticks ein (gemessen ~0,25 s nach der Pausenstelle); die Position stimmt über den SPP. Geräte ohne SPP liegen danach um diese Strecke zurück, behalten aber das Tempo (Entscheidung Marco).
+- Ist die Seite im Hintergrund, drosselt der Browser die Timer auf ~1 s - die Clock hat dann Lücken.
+
+### 8.8 Noch offen
 
 Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
 

@@ -29,4 +29,8 @@ export const CAPABILITIES = {
    * follow-up) - optional; the built-in detector and setting the click grid by hand in the
    * timeline always work without any plugin installed. */
   audioAnalysis: 'audio-analysis',
+  /** MIDI beat clock (#478): 24 ticks per beat from the click grid, Start/Stop/Continue and Song
+   * Position Pointer, sent to any MIDI output - a generic "MIDI-Clock" device, bound to the port
+   * of the gear that should follow the song tempo (Kemper delay, RC-500 loop, drum machine). */
+  midiClock: 'midi-clock',
 } as const satisfies Record<string, CapabilityId>

@@ -2,6 +2,7 @@ import { CAPABILITIES, type CapabilityId, type PluginInstallation, type ShowCont
 import { CQ18T_CAPABILITY, cq18tTranslator } from './cq18tTranslator'
 import { KEMPER_CAPABILITY, kemperTranslator } from './kemperTranslator'
 import { MG30_CAPABILITY, mg30Translator } from './mg30Translator'
+import { MIDI_CLOCK_CAPABILITY, midiClockTranslator } from './midiClockOutputs'
 import { RC500_CAPABILITY, rc500Translator } from './rc500Translator'
 import { UI24R_CAPABILITY, ui24rTranslator } from './ui24rTranslator'
 import { loadClientPlugin } from './loadClientPlugin'
@@ -71,6 +72,7 @@ const TRANSLATORS: Partial<Record<CapabilityId, Translator>> = {
   [MG30_CAPABILITY]: mg30Translator,
   [RC500_CAPABILITY]: rc500Translator,
   [UI24R_CAPABILITY]: ui24rTranslator,
+  [MIDI_CLOCK_CAPABILITY]: midiClockTranslator,
 }
 
 /** Translators registered by a dynamically-loaded plugin (#109), keyed by capability - filled
