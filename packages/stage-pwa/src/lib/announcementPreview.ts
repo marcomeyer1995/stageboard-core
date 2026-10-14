@@ -5,24 +5,24 @@ import { playClickAt } from './clickEngine'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { loadSpeechClip, type ClipVoice } from './speechClips'
 
-/** A short made-up song for "Ablauf anhören": count-in, Intro on bar 1, `part` on bar 4. */
-export function previewSong(part: string, bpm: number, countInBars: number) {
-  const timeline = clickTimeline({ bpm, timeSignature: '4/4', countInBars })
+/** A short made-up song for "Ablauf anhören": count-in, Intro on bar 1, `part` on bar 5. */
+export function previewSong(part: string, bpm: number, countInBars: number, timeSignature = '4/4') {
+  const timeline = clickTimeline({ bpm, timeSignature, countInBars })
   const tag = (ms: number) => {
     const s = Math.max(0, ms) / 1000
     return `[${String(Math.floor(s / 60)).padStart(2, '0')}:${(s % 60).toFixed(2).padStart(5, '0')}]`
   }
-  const content = `{part: Intro}\n${tag(timeline.timeOfBeat(0))}x\n{part: ${part}}\n${tag(timeline.timeOfBeat(timeline.barStartBeat(4)))}y`
-  return { timeline, content, endBeat: timeline.barStartBeat(5) }
+  const content = `{part: Intro}\n${tag(timeline.timeOfBeat(0))}x\n{part: ${part}}\n${tag(timeline.timeOfBeat(timeline.barStartBeat(5)))}y`
+  return { timeline, content, endBeat: timeline.barStartBeat(6) }
 }
 
 /**
- * Plays the band's announcement settings once on this device, with the click: a count-in, an
- * Intro and the chosen part - so countdown, the name's bar and the count-in mode can be heard
- * before a gig. Returns false when a word's clip can't be had.
+ * Plays the band's announcement settings once on this device, with the click: two count-in bars,
+ * an Intro and the chosen part, in the chosen meter - so countdown, the name's place and the
+ * count-in can be heard before a gig. Returns false when a word's clip can't be had.
  */
-export async function playAnnouncementPreview(part: string, bpm: number, settings: AnnouncementSettings, voice: ClipVoice): Promise<boolean> {
-  const { timeline, content, endBeat } = previewSong(part, bpm, 1)
+export async function playAnnouncementPreview(part: string, bpm: number, timeSignature: string, settings: AnnouncementSettings, voice: ClipVoice): Promise<boolean> {
+  const { timeline, content, endBeat } = previewSong(part, bpm, 2, timeSignature)
   const words = sectionAnnouncements(content, timeline, settings)
   const clips = await Promise.all(words.map((w) => loadSpeechClip(w.text, voice)))
   if (clips.some((c) => c === null)) return false
