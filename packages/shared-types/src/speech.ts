@@ -69,53 +69,48 @@ export const SpeechVoiceLicenseSchema = z.object({
 export type SpeechVoiceLicense = z.infer<typeof SpeechVoiceLicenseSchema>
 
 /**
- * `section-announcements`' settings: what is said for a part name, band-wide (#63) - "Chorus" →
- * "Refrää" for a dialect, "Verse 2" → "Zwodde Strophe". Keyed by the part name as written in the
- * songs (matched ignoring case); `null` = never announce this part. A name without an entry is
- * spoken as written.
+ * One beat of a cue pattern (#63): `''` = nothing, `{name}` = the part's name (its band text),
+ * `#` = this beat's number in the bar ("2", "3" … - in the band's number words), anything else is
+ * said as written ("Los").
  */
-export const AnnouncementSettingsSchema = z.object({
-  texts: z.record(z.string().max(80), z.string().max(80).nullable()).default({}),
-  /**
-   * Where the part's name is said: `before-countdown` = on the pulse right before the countdown's
-   * first number (without a countdown: as `bars`); `bars` = on the downbeat `nameBarsBefore` bars
-   * before the part.
-   */
-  nameAt: z.enum(['before-countdown', 'bars']).default('before-countdown'),
-  /** The part's name is said on the downbeat this many bars before the part (`nameAt: 'bars'`). */
-  nameBarsBefore: z.number().int().min(1).max(4).default(1),
-  /** "Chorus in 3, 2, 1": the last pulses before the part counted down, one word per pulse. */
-  countdown: z
-    .object({
-      enabled: z.boolean().default(false),
-      /** How many pulses are counted (3 = "3, 2, 1"). */
-      beats: z.number().int().min(1).max(8).default(3),
-      /**
-       * How far apart the numbers are: `pulse` = the meter's main pulses (4/4 beats 1 and 3, 3/4
-       * once a bar, 6/8 beats 1 and 4, 7/8 2+2+3 …), `beat` = every beat, `half` = every second
-       * beat, `bar` = once a bar on the downbeat.
-       */
-      spacing: z.enum(['pulse', 'beat', 'half', 'bar']).default('pulse'),
-      /** Word per number, index 0 = "1". Empty entries: the digit, which every voice reads in its language. */
-      words: z.array(z.string().max(30)).max(8).default([]),
-      /** Said on the part's first beat ("Los", "Go"); null = nothing. */
-      go: z.string().max(30).nullable().default(null),
-    })
-    .default({ enabled: false, beats: 3, spacing: 'pulse', words: [], go: null }),
-  /**
-   * The count-in before bar 1: `announce` = the part on bar 1 (Intro) is announced like any other,
-   * inside the count-in bars; `count` = the count-in beats are spoken ("1, 2, 3, 4") instead;
-   * `click` = nothing spoken during the count-in.
-   */
-  countIn: z.enum(['announce', 'count', 'click']).default('announce'),
-  /**
-   * How the count-in is spoken (`countIn: 'count'`): `half-then-full` = the earlier count-in bars
-   * on the meter's main pulses ("1 – 2 –"), the last one on every beat ("1 2 3 4"); `every-beat`;
-   * `last-bar` = only the last count-in bar is spoken. With one count-in bar all three are the same.
-   */
-  countInPattern: z.enum(['half-then-full', 'every-beat', 'last-bar']).default('half-then-full'),
-  /** The count-in's last beat: its number, nothing (the song starts in silence), or `countInEndWord`. */
-  countInEnd: z.enum(['number', 'silent', 'word']).default('number'),
-  countInEndWord: z.string().max(30).default('Los'),
-})
+export const CueCellSchema = z.string().max(30)
+export type CueCell = z.infer<typeof CueCellSchema>
+export const CUE_NAME = '{name}'
+export const CUE_BEAT = '#'
+
+/**
+ * What is said in the bars before a part, one cell per beat - bars earliest first, the last bar
+ * ends right before the part. A cell past the end of a shorter bar is skipped, a bar with more beats
+ * than cells is silent there.
+ */
+export const CuePatternSchema = z.array(z.array(CueCellSchema).max(16)).min(1).max(2)
+export type CuePattern = z.infer<typeof CuePatternSchema>
+
+export const DEFAULT_PART_CUE: CuePattern = [[CUE_NAME, '', '', '']]
+export const DEFAULT_COUNT_IN_CUE: CuePattern = [
+  ['1', '', '2', ''],
+  [CUE_BEAT, CUE_BEAT, CUE_BEAT, CUE_BEAT],
+]
+
+/**
+ * `section-announcements`' settings (#63), band-wide: two cue patterns - before every part, and in
+ * the count-in before bar 1 (`{name}` there = the part on bar 1) - what is said for a part name
+ * ("Chorus" → "Refrää" for a dialect; keyed by the name as written, matched ignoring case; `null`
+ * = never announce this part, no entry = as written), and the number words for `#` (index 0 = "1",
+ * empty = the digit, which every voice reads in its language).
+ */
+export const AnnouncementSettingsSchema = z.preprocess(
+  // Before the cue patterns the number words lived in `countdown.words`.
+  (raw) => {
+    if (!raw || typeof raw !== 'object' || 'numberWords' in raw) return raw
+    const words = (raw as { countdown?: { words?: unknown } }).countdown?.words
+    return Array.isArray(words) ? { ...raw, numberWords: words } : raw
+  },
+  z.object({
+    texts: z.record(z.string().max(80), z.string().max(80).nullable()).default({}),
+    partCue: CuePatternSchema.default(DEFAULT_PART_CUE),
+    countInCue: CuePatternSchema.default(DEFAULT_COUNT_IN_CUE),
+    numberWords: z.array(z.string().max(30)).max(16).default([]),
+  }),
+)
 export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>

@@ -1,7 +1,6 @@
-import { AnnouncementSettingsSchema, type AnnouncementSettings } from 'shared-types'
+import { AnnouncementSettingsSchema, CUE_BEAT, CUE_NAME, type AnnouncementSettings } from 'shared-types'
 import type { ClickTimeline } from './beatGrid'
 import { parsePartDirective } from './chordpro'
-import { beatsPerBar } from './metronome'
 import { partBlocks, timelineLines } from './timelineText'
 
 /** One spoken word or phrase (#63): what is said, and when (song time). */
@@ -11,69 +10,58 @@ export interface Announcement {
   atMs: number
   /** Bar the announced part starts on (count-in words: 1). */
   bar: number
-  /** The part's name, a countdown number, the word on the part's first beat, or a spoken count-in beat. */
-  kind: 'name' | 'count' | 'go' | 'count-in'
 }
 
-const KIND_ORDER: Record<Announcement['kind'], number> = { 'count-in': 0, name: 1, count: 2, go: 3 }
-
 /**
- * The spoken announcements of a song, from the band's settings (AnnouncementSettings): for every
- * part with a name (`{start_of_chorus}`, `{part: Bridge}` …, docs/14 §6) whose first line has a
- * time - the part start rounded to the nearest bar line, sung lines often begin just before the
- * beat - optionally a countdown on the last pulses before it ("3, 2, 1", by default on the meter's
- * main pulses so the numbers aren't crammed onto every beat), its name on the pulse before the
- * countdown or `nameBarsBefore` bars ahead on the downbeat, and a word on its first beat ("Los").
- * All on the click grid, so tempo and meter changes are followed.
- *
- * The count-in (`countIn`): `announce` treats the part on bar 1 like any other, inside the count-in
- * bars; `count` speaks the count-in instead (countInWords); `click` says nothing before bar 1.
- * Nothing is said before the first click. Words never pile up: one that would not come strictly
- * after the word before it is left out - parts close together lose their name first, then
- * countdown numbers.
+ * The spoken announcements of a song, from the band's cue patterns (AnnouncementSettings): for
+ * every part (`{start_of_chorus}`, `{part: Bridge}` …, docs/14 §6) whose first line has a time - the
+ * part start rounded to the nearest bar line, sung lines often begin just before the beat - the
+ * part pattern laid over the bars right before it, one cell per beat; bar 1 gets the count-in
+ * pattern over the count-in bars instead. Cells follow the real bars (meter and tempo changes), a
+ * cell before the previous part's start is left out - the earlier announcement finishes first -
+ * and so is anything before the first click. A muted part (`texts: null`) says nothing at all.
  */
 export function sectionAnnouncements(content: string, timeline: ClickTimeline, settings: Partial<AnnouncementSettings> = {}): Announcement[] {
   const opts = AnnouncementSettingsSchema.parse(settings)
-  const firstClickMs = timeline.timeOfBeat(timeline.firstBeat) - 1e-6
-  const bar1Ms = timeline.timeOfBeat(0) - 1e-6
   const spoken = spokenTexts(opts.texts)
-  const number = (n: number) => opts.countdown.words[n - 1]?.trim() || String(n)
+  const number = (n: number) => opts.numberWords[n - 1]?.trim() || String(n)
 
+  const parts = partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)
+    .map((part) => ({ text: spoken(part.label), bar: nearestBar(timeline, part.startMs), named: !!part.label?.trim() }))
+    .filter((part) => part.named)
+    .sort((a, b) => a.bar - b.bar)
   const events: Announcement[] = []
-  if (opts.countIn === 'count') events.push(...countInWords(timeline, opts, number))
-  for (const part of partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)) {
-    const text = spoken(part.label)
-    if (!text) continue
-    const bar = nearestBar(timeline, part.startMs)
-    if (bar <= 1 && opts.countIn !== 'announce') continue
-    const startBeat = timeline.barStartBeat(bar)
-    const words: Announcement[] = []
-    let nameMs = timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore))
-    if (opts.countdown.enabled) {
-      const pulses = pulsesBefore(timeline, startBeat, opts.countdown.beats + 1, opts.countdown.spacing)
-      // pulses[0] is the one before the first number - the name's place by default, and always
-      // when "n bars before" would put the name in the middle of the countdown.
-      pulses.slice(1).forEach((beat, i) => words.push({ text: number(opts.countdown.beats - i), atMs: timeline.timeOfBeat(beat), bar, kind: 'count' }))
-      const beforeCountdownMs = timeline.timeOfBeat(pulses[0]!)
-      if (opts.nameAt === 'before-countdown' || nameMs > beforeCountdownMs) nameMs = beforeCountdownMs
+  let previousStartBeat = timeline.firstBeat
+  const countInAt = parts.find((part) => part.bar <= 1)
+  // Bar 1: the count-in pattern, also without a part there (a plain count-in).
+  const starts = [{ text: countInAt ? countInAt.text : null, bar: 1, pattern: opts.countInCue, muted: countInAt?.text === null }]
+  for (const part of parts) if (part.bar > 1) starts.push({ text: part.text, bar: part.bar, pattern: opts.partCue, muted: part.text === null })
+  for (const start of starts) {
+    const startBeat = timeline.barStartBeat(start.bar)
+    if (!start.muted) {
+      start.pattern.forEach((cells, i) => {
+        const bar = start.bar - (start.pattern.length - i)
+        const first = timeline.barStartBeat(bar)
+        const beats = timeline.barStartBeat(bar + 1) - first
+        for (let k = 0; k < Math.min(beats, cells.length); k++) {
+          const beat = first + k
+          if (beat < previousStartBeat || beat < timeline.firstBeat) continue
+          const text = cellText(cells[k]!, start.text, number(k + 1))
+          if (text) events.push({ text, atMs: timeline.timeOfBeat(beat), bar: start.bar })
+        }
+      })
     }
-    words.push({ text, atMs: nameMs, bar, kind: 'name' })
-    const go = opts.countdown.enabled ? opts.countdown.go?.trim() : undefined
-    if (go) words.push({ text: go, atMs: timeline.timeOfBeat(startBeat), bar, kind: 'go' })
-    words.sort((a, b) => a.atMs - b.atMs || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
-    for (const word of words) {
-      if (word.atMs < firstClickMs) continue
-      if (opts.countIn !== 'announce' && word.atMs < bar1Ms) continue
-      events.push(word)
-    }
+    previousStartBeat = Math.max(previousStartBeat, startBeat)
   }
-  const out: Announcement[] = []
-  for (const event of events) {
-    const last = out[out.length - 1]
-    if (last && event.atMs <= last.atMs + 1e-6) continue
-    out.push(event)
-  }
-  return out
+  return events
+}
+
+function cellText(cell: string, name: string | null, beatNumber: string): string | null {
+  const value = cell.trim()
+  if (!value) return null
+  if (value === CUE_NAME) return name
+  if (value === CUE_BEAT) return beatNumber
+  return value
 }
 
 /**
@@ -102,64 +90,6 @@ export function partNames(contents: Iterable<string>): string[] {
     }
   }
   return [...names.values()].sort((a, b) => a.localeCompare(b, 'de'))
-}
-
-/**
- * The spoken count-in (#63): `half-then-full` counts the earlier count-in bars on the meter's main
- * pulses ("1 – 2 –") and the last one on every beat ("1 2 3 4") - the classic band count-in;
- * `every-beat` counts every beat; `last-bar` only the last count-in bar. The last beat can be
- * silent or a word of its own ("1 2 3 Los").
- */
-function countInWords(timeline: ClickTimeline, opts: AnnouncementSettings, number: (n: number) => string): Announcement[] {
-  const words: Announcement[] = []
-  for (let beat = timeline.firstBeat; beat < 0; beat++) {
-    const inBar = timeline.beatInBar(beat)
-    let n = inBar + 1
-    if (timeline.barOf(beat) < 0) {
-      if (opts.countInPattern === 'last-bar') continue
-      if (opts.countInPattern === 'half-then-full') {
-        const pulses = pulseOffsets(timeline.timeSignatureAt(beat), 'pulse')
-        if (!pulses.includes(inBar)) continue
-        n = pulses.indexOf(inBar) + 1
-      }
-    }
-    let text = number(n)
-    if (beat === -1 && opts.countInEnd === 'silent') continue
-    if (beat === -1 && opts.countInEnd === 'word' && opts.countInEndWord.trim()) text = opts.countInEndWord.trim()
-    words.push({ text, atMs: timeline.timeOfBeat(beat), bar: 1, kind: 'count-in' })
-  }
-  return words
-}
-
-type Spacing = AnnouncementSettings['countdown']['spacing']
-
-/**
- * The beats inside a bar (0 = downbeat) a countdown lands on. `pulse` = the meter's main pulses,
- * how musicians feel it: 4/4 on 1 and 3, 2/4 and 3/4 once a bar, compound meters (6/8, 9/8, 12/8)
- * every dotted beat, 5/x as 3+2, 7/8 as 2+2+3, other odd meters as twos ending in a three.
- */
-export function pulseOffsets(timeSignature: string, spacing: Spacing): number[] {
-  const [num, den] = timeSignature.split('/').map((n) => Number.parseInt(n, 10))
-  const perBar = beatsPerBar(timeSignature)
-  const every = (step: number) => Array.from({ length: Math.ceil(perBar / step) }, (_, i) => i * step)
-  if (spacing === 'beat') return every(1)
-  if (spacing === 'bar') return [0]
-  if (spacing === 'half') return every(2)
-  if (den === 8 && num !== undefined && num % 3 === 0) return every(3)
-  if (perBar <= 3) return [0]
-  if (perBar === 5) return [0, 3]
-  if (perBar % 2 === 0) return every(2)
-  // Odd: twos, the last group a three (7 = 2+2+3, 9/4 = 2+2+2+3).
-  return every(2).slice(0, -1)
-}
-
-/** The last `count` countdown pulses before `beat`, earliest first - across bar lines and meter changes. */
-function pulsesBefore(timeline: ClickTimeline, beat: number, count: number, spacing: Spacing): number[] {
-  const found: number[] = []
-  for (let b = beat - 1; found.length < count && b > beat - count * 32; b--) {
-    if (pulseOffsets(timeline.timeSignatureAt(b), spacing).includes(timeline.beatInBar(b))) found.unshift(b)
-  }
-  return found
 }
 
 function nearestBar(timeline: ClickTimeline, timeMs: number): number {
