@@ -221,6 +221,41 @@ Messung 2026-10-14 (Xiaomi-Tablet im USB-Modus MIDI am Laptop, Referenz-Song 120
 
 Windows-Laptop (nur Klick), Kopfhörer-/Bluetooth-/USB-Interface-Wege, Eigenversatz des Laptop-Mikrofons, echte MIDI-Geräte am USB-Host-Kabel, Licht mit Fotodiode.
 
+## 9. Audio-Quellen, Audio-Ausgänge und gesprochene Ansagen (#63, #481)
+
+### 9.1 Ansagen der Songteile (gebaut, 2026-10-14)
+
+„Chorus“, „Bridge“ … einen Takt vor dem Teil in die In-Ears, bei jedem Song, ohne dass jemand tippt (Vorbild Prime/AbleSet, docs/20).
+
+- **Zwei Plugins:** `piper-speech` (Server, Fähigkeit `speech-synthesis`) erzeugt die Stimme; `section-announcements` (Gerät, Fähigkeit `section-announcements`) spielt sie. Ohne das Server-Plugin oder ohne Piper bleibt es still (Graceful Degradation).
+- **Stimme:** Piper, ein Offline-Sprachprogramm, als eigenes Programm aufgerufen. Jeder Text wird einmal erzeugt (~0,3 s), die Stille davor (60-210 ms, je Wort verschieden) abgeschnitten, damit das Wort zum geplanten Zeitpunkt beginnt, auf -3 dBFS gebracht und unter `$STAGEBOARD_STATE_DIR/speech/cache/` abgelegt; `GET /speech?text=` liefert ihn (dauerhaft cachebar). Die Geräte laden die Clips des aktuellen und des nächsten Songs vorab.
+- **Wann:** Teile aus den Part-Direktiven (`{start_of_chorus}`, `{part: Bridge}` …) mit der Zeit ihrer ersten Zeile, auf den nächsten Taktstrich gerundet; die Stimme beginnt auf dem ersten Schlag des Takts davor, auf dem Klick-Raster (Tempowechsel inklusive). Ein Teil auf Takt 1 wird im Einzähltakt angesagt, ohne Einzähler gar nicht. Gesprochen wird der Name, wie er im Song steht.
+- **Wo:** auf dem Gerät, das den Klick spielt, über denselben Ausgang, auf derselben Web-Audio-Uhr und um dieselbe gespeicherte Latenz früher (§3). Schalter je Gerät in den Einstellungen („Ansagen der Songteile“).
+- **Noch nicht:** eigene Ansagetexte oder stummgeschaltete Teile im Timeline-Editor, Schalter je Song, gesprochenes Einzählen, Ansage-Knöpfe („Bridge auslassen“, ursprüngliches #63), eigener Ausgangskanal (§9.2).
+
+**Einrichtung auf dem Stage-Server** (außerhalb des Repos, wie die Daten):
+
+```
+D=~/stageboard-data/speech/piper; mkdir -p $D/voices && cd $D
+curl -sSL https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz | tar xz
+cd voices && B=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/de/de_DE/thorsten/medium
+curl -sSLO $B/de_DE-thorsten-medium.onnx && curl -sSLO $B/de_DE-thorsten-medium.onnx.json
+```
+
+Andere Orte über `PIPER_BIN` / `PIPER_VOICE` in der systemd-Unit. Danach im Tab Plugins „Sprachausgabe (Piper)“ und „Ansagen der Songteile“ installieren.
+
+**Lizenzen (vor einem Verkauf der Box prüfen, docs/16):** Piper selbst MIT (diese ältere Version; die Nachfolger-Versionen sind GPL-3), das mitgelieferte espeak-ng GPL-3 (als eigenes Programm aufgerufen, berührt StageBoards Code nicht, beim Mitliefern muss aber der Quelltext angeboten werden). Stimme „Thorsten“: Datensatz CC0, aber aus der englischen Stimme „lessac“ weitertrainiert, deren Datensatz eine eigene, engere Lizenz hat - für kommerzielle Nutzung offen. Alternative: eigene Aufnahmen statt erzeugter Stimme.
+
+### 9.2 Audio-Ausgänge als Plugin-Fähigkeit (Konzept, Entscheidung Marco 2026-10-14)
+
+Ziel: Backing-Track (Stereo, zwei Kanäle), Klick und Ansagen je auf eigenen Kanälen eines Audio-Interfaces ins Pult, damit jeder Musiker sie in seinem In-Ear-Mix selbst mischt - oder frei zusammengelegt (Klick + Ansagen auf einem Kanal; zur Probe alles gemischt auf Stereo). Dynamisch über Plugins:
+
+- **Ausgangs-Plugins** bringen die Fähigkeit `audio-outputs` mit ihren benannten Kanälen, z. B. ein Plugin je Interface („Behringer UMC404HD“: Ausgänge 1-4). Gebunden wie jede Hardware an das Gerät, an dem es steckt (Tablet, später der Stage-Server). Immer vorhanden: der eingebaute Ausgang „Gerätelautsprecher/Kopfhörer“ (Stereo) - so funktioniert alles wie heute ohne Interface.
+- **Quellen-Plugins** melden, dass sie Ton erzeugen und wie viele Kanäle: Backing-Track (2), Klick (1), Ansagen (1), später Stems, Einzählen, Ansage-Knöpfe.
+- **Zuordnung** Quelle → Kanal/Kanäle eines Ausgangs mit eigener Lautstärke, gespeichert je Gerät und Ausgang (wie die Latenzprofile), mehrere Zuordnungen nebeneinander (Gig, Probe). Mehrere Quellen auf einem Kanal werden summiert. Die Einrichtung bietet nur Kanäle an, die ein installiertes Ausgangs-Plugin auf demselben Gerät anbietet; fehlt das Interface, fällt der Ton auf den eingebauten Ausgang zurück, mit Warnung in der Statusleiste.
+- **Technik:** Web Audio - je Quelle ein Gain-Knoten auf einen Eingang eines `ChannelMergerNode`, `destination.channelCount` = Kanalzahl des Interfaces, `channelInterpretation: 'discrete'`. Klick, Web-Audio-Track und Ansagen laufen schon über einen gemeinsamen AudioContext.
+- **Offen bis das Interface da ist:** wie viele Kanäle Chrome am Laptop und die Android-WebView am Tablet wirklich ausgeben (`destination.maxChannelCount`); gibt das Tablet nur Stereo, bekommt es Voreinstellungen („Klick + Ansagen links, Track rechts in Mono“, „alles gemischt“). Abspielen auf dem Stage-Server selbst (Interface am Laptop, ohne Tablet dazwischen) wäre ein eigener, größerer Baustein: heute spielen nur die Geräte Ton, der Server koordiniert nur.
+
 ## Verwandt
 
 docs/00 §4/§6 (Präzisions-Engine, Plugins), docs/09 (Uhr-Synchronisation), docs/13 §7 (gemessene Ausgabelatenz), docs/19 (Track auf der Audio-Uhr), docs/20 (Wettbewerb: niemand kalibriert verteilte Geräte), #302, #303, #317, #477, #478.

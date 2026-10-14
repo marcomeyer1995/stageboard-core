@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
+import { PIPER_SPEECH_PLUGIN_ID, serverSpeech } from './plugins/piperSpeechPlugin.js'
+import { PiperSpeech } from './speech/piperSpeech.js'
 import { createServer } from 'node:http'
 import { hostname, networkInterfaces } from 'node:os'
 import { join } from 'node:path'
@@ -847,6 +849,22 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     info: (msg: string, meta?: Record<string, unknown>) => app.log.info(meta ?? {}, msg),
     error: (msg: string, meta?: Record<string, unknown>) => app.log.error(meta ?? {}, msg),
   }
+
+  // Spoken announcements (#63): a speech clip per text, generated once with Piper and cached - only
+  // while the band has the piper-speech plugin installed. Clips never change for the same text and
+  // voice, so devices may cache them for good.
+  app.get('/speech', async (request, reply) => {
+    const text = PiperSpeech.normalise(String((request.query as { text?: unknown }).text ?? ''))
+    if (!text) return reply.status(400).send({ status: 'error', message: 'text fehlt' })
+    if (!registry.get(PIPER_SPEECH_PLUGIN_ID)) return reply.status(404).send({ status: 'error', message: 'Plugin piper-speech ist nicht installiert.' })
+    const result = await serverSpeech.speak(text)
+    if (!result.ok) {
+      app.log.error({ text, reason: result.reason, message: result.message }, 'Speech clip failed')
+      return reply.status(result.reason === 'unavailable' ? 503 : 500).send({ status: 'error', message: result.message })
+    }
+    if (result.generated) app.log.info({ text, bytes: result.wav.length }, 'Speech clip generated')
+    return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'public, max-age=31536000, immutable').send(result.wav)
+  })
 
   // Owns which single workspace's hardware (plugin sync, Discovery Mode's MIDI watcher) this
   // box currently serves - lives here, not in main(), so the activate-hardware route below can

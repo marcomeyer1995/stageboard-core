@@ -1,4 +1,5 @@
 import { useLoopTrainerDriver } from '../lib/loopTrainer'
+import { useAnnouncementDriver } from '../lib/useAnnouncementDriver'
 import { useAudioOutputDriver } from '../lib/useAudioOutputDriver'
 import { useAutoStopDriver } from '../lib/useAutoStopDriver'
 import { useClickOutputDriver } from '../lib/useClickOutputDriver'
@@ -34,6 +35,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useStallMonitor()
   useAudioOutputDriver()
   useClickOutputDriver()
+  // Spoken section announcements next to the click (#63).
+  useAnnouncementDriver()
   useAutoStopDriver()
   useLoopTrainerDriver()
   useTrackDurationBackfill()
