@@ -33,4 +33,9 @@ export const CAPABILITIES = {
    * Position Pointer, sent to any MIDI output - a generic "MIDI-Clock" device, bound to the port
    * of the gear that should follow the song tempo (Kemper delay, RC-500 loop, drum machine). */
   midiClock: 'midi-clock',
+  /** Speech clips for spoken announcements (#63), generated on the Stage-Server (Piper). */
+  speechSynthesis: 'speech-synthesis',
+  /** Spoken section announcements in the in-ears (#63): "Chorus", "Bridge" a bar before the part,
+   * played on the click's Web Audio clock - an audio source like click and track. */
+  sectionAnnouncements: 'section-announcements',
 } as const satisfies Record<string, CapabilityId>

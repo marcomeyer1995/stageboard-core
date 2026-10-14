@@ -299,4 +299,28 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // Nothing to detect: the port belongs to the gear (Kemper, RC-500 …), whose own plugin claims it.
     hardwareIds: [],
   },
+  {
+    id: 'piper-speech',
+    name: 'Sprachausgabe (Piper)',
+    version: '0.0.1',
+    // The Stage-Server generates the voice for spoken announcements (#63) with Piper, an offline
+    // speech program installed next to it (docs/21 §9) - each text once, as a clip every device
+    // downloads. Without Piper on the server the plugin installs, but announcements stay silent.
+    runtime: 'server',
+    capabilities: [CAPABILITIES.speechSynthesis],
+    transports: [],
+    hardwareIds: [],
+  },
+  {
+    id: 'section-announcements',
+    name: 'Ansagen der Songteile',
+    version: '0.0.1',
+    // "Chorus", "Bridge" a bar before the part, in the in-ears (#63): built into stage-pwa
+    // (useAnnouncementDriver.ts), switched on by installing; the voice comes from piper-speech.
+    runtime: 'client',
+    capabilities: [CAPABILITIES.sectionAnnouncements],
+    timing: [{ capability: CAPABILITIES.sectionAnnouncements, timingClass: 'sample', honoursScheduledAt: false }],
+    transports: [],
+    hardwareIds: [],
+  },
 ]
