@@ -1,6 +1,7 @@
 import { AnnouncementSettingsSchema, CUE_BEAT, CUE_NAME, type AnnouncementSettings } from 'shared-types'
 import type { ClickTimeline } from './beatGrid'
 import { parsePartDirective } from './chordpro'
+import { partHeads } from './partCues'
 import { partBlocks, timelineLines } from './timelineText'
 
 /** One spoken word or phrase (#63): what is said, and when (song time). */
@@ -19,23 +20,29 @@ export interface Announcement {
  * part pattern laid over the bars right before it, one cell per beat; bar 1 gets the count-in
  * pattern over the count-in bars instead. Cells follow the real bars (meter and tempo changes), a
  * cell before the previous part's start is left out - the earlier announcement finishes first -
- * and so is anything before the first click. A muted part (`texts: null`) says nothing at all.
+ * and so is anything before the first click. A muted part (`texts: null`) says nothing at all. A
+ * part with its own pattern (`{x_announce}` in the text, partCues.ts) uses that one instead - also
+ * on bar 1, in place of the count-in pattern.
  */
 export function sectionAnnouncements(content: string, timeline: ClickTimeline, settings: Partial<AnnouncementSettings> = {}): Announcement[] {
   const opts = AnnouncementSettingsSchema.parse(settings)
   const spoken = spokenTexts(opts.texts)
   const number = (n: number) => opts.numberWords[n - 1]?.trim() || String(n)
 
+  const own = new Map(partHeads(content).map((head) => [head.partIndex, head.cue]))
   const parts = partBlocks(timelineLines(content), Number.POSITIVE_INFINITY)
-    .map((part) => ({ text: spoken(part.label), bar: nearestBar(timeline, part.startMs), named: !!part.label?.trim() }))
+    .map((part) => ({ text: spoken(part.label), bar: nearestBar(timeline, part.startMs), named: !!part.label?.trim(), cue: own.get(part.partIndex) ?? null }))
     .filter((part) => part.named)
     .sort((a, b) => a.bar - b.bar)
   const events: Announcement[] = []
   let previousStartBeat = timeline.firstBeat
   const countInAt = parts.find((part) => part.bar <= 1)
   // Bar 1: the count-in pattern, also without a part there (a plain count-in).
-  const starts = [{ text: countInAt ? countInAt.text : null, bar: 1, pattern: opts.countInCue, muted: countInAt?.text === null }]
-  for (const part of parts) if (part.bar > 1) starts.push({ text: part.text, bar: part.bar, pattern: opts.partCue, muted: part.text === null })
+  // A part's own pattern wins over the band's mute of its name - only its name cells stay silent.
+  const starts = [
+    { text: countInAt ? countInAt.text : null, bar: 1, pattern: countInAt?.cue ?? opts.countInCue, muted: countInAt !== undefined && countInAt.text === null && !countInAt.cue },
+  ]
+  for (const part of parts) if (part.bar > 1) starts.push({ text: part.text, bar: part.bar, pattern: part.cue ?? opts.partCue, muted: part.text === null && !part.cue })
   for (const start of starts) {
     const startBeat = timeline.barStartBeat(start.bar)
     if (!start.muted) {
@@ -92,7 +99,8 @@ export function partNames(contents: Iterable<string>): string[] {
   return [...names.values()].sort((a, b) => a.localeCompare(b, 'de'))
 }
 
-function nearestBar(timeline: ClickTimeline, timeMs: number): number {
+/** The bar a part starts on: its first line's time rounded to the nearest bar line. */
+export function nearestBar(timeline: ClickTimeline, timeMs: number): number {
   const bar = timeline.barOf(timeline.beatAtOrBefore(timeMs))
   const here = timeline.timeOfBeat(timeline.barStartBeat(bar))
   const next = timeline.timeOfBeat(timeline.barStartBeat(bar + 1))
