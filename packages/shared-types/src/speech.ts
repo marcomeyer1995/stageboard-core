@@ -6,8 +6,9 @@ import { z } from 'zod'
  * the same voice and the same texts.
  */
 
-/** A voice's key - Piper's own naming (`de_DE-thorsten-medium`); also its file name on the server. */
-export const SpeechVoiceKeySchema = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/)
+/** A voice's key - Piper's own naming (`de_DE-thorsten-medium`, also `pt_PT-tugão-medium`); also its
+ * file name on the server, so letters, digits, `_` and `-` only - no `/` or `.`. */
+export const SpeechVoiceKeySchema = z.string().regex(/^[\p{L}\p{N}_-]{1,80}$/u)
 export const DEFAULT_SPEECH_VOICE = 'de_DE-thorsten-medium'
 
 /** `piper-speech`'s settings: which voice the band uses. */
