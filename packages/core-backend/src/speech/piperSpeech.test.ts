@@ -38,6 +38,9 @@ describe('Piper speech (#63)', () => {
     expect(await speech.speak('Chorus')).toMatchObject({ ok: true, generated: true })
     expect(await speech.speak('Chorus', 'other')).toMatchObject({ ok: true, generated: true })
     expect(await speech.speak('Chorus', 'missing')).toMatchObject({ ok: false, reason: 'unavailable' })
+    // Another pace is another clip; the voice's own pace (1) keeps the old cache key.
+    expect(await speech.speak('Chorus', 'other', 1.3)).toMatchObject({ ok: true, generated: true })
+    expect(await speech.speak('Chorus', 'other', 1)).toMatchObject({ ok: true, generated: false })
   })
 
   it('reports unavailable without Piper', async () => {

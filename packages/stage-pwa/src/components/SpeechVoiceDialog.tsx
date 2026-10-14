@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { DEFAULT_SPEECH_VOICE, type SpeechVoice, type SpeechVoiceLicense, type SpeechVoicesResponse } from 'shared-types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { DEFAULT_SPEECH_VOICE, SPEECH_SPEED_MAX, SPEECH_SPEED_MIN, type SpeechVoice, type SpeechVoiceLicense, type SpeechVoicesResponse } from 'shared-types'
 import { previewSpeech } from '../lib/speechClips'
 import { bandSpeechVoice, fetchSpeechVoices, fetchVoiceLicense, installSpeechVoice, PIPER_SPEECH_PLUGIN, previewText } from '../lib/speechVoices'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { Badge, Button, Dialog, Field, ListRow, Select } from './ui'
+import { Badge, Button, Dialog, Field, ListRow, Select, Slider } from './ui'
 
 const mb = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`
 
@@ -15,7 +15,16 @@ const mb = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`
 export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
   const installed = usePluginsStore((state) => state.installed)
   const updateSettings = usePluginsStore((state) => state.updateSettings)
-  const bandVoice = bandSpeechVoice(installed) ?? DEFAULT_SPEECH_VOICE
+  const band = bandSpeechVoice(installed)
+  const bandVoice = band.voice ?? DEFAULT_SPEECH_VOICE
+  // The pace slider writes once it rests, not on every step.
+  const [speed, setSpeed] = useState(band.speed ?? 1)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function changeSpeed(value: number) {
+    setSpeed(value)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => void updateSettings(PIPER_SPEECH_PLUGIN, { speed: value }), 500)
+  }
   const [data, setData] = useState<SpeechVoicesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [language, setLanguage] = useState<string | null>(null)
@@ -64,6 +73,15 @@ export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
         {!data && !error && <p className="text-base text-ink-muted">Lade Stimmen…</p>}
         {data && (
           <>
+            <Slider
+              label="Sprechtempo"
+              valueLabel={`${speed.toFixed(1).replace('.', ',')}×`}
+              min={SPEECH_SPEED_MIN}
+              max={SPEECH_SPEED_MAX}
+              step={0.1}
+              value={speed}
+              onChange={changeSpeed}
+            />
             <Select
               label="Sprache"
               value={currentLanguage}
@@ -91,6 +109,7 @@ export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
               <VoiceDetail
                 key={voice.key}
                 voice={voice}
+                speed={speed}
                 data={data}
                 isBandVoice={voice.key === bandVoice}
                 onChoose={() => void updateSettings(PIPER_SPEECH_PLUGIN, { voice: voice.key })}
@@ -106,12 +125,14 @@ export function SpeechVoiceDialog({ onClose }: { onClose: () => void }) {
 
 function VoiceDetail({
   voice,
+  speed,
   data,
   isBandVoice,
   onChoose,
   onStarted,
 }: {
   voice: SpeechVoice
+  speed: number
   data: SpeechVoicesResponse
   isBandVoice: boolean
   onChoose: () => void
@@ -138,7 +159,7 @@ function VoiceDetail({
   async function listen() {
     setBusy(true)
     setMessage(null)
-    const ok = await previewSpeech(text, voice.key)
+    const ok = await previewSpeech(text, { voice: voice.key, speed })
     setBusy(false)
     if (!ok) setMessage('Konnte nicht abgespielt werden - ist die Stimme geladen und der Stage-Server erreichbar?')
   }

@@ -13,14 +13,20 @@ const clips = new Map<string, AudioBuffer>()
 const loading = new Map<string, Promise<AudioBuffer | null>>()
 const failedAt = new Map<string, number>()
 
-const keyOf = (text: string, voice: string | undefined) => `${voice ?? ''}\n${text}`
+/** Which voice and how fast (the band's choice, speechVoices.ts) - undefined: the server's default voice, its own pace. */
+export interface ClipVoice {
+  voice?: string
+  speed?: number
+}
 
-/** The decoded clip in that voice (undefined: the server's default voice), if already loaded. */
-export function speechClip(text: string, voice?: string): AudioBuffer | null {
+const keyOf = (text: string, v: ClipVoice) => `${v.voice ?? ''}|${v.speed ?? 1}\n${text}`
+
+/** The decoded clip in that voice, if already loaded. */
+export function speechClip(text: string, voice: ClipVoice = {}): AudioBuffer | null {
   return clips.get(keyOf(text, voice)) ?? null
 }
 
-export function loadSpeechClip(text: string, voice?: string): Promise<AudioBuffer | null> {
+export function loadSpeechClip(text: string, voice: ClipVoice = {}): Promise<AudioBuffer | null> {
   const key = keyOf(text, voice)
   const ready = clips.get(key)
   if (ready) return Promise.resolve(ready)
@@ -39,11 +45,13 @@ export function loadSpeechClip(text: string, voice?: string): Promise<AudioBuffe
   return job
 }
 
-async function fetchClip(text: string, voice: string | undefined): Promise<AudioBuffer | null> {
+async function fetchClip(text: string, { voice, speed }: ClipVoice): Promise<AudioBuffer | null> {
   const base = getStageServerUrl()
   if (!base) return null
   try {
-    const response = await fetch(`${base}/speech?text=${encodeURIComponent(text)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`)
+    const response = await fetch(
+      `${base}/speech?text=${encodeURIComponent(text)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}${speed && speed !== 1 ? `&speed=${speed}` : ''}`,
+    )
     if (!response.ok) return null
     return await getSharedAudioContext().decodeAudioData(await response.arrayBuffer())
   } catch {
@@ -53,7 +61,7 @@ async function fetchClip(text: string, voice: string | undefined): Promise<Audio
 
 /** Plays a clip once on this device, right away - "Probehören" in the settings. False when the
  * clip can't be had. */
-export async function previewSpeech(text: string, voice?: string): Promise<boolean> {
+export async function previewSpeech(text: string, voice: ClipVoice = {}): Promise<boolean> {
   failedAt.delete(keyOf(text, voice)) // an explicit try is never held back by an earlier failure
   const buffer = await loadSpeechClip(text, voice)
   if (!buffer) return false
