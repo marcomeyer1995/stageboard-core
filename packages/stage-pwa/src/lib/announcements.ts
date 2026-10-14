@@ -48,13 +48,16 @@ export function sectionAnnouncements(content: string, timeline: ClickTimeline, s
     if (bar <= 1 && opts.countIn !== 'announce') continue
     const startBeat = timeline.barStartBeat(bar)
     const words: Announcement[] = []
+    let nameMs = timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore))
     if (opts.countdown.enabled) {
       const pulses = pulsesBefore(timeline, startBeat, opts.countdown.beats + 1, opts.countdown.spacing)
-      // pulses[0] is the one before the first number - the name's place by default.
+      // pulses[0] is the one before the first number - the name's place by default, and always
+      // when "n bars before" would put the name in the middle of the countdown.
       pulses.slice(1).forEach((beat, i) => words.push({ text: number(opts.countdown.beats - i), atMs: timeline.timeOfBeat(beat), bar, kind: 'count' }))
-      if (opts.nameAt === 'before-countdown') words.push({ text, atMs: timeline.timeOfBeat(pulses[0]!), bar, kind: 'name' })
+      const beforeCountdownMs = timeline.timeOfBeat(pulses[0]!)
+      if (opts.nameAt === 'before-countdown' || nameMs > beforeCountdownMs) nameMs = beforeCountdownMs
     }
-    if (!opts.countdown.enabled || opts.nameAt === 'bars') words.push({ text, atMs: timeline.timeOfBeat(timeline.barStartBeat(bar - opts.nameBarsBefore)), bar, kind: 'name' })
+    words.push({ text, atMs: nameMs, bar, kind: 'name' })
     const go = opts.countdown.enabled ? opts.countdown.go?.trim() : undefined
     if (go) words.push({ text: go, atMs: timeline.timeOfBeat(startBeat), bar, kind: 'go' })
     words.sort((a, b) => a.atMs - b.atMs || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])

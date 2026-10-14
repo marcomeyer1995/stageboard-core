@@ -81,10 +81,9 @@ describe('countdown and count-in (Marco 2026-10-14: "Chorus in 3, 2, 1, Go", all
     expect(said(items)).toEqual(['Chorus@4000', 'drei@6500', 'zwei@7000', 'eins@7500', 'Los@8000'])
   })
 
-  it('numbers without own words are digits; four beats start on the downbeat and push the name out', () => {
+  it('numbers without own words are digits; four beats start on the downbeat, the name moves before them', () => {
     const items = sectionAnnouncements(chorusOnly, timeline, { nameAt: 'bars', countdown: { enabled: true, beats: 4, spacing: 'beat', words: [], go: null } })
-    expect(said(items)).toEqual(['Chorus@6000', '3@6500', '2@7000', '1@7500'])
-    // The name and "4" share the downbeat: the name wins, "4" is left out.
+    expect(said(items)).toEqual(['Chorus@5500', '4@6000', '3@6500', '2@7000', '1@7500'])
   })
 
   it('count-in "count": the count-in beats are spoken, the Intro on bar 1 is not announced', () => {
@@ -159,5 +158,12 @@ describe('countdown on the main pulses, count-in patterns (Marco 2026-10-14: "th
     expect(said(sectionAnnouncements('', twoBars, { countIn: 'count', countInEnd: 'silent' })).slice(-1)[0]).toBe('3@-1000')
     expect(said(sectionAnnouncements('', twoBars, { countIn: 'count', countInEnd: 'word', countInEndWord: 'Los' })).slice(-1)[0]).toBe('Los@-500')
     expect(said(sectionAnnouncements('', twoBars, { countIn: 'count', countInPattern: 'last-bar' }))).toEqual(['1@-2000', '2@-1500', '3@-1000', '4@-500'])
+  })
+
+  it('"1 bar before" never lands inside the countdown - the name moves to the pulse before the "3"', () => {
+    // Marco 2026-10-14 heard "3, Interlude, 1": name on bar 4's downbeat collided with the "2".
+    expect(said(sectionAnnouncements(chorusOnly, timeline, { nameAt: 'bars', nameBarsBefore: 1, countdown }))).toEqual(['Chorus@4000', '3@5000', '2@6000', '1@7000'])
+    // Far enough ahead it stays where it was set.
+    expect(said(sectionAnnouncements(chorusOnly, timeline, { nameAt: 'bars', nameBarsBefore: 3, countdown }))).toEqual(['Chorus@2000', '3@5000', '2@6000', '1@7000'])
   })
 })
