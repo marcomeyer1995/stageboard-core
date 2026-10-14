@@ -13,39 +13,57 @@ const clips = new Map<string, AudioBuffer>()
 const loading = new Map<string, Promise<AudioBuffer | null>>()
 const failedAt = new Map<string, number>()
 
-/** The decoded clip, if already loaded. */
-export function speechClip(text: string): AudioBuffer | null {
-  return clips.get(text) ?? null
+const keyOf = (text: string, voice: string | undefined) => `${voice ?? ''}\n${text}`
+
+/** The decoded clip in that voice (undefined: the server's default voice), if already loaded. */
+export function speechClip(text: string, voice?: string): AudioBuffer | null {
+  return clips.get(keyOf(text, voice)) ?? null
 }
 
-export function loadSpeechClip(text: string): Promise<AudioBuffer | null> {
-  const ready = clips.get(text)
+export function loadSpeechClip(text: string, voice?: string): Promise<AudioBuffer | null> {
+  const key = keyOf(text, voice)
+  const ready = clips.get(key)
   if (ready) return Promise.resolve(ready)
-  const failed = failedAt.get(text)
+  const failed = failedAt.get(key)
   if (failed !== undefined && Date.now() - failed < RETRY_MS) return Promise.resolve(null)
-  const running = loading.get(text)
+  const running = loading.get(key)
   if (running) return running
-  const job = fetchClip(text)
+  const job = fetchClip(text, voice)
     .then((buffer) => {
-      if (buffer) clips.set(text, buffer)
-      else failedAt.set(text, Date.now())
+      if (buffer) clips.set(key, buffer)
+      else failedAt.set(key, Date.now())
       return buffer
     })
-    .finally(() => loading.delete(text))
-  loading.set(text, job)
+    .finally(() => loading.delete(key))
+  loading.set(key, job)
   return job
 }
 
-async function fetchClip(text: string): Promise<AudioBuffer | null> {
+async function fetchClip(text: string, voice: string | undefined): Promise<AudioBuffer | null> {
   const base = getStageServerUrl()
   if (!base) return null
   try {
-    const response = await fetch(`${base}/speech?text=${encodeURIComponent(text)}`)
+    const response = await fetch(`${base}/speech?text=${encodeURIComponent(text)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`)
     if (!response.ok) return null
     return await getSharedAudioContext().decodeAudioData(await response.arrayBuffer())
   } catch {
     return null
   }
+}
+
+/** Plays a clip once on this device, right away - "Probehören" in the settings. False when the
+ * clip can't be had. */
+export async function previewSpeech(text: string, voice?: string): Promise<boolean> {
+  failedAt.delete(keyOf(text, voice)) // an explicit try is never held back by an earlier failure
+  const buffer = await loadSpeechClip(text, voice)
+  if (!buffer) return false
+  const ctx = getSharedAudioContext()
+  await ctx.resume()
+  const node = ctx.createBufferSource()
+  node.buffer = buffer
+  node.connect(ctx.destination)
+  node.start()
+  return true
 }
 
 /** Test-only. */

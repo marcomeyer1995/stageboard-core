@@ -11,6 +11,7 @@ import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip } from './speechClips'
+import { bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -57,6 +58,7 @@ export function useAnnouncementDriver(): void {
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)
   const outputLatencyMs = useAudioOutputLatencyMs()
 
+  const voice = bandSpeechVoice(installed)
   const active = pluginProviding(installed, CAPABILITIES.sectionAnnouncements) !== null && enabledHere && engine === 'local-mine'
 
   const variant = queue.currentVariant
@@ -79,11 +81,11 @@ export function useAnnouncementDriver(): void {
       ))
         texts.add(part.text)
     }
-    for (const text of texts) void loadSpeechClip(text)
-  }, [active, items, nextVariant])
+    for (const text of texts) void loadSpeechClip(text, voice)
+  }, [active, items, nextVariant, voice])
 
-  const latest = useRef({ items, elapsedNow, outputLatencyMs })
-  latest.current = { items, elapsedNow, outputLatencyMs }
+  const latest = useRef({ items, elapsedNow, outputLatencyMs, voice })
+  latest.current = { items, elapsedNow, outputLatencyMs, voice }
 
   const playing = active && playbackStatus === 'playing'
   useEffect(() => {
@@ -98,7 +100,7 @@ export function useAnnouncementDriver(): void {
       pending = []
     }
     const tick = () => {
-      const { items: current, elapsedNow: now, outputLatencyMs: latencyMs } = latest.current
+      const { items: current, elapsedNow: now, outputLatencyMs: latencyMs, voice: currentVoice } = latest.current
       const elapsed = now()
       if (elapsed === null || document.visibilityState === 'hidden') return
       // A seek, a loop wrap or a stall: start over from here, drop words queued for the old position.
@@ -110,7 +112,7 @@ export function useAnnouncementDriver(): void {
       const rate = getLoopPlaybackState()?.rate ?? 1
       const audioNow = audioClock.now(ctx)
       for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs) * rate, done)) {
-        const buffer = speechClip(current[index]!.text)
+        const buffer = speechClip(current[index]!.text, currentVoice)
         if (!buffer) continue
         const when = Math.max(ctx.currentTime, audioNow + inMs / 1000 / rate - latencyMs / 1000)
         const node = ctx.createBufferSource()

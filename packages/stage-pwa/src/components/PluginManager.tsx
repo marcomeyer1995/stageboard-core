@@ -1,8 +1,15 @@
+import { useState, type ComponentType } from 'react'
 import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
+import { SpeechVoiceDialog } from './SpeechVoiceDialog'
 import { Button, Switch } from './ui'
+
+/** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
+const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
+  'piper-speech': SpeechVoiceDialog,
+}
 
 export function PluginManager() {
   const installed = usePluginsStore((state) => state.installed)
@@ -11,6 +18,8 @@ export function PluginManager() {
   const setEnabled = usePluginsStore((state) => state.setEnabled)
   const uninstall = usePluginsStore((state) => state.uninstall)
   const now = useNow()
+  const [settingsOf, setSettingsOf] = useState<string | null>(null)
+  const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
 
   function healthLabel(plugin: PluginInstallation): string {
     if (plugin.runtime === 'client') return 'läuft auf dem Tablet'
@@ -52,13 +61,18 @@ export function PluginManager() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
               <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
-              <Button variant="danger" onClick={() => void uninstall(plugin.id)}>
-                Entfernen
-              </Button>
+              <span className="flex flex-wrap gap-2">
+                {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>Einstellungen</Button>}
+                <Button variant="danger" onClick={() => void uninstall(plugin.id)}>
+                  Entfernen
+                </Button>
+              </span>
             </div>
           </div>
         ))}
       </div>
+
+      {Settings && <Settings onClose={() => setSettingsOf(null)} />}
 
       <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">
         Verfügbar

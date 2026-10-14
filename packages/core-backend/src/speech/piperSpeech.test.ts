@@ -14,13 +14,16 @@ function fakePiper(dir: string): string {
   writeFileSync(bin, `#!/bin/sh\ncat > /dev/null\nwhile [ "$1" != "--output_file" ]; do shift; done\ncp "${join(dir, 'clip.wav')}" "$2"\necho call >> "${join(dir, 'calls')}"\n`)
   chmodSync(bin, 0o755)
   writeFileSync(join(dir, 'voice.onnx'), '')
+  writeFileSync(join(dir, 'voice.onnx.json'), '{}')
+  writeFileSync(join(dir, 'other.onnx'), '')
+  writeFileSync(join(dir, 'other.onnx.json'), '{}')
   return bin
 }
 
 describe('Piper speech (#63)', () => {
   it('generates once, trims, then serves from the cache', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'speech-'))
-    const speech = new PiperSpeech({ piperBin: fakePiper(dir), voice: join(dir, 'voice.onnx'), cacheDir: join(dir, 'cache') })
+    const speech = new PiperSpeech({ piperBin: fakePiper(dir), voice: join(dir, 'voice.onnx'), voicesDir: dir, cacheDir: join(dir, 'cache') })
     const first = await speech.speak('Chorus')
     const second = await speech.speak('  Chorus ')
     expect(first.ok && first.generated).toBe(true)
@@ -29,9 +32,17 @@ describe('Piper speech (#63)', () => {
     if (first.ok) expect(first.wav.length).toBeLessThan(44 + 4410 * 2 - 2000 * 2)
   })
 
+  it('keeps clips of different voices apart, and refuses a voice that is not installed', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'speech-'))
+    const speech = new PiperSpeech({ piperBin: fakePiper(dir), voice: join(dir, 'voice.onnx'), voicesDir: dir, cacheDir: join(dir, 'cache') })
+    expect(await speech.speak('Chorus')).toMatchObject({ ok: true, generated: true })
+    expect(await speech.speak('Chorus', 'other')).toMatchObject({ ok: true, generated: true })
+    expect(await speech.speak('Chorus', 'missing')).toMatchObject({ ok: false, reason: 'unavailable' })
+  })
+
   it('reports unavailable without Piper', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'speech-'))
-    const speech = new PiperSpeech({ piperBin: join(dir, 'nope'), voice: join(dir, 'nope.onnx'), cacheDir: join(dir, 'cache') })
+    const speech = new PiperSpeech({ piperBin: join(dir, 'nope'), voice: join(dir, 'nope.onnx'), voicesDir: dir, cacheDir: join(dir, 'cache') })
     expect(speech.available()).toBe(false)
     expect(await speech.speak('Bridge')).toMatchObject({ ok: false, reason: 'unavailable' })
   })
