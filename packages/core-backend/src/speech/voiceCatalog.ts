@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import type { SpeechVoice, SpeechVoiceDownload, SpeechVoiceLicense, SpeechVoicesResponse } from 'shared-types'
+import { SpeechVoiceKeySchema, type SpeechVoice, type SpeechVoiceDownload, type SpeechVoiceLicense, type SpeechVoicesResponse } from 'shared-types'
 
 /**
  * The voices piper-speech can speak with (#63): Piper's official list (fetched once, kept on disk
@@ -133,8 +133,10 @@ export class SpeechVoices {
         }
       }
     }
-    voices.sort((a, b) => a.languageCode.localeCompare(b.languageCode) || a.name.localeCompare(b.name) || a.quality.localeCompare(b.quality))
-    return { voices, download: this.download, catalog: this.catalogSource, piperInstalled }
+    // One odd entry in Piper's list must not break the whole list for the app.
+    const valid = voices.filter((v) => SpeechVoiceKeySchema.safeParse(v.key).success)
+    valid.sort((a, b) => a.languageCode.localeCompare(b.languageCode) || a.name.localeCompare(b.name) || a.quality.localeCompare(b.quality))
+    return { voices: valid, download: this.download, catalog: this.catalogSource, piperInstalled }
   }
 
   async license(key: string): Promise<SpeechVoiceLicense> {

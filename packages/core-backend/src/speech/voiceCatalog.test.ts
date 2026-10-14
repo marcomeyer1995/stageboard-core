@@ -7,7 +7,9 @@ import { parseModelCard, SpeechVoices } from './voiceCatalog.js'
 
 const model = Buffer.from('fake onnx model')
 const md5 = (b: Buffer | string) => createHash('md5').update(b).digest('hex')
-const catalog = {
+const catalog: Record<string, unknown> = {
+  'pt_PT-tugão-medium': { key: 'pt_PT-tugão-medium', name: 'tugão', language: { code: 'pt_PT', name_native: 'Português' }, quality: 'medium', files: {} },
+  'bad/../key': { key: 'bad/../key', name: 'x', language: { code: 'xx', name_native: 'x' }, quality: 'low', files: {} },
   'de_DE-test-medium': {
     key: 'de_DE-test-medium',
     name: 'test',
@@ -42,7 +44,8 @@ describe('speech voice catalog (#63)', () => {
     const voices = new SpeechVoices(dir, fakeFetch())
     const list = await voices.list(true)
     expect(list.catalog).toBe('online')
-    expect(list.voices.map((v) => v.key)).toEqual(expect.arrayContaining(['de_DE-test-medium', 'de_DE-thorsten_hessisch-high']))
+    expect(list.voices.map((v) => v.key)).toEqual(expect.arrayContaining(['de_DE-test-medium', 'de_DE-thorsten_hessisch-high', 'pt_PT-tugão-medium']))
+    expect(list.voices.some((v) => v.key.includes('/'))).toBe(false)
     expect(list.voices.find((v) => v.key === 'de_DE-test-medium')).toMatchObject({ installed: false, languageName: 'Deutsch (Germany)', sizeBytes: model.length })
     expect(await voices.install('de_DE-test-medium')).toBe(true)
     expect((await settle(voices))?.state).toBe('done')
