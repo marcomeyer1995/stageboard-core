@@ -11,7 +11,7 @@ import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip } from './speechClips'
-import { bandSpeechVoice } from './speechVoices'
+import { bandAnnouncementTexts, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -59,6 +59,7 @@ export function useAnnouncementDriver(): void {
   const outputLatencyMs = useAudioOutputLatencyMs()
 
   const voice = bandSpeechVoice(installed)
+  const texts = useMemo(() => bandAnnouncementTexts(installed), [installed])
   const active = pluginProviding(installed, CAPABILITIES.sectionAnnouncements) !== null && enabledHere && engine === 'local-mine'
 
   const variant = queue.currentVariant
@@ -67,22 +68,19 @@ export function useAnnouncementDriver(): void {
   const items: Announcement[] = useMemo(() => {
     if (!variant || bpm === null) return []
     const countInBars = variant.countInEnabled ? (variant.countInBars ?? 0) : 0
-    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }))
-  }, [variant, bpm])
+    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }), texts)
+  }, [variant, bpm, texts])
 
   // Clips ahead of time: this song's, and the next one's.
   useEffect(() => {
     if (!active) return
-    const texts = new Set(items.map((item) => item.text))
+    const wanted = new Set(items.map((item) => item.text))
     if (nextVariant) {
-      for (const part of sectionAnnouncements(
-        nextVariant.chordProContent,
-        clickTimeline({ bpm: nextVariant.bpm, timeSignature: nextVariant.timeSignature, beatGrid: nextVariant.beatGrid }),
-      ))
-        texts.add(part.text)
+      const nextTimeline = clickTimeline({ bpm: nextVariant.bpm, timeSignature: nextVariant.timeSignature, beatGrid: nextVariant.beatGrid })
+      for (const part of sectionAnnouncements(nextVariant.chordProContent, nextTimeline, texts)) wanted.add(part.text)
     }
-    for (const text of texts) void loadSpeechClip(text, voice)
-  }, [active, items, nextVariant, voice])
+    for (const text of wanted) void loadSpeechClip(text, voice)
+  }, [active, items, nextVariant, voice, texts])
 
   const latest = useRef({ items, elapsedNow, outputLatencyMs, voice })
   latest.current = { items, elapsedNow, outputLatencyMs, voice }

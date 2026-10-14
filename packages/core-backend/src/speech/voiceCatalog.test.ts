@@ -70,6 +70,10 @@ describe('speech voice catalog (#63)', () => {
     expect(list.voices.some((v) => v.key === 'de_DE-test-medium')).toBe(true)
   })
 
+  it('points to the dataset when the card only says "See URL"', () => {
+    expect(parseModelCard('* URL: https://example.org/data/\n* License: See URL\n')).toEqual({ license: 'siehe https://example.org/data/', finetunedFrom: null })
+  })
+
   it('reads licence and base voice from a model card', () => {
     expect(parseModelCard('* License: CC0\n\n## Training\n\nFinetuned from U.S. English lessac voice (medium quality).')).toEqual({ license: 'CC0', finetunedFrom: 'U.S. English lessac voice (medium quality)' })
   })

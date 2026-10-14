@@ -1,4 +1,5 @@
 import {
+  AnnouncementSettingsSchema,
   SpeechSettingsSchema,
   SpeechVoiceLicenseSchema,
   SpeechVoicesResponseSchema,
@@ -15,6 +16,17 @@ export const PIPER_SPEECH_PLUGIN = 'piper-speech'
 export function bandSpeechVoice(installed: readonly PluginInstallation[]): string | undefined {
   const settings = SpeechSettingsSchema.safeParse(installed.find((p) => p.id === PIPER_SPEECH_PLUGIN)?.settings ?? {})
   return settings.success ? settings.data.voice : undefined
+}
+
+/** section-announcements' plugin id - the band's spoken texts live in its installation's settings. */
+export const ANNOUNCEMENTS_PLUGIN = 'section-announcements'
+
+const NO_TEXTS: Record<string, string | null> = {}
+
+/** The band's spoken texts per part name (#63) - empty when none are set. */
+export function bandAnnouncementTexts(installed: readonly PluginInstallation[]): Record<string, string | null> {
+  const settings = AnnouncementSettingsSchema.safeParse(installed.find((p) => p.id === ANNOUNCEMENTS_PLUGIN)?.settings ?? {})
+  return settings.success ? settings.data.texts : NO_TEXTS
 }
 
 async function call<T>(path: string, parse: (body: unknown) => T, init?: RequestInit): Promise<{ ok: true; data: T } | { ok: false; message: string }> {

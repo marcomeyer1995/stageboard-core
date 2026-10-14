@@ -3,12 +3,14 @@ import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { useNow } from '../lib/useNow'
+import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
 import { Button, Switch } from './ui'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
 const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
   'piper-speech': SpeechVoiceDialog,
+  'section-announcements': AnnouncementTextsDialog,
 }
 
 export function PluginManager() {
