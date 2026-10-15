@@ -4,6 +4,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -33,6 +34,16 @@ public class MainActivity extends BridgeActivity {
             getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         hideSystemBars();
+        // Android's back gesture (a swipe in from the left or right edge) must never leave the
+        // app: dragging a slider that starts near the edge triggered it and sent StageBoard to the
+        // home screen mid-song (Xiaomi, 2026-10-15). The app has no back history of its own -
+        // leaving it is the home gesture.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Deliberately nothing.
+            }
+        });
     }
 
     @Override
