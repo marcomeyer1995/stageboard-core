@@ -11,6 +11,7 @@ export function useElapsedMs(): number {
   const accumulatedMs = useClockStore((state) => state.accumulatedMs)
   const startedAt = useClockStore((state) => state.startedAt)
   const isRunning = useClockStore((state) => state.isRunning)
+  const rate = useClockStore((state) => state.rate)
   const [, forceTick] = useState(0)
 
   useEffect(() => {
@@ -25,5 +26,7 @@ export function useElapsedMs(): number {
   }, [isRunning])
 
   if (!isRunning || startedAt === null) return accumulatedMs
-  return accumulatedMs + (Date.now() - startedAt)
+  // At the clock's rate - slowed down in the Timeline, the playhead must not run ahead of the
+  // track and snap back at every position update (Marco, 2026-10-15).
+  return accumulatedMs + (Date.now() - startedAt) * rate
 }
