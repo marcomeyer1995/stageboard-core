@@ -312,6 +312,18 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     hardwareIds: [],
   },
   {
+    id: 'stem-separation',
+    name: 'Spuren trennen (Stems)',
+    version: '0.0.1',
+    // Splits a song's track into stems - drums, bass, vocals, rest, optionally guitar (left/right)
+    // and keys - on the Stage-Server with Demucs (#9, docs/03). Heavy (~1 GB, about a minute of
+    // full CPU per song), so a plugin: without it the song editor offers no "Spuren trennen".
+    runtime: 'server',
+    capabilities: [CAPABILITIES.stemSeparation],
+    transports: [],
+    hardwareIds: [],
+  },
+  {
     id: 'section-announcements',
     name: 'Ansagen der Songteile',
     version: '0.0.1',

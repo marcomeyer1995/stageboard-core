@@ -33,6 +33,7 @@ import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
 import { AddRow, Switch, Tabs, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
+import { playableTracks } from '../lib/stems'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -549,7 +550,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // used to share one "leftover" tab - split for the same reason.
   // With a track attached, its length *is* the song's length (read-only, measured from the file);
   // the hand-entered one only exists for songs without a track - e.g. click-only playback (#28).
-  const playingTrack = currentTracks.find((t) => t.kind === 'band-mix') ?? currentTracks[0]
+  const playingTrack = currentTracks.find((t) => t.kind === 'band-mix') ?? playableTracks(currentTracks)[0]
   const audioContent = (
     <div className="flex flex-col gap-3">
       {playingTrack ? (

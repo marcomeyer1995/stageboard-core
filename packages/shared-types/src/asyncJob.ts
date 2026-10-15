@@ -7,34 +7,61 @@ import { z } from 'zod'
  * work (network access, a shell-out), and progress/result flow back the same way every other
  * replicated document does, no dedicated HTTP endpoint needed.
  *
- * One job type today (`youtube-extract`) - the discriminated `type` field is there so a second
- * kind (e.g. the stem-separation pipeline, #9) can join this same queue later without a new
- * schema or watcher plumbing.
+ * Two job types: `youtube-extract` (#5) and `stem-separation` (#9) - discriminated by `type`.
  */
 export const AsyncJobStatusSchema = z.enum(['queued', 'running', 'done', 'error'])
 export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>
 
-export const AsyncJobSchema = z.object({
+const AsyncJobBase = {
   id: z.string().min(1),
-  type: z.literal('youtube-extract'),
   status: AsyncJobStatusSchema,
   /** 0-1. Only ever meaningful while `status === 'running'` - queued/done/error don't update it
    * further (done implies 1, the others have no notion of partial progress). */
   progress: z.number().min(0).max(1),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
-  /** The SongVariant this job attaches its resulting track to. */
+  /** The SongVariant this job attaches its resulting track(s) to. */
   variantId: z.string().min(1),
+  /** Set once `status` reaches `error` - human-readable, shown as-is in the UI. */
+  error: z.string().min(1).optional(),
+}
+
+export const YoutubeExtractJobSchema = z.object({
+  ...AsyncJobBase,
+  type: z.literal('youtube-extract'),
   url: z.string().min(1),
   /** What to label the resulting TrackMeta - authored once at job creation, not editable
    * mid-run. */
   label: z.string().min(1),
   /** Set once `status` reaches `done` - the TrackMeta.id of the track this job produced. */
   trackId: z.string().min(1).optional(),
-  /** Set once `status` reaches `error` - human-readable, shown as-is in the UI. */
-  error: z.string().min(1).optional(),
 })
+
+/**
+ * Which stems to separate (#9): `standard` = drums, bass, vocals, rest (Demucs htdemucs);
+ * `extended` = also guitar and piano/keys (htdemucs_6s). `splitGuitar` (extended only) splits the
+ * guitar stem by stereo side - two main guitars panned left and right come out as two stems.
+ */
+export const StemModelSchema = z.enum(['standard', 'extended'])
+export type StemModel = z.infer<typeof StemModelSchema>
+
+/** Stem separation (#9, Marco 2026-10-15: on the Stage-Server): a track of the variant split into
+ * stems, stored as `kind: 'stem'` tracks with `parentTrackId` = the source. A new separation of
+ * the same track replaces its earlier stems. */
+export const StemSeparationJobSchema = z.object({
+  ...AsyncJobBase,
+  type: z.literal('stem-separation'),
+  sourceTrackId: z.string().min(1),
+  model: StemModelSchema,
+  splitGuitar: z.boolean().default(false),
+  /** Set once `status` reaches `done` - the stems' TrackMeta ids. */
+  stemTrackIds: z.array(z.string().min(1)).optional(),
+})
+
+export const AsyncJobSchema = z.discriminatedUnion('type', [YoutubeExtractJobSchema, StemSeparationJobSchema])
 export type AsyncJob = z.infer<typeof AsyncJobSchema>
+export type YoutubeExtractJob = z.infer<typeof YoutubeExtractJobSchema>
+export type StemSeparationJob = z.infer<typeof StemSeparationJobSchema>
 
 /**
  * youtube.com/youtu.be only (`www.`/`m.` subdomains, `/watch`, `/shorts/`, or a bare youtu.be

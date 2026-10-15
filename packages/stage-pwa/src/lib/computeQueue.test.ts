@@ -222,7 +222,7 @@ describe('resolveTrackForEntry', () => {
     return { id, kind, label: id, source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }
   }
   const bandMix = track('t-band', 'band-mix')
-  const stem = track('t-stem', 'stem')
+  const stem = track('t-stem', 'reference') // any other kind than band-mix
   const withTracks = (tracks: TrackMeta[]) => variant({ id: 'v-a', songId: 'a', tracks })
 
   it('is null when the variant has no tracks', () => {
@@ -249,6 +249,12 @@ describe('resolveTrackForEntry', () => {
     const e = { ...entry('e1', 'a'), trackId: 't-band' }
     const result = resolveTrackForEntry(e, withTracks([stem, bandMix]), 't-stem')
     expect(result?.id).toBe('t-stem')
+  })
+
+  it('never picks a stem (#9) - split from a track, not a backing track of its own', () => {
+    const realStem = { ...track('t-drums', 'stem'), parentTrackId: 't-band' }
+    expect(resolveTrackForEntry(entry('e1', 'a'), withTracks([realStem, bandMix]), 't-drums')?.id).toBe('t-band')
+    expect(resolveTrackForEntry(entry('e1', 'a'), withTracks([realStem]), null)).toBeNull()
   })
 
   it('falls back to the band-mix default if the override references a track that no longer exists', () => {

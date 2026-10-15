@@ -70,13 +70,14 @@ describe('TrackOverrideWidget - track', () => {
     expect(screen.queryByText(/Standard \(Setlist\)/)).not.toBeInTheDocument()
   })
 
-  it('falls back to the first track when there is no band-mix', () => {
+  it('falls back to the first track when there is no band-mix - stems (#9) are never offered', () => {
     mockMode('gig', {
-      current: variant('v1', 'Original', true, [track('ref', 'reference', 'YouTube Referenz'), track('stem', 'stem', 'Drums')]),
+      current: variant('v1', 'Original', true, [track('ref', 'reference', 'YouTube Referenz'), track('ref2', 'reference', 'Live'), track('stem', 'stem', 'Drums')]),
     })
     render(<TrackOverrideWidget config={{}} />)
 
     expect(screen.getByRole('option', { name: 'Automatisch (YouTube Referenz)' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Drums/ })).not.toBeInTheDocument()
   })
 })
 

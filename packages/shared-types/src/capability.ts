@@ -35,6 +35,8 @@ export const CAPABILITIES = {
   midiClock: 'midi-clock',
   /** Speech clips for spoken announcements (#63), generated on the Stage-Server (Piper). */
   speechSynthesis: 'speech-synthesis',
+  /** Splits a track into stems (drums, bass, vocals ...) on the Stage-Server (#9). */
+  stemSeparation: 'stem-separation',
   /** Spoken section announcements in the in-ears (#63): "Chorus", "Bridge" a bar before the part,
    * played on the click's Web Audio clock - an audio source like click and track. */
   sectionAnnouncements: 'section-announcements',

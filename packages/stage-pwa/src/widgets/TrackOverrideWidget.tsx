@@ -9,6 +9,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { DEFAULT_SIZE_RATIO, type TrackOverrideConfig } from './trackOverrideConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { stageFontSize } from '../lib/stageSize'
+import { playableTracks } from '../lib/stems'
 
 /**
  * Swaps which track of the current variant plays - not solo-practice-only, despite living next to ShowTransportWidget's
@@ -47,7 +48,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   const entryVariant = currentEntry && isSongEntry(currentEntry) ? resolveVariantForEntry(currentEntry, variants) : null
   const showVariantPicker = setVariantOverride !== null && songVariants.length > 1
 
-  const tracks = currentVariant?.tracks ?? []
+  const tracks = playableTracks(currentVariant?.tracks ?? [])
   const defaultTrack = resolveTrackForEntry(currentEntry, currentVariant, null)
   const trackMessage =
     tracks.length === 0 ? 'Kein Track angehängt' : tracks.length < 2 ? 'Nur ein Track vorhanden - kein Wechsel nötig' : null

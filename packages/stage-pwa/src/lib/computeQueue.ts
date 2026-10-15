@@ -1,5 +1,6 @@
 import { isSongEntry } from 'shared-types'
 import type { Setlist, SetlistEntry, ShowState, Song, SongEntry, SongVariant, TrackMeta } from 'shared-types'
+import { playableTracks } from './stems'
 
 /** One resolved position in the queue: the setlist entry, its song, and the variant it plays.
  * A transition item or section heading (#29) has no song or variant - both are null. */
@@ -66,11 +67,13 @@ export function resolveTrackForEntry(
   variant: SongVariant | null,
   overrideTrackId: string | null,
 ): TrackMeta | null {
-  if (!variant || variant.tracks.length === 0) return null
+  // Stems (#9) are never the backing track - only the tracks they were split from.
+  const tracks = variant ? playableTracks(variant.tracks) : []
+  if (tracks.length === 0) return null
   const entryTrackId = entry && isSongEntry(entry) ? entry.trackId : null
   const requestedId = overrideTrackId ?? entryTrackId
-  const requested = requestedId ? variant.tracks.find((t) => t.id === requestedId) : undefined
-  return requested ?? variant.tracks.find((t) => t.kind === 'band-mix') ?? variant.tracks[0]
+  const requested = requestedId ? tracks.find((t) => t.id === requestedId) : undefined
+  return requested ?? tracks.find((t) => t.kind === 'band-mix') ?? tracks[0]!
 }
 
 /** Pure playback-queue logic: song order (catalog or active setlist) + current/next position. */

@@ -142,6 +142,22 @@ npm run admin:reset -w core-backend -- "<Band>" "<Name>" --make-admin   # kein A
 
 Band per ID oder genauem Namen, Mitglied per ID oder Name (Groß-/Kleinschreibung egal). Die PIN wird einmal angezeigt; danach in der App der Band beitreten, Namen wählen, PIN eingeben und unter Einstellungen eine eigene PIN setzen. Nach 5 Fehlversuchen ist ein Konto einige Minuten gesperrt (warten oder `systemctl --user restart stageboard`). Der Befehl nutzt das CouchDB-Login des Servers (§0b1), braucht kein Netz und öffnet keinen Zugang über die App.
 
+## 0b4. Stem-Trennung auf dem Stage-Server (Plugin „Spuren trennen“, #9)
+
+Optional (Marco 2026-10-15: schwer, nicht jede Band braucht es) – nur mit installiertem Plugin `stem-separation` nimmt der Server Trenn-Aufträge an, und der Song-Editor bietet „Spuren trennen“. Die Arbeit macht ein Python-Skript (`packages/core-backend/scripts/stem_separate.py`, Demucs) in einer eigenen virtuellen Umgebung, ~1,1 GB plus Modelle:
+
+```
+python3 -m venv ~/stageboard-data/stems/venv
+~/stageboard-data/stems/venv/bin/pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+~/stageboard-data/stems/venv/bin/pip install demucs numpy av
+```
+
+- Pfad: `$STAGEBOARD_STATE_DIR/stems/venv/bin/python`, abweichend per `STEMS_PYTHON`. Fehlt er, installiert sich das Plugin trotzdem, „Testen“ und jeder Auftrag melden es.
+- **Kein `ffmpeg` nötig:** Auf dem Laptop gibt es kein `ffmpeg`-Programm (nur die Bibliotheken für GStreamer); PyAV (`av`) bringt seinen Decoder selbst mit und liest WebM/Opus, MP3, M4A, WAV.
+- Modelle (`htdemucs` 4 Spuren, `htdemucs_6s` 6 Spuren) lädt Demucs beim ersten Lauf von Hugging Face (`~/.cache/huggingface`).
+- Dauer auf dem Ryzen 7 8845HS: 2:50-Song ~45 s (4 Spuren) / ~50 s (6), 7 Kerne, ~2 GB RAM. Ein Auftrag nach dem anderen (Job-Warteschlange `asyncJobWatcher.ts`).
+- Ergebnis: je Spur eine MP3 (192 kbit/s, Pegel wie im Mix – `clip='clamp'`) im Audio-Speicher, als Track `kind: 'stem'` mit `parentTrackId`; wird nicht auf jedes Gerät geladen und nie als Backing-Track gewählt. Erneutes Trennen ersetzt die Spuren desselben Tracks.
+
 ## 0c. Native Android-App (Capacitor, #348)
 
 Die Browser-PWA lässt sich auf Handys nicht installieren (Chrome installiert nur von Origins mit *vertrauenswürdigem* Zertifikat, der Stage-Server hat ein selbstsigniertes). Die App ist derselbe React-Build in einer Capacitor-Hülle (`packages/stage-pwa/android`, `capacitor.config.ts`), die UI steckt im APK.
