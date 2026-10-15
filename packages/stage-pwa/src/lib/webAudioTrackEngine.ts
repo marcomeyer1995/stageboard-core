@@ -3,6 +3,7 @@ import type { LocalAudioResult } from './localAudioEngine'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
+import { sourceOutput } from './audioMix'
 
 /**
  * Backing track on the click's own audio clock (#468, prototype behind a per-device switch).
@@ -383,7 +384,7 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
   // Fade in only when entering mid-song - a start at 0 begins with the track's own lead-in.
   gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
   if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
-  gain.connect(ctx.destination)
+  gain.connect(sourceOutput('track', ctx))
   const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null }
   voice = v
   stats.starts++

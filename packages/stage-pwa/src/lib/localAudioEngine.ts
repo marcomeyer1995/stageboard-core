@@ -1,3 +1,4 @@
+import { trackElementVolume, useAudioMixStore } from './audioMix'
 import { getTrack } from './songVariantsDb'
 
 export interface LocalAudioResult {
@@ -137,6 +138,7 @@ export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   const audio = getAudioEl()
   // A Play right after Stop/Pause must not be cut off by that fade's closing pause().
   cancelFade(audio)
+  audio.volume = trackElementVolume()
   seekTo(audio, atMs)
   try {
     await audio.play()
@@ -154,13 +156,19 @@ const FADE_STEP_MS = 5
 
 let fade: { audio: HTMLAudioElement; timer: ReturnType<typeof setInterval>; volume: number } | null = null
 
-/** Stops a running fade and puts the element's volume back - it is only ever lowered for a fade. */
+/** Stops a running fade and puts the element's volume back - to the mix's track level (docs/21
+ * §9.3), which may have moved during the fade. */
 function cancelFade(audio: HTMLAudioElement): void {
   if (!fade || fade.audio !== audio) return
   clearInterval(fade.timer)
-  audio.volume = fade.volume
+  audio.volume = trackElementVolume()
   fade = null
 }
+
+// A slider move in "Mein Mix" is heard at once - except during a fade, which ends on the new level.
+useAudioMixStore.subscribe(() => {
+  if (audioEl && !fade) audioEl.volume = trackElementVolume()
+})
 
 /** Fades the element out over FADE_OUT_MS, then pauses it and restores its volume. Nothing to
  * fade on an element that isn't playing. */

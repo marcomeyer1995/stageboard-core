@@ -10,11 +10,12 @@ import { getLoopPlaybackState } from './loopTrainerEngine'
 import { adjustedBpm } from './metronome'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { useShowModeSong } from './showMode'
-import { loadSpeechClip, speechClip } from './speechClips'
+import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { sourceOutput } from './audioMix'
 
 const SWITCH_KEY = 'sb:audio:announcements'
 
@@ -82,12 +83,27 @@ export function useAnnouncementDriver(): void {
     for (const text of wanted) void loadSpeechClip(text, voice)
   }, [active, items, nextVariant, voice, settings])
 
+  usePlayAnnouncements(items, voice, active && playbackStatus === 'playing', elapsedNow, outputLatencyMs, takeKey)
+}
+
+/**
+ * Plays `items` against a song clock while `playing` (#63): each word scheduled on the shared
+ * AudioContext `outputLatencyMs` early, so it is heard on its beat. Shared by the show driver
+ * above and the Timeline editor's preview. `resetKey` changes for a new take.
+ */
+export function usePlayAnnouncements(
+  items: Announcement[],
+  voice: ClipVoice,
+  playing: boolean,
+  elapsedNow: () => number | null,
+  outputLatencyMs: number,
+  resetKey: unknown = null,
+): void {
   const latest = useRef({ items, elapsedNow, outputLatencyMs, voice })
   latest.current = { items, elapsedNow, outputLatencyMs, voice }
-
-  const playing = active && playbackStatus === 'playing'
   useEffect(() => {
-    if (!playing) return
+    // Nothing to say: no AudioContext needed (the Timeline plays its track on an <audio> element).
+    if (!playing || items.length === 0) return
     const ctx = getSharedAudioContext()
     const audioClock = createAudioClock()
     let done = new Set<number>()
@@ -117,7 +133,7 @@ export function useAnnouncementDriver(): void {
         const node = ctx.createBufferSource()
         node.buffer = buffer
         const gain = ctx.createGain()
-        node.connect(gain).connect(ctx.destination)
+        node.connect(gain).connect(sourceOutput('voice', ctx))
         node.start(when)
         // A word longer than its beat (a fast song) gives way to the next one with a short fade,
         // so countdown numbers never pile up.
@@ -135,5 +151,5 @@ export function useAnnouncementDriver(): void {
       clearInterval(timer)
       cancelPending()
     }
-  }, [playing, takeKey, items])
+  }, [playing, resetKey, items])
 }

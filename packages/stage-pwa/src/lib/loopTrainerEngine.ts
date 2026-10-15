@@ -1,5 +1,6 @@
 import { passRates, passStartSec, positionAt, type LoopPosition, type LoopSpeedConfig } from './loopSchedule'
 import type { LocalAudioResult } from './localAudioEngine'
+import { sourceOutput } from './audioMix'
 
 /** A loop shorter than this is not worth (and not safe) looping gaplessly. */
 const MIN_LOOP_MS = 500
@@ -83,7 +84,7 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
     source.loopEnd = section.duration
     const stretch = new SoundTouchNode({ context: ctx })
     source.connect(stretch)
-    stretch.connect(ctx.destination)
+    stretch.connect(sourceOutput('track', ctx))
 
     // The source resamples by `rate` (tempo AND pitch change), the worklet gets the same value and
     // undoes the pitch part - net effect: slower/faster with the original pitch. Every pass

@@ -1,6 +1,7 @@
 import type { ClickTimeline } from './beatGrid'
 import { createAudioClock } from './audioClock'
 import { __resetSharedAudioContextForTests, getSharedAudioContext } from './sharedAudioContext'
+import { sourceOutput } from './audioMix'
 
 /** How far ahead (ms) each tick schedules oscillators - the standard "look-ahead scheduler"
  * window (per Chris Wilson's "A Tale of Two Clocks", the reference technique for precise Web
@@ -90,7 +91,7 @@ export function playClickAt(ctx: AudioContext, time: number, isDownbeat: boolean
   gain.gain.setValueAtTime(isDownbeat ? 0.5 : 0.35, time)
   gain.gain.exponentialRampToValueAtTime(0.001, time + CLICK_DURATION_S)
   osc.connect(gain)
-  gain.connect(ctx.destination)
+  gain.connect(sourceOutput('click', ctx))
   osc.start(time)
   osc.stop(time + CLICK_DURATION_S)
 }

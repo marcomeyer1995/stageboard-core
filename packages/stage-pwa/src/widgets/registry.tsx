@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
 import { ActiveSetlistConfigPanel, ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { ActiveSetlistConfigSchema } from './activeSetlistConfig'
+import { AudioMixConfigPanel, AudioMixWidget } from './AudioMixWidget'
+import { AudioMixConfigSchema } from './audioMixConfig'
 import { BackupStatusConfigPanel, BackupStatusWidget } from './BackupStatusWidget'
 import { BackupStatusConfigSchema } from './backupStatusConfig'
 import { ClickTrackConfigPanel, ClickTrackWidget } from './ClickTrackWidget'
@@ -289,6 +291,17 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: ClickTrackConfigSchema,
     Component: ClickTrackWidget,
     ConfigPanel: ClickTrackConfigPanel,
+  }),
+  defineWidget({
+    type: 'audio-mix',
+    title: 'Mein Mix',
+    description: 'Lautstärke von Track, Klick und Ansagen auf diesem Gerät - je ein Regler und Stumm.',
+    category: 'performance',
+    stageTier: 'gig',
+    defaultLayout: { w: 6, h: 8, minW: 3, minH: 5 },
+    configSchema: AudioMixConfigSchema,
+    Component: AudioMixWidget,
+    ConfigPanel: AudioMixConfigPanel,
   }),
   defineWidget({
     type: 'track-override',
