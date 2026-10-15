@@ -29,13 +29,17 @@ const RESCHEDULE_CONFIRMATIONS = 2
 /** Short fades so a start mid-file, a stop or a gain change never cracks. */
 const FADE_S = 0.02
 const MIN_SYNC_INTERVAL_MS = 40
+/** The first seconds of every stem, decoded while loading - so Play from the start doesn't wait
+ * for 4-7 decoders to open and seek: on the Fire the first 60-120 ms of the song were cut off
+ * without it (2026-10-15). Same as the Gig engine's head (webAudioTrackEngine.ts). */
+const HEAD_S = 1.5
 
 interface Piece {
   buffer: AudioBuffer
   timestamp: number
 }
 
-type Source = { kind: 'stream'; stream: TrackStream } | { kind: 'buffer'; buffer: AudioBuffer }
+type Source = { kind: 'stream'; stream: TrackStream; head: Piece | null } | { kind: 'buffer'; buffer: AudioBuffer }
 
 interface Loaded {
   /** variantId + the stems' ids - what `loadStems` was called with. */
@@ -118,7 +122,7 @@ export async function loadStems(variantId: string, trackIds: readonly string[]):
       if (job.cancelled) break
       if (!blob) throw new Error(`Spur ${trackId} nicht gefunden`)
       const stream = await openTrackStream(blob)
-      if (stream) stems.set(trackId, { kind: 'stream', stream })
+      if (stream) stems.set(trackId, { kind: 'stream', stream, head: await decodeHead(ctx, stream, job) })
       else
         stems.set(trackId, {
           kind: 'buffer',
@@ -223,8 +227,26 @@ function schedule(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, piece
   layer.scheduledUntil = timestamp + buffer.duration
 }
 
+/** Decodes the first HEAD_S of a stem. */
+async function decodeHead(ctx: AudioContext, stream: TrackStream, job: { cancelled: boolean }): Promise<Piece | null> {
+  const pieces: Piece[] = []
+  let length = 0
+  const iterator = stream.buffers(0)
+  try {
+    for await (const piece of iterator) {
+      if (job.cancelled) return null
+      pieces.push(piece)
+      length += piece.buffer.duration
+      if (length >= HEAD_S) break
+    }
+  } finally {
+    await iterator.return(undefined)
+  }
+  return pieces.length ? join(ctx, pieces) : null
+}
+
 async function feed(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, stream: TrackStream): Promise<void> {
-  const iterator = stream.buffers(r.anchorPos)
+  const iterator = stream.buffers(layer.scheduledUntil)
   let pending: Piece[] = []
   let pendingLength = 0
   const flush = () => {
@@ -274,7 +296,12 @@ function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number): void
     }
     r.layers.push(layer)
     if (source.kind === 'buffer') schedule(ctx, r, layer, fade, { buffer: source.buffer, timestamp: 0 })
-    else void feed(ctx, r, layer, fade, source.stream).catch(() => {})
+    else {
+      // From the decoded head where it reaches, then streamed on from its end.
+      const head = source.head
+      if (head && anchorPos < head.timestamp + head.buffer.duration - LEAD_S) schedule(ctx, r, layer, fade, head)
+      void feed(ctx, r, layer, fade, source.stream).catch(() => {})
+    }
   }
 }
 

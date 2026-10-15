@@ -187,6 +187,18 @@ describe('stemEngine (docs/22 §3)', () => {
     expect(__stemStatsForTests().starts).toBe(1)
   })
 
+  it('plays the start of the song from the heads decoded while loading', async () => {
+    await loadStems('v', STEMS)
+    const at = audioNow()
+    syncStems(() => 0, true)
+    // Scheduled right away, before any streaming: one 1.5 s head per stem, all at the same moment.
+    const heads = sorted().filter((n) => Math.abs(n.when - (at + 0.4)) < 1e-6)
+    expect(heads).toHaveLength(STEMS.length)
+    expect(heads.every((n) => Math.abs(n.buffer!.duration - 1.5) < 1e-6 && Math.abs(n.offset - 0.4) < 1e-6)).toBe(true)
+    await flush()
+    for (const out of new Set(heads.map((n) => n.out))) expectGapless(sorted().filter((n) => n.out === out))
+  })
+
   it('applies level, Stumm and Solo as gains per stem, also mid-song', async () => {
     await loadStems('v', STEMS)
     setStemGains(
