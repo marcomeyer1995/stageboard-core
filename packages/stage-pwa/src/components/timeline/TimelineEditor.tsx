@@ -50,18 +50,22 @@ import { loadSpeechClip } from '../../lib/speechClips'
 import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
-import { TimelineStems } from './TimelineStems'
+import { StemSourcePicker, TimelineStems } from './TimelineStems'
 import { stemSetsOf } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
 import { Icon } from '../Icon'
-import { Button, Dialog } from '../ui'
+import { Button, Dialog, ToggleChip } from '../ui'
 import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
  * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
  * pushes the timeline down. Only a wide PC window keeps the plain row. */
 const COMPACT_TOOLS_WIDTH = 1700
+/** Below this (a phone, 375-430 px) even the top row wrapped into three rows and the lanes got a
+ * third of the screen (2026-10-16): zoom, speed, click, announcements and mix move into the tools
+ * panel, the hint keeps to one line, and opened stems scroll in a capped strip. */
+const PHONE_WIDTH = 600
 
 /** What the timeline changes on the song: its grid, its bpm (kept equal to the grid's first
  * stretch, so count-in and tempo displays agree with the click), the ChordPro text (the lines'
@@ -1669,16 +1673,50 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const lanesGroup = (
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2" role="group" aria-label="Spuren">
           {TIMELINE_LANES.map((lane) => (
-            <Button variant={!hiddenLanes.has(lane) ? 'primary' : 'secondary'} key={lane} data-keep-open aria-pressed={!hiddenLanes.has(lane)} disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1} onClick={() => toggleLane(lane)}>
-              {LANE_NAME[lane]}
-            </Button>
+            <span key={lane} data-keep-open className="contents">
+              <ToggleChip label={LANE_NAME[lane]} selected={!hiddenLanes.has(lane)} disabled={!hiddenLanes.has(lane) && hiddenLanes.size === TIMELINE_LANES.length - 1} onToggle={() => toggleLane(lane)} />
+            </span>
           ))}
           <span className="text-sm text-ink-faint">Gilt für dieses Gerät.</span>
         </div>
   )
 
   const compactTools = box.width > 0 && box.width < COMPACT_TOOLS_WIDTH
+  /** Phone width: playback settings into the tools panel, one-line hint, stems capped. */
+  const phone = box.width > 0 && box.width < PHONE_WIDTH
   const showTools = !compactTools || (toolsOpen && tapMode === null)
+
+  // Zoom, speed, click, announcements and mix: in the top row on wide screens; on the phone in the
+  // tools panel (2026-10-16) - in the top row they took three rows there, and pinch zooms anyway.
+  const playbackSettings = (
+    <>
+      <Button aria-label="Herauszoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
+        −
+      </Button>
+      <Button aria-label="Hineinzoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
+        +
+      </Button>
+      <Button
+        variant={clock.rate < 1 ? 'primary' : 'secondary'}
+        aria-label={`Abspielgeschwindigkeit ${Math.round(clock.rate * 100)} %`}
+        title="Langsamer abspielen (Tonhöhe bleibt) - zum Tippen"
+        data-keep-open
+        onClick={() => clock.setRate(nextSpeed(clock.rate))}
+      >
+        {Math.round(clock.rate * 100)} %
+      </Button>
+      {/* On/off settings (docs/15 D5/D7): chips with a box, not yellow-filled buttons. */}
+      <span data-keep-open className="contents">
+        <ToggleChip label="Klick" selected={clickOn} onToggle={setClickOn} />
+      </span>
+      {announcing && (
+        <span data-keep-open className="contents">
+          <ToggleChip label="Ansagen" selected={voiceOn} onToggle={setVoiceOn} />
+        </span>
+      )}
+      <Button onClick={() => setMixOpen(true)}>Mix</Button>
+    </>
+  )
 
   return (
     <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
@@ -1686,30 +1724,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <Button onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
         </Button>
-        <span className="min-w-20 font-bold tabular-nums">{formatTimelineTime(playheadMs)}</span>
-        <Button aria-label="Herauszoomen" onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
-          −
-        </Button>
-        <Button aria-label="Hineinzoomen" onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
-          +
-        </Button>
-        <Button
-          variant={clock.rate < 1 ? 'primary' : 'secondary'}
-          aria-label={`Abspielgeschwindigkeit ${Math.round(clock.rate * 100)} %`}
-          title="Langsamer abspielen (Tonhöhe bleibt) - zum Tippen"
-          onClick={() => clock.setRate(nextSpeed(clock.rate))}
-        >
-          {Math.round(clock.rate * 100)} %
-        </Button>
-        <Button variant={clickOn ? 'primary' : 'secondary'} aria-pressed={clickOn} onClick={() => setClickOn(!clickOn)}>
-          Klick
-        </Button>
-        {announcing && (
-          <Button variant={voiceOn ? 'primary' : 'secondary'} aria-pressed={voiceOn} onClick={() => setVoiceOn(!voiceOn)}>
-            Ansagen
-          </Button>
-        )}
-        <Button onClick={() => setMixOpen(true)}>Mix</Button>
+        <span className={`${phone ? '' : 'min-w-20'} font-bold tabular-nums`}>{formatTimelineTime(playheadMs)}</span>
+        {!phone && playbackSettings}
         <button type="button" className={iconButton} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
           <UndoIcon />
         </button>
@@ -1717,7 +1733,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <UndoIcon mirrored />
         </button>
         {compactTools && tapMode === null && (
-          <Button variant={toolsOpen ? 'primary' : 'secondary'} ref={toolsToggle} aria-pressed={toolsOpen} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>
+          <Button ref={toolsToggle} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>
             Werkzeuge
           </Button>
         )}
@@ -1743,9 +1759,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
         // button before a real tap reached its own onClick (found on the phone, 2026-10-05).
         onClick={(e) => {
           const pressed = (e.target as Element).closest('button')
-          if (compactTools && pressed && !pressed.hasAttribute('data-keep-open')) setToolsOpen(false)
+          if (compactTools && pressed && !pressed.closest('[data-keep-open]')) setToolsOpen(false)
         }}
       >
+        {phone && (
+          <div className="flex w-full flex-wrap items-center gap-2 border-b border-line pb-2">{playbackSettings}</div>
+        )}
         <Button onClick={setBar1Here} disabled={tapMode !== null}>
           Takt 1 hier
         </Button>
@@ -1760,16 +1779,21 @@ export function TimelineEditor(props: TimelineEditorProps) {
             {detecting ? 'Analysiere…' : 'Track analysieren'}
           </Button>
         )}
+        {phone && stems.length > 0 && (
+          <div className="w-full" data-keep-open>
+            <StemSourcePicker stems={stems} analysisSourceId={hitSourceId} onAnalysisSource={setHitSourceId} />
+          </div>
+        )}
         <Button disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
         </Button>
         <Button disabled={tapMode !== null} onClick={() => openCueDialog(playheadNow())}>
           Cue am Abspielkopf
         </Button>
-        <Button variant={snapOn ? 'primary' : 'secondary'} aria-pressed={snapOn} title="Einrasten (Alt gedrückt halten kehrt es um)" data-keep-open onClick={() => setSnapping(!snapping)}>
-          Einrasten{snapOn ? '' : ' aus'}
-        </Button>
-        <Button variant={lanesMenuOpen ? 'primary' : 'secondary'} aria-pressed={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
+        <span data-keep-open className="contents">
+          <ToggleChip label="Einrasten" title="Einrasten (Alt gedrückt halten kehrt es um)" selected={snapOn} onToggle={() => setSnapping(!snapping)} />
+        </span>
+        <Button aria-expanded={lanesMenuOpen} data-keep-open onClick={() => setLanesMenuOpen((open) => !open)}>
           Spuren{hiddenLanes.size > 0 ? ` (${TIMELINE_LANES.length - hiddenLanes.size}/${TIMELINE_LANES.length})` : ''}
         </Button>
         <Button disabled={tapMode !== null} onClick={() => rippleFrom(0, 'Ganzen Song')}>
@@ -1786,7 +1810,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {lanesMenuOpen && !compactTools && lanesGroup}
-      <p className="text-sm text-ink-soft" role="status">
+      {/* One line on the phone - three lines of hints pushed the lanes down (2026-10-16). */}
+      <p className={`text-sm text-ink-soft ${phone ? 'truncate' : ''}`} role="status" title={phone ? (notice ?? hint) : undefined}>
         {notice ?? hint}
       </p>
 
@@ -1851,6 +1876,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           onSolo={(id) => void soloStem(id)}
           analysisSourceId={hitSourceId}
           onAnalysisSource={setHitSourceId}
+          compact={phone}
         />
       )}
 

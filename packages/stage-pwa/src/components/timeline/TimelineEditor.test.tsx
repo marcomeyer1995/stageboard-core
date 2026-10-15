@@ -147,8 +147,8 @@ describe('aligning the grid (docs/14 §5a)', () => {
   // bar lines (2 s apart) are 33 px apart, too close to grab. Zoomed in twice (1.6² = 2.56) they
   // are 85 px apart; the zoom keeps the middle (30 s) in place.
   const zoomIn = () => {
-    fireEvent.click(screen.getByLabelText('Hineinzoomen'))
-    fireEvent.click(screen.getByLabelText('Hineinzoomen'))
+    fireEvent.click(tool('Hineinzoomen'))
+    fireEvent.click(tool('Hineinzoomen'))
   }
   const msPerPx = 60 / 2.56
   const px = (ms: number) => (ms - (30000 - 500 * msPerPx)) / msPerPx
@@ -204,12 +204,12 @@ describe('aligning the grid (docs/14 §5a)', () => {
 
   it('plays slower for tapping: 100 -> 75 -> 50 -> 100 %', () => {
     const { unmount } = setup({ trackSrc: 'blob:track' })
-    fireEvent.click(screen.getByRole('button', { name: 'Abspielgeschwindigkeit 100 %' }))
+    fireEvent.click(tool('Abspielgeschwindigkeit 100 %'))
     expect(trackClock.setRate).toHaveBeenLastCalledWith(0.75)
     unmount()
     trackClock.rate = 0.5
     setup({ trackSrc: 'blob:track' })
-    fireEvent.click(screen.getByRole('button', { name: 'Abspielgeschwindigkeit 50 %' }))
+    fireEvent.click(tool('Abspielgeschwindigkeit 50 %'))
     expect(trackClock.setRate).toHaveBeenLastCalledWith(1)
     trackClock.rate = 1
   })
@@ -700,7 +700,7 @@ describe('snapping switch (#332)', () => {
     const { onChange } = setup({ content })
     fireEvent.click(tool('Einrasten'))
     expect(useTimelineSnapStore.getState().snapping).toBe(false)
-    expect(tool('Einrasten aus')).toHaveAttribute('aria-pressed', 'false')
+    expect(tool('Einrasten')).toHaveAttribute('aria-pressed', 'false')
     dragText(10000, 12030) // with snapping it would land on the beat at 12 s
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
   })
@@ -737,14 +737,14 @@ describe('snapping switch (#332)', () => {
     dragText(10000, 12030)
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.00] First line')
     fireEvent.keyUp(window, { key: 'Alt', altKey: false })
-    expect(tool('Einrasten aus')).toBeInTheDocument()
+    expect(tool('Einrasten')).toHaveAttribute('aria-pressed', 'false')
     expect(useTimelineSnapStore.getState().snapping).toBe(false)
   })
 
   it('holding Alt drags freely for as long as it is held, and the switch shows it', () => {
     const { onChange } = setup({ content })
     fireEvent.keyDown(window, { key: 'Alt', altKey: true })
-    expect(tool('Einrasten aus')).toBeInTheDocument()
+    expect(tool('Einrasten')).toHaveAttribute('aria-pressed', 'false')
     dragText(10000, 12030)
     expect((onChange.mock.calls[0]![0] as { chordProContent: string }).chordProContent.split('\n')[1]).toBe('[00:12.03] First line')
     fireEvent.keyUp(window, { key: 'Alt', altKey: false })
@@ -860,13 +860,40 @@ describe('stems under the timeline (docs/22 §5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stems (2)' }))
     await waitFor(() => expect(loadTrackAnalysis).toHaveBeenCalledWith('v', 'drums'))
     await new Promise((r) => setTimeout(r, 0))
+    // A narrow timeline: the analysis source sits in the tools panel.
+    tool('Nächste Problemstelle')
     fireEvent.click(screen.getByRole('radio', { name: 'Schlagzeug' }))
     fireEvent.click(tool('Track analysieren'))
     expect(await screen.findByText('Das Raster passt schon - nichts zu ergänzen.')).toBeInTheDocument()
+    tool('Nächste Problemstelle')
     fireEvent.click(screen.getByRole('radio', { name: 'Mix' }))
     fireEvent.click(tool('Track analysieren'))
     expect(await screen.findByRole('status', { name: 'Raster-Vorschau' })).toBeInTheDocument()
     vi.mocked(loadTrackAnalysis).mockReset()
     vi.mocked(loadTrackAnalysis).mockResolvedValue(null)
+  })
+})
+
+describe('phone layout (2026-10-16)', () => {
+  afterEach(() => {
+    box.width = 1000
+  })
+
+  it('keeps one top row: zoom, speed, click and mix wait in the tools panel', () => {
+    box.width = 375
+    setup({ trackSrc: 'blob:track' })
+    expect(screen.queryByRole('button', { name: 'Klick' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Hineinzoomen')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }))
+    // An on/off setting is a chip with a box (docs/15 D5/D7), and flipping it keeps the panel open.
+    fireEvent.click(screen.getByRole('button', { name: 'Klick' }))
+    expect(screen.getByRole('button', { name: 'Klick' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('dialog', { name: 'Werkzeuge' })).toBeInTheDocument()
+  })
+
+  it('a tablet keeps them in the top row', () => {
+    box.width = 800
+    setup({ trackSrc: 'blob:track' })
+    expect(screen.getByRole('button', { name: 'Klick' })).toBeInTheDocument()
   })
 })

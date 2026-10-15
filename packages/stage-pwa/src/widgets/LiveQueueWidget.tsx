@@ -214,8 +214,8 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
 
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
+      <div className="flex flex-none items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
         {canManage && (
           <button
             type="button"
