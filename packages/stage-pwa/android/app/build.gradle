@@ -36,6 +36,12 @@ android {
         }
     }
     buildTypes {
+        // Debug builds are a second app next to the real one ("StageBoard Dev", own storage and
+        // pairing, installed via adb): they never block the release's updates from the
+        // Stage-Server, whatever their version code or signing key.
+        debug {
+            applicationIdSuffix ".dev"
+        }
         release {
             if (keystorePropertiesFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false

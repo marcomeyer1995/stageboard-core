@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-const native = vi.hoisted(() => ({ offered: null as { versionCode: number; versionName: string } | null, installAppUpdate: vi.fn(async () => {}) }))
+const native = vi.hoisted(() => ({ code: 420, offered: null as { versionCode: number; versionName: string } | null, installAppUpdate: vi.fn(async () => {}) }))
 vi.mock('../lib/native', () => ({
-  APP_VERSION_CODE: 420,
+  get APP_VERSION_CODE() {
+    return native.code
+  },
   fetchOfferedAppVersion: async () => native.offered,
   installAppUpdate: native.installAppUpdate,
 }))
@@ -31,5 +33,14 @@ describe('AppVersionSettings (#348)', () => {
     render(<AppVersionSettings />)
     fireEvent.click(screen.getByText('Nach Update suchen'))
     expect(await screen.findByText('Der Stage-Server bietet keine App an (oder ist nicht erreichbar).')).toBeInTheDocument()
+  })
+
+  it('a dev build (StageBoard Dev) offers no server update - it would install as the real app beside it', () => {
+    native.code = 0
+    render(<AppVersionSettings />)
+    expect(screen.getByText('Installiert: Entwicklungs-Build')).toBeInTheDocument()
+    expect(screen.queryByText('Nach Update suchen')).not.toBeInTheDocument()
+    expect(screen.getByText(/Updates für den Entwicklungs-Build kommen per adb/)).toBeInTheDocument()
+    native.code = 420
   })
 })
