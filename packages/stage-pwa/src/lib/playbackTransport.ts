@@ -50,3 +50,8 @@ export function reset(): TransportState {
 export interface PlayOptions {
   skipCountIn?: boolean
 }
+
+/** How far ahead of Play a fresh song start lies (docs/00 §4 "Ahead-of-Time Dispatch") - long
+ * enough for the Play to reach every device over Wi-Fi and for each to schedule its audio. Solo
+ * practice uses it too: its Web Audio track and stems need the same lead (2026-10-15). */
+export const PLAY_LEAD_MS = 400

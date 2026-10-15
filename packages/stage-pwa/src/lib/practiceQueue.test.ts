@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { stopLocalTrack } from './localAudioEngine'
-import { practiceAdvanceNext, practiceBeginLoop, practiceEndLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
+import { playLocalTrack, stopLocalTrack } from './localAudioEngine'
+import { practiceAdvanceNext, practiceBeginLoop, practicePlaySong, practiceEndLoop, practicePauseSong, practiceSetActiveSetlist, practiceSetVariantOverride, practiceStopSong, practiceStopSongAtTrackEnd } from './practiceQueue'
 import { usePracticeStateStore } from '../store/usePracticeStateStore'
 
 vi.mock('./localAudioEngine', () => ({
@@ -171,5 +171,20 @@ describe('practice log (Solo Üben, "Geübt" / "30 Tage")', () => {
     ran(95_000)
     practiceSetVariantOverride('v-acoustic')
     expect(practiceLog.add).toHaveBeenCalledWith(expect.objectContaining({ songId: 's1', activeMs: 95_000 }))
+  })
+})
+
+describe('practicePlaySong - play lead', () => {
+  it('starts a fresh song PLAY_LEAD_MS ahead, like Gig mode - the Web Audio track and stems need it', async () => {
+    vi.useFakeTimers()
+    try {
+      await practicePlaySong()
+      expect(usePracticeStateStore.getState().byWorkspace['ws-1']).toMatchObject({ playbackStatus: 'playing', playbackAccumulatedMs: -400 })
+      expect(playLocalTrack).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(400)
+      expect(playLocalTrack).toHaveBeenCalledWith(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

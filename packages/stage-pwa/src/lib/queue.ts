@@ -4,7 +4,7 @@ import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
-import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, type PlayOptions, type TransportState } from './playbackTransport'
+import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
 import { songDurationMs, stoppedNearEnd } from './entryDuration'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -111,9 +111,7 @@ export async function advanceToPreviousSong(): Promise<void> {
   await activateEntry(previousEntry.id)
 }
 
-/** How far ahead of Play a fresh song start lies (docs/00 §4 "Ahead-of-Time Dispatch") - long
- * enough for the Play to reach every device over Wi-Fi and for each to schedule its audio. */
-export const PLAY_LEAD_MS = 400
+export { PLAY_LEAD_MS }
 
 /** Starts or resumes playback of the current entry (ShowTransportWidget's Play, #13). Also
  * bootstraps activation bookkeeping for a song that was never explicitly advanced to - e.g.
