@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { CAPABILITIES, isYoutubeUrl, type AsyncJob, type StemModel, type TrackKind, type TrackMeta } from 'shared-types'
+import { CAPABILITIES, isYoutubeUrl, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { randomId } from '../lib/id'
 import { pluginProviding } from '../lib/capabilities'
 import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
-import { getTrack, putTrack, removeTrack, renameTrack } from '../lib/songVariantsDb'
-import { playableTracks, stemsOf } from '../lib/stems'
+import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariantsDb'
+import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -28,8 +28,12 @@ const KIND_LABELS: Record<TrackKind, string> = {
   stem: 'Stem',
 }
 
+const NO_ROLE = 'none'
+
 /** Attach/remove any number of named tracks (reference/band-mix/stem) on a song variant - and,
- * with the stem-separation plugin installed (#9), split one into stems on the Stage-Server. */
+ * with the stem-separation plugin installed (#9), split one into stems on the Stage-Server.
+ * Stems form sets (docs/22 §2): those split from a track are listed under it, uploaded ones
+ * (several files at once, e.g. from the band leader) in a set of their own. */
 export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerFieldProps) {
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<TrackKind>('band-mix')
@@ -45,6 +49,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
   const canSeparate = pluginProviding(installed, CAPABILITIES.stemSeparation) !== null
   const promptFields = useDialogStore((state) => state.promptFields)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
   const [listening, setListening] = useState<{ trackId: string; url: string } | null>(null)
   useEffect(
@@ -65,9 +70,51 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     if (blob) setListening({ trackId: track.id, url: URL.createObjectURL(blob) })
   }
 
-  async function rename(track: TrackMeta) {
-    const result = await promptFields('Spur umbenennen', [{ key: 'label', label: 'Name', defaultValue: track.label }], 'Übernehmen')
-    if (result?.label?.trim()) await renameTrack(variantId, track.id, result.label)
+  /** Name and role of a stem - the role may stay empty (band-leader stems have no fixed structure). */
+  async function editStem(track: TrackMeta) {
+    const result = await promptFields(
+      'Spur bearbeiten',
+      [
+        { key: 'label', label: 'Name', defaultValue: track.label },
+        {
+          key: 'role',
+          label: 'Rolle (optional)',
+          type: 'radio',
+          defaultValue: track.role ?? NO_ROLE,
+          options: [{ value: NO_ROLE, label: 'Keine' }, ...StemRoleSchema.options.map((role) => ({ value: role, label: STEM_ROLE_LABELS[role] }))],
+        },
+      ],
+      'Übernehmen',
+    )
+    if (!result?.label?.trim()) return
+    const role = StemRoleSchema.safeParse(result.role)
+    await updateStem(variantId, track.id, result.label, role.success ? role.data : undefined)
+  }
+
+  function stemSet(stems: TrackMeta[]) {
+    return (
+      <>
+        {stemLengthsDiffer(stems) && <span className="ml-4 text-sm text-warn">Die Spuren sind unterschiedlich lang - sie laufen ab 0:00 zusammen, eine passt vielleicht nicht.</span>}
+        {stems.map((stem) => (
+          <div key={stem.id} className="ml-4 flex flex-col gap-1 border-l-2 border-line pl-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-ink">{stem.label}</span>
+              {stem.role && <span className="text-xs text-ink-faint">{STEM_ROLE_LABELS[stem.role]}</span>}
+              <Button variant={listening?.trackId === stem.id ? 'primary' : 'secondary'} aria-pressed={listening?.trackId === stem.id} onClick={() => void listen(stem)} disabled={busyTrackId === stem.id}>
+                Anhören
+              </Button>
+              <Button onClick={() => void editStem(stem)} disabled={disabled}>
+                Bearbeiten
+              </Button>
+              <Button onClick={() => handleRemove(stem.id)} disabled={disabled || busyTrackId === stem.id}>
+                Entfernen
+              </Button>
+            </div>
+            {listening?.trackId === stem.id && <audio controls autoPlay src={listening.url} className="w-full" />}
+          </div>
+        ))}
+      </>
+    )
   }
 
   /** Queues a #9 stem-separation job - picked up by the Stage-Server like the YouTube one. */
@@ -86,27 +133,40 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     })
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  /** One file, or - for stems - several at once, each named after its file with a guessed role. */
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = [...(e.target.files ?? [])]
     e.target.value = ''
-    if (!file) return
-    const id = randomId()
-    setBusyTrackId(id)
-    const durationMs = await measureAudioDurationMs(file)
-    await putTrack(
-      variantId,
-      {
-        id,
-        kind: uploadKind,
-        label: KIND_LABELS[uploadKind],
-        source: 'upload',
-        parentTrackId: null,
-        mimeType: file.type,
-        addedAt: Date.now(),
-        ...(durationMs !== null && { durationMs }),
-      },
-      file,
-    )
+    const stem = uploadKind === 'stem'
+    for (const [i, file] of (stem ? files : files.slice(0, 1)).entries()) {
+      const id = randomId()
+      setBusyTrackId(id)
+      if (stem && files.length > 1) setUploadProgress(`Lade Spur ${i + 1} von ${files.length}…`)
+      const durationMs = await measureAudioDurationMs(file)
+      const role: StemRole | undefined = stem ? guessStemRole(file.name) : undefined
+      try {
+        await putTrack(
+          variantId,
+          {
+            id,
+            kind: uploadKind,
+            label: stem ? labelFromFileName(file.name) : KIND_LABELS[uploadKind],
+            source: 'upload',
+            parentTrackId: null,
+            ...(role && { role }),
+            mimeType: file.type,
+            addedAt: Date.now(),
+            ...(durationMs !== null && { durationMs }),
+          },
+          file,
+        )
+      } catch (err) {
+        setUploadProgress(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
+        setBusyTrackId(null)
+        return
+      }
+    }
+    setUploadProgress(null)
     setBusyTrackId(null)
   }
 
@@ -164,25 +224,15 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
                 Entfernen
               </Button>
             </div>
-            {stemsOf(tracks, track.id).map((stem) => (
-              <div key={stem.id} className="ml-4 flex flex-col gap-1 border-l-2 border-line pl-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-ink">{stem.label}</span>
-                  <Button variant={listening?.trackId === stem.id ? 'primary' : 'secondary'} aria-pressed={listening?.trackId === stem.id} onClick={() => void listen(stem)} disabled={busyTrackId === stem.id}>
-                    Anhören
-                  </Button>
-                  <Button onClick={() => void rename(stem)} disabled={disabled}>
-                    Umbenennen
-                  </Button>
-                  <Button onClick={() => handleRemove(stem.id)} disabled={disabled || busyTrackId === stem.id}>
-                    Entfernen
-                  </Button>
-                </div>
-                {listening?.trackId === stem.id && <audio controls autoPlay src={listening.url} className="w-full" />}
-              </div>
-            ))}
+            {stemSet(stemsOf(tracks, track.id))}
           </div>
         ))}
+        {uploadedStems(tracks).length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-ink-faint">Hochgeladene Spuren</span>
+            {stemSet(uploadedStems(tracks))}
+          </div>
+        )}
       </div>
       {variantJobs.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -240,16 +290,19 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
             disabled || busyTrackId !== null ? 'pointer-events-none opacity-40' : 'cursor-pointer'
           }`}
         >
-          Hochladen
+          {uploadKind === 'stem' ? 'Spuren hochladen' : 'Hochladen'}
           <input
             type="file"
             accept="audio/*"
+            multiple={uploadKind === 'stem'}
             className="hidden"
             disabled={disabled || busyTrackId !== null}
-            onChange={handleFile}
+            onChange={handleFiles}
           />
         </label>
       </div>
+      {uploadKind === 'stem' && <span className="text-xs text-ink-faint">Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.</span>}
+      {uploadProgress && <span className="text-xs text-ink-faint">{uploadProgress}</span>}
       {disabled && <span className="text-xs text-ink-faint">Erst speichern, dann Tracks anhängen.</span>}
       {separating && (
         <StemSeparationDialog

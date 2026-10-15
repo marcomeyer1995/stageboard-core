@@ -1,6 +1,6 @@
 # Stems: Stem-Satz, Üben, Gig und Timeline
 
-Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Stage-Server auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Noch nichts davon ist gebaut außer der Trennung selbst.
+Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Stage-Server auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Gebaut sind die Trennung und der Stem-Satz (§7 Schritt 1).
 
 ## 1. Ausgangslage
 
@@ -15,7 +15,7 @@ Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf 
 Ein **Stem-Satz** ist eine Gruppe von Spuren, die zusammen gespielt den Song ergeben, alle ab 0:00 gleich lang ausgerichtet.
 
 - **Getrennt:** Der Satz hängt am Track, aus dem er entstand (heute schon so: `parentTrackId`).
-- **Hochgeladen:** Mehrere Dateien auf einmal in einen Satz, auch ganz ohne Mix-Track. Dafür braucht der Satz eine eigene Kennung statt nur `parentTrackId` (offen: eigener `stemSetId` am Track oder ein Satz-Eintrag in der Variante).
+- **Hochgeladen:** Mehrere Dateien auf einmal in einen Satz, auch ganz ohne Mix-Track (`parentTrackId: null`). Entschieden beim Bau (2026-10-15): **keine eigene Satz-Kennung** – eine Variante ist ein Arrangement und hat höchstens einen hochgeladenen Satz; eine neue Lieferung ersetzt Spuren einzeln. Stems, deren Track entfernt wurde, zählen zum hochgeladenen Satz, damit nie eine Spur unsichtbar wird. Name und Rolle kommen aus dem Dateinamen („03_Hammond.wav“ → „Hammond“, Keys).
 - **Name je Spur frei** („Gitarre Marco“, „Hammond“, „Chor hoch“).
 - **Rolle je Spur optional:** Schlagzeug, Bass, Gitarre, Keys, Gesang, Chor, Klick, Sonstiges. Bei der Trennung automatisch gesetzt, bei hochgeladenen Spuren vorgeschlagen (aus dem Dateinamen) und änderbar, darf leer bleiben – die Bandleader-Spuren haben keine feste Struktur. Rollen sind ein Hilfsmittel für songübergreifende Vorlagen (§4), keine Pflicht.
 - **Ein Song spielt entweder** den Mix-Track (wie heute) **oder** seinen Stem-Satz, live auf dem Gerät gemischt.
@@ -51,7 +51,7 @@ Ein **Stem-Satz** ist eine Gruppe von Spuren, die zusammen gespielt den Song erg
 
 ## 7. Reihenfolge
 
-1. **Stem-Satz:** Modell, Rollen, Hochladen mehrerer Spuren, Anzeige im Audio-Tab.
+1. **Stem-Satz:** Modell, Rollen, Hochladen mehrerer Spuren, Anzeige im Audio-Tab. **Gebaut** (2026-10-15): Rolle `role` am Track (`StemRoleSchema`), Trennung setzt sie, „Spur bearbeiten“ (Name + Rolle), Warnung bei Längen über 1 s Unterschied.
 2. **Solo üben:** Widget „Stems“, Live-Mischung auf dem Gerät, Messung auf Xiaomi und Fire.
 3. **Timeline:** aufklappbare Spur-Wellenformen, Solo-Hören, Analyse-Quelle wählbar.
 4. **Gig:** Show-Vorlagen, Rückfall auf den Mix, später getrennte Ausgänge.

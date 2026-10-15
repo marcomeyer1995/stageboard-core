@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, isYoutubeUrl, type AsyncJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
+import { AsyncJobSchema, isYoutubeUrl, type AsyncJob, type StemRole, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
@@ -30,6 +30,18 @@ const STEM_LABELS: Record<string, string> = {
   'guitar-left': 'Gitarre links',
   'guitar-right': 'Gitarre rechts',
   piano: 'Keys/Piano',
+}
+
+/** The role each Demucs stem gets (docs/22 §2). */
+const STEM_ROLES: Record<string, StemRole> = {
+  drums: 'drums',
+  bass: 'bass',
+  vocals: 'vocals',
+  other: 'other',
+  guitar: 'guitar',
+  'guitar-left': 'guitar',
+  'guitar-right': 'guitar',
+  piano: 'keys',
 }
 
 export interface AsyncJobWatcherOptions {
@@ -209,6 +221,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
           label: STEM_LABELS[file.key] ?? file.key,
           source: 'stem-separation',
           parentTrackId: job.sourceTrackId,
+          ...(STEM_ROLES[file.key] ? { role: STEM_ROLES[file.key] } : {}),
           mimeType: 'audio/mpeg',
           addedAt: Date.now(),
           sizeBytes: buffer.length,
