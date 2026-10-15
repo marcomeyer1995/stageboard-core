@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { LogicalDevice } from 'shared-types'
 import { CueDialog } from './CueDialog'
@@ -57,5 +57,15 @@ describe('CueDialog (docs/14 §7)', () => {
     fireEvent.change(select('Gerät'), { target: { value: 'mock' } })
     fireEvent.change(select('Gerät'), { target: { value: 'mg30' } })
     expect(select('Befehl').value).toBe('')
+  })
+
+  it('the own playback: click off and announcements left as they are (#485)', () => {
+    const onSubmit = vi.fn()
+    render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Gerät'), { target: { value: 'stageboard:playback' } })
+    expect(screen.getByRole('button', { name: 'Übernehmen' })).toBeDisabled()
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Klick' })).getByRole('radio', { name: 'Aus' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { click: 'off' } })
   })
 })

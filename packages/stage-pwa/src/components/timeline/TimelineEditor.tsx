@@ -52,6 +52,7 @@ import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
 import { Button, Dialog } from '../ui'
+import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
  * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
@@ -459,14 +460,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   // Click preview while the editor plays (clickEngine, the same one the show uses).
-  const clickState = useRef({ timeline, playing: false, rate: 1 })
-  clickState.current = { timeline, playing: clock.isPlaying, rate: clock.rate }
+  // "Klick aus / Ansagen aus" cues (#485), heard here as in the show.
+  const playbackAt = useMemo(() => playbackLookup(cues), [cues])
+  const clickState = useRef({ timeline, playing: false, rate: 1, playbackAt })
+  clickState.current = { timeline, playing: clock.isPlaying, rate: clock.rate, playbackAt }
   useEffect(() => {
     if (!clickOn || !clock.isPlaying) return
     startClick(() => ({
       elapsedMs: clickState.current.playing ? useClockStore.getState().getElapsedMs() : null,
       timeline: clickState.current.timeline,
       playbackRate: clickState.current.rate,
+      clickOnAt: (ms: number) => clickState.current.playbackAt(ms).click,
     }))
     return () => stopClick()
   }, [clickOn, clock.isPlaying])
@@ -476,8 +480,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // like the click here.
   const speechVoice = useMemo(() => bandSpeechVoice(installed), [installed])
   const spokenCues = useMemo(
-    () => (announcing && voiceOn ? sectionAnnouncements(content, baseTimeline, announcementSettings) : []),
-    [announcing, voiceOn, content, baseTimeline, announcementSettings],
+    () => (announcing && voiceOn ? sectionAnnouncements(content, baseTimeline, announcementSettings).filter((item) => playbackAt(item.atMs).voice) : []),
+    [announcing, voiceOn, content, baseTimeline, announcementSettings, playbackAt],
   )
   useEffect(() => {
     for (const text of new Set(spokenCues.map((cue) => cue.text))) void loadSpeechClip(text, speechVoice)
@@ -868,8 +872,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         q.beginPath()
         q.arc(x, CUE_H / 2, active ? 8 : 6, 0, Math.PI * 2)
         q.fill()
-        const device = logicalDevices.find((d) => d.id === cue.targetLogicalDeviceId)
-        const [text] = wrapText(`${device?.name ?? '?'} · ${describeCue(cue, device?.capability)}`, nextX - x - 16, 1, (row) => q.measureText(row).width)
+        const [text] = wrapText(cueTitle(cue), nextX - x - 16, 1, (row) => q.measureText(row).width)
         cuesUsed.push([x - 8, x + 10 + (text ? q.measureText(text).width : 0)])
         if (text) {
           q.fillStyle = active ? accent : ink
@@ -1323,12 +1326,16 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setSelection({ kind: 'bar', bar: newBar })
   }
 
+  /** "NUX MG-30 · Patch 01C", or "Wiedergabe · Klick aus" for the own playback (#485). */
+  function cueTitle(cue: ShowCue): string {
+    if (isPlaybackCue(cue)) return `Wiedergabe · ${playbackCueLabel(cue)}`
+    const device = logicalDevices.find((d) => d.id === cue.targetLogicalDeviceId)
+    return `${device?.name ?? 'Unbekanntes Gerät'} · ${describeCue(cue, device?.capability)}`
+  }
+
   // --- cues ---
   function openCueDialog(timeMs: number, cueId?: string) {
-    if (logicalDevices.length === 0) {
-      setNotice('Noch keine Geräte angelegt – Cues brauchen ein Ziel-Gerät (Einstellungen → Geräte).')
-      return
-    }
+    // Without devices there is still the own playback (Klick/Ansagen aus, #485).
     setNotice(null)
     setCueDialog({ timeMs, cueId })
   }
@@ -1398,7 +1405,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedTempo = selectedBar !== null ? 60000 / timeline.periodAfter(timeline.barStartBeat(selectedBar)) : null
   const selectedLineInfo = selectedLine !== null ? lines.find((l) => l.rawIndex === selectedLine) : undefined
   const selectedCue = selectedCueId !== null ? cues.find((c) => c.id === selectedCueId) : undefined
-  const selectedCueDevice = selectedCue ? logicalDevices.find((d) => d.id === selectedCue.targetLogicalDeviceId) : undefined
   const selectedNote = selectedNoteStart !== null ? notes.find((note) => note.start === selectedNoteStart) : undefined
   const selectedPart = selectedPartIndex !== null ? blocks.find((b) => b.partIndex === selectedPartIndex) : undefined
   const selectedPartCue = selectedPart ? (partCues.get(selectedPart.partIndex) ?? null) : null
@@ -1911,7 +1917,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       {selectedCue && (
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
-            {selectedCueDevice?.name ?? 'Unbekanntes Gerät'} · {describeCue(selectedCue, selectedCueDevice?.capability)} · {formatTimelineTime(selectedCue.timeMs)}
+            {cueTitle(selectedCue)} · {formatTimelineTime(selectedCue.timeMs)}
           </span>
           <Button onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
             −50 ms

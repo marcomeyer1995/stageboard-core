@@ -9,6 +9,7 @@ import { useShowMode } from './showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { clickTimeline } from './beatGrid'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
+import { playbackLookup } from './playbackCues'
 
 /** `visibilitychange` alone isn't reliable enough here - iOS Safari (including standalone/
  * home-screen PWA mode, StageBoard's actual install path) has a history of firing it late or not
@@ -96,6 +97,12 @@ export function useClickOutputDriver(): void {
   // The live tempo nudge (#140) only changes a grid without fixed tempo (a single point, or none)
   // - on a grid aligned at several bars the track dictates the tempo.
   const timeline = useMemo(() => clickTimeline({ beatGrid, bpm, timeSignature, countInBars }), [beatGrid, bpm, timeSignature, countInBars])
+  // "Klick aus" cues (#485): silent stretches, the grid keeps running.
+  const cues = queue.currentVariant?.cues
+  const clickOnAt = useMemo(() => {
+    const at = playbackLookup(cues ?? [])
+    return (ms: number) => at(ms).click
+  }, [cues])
   const stateRef = useRef<ClickEngineState>({ elapsedMs, timeline })
   useEffect(() => {
     stateRef.current = {
@@ -105,6 +112,7 @@ export function useClickOutputDriver(): void {
       // the looped section. Read at render time - elapsedMs re-renders this every animation frame.
       ...loopClickState(loopActive),
       outputLatencyMs,
+      clickOnAt,
     }
   })
 

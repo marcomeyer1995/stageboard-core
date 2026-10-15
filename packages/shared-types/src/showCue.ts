@@ -24,3 +24,13 @@ export const ShowCueSchema = ShowControlEventSchema.omit({ scheduledAt: true }).
   targetLogicalDeviceId: z.string().min(1),
 })
 export type ShowCue = z.infer<typeof ShowCueSchema>
+
+/**
+ * A cue for this song's own playback instead of a device (#485): from its time on, the click
+ * and/or the spoken announcements are off or on again - "Klick aus ab Takt 92" for a song that
+ * rings out, a break without click. `type` is `PLAYBACK_CUE_TYPE`, payload `{ click?, voice? }`
+ * with 'on' | 'off' (absent: unchanged). Played by whichever device plays the click / the
+ * announcements, never sent to hardware.
+ */
+export const PLAYBACK_CUE_TARGET = 'stageboard:playback'
+export const PLAYBACK_CUE_TYPE = 'playback'

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import type { LogicalDevice, ShowCue } from 'shared-types'
+import { PLAYBACK_CUE_TARGET, type LogicalDevice, type ShowCue } from 'shared-types'
 import { commandsFor, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
 import { parseCuePayload } from '../../lib/timelineCues'
+import { playbackCueContent, playbackSwitches, type Switch } from '../../lib/playbackCues'
 import { INPUT } from '../ui/styles'
-import { Button, Dialog } from '../ui'
+import { Button, Dialog, Segmented } from '../ui'
 
 export type CueContent = Omit<ShowCue, 'id' | 'timeMs'>
 
@@ -39,11 +40,24 @@ export function CueDialog({
   const [freeType, setFreeType] = useState(initial?.type ?? '')
   const [freePayload, setFreePayload] = useState(initial?.payload ? JSON.stringify(initial.payload) : '')
   const [error, setError] = useState<string | null>(null)
+  // The own playback (#485): click and/or announcements off or on from here.
+  const playback = deviceId === PLAYBACK_CUE_TARGET
+  const initialSwitches = initial?.targetLogicalDeviceId === PLAYBACK_CUE_TARGET ? playbackSwitches(initial) : {}
+  const [clickSwitch, setClickSwitch] = useState<Switch | ''>(initialSwitches.click ?? '')
+  const [voiceSwitch, setVoiceSwitch] = useState<Switch | ''>(initialSwitches.voice ?? '')
 
   const free = device !== undefined && commands.length === 0
-  const complete = free ? freeType.trim().length > 0 : command !== undefined && command.fields.every((f) => (answers[f.key] ?? '') !== '')
+  const complete = playback
+    ? clickSwitch !== '' || voiceSwitch !== ''
+    : free
+      ? freeType.trim().length > 0
+      : command !== undefined && command.fields.every((f) => (answers[f.key] ?? '') !== '')
 
   function submit() {
+    if (playback) {
+      onSubmit(playbackCueContent({ click: clickSwitch || undefined, voice: voiceSwitch || undefined }))
+      return
+    }
     if (!device) return
     if (free) {
       const parsed = parseCuePayload(freePayload)
@@ -104,6 +118,7 @@ export function CueDialog({
             <option value="" disabled>
               Gerät wählen…
             </option>
+            <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick & Ansagen</option>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -112,7 +127,30 @@ export function CueDialog({
           </select>
         </label>
 
-        {free ? (
+        {playback ? (
+          <>
+            {(
+              [
+                ['Klick', clickSwitch, setClickSwitch],
+                ['Ansagen', voiceSwitch, setVoiceSwitch],
+              ] as const
+            ).map(([name, value, set]) => (
+              <Segmented
+                key={name}
+                label={name}
+                showLabel
+                value={value === '' ? 'same' : value}
+                onChange={(v) => set(v === 'same' ? '' : v)}
+                options={[
+                  { value: 'same', label: 'Unverändert' },
+                  { value: 'off', label: 'Aus' },
+                  { value: 'on', label: 'An' },
+                ]}
+              />
+            ))}
+            <p className="text-sm text-ink-muted">Gilt ab dieser Stelle bis zum nächsten solchen Cue. Der Klick setzt danach genau im Raster wieder ein.</p>
+          </>
+        ) : free ? (
           <>
             <label className={label}>
               <span className="mb-1 block">Befehl (Typ)</span>

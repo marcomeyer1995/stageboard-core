@@ -4,6 +4,7 @@ import { capabilityTiming } from './capabilityTiming'
 import { getTranslator, supportsLocalExecution } from './clientTranslator'
 import { resolveHardwareBindingById, resolveHardwareEngine } from './hardwareRouting'
 import { triggerShowControl } from './showControlClient'
+import { isPlaybackCue } from './playbackCues'
 
 export interface FireContext {
   deviceId: string
@@ -41,6 +42,8 @@ export interface CueOutcome {
  * comment already gives.
  */
 export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcome | null> {
+  // Click/announcement cues (#485) are played by the audio drivers, not sent to hardware.
+  if (isPlaybackCue(cue)) return null
   const logicalDevice = resolveHardwareBindingById(ctx.logicalDevices, cue.targetLogicalDeviceId)
   // A cue for a device that no longer exists is a missed cue - reported by the master only.
   if (!logicalDevice) return ctx.sendsServerCues ? { target: cue.targetLogicalDeviceId, ok: false, message: 'Gerät nicht gefunden (gelöscht?)' } : null
