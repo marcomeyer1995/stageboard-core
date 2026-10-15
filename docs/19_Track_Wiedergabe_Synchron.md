@@ -26,6 +26,8 @@ Diese Datei dokumentiert die Untersuchung, die mit „der Backing-Track stottert
 
 Nebenbefunde am selben Abend: das eero-Mesh ließ S26+ und Laptop auf demselben Knoten nicht miteinander sprechen (zufällige MAC, später Gerät überall entfernt und neu verbunden); am Laptop (Stage-Server) war WLAN-Energiesparen an (`wifi.powersave = 3`, 3-118 ms zur Fritz!Box) - jetzt aus, 1-9 ms. Der Stage-Server hängt weiter im WLAN; Kabel empfohlen.
 
+**Nachtrag 2026-10-15 – Web Audio ist jetzt Standard:** Der Schalter „Backing-Track über Web Audio“ ist auf jedem Gerät an, solange er dort nicht ausgeschaltet wird (`sb:audio:webaudio-track = '0'`). Anlass: auf dem Xiaomi lief das `<audio>`-Element über Androids Medien-Ausgang mit Dolby (DAP) und MiSound, Web Audio über den schnellen Ausgang ohne diese Effekte (`dumpsys media.audio_flinger`, Effekt-Ketten je Ausgang) – derselbe Track klang je nach Weg anders. Solo üben und Stems spielen inzwischen über Web Audio (docs/22 §3), der Gig jetzt auch.
+
 ## 2. Warum das `<audio>`-Element nicht trägt
 
 - Start und Sprung haben eine **unbekannte Anlaufzeit** (0-620 ms, Gerät und Ausgabeweg abhängig).
@@ -33,7 +35,7 @@ Nebenbefunde am selben Abend: das eero-Mesh ließ S26+ und Laptop auf demselben 
 - `playbackRate`-Wechsel **setzen die Pipeline teilweise zurück** - jeder Wechsel kostet Zeit und ist hörbar.
 - Damit erzeugt jede Nachführung Rückkopplung: Seek → Stillstand → Seek (S26+), Rate → Zeitverlust → Rate (Xiaomi).
 
-## 3. Die neue Wiedergabe (Prototyp, Schalter je Gerät)
+## 3. Die neue Wiedergabe (seit 2026-10-15 Standard, je Gerät abschaltbar)
 
 Einstellungen → Dieses Gerät → „Wiedergabe (Test)“ → „Backing-Track über Web Audio“ (`localStorage` `sb:audio:webaudio-track`). Nur Gig-Modus; Solo und Timeline nutzen weiter `<audio>`.
 
