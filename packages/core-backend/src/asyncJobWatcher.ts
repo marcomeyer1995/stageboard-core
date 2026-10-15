@@ -222,7 +222,7 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
           source: 'stem-separation',
           parentTrackId: job.sourceTrackId,
           ...(STEM_ROLES[file.key] ? { role: STEM_ROLES[file.key] } : {}),
-          mimeType: 'audio/mpeg',
+          mimeType: 'audio/webm',
           addedAt: Date.now(),
           sizeBytes: buffer.length,
           ...(typeof source.durationMs === 'number' ? { durationMs: source.durationMs } : {}),

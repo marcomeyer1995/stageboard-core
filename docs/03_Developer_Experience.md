@@ -156,7 +156,7 @@ python3 -m venv ~/stageboard-data/stems/venv
 - **Kein `ffmpeg` nötig:** Auf dem Laptop gibt es kein `ffmpeg`-Programm (nur die Bibliotheken für GStreamer); PyAV (`av`) bringt seinen Decoder selbst mit und liest WebM/Opus, MP3, M4A, WAV.
 - Modelle (`htdemucs` 4 Spuren, `htdemucs_6s` 6 Spuren) lädt Demucs beim ersten Lauf von Hugging Face (`~/.cache/huggingface`).
 - Dauer auf dem Ryzen 7 8845HS: 2:50-Song ~45 s (4 Spuren) / ~50 s (6), 7 Kerne, ~2 GB RAM. Ein Auftrag nach dem anderen (Job-Warteschlange `asyncJobWatcher.ts`).
-- Ergebnis: je Spur eine MP3 (192 kbit/s, Pegel wie im Mix – `clip='clamp'`) im Audio-Speicher, als Track `kind: 'stem'` mit `parentTrackId`; wird nicht auf jedes Gerät geladen und nie als Backing-Track gewählt. Erneutes Trennen ersetzt die Spuren desselben Tracks.
+- Ergebnis: je Spur eine WebM/Opus-Datei (256 kbit/s, 48 kHz, Pegel wie im Mix – geklemmt, nicht skaliert; MP3 verlor die Höhen der Summe und lief 25 ms zu spät, 2026-10-15) im Audio-Speicher, als Track `kind: 'stem'` mit `parentTrackId`; wird nicht auf jedes Gerät geladen und nie als Backing-Track gewählt. Erneutes Trennen ersetzt die Spuren desselben Tracks.
 
 ## 0c. Native Android-App (Capacitor, #348)
 

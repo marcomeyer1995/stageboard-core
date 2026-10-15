@@ -4,7 +4,7 @@ Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf 
 
 ## 1. Ausgangslage
 
-- **Trennung gebaut (#522):** Ein Track einer Variante wird auf dem Stage-Server mit Demucs in Spuren zerlegt – Standard (Schlagzeug, Bass, Gesang, Rest) oder Erweitert (+ Gitarre, Keys/Piano), wahlweise Gitarre nach Stereoseite links/rechts. Die Spuren sind Tracks `kind: 'stem'` mit `parentTrackId`, MP3, liegen nur auf dem Server, sind nie Backing-Track, lassen sich anhören, umbenennen, entfernen.
+- **Trennung gebaut (#522):** Ein Track einer Variante wird auf dem Stage-Server mit Demucs in Spuren zerlegt – Standard (Schlagzeug, Bass, Gesang, Rest) oder Erweitert (+ Gitarre, Keys/Piano), wahlweise Gitarre nach Stereoseite links/rechts. Die Spuren sind Tracks `kind: 'stem'` mit `parentTrackId`, WebM/Opus 256 kbit/s (anfangs MP3 – Höhen der Summe verloren, 25 ms Versatz), liegen nur auf dem Server, sind nie Backing-Track, lassen sich anhören, umbenennen, entfernen.
 - **Qualität:** Marco nach dem ersten Hören (All the small things): „really, really good“.
 - **Zwei Quellen für Spuren:**
   1. **Getrennt** aus einem fertig gemischten Song (Demucs).

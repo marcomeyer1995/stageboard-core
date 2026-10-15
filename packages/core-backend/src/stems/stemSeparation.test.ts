@@ -13,19 +13,19 @@ function fakePython(dir: string, body: string): string {
 }
 
 describe('stem separation (#9)', () => {
-  it('reads progress and the result line, and only plain mp3 names', () => {
+  it('reads progress and the result line, and only plain webm names', () => {
     expect(parseStemProgress('PROGRESS 0.472')).toBe(0.472)
     expect(parseStemProgress('Downloading model')).toBeNull()
-    expect(parseStemResult('RESULT {"stems":[{"key":"drums","file":"drums.mp3"},{"key":"x","file":"../evil.mp3"}]}', '/out')).toEqual([{ key: 'drums', path: '/out/drums.mp3' }])
+    expect(parseStemResult('RESULT {"stems":[{"key":"drums","file":"drums.webm"},{"key":"x","file":"../evil.webm"}]}', '/out')).toEqual([{ key: 'drums', path: '/out/drums.webm' }])
   })
 
   it('runs the script with the chosen options and returns the stems', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stems-'))
     // $1 = script, $2 = input, $3 = outdir, $4 = model, $5 = --split-guitar
-    const python = fakePython(dir, 'echo "PROGRESS 0.5"; echo "$4 $5" > "$3/args"; echo x > "$3/drums.mp3"; echo \'RESULT {"stems":[{"key":"drums","file":"drums.mp3"}]}\'')
+    const python = fakePython(dir, 'echo "PROGRESS 0.5"; echo "$4 $5" > "$3/args"; echo x > "$3/drums.webm"; echo \'RESULT {"stems":[{"key":"drums","file":"drums.webm"}]}\'')
     const seen: number[] = []
     const stems = await runStemSeparation(join(dir, 'in'), dir, { model: 'extended', splitGuitar: true }, (p) => seen.push(p), { python, script: python })
-    expect(stems).toEqual([{ key: 'drums', path: join(dir, 'drums.mp3') }])
+    expect(stems).toEqual([{ key: 'drums', path: join(dir, 'drums.webm') }])
     expect(seen).toEqual([0.5])
   })
 
