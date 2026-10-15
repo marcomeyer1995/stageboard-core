@@ -1,6 +1,6 @@
 # Stems: Stem-Satz, Üben, Gig und Timeline
 
-Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Stage-Server auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Gebaut sind die Trennung, der Stem-Satz und das Widget „Stems“ (§7 Schritte 1–2).
+Konzept, Stand 2026-10-15, mit Marco besprochen. Baut auf der Stem-Trennung auf dem Stage-Server auf (Plugin „Spuren trennen“, #9, PR #522, Installation in docs/03 §0b4) und bündelt #482 (mehrere Spuren je Song, Mixer, Stummschalt-Vorlagen je Show). Gebaut sind die Trennung, der Stem-Satz, das Widget „Stems“ und die Stems in der Timeline (§7 Schritte 1–3).
 
 ## 1. Ausgangslage
 
@@ -53,7 +53,7 @@ Ein **Stem-Satz** ist eine Gruppe von Spuren, die zusammen gespielt den Song erg
 
 1. **Stem-Satz:** Modell, Rollen, Hochladen mehrerer Spuren, Anzeige im Audio-Tab. **Gebaut** (2026-10-15): Rolle `role` am Track (`StemRoleSchema`), Trennung setzt sie, „Spur bearbeiten“ (Name + Rolle), Warnung bei Längen über 1 s Unterschied.
 2. **Solo üben:** Widget „Stems“, Live-Mischung auf dem Gerät, Messung auf Xiaomi und Fire. **Gebaut** (2026-10-15, Messung offen): `lib/stemEngine.ts` streamt alle Spuren auf der Audio-Uhr des Klicks mit gemeinsamem Start (Stumm/Solo/Pegel je Spur als Gain), `useStemPlaybackDriver` spielt sie in Solo üben statt des Tracks – der Track läuft stumm weiter (Position, Track-Ende bleiben wie sie sind) und ist zu hören, solange die Spuren laden oder fehlen; nicht im Loop-Trainer. Einstellungen je Variante auf dem Gerät (`sb:stems:mix`); gespielte Spuren bleiben im Cache. Statistik über USB: `window.__sbStems`.
-3. **Timeline:** aufklappbare Spur-Wellenformen, Solo-Hören, Analyse-Quelle wählbar.
+3. **Timeline:** aufklappbare Spur-Wellenformen, Solo-Hören, Analyse-Quelle wählbar. **Gebaut** (2026-10-15): Leiste „Stems (n)“ direkt unter der Timeline (gleicher Zoom, gleiche Position, Abspielkopf), je Stem eine 48 px hohe Wellenform; Antippen = nur dieser Stem (die Datei des Stems spielt statt des Tracks, Position, Tempo und Play bleiben), noch einmal = Mix; „Treffer für die Analyse aus“ Mix oder ein Stem – gilt für Rot/Grün, den Magneten und „Track analysieren“ (Verfeinern), Mix bleibt Standard. Auf- und Zuklappen je Gerät gemerkt. Nicht im Spuren-Menü der Timeline (das heißt schon „Spuren“), sondern als eigene Leiste darunter, damit die Bedienung der Spuren selbst unverändert bleibt.
 4. **Gig:** Show-Vorlagen, Rückfall auf den Mix, später getrennte Ausgänge.
 
 ## Verwandt
