@@ -545,12 +545,27 @@ describe('tapping a ritardando (#354)', () => {
     const preview = await screen.findByRole('status', { name: 'Tempo-Vorschau' })
     expect(preview).toHaveTextContent(/Wird langsamer: 1[12]\d → (8|9)\d BPM, Takt 5–13/)
     expect(onChange).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Kurve übernehmen' }))
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }
     expect(next.beatGrid.points.find((p) => p.bar === 5)!.timeMs).toBe(8000)
     expect(next.beatGrid.points.some((p) => p.gradual)).toBe(true)
     expect(next.beatGrid.points.find((p) => p.bar === 30)!.id).toBe('p2')
+    expect(screen.queryByRole('status', { name: 'Tempo-Vorschau' })).toBeNull()
+  })
+
+  it('"Gleichmäßig" applies one tempo from the same taps instead of the curve (2026-10-15)', async () => {
+    trackClock.isPlaying = true
+    const { onChange } = setup({ beatGrid: constant, trackSrc: 'blob:track' })
+    fireEvent.click(toolButton('Tempo tippen'))
+    tapRitardando()
+    fireEvent.click(screen.getByText('Tippen beenden (33)'))
+    await screen.findByRole('status', { name: 'Tempo-Vorschau' })
+    fireEvent.click(screen.getByRole('button', { name: /^Gleichmäßig: \d+\.\d BPM$/ }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }
+    expect(next.beatGrid.points.some((p) => p.gradual)).toBe(false)
+    expect(next.beatGrid.points.find((p) => p.bar === 5)!.timeMs).toBe(8000)
     expect(screen.queryByRole('status', { name: 'Tempo-Vorschau' })).toBeNull()
   })
 

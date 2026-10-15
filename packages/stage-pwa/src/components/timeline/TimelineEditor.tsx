@@ -296,6 +296,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [ripple, setRipple] = useState<Ripple | null>(null)
   /** A tapped tempo change waiting for "Übernehmen" (#354): its grid is shown, its curve drawn. */
   const [tempoPreview, setTempoPreview] = useState<Extract<CurveGridResult, { kind: 'grid' }> | null>(null)
+  /** The taps behind the preview - "Gleichmäßig" applies them as one tempo instead. */
+  const previewTaps = useRef<{ tapped: number[]; tempo: number } | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -1179,12 +1181,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
       }
       if (curved.kind === 'grid') {
         setSelection(null)
+        previewTaps.current = { tapped, tempo }
         setTempoPreview(curved)
         setNotice(null)
         return
       }
     }
-    // From the bar where tapping started up to the next alignment point (#329).
+    await applySteadyTempo(tapped, tempo, true)
+  }
+  /** One tempo from the taps, from the bar where tapping started up to the next alignment point
+   * (#329). `ask`: confirm first - not when it was just chosen in the tempo preview. */
+  async function applySteadyTempo(tapped: number[], tempo: number, ask: boolean) {
     const result = beatGrid ? applySectionTempo(beatGrid, bpm, timeSignature, tapped, tempo) : ({ kind: 'bpm' } as const)
     if (result.kind === 'refused') {
       setNotice(result.reason)
@@ -1196,7 +1203,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const range = result.nextBar !== null ? ` (bis Takt ${result.endBar}, bis Takt ${result.nextBar} angeglichen)` : ''
-    if (!(await confirm(`${tempo.toFixed(1)} BPM ab Takt ${result.startBar} übernehmen?${range} Takt ${result.startBar} bleibt, wo er ist. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
+    if (ask && !(await confirm(`${tempo.toFixed(1)} BPM ab Takt ${result.startBar} übernehmen?${range} Takt ${result.startBar} bleibt, wo er ist. (Rückgängig möglich)`, { confirmLabel: 'Übernehmen' }))) return
     setNotice(`Tempo ab Takt ${result.startBar}: ${tempo.toFixed(1)} BPM`)
     commitGrid(result.grid)
     setSelection({ kind: 'bar', bar: result.startBar })
@@ -1812,6 +1819,17 @@ export function TimelineEditor(props: TimelineEditorProps) {
           <Button onClick={() => setTempoPreview(null)}>
             Verwerfen
           </Button>
+          {previewTaps.current && (
+            <Button
+              onClick={() => {
+                const taps = previewTaps.current
+                setTempoPreview(null)
+                if (taps) void applySteadyTempo(taps.tapped, taps.tempo, false)
+              }}
+            >
+              Gleichmäßig: {previewTaps.current.tempo.toFixed(1)} BPM
+            </Button>
+          )}
           <Button
             variant="primary"
             onClick={() => {
@@ -1821,7 +1839,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
               setNotice(`Tempo ab Takt ${preview.startBar} wie getippt übernommen. Rückgängig mit ↶.`)
             }}
           >
-            Übernehmen
+            Kurve übernehmen
           </Button>
         </div>
       )}

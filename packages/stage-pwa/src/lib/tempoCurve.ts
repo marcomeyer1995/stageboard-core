@@ -313,6 +313,23 @@ export type CurveGridResult =
 
 /** Below this change between the slowest and fastest smoothed tempo a passage counts as steady. */
 const STEADY_SPREAD = 0.03
+/** Taps within this RMS of one constant tempo are a steady tempo tapped by hand - a person's taps
+ * scatter 15-30 ms, and over a few bars the smoothed curve read that scatter as a 7 % change
+ * (Marco, 2026-10-15: "Wird schneller 144 → 148" on All the small things, a song on a click). A
+ * real ritardando leaves the constant fit by far more within a few beats. */
+const STEADY_RMS_MS = 30
+
+/** How far the taps sit from the best constant tempo through them, ms (RMS). */
+export function constantFitRmsMs(obs: readonly { beat: number; timeMs: number }[]): number {
+  const n = obs.length
+  if (n < 3) return 0
+  const mb = obs.reduce((sum, o) => sum + o.beat, 0) / n
+  const mt = obs.reduce((sum, o) => sum + o.timeMs, 0) / n
+  const sbb = obs.reduce((sum, o) => sum + (o.beat - mb) ** 2, 0)
+  const slope = sbb > 0 ? obs.reduce((sum, o) => sum + (o.beat - mb) * (o.timeMs - mt), 0) / sbb : 0
+  const sq = obs.reduce((sum, o) => sum + (o.timeMs - (mt + slope * (o.beat - mb))) ** 2, 0)
+  return Math.sqrt(sq / n)
+}
 
 /**
  * "Tempo tippen" through a passage whose tempo moves (#354): the grid follows the smoothed tapped
@@ -330,6 +347,7 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   const lo = Math.min(...bpms)
   const hi = Math.max(...bpms)
   if ((hi - lo) / ((hi + lo) / 2) < STEADY_SPREAD) return { kind: 'steady' }
+  if (constantFitRmsMs(obs) <= STEADY_RMS_MS) return { kind: 'steady' }
 
   // Where the tapping starts is read from the grid *before* it: points inside the tapped passage
   // are about to be replaced, and an earlier attempt may have left them wrong - read through them,
