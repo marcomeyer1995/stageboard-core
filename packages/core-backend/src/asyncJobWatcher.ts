@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
-import { AsyncJobSchema, isYoutubeUrl, type AsyncJob, type TrackMeta } from 'shared-types'
+import { AsyncJobSchema, isYoutubeUrl, type AsyncJob, type StemSeparationJob, type TrackMeta, type YoutubeExtractJob } from 'shared-types'
 import { allDocs, getDoc, putDocWithRetry, waitForChange, type CouchConfig, type CouchDoc } from './couch.js'
 import { workspaceDbName } from './workspaceProvisioning.js'
 import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
-import { deleteAudioFile, isSafeAudioId, writeAudioFile } from './audioStore.js'
+import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
+import { readInstallations } from './plugins/pluginSync.js'
+import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
+import { runStemSeparation } from './stems/stemSeparation.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
 const ASYNC_JOB_PREFIX = 'async-jobs:'
@@ -16,6 +19,18 @@ const SONG_VARIANT_PREFIX = 'song-variants:'
  * a second, and every one of those as its own CouchDB PUT would be a needless write storm for
  * a number only the job's own creator is watching. */
 const PROGRESS_WRITE_INTERVAL_MS = 1_500
+
+/** What a stem is called in the song editor - renamable there ("Gitarre Marco"). */
+const STEM_LABELS: Record<string, string> = {
+  drums: 'Schlagzeug',
+  bass: 'Bass',
+  vocals: 'Gesang',
+  other: 'Rest',
+  guitar: 'Gitarre',
+  'guitar-left': 'Gitarre links',
+  'guitar-right': 'Gitarre rechts',
+  piano: 'Keys/Piano',
+}
 
 export interface AsyncJobWatcherOptions {
   couch: CouchConfig
@@ -76,8 +91,11 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   let stopped = false
   let currentJobId: string | null = null
 
-  async function patchJob(id: string, patch: Partial<AsyncJob>): Promise<void> {
-    await putDocWithRetry<AsyncJob & CouchDoc>(couch, workspaceDb, jobDocId(id), (existing) => {
+  /** What the server ever writes into a job - the fields every job type shares, plus its result. */
+  type JobPatch = Partial<Pick<AsyncJob, 'status' | 'progress' | 'error'>> & { trackId?: string; stemTrackIds?: string[] }
+
+  async function patchJob(id: string, patch: JobPatch): Promise<void> {
+    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, jobDocId(id), (existing) => {
       const base = existing ?? { id, type: 'youtube-extract', status: 'queued', progress: 0, createdAt: Date.now(), updatedAt: Date.now(), variantId: '', url: '', label: '' }
       return { ...base, ...patch, updatedAt: Date.now(), _id: jobDocId(id), _rev: existing?._rev }
     })
@@ -107,6 +125,114 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
   }
 
   async function processJob(job: AsyncJob): Promise<void> {
+    if (job.type === 'stem-separation') return processStemJob(job)
+    return processYoutubeJob(job)
+  }
+
+  /** Throttled, chained progress writes - awaited before a job's final write, so a late one can
+   * never flip a finished job back to `running`. */
+  function progressWriter(jobId: string) {
+    let writes = Promise.resolve()
+    let lastWriteAt = 0
+    return {
+      report(progress: number) {
+        const now = Date.now()
+        if (now - lastWriteAt < PROGRESS_WRITE_INTERVAL_MS) return
+        lastWriteAt = now
+        writes = writes.then(() => patchJob(jobId, { status: 'running', progress }).catch((err) => log.error('Failed to write job progress', { jobId, error: String(err) })))
+      },
+      settled: () => writes,
+    }
+  }
+
+  async function failJob(job: AsyncJob, message: string): Promise<void> {
+    await patchJob(job.id, { status: 'error', error: message }).catch((err) => log.error('Failed to mark async job as failed', { jobId: job.id, error: String(err) }))
+  }
+
+  async function stemPluginInstalled(): Promise<boolean> {
+    const installations = readInstallations(await allDocs<unknown>(couch, workspaceDb, { startkey: 'plugins:', endkey: 'plugins:￰' }))
+    return installations.some((i) => i.id === STEM_SEPARATION_PLUGIN_ID && i.enabled)
+  }
+
+  /** The variant's tracks with `stems` in place of the earlier stems of `sourceTrackId` - raw
+   * array, as in `appendTrack`. Returns the replaced stems' ids (their files go after). */
+  async function replaceStems(variantId: string, sourceTrackId: string, stems: TrackMeta[]): Promise<string[]> {
+    let replaced: string[] = []
+    await putDocWithRetry<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${variantId}`, (existing) => {
+      if (!existing) throw new Error('Die Song-Variante existiert nicht mehr.')
+      const tracks = (Array.isArray(existing.tracks) ? existing.tracks : []) as Record<string, unknown>[]
+      const isOldStem = (t: Record<string, unknown>) => t.kind === 'stem' && t.parentTrackId === sourceTrackId
+      replaced = tracks.filter(isOldStem).map((t) => String(t.id))
+      return { ...existing, tracks: [...tracks.filter((t) => !isOldStem(t)), ...stems] }
+    })
+    return replaced
+  }
+
+  /**
+   * Stem separation (#9): the source track's audio through Demucs on this machine
+   * (stems/stemSeparation.ts), each stem stored like an uploaded track and attached as
+   * `kind: 'stem'` with `parentTrackId` - replacing the stems of an earlier separation of that
+   * track. Only while the band has the stem-separation plugin installed (Marco, 2026-10-15).
+   */
+  async function processStemJob(job: StemSeparationJob): Promise<void> {
+    currentJobId = job.id
+    log.info('Starting stem separation', { jobId: job.id, variantId: job.variantId, sourceTrackId: job.sourceTrackId, model: job.model, splitGuitar: job.splitGuitar })
+    let workDir: string | null = null
+    const written: string[] = []
+    const progress = progressWriter(job.id)
+    try {
+      if (!isSafeAudioId(job.variantId) || !isSafeAudioId(job.sourceTrackId)) throw new Error('Ungültige Song- oder Track-ID.')
+      if (!(await stemPluginInstalled())) throw new Error('Das Plugin „Spuren trennen“ ist nicht installiert.')
+      await patchJob(job.id, { status: 'running', progress: 0 })
+      const variant = await getDoc<Record<string, unknown> & CouchDoc>(couch, workspaceDb, `${SONG_VARIANT_PREFIX}${job.variantId}`)
+      if (!variant) throw new Error('Die Song-Variante existiert nicht mehr.')
+      const source = ((Array.isArray(variant.tracks) ? variant.tracks : []) as Record<string, unknown>[]).find((t) => t.id === job.sourceTrackId)
+      if (!source) throw new Error('Der Track existiert nicht mehr.')
+      const audio = await readAudioFile(job.variantId, job.sourceTrackId)
+      if (!audio) throw new Error('Die Audiodatei des Tracks liegt nicht auf dem Stage-Server.')
+
+      workDir = await mkdtemp(join(tmpdir(), 'stageboard-stems-'))
+      const input = join(workDir, 'input')
+      await writeFile(input, audio)
+      const files = await runStemSeparation(input, workDir, { model: job.model, splitGuitar: job.splitGuitar }, (p) => progress.report(p))
+      await progress.settled()
+
+      const stems: TrackMeta[] = []
+      for (const file of files) {
+        const buffer = await readFile(file.path)
+        const id = randomUUID()
+        await writeAudioFile(job.variantId, id, buffer)
+        written.push(id)
+        stems.push({
+          id,
+          kind: 'stem',
+          label: STEM_LABELS[file.key] ?? file.key,
+          source: 'stem-separation',
+          parentTrackId: job.sourceTrackId,
+          mimeType: 'audio/mpeg',
+          addedAt: Date.now(),
+          sizeBytes: buffer.length,
+          ...(typeof source.durationMs === 'number' ? { durationMs: source.durationMs } : {}),
+        })
+      }
+      const replaced = await replaceStems(job.variantId, job.sourceTrackId, stems)
+      for (const old of replaced) await deleteAudioFile(job.variantId, old).catch(() => {})
+      await patchJob(job.id, { status: 'done', progress: 1, stemTrackIds: stems.map((s) => s.id) })
+      log.info('Stem separation finished', { jobId: job.id, stems: stems.length, replaced: replaced.length })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error('Stem separation failed', { jobId: job.id, error: message })
+      for (const id of written) await deleteAudioFile(job.variantId, id).catch(() => {})
+      await progress.settled()
+      await failJob(job, message)
+    } finally {
+      if (workDir) await rm(workDir, { recursive: true, force: true }).catch(() => {})
+      currentJobId = null
+    }
+    await pickUpNext()
+  }
+
+  async function processYoutubeJob(job: YoutubeExtractJob): Promise<void> {
     currentJobId = job.id
     log.info('Starting async job', { jobId: job.id, type: job.type, variantId: job.variantId })
 

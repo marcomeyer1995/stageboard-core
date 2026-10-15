@@ -110,14 +110,28 @@ export async function getTrack(variantId: string, trackId: string): Promise<Blob
   return fetched
 }
 
+/** Removes a track - and the stems split from it (#9), which mean nothing without it. */
 export async function removeTrack(variantId: string, trackId: string): Promise<void> {
-  await deleteTrackFile(variantId, trackId)
-  await getAudioStorageBackend().remove(cacheKey(variantId, trackId))
+  const db = getVariantsDb()
+  const before = await db.get(variants.docId(variantId))
+  const gone = [trackId, ...before.tracks.filter((t) => t.kind === 'stem' && t.parentTrackId === trackId).map((t) => t.id)]
+  for (const id of gone) {
+    await deleteTrackFile(variantId, id)
+    await getAudioStorageBackend().remove(cacheKey(variantId, id))
+  }
 
+  const current = await db.get(variants.docId(variantId))
+  const tracks = current.tracks.filter((t) => !gone.includes(t.id))
+  await putVariant({ ...current, tracks })
+}
+
+/** A new name for a track - e.g. a stem "Gitarre links" becomes "Gitarre Marco". */
+export async function renameTrack(variantId: string, trackId: string, label: string): Promise<void> {
+  const name = label.trim()
+  if (!name) return
   const db = getVariantsDb()
   const current = await db.get(variants.docId(variantId))
-  const tracks = current.tracks.filter((t) => t.id !== trackId)
-  await putVariant({ ...current, tracks })
+  await putVariant({ ...current, tracks: current.tracks.map((t) => (t.id === trackId ? { ...t, label: name } : t)) })
 }
 
 /**

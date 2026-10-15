@@ -6,6 +6,7 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { Button } from './ui'
+import { playableTracks } from '../lib/stems'
 
 interface SongPreviewProps {
   songId: string
@@ -53,7 +54,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   const lines = parseChordPro(variant.chordProContent)
   const contentBadges = [
     { label: 'Cues', count: variant.cues.length },
-    { label: 'Audio', count: variant.tracks.length },
+    { label: 'Audio', count: playableTracks(variant.tracks).length },
     { label: 'Klick-Punkte', count: variant.beatGrid?.points.length ?? 0 },
   ]
 

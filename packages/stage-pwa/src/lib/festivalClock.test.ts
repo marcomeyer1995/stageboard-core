@@ -119,7 +119,7 @@ describe('computeFestivalClock', () => {
       ...item,
       variant: {
         ...item.variant!,
-        tracks: [...item.variant!.tracks, { ...item.variant!.tracks[0]!, id: 'alt', kind: 'stem', durationMs: 6 * MIN }],
+        tracks: [...item.variant!.tracks, { ...item.variant!.tracks[0]!, id: 'alt', kind: 'reference', durationMs: 6 * MIN }],
       },
     }
     const result = computeFestivalClock({ ...base, items: [twoTracks], currentEntryId: 'a', trackOverrideId: 'alt', setlist: null })

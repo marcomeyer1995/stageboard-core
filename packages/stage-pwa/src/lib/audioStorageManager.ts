@@ -3,6 +3,7 @@ import { fetchTrack } from './audioClient'
 import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import type { AudioSyncMode } from '../store/useAudioSyncStore'
+import { playableTracks } from './stems'
 
 export interface StorageEstimate {
   usageBytes: number
@@ -32,7 +33,7 @@ export async function getStorageEstimate(): Promise<StorageEstimate | null> {
  * (uploaded before this field existed) are excluded, not counted as zero. */
 export function getCatalogSizeBytes(variants: SongVariant[]): number {
   return variants
-    .flatMap((variant) => variant.tracks)
+    .flatMap((variant) => playableTracks(variant.tracks))
     .reduce((sum, track) => sum + (track.sizeBytes ?? 0), 0)
 }
 
@@ -80,7 +81,7 @@ export function computeTargetKeys(
 
   if (mode === 'full') {
     for (const variant of variants) {
-      for (const track of variant.tracks) keys.add(cacheKey(variant.id, track.id))
+      for (const track of playableTracks(variant.tracks)) keys.add(cacheKey(variant.id, track.id))
     }
     return keys
   }
@@ -91,7 +92,8 @@ export function computeTargetKeys(
     seenSongIds.add(songId)
     const variant = resolveVariant(songId, variantId, variants)
     if (!variant) return
-    for (const track of variant.tracks) keys.add(cacheKey(variant.id, track.id))
+    // Stems (#9) stay on the Stage-Server - heard on demand, not cached on every device.
+    for (const track of playableTracks(variant.tracks)) keys.add(cacheKey(variant.id, track.id))
   }
 
   for (const entry of activeSetlist?.entries ?? []) {

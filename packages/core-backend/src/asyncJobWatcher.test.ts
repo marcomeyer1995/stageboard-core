@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AsyncJob } from 'shared-types'
+import type { AsyncJob, YoutubeExtractJob } from 'shared-types'
 import type { CouchDoc } from './couch.js'
 
 // In-memory stand-in for the one workspace db the watcher touches - enough of couch.ts's
@@ -29,13 +29,17 @@ vi.mock('./audioStore.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./audioStore.js')>()),
   writeAudioFile: vi.fn(async () => {}),
   deleteAudioFile: vi.fn(async () => {}),
+  readAudioFile: vi.fn(async () => Buffer.from('source-audio')),
 }))
+
+vi.mock('./stems/stemSeparation.js', () => ({ runStemSeparation: vi.fn() }))
 
 import { runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, writeAudioFile } from './audioStore.js'
 import { createAsyncJobWatcher, pickNextQueuedJob, readAsyncJobs, stuckRunningJobs } from './asyncJobWatcher.js'
+import { runStemSeparation } from './stems/stemSeparation.js'
 
-function job(overrides: Partial<AsyncJob> = {}): AsyncJob {
+function job(overrides: Partial<YoutubeExtractJob> = {}): YoutubeExtractJob {
   return {
     id: 'job-1',
     type: 'youtube-extract',
@@ -104,13 +108,13 @@ describe('createAsyncJobWatcher', () => {
     })
   }
 
-  function putJob(overrides: Partial<AsyncJob>) {
+  function putJob(overrides: Partial<YoutubeExtractJob>) {
     const j = job(overrides)
     store.set(`async-jobs:${j.id}`, { ...j, _id: `async-jobs:${j.id}` })
   }
 
   function storedJob(id: string) {
-    return store.get(`async-jobs:${id}`) as AsyncJob | undefined
+    return store.get(`async-jobs:${id}`) as (YoutubeExtractJob & { stemTrackIds?: string[] }) | undefined
   }
 
   beforeEach(() => {
@@ -220,5 +224,53 @@ describe('createAsyncJobWatcher', () => {
 
     expect(storedJob('job-1')?.error).toMatch(/Neustart/)
     expect(runYtDlpExtract).not.toHaveBeenCalled()
+  })
+
+  describe('stem separation (#9)', () => {
+    const stemJob = { id: 'stem-1', type: 'stem-separation', status: 'queued', progress: 0, createdAt: 1, updatedAt: 1, variantId: 'variant-1', sourceTrackId: 'mix-1', model: 'extended', splitGuitar: true }
+    const installPlugin = () => store.set('plugins:stem-separation', { _id: 'plugins:stem-separation', id: 'stem-separation', name: 'Spuren trennen', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['stem-separation'], transports: [], hardwareIds: [] })
+
+    beforeEach(() => {
+      vi.mocked(runStemSeparation).mockReset()
+    })
+
+    it('refuses without the plugin installed - heavy, so only for bands that want it', async () => {
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix' }] })
+      store.set('async-jobs:stem-1', { ...stemJob, _id: 'async-jobs:stem-1' })
+      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('error'))
+      watcher.stop()
+      expect(storedJob('stem-1')?.error).toMatch(/nicht installiert/)
+      expect(runStemSeparation).not.toHaveBeenCalled()
+    })
+
+    it('attaches the stems to the track and replaces those of an earlier separation', async () => {
+      installPlugin()
+      const other = { id: 'other-stem', kind: 'stem', parentTrackId: 'another-track' }
+      store.set('song-variants:variant-1', { _id: 'song-variants:variant-1', tracks: [{ id: 'mix-1', kind: 'band-mix', durationMs: 170000 }, { id: 'old-drums', kind: 'stem', parentTrackId: 'mix-1' }, other] })
+      store.set('async-jobs:stem-1', { ...stemJob, _id: 'async-jobs:stem-1' })
+      vi.mocked(runStemSeparation).mockImplementation(async (...args: unknown[]) => {
+        const [, outDir, , onProgress] = args as [string, string, unknown, (p: number) => void]
+        onProgress(0.5)
+        await writeFile(`${outDir}/drums.mp3`, Buffer.from('d'))
+        await writeFile(`${outDir}/guitar-left.mp3`, Buffer.from('g'))
+        return [
+          { key: 'drums', path: `${outDir}/drums.mp3` },
+          { key: 'guitar-left', path: `${outDir}/guitar-left.mp3` },
+        ]
+      })
+      const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+      await vi.waitFor(() => expect(storedJob('stem-1')?.status).toBe('done'))
+      watcher.stop()
+      const tracks = (store.get('song-variants:variant-1') as { tracks: Array<Record<string, unknown>> }).tracks
+      expect(tracks.map((t) => t.id)).not.toContain('old-drums')
+      expect(tracks).toContainEqual(other)
+      const stems = tracks.filter((t) => t.parentTrackId === 'mix-1')
+      expect(stems.map((t) => t.label)).toEqual(['Schlagzeug', 'Gitarre links'])
+      expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/mpeg', durationMs: 170000, sizeBytes: 1 })
+      expect(storedJob('stem-1')?.stemTrackIds).toEqual(stems.map((t) => t.id))
+      expect(deleteAudioFile).toHaveBeenCalledWith('variant-1', 'old-drums')
+      expect(runStemSeparation).toHaveBeenCalledWith(expect.any(String), expect.any(String), { model: 'extended', splitGuitar: true }, expect.any(Function))
+    })
   })
 })

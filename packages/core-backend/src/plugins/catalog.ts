@@ -5,6 +5,7 @@ import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
 import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
 import { createPiperSpeechPlugin, PIPER_SPEECH_PLUGIN_ID } from './piperSpeechPlugin.js'
+import { createStemSeparationPlugin, STEM_SEPARATION_PLUGIN_ID } from './stemSeparationPlugin.js'
 
 /**
  * The server-side plugins this build knows how to construct, keyed by the id used in the
@@ -19,4 +20,5 @@ export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-backup': createMockBackupPlugin,
   'mock-click': createMockClickPlugin,
   [PIPER_SPEECH_PLUGIN_ID]: createPiperSpeechPlugin,
+  [STEM_SEPARATION_PLUGIN_ID]: createStemSeparationPlugin,
 }
