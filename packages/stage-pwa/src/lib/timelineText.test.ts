@@ -63,18 +63,19 @@ describe('Zeilen tippen', () => {
   })
 })
 
-describe('chord-only rows when tapping (#325)', () => {
+describe('chord-only rows when tapping', () => {
   const withIntro = ['{part: Intro}', '| [C] | [F] | [G] | [G] |', '[C] [G]', '{part: Verse}', 'First [C]line', 'Second line'].join('\n')
 
-  it('are skipped: never the start, never stamped', () => {
+  it('are tapped like lyrics, so the intro gets its time', () => {
     const lines = timelineLines(withIntro)
-    expect(lines.map((l) => l.rawIndex)).toEqual([1, 2, 4, 5]) // still on the timeline
-    expect(tapStartLine(lines, null)?.rawIndex).toBe(4)
-    expect(tapStartLine(lines, 1)?.rawIndex).toBe(4) // a selected chord row starts at the next lyric
-    const raw = stampLines(withIntro, 4, [5000, 9000]).split('\n')
-    expect(raw[1]).toBe('| [C] | [F] | [G] | [G] |')
-    expect(raw[4]).toBe('[00:05.00] First [C]line')
-    expect(raw[5]).toBe('[00:09.00] Second line')
+    expect(tapStartLine(lines, null)?.rawIndex).toBe(1)
+    expect(tapStartLine(lines, 2)?.rawIndex).toBe(2)
+    const raw = stampLines(withIntro, 1, [1700, 8000, 15000]).split('\n')
+    expect(raw[1]).toBe('[00:01.70] | [C] | [F] | [G] | [G] |')
+    expect(raw[2]).toBe('[00:08.00] [C] [G]')
+    expect(raw[4]).toBe('[00:15.00] First [C]line')
+    expect(raw[5]).toBe('Second line')
+    expect(partBlocks(timelineLines(raw.join('\n')), 30000)[0]).toEqual({ partIndex: 0, label: 'Intro', startMs: 1700, endMs: 15000 })
   })
 })
 

@@ -24,7 +24,7 @@ import {
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
-import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapLines, tapStartLine, timelineLines } from '../../lib/timelineText'
+import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
 import { loadTrackAnalysis, type TrackAnalysis } from '../../lib/trackAnalysis'
 import { useElementSize } from '../../lib/useElementSize'
@@ -375,7 +375,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const minimapRange = useMemo(() => ({ fromMs: minMs, toMs: durationMs }), [minMs, durationMs])
   const songBeats = useMemo(() => beatsBetween(timeline, 0, durationMs), [timeline, durationMs])
   const quality = useMemo(() => (analysis ? barQuality(songBeats, analysis.onsetsMs) : []), [songBeats, analysis])
-  const untimedLines = tapLines(lines).filter((l) => l.timeMs === null).length
+  const untimedLines = lines.filter((l) => l.timeMs === null).length
 
   // Track analysis (waveform + onsets): cached per track, computed once in a worker.
   useEffect(() => {
@@ -1191,8 +1191,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
     seek((last ?? useClockStore.getState().getElapsedMs()) - TAP_REWIND_MS)
   }
   // The line the next tap stamps (shown on the tap button).
-  // Chord-only rows are skipped when tapping (#325).
-  const tappable = tapMode === 'lines' ? tapLines(lines) : []
+  // Chord-only rows are tapped like lyrics (their time drives the Prompter's highlight too).
+  const tappable = tapMode === 'lines' ? lines : []
   const tapStartIndex = tapFromLine.current !== null ? tappable.findIndex((l) => l.rawIndex === tapFromLine.current) : -1
   const nextTapLine = tapStartIndex >= 0 ? tappable[tapStartIndex + tapCount] : undefined
   const prevTapLine = tapStartIndex >= 0 && tapCount > 0 ? tappable[tapStartIndex + tapCount - 1] : undefined
