@@ -45,6 +45,7 @@ vi.mock('../../store/useLogicalDevicesStore', () => ({
 
 const { TimelineEditor } = await import('./TimelineEditor')
 const { useClockStore } = await import('../../store/useClockStore')
+const { loadTrackAnalysis } = await import('../../lib/trackAnalysis')
 const { useTimelineLanesStore } = await import('../../store/useTimelineLanesStore')
 const { useTimelineSnapStore } = await import('../../store/useTimelineSnapStore')
 
@@ -60,12 +61,12 @@ function tool(name: string) {
 
 const beatGrid: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1000 }, { id: 'p2', bar: 9, timeMs: 17000 }], meters: [] }
 
-function setup(extra: { beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string; cues?: ShowCue[]; startLineTapping?: boolean } = {}) {
+function setup(extra: { trackId?: string; beatGrid?: BeatGrid; onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>; trackSrc?: string; fill?: boolean; content?: string; cues?: ShowCue[]; startLineTapping?: boolean } = {}) {
   const onChange = vi.fn()
   const utils = render(
     <TimelineEditor
       variantId="v"
-      trackId={null}
+      trackId={extra.trackId ?? null}
       trackSrc={extra.trackSrc ?? null}
       beatGrid={extra.beatGrid}
       bpm={120}
@@ -106,11 +107,31 @@ describe('TimelineEditor (docs/14 §5a)', () => {
     expect(tool('Raster löschen')).toBeDisabled()
   })
 
-  it('replaces the grid with a detection run, bpm included', async () => {
+  it('without a grid, a detection run sets grid and bpm', async () => {
     const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
-    const { onChange } = setup({ beatGrid, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
+    const { onChange } = setup({ onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
     fireEvent.click(tool('Track analysieren'))
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ bpm: 121, beatGrid: detected, chordProContent: '', cues: [] }))
+  })
+
+  it('with a grid, refines it as a preview - the own point stays; "Neu erkennen" still replaces everything (2026-10-15)', async () => {
+    // A band speeding up: 120 BPM for 12 bars, then 126 - the one-point grid drifts off.
+    const onsetsMs: number[] = []
+    for (let i = 0, t = 0; i < 160; i++, t += i <= 48 ? 500 : 60000 / 126) onsetsMs.push(Math.round(t))
+    vi.mocked(loadTrackAnalysis).mockResolvedValueOnce({ peaks: { bucketMs: 10, min: [], max: [] }, onsetsMs, durationMs: 80000 } as never)
+    const own: BeatGrid = { points: [{ id: 'mine', bar: 1, timeMs: 0 }], meters: [] }
+    const detected: BeatGrid = { points: [{ id: 'd1', bar: 1, timeMs: 800 }], meters: [] }
+    const { onChange } = setup({ trackId: 't', beatGrid: own, onDetectGrid: async () => ({ bpm: 121, beatGrid: detected }), trackSrc: 'blob:track' })
+    await waitFor(() => expect(loadTrackAnalysis).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 0))
+    fireEvent.click(tool('Track analysieren'))
+    const preview = await screen.findByRole('status', { name: 'Raster-Vorschau' })
+    expect(preview).toHaveTextContent(/Raster verfeinert: \d+ Punkte? ergänzt/)
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    const next = onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }
+    expect(next.beatGrid.points[0]).toEqual({ id: 'mine', bar: 1, timeMs: 0 })
+    expect(next.beatGrid.points.length).toBeGreaterThan(1)
   })
 
   it('offers no problem jump without a track to compare against', () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
 import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
+import { refineGrid, type RefineResult } from '../../lib/gridRefine'
 import { startClick, stopClick } from '../../lib/clickEngine'
 import { describeCue } from '../../lib/deviceCommands'
 import {
@@ -298,6 +299,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [tempoPreview, setTempoPreview] = useState<Extract<CurveGridResult, { kind: 'grid' }> | null>(null)
   /** The taps behind the preview - "Gleichmäßig" applies them as one tempo instead. */
   const previewTaps = useRef<{ tapped: number[]; tempo: number } | null>(null)
+  /** "Track analysieren" on an existing grid: the refined grid, shown before it is taken. */
+  const [refinePreview, setRefinePreview] = useState<RefineResult | null>(null)
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -369,7 +372,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const ripplePreview = ripple && rippleDelta ? rippleShift({ beatGrid, chordProContent: content, cues }, ripple.fromMs, rippleDelta, ripple.anchorBar) : null
   const rippleShown = ripplePreview?.ok ? ripplePreview : null
   const previewGrid = drag?.kind === 'bar' && dragMs !== null ? setPoint(editableGrid, drag.bar, dragMs, timeSignature) : null
-  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? tempoPreview?.grid ?? beatGrid)
+  const shownGrid = rippleShown ? rippleShown.beatGrid : (previewGrid ?? tempoPreview?.grid ?? refinePreview?.grid ?? beatGrid)
   const shownContent = rippleShown ? rippleShown.chordProContent : drag?.kind === 'line' && dragMs !== null ? setLineTime(content, drag.rawIndex, dragMs) : content
   const shownCues = rippleShown ? rippleShown.cues : drag?.kind === 'cue' && dragMs !== null ? moveCue(cues, drag.id, dragMs) : cues
 
@@ -1239,9 +1242,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startLineTapping])
 
-  async function detectGrid() {
+  /** "Track analysieren" with a grid already there (2026-10-15): refine it - the musician's points
+   * stay, a beat tracker adds points where the click leaves the drums (lib/gridRefine.ts). Shown
+   * as a preview; replacing everything is still there as "Neu erkennen". */
+  function detectGrid() {
+    if (!beatGrid) {
+      void redetectGrid(false)
+      return
+    }
+    if (!analysis) {
+      setNotice('Die Wellenform wird noch analysiert - gleich noch einmal versuchen.')
+      return
+    }
+    const result = refineGrid(beatGrid, bpm, timeSignature, analysis.onsetsMs)
+    if (!result || (result.addedBars.length === 0 && result.movedBars.length === 0)) {
+      setNotice('Das Raster passt schon - nichts zu ergänzen.')
+      return
+    }
+    setSelection(null)
+    setNotice(null)
+    setRefinePreview(result)
+  }
+
+  async function redetectGrid(ask: boolean) {
     if (!onDetectGrid) return
-    if (beatGrid && !(await confirm('Raster durch die automatische Erkennung ersetzen? (Rückgängig möglich)', { confirmLabel: 'Ersetzen' }))) return
+    if (ask && !(await confirm('Raster komplett neu erkennen? Deine Ausrichtungspunkte gehen dabei verloren. (Rückgängig möglich)', { confirmLabel: 'Neu erkennen' }))) return
+    setRefinePreview(null)
     setDetecting(true)
     setNotice(null)
     try {
@@ -1623,7 +1649,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           {tapMode === 'lines' ? `Tippen beenden (${tapCount})` : 'Zeilen tippen'}
         </Button>
         {onDetectGrid && (
-          <Button disabled={!trackSrc || detecting || tapMode !== null} onClick={() => void detectGrid()}>
+          <Button disabled={!trackSrc || detecting || tapMode !== null} onClick={detectGrid}>
             {detecting ? 'Analysiere…' : 'Track analysieren'}
           </Button>
         )}
@@ -1806,6 +1832,29 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </Button>
           <Button disabled={selectedLineInfo.timeMs === null || tapMode !== null} onClick={() => selectedLineInfo.timeMs !== null && rippleFrom(selectedLineInfo.timeMs, 'Diese Zeile und alles danach')}>
             Alles danach verschieben
+          </Button>
+        </div>
+      )}
+
+      {refinePreview && (
+        <div className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Raster-Vorschau">
+          <span className="font-semibold">
+            Raster verfeinert: {refinePreview.addedBars.length} {refinePreview.addedBars.length === 1 ? 'Punkt' : 'Punkte'} ergänzt
+            {refinePreview.addedBars.length > 0 ? ` (Takt ${refinePreview.addedBars.join(', ')})` : ''}, rote Takte {refinePreview.poorBefore} → {refinePreview.poorAfter}. Deine Punkte bleiben
+            {refinePreview.movedBars.length > 0 ? ` - außer Takt ${refinePreview.movedBars.join(', ')}: lag neben dem Schlag, verschoben` : ''}.
+          </span>
+          <Button onClick={() => setRefinePreview(null)}>Verwerfen</Button>
+          {onDetectGrid && <Button onClick={() => void redetectGrid(true)}>Neu erkennen</Button>}
+          <Button
+            variant="primary"
+            onClick={() => {
+              const preview = refinePreview
+              setRefinePreview(null)
+              commitGrid(preview.grid)
+              setNotice(`Raster übernommen: ${preview.addedBars.length} Punkte ergänzt. Rückgängig mit ↶.`)
+            }}
+          >
+            Übernehmen
           </Button>
         </div>
       )}
