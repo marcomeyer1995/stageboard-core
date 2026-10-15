@@ -13,6 +13,7 @@ const box = vi.hoisted(() => ({ width: 1000, height: 206 }))
 vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, box] }))
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
+vi.mock('../../lib/songVariantsDb', () => ({ getTrack: vi.fn(async () => new Blob(['stem'])) }))
 // Playback state the tapping tests switch on; everything else sees a stopped track.
 const trackClock = vi.hoisted(() => ({ isPlaying: false, togglePlay: vi.fn(), rate: 1, setRate: vi.fn(), ref: { current: null as HTMLAudioElement | null } }))
 vi.mock('../../lib/useTrackClock', () => ({
@@ -48,6 +49,7 @@ const { useClockStore } = await import('../../store/useClockStore')
 const { loadTrackAnalysis } = await import('../../lib/trackAnalysis')
 const { useTimelineLanesStore } = await import('../../store/useTimelineLanesStore')
 const { useTimelineSnapStore } = await import('../../store/useTimelineSnapStore')
+const { useSongVariantsStore } = await import('../../store/useSongVariantsStore')
 
 /** A timeline tool button - on a narrow timeline (as in these tests) the tools sit in the
  * "Werkzeuge" panel (#373), which this opens first when needed. */
@@ -817,3 +819,54 @@ describe('TimelineEditor - shift everything (#330)', () => {
   })
 })
 
+
+describe('stems under the timeline (docs/22 §5)', () => {
+  const stem = (id: string, label: string, role: string) => ({ id, kind: 'stem', label, role, source: 'stem-separation', parentTrackId: 't', mimeType: 'audio/webm', addedAt: 0 })
+  const track = { id: 't', kind: 'band-mix', label: 'Band', source: 'upload', parentTrackId: null, mimeType: 'audio/webm', addedAt: 0 }
+  function withStems() {
+    useSongVariantsStore.setState({ variants: [{ id: 'v', tracks: [track, stem('drums', 'Schlagzeug', 'drums'), stem('bass', 'Bass', 'bass')] }] } as never)
+  }
+  afterEach(() => {
+    useSongVariantsStore.setState({ variants: [] } as never)
+    localStorage.removeItem('sb:timeline:stems-open')
+  })
+
+  it('are collapsed by default and open into one lane per stem; tapping one plays only it', async () => {
+    withStems()
+    setup({ trackId: 't', trackSrc: 'blob:track' })
+    expect(screen.queryByRole('button', { name: /^Schlagzeug/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stems (2)' }))
+    await waitFor(() => expect(loadTrackAnalysis).toHaveBeenCalledWith('v', 'bass'))
+    // The track clock is mocked here - without a stem soloed the element has no source of its own.
+    const audio = document.querySelector('audio')!
+    expect(audio.getAttribute('src')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^Schlagzeug/ }))
+    await waitFor(() => expect(audio.getAttribute('src')).toMatch(/^blob:/))
+    expect(screen.getByRole('button', { name: /^Schlagzeug/ })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: /^Schlagzeug/ }))
+    await waitFor(() => expect(audio.getAttribute('src')).toBeNull())
+    expect(localStorage.getItem('sb:timeline:stems-open')).toBe('1')
+  })
+
+  it('"Track analysieren" takes its hits from the chosen stem instead of the mix', async () => {
+    withStems()
+    // Mix: a band speeding up - the one-point grid drifts off. Drums: exactly on the grid.
+    const drifting: number[] = []
+    for (let i = 0, t = 0; i < 160; i++, t += i <= 48 ? 500 : 60000 / 126) drifting.push(Math.round(t))
+    const steady = Array.from({ length: 160 }, (_, i) => i * 500)
+    vi.mocked(loadTrackAnalysis).mockImplementation(async (_v: string, id: string) => ({ peaks: { bucketMs: 10, min: [], max: [] }, onsetsMs: id === 'drums' ? steady : drifting, durationMs: 80000 }) as never)
+    const own: BeatGrid = { points: [{ id: 'mine', bar: 1, timeMs: 0 }], meters: [] }
+    setup({ trackId: 't', beatGrid: own, trackSrc: 'blob:track', onDetectGrid: async () => null })
+    fireEvent.click(screen.getByRole('button', { name: 'Stems (2)' }))
+    await waitFor(() => expect(loadTrackAnalysis).toHaveBeenCalledWith('v', 'drums'))
+    await new Promise((r) => setTimeout(r, 0))
+    fireEvent.click(screen.getByRole('radio', { name: 'Schlagzeug' }))
+    fireEvent.click(tool('Track analysieren'))
+    expect(await screen.findByText('Das Raster passt schon - nichts zu ergänzen.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Mix' }))
+    fireEvent.click(tool('Track analysieren'))
+    expect(await screen.findByRole('status', { name: 'Raster-Vorschau' })).toBeInTheDocument()
+    vi.mocked(loadTrackAnalysis).mockReset()
+    vi.mocked(loadTrackAnalysis).mockResolvedValue(null)
+  })
+})

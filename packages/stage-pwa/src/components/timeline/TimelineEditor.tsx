@@ -50,6 +50,10 @@ import { loadSpeechClip } from '../../lib/speechClips'
 import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
+import { TimelineStems } from './TimelineStems'
+import { stemSetsOf } from '../../lib/stems'
+import { getTrack } from '../../lib/songVariantsDb'
+import { useSongVariantsStore } from '../../store/useSongVariantsStore'
 import { Icon } from '../Icon'
 import { Button, Dialog } from '../ui'
 import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
@@ -198,6 +202,26 @@ function fitText(text: string, maxPx: number): string {
   return text.length <= chars ? text : `${text.slice(0, chars - 1)}…`
 }
 
+const STEMS_OPEN_KEY = 'sb:timeline:stems-open'
+
+/** Whether the stems under the timeline are open - per device, like the hidden lanes. */
+function readStemsOpen(): boolean {
+  try {
+    return localStorage.getItem(STEMS_OPEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeStemsOpen(open: boolean): void {
+  try {
+    if (open) localStorage.setItem(STEMS_OPEN_KEY, '1')
+    else localStorage.removeItem(STEMS_OPEN_KEY)
+  } catch {
+    // Blocked storage: the stems open closed next time.
+  }
+}
+
 /**
  * The timeline editor (docs/14): the track's waveform, the click grid (§5a) and the song text
  * (§6) on one time axis. Grid: set bar 1 on the first hit, tap the tempo, drag a bar line onto its
@@ -285,6 +309,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
+  // Stems under the timeline (docs/22 §5): those split from this track, else the uploaded ones.
+  const variantTracks = useSongVariantsStore((state) => state.variants.find((v) => v.id === variantId)?.tracks)
+  const stems = useMemo(() => {
+    const sets = stemSetsOf(variantTracks ?? [])
+    return (sets.find((set) => set.key === trackId) ?? sets[0])?.stems ?? []
+  }, [variantTracks, trackId])
+  const [stemsOpen, setStemsOpen] = useState(() => readStemsOpen())
+  const [stemAnalyses, setStemAnalyses] = useState<ReadonlyMap<string, TrackAnalysis>>(new Map())
+  /** The stem heard alone (its file plays instead of the track, same position) - null: the mix. */
+  const [solo, setSolo] = useState<{ id: string; url: string } | null>(null)
+  /** Where the hits for red/green, the magnet and "Track analysieren" come from - null: the mix. */
+  const [hitSourceId, setHitSourceId] = useState<string | null>(null)
   const [view, setView] = useState<TimelineView>({ startMs: 0, msPerPx: 20 })
   const [clickOn, setClickOn] = useState(true)
   const [voiceOn, setVoiceOn] = useState(true)
@@ -329,12 +365,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedNoteStart = selection?.kind === 'note' ? selection.start : null
   const selectedPartIndex = selection?.kind === 'part' ? selection.partIndex : null
 
+  /** The detected hits: of the mix, or of the stem chosen as the analysis source (docs/22 §5). */
+  const hitsMs = (hitSourceId ? stemAnalyses.get(hitSourceId)?.onsetsMs : undefined) ?? analysis?.onsetsMs ?? null
+
   /** A time pulled onto the nearest detected drum hit within ONSET_MAGNET_MS. */
   function magnet(ms: number): number {
-    if (!analysis) return ms
+    if (!hitsMs) return ms
     let best = ms
     let bestDistance = ONSET_MAGNET_MS
-    for (const onset of analysis.onsetsMs) {
+    for (const onset of hitsMs) {
       const distance = Math.abs(onset - ms)
       if (distance <= bestDistance) [best, bestDistance] = [onset, distance]
     }
@@ -392,7 +431,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const minMs = Math.min(0, countInStartMs)
   const minimapRange = useMemo(() => ({ fromMs: minMs, toMs: durationMs }), [minMs, durationMs])
   const songBeats = useMemo(() => beatsBetween(timeline, 0, durationMs), [timeline, durationMs])
-  const quality = useMemo(() => (analysis ? barQuality(songBeats, analysis.onsetsMs) : []), [songBeats, analysis])
+  const quality = useMemo(() => (hitsMs ? barQuality(songBeats, hitsMs) : []), [songBeats, hitsMs])
   const untimedLines = lines.filter((l) => l.timeMs === null).length
 
   // Track analysis (waveform + onsets): cached per track, computed once in a worker.
@@ -411,6 +450,68 @@ export function TimelineEditor(props: TimelineEditorProps) {
       cancelled = true
     }
   }, [variantId, trackId])
+
+  // Stem waveforms (and hits), one after the other while the stems are open - cached per stem.
+  useEffect(() => {
+    if (!stemsOpen || stems.length === 0) return
+    let cancelled = false
+    void (async () => {
+      for (const stem of stems) {
+        if (cancelled) return
+        const result = await loadTrackAnalysis(variantId, stem.id).catch(() => null)
+        if (cancelled || !result) continue
+        setStemAnalyses((current) => new Map(current).set(stem.id, result))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [stemsOpen, stems, variantId])
+
+  // A stem that is gone (removed, set changed) is no longer soloed or the hit source.
+  useEffect(() => {
+    if (solo && !stems.some((s) => s.id === solo.id)) setSolo(null)
+    if (hitSourceId && !stems.some((s) => s.id === hitSourceId)) setHitSourceId(null)
+  }, [stems, solo, hitSourceId])
+  useEffect(() => () => {
+    if (solo) URL.revokeObjectURL(solo.url)
+  }, [solo])
+
+  /** The element's position and state while its source changes (solo on/off): restored once the
+   * new file is loaded, so the playhead, speed and Play/Pause carry on where they were. */
+  const sourceSwitch = useRef<{ timeS: number; playing: boolean } | null>(null)
+  async function soloStem(stemId: string | null) {
+    const audio = clock.audioProps.ref.current
+    const url = stemId ? await getTrack(variantId, stemId).then((blob) => (blob ? URL.createObjectURL(blob) : null)) : null
+    if (stemId && !url) {
+      setNotice('Die Spur ist auf diesem Gerät nicht verfügbar.')
+      return
+    }
+    if (audio) sourceSwitch.current = { timeS: audio.currentTime, playing: !audio.paused }
+    setSolo(stemId && url ? { id: stemId, url } : null)
+  }
+  const audioProps = {
+    ...clock.audioProps,
+    src: solo?.url ?? clock.audioProps.src,
+    onLoadedMetadata: (e: React.SyntheticEvent<HTMLAudioElement>) => {
+      clock.audioProps.onLoadedMetadata?.(e)
+      const pending = sourceSwitch.current
+      if (!pending) return
+      sourceSwitch.current = null
+      const audio = e.currentTarget
+      audio.currentTime = pending.timeS
+      audio.preservesPitch = true
+      audio.playbackRate = clock.rate
+      if (pending.playing) audio.play().catch(() => {})
+    },
+    // While the source changes the element reports 0 - the clock keeps the old position.
+    onTimeUpdate: (e: React.SyntheticEvent<HTMLAudioElement>) => {
+      if (!sourceSwitch.current) clock.audioProps.onTimeUpdate?.(e)
+    },
+    onSeeked: (e: React.SyntheticEvent<HTMLAudioElement>) => {
+      if (!sourceSwitch.current) clock.audioProps.onSeeked?.(e)
+    },
+  }
 
   // Fit the whole song into view - first on an estimate, again once the track's real length is
   // known (the waveform analysis or the audio element arrives later), unless the view has been
@@ -1253,11 +1354,11 @@ export function TimelineEditor(props: TimelineEditorProps) {
       void redetectGrid(false)
       return
     }
-    if (!analysis) {
+    if (!hitsMs) {
       setNotice('Die Wellenform wird noch analysiert - gleich noch einmal versuchen.')
       return
     }
-    const result = refineGrid(beatGrid, bpm, timeSignature, analysis.onsetsMs)
+    const result = refineGrid(beatGrid, bpm, timeSignature, hitsMs)
     if (!result || (result.addedBars.length === 0 && result.movedBars.length === 0)) {
       setNotice('Das Raster passt schon - nichts zu ergänzen.')
       return
@@ -1734,6 +1835,25 @@ export function TimelineEditor(props: TimelineEditorProps) {
         )}
       </div>
 
+      {stems.length > 0 && (
+        <TimelineStems
+          stems={stems}
+          analyses={stemAnalyses}
+          open={stemsOpen}
+          onToggle={() => {
+            writeStemsOpen(!stemsOpen)
+            setStemsOpen(!stemsOpen)
+          }}
+          width={width}
+          view={view}
+          playheadMs={playheadMs}
+          soloId={solo?.id ?? null}
+          onSolo={(id) => void soloStem(id)}
+          analysisSourceId={hitSourceId}
+          onAnalysisSource={setHitSourceId}
+        />
+      )}
+
       {tapMode === 'lines' && (
         <div className="flex flex-col gap-2 rounded-control bg-control p-2" data-testid="tap-lines-panel">
           <div className="flex flex-col gap-1 px-2 text-base">
@@ -2009,7 +2129,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         />
       )}
 
-      <audio {...clock.audioProps} className="hidden" />
+      <audio {...audioProps} className="hidden" />
     </div>
   )
 }
