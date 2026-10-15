@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useClockStore } from './useClockStore'
 
 function resetStore() {
-  useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 0 })
+  useClockStore.setState({ isRunning: false, startedAt: null, accumulatedMs: 0, rate: 1 })
 }
 
 describe('useClockStore', () => {
@@ -21,6 +21,17 @@ describe('useClockStore', () => {
     start()
     vi.setSystemTime(2500)
     expect(getElapsedMs()).toBe(2500)
+  })
+
+  it('runs at the playback rate - slowed down, song time advances slower (Timeline, 2026-10-15)', () => {
+    const { start, setRate, stop, getElapsedMs } = useClockStore.getState()
+    start()
+    vi.setSystemTime(1000)
+    setRate(0.5)
+    vi.setSystemTime(3000)
+    expect(getElapsedMs()).toBe(2000) // 1000 at full speed + 2000 wall ms at half
+    stop()
+    expect(getElapsedMs()).toBe(2000)
   })
 
   it('freezes elapsed time on stop', () => {
