@@ -264,6 +264,25 @@ Ziel: Backing-Track (Stereo, zwei Kanäle), Klick und Ansagen je auf eigenen Kan
 - **Technik:** Web Audio - je Quelle ein Gain-Knoten auf einen Eingang eines `ChannelMergerNode`, `destination.channelCount` = Kanalzahl des Interfaces, `channelInterpretation: 'discrete'`. Klick, Web-Audio-Track und Ansagen laufen schon über einen gemeinsamen AudioContext.
 - **Offen bis das Interface da ist:** wie viele Kanäle Chrome am Laptop und die Android-WebView am Tablet wirklich ausgeben (`destination.maxChannelCount`); gibt das Tablet nur Stereo, bekommt es Voreinstellungen („Klick + Ansagen links, Track rechts in Mono“, „alles gemischt“). Abspielen auf dem Stage-Server selbst (Interface am Laptop, ohne Tablet dazwischen) wäre ein eigener, größerer Baustein: heute spielen nur die Geräte Ton, der Server koordiniert nur.
 
+### 9.3 Lautstärke je Quelle: „Mein Mix“ und Bühnen-Mix (Konzept 2026-10-15, Schritt 1+2 gebaut)
+
+Anlass (Marco): beim Prüfen „Ansage auf dem Klick?“ gehen Klick und Stimme im Track unter. Ein Mix gehört zum **Ausgang**, der den Ton spielt, nicht zum Modus - so gibt es nur zwei:
+
+| | **Mein Mix** (persönlich) | **Bühnen-Mix** |
+|---|---|---|
+| Wer hört ihn | nur wer an diesem Gerät hört | die Band (In-Ear/Pult) |
+| Genutzt von | Solo Üben, Timeline-Editor | Gig/Probe, auf dem Gerät, das den Ton spielt |
+| Regler | Track, Klick, Ansagen (je Lautstärke + Stumm) | dieselben drei, je spielendem Gerät |
+| Wer darf | jeder für sich | vorerst jeder (Sperre evtl. später) |
+| Gespeichert | nur auf dem Gerät | in den Band-Daten je Gerät/Ausgang (wie Latenzprofile) |
+
+- **Moduswechsel wählt den Mix:** Üben und Timeline = Mein Mix (die Timeline auch während einer Gig-Sitzung - sie ist zum Prüfen). Gig = Bühnen-Mix des Geräts, das spielt (heute Klick-Gerät für Klick + Ansagen, Track-Gerät für den Track).
+- **Mit Interface (§9.2)** bekommt jede Quelle im Bühnen-Mix zusätzlich ihren Kanal; die Regler sind dann nur noch Pegel je Kanal, gemischt wird am Pult.
+- **Widget „Mein Mix“** zeigt, was dieses Gerät gerade tut: beim Üben Mein Mix; im Gig auf einem Gerät ohne Ton ein Hinweis. **Fernbedienen** des Bühnen-Mix eines anderen Geräts kommt später und nur mit Master-Token (Marco 2026-10-15).
+- **Technik (gebaut):** `lib/audioMix.ts` - je Quelle ein Gain-Knoten auf dem gemeinsamen AudioContext (`sourceOutput`), Klick (`clickEngine`), Ansagen (Show, Vorschau, Probehören, Timeline), Web-Audio-Track und Loop-Trainer hängen daran; das `<audio>`-Element des Tracks (Üben, Timeline) folgt über `volume`. Track bis 100 % (Grenze des `<audio>`-Elements), Klick und Ansagen bis 200 %. Gespeichert in `localStorage` (`sb:audio:mix`).
+- **Timeline:** Knopf „Mix“ (Dialog mit den drei Reglern) und neu „Ansagen“ neben „Klick“ - die Timeline spielt die Ansagen jetzt mit (vorher nur den Klick), zum Prüfen Wort gegen Klick.
+- **Reihenfolge:** 1. Gain-Knoten je Quelle ✓, 2. Mein Mix mit Timeline-Knopf und Widget ✓, 3. Bühnen-Mix je spielendem Gerät (bis dahin gilt Mein Mix auch im Gig auf dem spielenden Gerät), 4. Fernbedienen mit Master-Token.
+
 ## Verwandt
 
 docs/00 §4/§6 (Präzisions-Engine, Plugins), docs/09 (Uhr-Synchronisation), docs/13 §7 (gemessene Ausgabelatenz), docs/19 (Track auf der Audio-Uhr), docs/20 (Wettbewerb: niemand kalibriert verteilte Geräte), #302, #303, #317, #477, #478.

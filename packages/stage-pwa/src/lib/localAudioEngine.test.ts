@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { __resetAudioMixForTests, useAudioMixStore } from './audioMix'
 import { getTrack } from './songVariantsDb'
 import {
   __getAudioElForTests,
@@ -193,11 +194,12 @@ describe('stopping cleanly (2026-09-27)', () => {
   function playing(): HTMLAudioElement {
     const audio = __getAudioElForTests()
     Object.defineProperty(audio, 'paused', { configurable: true, value: false })
-    audio.volume = 0.8
+    useAudioMixStore.getState().setLevel('track', 0.8) // "Mein Mix" (docs/21 §9.3)
     return audio
   }
 
   afterEach(() => {
+    __resetAudioMixForTests()
     vi.useRealTimers()
     delete (__getAudioElForTests() as unknown as Record<string, unknown>).paused
   })

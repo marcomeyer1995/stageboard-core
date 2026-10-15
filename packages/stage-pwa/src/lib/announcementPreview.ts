@@ -4,6 +4,7 @@ import { clickTimeline } from './beatGrid'
 import { playClickAt } from './clickEngine'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { loadSpeechClip, type ClipVoice } from './speechClips'
+import { sourceOutput } from './audioMix'
 
 /** A short made-up song for "Ablauf anhören": count-in, Intro on bar 1, `part` on bar 5. */
 export function previewSong(part: string, bpm: number, countInBars: number, timeSignature = '4/4') {
@@ -38,7 +39,7 @@ export async function playAnnouncementPreview(part: string, bpm: number, timeSig
     const node = ctx.createBufferSource()
     node.buffer = clips[i]!
     const gain = ctx.createGain()
-    node.connect(gain).connect(ctx.destination)
+    node.connect(gain).connect(sourceOutput('voice', ctx))
     node.start(when)
     if (last) {
       last.gain.gain.setTargetAtTime(0, when, 0.005)

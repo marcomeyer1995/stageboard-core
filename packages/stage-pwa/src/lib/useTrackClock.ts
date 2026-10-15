@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type AudioHTMLAttributes, type RefObject } from 'react'
 import { useElapsedMs } from './useElapsedMs'
 import { useClockStore } from '../store/useClockStore'
+import { trackElementVolume, useAudioMixStore } from './audioMix'
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return '00:00'
@@ -47,6 +48,12 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
       useClockStore.getState().stop()
     }
   }, [trackSrc])
+
+  // "Mein Mix" (docs/21 §9.3): the track's slider sets this element's volume, also mid-song.
+  const trackVolume = useAudioMixStore((state) => trackElementVolume(state.mix))
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = trackVolume
+  }, [trackVolume, trackSrc])
 
   function togglePlay() {
     const audio = audioRef.current

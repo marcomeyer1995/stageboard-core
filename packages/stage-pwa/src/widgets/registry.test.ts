@@ -25,6 +25,6 @@ describe('widget stage tiers', () => {
     expect(tier('circle-of-fifths')).toBe('rehearsal')
     expect(tier('chord-reference')).toBe('rehearsal')
     expect(tier('separator')).toBe('layout')
-    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(17)
+    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(18)
   })
 })

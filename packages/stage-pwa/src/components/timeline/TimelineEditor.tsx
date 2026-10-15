@@ -40,14 +40,17 @@ import { TargetPicker } from '../CommentListEditor'
 import { useProfilesStore } from '../../store/useProfilesStore'
 import { CueDialog, type CueContent } from './CueDialog'
 import { describeCuePattern, PartCueDialog } from './PartCueDialog'
-import { nearestBar, spokenTexts } from '../../lib/announcements'
+import { nearestBar, sectionAnnouncements, spokenTexts } from '../../lib/announcements'
 import { pluginProviding } from '../../lib/capabilities'
 import { isSilentCue, partHeads, setPartCue } from '../../lib/partCues'
-import { bandAnnouncementSettings } from '../../lib/speechVoices'
+import { bandAnnouncementSettings, bandSpeechVoice } from '../../lib/speechVoices'
+import { usePlayAnnouncements } from '../../lib/useAnnouncementDriver'
+import { loadSpeechClip } from '../../lib/speechClips'
+import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
 import { Icon } from '../Icon'
-import { Button } from '../ui'
+import { Button, Dialog } from '../ui'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
  * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
@@ -275,6 +278,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [view, setView] = useState<TimelineView>({ startMs: 0, msPerPx: 20 })
   const [clickOn, setClickOn] = useState(true)
+  const [voiceOn, setVoiceOn] = useState(true)
+  const [mixOpen, setMixOpen] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
@@ -452,6 +457,19 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }))
     return () => stopClick()
   }, [clickOn, clock.isPlaying])
+
+  // The band's announcements (#63) while the editor plays - with the click, to check each word
+  // sits on its beat. Same scheduling as the show (useAnnouncementDriver.ts), no latency shift,
+  // like the click here.
+  const speechVoice = useMemo(() => bandSpeechVoice(installed), [installed])
+  const spokenCues = useMemo(
+    () => (announcing && voiceOn ? sectionAnnouncements(content, baseTimeline, announcementSettings) : []),
+    [announcing, voiceOn, content, baseTimeline, announcementSettings],
+  )
+  useEffect(() => {
+    for (const text of new Set(spokenCues.map((cue) => cue.text))) void loadSpeechClip(text, speechVoice)
+  }, [spokenCues, speechVoice])
+  usePlayAnnouncements(spokenCues, speechVoice, clock.isPlaying, () => (clickState.current.playing ? useClockStore.getState().getElapsedMs() : null), 0)
 
   function seek(ms: number) {
     const audio = clock.audioProps.ref.current
@@ -1530,6 +1548,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <Button variant={clickOn ? 'primary' : 'secondary'} aria-pressed={clickOn} onClick={() => setClickOn(!clickOn)}>
           Klick
         </Button>
+        {announcing && (
+          <Button variant={voiceOn ? 'primary' : 'secondary'} aria-pressed={voiceOn} onClick={() => setVoiceOn(!voiceOn)}>
+            Ansagen
+          </Button>
+        )}
+        <Button onClick={() => setMixOpen(true)}>Mix</Button>
         <button type="button" className={iconButton} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
           <UndoIcon />
         </button>
@@ -1875,6 +1899,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
           }}
           onClose={() => setPartCueOpen(false)}
         />
+      )}
+
+      {mixOpen && (
+        <Dialog title="Mein Mix" onClose={() => setMixOpen(false)}>
+          <div className="flex flex-col gap-3">
+            <MixFaders orientation="horizontal" />
+            <p className="text-sm text-ink-muted">Gilt auf diesem Gerät auch fürs Üben - dieselben Regler wie das Widget „Mein Mix“.</p>
+          </div>
+        </Dialog>
       )}
 
       {cueDialog && (
