@@ -14,7 +14,7 @@ vi.mock('../../lib/useElementSize', () => ({ useElementSize: () => [() => {}, bo
 vi.mock('../../lib/trackAnalysis', () => ({ loadTrackAnalysis: vi.fn(async () => null) }))
 vi.mock('../../lib/clickEngine', () => ({ startClick: vi.fn(), stopClick: vi.fn() }))
 // Playback state the tapping tests switch on; everything else sees a stopped track.
-const trackClock = vi.hoisted(() => ({ isPlaying: false, togglePlay: vi.fn(), ref: { current: null as HTMLAudioElement | null } }))
+const trackClock = vi.hoisted(() => ({ isPlaying: false, togglePlay: vi.fn(), rate: 1, setRate: vi.fn(), ref: { current: null as HTMLAudioElement | null } }))
 vi.mock('../../lib/useTrackClock', () => ({
   useTrackClock: () => ({
     elapsedMs: 0,
@@ -22,6 +22,8 @@ vi.mock('../../lib/useTrackClock', () => ({
     duration: 0,
     position: 0,
     togglePlay: trackClock.togglePlay,
+    rate: trackClock.rate,
+    setRate: trackClock.setRate,
     audioProps: { ref: trackClock.ref },
   }),
 }))
@@ -175,6 +177,18 @@ describe('aligning the grid (docs/14 §5a)', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalled())
     expect((onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }).beatGrid.points).toEqual([{ id: 'p2', bar: 1, timeMs: 30000 }])
     expect(screen.getByText(/Takt 16 ist jetzt Takt 1\./)).toBeInTheDocument()
+  })
+
+  it('plays slower for tapping: 100 -> 75 -> 50 -> 100 %', () => {
+    const { unmount } = setup({ trackSrc: 'blob:track' })
+    fireEvent.click(screen.getByRole('button', { name: 'Abspielgeschwindigkeit 100 %' }))
+    expect(trackClock.setRate).toHaveBeenLastCalledWith(0.75)
+    unmount()
+    trackClock.rate = 0.5
+    setup({ trackSrc: 'blob:track' })
+    fireEvent.click(screen.getByRole('button', { name: 'Abspielgeschwindigkeit 50 %' }))
+    expect(trackClock.setRate).toHaveBeenLastCalledWith(1)
+    trackClock.rate = 1
   })
 
   it('"Takt 1 hier" starts a grid at the playhead', () => {

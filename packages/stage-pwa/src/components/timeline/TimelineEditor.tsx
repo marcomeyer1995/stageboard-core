@@ -179,6 +179,13 @@ type Drag = { pointerId: number; startX: number; startY: number; rawX: number; x
 /** Shift mode (#330): dragging moves everything from `fromMs` on; `anchorMs` is the element being
  * dragged (snapping and the readout follow it). */
 type Ripple = { fromMs: number; anchorMs: number; label: string; anchorBar?: { bar: number; timeMs: number } }
+/** "Zeilen/Tempo tippen" at a slower speed is easier (Marco, 2026-10-15): 100 → 75 → 50 → 100 %. */
+const SPEEDS = [1, 0.75, 0.5]
+function nextSpeed(rate: number): number {
+  const i = SPEEDS.findIndex((s) => Math.abs(s - rate) < 0.01)
+  return SPEEDS[(i + 1) % SPEEDS.length]!
+}
+
 type Selection = { kind: 'bar'; bar: number } | { kind: 'line'; rawIndex: number } | { kind: 'cue'; id: string } | { kind: 'note'; start: number } | { kind: 'part'; partIndex: number } | null
 type TapMode = 'tempo' | 'lines' | null
 
@@ -447,13 +454,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   // Click preview while the editor plays (clickEngine, the same one the show uses).
-  const clickState = useRef({ timeline, playing: false })
-  clickState.current = { timeline, playing: clock.isPlaying }
+  const clickState = useRef({ timeline, playing: false, rate: 1 })
+  clickState.current = { timeline, playing: clock.isPlaying, rate: clock.rate }
   useEffect(() => {
     if (!clickOn || !clock.isPlaying) return
     startClick(() => ({
       elapsedMs: clickState.current.playing ? useClockStore.getState().getElapsedMs() : null,
       timeline: clickState.current.timeline,
+      playbackRate: clickState.current.rate,
     }))
     return () => stopClick()
   }, [clickOn, clock.isPlaying])
@@ -469,7 +477,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   useEffect(() => {
     for (const text of new Set(spokenCues.map((cue) => cue.text))) void loadSpeechClip(text, speechVoice)
   }, [spokenCues, speechVoice])
-  usePlayAnnouncements(spokenCues, speechVoice, clock.isPlaying, () => (clickState.current.playing ? useClockStore.getState().getElapsedMs() : null), 0)
+  usePlayAnnouncements(spokenCues, speechVoice, clock.isPlaying, () => (clickState.current.playing ? useClockStore.getState().getElapsedMs() : null), 0, null, clock.rate)
 
   function seek(ms: number) {
     const audio = clock.audioProps.ref.current
@@ -1544,6 +1552,14 @@ export function TimelineEditor(props: TimelineEditorProps) {
         </Button>
         <Button aria-label="Hineinzoomen" onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
           +
+        </Button>
+        <Button
+          variant={clock.rate < 1 ? 'primary' : 'secondary'}
+          aria-label={`Abspielgeschwindigkeit ${Math.round(clock.rate * 100)} %`}
+          title="Langsamer abspielen (Tonhöhe bleibt) - zum Tippen"
+          onClick={() => clock.setRate(nextSpeed(clock.rate))}
+        >
+          {Math.round(clock.rate * 100)} %
         </Button>
         <Button variant={clickOn ? 'primary' : 'secondary'} aria-pressed={clickOn} onClick={() => setClickOn(!clickOn)}>
           Klick

@@ -98,9 +98,11 @@ export function usePlayAnnouncements(
   elapsedNow: () => number | null,
   outputLatencyMs: number,
   resetKey: unknown = null,
+  /** Song ms per wall ms when slowed down; unset: the loop trainer's rate (or 1). */
+  playbackRate?: number,
 ): void {
-  const latest = useRef({ items, elapsedNow, outputLatencyMs, voice })
-  latest.current = { items, elapsedNow, outputLatencyMs, voice }
+  const latest = useRef({ items, elapsedNow, outputLatencyMs, voice, playbackRate })
+  latest.current = { items, elapsedNow, outputLatencyMs, voice, playbackRate }
   useEffect(() => {
     // Nothing to say: no AudioContext needed (the Timeline plays its track on an <audio> element).
     if (!playing || items.length === 0) return
@@ -124,7 +126,7 @@ export function usePlayAnnouncements(
         done = new Set()
       }
       lastElapsed = elapsed
-      const rate = getLoopPlaybackState()?.rate ?? 1
+      const rate = latest.current.playbackRate ?? getLoopPlaybackState()?.rate ?? 1
       const audioNow = audioClock.now(ctx)
       for (const { index, inMs } of announcementsDue(current, elapsed, (LOOKAHEAD_MS + latencyMs) * rate, done)) {
         const buffer = speechClip(current[index]!.text, currentVoice)

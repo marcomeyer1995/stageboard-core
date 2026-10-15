@@ -19,6 +19,9 @@ export interface TrackClock {
   duration: number
   position: number
   togglePlay: () => void
+  /** Playback speed, 1 = normal - slowed down (pitch kept) for tapping in the Timeline. */
+  rate: number
+  setRate: (rate: number) => void
   /** Spread directly onto an `<audio>` element: `<audio {...audioProps} />`. Bundles the ref
    * and every event handler that keeps useClockStore in lockstep with the element's own
    * playback position - a consumer never needs to touch useClockStore directly. */
@@ -47,6 +50,24 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
     return () => {
       useClockStore.getState().stop()
     }
+  }, [trackSrc])
+
+  // Slowed playback (pitch kept): the element and the clock run at the same rate, so taps and
+  // the click stay in song time. Back to normal for the next track and when leaving.
+  const [rate, setRateState] = useState(1)
+  function setRate(next: number) {
+    setRateState(next)
+    useClockStore.getState().setRate(next)
+    const audio = audioRef.current
+    if (audio) {
+      audio.preservesPitch = true
+      audio.playbackRate = next
+    }
+  }
+  useEffect(() => {
+    setRateState(1)
+    useClockStore.getState().setRate(1)
+    return () => useClockStore.getState().setRate(1)
   }, [trackSrc])
 
   // "Mein Mix" (docs/21 §9.3): the track's slider sets this element's volume, also mid-song.
@@ -87,7 +108,7 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
     onSeeked: (e) => useClockStore.getState().seek(e.currentTarget.currentTime * 1000),
   }
 
-  return { elapsedMs, isPlaying, duration, position, togglePlay, audioProps }
+  return { elapsedMs, isPlaying, duration, position, togglePlay, rate, setRate, audioProps }
 }
 
 export { formatTime as formatTrackClockTime }
