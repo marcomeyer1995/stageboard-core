@@ -418,3 +418,19 @@ describe('output latency compensation (#491)', () => {
     expect(startTimes()[0]).toBeCloseTo(1000 + 0.1 - 0.43, 3)
   })
 })
+
+describe('"Klick aus" stretches (#485)', () => {
+  it('stays silent where the click is off and comes back on the grid', () => {
+    const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4', countInBars: 0 })
+    let elapsedMs = 0
+    // Off from 1000 ms to 2000 ms: the beats at 1000 and 1500 are silent, 2000 sounds again.
+    startClick(() => ({ elapsedMs, timeline, clickOnAt: (ms) => ms < 1000 || ms >= 2000 }))
+    for (let t = 0; t <= 2600; t += 50) {
+      elapsedMs = t
+      fakeCtx.currentTime = 1000 + t / 1000
+      vi.advanceTimersByTime(50)
+    }
+    const starts = fakeCtx.createOscillator.mock.results.map((r) => Math.round(((r.value as FakeOscillator).start.mock.calls[0][0] as number) * 1000) - 1000000)
+    expect(starts).toEqual([500, 2000, 2500]) // 1000 and 1500 silent (0 = the start itself, never scheduled)
+  })
+})

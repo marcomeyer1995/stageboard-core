@@ -27,6 +27,9 @@ export interface ClickEngineState {
   /** How fast `elapsedMs` advances relative to wall time (#61's Speed Trainer: 0.8 = an 80 % pass).
    * Absent means 1. Beat spacing stays in song time; only the wall-clock conversion below uses it. */
   playbackRate?: number
+  /** Whether the click sounds at this song time - "Klick aus" cues (#485, playbackCues.ts). Silent
+   * beats keep their place, so the click comes back exactly on the grid. Absent: always. */
+  clickOnAt?: (songMs: number) => boolean
   /** The song-time section a Rehearsal Loop (#61) repeats. Beats are never scheduled past its end -
    * the loop wraps there, so a beat queued beyond it would sound in the wrong place. */
   loop?: { startMs: number; endMs: number } | null
@@ -113,7 +116,7 @@ function anchorSchedule(timeline: ClickTimeline, fromMs: number, inclusive: bool
  * (instead of bursting through a backlog) when `elapsedMs` jumped by more than RESYNC_GAP_MS
  * since the last tick (a throttled/backgrounded tab), or went backwards (a loop wrap or seek). */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, timeline, playbackRate = 1, loop = null, outputLatencyMs = 0 } = getState()
+  const { elapsedMs, timeline, playbackRate = 1, loop = null, outputLatencyMs = 0, clickOnAt } = getState()
   if (elapsedMs === null) {
     nextBeat = null
     nextBeatAudioTime = null
@@ -144,7 +147,7 @@ function tick(getState: () => ClickEngineState): void {
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
     }
-    playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
+    if (!clickOnAt || clickOnAt(nextBeatOnsetMs)) playClickAt(ctx, nextBeatAudioTime, timeline.beatInBar(nextBeat) === 0)
     const beatMs = timeline.periodAfter(nextBeat)
     nextBeat++
     nextBeatOnsetMs += beatMs

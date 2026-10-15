@@ -16,6 +16,7 @@ import { useCapabilityRouting } from './useCapabilityRouting'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { sourceOutput } from './audioMix'
+import { playbackLookup } from './playbackCues'
 
 const SWITCH_KEY = 'sb:audio:announcements'
 
@@ -69,7 +70,9 @@ export function useAnnouncementDriver(): void {
   const items: Announcement[] = useMemo(() => {
     if (!variant || bpm === null) return []
     const countInBars = variant.countInEnabled ? (variant.countInBars ?? 0) : 0
-    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }), settings)
+    // "Ansagen aus" cues (#485) silence the words in their stretch.
+    const at = playbackLookup(variant.cues ?? [])
+    return sectionAnnouncements(variant.chordProContent, clickTimeline({ beatGrid: variant.beatGrid, bpm, timeSignature: variant.timeSignature, countInBars }), settings).filter((item) => at(item.atMs).voice)
   }, [variant, bpm, settings])
 
   // Clips ahead of time: this song's, and the next one's.
