@@ -1,9 +1,10 @@
-import type { TrackMeta } from 'shared-types'
+import type { StemRole, TrackMeta } from 'shared-types'
 
 /**
- * Stems (#9): `kind: 'stem'` tracks split from another track of the variant (`parentTrackId`) by
- * the Stage-Server's stem-separation plugin. They are not alternatives to play as the backing track
- * and aren't downloaded to every device - only listed, heard and renamed under their track.
+ * Stems (#9, docs/22): `kind: 'stem'` tracks that together make the song - split from another
+ * track of the variant by the Stage-Server's stem-separation plugin (`parentTrackId`), or uploaded
+ * as files from the band leader (`parentTrackId: null`). They are not alternatives to play as the
+ * backing track and aren't downloaded to every device - only listed, heard and renamed.
  */
 export function isStem(track: Pick<TrackMeta, 'kind'>): boolean {
   return track.kind === 'stem'
@@ -16,4 +17,62 @@ export function playableTracks(tracks: readonly TrackMeta[]): TrackMeta[] {
 
 export function stemsOf(tracks: readonly TrackMeta[], parentTrackId: string): TrackMeta[] {
   return tracks.filter((t) => isStem(t) && t.parentTrackId === parentTrackId)
+}
+
+/**
+ * The uploaded stem set (docs/22 §2): every stem not split from a track of this variant. A set
+ * needs no id of its own - a separated set is its track's stems, and a variant has at most one
+ * uploaded set (a variant is one arrangement; a new delivery replaces stems one by one).
+ */
+export function uploadedStems(tracks: readonly TrackMeta[]): TrackMeta[] {
+  const ids = new Set(tracks.map((t) => t.id))
+  return tracks.filter((t) => isStem(t) && (t.parentTrackId === null || !ids.has(t.parentTrackId)))
+}
+
+export const STEM_ROLE_LABELS: Record<StemRole, string> = {
+  drums: 'Schlagzeug',
+  bass: 'Bass',
+  guitar: 'Gitarre',
+  keys: 'Keys',
+  vocals: 'Gesang',
+  choir: 'Chor',
+  click: 'Klick',
+  other: 'Sonstiges',
+}
+
+/** Checked in this order - "Bassdrum" is drums, "Bass guitar" bass, "Backing vocals" choir. */
+const ROLE_WORDS: [StemRole, RegExp][] = [
+  ['click', /click|klick|metronom/],
+  ['drums', /drum|schlagzeug|kick|snare|hi-?hat|\btoms?\b|overhead|perc|cajon/],
+  ['choir', /choir|chor|backing ?voc|\bbvs?\b|backings?\b/],
+  ['vocals', /voc|vox|gesang|voice|stimme|\bsing/],
+  ['bass', /bass/],
+  ['guitar', /guit|gtr|gitarre/],
+  ['keys', /key|piano|organ|orgel|hammond|synth|rhodes|klavier|wurli|\bpad/],
+]
+
+/** A stem's role guessed from its file name - a suggestion the musician can change. */
+export function guessStemRole(fileName: string): StemRole | undefined {
+  const name = fileName.toLowerCase().replace(/[_.]+/g, ' ')
+  return ROLE_WORDS.find(([, words]) => words.test(name))?.[0]
+}
+
+/** "03_Hammond Orgel.wav" → "Hammond Orgel". */
+export function labelFromFileName(fileName: string): string {
+  const label = fileName
+    .replace(/\.[a-z0-9]{2,4}$/i, '')
+    .replace(/[_]+/g, ' ')
+    .replace(/^\s*\d{1,3}\s*[-.)]?\s+/, '')
+    .trim()
+  return label || fileName
+}
+
+/** Stems of one set must be equally long from 0:00 (docs/22 §6) - more than this apart means one
+ * was exported differently and would play out of place. */
+const LENGTH_TOLERANCE_MS = 1000
+
+/** True when the known lengths of a set's stems differ by more than the tolerance. */
+export function stemLengthsDiffer(stems: readonly TrackMeta[]): boolean {
+  const lengths = stems.map((s) => s.durationMs).filter((d): d is number => d !== undefined)
+  return lengths.length > 1 && Math.max(...lengths) - Math.min(...lengths) > LENGTH_TOLERANCE_MS
 }

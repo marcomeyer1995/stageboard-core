@@ -267,6 +267,7 @@ describe('createAsyncJobWatcher', () => {
       expect(tracks).toContainEqual(other)
       const stems = tracks.filter((t) => t.parentTrackId === 'mix-1')
       expect(stems.map((t) => t.label)).toEqual(['Schlagzeug', 'Gitarre links'])
+      expect(stems.map((t) => t.role)).toEqual(['drums', 'guitar'])
       expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/mpeg', durationMs: 170000, sizeBytes: 1 })
       expect(storedJob('stem-1')?.stemTrackIds).toEqual(stems.map((t) => t.id))
       expect(deleteAudioFile).toHaveBeenCalledWith('variant-1', 'old-drums')

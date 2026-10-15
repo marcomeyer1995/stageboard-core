@@ -1,4 +1,4 @@
-import { type Song, type SongVariant, type TrackMeta } from 'shared-types'
+import { type Song, type SongVariant, type StemRole, type TrackMeta } from 'shared-types'
 import { cacheKey } from './audioCache'
 import { deleteTrackFile, fetchTrack, uploadTrack } from './audioClient'
 import { getAudioStorageBackend } from './audioStorageBackend'
@@ -125,13 +125,23 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   await putVariant({ ...current, tracks })
 }
 
-/** A new name for a track - e.g. a stem "Gitarre links" becomes "Gitarre Marco". */
-export async function renameTrack(variantId: string, trackId: string, label: string): Promise<void> {
+/** A stem's new name and role (docs/22 §2) - e.g. "Gitarre links" becomes "Gitarre Marco";
+ * `role: undefined` clears the role. */
+export async function updateStem(variantId: string, trackId: string, label: string, role: StemRole | undefined): Promise<void> {
   const name = label.trim()
   if (!name) return
   const db = getVariantsDb()
   const current = await db.get(variants.docId(variantId))
-  await putVariant({ ...current, tracks: current.tracks.map((t) => (t.id === trackId ? { ...t, label: name } : t)) })
+  await putVariant({
+    ...current,
+    tracks: current.tracks.map((t) => {
+      if (t.id !== trackId) return t
+      const next: TrackMeta = { ...t, label: name }
+      if (role) next.role = role
+      else delete next.role
+      return next
+    }),
+  })
 }
 
 /**

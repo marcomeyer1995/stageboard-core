@@ -10,6 +10,14 @@ import { ShowCueSchema } from './showCue.js'
 export const TrackKindSchema = z.enum(['reference', 'band-mix', 'stem'])
 export type TrackKind = z.infer<typeof TrackKindSchema>
 
+/**
+ * What a stem carries (docs/22 §2) - optional: a band leader's stems have no fixed structure, so a
+ * stem may stay without one. Only used to treat the same instrument alike across songs (show
+ * presets, docs/22 §4).
+ */
+export const StemRoleSchema = z.enum(['drums', 'bass', 'guitar', 'keys', 'vocals', 'choir', 'click', 'other'])
+export type StemRole = z.infer<typeof StemRoleSchema>
+
 export const TrackMetaSchema = z.object({
   /** Also the PouchDB attachment key on the owning SongVariant doc, namespaced `track-${id}`. */
   id: z.string().min(1),
@@ -18,6 +26,9 @@ export const TrackMetaSchema = z.object({
   source: z.enum(['upload', 'youtube-extract', 'stem-separation']),
   /** Which track a stem was derived from; null for anything uploaded/extracted directly. */
   parentTrackId: z.string().nullable(),
+  /** A stem's instrument, if known (docs/22 §2). Set by the separation, suggested from the file
+   * name on upload; absent = none. */
+  role: StemRoleSchema.optional(),
   mimeType: z.string(),
   addedAt: z.number().int().nonnegative(),
   /** Absent (not 0) means "unknown" - tracks uploaded before this field existed. Excluded

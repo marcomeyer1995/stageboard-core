@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginInstallation, TrackMeta } from 'shared-types'
 
 const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJob: vi.fn() }))
 vi.mock('../lib/asyncJobsDb', () => db)
-vi.mock('../lib/songVariantsDb', () => ({ putTrack: vi.fn(), removeTrack: vi.fn(), renameTrack: vi.fn(), getTrack: vi.fn() }))
+const variants = vi.hoisted(() => ({ putTrack: vi.fn(async () => {}), removeTrack: vi.fn(), updateStem: vi.fn(), getTrack: vi.fn() }))
+vi.mock('../lib/songVariantsDb', () => variants)
+vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
     sync() {
@@ -46,5 +48,32 @@ describe('TrackManagerField - stems (#9)', () => {
     fireEvent.click(within(dialog).getByRole('switch', { name: /Gitarre links\/rechts/ }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Trennen' }))
     expect(db.putAsyncJob).toHaveBeenCalledWith(expect.objectContaining({ type: 'stem-separation', variantId: 'v1', sourceTrackId: 'mix', model: 'extended', splitGuitar: true, status: 'queued' }))
+  })
+})
+
+describe('TrackManagerField - stem sets (docs/22)', () => {
+  it('uploads several stems at once, named and with a role from the file name', async () => {
+    const { container } = render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'stem' } })
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    expect(input.multiple).toBe(true)
+    const files = [new File(['k'], '01_Hammond.wav', { type: 'audio/wav' }), new File(['b'], 'Bass.wav', { type: 'audio/wav' }), new File(['x'], 'Didgeridoo.wav', { type: 'audio/wav' })]
+    fireEvent.change(input, { target: { files } })
+    await waitFor(() => expect(variants.putTrack).toHaveBeenCalledTimes(3))
+    const metas = variants.putTrack.mock.calls.map((call) => (call as unknown[])[1] as TrackMeta)
+    expect(metas.map((m) => [m.kind, m.label, m.role, m.parentTrackId])).toEqual([
+      ['stem', 'Hammond', 'keys', null],
+      ['stem', 'Bass', 'bass', null],
+      ['stem', 'Didgeridoo', undefined, null],
+    ])
+  })
+
+  it('lists uploaded stems in a set of their own and warns about different lengths', () => {
+    const uploaded = [track('keys', 'Hammond', { kind: 'stem', role: 'keys', durationMs: 180_000 }), track('choir', 'Chor hoch', { kind: 'stem', durationMs: 175_000 })]
+    render(<TrackManagerField variantId="v1" tracks={[...tracks, ...uploaded]} disabled={false} />)
+    expect(screen.getByText('Hochgeladene Spuren')).toBeInTheDocument()
+    expect(screen.getByText('Hammond')).toBeInTheDocument()
+    expect(screen.getByText('Chor hoch')).toBeInTheDocument()
+    expect(screen.getByText(/unterschiedlich lang/)).toBeInTheDocument()
   })
 })
