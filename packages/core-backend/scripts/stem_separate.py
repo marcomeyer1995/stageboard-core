@@ -4,7 +4,7 @@ Usage: stem_separate.py <input> <outdir> <standard|extended> [--split-guitar]
 
 Decodes any audio the browser could upload (WebM/Opus, MP3, M4A, WAV ...) with PyAV - no ffmpeg
 program needed - separates it with Demucs (htdemucs: drums, bass, vocals, other; htdemucs_6s: also
-guitar and piano) and writes one MP3 per stem. `--split-guitar` splits the guitar stem by stereo
+guitar and piano) and writes one WebM/Opus file per stem (256 kbit/s). `--split-guitar` splits the guitar stem by stereo
 side (two main guitars panned left and right). Prints `PROGRESS <0..1>` lines while working and,
 last, `RESULT <json>` with the stems written.
 """
@@ -14,9 +14,15 @@ import sys
 import av
 import numpy as np
 import torch
-from demucs.api import Separator, save_audio
+from demucs.api import Separator
 
 MODELS = {'standard': 'htdemucs', 'extended': 'htdemucs_6s'}
+# Opus, not MP3 (2026-10-15): MP3 at 192 kbit/s cut the highs of the summed stems (error -10 dB
+# at 10-16 kHz, -2 dB above, vs -17/-13 dB with Opus 256) and every stem started 25 ms late - its
+# encoder delay was written without the header that tells decoders to skip it. Opus' pre-skip is
+# honoured by every decoder. Same format the browser's own recordings use.
+OPUS_BITRATE = 256_000
+OPUS_RATE = 48_000
 # Decoding is quick, separating takes ~95 % of the time, writing the rest.
 DECODE_SHARE, SEPARATE_SHARE = 0.03, 0.92
 
@@ -34,6 +40,29 @@ def decode(path, samplerate):
     chunks.extend(f.to_ndarray() for f in resampler.resample(None))
     container.close()
     return torch.from_numpy(np.concatenate(chunks, axis=1))
+
+
+def write_opus(audio, path, samplerate):
+    # Clamped, not rescaled: every stem keeps its level, so they add up to the mix.
+    data = np.clip(audio.numpy(), -1.0, 1.0).astype(np.float32)
+    container = av.open(path, 'w', format='webm')
+    stream = container.add_stream('libopus', rate=OPUS_RATE)
+    stream.bit_rate = OPUS_BITRATE
+    stream.layout = 'stereo'
+    resampler = av.AudioResampler(format=stream.codec_context.format.name, layout='stereo', rate=OPUS_RATE)
+    step = samplerate // 10
+    for start in range(0, data.shape[1], step):
+        frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(data[:, start:start + step].T.reshape(1, -1)), format='flt', layout='stereo')
+        frame.sample_rate = samplerate
+        for resampled in resampler.resample(frame):
+            for packet in stream.encode(resampled):
+                container.mux(packet)
+    for resampled in resampler.resample(None):
+        for packet in stream.encode(resampled):
+            container.mux(packet)
+    for packet in stream.encode(None):
+        container.mux(packet)
+    container.close()
 
 
 def main():
@@ -57,12 +86,11 @@ def main():
             # One side each, as mono in both ears.
             for side, channel in (('guitar-left', 0), ('guitar-right', 1)):
                 mono = audio[channel:channel + 1].repeat(2, 1)
-                save_audio(mono, f'{outdir}/{side}.mp3', samplerate=samplerate, bitrate=192, clip='clamp')
-                outputs.append({'key': side, 'file': f'{side}.mp3'})
+                write_opus(mono, f'{outdir}/{side}.webm', samplerate)
+                outputs.append({'key': side, 'file': f'{side}.webm'})
             continue
-        # 'clamp', not Demucs' default 'rescale': every stem keeps its level, so they add up to the mix.
-        save_audio(audio, f'{outdir}/{key}.mp3', samplerate=samplerate, bitrate=192, clip='clamp')
-        outputs.append({'key': key, 'file': f'{key}.mp3'})
+        write_opus(audio, f'{outdir}/{key}.webm', samplerate)
+        outputs.append({'key': key, 'file': f'{key}.webm'})
     progress(1)
     print('RESULT ' + json.dumps({'stems': outputs}), flush=True)
 

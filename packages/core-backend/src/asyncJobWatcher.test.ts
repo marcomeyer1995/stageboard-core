@@ -252,11 +252,11 @@ describe('createAsyncJobWatcher', () => {
       vi.mocked(runStemSeparation).mockImplementation(async (...args: unknown[]) => {
         const [, outDir, , onProgress] = args as [string, string, unknown, (p: number) => void]
         onProgress(0.5)
-        await writeFile(`${outDir}/drums.mp3`, Buffer.from('d'))
-        await writeFile(`${outDir}/guitar-left.mp3`, Buffer.from('g'))
+        await writeFile(`${outDir}/drums.webm`, Buffer.from('d'))
+        await writeFile(`${outDir}/guitar-left.webm`, Buffer.from('g'))
         return [
-          { key: 'drums', path: `${outDir}/drums.mp3` },
-          { key: 'guitar-left', path: `${outDir}/guitar-left.mp3` },
+          { key: 'drums', path: `${outDir}/drums.webm` },
+          { key: 'guitar-left', path: `${outDir}/guitar-left.webm` },
         ]
       })
       const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
@@ -268,7 +268,7 @@ describe('createAsyncJobWatcher', () => {
       const stems = tracks.filter((t) => t.parentTrackId === 'mix-1')
       expect(stems.map((t) => t.label)).toEqual(['Schlagzeug', 'Gitarre links'])
       expect(stems.map((t) => t.role)).toEqual(['drums', 'guitar'])
-      expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/mpeg', durationMs: 170000, sizeBytes: 1 })
+      expect(stems[0]).toMatchObject({ kind: 'stem', source: 'stem-separation', mimeType: 'audio/webm', durationMs: 170000, sizeBytes: 1 })
       expect(storedJob('stem-1')?.stemTrackIds).toEqual(stems.map((t) => t.id))
       expect(deleteAudioFile).toHaveBeenCalledWith('variant-1', 'old-drums')
       expect(runStemSeparation).toHaveBeenCalledWith(expect.any(String), expect.any(String), { model: 'extended', splitGuitar: true }, expect.any(Function))

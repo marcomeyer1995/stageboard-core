@@ -46,7 +46,7 @@ export function parseStemResult(line: string, outDir: string): StemFile[] | null
   if (!match) return null
   try {
     const parsed = JSON.parse(match[1]!) as { stems?: { key?: unknown; file?: unknown }[] }
-    const stems = (parsed.stems ?? []).filter((s): s is { key: string; file: string } => typeof s.key === 'string' && typeof s.file === 'string' && /^[\w-]+\.mp3$/.test(s.file))
+    const stems = (parsed.stems ?? []).filter((s): s is { key: string; file: string } => typeof s.key === 'string' && typeof s.file === 'string' && /^[\w-]+\.webm$/.test(s.file))
     return stems.map((s) => ({ key: s.key, path: join(outDir, s.file) }))
   } catch {
     return null
