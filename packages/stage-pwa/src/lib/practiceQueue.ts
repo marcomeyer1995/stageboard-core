@@ -1,6 +1,6 @@
 import { isSongEntry, isTransitionEntry } from 'shared-types'
 import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
-import type { PlayOptions } from './playbackTransport'
+import { PLAY_LEAD_MS, type PlayOptions } from './playbackTransport'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs } from './metronome'
 import {
@@ -130,15 +130,18 @@ export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
   if (isFreshStart) takeJumpMs = 0
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
   const activeSong = currentVariant ?? currentSong
+  // Song time 0 lies at least PLAY_LEAD_MS ahead, as in Gig mode (queue.ts): the Web Audio track
+  // and stems (useStemPlaybackDriver.ts) need that long to schedule their start - started "now",
+  // the first ~0.4 s of the song was skipped (Fire and Xiaomi, 2026-10-15).
   const seededMs = seedCountIn && activeSong
-    ? countInLeadMs(
+    ? Math.min(-PLAY_LEAD_MS, countInLeadMs(
         clickTimeline({
           beatGrid: currentVariant?.beatGrid,
           bpm: activeSong.bpm,
           timeSignature: activeSong.timeSignature,
           countInBars: currentVariant?.countInEnabled ? currentVariant.countInBars : 0,
         }),
-      )
+      ))
     : isFreshStart
       ? 0
       : state.playbackAccumulatedMs

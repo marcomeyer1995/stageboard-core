@@ -76,3 +76,31 @@ export function stemLengthsDiffer(stems: readonly TrackMeta[]): boolean {
   const lengths = stems.map((s) => s.durationMs).filter((d): d is number => d !== undefined)
   return lengths.length > 1 && Math.max(...lengths) - Math.min(...lengths) > LENGTH_TOLERANCE_MS
 }
+
+/** A playable group of stems: those split from one track, or the uploaded ones (key `upload`). */
+export interface StemSet {
+  key: string
+  label: string
+  stems: TrackMeta[]
+}
+
+export const UPLOADED_SET = 'upload'
+
+/** Every stem set of a variant - uploaded first (the band leader's, made for playing), then one
+ * per separated track. */
+export function stemSetsOf(tracks: readonly TrackMeta[]): StemSet[] {
+  const sets: StemSet[] = []
+  const uploaded = uploadedStems(tracks)
+  if (uploaded.length) sets.push({ key: UPLOADED_SET, label: 'Hochgeladen', stems: uploaded })
+  for (const track of playableTracks(tracks)) {
+    const stems = stemsOf(tracks, track.id)
+    if (stems.length) sets.push({ key: track.id, label: `Aus ${track.label}`, stems })
+  }
+  return sets
+}
+
+/** The set that plays: the chosen one, else the uploaded set, else the playing track's stems,
+ * else the first. */
+export function pickStemSet(sets: readonly StemSet[], chosen: string | null, playingTrackId: string | null): StemSet | null {
+  return sets.find((s) => s.key === chosen) ?? sets.find((s) => s.key === UPLOADED_SET) ?? sets.find((s) => s.key === playingTrackId) ?? sets[0] ?? null
+}

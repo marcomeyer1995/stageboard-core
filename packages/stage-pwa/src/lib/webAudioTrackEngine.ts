@@ -6,7 +6,7 @@ import { openTrackStream, type TrackStream } from './trackStream'
 import { sourceOutput } from './audioMix'
 
 /**
- * Backing track on the click's own audio clock (#468, prototype behind a per-device switch).
+ * Backing track on the click's own audio clock (#468; the default since 2026-10-15, per device switchable off).
  *
  * The `<audio>` element (localAudioEngine.ts) can only be nudged from outside: after every start
  * or seek its position stood still for a variable 0-620 ms (Bluetooth on the S26+, the Xiaomi
@@ -57,21 +57,26 @@ const MAX_PREPARED = 3
 
 const SWITCH_KEY = 'sb:audio:webaudio-track'
 
-/** Whether this device plays the Gig backing track through Web Audio (the prototype switch). */
+/**
+ * Whether this device plays the Gig backing track through Web Audio - the default since
+ * 2026-10-15 (Marco): Solo practice and stems play there too, and on the Xiaomi the `<audio>`
+ * element went through Android's media path with Dolby/MiSound while Web Audio didn't, so the same
+ * track sounded different in Gig and Solo. Switched off per device (`'0'`), the element plays.
+ */
 export function webAudioTrackEnabled(): boolean {
   try {
-    return localStorage.getItem(SWITCH_KEY) === '1'
+    return localStorage.getItem(SWITCH_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 
 export function setWebAudioTrackEnabled(on: boolean): void {
   try {
-    if (on) localStorage.setItem(SWITCH_KEY, '1')
-    else localStorage.removeItem(SWITCH_KEY)
+    if (on) localStorage.removeItem(SWITCH_KEY)
+    else localStorage.setItem(SWITCH_KEY, '0')
   } catch {
-    // Private mode etc. - the switch then simply stays off.
+    // Private mode etc. - the default then applies.
   }
 }
 

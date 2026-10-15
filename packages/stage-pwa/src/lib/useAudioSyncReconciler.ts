@@ -6,6 +6,7 @@ import { useQueue } from './queue'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 
 /**
@@ -31,11 +32,15 @@ export function useAudioSyncReconciler(workspaceId: string) {
   const trackOverride = useShowStateStore((state) => state.state.trackOverride)
   const currentTrack = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
 
+  // The stems practiced right now (docs/22 §3) - otherwise stems are never cached.
+  const stemKeys = useStemPlaybackStore((state) => state.cacheKeys)
+
   const alwaysKeepKeys = useMemo(() => {
-    if (!currentVariant || !currentTrack) return new Set<string>()
-    return new Set([cacheKey(currentVariant.id, currentTrack.id)])
+    const keys = new Set<string>(stemKeys)
+    if (currentVariant && currentTrack) keys.add(cacheKey(currentVariant.id, currentTrack.id))
+    return keys
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVariant?.id, currentTrack?.id])
+  }, [currentVariant?.id, currentTrack?.id, stemKeys])
 
   useEffect(() => {
     scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
