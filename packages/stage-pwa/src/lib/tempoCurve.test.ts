@@ -76,6 +76,12 @@ describe('tempoCurve', () => {
 })
 
 describe('gridFromTappedCurve (#354)', () => {
+  it('a steady tempo tapped by hand - taps scattered ±25 ms - stays steady (2026-10-15)', () => {
+    // 149 BPM, 6 bars; a person rushes, then drags - ±25 ms drifting over 12 beats.
+    const taps = Array.from({ length: 24 }, (_, i) => 3300 + (i * 60000) / 149 + 25 * Math.sin((i / 12) * 2 * Math.PI))
+    expect(gridFromTappedCurve(bar1At(3300), 149, '4/4', taps).kind).toBe('steady')
+  })
+
   it('steady taps stay with the one-tempo path', () => {
     const real = truth([[80, 120, 120]])
     expect(gridFromTappedCurve(bar1At(real[0]!), 120, '4/4', tapsFor(real, 1, 15)).kind).toBe('steady')
