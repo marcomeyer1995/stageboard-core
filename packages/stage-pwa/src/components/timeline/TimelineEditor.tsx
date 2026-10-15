@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
-import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { startClick, stopClick } from '../../lib/clickEngine'
 import { describeCue } from '../../lib/deviceCommands'
@@ -1243,6 +1243,27 @@ export function TimelineEditor(props: TimelineEditorProps) {
     commitGrid(setMeter(editableGrid, bar, ts || null))
   }
 
+  /** "Taktnummer ändern": this bar gets another number, the beats stay where they are - e.g. a
+   * track starting with a sound effect, whose second bar is the song's bar 1. */
+  async function editBarNumber(bar: number) {
+    const result = await promptFields(`Takt ${bar} wird Takt …`, [{ key: 'bar', label: 'Neue Taktnummer', type: 'pin', defaultValue: bar === 1 ? '' : '1' }], 'Übernehmen')
+    if (!result) return
+    const newBar = Number((result.bar ?? '').trim())
+    if (!Number.isInteger(newBar) || newBar < 1) {
+      setNotice('Eine ganze Zahl ab 1 eingeben.')
+      return
+    }
+    if (newBar === bar) return
+    const next = renumberBars(editableGrid, bar, newBar, timeSignature, bpm)
+    if (!next) {
+      setNotice(`Geht nicht: ein Taktartwechsel läge dann auf oder vor Takt 1. Erst die Taktart ab Takt ${bar} anpassen.`)
+      return
+    }
+    setNotice(`Takt ${bar} ist jetzt Takt ${newBar}.${newBar === 1 ? ' Klick und Einzählen richten sich danach.' : ''}`)
+    commitGrid(next)
+    setSelection({ kind: 'bar', bar: newBar })
+  }
+
   // --- cues ---
   function openCueDialog(timeMs: number, cueId?: string) {
     if (logicalDevices.length === 0) {
@@ -1707,6 +1728,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
               Taktart ab hier
             </Button>
           )}
+          <Button onClick={() => void editBarNumber(selectedBar)}>
+            Taktnummer ändern
+          </Button>
           <Button disabled={tapMode !== null} onClick={() => rippleFrom(selectedBarMs, `Takt ${selectedBar} und alles danach`, { bar: selectedBar, timeMs: selectedBarMs })}>
             Alles danach verschieben
           </Button>
