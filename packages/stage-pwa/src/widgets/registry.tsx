@@ -5,6 +5,8 @@ import { ActiveSetlistConfigPanel, ActiveSetlistWidget } from './ActiveSetlistWi
 import { ActiveSetlistConfigSchema } from './activeSetlistConfig'
 import { AudioMixConfigPanel, AudioMixWidget } from './AudioMixWidget'
 import { AudioMixConfigSchema } from './audioMixConfig'
+import { StemsConfigPanel, StemsWidget } from './StemsWidget'
+import { StemsConfigSchema } from './stemsConfig'
 import { BackupStatusConfigPanel, BackupStatusWidget } from './BackupStatusWidget'
 import { BackupStatusConfigSchema } from './backupStatusConfig'
 import { ClickTrackConfigPanel, ClickTrackWidget } from './ClickTrackWidget'
@@ -302,6 +304,17 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: AudioMixConfigSchema,
     Component: AudioMixWidget,
     ConfigPanel: AudioMixConfigPanel,
+  }),
+  defineWidget({
+    type: 'stems',
+    title: 'Stems',
+    description: 'Solo Üben: die Spuren eines Songs (Schlagzeug, Bass, Gitarre …) statt des Tracks - je ein Regler, Stumm und Solo.',
+    category: 'performance',
+    stageTier: 'rehearsal',
+    defaultLayout: { w: 6, h: 8, minW: 3, minH: 4 },
+    configSchema: StemsConfigSchema,
+    Component: StemsWidget,
+    ConfigPanel: StemsConfigPanel,
   }),
   defineWidget({
     type: 'track-override',

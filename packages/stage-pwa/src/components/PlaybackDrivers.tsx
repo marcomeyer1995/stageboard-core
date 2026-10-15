@@ -9,6 +9,7 @@ import { useMidiClock } from '../lib/useMidiClock'
 import { useMasterSelfCheck } from '../lib/useMasterSelfCheck'
 import { useSongAlerts } from '../lib/useSongAlerts'
 import { useStallMonitor } from '../lib/useStallMonitor'
+import { useStemPlaybackDriver } from '../lib/useStemPlaybackDriver'
 import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
 
 /**
@@ -34,6 +35,8 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   // Main-thread stalls while a song plays - sets the cue look-ahead (#477, Diagnose tab).
   useStallMonitor()
   useAudioOutputDriver()
+  // Solo practice: the song's stems instead of its track, when switched on (docs/22 §3).
+  useStemPlaybackDriver()
   useClickOutputDriver()
   // Spoken section announcements next to the click (#63).
   useAnnouncementDriver()

@@ -138,7 +138,7 @@ export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
   const audio = getAudioEl()
   // A Play right after Stop/Pause must not be cut off by that fade's closing pause().
   cancelFade(audio)
-  audio.volume = trackElementVolume()
+  audio.volume = elementVolume()
   seekTo(audio, atMs)
   try {
     await audio.play()
@@ -161,13 +161,27 @@ let fade: { audio: HTMLAudioElement; timer: ReturnType<typeof setInterval>; volu
 function cancelFade(audio: HTMLAudioElement): void {
   if (!fade || fade.audio !== audio) return
   clearInterval(fade.timer)
-  audio.volume = trackElementVolume()
+  audio.volume = elementVolume()
   fade = null
+}
+
+/** True while the song's stems play instead (docs/22 §3, stemEngine.ts): the element keeps running
+ * silently, so position, track end and everything else that follows it stay as they are. */
+let silenced = false
+
+function elementVolume(): number {
+  return silenced ? 0 : trackElementVolume()
+}
+
+export function setLocalTrackSilenced(on: boolean): void {
+  if (silenced === on) return
+  silenced = on
+  if (audioEl && !fade) audioEl.volume = elementVolume()
 }
 
 // A slider move in "Mein Mix" is heard at once - except during a fade, which ends on the new level.
 useAudioMixStore.subscribe(() => {
-  if (audioEl && !fade) audioEl.volume = trackElementVolume()
+  if (audioEl && !fade) audioEl.volume = elementVolume()
 })
 
 /** Fades the element out over FADE_OUT_MS, then pauses it and restores its volume. Nothing to
@@ -343,6 +357,7 @@ export function unloadLocalTrack(): void {
  * asserting on `currentTime`/`paused` needs some way to read it back. */
 /** Test-only: puts the shared element back to paused at 0 with no fade running. */
 export function __resetLocalAudioForTests(): void {
+  silenced = false
   const audio = getAudioEl()
   cancelFade(audio)
   audio.pause()
