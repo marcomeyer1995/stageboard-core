@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BeatGrid } from 'shared-types'
-import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, setMeter, setPoint, tempoFromTaps } from './beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridFromBeats, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from './beatGrid'
 
 const grid = (...points: [number, number][]): BeatGrid => ({ points: points.map(([bar, timeMs], i) => ({ id: `p${i}`, bar, timeMs })), meters: [] })
 const times = (g: BeatGrid, from: number, to: number, bpm = 120, ts = '4/4') => beatsBetween(clickTimeline({ beatGrid: g, bpm, timeSignature: ts }), from, to).map((b) => Math.round(b.timeMs))
@@ -104,6 +104,38 @@ describe('editing points', () => {
     const g = grid([1, 1000])
     expect(removePoint(g, 'p0')).toBe(g)
     expect(removePoint(grid([1, 1000], [9, 17000]), 'p1').points).toHaveLength(1)
+  })
+})
+
+describe('renumberBars', () => {
+  it('bar 2 becomes bar 1: every beat from there stays put, the bar before is dropped', () => {
+    const g = grid([1, 1730], [4, 6480], [16, 25860])
+    const next = renumberBars(g, 2, 1, '4/4', 151.6)!
+    expect(next.points.map((p) => p.bar)).toEqual([1, 3, 15])
+    expect(next.points[0]!.timeMs).toBe(Math.round(times(g, 0, 30000, 151.6)[4]!))
+    const before = times(g, 3000, 30000, 151.6)
+    const after = times(next, 3000, 30000, 151.6)
+    expect(after).toHaveLength(before.length)
+    after.forEach((t, i) => expect(Math.abs(t - before[i]!)).toBeLessThanOrEqual(1)) // points are whole ms
+    const timeline = clickTimeline({ beatGrid: next, bpm: 151.6, timeSignature: '4/4' })
+    expect(timeline.barOf(timeline.beatAtOrBefore(6481))).toBe(3)
+  })
+
+  it('works on a single point and shifts the other way too', () => {
+    expect(renumberBars(newGrid(1000), 2, 1, '4/4', 120)!.points.map((p) => [p.bar, p.timeMs])).toEqual([[1, 3000]])
+    const g = grid([1, 1000], [5, 9000])
+    const later = renumberBars(g, 1, 3, '4/4', 120)!
+    expect(later.points.map((p) => [p.bar, p.timeMs])).toEqual([
+      [3, 1000],
+      [7, 9000],
+    ])
+  })
+
+  it('moves meter changes along and refuses one landing on the new bar 1', () => {
+    const g = { ...grid([1, 1000]), meters: [{ bar: 9, timeSignature: '3/4' }] }
+    expect(renumberBars(g, 2, 1, '4/4', 120)!.meters).toEqual([{ bar: 8, timeSignature: '3/4' }])
+    expect(renumberBars(g, 9, 1, '4/4', 120)).toBeNull()
+    expect(renumberBars(g, 2, 2, '4/4', 120)).toBeNull()
   })
 })
 

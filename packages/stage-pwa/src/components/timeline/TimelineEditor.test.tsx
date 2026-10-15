@@ -165,6 +165,18 @@ describe('aligning the grid (docs/14 §5a)', () => {
     expect((onChange.mock.calls[1]![0] as { beatGrid: BeatGrid }).beatGrid.points.map((p) => p.bar)).toEqual([1])
   })
 
+  it('"Taktnummer ändern" renumbers the bars, the beats stay', async () => {
+    const grid2: BeatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 0 }, { id: 'p2', bar: 16, timeMs: 30000 }], meters: [] }
+    const { onChange } = setup({ beatGrid: grid2 })
+    zoomIn()
+    dragGrid(30000, 30000)
+    dialog.promptFields.mockResolvedValueOnce({ bar: '1' })
+    fireEvent.click(screen.getByText('Taktnummer ändern'))
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    expect((onChange.mock.calls[0]![0] as { beatGrid: BeatGrid }).beatGrid.points).toEqual([{ id: 'p2', bar: 1, timeMs: 30000 }])
+    expect(screen.getByText(/Takt 16 ist jetzt Takt 1\./)).toBeInTheDocument()
+  })
+
   it('"Takt 1 hier" starts a grid at the playhead', () => {
     const { onChange } = setup()
     fireEvent.click(tool('Takt 1 hier'))

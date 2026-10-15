@@ -293,6 +293,32 @@ export function setPoint(grid: BeatGrid, bar: number, timeMs: number, timeSignat
   return { ...grid, points }
 }
 
+/**
+ * Gives bar `bar` the number `newBar` and every other bar the same shift - the beats stay where
+ * they are, only their numbers change (e.g. a track whose first bar is a sound effect: its bar 2
+ * becomes bar 1). Points that would land before bar 1 are dropped; the renumbered bar then gets a
+ * point of its own at its current time, so nothing after it moves. Refused (null) when a
+ * time-signature change would land on or before the new bar 1 - that bar's meter is the
+ * variant's own, set above the timeline.
+ */
+export function renumberBars(grid: BeatGrid, bar: number, newBar: number, timeSignature: string, bpm: number): BeatGrid | null {
+  const shift = newBar - bar
+  if (newBar < 1 || shift === 0) return null
+  if (grid.meters.some((m) => m.bar + shift < 2)) return null
+  let points = grid.points
+  if (points.some((p) => p.bar + shift < 1) && !points.some((p) => p.bar === bar)) {
+    const timeline = clickTimeline({ beatGrid: grid, bpm, timeSignature })
+    points = [...points, { id: randomId(), bar, timeMs: Math.max(0, Math.round(timeline.timeOfBeat(timeline.barStartBeat(bar)))) }]
+  }
+  return {
+    points: points
+      .map((p) => ({ ...p, bar: p.bar + shift }))
+      .filter((p) => p.bar >= 1)
+      .sort((a, b) => a.bar - b.bar),
+    meters: grid.meters.map((m) => ({ ...m, bar: m.bar + shift })),
+  }
+}
+
 /** Removes a point - never the last one (a grid needs somewhere to start). */
 export function removePoint(grid: BeatGrid, id: string): BeatGrid {
   if (grid.points.length <= 1) return grid
