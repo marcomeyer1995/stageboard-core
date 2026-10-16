@@ -96,8 +96,10 @@ export function SystemView() {
             <h2 className="text-lg font-bold text-ink">Wiedergabe (Test)</h2>
             <WebAudioTrackSettings />
           </section>
-          {/* The stand-ins that only log - for trying things out, not for the stage. */}
-          <div className="max-w-4xl px-4 pb-4">
+          {/* The stand-ins that only log - for trying things out, not for the stage - and the device
+              drivers, which Bühnentechnik keeps out of sight (Marco, 2026-10-16). */}
+          <div className="flex max-w-4xl flex-col gap-6 px-4 pb-4">
+            <PluginManager kind="drivers" />
             <PluginManager kind="test" />
           </div>
         </>

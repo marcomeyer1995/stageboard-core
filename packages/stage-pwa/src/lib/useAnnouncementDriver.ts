@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { CAPABILITIES } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
 import { create } from 'zustand'
 import { announcementsDue, sectionAnnouncements, type Announcement } from './announcements'
 import { createAudioClock } from './audioClock'
@@ -13,6 +13,7 @@ import { useShowModeSong } from './showMode'
 import { loadSpeechClip, speechClip, type ClipVoice } from './speechClips'
 import { bandAnnouncementSettings, bandSpeechVoice } from './speechVoices'
 import { useCapabilityRouting } from './useCapabilityRouting'
+import { useHardwareBindingFor } from './useHardwareBindingFor'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { sourceOutput } from './audioMix'
@@ -55,7 +56,13 @@ export function useAnnouncementDriver(): void {
   const { mode, queue, playbackStatus, elapsedNow } = useShowModeSong()
   const installed = usePluginsStore((state) => state.installed)
   const enabledHere = useAnnouncementsSwitchStore((state) => state.on)
-  const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
+  const { engine: clickEngine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
+  // Bühnentechnik → Ansagen (Marco, 2026-10-16): a chosen tablet speaks them in Gig; without one
+  // they come with the click, as before.
+  const announcementRole = useHardwareBindingFor(CAPABILITIES.sectionAnnouncements)
+  const deviceId = useShowStateStore((state) => state.deviceId)
+  const ownTarget = mode === 'gig' && announcementRole?.executionTarget && announcementRole.executionTarget !== SERVER_EXECUTION_TARGET ? announcementRole.executionTarget : null
+  const engine = ownTarget ? (ownTarget === deviceId ? 'local-mine' : 'local-other') : clickEngine
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)
   const outputLatencyMs = useAudioOutputLatencyMs()

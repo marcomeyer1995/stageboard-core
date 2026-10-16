@@ -6,7 +6,7 @@ import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
-import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
 import { listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -131,7 +131,8 @@ function TypeStep({
       <p className="text-xs text-ink-faint">Welche Art Gerät ist das?</p>
       <div className="flex flex-col gap-2">
         {/* A device already set up on a test plugin keeps showing its type. */}
-        {PLUGIN_CATALOG.filter((candidate) => candidate.id === draft.pluginId || installableCatalog().includes(candidate)).map((candidate) => {
+        {/* Gear only (Marco, 2026-10-16): Add-ons like Sprachausgabe are no device. */}
+        {PLUGIN_CATALOG.filter((candidate) => candidate.id === draft.pluginId || (installableCatalog().includes(candidate) && pluginKind(candidate) !== 'extensions')).map((candidate) => {
           const alreadyInstalled = installed.some((p) => p.id === candidate.id)
           const selected = draft.pluginId === candidate.id
           return (
