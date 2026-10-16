@@ -84,52 +84,17 @@ describe('AppMenu', () => {
     expect(screen.queryByText('Wer bin ich')).not.toBeInTheDocument()
   })
 
-  it('changing the dashboard list (new, order, hide, edit) sits behind one "Bearbeiten"', () => {
+  it('is a drawer from the left without the dashboard list - that moved to the bento menu (docs/15 D8)', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
+    useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0)] })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Neues Dashboard' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Menü' })).toHaveAttribute('data-side', 'left')
+    expect(screen.queryByText('Bühne')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument()
   })
 })
 
-describe('AppMenu dashboard picker (#35)', () => {
-  it('keeps the list with a single dashboard - it is where dashboards are edited and created', () => {
-    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0)] })
-    render(<AppMenu mode="library" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-
-    expect(screen.getByText('Dashboards')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
-    expect(screen.getByRole('button', { name: 'Neues Dashboard' })).toBeInTheDocument()
-  })
-
-  it('lists every dashboard, highlights the active one, and lets any mode reach it (not gated on already being in live mode)', () => {
-    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0), dashboard('d2', 'Monitor', 1)] })
-    useActiveDashboardStore.setState({ byWorkspace: { 'band-a': 'd2' } })
-
-    render(<AppMenu mode="system" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-
-    const active = screen.getByRole('button', { name: /^Monitor/ })
-    const inactive = screen.getByRole('button', { name: 'Bühne' })
-    expect(active).toHaveClass('bg-accent')
-    expect(inactive).not.toHaveClass('bg-accent')
-  })
-
-  it('picking a dashboard sets it active, switches to the Boards, and closes the menu - one tap from anywhere', () => {
-    useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    useDashboardsStore.setState({ dashboards: [dashboard('d1', 'Bühne', 0), dashboard('d2', 'Monitor', 1)] })
-    const onSelectMode = vi.fn()
-    const onClose = vi.fn()
-
-    render(<AppMenu mode="library" onSelectMode={onSelectMode} onClose={onClose} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }))
-
-    expect(useActiveDashboardStore.getState().byWorkspace['band-a']).toBe('d2')
-    expect(onSelectMode).toHaveBeenCalledWith('boards')
-    expect(onClose).toHaveBeenCalled()
-  })
-
+describe('AppMenu closing', () => {
   it('closes with "Fertig" in the fixed bottom row, outside the scrolling list (#376, docs/15 D6)', () => {
     const onClose = vi.fn()
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
@@ -142,28 +107,4 @@ describe('AppMenu dashboard picker (#35)', () => {
     fireEvent.click(done)
     expect(onClose).toHaveBeenCalled()
   })
-
-  it('uses two columns from tablet width in portrait too - one column only on a phone (2026-10-08)', () => {
-    const original = window.matchMedia
-    window.matchMedia = ((query: string) => ({ matches: query === '(min-width: 600px)', media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
-    try {
-      render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-      expect(document.querySelector('.grid-cols-2')).not.toBeNull()
-    } finally {
-      window.matchMedia = original
-    }
-  })
-
-  it('a phone in landscape (very low screen) gets three columns, so nothing has to scroll (2026-10-08)', () => {
-    const original = window.matchMedia
-    const on = new Set(['(max-height: 420px)', '(min-width: 700px)', '(min-width: 768px)', '(orientation: landscape)'])
-    window.matchMedia = ((query: string) => ({ matches: on.has(query), media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
-    try {
-      render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
-      expect(document.querySelector('[class*="grid-cols-[1.25fr_1fr_1fr]"]')).not.toBeNull()
-    } finally {
-      window.matchMedia = original
-    }
-  })
 })
-
