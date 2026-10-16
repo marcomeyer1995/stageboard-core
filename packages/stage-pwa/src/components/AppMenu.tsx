@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { GigSetlistPicker } from './GigSetlistPicker'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
 import { SessionModeControl } from './SessionModeControl'
@@ -92,6 +93,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
       {sessionMode === 'gig' && (
         <Section title="Master-Kontrolle">
           <MasterControl />
+          <GigSetlistPicker />
         </Section>
       )}
       {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
