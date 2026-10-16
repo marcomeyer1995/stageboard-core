@@ -41,7 +41,7 @@ export function isTestPlugin(id: string): boolean {
 }
 
 /** Where a plugin is listed in System (2026-10-16): a driver talks to gear over a transport (MIDI,
- * network) and sits under Bühnentechnik; a test stand-in under Diagnose; the rest are Erweiterungen. */
+ * network) and sits under Bühnentechnik; a test stand-in under Diagnose; the rest are Add-ons. */
 export type PluginKind = 'extensions' | 'drivers' | 'test'
 
 export function pluginKind(plugin: { id: string; transports?: readonly unknown[] }): PluginKind {
@@ -59,7 +59,7 @@ export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS): typeof 
  * document that replicates across the stage mesh - every other tablet and the
  * Stage-Server pick it up (docs/01).
  *
- * Shared between `PluginManager.tsx` (System → Erweiterungen, direct install/manage) and the guided
+ * Shared between `PluginManager.tsx` (System → Add-ons, direct install/manage) and the guided
  * Hardware Setup Wizard's "type" step (`DeviceSetupWizard.tsx`) - picking a device type there
  * installs (or reuses) the matching catalog entry inline, rather than sending the admin to a
  * separate screen first.

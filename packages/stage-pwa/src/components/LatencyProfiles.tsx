@@ -6,6 +6,7 @@ import { useAudioRouteStore } from '../store/useAudioRouteStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { audioOutputLatencyMs, ROUTE_LABEL } from '../lib/latencyProfiles'
+import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 import { Button, Dialog, Field, Select } from './ui'
 
 
@@ -166,6 +167,8 @@ export function LatencyProfileDialog({ deviceId, deviceName, onClose }: { device
           Wie viel später als geplant ein Ausgang wirklich klingt oder schaltet. Das Gerät sendet um diesen Wert früher, damit alles auf dem Schlag ankommt. Ton gilt je
           Ausgabeweg (Lautsprecher, Kopfhörer, Bluetooth, USB).
         </p>
+        {/* The on/off switch beside the values it uses (Marco, 2026-10-16 - it was alone in "Ton & Timing"). */}
+        {deviceId === getDeviceId() && <LatencyCompensationSettings />}
         {profiles.length > 0 && (
           <ul className="flex flex-col gap-2">
             {profiles.map((p) => (

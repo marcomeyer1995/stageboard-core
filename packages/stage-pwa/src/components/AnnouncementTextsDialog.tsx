@@ -7,6 +7,7 @@ import { ANNOUNCEMENTS_PLUGIN, bandAnnouncementSettings, bandSpeechVoice } from 
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { AnnouncementSettings as AnnouncementsOnHere } from './AnnouncementSettings'
 import { COUNT_IN_CUE_PRESETS, CuePatternEditor, PART_CUE_PRESETS } from './CuePatternEditor'
 import { Button, Dialog, Field, Section, Select, Switch } from './ui'
 
@@ -46,6 +47,10 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title="Ansagen - Einstellungen" onClose={onClose} size="l">
       <div className="flex flex-col gap-6">
+        {/* Per device, unlike everything below (Marco, 2026-10-16: with the plugin, not in a tab of its own). */}
+        <Section title="Auf diesem Gerät">
+          <AnnouncementsOnHere />
+        </Section>
         <Section title="Vor jedem Teil" hint="Was in den Takten vor einem Teil gesagt wird, ein Feld pro Schlag. Antippen zum Ändern.">
           <CuePatternEditor label="Muster" pattern={settings.partCue} presets={PART_CUE_PRESETS} onChange={(partCue) => save({ partCue })} />
         </Section>

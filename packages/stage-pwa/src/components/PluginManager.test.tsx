@@ -33,7 +33,7 @@ describe('PluginManager (System cleanup 2026-10-16)', () => {
     expect(confirm).toHaveBeenCalled()
   })
 
-  it('lists each plugin in one place: drivers (with a transport), test stand-ins, the rest as Erweiterungen', () => {
+  it('lists each plugin in one place: drivers (with a transport), test stand-ins, the rest as Add-ons', () => {
     const kemper = { ...plugin('kemper-profiler', 'Kemper Profiler', ['kemper-control']), transports: [{ kind: 'midi' }] }
     usePluginsStore.setState({ installed: [kemper, plugin('mock-mixer', 'Mock Mixer', ['mixer']), plugin('piper-speech', 'Sprachausgabe (Piper)', ['speech-synthesis'])] } as never)
     const shows = (kind: 'extensions' | 'drivers' | 'test') => {

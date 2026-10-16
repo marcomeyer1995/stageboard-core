@@ -67,11 +67,11 @@ describe('SystemView', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Ton & Timing', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Erweiterungen'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Add-ons'])
     expect(screen.getByText('Dieses Gerät', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
-    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Add-ons' }))
+    expect(screen.getByText('Add-ons', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tablets & Handys' }))
     expect(screen.getByText('Tablets & Handys', { selector: 'h1' })).toBeInTheDocument()
@@ -144,12 +144,12 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
-    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Add-ons' }))
+    expect(screen.getByText('Add-ons', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ pointer: false }))
     expectStrip()
-    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
+    expect(screen.getByText('Add-ons', { selector: 'h1' })).toBeInTheDocument()
   })
 
   it('rotating a touch device mid-session (narrow -> wide) also keeps the active tab', () => {
@@ -157,15 +157,15 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
-    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Add-ons' }))
+    expect(screen.getByText('Add-ons', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ wide: true }))
     expectSidebar()
-    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
+    expect(screen.getByText('Add-ons', { selector: 'h1' })).toBeInTheDocument()
   })
 
-  it('each setting sits in the tab of its scope: device, sound, band, server (#371, System split)', () => {
+  it('each setting sits in the tab of its scope: device, band, server (#371, System split)', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
@@ -174,9 +174,9 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expect(screen.getByText('Textgröße')).toBeInTheDocument()
     expect(screen.queryByText('Aktive Band (Hardware)')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Ton & Timing' }))
-    expect(within(screen.getByRole('region', { name: 'Ansagen' })).getByText('Songteile')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Latenz' })).toBeInTheDocument()
+    // No "Ton & Timing" tab any more (Marco, 2026-10-16): latency in "Latenz…", Ansagen with its add-on, Web Audio in Diagnose.
+    expect(screen.queryByRole('tab', { name: 'Ton & Timing' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Ton-Latenz ausgleichen')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Stage-Server' }))
     const connection = screen.getByRole('region', { name: 'Verbindung' })
