@@ -67,14 +67,11 @@ describe('SystemView', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Ton & Timing', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Erweiterungen', 'Nachbericht'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Ton & Timing', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Erweiterungen'])
     expect(screen.getByText('Dieses Gerät', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
     expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Nachbericht' }))
-    expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tablets & Handys' }))
     expect(screen.getByText('Tablets & Handys', { selector: 'h1' })).toBeInTheDocument()
@@ -187,8 +184,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expect(within(connection).getByText('Synchronisation')).toBeInTheDocument()
     // "Band wechseln…" switches the server's band for everyone - its own, marked group.
     expect(within(screen.getByRole('region', { name: 'Aktive Band - gilt für alle' })).getByText('Aktive Band (Hardware)')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Band' }))
-    expect(within(screen.getByRole('region', { name: 'Bibliothek - gilt für alle' })).getByText('Bibliothek - Geprobt')).toBeInTheDocument()
+    // Geübt / Geprobt count where they sort, in the Bibliothek.
+    expect(screen.queryByText('Bibliothek - Geprobt')).not.toBeInTheDocument()
   })
 })

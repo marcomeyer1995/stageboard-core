@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ShowLogEvent } from 'shared-types'
 
@@ -10,7 +11,23 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-const { PostShowReport } = await import('./PostShowReport')
+const { ShowDetail, ShowList, useShows } = await import('./PostShowReport')
+
+/** List and detail as the Bibliothek's "Shows" tab puts them together. */
+function Shows() {
+  const shows = useShows()
+  const [open, setOpen] = useState<string | null>(null)
+  return open ? (
+    <>
+      <button type="button" onClick={() => setOpen(null)}>
+        Bibliothek
+      </button>
+      <ShowDetail showId={open} />
+    </>
+  ) : (
+    <ShowList shows={shows} selectedId={open} onOpen={setOpen} />
+  )
+}
 const { useShowLogStore } = await import('../store/useShowLogStore')
 const { useProfilesStore } = await import('../store/useProfilesStore')
 
@@ -30,7 +47,7 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
         { id: 'n1', showId: 'show', type: 'note', at: t0 + 500_000, text: 'Gitarre zu laut', authorProfileId: null },
       ],
     } as never)
-    render(<PostShowReport />)
+    render(<Shows />)
     fireEvent.click(screen.getByText(/2 Songs · 6:40 gespielt/))
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
     expect(screen.getByText('Notizen (1)')).toBeInTheDocument()
@@ -45,7 +62,7 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     useShowLogStore.setState({
       events: [{ id: 'start', showId: 'show', type: 'show-started', at: t0 }, song(1, 'Highway to Hell'), cue(1, true), cue(2, false, 'kein MIDI-Ausgang'), cue(3, true)],
     } as never)
-    render(<PostShowReport />)
+    render(<Shows />)
     fireEvent.click(screen.getByText('1 Cues fehlgeschlagen'))
     expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
     expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
@@ -62,12 +79,12 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
         { id: 'start2', showId: 'test', type: 'show-started', at: later },
       ],
     } as never)
-    render(<PostShowReport />)
+    render(<Shows />)
     expect(screen.queryByText('Highway to Hell')).not.toBeInTheDocument()
     expect(screen.getByText('Ohne gespielte Songs (1)').closest('details')).not.toHaveAttribute('open')
     fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Alle Shows/ }))
-    expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Bibliothek' }))
+    expect(screen.getByText('Ohne gespielte Songs (1)')).toBeInTheDocument()
   })
 })

@@ -16,7 +16,6 @@ import { FlashSettings } from './FlashSettings'
 import { WebAudioTrackSettings } from './WebAudioTrackSettings'
 import { AnnouncementSettings } from './AnnouncementSettings'
 import { LatencyCompensationSettings } from './LatencyCompensationSettings'
-import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -74,7 +73,7 @@ function Page({ title, description, children }: { title: string; description: st
 /*
  * The former "Einstellungen" tab (5-6 screens) split by scope (docs/15 §9 step 3, Marco
  * 2026-10-16): what only this device does, how it sounds and keeps time, and what the Stage-Server
- * does for everyone. Band-wide library settings sit under the Band tab.
+ * does for everyone. What "Geübt" / "Geprobt" count sits in the Bibliothek beside that sort.
  */
 
 /** System → Dieses Gerät: name, look, controls and storage of this tablet or phone only. */
@@ -118,12 +117,6 @@ export function DeviceSettings() {
       <Group title="Speicher" description="Welche Audiodateien dieses Gerät für die Songs vorhält.">
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
-        </Section>
-      </Group>
-
-      <Group title="Bibliothek" description="Was die Bibliothek beim eigenen Üben als „Geübt“ zählt.">
-        <Section title="Bibliothek - Geübt">
-          <PracticeWindowSettings />
         </Section>
       </Group>
 
@@ -182,18 +175,5 @@ export function StageServerPage() {
 
       <BackupManager />
     </Page>
-  )
-}
-
-/** Under System → Band: the band-wide library setting (until it moves into the Bibliothek). */
-export function BandSharedSettings() {
-  return (
-    <div className="flex max-w-3xl flex-col gap-4 px-4 pb-4">
-      <Group title="Bibliothek - gilt für alle" description="Was die Bibliothek als „Geprobt“ zählt. Eine Änderung wirkt auf alle Geräte der Band." shared>
-        <Section title="Bibliothek - Geprobt">
-          <RehearsalWindowSettings />
-        </Section>
-      </Group>
-    </div>
   )
 }

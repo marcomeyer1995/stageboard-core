@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
-import { Button } from './ui'
+import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -22,7 +22,7 @@ function fmtDuration(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-interface ShowGroup {
+export interface ShowGroup {
   showId: string
   startedAt: number
   events: ShowLogEvent[]
@@ -66,7 +66,7 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
 
   return (
     <>
-      <h2 className="font-semibold">{fmtTime(show.startedAt)}</h2>
+      <h2 className="text-xl font-bold">{fmtTime(show.startedAt)}</h2>
       <p className="mb-3 text-sm text-ink-muted">
         {songs.length} {songs.length === 1 ? 'Song' : 'Songs'} · {fmtDuration(playedMs)} gespielt
       </p>
@@ -164,91 +164,81 @@ function isEmpty(summary: ShowSummary): boolean {
   return summary.songs === 0 && summary.notes === 0 && summary.failedCues === 0
 }
 
-/** One show in the list: a full-width row that opens it. */
-function ShowRow({ show, onOpen }: { show: ShowGroup; onOpen: () => void }) {
+/** Every show, newest first. */
+export function useShows(): ShowGroup[] {
+  const events = useShowLogStore((state) => state.events)
+  return useMemo(() => groupByShow(events), [events])
+}
+
+/** Shows worth reading - what the Bibliothek tab counts. */
+export function countShowsWithContent(shows: ShowGroup[]): number {
+  return shows.filter((show) => !isEmpty(summarize(show))).length
+}
+
+/** One show in the list: a full-width row that opens it; the open one yellow (docs/15 D7). */
+function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolean; onOpen: () => void }) {
   const summary = summarize(show)
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex min-h-touch w-full items-center gap-3 rounded-container border border-line bg-surface px-4 py-2 text-left shadow-sb [@media(hover:hover)]:hover:bg-control"
+      aria-current={selected ? 'true' : undefined}
+      className={`flex min-h-touch w-full items-center gap-3 px-4 py-2 text-left ${CONTROL} ${FOCUS} ${selected ? SELECTED : `bg-control ${HOVER}`}`}
     >
       <span className="min-w-0 flex-1">
         <span className="block font-semibold">{fmtTime(show.startedAt)}</span>
-        <span className="block text-sm text-ink-muted">
+        <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
           {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
           {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
         </span>
         {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
-        {summary.failedCues > 0 && <span className="block text-sm font-semibold text-danger">{summary.failedCues} Cues fehlgeschlagen</span>}
+        {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} Cues fehlgeschlagen</span>}
       </span>
-      <Icon name="next" className="text-ink-faint" />
+      <Icon name="next" className={selected ? '' : 'text-ink-faint'} />
     </button>
   )
 }
 
 /**
- * Every show as a list, opened one at a time (System cleanup, 2026-10-16) - all of them open at
+ * The shows in the Bibliothek's "Shows" tab (the former System → Nachbericht, moved 2026-10-16:
+ * what the band played belongs beside the setlists). Opened one at a time - all of them open at
  * once were 23 screens after a month of rehearsals. Starts with nothing in them fold away.
  */
-export function PostShowReport() {
-  const events = useShowLogStore((state) => state.events)
+export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; selectedId: string | null; onOpen: (showId: string) => void }) {
+  const withContent = shows.filter((show) => !isEmpty(summarize(show)))
+  const empty = shows.filter((show) => isEmpty(summarize(show)))
+  const row = (show: ShowGroup) => <ShowRow key={show.showId} show={show} selected={show.showId === selectedId} onOpen={() => onOpen(show.showId)} />
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-ink-muted">Automatisch erfasst: wann eine Show begann, welche Songs wirklich gespielt wurden (mindestens 20 Sekunden aktiv), technische Ereignisse und Notizen von Band und Crew.</p>
+      {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
+      {withContent.map(row)}
+      {empty.length > 0 && (
+        <details>
+          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">Ohne gespielte Songs ({empty.length})</summary>
+          <div className="flex flex-col gap-2">{empty.map(row)}</div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+/** One show in full: the songs played, notes, cues and technical events. */
+export function ShowDetail({ showId }: { showId: string }) {
+  const shows = useShows()
   const profiles = useProfilesStore((state) => state.profiles)
-  const [openShowId, setOpenShowId] = useState<string | null>(null)
-  const shows = groupByShow(events)
-  const openShow = shows.find((show) => show.showId === openShowId)
+  const show = shows.find((candidate) => candidate.showId === showId)
 
   function authorName(authorProfileId: string | null): string {
     if (!authorProfileId) return 'Unbekannt'
     return profiles.find((profile) => profile.id === authorProfileId)?.name ?? 'Unbekannt'
   }
 
-  if (openShow) {
-    return (
-      <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-        <div className="mb-3">
-          <Button onClick={() => setOpenShowId(null)}>
-            <Icon name="back" /> Alle Shows
-          </Button>
-        </div>
-        <div className="rounded-container border border-line bg-surface p-4 shadow-sb">
-          <ShowSections show={openShow} authorName={authorName} />
-        </div>
-      </div>
-    )
-  }
-
-  const withContent = shows.filter((show) => !isEmpty(summarize(show)))
-  const empty = shows.filter((show) => isEmpty(summarize(show)))
-
+  if (!show) return <p className="text-ink-faint">Show wurde entfernt.</p>
   return (
-    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Nachbericht</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Automatisch erfasst: wann eine Show begann, welche Songs wirklich gespielt wurden
-        (mindestens 20 Sekunden aktiv), technische Ereignisse und Notizen von Band und
-        Crew.
-      </p>
-
-      {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
-
-      <div className="space-y-2">
-        {withContent.map((show) => (
-          <ShowRow key={show.showId} show={show} onOpen={() => setOpenShowId(show.showId)} />
-        ))}
-      </div>
-      {empty.length > 0 && (
-        <details className="mt-4">
-          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">
-            Ohne gespielte Songs ({empty.length})
-          </summary>
-          <div className="space-y-2">
-            {empty.map((show) => (
-              <ShowRow key={show.showId} show={show} onOpen={() => setOpenShowId(show.showId)} />
-            ))}
-          </div>
-        </details>
-      )}
+    <div className="text-ink">
+      <ShowSections show={show} authorName={authorName} />
     </div>
   )
 }

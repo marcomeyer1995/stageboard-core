@@ -3,8 +3,7 @@ import { BandManagementView } from './BandManagementView'
 import { DeviceLedgerView } from './DeviceLedgerView'
 import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
-import { PostShowReport } from './PostShowReport'
-import { BandSharedSettings, DeviceSettings, SoundTimingSettings, StageServerPage } from './SystemSettings'
+import { DeviceSettings, SoundTimingSettings, StageServerPage } from './SystemSettings'
 import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 import { DebugConsoleView } from './DebugConsoleView'
@@ -21,7 +20,6 @@ const TAB_LABEL: Record<SystemTab, string> = {
   devices: 'Tablets & Handys',
   server: 'Stage-Server',
   plugins: 'Erweiterungen',
-  'post-show': 'Nachbericht',
   debug: 'Diagnose',
 }
 
@@ -63,7 +61,8 @@ export function SystemView() {
   // Live-Debug-Console (#14) only for crew and admins - nothing a musician needs on stage.
   const roles = useActiveProfile()?.stageRoles ?? []
   const showDebug = roles.includes('admin') || roles.includes('crew')
-  const baseTabs: SystemTab[] = ['device', 'sound', 'band', 'hardware', 'devices', 'server', 'plugins', 'post-show']
+  // Nachbericht moved to the Bibliothek as "Shows" (2026-10-16).
+  const baseTabs: SystemTab[] = ['device', 'sound', 'band', 'hardware', 'devices', 'server', 'plugins']
   const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('device')
   const activeTab = tabs.includes(tab) ? tab : 'device'
@@ -85,17 +84,11 @@ export function SystemView() {
     <>
       {activeTab === 'device' && <DeviceSettings />}
       {activeTab === 'sound' && <SoundTimingSettings />}
-      {activeTab === 'band' && (
-        <>
-          <BandManagementView />
-          <BandSharedSettings />
-        </>
-      )}
+      {activeTab === 'band' && <BandManagementView />}
       {activeTab === 'hardware' && <HardwareSetupManager />}
       {activeTab === 'devices' && <DeviceLedgerView />}
       {activeTab === 'server' && <StageServerPage />}
       {activeTab === 'plugins' && <PluginManager />}
-      {activeTab === 'post-show' && <PostShowReport />}
       {activeTab === 'debug' && <DebugConsoleView />}
     </>
   )
