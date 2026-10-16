@@ -39,13 +39,13 @@ describe('MasterControl (#378: master self-check)', () => {
   it("'account' master mode (#85): says it's you with all your devices", () => {
     show.holder = 'profile:p1'
     render(<MasterControl />)
-    expect(screen.getByText('Du bist Master – alle deine Geräte.')).toBeInTheDocument()
+    expect(screen.getByText('– alle deine Geräte')).toBeInTheDocument()
   })
 
   it('one "Master" row, yellow (pressed) while this device controls the show', () => {
     render(<MasterControl />)
     expect(screen.getByRole('button', { name: 'Master' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('Du bist Master – nur dieses Gerät.')).toBeInTheDocument()
+    expect(screen.getByText('– nur dieses Gerät')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
@@ -55,11 +55,11 @@ describe('MasterControl (#378: master self-check)', () => {
     show.holder = 'other-device'
     const { unmount } = render(<MasterControl />)
     expect(screen.getByRole('button', { name: 'Master' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByText('Fire ist Master.')).toBeInTheDocument()
+    expect(screen.getByText('– Fire')).toBeInTheDocument()
     unmount()
     show.holder = ''
     render(<MasterControl />)
-    expect(screen.getByText('Niemand ist Master.')).toBeInTheDocument()
+    expect(screen.getByText('– niemand')).toBeInTheDocument()
   })
 
   describe('held to change, both ways (Marco, #409)', () => {
@@ -121,7 +121,7 @@ describe('MasterControl (#378: master self-check)', () => {
       takeover.canClaim = false
       render(<MasterControl />)
       expect(screen.getByRole('button', { name: 'Master' })).toBeDisabled()
-      expect(screen.getByText(/nur Admin\/Showmaster/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Master' }).title).toMatch(/nur Admin\/Showmaster/)
       takeover.canClaim = true
     })
   })

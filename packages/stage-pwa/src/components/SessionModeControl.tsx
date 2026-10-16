@@ -25,7 +25,6 @@ export function SessionModeControl() {
   const setMode = useAppModeStore((state) => state.setMode)
   const gigPlaying = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const isBlocked = mode === 'gig' && gigPlaying
-  const active = OPTIONS.find((option) => option.mode === mode)
 
   return (
     <div className="flex flex-col gap-2">
@@ -38,10 +37,12 @@ export function SessionModeControl() {
           value: option.mode,
           label: option.label,
           disabled: isBlocked && option.mode !== mode,
-          title: isBlocked && option.mode !== mode ? BLOCKED_TITLE : undefined,
+          title: isBlocked && option.mode !== mode ? BLOCKED_TITLE : option.hint,
         }))}
       />
-      {active && <p className="text-sm text-ink-faint">{isBlocked ? BLOCKED_TITLE : active.hint}</p>}
+      {/* Only why Solo Üben is locked - the plain explanation became the tooltip, so ☰ fits one
+          landscape screen (Marco, 2026-10-16). */}
+      {isBlocked && <p className="text-sm text-ink-faint">{BLOCKED_TITLE}</p>}
     </div>
   )
 }

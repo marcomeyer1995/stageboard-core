@@ -121,6 +121,16 @@ export function MasterControl() {
             blocked ? ' Übernehmen dürfen nur Admin/Showmaster.' : isForce ? ' Halten erzwingt die Übernahme.' : ''
           }`
         : 'Niemand ist Master.'
+  // Who holds it, short, inside the button after a dash (Marco, 2026-10-16: the line below cost
+  // the room that kept ☰ on one landscape screen). The line stays only for what needs attention.
+  const holderShort = isMaster
+    ? holderProfileId
+      ? 'alle deine Geräte'
+      : 'nur dieses Gerät'
+    : masterHolderId
+      ? `${masterName ?? 'anderes Gerät'}${status === 'stale' ? ' antwortet nicht' : ''}`
+      : 'niemand'
+  const showStatusLine = unconfirmed || status === 'stale' || (!isMaster && !!masterHolderId && isForce)
   // Full while it's yours, empty otherwise; holding animates towards the other state.
   const shown = pending ?? mine
   const fill = holding ? (shown ? '0%' : '100%') : shown ? '100%' : '0%'
@@ -133,7 +143,7 @@ export function MasterControl() {
         aria-pressed={shown}
         aria-label="Master"
         disabled={blocked}
-        title={mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
+        title={`${statusLine} ${mine ? 'Zum Abgeben gedrückt halten.' : 'Zum Übernehmen gedrückt halten.'}`}
         onPointerDown={startHold}
         onPointerUp={() => endHold(true)}
         onPointerLeave={() => endHold(false)}
@@ -149,16 +159,21 @@ export function MasterControl() {
           style={{ width: fill, transition: holding ? `width ${HOLD_MS}ms linear` : 'none' }}
         />
         <Icon name="master" size="1.4rem" className={`relative ${darkText ? 'text-accent-ink' : 'text-ink'}`} />
-        <span className={`relative ${darkText ? 'font-semibold text-accent-ink' : 'text-ink'}`}>Master</span>
+        <span className={`relative min-w-0 truncate ${darkText ? 'text-accent-ink' : 'text-ink'}`}>
+          <span className={darkText ? 'font-semibold' : ''}>Master</span>
+          <span className={darkText ? 'text-accent-ink/70' : 'text-ink-faint'}> – {holderShort}</span>
+        </span>
       </button>
       {hint ? (
         <p role="status" className="text-sm text-accent">
           {mine ? 'Zum Abgeben gedrückt halten' : 'Zum Übernehmen gedrückt halten'}
         </p>
       ) : (
-        <p role={unconfirmed ? 'status' : undefined} className={`text-sm ${unconfirmed || status === 'stale' ? 'text-warn' : 'text-ink-faint'}`}>
-          {statusLine}
-        </p>
+        showStatusLine && (
+          <p role={unconfirmed ? 'status' : undefined} className={`text-sm ${unconfirmed || status === 'stale' ? 'text-warn' : 'text-ink-faint'}`}>
+            {statusLine}
+          </p>
+        )
       )}
     </div>
   )
