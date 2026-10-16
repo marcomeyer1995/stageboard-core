@@ -12,7 +12,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
-import { PluginManager } from './PluginManager'
+import { pluginKind } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow } from './ui'
 
 const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
@@ -29,11 +29,12 @@ const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
  */
 function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void; onAdd: () => void }) {
   const allDevices = useLogicalDevicesStore((state) => state.devices)
-  // Klick and Backing-Track have their own section above (BuiltInOutputs).
+  // Klick, Backing-Track and Ansagen are the fixed first rows (BuiltInOutputs).
   const builtIn = builtInRoles(allDevices)
   const devices = allDevices.filter((device) => !builtIn.includes(device))
   const remove = useLogicalDevicesStore((state) => state.remove)
   const installed = usePluginsStore((state) => state.installed)
+  const uninstall = usePluginsStore((state) => state.uninstall)
   const devicesRegistry = useDeviceTransportConfigStore((state) => state.configs)
   const variants = useSongVariantsStore((state) => state.variants)
   const songs = useSongsStore((state) => state.songs)
@@ -54,7 +55,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
 
   return (
     <div className="flex flex-col gap-2">
-      {devices.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte eingerichtet.</p>}
+      <BuiltInOutputs />
       {devices.map((device) => {
         const complete = Boolean(device.pluginId && device.executionTarget)
         const usage = findLogicalDeviceUsage(device.id, variants, songs)
@@ -82,7 +83,13 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
                   label: 'Entfernen',
                   danger: true,
                   onClick: async () => {
-                    if (await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true })) void remove(device.id)
+                    if (!(await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
+                    await remove(device.id)
+                    // Drivers stay out of sight (Marco, 2026-10-16): one no device needs any more is
+                    // offered for removal with its last device.
+                    const driver = installed.find((p) => p.id === device.pluginId)
+                    if (!driver || pluginKind(driver) !== 'drivers' || allDevices.some((d) => d.id !== device.id && d.pluginId === driver.id)) return
+                    if (await confirm(`Kein Gerät braucht den Treiber „${driver.name}“ mehr. Auch ihn entfernen?`, { confirmLabel: 'Treiber entfernen' })) void uninstall(driver.id)
                   },
                 },
               ]}
@@ -139,25 +146,16 @@ export function HardwareSetupManager() {
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Bühnentechnik</h1>
-      <p className="mb-4 text-sm text-ink-muted">Was im Gig spielt und gesteuert wird - für die ganze Band.</p>
-
-      <div className="mb-6">
-        <BuiltInOutputs />
-      </div>
-
-      <h2 className="mb-1 text-lg font-bold">Geräte</h2>
-      <p className="mb-3 text-sm text-ink-muted">
-        Jedes Gerät ist eine benannte Rolle (z.B. „Marcos Kemper“) mit Typ, ausführendem Gerät und
-        Anschluss. „Einrichten“ führt noch einmal durch die Einrichtung, mit den bisherigen Angaben
-        schon ausgefüllt.
+      {/* One list (Marco, 2026-10-16): what the band has and where it hangs. Drivers are a technical
+          detail - installed with a device, offered for removal with its last one; Diagnose lists them. */}
+      <p className="mb-4 text-sm text-ink-muted">
+        Alle Geräte der Band und wo sie hängen. Oben Klick, Backing-Track und Ansagen - eingebaut, nur das spielende Gerät ist wählbar. Darunter Amp, Mischpult, Looper und
+        Co., je mit Typ und dem Tablet, an dem sie hängen.
       </p>
 
       <div className="mb-6">
         <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />
       </div>
-
-      {/* The drivers beside the gear they drive (System split, 2026-10-16). */}
-      <PluginManager kind="drivers" />
 
       {editing !== undefined && (
         <DeviceSetupWizard device={editing} initialDraft={editing === null ? newDevicePrefill : null} onClose={closeWizard} />

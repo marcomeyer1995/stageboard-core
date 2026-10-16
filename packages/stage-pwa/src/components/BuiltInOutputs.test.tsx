@@ -12,6 +12,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { useDevicesStore } = await import('../store/useDevicesStore')
+const { usePluginsStore } = await import('../store/usePluginsStore')
 const { BuiltInOutputs } = await import('./BuiltInOutputs')
 
 const save = vi.fn(async () => {})
@@ -29,9 +30,9 @@ beforeEach(() => {
 describe('BuiltInOutputs (System split, 2026-10-16)', () => {
   it('without a role both play on the device running the show; picking a tablet creates the role, no plugin needed', () => {
     render(<BuiltInOutputs />)
-    expect(screen.getByLabelText('Klick')).toHaveValue('')
-    expect(screen.getByLabelText('Backing-Track')).toHaveValue('')
-    fireEvent.change(screen.getByLabelText('Backing-Track'), { target: { value: 'xiaomi' } })
+    expect(screen.getByLabelText('Klick - spielt auf')).toHaveValue('')
+    expect(screen.getByLabelText('Backing-Track - spielt auf')).toHaveValue('')
+    fireEvent.change(screen.getByLabelText('Backing-Track - spielt auf'), { target: { value: 'xiaomi' } })
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Backing-Track', capability: CAPABILITIES.audioPlayback, pluginId: null, executionTarget: 'xiaomi' }))
   })
 
@@ -39,10 +40,22 @@ describe('BuiltInOutputs (System split, 2026-10-16)', () => {
     const role: LogicalDevice = { id: 'r1', name: 'Mock Playback', capability: CAPABILITIES.audioPlayback, pluginId: 'mock-playback', executionTarget: 'bobberihno' }
     setRoles([role])
     render(<BuiltInOutputs />)
-    const select = screen.getByLabelText('Backing-Track')
+    const select = screen.getByLabelText('Backing-Track - spielt auf')
     expect(select).toHaveValue('bobberihno')
     expect(screen.getByRole('option', { name: 'unbekanntes Gerät' })).toBeInTheDocument()
     fireEvent.change(select, { target: { value: '' } })
     expect(save).toHaveBeenCalledWith({ ...role, pluginId: null, executionTarget: null })
+  })
+
+  it('Ansagen only with its add-on; without a tablet they come with the click', () => {
+    const { unmount } = render(<BuiltInOutputs />)
+    expect(screen.queryByLabelText('Ansagen - spielt auf')).not.toBeInTheDocument()
+    unmount()
+    usePluginsStore.setState({ installed: [{ id: 'section-announcements', capabilities: [CAPABILITIES.sectionAnnouncements], enabled: true }] } as never)
+    render(<BuiltInOutputs />)
+    expect(screen.getByRole('option', { name: 'wie der Klick' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Ansagen - spielt auf'), { target: { value: 'xiaomi' } })
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ capability: CAPABILITIES.sectionAnnouncements, executionTarget: 'xiaomi', pluginId: null }))
+    usePluginsStore.setState({ installed: [] } as never)
   })
 })

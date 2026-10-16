@@ -22,7 +22,7 @@ const HEADER: Record<PluginKind, { title: string; text: string; empty: string }>
   },
   drivers: {
     title: 'Treiber',
-    text: 'Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Ein Gerät oben braucht seinen Treiber - „Neues Gerät“ installiert ihn mit.',
+    text: 'Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Normalerweise unsichtbar: „Neues Gerät“ in der Bühnentechnik installiert den passenden mit, beim Entfernen des letzten Geräts wird er zum Entfernen angeboten. Hier nur zur Fehlersuche.',
     empty: 'Noch kein Treiber installiert.',
   },
   test: {
