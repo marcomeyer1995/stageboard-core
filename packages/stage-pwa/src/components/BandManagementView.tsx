@@ -264,8 +264,8 @@ export function BandManagementView() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="text-2xl font-bold">Bands verwalten</h1>
+    <div className="flex flex-col gap-6 p-4 text-ink">
+      <h1 className="text-2xl font-bold">Band</h1>
 
       {/* Which band the Stage-Server's hardware serves is shown once, with "Band wechseln…", in
           Einstellungen - this line said the same again (System cleanup, 2026-10-16). */}

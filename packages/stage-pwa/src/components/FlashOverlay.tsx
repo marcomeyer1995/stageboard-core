@@ -14,7 +14,7 @@ export function isForMe(flash: FlashMessage, profileId: string | undefined): boo
 /**
  * Stage-Messenger flash (#26): a short message from the Stage-Messenger widget on any device
  * (pushed on the presence stream; only shown by the people it is addressed to) or a song's
- * `{alert: ...}` reaching its time on this device. Per device (Einstellungen → Blitzmeldungen):
+ * `{alert: ...}` reaching its time on this device. Per device (System → Dieses Gerät → Blitzmeldungen):
  * a see-through banner under the status bar - only as big as the message, the rest of the screen
  * stays playable, a tap on it closes it (Marco, #400 review) -, the whole screen, or off. Gone after
  * the device's display time (Einstellungen, 3-20 s, default 8).

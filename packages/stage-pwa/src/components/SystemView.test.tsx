@@ -63,53 +63,37 @@ function stubMatchMedia(opts: { pointer: boolean; wide: boolean }) {
 }
 
 describe('SystemView', () => {
-  it('defaults to the Band tab and switches to Plugins/Nachbericht on click', () => {
+  it('tabs sorted by scope (System split, 2026-10-16); starts on Dieses Gerät and switches on click', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    expect(screen.getByText('Bands verwalten', { selector: 'h1' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Dieses Gerät', 'Ton & Timing', 'Band', 'Bühnentechnik', 'Tablets & Handys', 'Stage-Server', 'Erweiterungen', 'Nachbericht'])
+    expect(screen.getByText('Dieses Gerät', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
-    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
+    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Nachbericht' }))
     expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Geräte' }))
-    expect(screen.getByText('Geräte', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Tablets & Handys' }))
+    expect(screen.getByText('Tablets & Handys', { selector: 'h1' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Band' }))
+    expect(screen.getByText('Band', { selector: 'h1' })).toBeInTheDocument()
   })
 
-  it('hides the Backup tab when no plugin provides the backup capability', () => {
+  it('Backup is part of Stage-Server, no tab of its own', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
-    expect(screen.queryByRole('button', { name: 'Backup' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Backup' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Stage-Server' }))
+    expect(screen.getByRole('region', { name: 'Backup' })).toBeInTheDocument()
   })
 
-  it('shows the Backup tab once a backup-capable plugin is installed', () => {
-    usePluginsStore.setState({
-      installed: [
-        {
-          id: 'mock-backup',
-          name: 'Mock Backup',
-          version: '0.0.1',
-          runtime: 'server',
-          capabilities: ['backup'],
-          transports: [],
-          hardwareIds: [],
-          enabled: true,
-          installedAt: Date.now(),
-        },
-      ],
-    })
-    render(<SystemView />)
-    expect(screen.getByRole('tab', { name: 'Backup' })).toBeInTheDocument()
-  })
-
-  it('switching to Einstellungen renders the moved-out settings sections', () => {
+  it('Dieses Gerät holds the moved-out device settings; Vollbild stays in the ☰ menu', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Einstellungen' }))
 
     expect(screen.getByText('Darstellung')).toBeInTheDocument()
     expect(screen.getByText('Speicher & Sync')).toBeInTheDocument()
@@ -163,12 +147,12 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
-    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
+    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ pointer: false }))
     expectStrip()
-    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
   })
 
   it('rotating a touch device mid-session (narrow -> wide) also keeps the active tab', () => {
@@ -176,31 +160,35 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Plugins' }))
-    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Erweiterungen' }))
+    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
 
     act(() => media.set({ wide: true }))
     expectSidebar()
-    expect(screen.getByText('Plugins', { selector: 'h1' })).toBeInTheDocument()
+    expect(screen.getByText('Erweiterungen', { selector: 'h1' })).toBeInTheDocument()
   })
 
-  it('Einstellungen groups device settings apart from the band-wide ones (#371)', () => {
+  it('each setting sits in the tab of its scope: device, sound, band, server (#371, System split)', () => {
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Einstellungen' }))
 
-    const device = screen.getByRole('region', { name: 'Dieses Gerät' })
+    const device = screen.getByRole('region', { name: 'Gerät' })
     expect(within(device).getByText('Gerätename')).toBeInTheDocument()
-    expect(within(device).getByText('Textgröße')).toBeInTheDocument()
-    expect(within(device).queryByText('Aktive Band (Hardware)')).not.toBeInTheDocument()
+    expect(screen.getByText('Textgröße')).toBeInTheDocument()
+    expect(screen.queryByText('Aktive Band (Hardware)')).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('tab', { name: 'Ton & Timing' }))
+    expect(within(screen.getByRole('region', { name: 'Ansagen' })).getByText('Songteile')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Latenz' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Stage-Server' }))
     const connection = screen.getByRole('region', { name: 'Verbindung' })
     expect(within(connection).getByText('Stage-Server')).toBeInTheDocument()
     expect(within(connection).getByText('Synchronisation')).toBeInTheDocument()
-
     // "Band wechseln…" switches the server's band for everyone - its own, marked group.
-    const shared = screen.getByRole('region', { name: 'Band & Server - gilt für alle' })
-    expect(within(shared).getByText('Aktive Band (Hardware)')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Aktive Band - gilt für alle' })).getByText('Aktive Band (Hardware)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Band' }))
+    expect(within(screen.getByRole('region', { name: 'Bibliothek - gilt für alle' })).getByText('Bibliothek - Geprobt')).toBeInTheDocument()
   })
 })
-

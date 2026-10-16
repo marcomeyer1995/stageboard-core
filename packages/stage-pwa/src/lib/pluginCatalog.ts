@@ -50,7 +50,7 @@ export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS): typeof 
  * document that replicates across the stage mesh - every other tablet and the
  * Stage-Server pick it up (docs/01).
  *
- * Shared between `PluginManager.tsx` (System → Plugins, direct install/manage) and the guided
+ * Shared between `PluginManager.tsx` (System → Erweiterungen, direct install/manage) and the guided
  * Hardware Setup Wizard's "type" step (`DeviceSetupWizard.tsx`) - picking a device type there
  * installs (or reuses) the matching catalog entry inline, rather than sending the admin to a
  * separate screen first.

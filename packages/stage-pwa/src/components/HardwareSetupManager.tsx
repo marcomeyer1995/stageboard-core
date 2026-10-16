@@ -113,7 +113,7 @@ export function HardwareSetupManager() {
 
   // useHardwareDetection.ts's "no matching role yet" dialog offering to create one on the spot
   // (see useHardwareSetupWizardStore.ts) - only reachable while this screen is already showing
-  // (that dialog is itself gated to System → Hardware), so opening straight into it here is safe.
+  // (that dialog is itself gated to System → Bühnentechnik), so opening straight into it here is safe.
   useEffect(() => {
     if (!pendingPrefill) return
     setNewDevicePrefill(pendingPrefill)
@@ -133,7 +133,7 @@ export function HardwareSetupManager() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Hardware-Setup</h1>
+      <h1 className="mb-1 text-2xl font-bold">Bühnentechnik</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Jedes Gerät ist eine benannte Rolle (z.B. „Marcos Kemper“) mit ihrer eigenen, aktuell
         gültigen Verbindung - Typ, ausführendes Gerät und Anschluss. „Einrichten“ führt noch

@@ -12,9 +12,9 @@ export const SONG_SORT_LABEL: Record<SongSort, string> = {
   title: 'Titel',
   artist: 'Interpret',
   setlist: 'Setlist',
-  // Own Solo-Üben takes in the device's period (Einstellungen → Dieses Gerät).
+  // Own Solo-Üben takes in the device's period (System → Dieses Gerät).
   practiced: 'Geübt',
-  // The band's Gig-mode plays in the band's period - days or last shows (Einstellungen → Band).
+  // The band's Gig-mode plays in the band's period - days or last shows (System → Band).
   rehearsed: 'Geprobt',
 }
 
