@@ -42,12 +42,16 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
   let songNumber = 0
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-      <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
-          <span className="truncate">{setlist.name}</span>
-          {active && <Badge tone="accent">Aktiv</Badge>}
-        </h2>
-        {setlist.performanceDate && <p className="text-ink-faint">Auftritt {formatDate(setlist.performanceDate)}</p>}
+      {/* ⋮ top right: the menu for the whole setlist (docs/15 D9). */}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
+            <span className="truncate">{setlist.name}</span>
+            {active && <Badge tone="accent">Aktiv</Badge>}
+          </h2>
+          {setlist.performanceDate && <p className="text-ink-faint">Auftritt {formatDate(setlist.performanceDate)}</p>}
+        </div>
+        <OverflowMenu title={setlist.name} actions={menu} scope="page" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -57,7 +61,6 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
         <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
           {active ? 'Deaktivieren' : 'Aktivieren'}
         </Button>
-        <OverflowMenu title={setlist.name} actions={menu} />
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm text-ink-muted">

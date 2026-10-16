@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Icon, type IconName } from './Icon'
-import { ActionMenuDialog } from './ui'
+import { Icon } from './Icon'
+import { ActionMenuDialog, menuIcon } from './ui'
 
 export interface OverflowMenuAction {
   label: string
@@ -32,9 +32,9 @@ interface OverflowMenuProps {
    * trigger, #178) can open this exact same menu instead of a second, hand-rolled one. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  /** The trigger's symbol - the Live-Queue uses "⋮" so its row menu can't be mistaken for the
-   * widget's own "⋯" menu beside it in edit mode (GUI audit 2026-09-26). */
-  glyph?: IconName
+  /** docs/15 D9: ⋯ (default) = one entry among similar ones (a song, a setlist row, a queue row);
+   * ⋮ = the whole page, top right in its header (an opened setlist). */
+  scope?: 'entry' | 'page'
   /** No visible trigger - the menu opens only through `open` (the Live-Queue's long press on a
    * row outside sort mode). */
   hideTrigger?: boolean
@@ -57,7 +57,7 @@ export function OverflowMenu({
   variant = 'boxed',
   open: controlledOpen,
   onOpenChange,
-  glyph = 'more',
+  scope = 'entry',
   hideTrigger = false,
   triggerSize = 'default',
 }: OverflowMenuProps) {
@@ -79,7 +79,7 @@ export function OverflowMenu({
               : `flex ${size} flex-shrink-0 items-center justify-center rounded-control bg-control-strong text-lg leading-none text-ink-soft [@media(hover:hover)]:hover:bg-control-strong-hover`
           }
         >
-          <Icon name={glyph} size="1.4rem" />
+          <Icon name={menuIcon(scope)} size="1.4rem" />
         </button>
       )}
       {open && <ActionMenuDialog title={title} actions={actions} onClose={() => setOpen(false)} />}

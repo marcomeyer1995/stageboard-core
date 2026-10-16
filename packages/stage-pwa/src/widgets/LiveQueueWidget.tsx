@@ -27,7 +27,7 @@ interface QueueRowProps {
   status: RowStatus
   /** Master with an active setlist, on an upcoming row: the row has actions. */
   canManage: boolean
-  /** Sort mode: drag handle and a visible "⋮" trigger. Outside it the row is title only and its
+  /** Sort mode: drag handle and a visible "⋯" trigger. Outside it the row is title only and its
    * actions open on a long press. */
   sorting: boolean
   /** Omitted for the row already up next - "Als nächstes spielen" on it would be a no-op. */
@@ -47,8 +47,9 @@ interface QueueRowProps {
  * took a third of a 256px widget's width and cut titles after ~9 characters). Outside it a row
  * is title only, up to two lines, and a long press opens its actions ("Als nächstes spielen" /
  * "Aus Queue entfernen") - the long press no longer competes with dragging, which is why the
- * menu was a "⋯" button before (Marco, 2026-09-27). The trigger is "⋮", unlike the widget's own
- * "⋯" menu beside it in edit mode.
+ * menu was a "⋯" button before (Marco, 2026-09-27). The trigger was "⋮" to set it apart from the
+ * widget's own "⋯"; since docs/15 D9 (2026-10-16) every one-row menu is "⋯" - the row's sits in
+ * the row, the widget's in its header.
  */
 function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -132,7 +133,6 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
         <OverflowMenu
           title={queueItemTitle(item)}
           variant="flat"
-          glyph="moreVertical"
           triggerSize="touch"
           hideTrigger={!sorting}
           open={menuOpen}
