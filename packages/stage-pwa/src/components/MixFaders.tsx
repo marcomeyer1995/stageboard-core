@@ -15,7 +15,7 @@ export function MixFaders({ orientation, fontSize, size = 'form' }: { orientatio
 
   if (orientation === 'horizontal') {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
         {MIX_SOURCES.map((source) => (
           <div key={source} className="flex items-end gap-3">
             <div className="min-w-0 flex-1">

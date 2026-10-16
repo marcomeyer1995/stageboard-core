@@ -105,8 +105,10 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
 
   if (!canControl) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-soft">
-        <span className="text-center text-sm">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>
+      // A small widget (the phone's grid) shows only the button - the sentence cut the button off
+      // there (2026-10-16); the button's tooltip says the same.
+      <div ref={boxRef} className="flex h-full min-h-0 flex-col items-center justify-center gap-2 overflow-hidden text-ink-soft">
+        {(box.height === 0 || box.height >= 140) && <span className="text-center text-base">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>}
         <MasterTakeoverButton
           className="min-h-form rounded-control bg-control-strong px-4 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         />
