@@ -23,6 +23,8 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { OverflowMenu } from './OverflowMenu'
+import { countShowsWithContent, ShowDetail, ShowList, useShows } from './PostShowReport'
+import { PracticeWindowSettings, RehearsalWindowSettings } from './LibrarySettings'
 import { SetlistDetail } from './SetlistDetail'
 import { SheetEditor } from './SheetEditor'
 import { SongPreview } from './SongPreview'
@@ -47,9 +49,10 @@ import { useActiveProfile } from '../lib/useActiveProfile'
 type Selection =
   | { type: 'setlist'; id: string }
   | { type: 'song'; songId: string; variantId: string | null }
+  | { type: 'show'; id: string }
   | null
 
-type LibraryTab = 'setlists' | 'songs'
+type LibraryTab = 'setlists' | 'songs' | 'shows'
 const TAB_KEY = 'stageboard-library-tab'
 
 const SORT_KEY = 'stageboard-library-sort'
@@ -98,7 +101,8 @@ function playNote(stat: PlayCount | undefined, period: string, verb: string): st
 
 function readTab(): LibraryTab {
   try {
-    return localStorage.getItem(TAB_KEY) === 'songs' ? 'songs' : 'setlists'
+    const stored = localStorage.getItem(TAB_KEY)
+    return stored === 'songs' || stored === 'shows' ? stored : 'setlists'
   } catch {
     return 'setlists'
   }
@@ -335,6 +339,8 @@ export function LibraryView() {
   }
   const showSetlists = tab === 'setlists'
   const showSongs = tab === 'songs'
+  const showShows = tab === 'shows'
+  const shows = useShows()
   const [sort, setSortState] = useState<LibrarySortChoice>(readSort)
   function setSort(next: LibrarySortChoice) {
     setSortState(next)
@@ -654,10 +660,16 @@ export function LibraryView() {
               tabs={[
                 { value: 'setlists', label: `Setlists (${filteredSetlists.length})` },
                 { value: 'songs', label: `Songs (${filteredSongs.length})` },
+                // What the band played - the former System → Nachbericht (2026-10-16).
+                { value: 'shows', label: `Shows (${countShowsWithContent(shows)})` },
               ]}
             />
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            {showShows ? (
+              <ShowList shows={shows} selectedId={selection?.type === 'show' ? selection.id : null} onOpen={(id) => setSelection(selection?.type === 'show' && selection.id === id ? null : { type: 'show', id })} />
+            ) : (
+            <>
             <input
               ref={searchInputRef}
               type="text"
@@ -702,6 +714,10 @@ export function LibraryView() {
                 }))}
               />
             )}
+            {/* What "Geübt" / "Geprobt" count, right where they sort (moved out of System,
+                2026-10-16): the own period per device, the band's for everyone (admins). */}
+            {showSongs && sort.songs.by === 'practiced' && <PracticeWindowSettings />}
+            {showSongs && sort.songs.by === 'rehearsed' && <RehearsalWindowSettings />}
             {showSetlists ? (
               <>
                 <ul className="flex flex-col gap-1">
@@ -788,6 +804,8 @@ export function LibraryView() {
                 <AddRow label="Neuer Song" onClick={() => void createSong()} />
               </>
             )}
+            </>
+            )}
           </div>
         </div>
 
@@ -817,6 +835,20 @@ export function LibraryView() {
                 onDeleted={() => setSelectionNow(null)}
               />
             </>
+          ) : selection?.type === 'show' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setSelection(null)}
+                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
+                  isPanel ? 'hidden' : ''
+                }`}
+              >
+                <Icon name="back" />
+                Bibliothek
+              </button>
+              <ShowDetail key={selection.id} showId={selection.id} />
+            </>
           ) : selection?.type === 'song' ? (
             <>
               <button
@@ -837,7 +869,7 @@ export function LibraryView() {
             </>
           ) : (
             <div className="flex h-full items-center justify-center text-ink-faint">
-              Wähle links eine Setlist oder einen Song aus.
+              {showShows ? 'Wähle links eine Show aus.' : 'Wähle links eine Setlist oder einen Song aus.'}
             </div>
           )}
         </div>

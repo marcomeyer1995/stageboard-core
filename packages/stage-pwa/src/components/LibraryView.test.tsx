@@ -42,7 +42,8 @@ const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useDialogStore } = await import('../store/useDialogStore')
 const { useAudioPinsStore } = await import('../store/useAudioPinsStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
-const openTab = (name: 'Setlists' | 'Songs') => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
+const { useShowLogStore } = await import('../store/useShowLogStore')
+const openTab = (name: 'Setlists' | 'Songs' | 'Shows') => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
 const { LibraryView } = await import('./LibraryView')
 
 function song(id: string, title: string): Song {
@@ -150,6 +151,33 @@ describe('LibraryView', () => {
     expect(screen.getByRole('radio', { name: 'Name ↑' })).toHaveAttribute('aria-checked', 'true')
     openTab('Songs')
     expect(screen.getByRole('radio', { name: 'Interpret ↑' })).toHaveAttribute('aria-checked', 'true')
+    localStorage.removeItem('stageboard-library-sort')
+  })
+
+  it('"Shows" (the former System → Nachbericht): the shows worth reading counted in the tab, one opens on the right', () => {
+    const t0 = new Date('2026-09-27T20:00:00').getTime()
+    useShowLogStore.setState({
+      events: [
+        { id: 'start', showId: 'gig', type: 'show-started', at: t0 },
+        { id: 's1', showId: 'gig', type: 'song-played', at: t0 + 1000, endedAt: t0 + 201_000, songId: 'a', songTitle: 'Highway to Hell', activeMs: 200_000 },
+        { id: 'start2', showId: 'test', type: 'show-started', at: t0 + 86_400_000 },
+      ],
+    } as never)
+    render(<LibraryView />)
+    openTab('Shows')
+    expect(screen.getByRole('tab', { name: 'Shows (1)' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByLabelText('Suche')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+    expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
+    useShowLogStore.setState({ events: [] } as never)
+  })
+
+  it('sorting by "Geübt" shows the period it counts right there (moved out of System)', () => {
+    localStorage.removeItem('stageboard-library-sort')
+    render(<LibraryView />)
+    expect(screen.queryByRole('radiogroup', { name: 'Geübt zählt die letzten' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Geübt' }))
+    expect(screen.getByRole('radiogroup', { name: 'Geübt zählt die letzten' })).toBeInTheDocument()
     localStorage.removeItem('stageboard-library-sort')
   })
 
