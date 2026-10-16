@@ -134,6 +134,8 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     const tabs = screen.getByRole('tablist', { name: 'System' })
     expect(tabs).toHaveAttribute('aria-orientation', 'horizontal')
     expect(tabs).toHaveClass('flex-wrap')
+    // Phone width: one row scrolling sideways instead (Marco, 2026-10-16).
+    expect(tabs).toHaveClass('max-[599px]:flex-nowrap', 'max-[599px]:overflow-x-auto')
   }
 
   it('pointer lane (happy-dom default): a vertical sidebar, not the horizontal strip', () => {
@@ -142,7 +144,7 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expectSidebar()
   })
 
-  it('narrow touch: a wrapping tab strip (no sideways scroll, #373), not the sidebar', () => {
+  it('narrow touch: a wrapping tab strip (#373; one scrolling row on the phone), not the sidebar', () => {
     stubMatchMedia({ pointer: false, wide: false })
     usePluginsStore.setState({ installed: [] })
     render(<SystemView />)

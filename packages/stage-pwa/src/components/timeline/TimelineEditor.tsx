@@ -50,7 +50,7 @@ import { loadSpeechClip } from '../../lib/speechClips'
 import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
-import { TimelineStems } from './TimelineStems'
+import { STEM_LANE_H, StemsToggle, TimelineStems, stemsBlockHeight } from './TimelineStems'
 import { stemSetsOf } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
@@ -255,7 +255,15 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const hiddenLaneList = useTimelineLanesStore((state) => state.hidden)
   const toggleLane = useTimelineLanesStore((state) => state.toggle)
   const hiddenLanes = useMemo(() => new Set(hiddenLaneList), [hiddenLaneList])
-  const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES)
+  // Stems right under the waveform (docs/22 §5): those split from this track, else the uploaded ones.
+  const variantTracks = useSongVariantsStore((state) => state.variants.find((v) => v.id === variantId)?.tracks)
+  const stems = useMemo(() => {
+    const sets = stemSetsOf(variantTracks ?? [])
+    return (sets.find((set) => set.key === trackId) ?? sets[0])?.stems ?? []
+  }, [variantTracks, trackId])
+  const [stemsOpen, setStemsOpen] = useState(() => readStemsOpen())
+  const stemsH = stemsOpen && stems.length > 0 ? stemsBlockHeight(stems.length) : 0
+  const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES, stemsH)
   const { totalH: lanesH, audioH, tempoH, gridH, textH, partsH, tempoTop, gridTop, textTop, notesTop, cueTop } = layout
   const [lanesMenuOpen, setLanesMenuOpen] = useState(false)
   // Phone/tablet (#373): the tool buttons wrapped into up to six rows and pushed the waveform
@@ -314,13 +322,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
   const [analysis, setAnalysis] = useState<TrackAnalysis | null>(null)
   const [analysisState, setAnalysisState] = useState<'idle' | 'loading' | 'error'>('idle')
-  // Stems under the timeline (docs/22 §5): those split from this track, else the uploaded ones.
-  const variantTracks = useSongVariantsStore((state) => state.variants.find((v) => v.id === variantId)?.tracks)
-  const stems = useMemo(() => {
-    const sets = stemSetsOf(variantTracks ?? [])
-    return (sets.find((set) => set.key === trackId) ?? sets[0])?.stems ?? []
-  }, [variantTracks, trackId])
-  const [stemsOpen, setStemsOpen] = useState(() => readStemsOpen())
   const [stemAnalyses, setStemAnalyses] = useState<ReadonlyMap<string, TrackAnalysis>>(new Map())
   /** The stem heard alone (its file plays instead of the track, same position) - null: the mix. */
   const [solo, setSolo] = useState<{ id: string; url: string } | null>(null)
@@ -1676,7 +1677,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
     ? 'Auf den ersten Schlag in der Wellenform tippen, dann „Takt 1 hier“ – danach „Tempo tippen“.'
     : barsGrabbable
       ? 'Wo das Raster danebenliegt: den Taktstrich auf den Schlag in der Wellenform ziehen.'
-      : 'Taktstriche zum Ziehen zu dicht – hineinzoomen.'
+      : box.width > 0 && box.width < PHONE_WIDTH
+        ? 'Taktstriche zum Ziehen zu dicht – mit zwei Fingern hineinzoomen.'
+        : 'Taktstriche zum Ziehen zu dicht – hineinzoomen.'
   const hint = untimedLines > 0 ? `${gridHint} · ${untimedLines} ${untimedLines === 1 ? 'Zeile' : 'Zeilen'} noch ohne Zeit – „Zeilen tippen“.` : gridHint
 
   if (recordingCues) {
@@ -1715,15 +1718,20 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const showTools = !compactTools || (toolsOpen && tapMode === null)
 
   // Zoom, speed, click, announcements and mix: in the top row on wide screens; on the phone in the
-  // tools panel (2026-10-16) - in the top row they took three rows there, and pinch zooms anyway.
+  // tools panel (2026-10-16) - in the top row they took three rows there. The phone has no zoom
+  // buttons: two fingers zoom (Marco, 2026-10-16).
   const playbackSettings = (
     <>
-      <Button aria-label="Herauszoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
-        −
-      </Button>
-      <Button aria-label="Hineinzoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
-        +
-      </Button>
+      {!phone && (
+        <>
+          <Button aria-label="Herauszoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1.6, width / 2), width, minMs, durationMs))}>
+            −
+          </Button>
+          <Button aria-label="Hineinzoomen" data-keep-open onClick={() => setView(clampView(zoomAround(view, 1 / 1.6, width / 2), width, minMs, durationMs))}>
+            +
+          </Button>
+        </>
+      )}
       <Button
         variant={clock.rate < 1 ? 'primary' : 'secondary'}
         aria-label={`Abspielgeschwindigkeit ${Math.round(clock.rate * 100)} %`}
@@ -1872,6 +1880,32 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {playheadX >= 0 && playheadX <= width && (
           <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} data-testid="timeline-playhead" />
         )}
+        {stems.length > 0 && (
+          <StemsToggle
+            count={stems.length}
+            open={stemsOpen}
+            top={Math.max(0, audioH - STEM_LANE_H)}
+            onToggle={() => {
+              writeStemsOpen(!stemsOpen)
+              setStemsOpen(!stemsOpen)
+            }}
+            soloLabel={solo ? (stems.find((s) => s.id === solo.id)?.label ?? null) : null}
+            analysisSourceLabel={hitSourceId ? (stems.find((s) => s.id === hitSourceId)?.label ?? null) : null}
+          />
+        )}
+        {stemsH > 0 && (
+          <TimelineStems
+            stems={stems}
+            analyses={stemAnalyses}
+            top={audioH}
+            height={stemsH}
+            width={width}
+            view={view}
+            playheadMs={playheadMs}
+            soloId={solo?.id ?? null}
+            onSolo={(id) => void soloStem(id)}
+          />
+        )}
         {fine && (
           <div
             className="pointer-events-none absolute z-content -translate-x-1/2 rounded-control bg-accent px-3 py-1 text-base font-semibold text-accent-ink shadow-sb"
@@ -1882,24 +1916,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
           </div>
         )}
       </div>
-
-      {stems.length > 0 && (
-        <TimelineStems
-          stems={stems}
-          analyses={stemAnalyses}
-          open={stemsOpen}
-          onToggle={() => {
-            writeStemsOpen(!stemsOpen)
-            setStemsOpen(!stemsOpen)
-          }}
-          width={width}
-          view={view}
-          playheadMs={playheadMs}
-          soloId={solo?.id ?? null}
-          onSolo={(id) => void soloStem(id)}
-          analysisSourceLabel={hitSourceId ? (stems.find((s) => s.id === hitSourceId)?.label ?? null) : null}
-        />
-      )}
 
       {tapMode === 'lines' && (
         <div className="flex flex-col gap-2 rounded-control bg-control p-2" data-testid="tap-lines-panel">

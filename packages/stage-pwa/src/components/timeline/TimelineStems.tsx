@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type PointerEvent } from 'react'
 import type { TrackMeta } from 'shared-types'
 import { timeToX, tokenColor, xToTime, type TimelineView } from '../../lib/timeline'
 import type { TrackAnalysis } from '../../lib/trackAnalysis'
@@ -8,16 +8,60 @@ import { Icon } from '../Icon'
 /** One stem lane: touch-sized, like every control on stage. */
 export const STEM_LANE_H = 48
 
+/** This many stem lanes are visible; more scroll inside the block - any number of stems fits
+ * without pushing the timeline's own lanes together (2026-10-16). */
+const VISIBLE_LANES = 2.5
+
+/** Height of the opened stems block under the waveform. */
+export function stemsBlockHeight(count: number): number {
+  return Math.min(count, VISIBLE_LANES) * STEM_LANE_H
+}
+
 function cssVar(name: string, fallback: string): string {
   return tokenColor(getComputedStyle(document.documentElement).getPropertyValue(name), fallback)
+}
+
+/** A touch on the stems neither scrolls the timeline nor moves the playhead. */
+const stopPointer = (e: PointerEvent) => e.stopPropagation()
+
+interface StemsToggleProps {
+  count: number
+  open: boolean
+  /** px from the top of the lanes. */
+  top: number
+  onToggle: () => void
+  /** The stem heard alone, or null = the mix. */
+  soloLabel: string | null
+  /** The stem the red/green marks and the magnet take their hits from (chosen at "Track
+   * analysieren"), or null = the mix. */
+  analysisSourceLabel: string | null
+}
+
+/** ▸ Stems (n) on the waveform's bottom left - collapsed stems take no space (docs/22 §5). */
+export function StemsToggle({ count, open, top, onToggle, soloLabel, analysisSourceLabel }: StemsToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onPointerDown={stopPointer}
+      aria-expanded={open}
+      className="absolute left-1 z-content flex min-h-form items-center gap-2 rounded-control bg-control/80 px-2 text-base text-ink [@media(hover:hover)]:hover:bg-control"
+      style={{ top }}
+    >
+      <Icon name={open ? 'collapse' : 'expand'} />
+      Stems ({count}){soloLabel ? ` · nur ${soloLabel}` : ''}
+      {analysisSourceLabel ? ` · Treffer aus ${analysisSourceLabel}` : ''}
+    </button>
+  )
 }
 
 interface TimelineStemsProps {
   stems: readonly TrackMeta[]
   /** Each stem's waveform, once analysed (by stem id). */
   analyses: ReadonlyMap<string, TrackAnalysis>
-  open: boolean
-  onToggle: () => void
+  /** Where the block sits in the lanes (right under the waveform) and its height, px. */
+  top: number
+  height: number
   /** Lane width = the timeline's width, px. */
   width: number
   view: TimelineView
@@ -25,48 +69,40 @@ interface TimelineStemsProps {
   /** The stem heard alone, or null = the mix. */
   soloId: string | null
   onSolo: (stemId: string | null) => void
-  /** The stem the red/green marks and the magnet take their hits from (chosen at "Track
-   * analysieren"), or null = the mix. */
-  analysisSourceLabel: string | null
 }
 
-/** This many stem lanes are visible; more scroll inside the strip - any number of stems fits
- * without pushing the timeline's own lanes together (2026-10-16). */
-const VISIBLE_LANES = 2.5
-
 /**
- * The stems under the timeline (docs/22 §5): collapsed by default - the waveform above stays the
- * mix, as before - and opened with ▸ into one narrow waveform per stem, on the same zoom, scroll
- * position and playhead. Tapping a stem plays only that stem (tap again: the mix) - to lay a bar
- * line or a cue onto a hit, e.g. drums only. The hits the analysis uses can come from a stem
- * instead of the mix; the mix stays the default (docs/22 §5: the drum stem alone was worse).
+ * The opened stems right under the waveform (docs/22 §5; collapsed by default, the waveform stays
+ * the mix): one narrow waveform per stem, on the same zoom, scroll position and playhead. Tapping
+ * a stem plays only that stem (tap again: the mix) - to lay a bar line or a cue onto a hit, e.g.
+ * drums only. Swiping here scrolls the stems up and down, not the timeline.
  */
-export function TimelineStems({ stems, analyses, open, onToggle, width, view, playheadMs, soloId, onSolo, analysisSourceLabel }: TimelineStemsProps) {
+export function TimelineStems({ stems, analyses, top, height, width, view, playheadMs, soloId, onSolo }: TimelineStemsProps) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const height = stems.length * STEM_LANE_H
+  const lanesH = stems.length * STEM_LANE_H
 
   useEffect(() => {
     const c = canvas.current
     const g = c?.getContext('2d')
-    if (!open || !c || !g) return
+    if (!c || !g) return
     const dpr = window.devicePixelRatio || 1
     c.width = width * dpr
-    c.height = height * dpr
+    c.height = lanesH * dpr
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
-    g.clearRect(0, 0, width, height)
+    g.clearRect(0, 0, width, lanesH)
     const faint = cssVar('--sb-ink-faint', '#a3a3a3')
     const accent = cssVar('--sb-accent', '#f59e0b')
     const line = cssVar('--sb-line', '#404040')
     stems.forEach((stem, i) => {
-      const top = i * STEM_LANE_H
+      const laneTop = i * STEM_LANE_H
       if (i > 0) {
         g.fillStyle = line
-        g.fillRect(0, top, width, 1)
+        g.fillRect(0, laneTop, width, 1)
       }
       const analysis = analyses.get(stem.id)
       if (!analysis) return
       const { min, max, bucketMs } = analysis.peaks
-      const mid = top + STEM_LANE_H / 2
+      const mid = laneTop + STEM_LANE_H / 2
       const half = STEM_LANE_H / 2 - 2
       g.fillStyle = soloId === stem.id ? accent : faint
       for (let x = 0; x < width; x++) {
@@ -81,50 +117,41 @@ export function TimelineStems({ stems, analyses, open, onToggle, width, view, pl
         if (hi > lo) g.fillRect(x, mid - hi * half, 1, Math.max(1, (hi - lo) * half))
       }
     })
-  }, [open, stems, analyses, width, height, view, soloId])
+  }, [stems, analyses, width, lanesH, view, soloId])
 
   const playheadX = timeToX(playheadMs, view)
 
   return (
-    <div className="flex flex-col gap-1" data-testid="timeline-stems">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex min-h-form items-center gap-2 self-start rounded-control px-2 text-base text-ink-muted [@media(hover:hover)]:hover:bg-control"
-      >
-        <Icon name={open ? 'collapse' : 'expand'} />
-        Stems ({stems.length}){soloId ? ` · nur ${stems.find((s) => s.id === soloId)?.label ?? ''}` : ''}
-        {analysisSourceLabel ? ` · Treffer aus ${analysisSourceLabel}` : ''}
-      </button>
-      {open && (
-        <div className="w-full overflow-y-auto overflow-x-hidden rounded-control border border-line bg-stage" style={{ maxHeight: VISIBLE_LANES * STEM_LANE_H }} data-testid="timeline-stem-lanes">
-          <div className="relative w-full" style={{ height }}>
-            <canvas ref={canvas} className="absolute left-0 top-0" style={{ width, height }} />
-            {stems.map((stem, i) => {
-              const solo = soloId === stem.id
-              return (
-                <button
-                  key={stem.id}
-                  type="button"
-                  aria-pressed={solo}
-                  title={solo ? 'Wieder alle Spuren hören' : `Nur ${stem.label} hören`}
-                  onClick={() => onSolo(solo ? null : stem.id)}
-                  className="absolute left-0 flex w-full items-start"
-                  style={{ top: i * STEM_LANE_H, height: STEM_LANE_H }}
-                >
-                  <span className={`m-1 rounded-control px-2 py-0.5 text-sm font-semibold ${solo ? 'bg-accent text-accent-ink' : 'bg-control/80 text-ink'}`}>
-                    {stem.label}
-                    {stem.role && stem.role !== 'other' && STEM_ROLE_LABELS[stem.role] !== stem.label ? ` · ${STEM_ROLE_LABELS[stem.role]}` : ''}
-                    {solo ? ' · solo' : ''}
-                  </span>
-                </button>
-              )
-            })}
-            {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} />}
-          </div>
-        </div>
-      )}
+    <div
+      className="absolute left-0 w-full overflow-y-auto overflow-x-hidden border-y border-line bg-stage"
+      style={{ top, height, touchAction: 'pan-y' }}
+      onPointerDown={stopPointer}
+      data-testid="timeline-stem-lanes"
+    >
+      <div className="relative w-full" style={{ height: lanesH }}>
+        <canvas ref={canvas} className="absolute left-0 top-0" style={{ width, height: lanesH }} />
+        {stems.map((stem, i) => {
+          const solo = soloId === stem.id
+          return (
+            <button
+              key={stem.id}
+              type="button"
+              aria-pressed={solo}
+              title={solo ? 'Wieder alle Spuren hören' : `Nur ${stem.label} hören`}
+              onClick={() => onSolo(solo ? null : stem.id)}
+              className="absolute left-0 flex w-full items-start"
+              style={{ top: i * STEM_LANE_H, height: STEM_LANE_H }}
+            >
+              <span className={`m-1 rounded-control px-2 py-0.5 text-sm font-semibold ${solo ? 'bg-accent text-accent-ink' : 'bg-control/80 text-ink'}`}>
+                {stem.label}
+                {stem.role && stem.role !== 'other' && STEM_ROLE_LABELS[stem.role] !== stem.label ? ` · ${STEM_ROLE_LABELS[stem.role]}` : ''}
+                {solo ? ' · solo' : ''}
+              </span>
+            </button>
+          )
+        })}
+        {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} />}
+      </div>
     </div>
   )
 }

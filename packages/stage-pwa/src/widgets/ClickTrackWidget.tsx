@@ -79,7 +79,13 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
         </div>
       )}
       {/* Pick one (docs/15 D7): one joined bar, the chosen segment filled. */}
-      <div role="radiogroup" aria-label="Klick" className={`grid grid-cols-3 gap-0 rounded-control border border-line bg-control p-1 ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}>
+      {/* Small on a phone (no state word): the frame's padding goes to the buttons - they kept
+          44 px there, under the phone minimum of 48 (docs/15 D2, 2026-10-16). */}
+      <div
+        role="radiogroup"
+        aria-label="Klick"
+        className={`grid grid-cols-3 gap-0 rounded-control bg-control ${layout.showState ? 'border border-line p-1' : ''} ${layout.row ? 'min-w-0 flex-1' : layout.showState ? 'w-full flex-none' : 'w-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'}`}
+      >
         {OVERRIDE_OPTIONS.map((option) => (
           <button
             key={option.label}

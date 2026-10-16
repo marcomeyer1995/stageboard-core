@@ -38,9 +38,9 @@ Ein **Stem-Satz** ist eine Gruppe von Spuren, die zusammen gespielt den Song erg
 
 ## 5. Timeline – ruhig, Details auf Wunsch
 
-- Die Wellenform-Spur zeigt wie heute den **Mix**, mit ▸ zum **Aufklappen**: darunter je Spur eine schmale Wellenform; zugeklappt bleibt alles wie heute.
+- Die Wellenform-Spur zeigt wie heute den **Mix**, mit ▸ zum **Aufklappen**: darunter je Spur eine schmale Wellenform; zugeklappt bleibt alles wie heute. *Gebaut (#528, #530, 2026-10-16):* „▸ Stems (n)“ liegt unten links auf der Wellenform, aufgeklappt stehen die Spuren direkt darunter und schieben die übrigen Spuren nach unten; sichtbar sind höchstens 2,5 Spuren, weitere scrollen innerhalb des Blocks.
 - **Antippen einer Spur-Wellenform = nur diese Spur hören** (Solo) – zum Setzen von Cues, Taktstrichen oder Zeilen, z. B. nur Schlagzeug.
-- **Quelle der Analyse** (Beat-Tracker, rot/grün, „Track analysieren“): Mix oder Schlagzeug-Spur, wählbar. Erster Versuch mit der Schlagzeug-Spur war schlechter als der Mix (Hi-Hats und Achtel machen jedes Raster „grün“, der Tracker driftete bis Takt 89 um 0,34 s gegen den per Ohr geprüften Punkt, 2026-10-15); deshalb Wahl, nicht Standard, bis eine Schlag-genaue Erkennung (Kick auf 1, Snare auf 2/4) mit Ohr-geprüften Stellen belegt ist.
+- **Quelle der Analyse** (Beat-Tracker, rot/grün, „Track analysieren“): Mix oder Schlagzeug-Spur, wählbar. Erster Versuch mit der Schlagzeug-Spur war schlechter als der Mix (Hi-Hats und Achtel machen jedes Raster „grün“, der Tracker driftete bis Takt 89 um 0,34 s gegen den per Ohr geprüften Punkt, 2026-10-15); deshalb Wahl, nicht Standard, bis eine Schlag-genaue Erkennung (Kick auf 1, Snare auf 2/4) mit Ohr-geprüften Stellen belegt ist. *Gebaut (2026-10-16, Marco):* keine dauerhafte Einstellung - „Track analysieren“ fragt, wenn es Stems gibt, „Welche Spur analysieren?“ (Mix oder eine Spur; ohne Stems keine Frage). Rot/Grün und der Magnet folgen der zuletzt gewählten Quelle, solange der Editor offen ist; die Stems-Leiste zeigt „Treffer aus …“.
 
 ## 6. Technik und Risiken
 

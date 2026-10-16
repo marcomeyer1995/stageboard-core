@@ -8,6 +8,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { queueItemTitle, reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
+import { useDashboardHasWidget } from '../lib/dashboardWidgets'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useLongPress } from '../lib/useLongPress'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -163,6 +164,8 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     playbackStatus,
     queue: { activeSetlist, orderedItems, currentEntry },
   } = useShowMode()
+  // One takeover per dashboard - in the transport, when there is one (2026-10-16).
+  const takeoverElsewhere = useDashboardHasWidget('show-transport')
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const fontSize = useContentFontSize(config)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -234,7 +237,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
             )}
           </button>
         )}
-        {mode === 'gig' && !canControl && (
+        {mode === 'gig' && !canControl && !takeoverElsewhere && (
           <MasterTakeoverButton
             className="h-touch flex-shrink-0 rounded-control bg-control-strong px-3 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           />

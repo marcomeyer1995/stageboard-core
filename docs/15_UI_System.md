@@ -26,7 +26,7 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | | Entscheidung | Art |
 |---|---|---|
 | D1 Ecken | Bedienelemente (Buttons, Leisten, Chips, Felder) = kleine Ecke; Karten und Dialoge = normale Ecke; Pille nur für Badges | Theme-Wert |
-| D2 Größen | Bühne (Dashboards, Burger-Menü) 56 px · Formulare (Einstellungen, Editoren, Dialoge) 48 px · Show-Aktionen (Play, Weiter, Ready) 72 px. Themes dürfen größer, nie kleiner | Regel: Minimum · Theme: darüber |
+| D2 Größen | Bühne (Dashboards, Burger-Menü) 56 px · Formulare (Einstellungen, Editoren, Dialoge) 48 px · Show-Aktionen (Play, Weiter, Ready) 72 px. Themes dürfen größer, nie kleiner. **Handy (2026-10-16, Marco):** Bühnen-Bedienelemente in kleinen Widgets dürfen dort bis 48 px schrumpfen (Formularhöhe), nie darunter | Regel: Minimum · Theme: darüber |
 | D3 Grau | Sekundäre Buttons im helleren Grau (`control-strong`) - hebt sich von Karten und nicht gewählten Segmenten ab | Theme-Wert |
 | D4 Aktiv | „Aktiv / das bist du“ = gelbe Umrandung + Badge „Du“ / „Aktiv“; gelbe Füllung bleibt für einen gewählten Wert reserviert | Regel |
 | D5 An/Aus | Echter Schalter (Knopf auf Schiene) | Regel |

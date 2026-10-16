@@ -238,9 +238,10 @@ const FLEX_SHARE = { audio: 0.4, grid: 0.38, text: 0.22 } as const
 /**
  * Heights and tops of the visible lanes, stacked top to bottom. A hidden lane takes no space; in
  * full screen (`availableH`) the flexible lanes share what the fixed ones leave, otherwise each
- * visible lane has its default height.
+ * visible lane has its default height. `underAudioH`: a fixed block right under the waveform (the
+ * opened stems, docs/22 §5), starting at `audioH`.
  */
-export function laneLayout(availableH: number | null, hidden: ReadonlySet<TimelineLane>, sizes: LaneSizes): LaneLayout {
+export function laneLayout(availableH: number | null, hidden: ReadonlySet<TimelineLane>, sizes: LaneSizes, underAudioH = 0): LaneLayout {
   const shown = (lane: TimelineLane) => !hidden.has(lane)
   const sectionH = shown('grid') ? sizes.sectionH : 0
   const tempoH = shown('tempo') ? (availableH !== null ? sizes.tempoH : sizes.compactTempoH) : 0
@@ -252,7 +253,7 @@ export function laneLayout(availableH: number | null, hidden: ReadonlySet<Timeli
   let textH: number
   let totalH: number
   if (availableH !== null) {
-    const rest = Math.max(0, availableH - sectionH - tempoH - partsH - notesH - cueH)
+    const rest = Math.max(0, availableH - underAudioH - sectionH - tempoH - partsH - notesH - cueH)
     const flex = (['audio', 'grid', 'text'] as const).filter(shown)
     const shareSum = flex.reduce((sum, lane) => sum + FLEX_SHARE[lane], 0)
     const others = (['audio', 'text'] as const).filter(shown)
@@ -268,9 +269,9 @@ export function laneLayout(availableH: number | null, hidden: ReadonlySet<Timeli
     audioH = shown('audio') ? sizes.defaultAudioH : 0
     gridH = shown('grid') ? sizes.defaultGridH - tempoH : 0
     textH = shown('text') ? sizes.defaultTextH : 0
-    totalH = audioH + tempoH + sectionH + gridH + partsH + textH + notesH + cueH
+    totalH = audioH + underAudioH + tempoH + sectionH + gridH + partsH + textH + notesH + cueH
   }
-  const tempoTop = audioH
+  const tempoTop = audioH + underAudioH
   const gridTop = tempoTop + tempoH
   const textTop = gridTop + sectionH + gridH
   const notesTop = textTop + partsH + textH

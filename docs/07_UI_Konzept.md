@@ -48,7 +48,7 @@ Der User kann sich seinen Bildschirm aus folgenden Modulen zusammenbauen:
 ### Szenario A: Das Smartphone (6 Zoll, Hochformat)
 * **Layout:** Einspaltig (Single Column).
 * **Fokus:** Maximaler Platz für den Text.
-* **Umsetzung:** Das Prompter Widget füllt 90 % des Bildschirms. Unten gibt es eine kleine Tab-Leiste (Bottom Navigation). Ein Wisch nach links bringt den User sofort zum IEM Widget, ein Wisch nach rechts zur Live-Queue. Keine Splitscreens, da der Platz nicht reicht. *(Idee, nicht gebaut: Tab-Leiste und Wischen gibt es nicht - umgeschaltet wird über ☰ oder den Dashboard-Umschalter. Gebaut ist dafür: ein Dashboard passt auch auf dem Handy immer auf eine Bildschirmseite und scrollt nie, Marco 2026-10-05.)*
+* **Umsetzung:** Das Prompter Widget füllt 90 % des Bildschirms. Unten gibt es eine kleine Tab-Leiste (Bottom Navigation). Ein Wisch nach links bringt den User sofort zum IEM Widget, ein Wisch nach rechts zur Live-Queue. Keine Splitscreens, da der Platz nicht reicht. *(Idee, nicht gebaut: Tab-Leiste und Wischen gibt es nicht - umgeschaltet wird über ☰ oder den Dashboard-Umschalter. Gebaut ist dafür: ein Dashboard passt auch auf dem Handy immer auf eine Bildschirmseite und scrollt nie, Marco 2026-10-05.)* *Beschluss 2026-10-16 (Marco): Die 90 % gelten nicht. Auf dem Handy bleibt die aus dem Tablet abgeleitete Anordnung ("Drehen ohne Einrichten", Abschnitt 2), der Prompter bekommt dort etwa die Hälfte des Bildschirms; wer mehr Text will, ordnet das Handy-Raster selbst an. Ein Übungs-Block wie der Loop-Trainer auf einem Gig-Dashboard bleibt ebenfalls, wie er abgeleitet wird.*
 
 ### Szenario B: Das Tablet (10-12 Zoll, Hochformat / Portrait)
 * **Layout:** Gestapelt (Stacked).

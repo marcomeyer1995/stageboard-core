@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song } from 'shared-types'
 import { NextSongWidget } from './NextSongWidget'
 import { useShowMode } from '../lib/showMode'
+import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
 
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../components/ReadyCheckControl', () => ({
@@ -23,7 +24,7 @@ function song(id: string, title: string): Song {
 }
 const entry = (id: string, songId: string): SetlistEntry => ({ id, songId, variantId: null, trackId: null })
 
-function mockQueue() {
+function mockQueue(canControl = true) {
   vi.mocked(useShowMode).mockReturnValue({
     queue: {
       previousEntry: entry('e0', 's0'),
@@ -34,7 +35,7 @@ function mockQueue() {
       currentVariant: null,
       nextVariant: null,
     },
-    canControl: true,
+    canControl,
     next: vi.fn(),
     previous: vi.fn(),
   } as never)
@@ -69,5 +70,21 @@ describe('NextSongWidget - size-dependent layout (PR B, stage GUI audit)', () =>
     expect(screen.getByText('Were not gonna take it').parentElement?.className).toContain('truncate')
     expect(screen.getByText('Bohemian Rhapsody').parentElement?.className).toContain('truncate')
     expect(screen.getByText('Were not gonna take it').parentElement).not.toBe(screen.getByText('Bohemian Rhapsody').parentElement)
+  })
+})
+
+describe('NextSongWidget - takeover (2026-10-16)', () => {
+  it('without control offers the takeover only when the dashboard has no transport', () => {
+    mockQueue(false)
+    const { unmount } = render(<NextSongWidget config={{}} />)
+    expect(screen.getByRole('button', { name: 'Übernehmen' })).toBeInTheDocument()
+    unmount()
+    render(
+      <DashboardWidgetTypes.Provider value={new Set(['next-song', 'show-transport'])}>
+        <NextSongWidget config={{}} />
+      </DashboardWidgetTypes.Provider>,
+    )
+    expect(screen.queryByRole('button', { name: 'Übernehmen' })).not.toBeInTheDocument()
+    expect(screen.getByText('Were not gonna take it')).toBeInTheDocument()
   })
 })

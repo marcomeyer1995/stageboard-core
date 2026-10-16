@@ -64,9 +64,11 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     // of that shared space and overflow by the button's own height whenever it's visible,
     // same "whole page scrolls" bug SetlistDetail had (Marco, explicit report there).
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-      <div className="flex items-start justify-between gap-3">
+      {/* Phone: the title wraps instead of "All the small thi…", and the button keeps clear of
+          the scrollbar (2026-10-16). */}
+      <div className="flex items-start justify-between gap-3 max-[599px]:pr-2">
         <div className="min-w-0">
-          <h2 className="truncate text-2xl font-bold text-ink">{song.title || '(ohne Titel)'}</h2>
+          <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || '(ohne Titel)'}</h2>
           {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
         </div>
         <Button variant="primary" className="flex-shrink-0" onClick={onEdit}>
