@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { CapabilityStatus } from '../lib/capabilities'
-import { Button, Dialog, Switch } from './ui'
+import { Button, Dialog, Switch, menuIcon } from './ui'
 import { Icon } from './Icon'
 
 interface WidgetFrameProps {
@@ -93,7 +93,7 @@ export function WidgetFrame({
             title="Widget-Menü"
             className="widget-menu pointer-events-auto flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-control bg-stage/70 text-lg leading-none text-ink-soft [@media(hover:hover)]:hover:bg-control-hover"
           >
-            <Icon name="more" size="1.5rem" />
+            <Icon name={menuIcon('entry')} size="1.5rem" />
           </button>
         </div>
       )}

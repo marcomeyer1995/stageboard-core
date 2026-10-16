@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Grip,
   Lock,
   LockOpen,
   Maximize2,
@@ -44,6 +45,8 @@ import {
  */
 const ICONS = {
   menu: Menu,
+  /** Bento menu (nine dots): pick and manage dashboards (docs/15 D8). */
+  dashboards: Grip,
   master: Crown,
   locked: Lock,
   unlocked: LockOpen,

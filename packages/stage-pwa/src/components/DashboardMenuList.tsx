@@ -109,6 +109,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
                 <ArrangeRow
                   key={dashboard.id}
                   dashboard={dashboard}
+                  active={dashboard.id === active?.id}
                   locked={!canEditDashboard(dashboard, roles)}
                   onEdit={() => void edit(dashboard)}
                   hidden={hidden.includes(dashboard.id)}
@@ -170,26 +171,44 @@ function DashboardEntry({ dashboard, active, locked, onSelect }: { dashboard: Da
   )
 }
 
-/** "Bearbeiten": drag handle, name, eye (hide on this device), pen (open it in edit mode). */
-function ArrangeRow({ dashboard, locked, hidden, canHide, onToggleHidden, onEdit }: { dashboard: Dashboard; locked: boolean; hidden: boolean; canHide: boolean; onToggleHidden: (hide: boolean) => void; onEdit: () => void }) {
+/** "Bearbeiten": drag handle, name, eye (hide on this device), pen (open it in edit mode). The
+ * dashboard on screen stays yellow here too, so it's clear which pen edits it (Marco, 2026-10-16). */
+function ArrangeRow({
+  dashboard,
+  active,
+  locked,
+  hidden,
+  canHide,
+  onToggleHidden,
+  onEdit,
+}: {
+  dashboard: Dashboard
+  active: boolean
+  locked: boolean
+  hidden: boolean
+  canHide: boolean
+  onToggleHidden: (hide: boolean) => void
+  onEdit: () => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dashboard.id })
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex h-stage items-center gap-2 bg-control pr-1 text-lg ${CONTROL} ${isDragging ? 'opacity-50' : ''}`}
+      aria-current={active ? 'true' : undefined}
+      className={`flex h-stage items-center gap-2 pr-1 text-lg ${CONTROL} ${active ? SELECTED : 'bg-control'} ${isDragging ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
         {...listeners}
         {...attributes}
         style={{ touchAction: 'none' }}
-        className="flex h-stage w-stage flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
+        className={`flex h-stage w-stage flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${active ? '' : 'text-ink-faint'}`}
         aria-label={`„${dashboard.name}“ ziehen zum Sortieren`}
       >
         ⠿
       </button>
-      <span className={`flex min-w-0 flex-1 items-center gap-2 ${hidden ? 'text-ink-faint line-through' : 'text-ink-soft'}`}>
+      <span className={`flex min-w-0 flex-1 items-center gap-2 ${hidden ? `line-through ${active ? '' : 'text-ink-faint'}` : active ? '' : 'text-ink-soft'}`}>
         <span className="truncate">{dashboard.name}</span>
         {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
       </span>
@@ -199,7 +218,7 @@ function ArrangeRow({ dashboard, locked, hidden, canHide, onToggleHidden, onEdit
         disabled={!hidden && !canHide}
         onClick={() => onToggleHidden(!hidden)}
         aria-label={hidden ? `„${dashboard.name}“ einblenden` : `„${dashboard.name}“ ausblenden`}
-        className={`flex h-form w-form flex-shrink-0 items-center justify-center text-ink-soft ${CONTROL} ${FOCUS} ${HOVER} ${DISABLED}`}
+        className={`flex h-form w-form flex-shrink-0 items-center justify-center ${active ? '' : 'text-ink-soft'} ${CONTROL} ${FOCUS} ${HOVER} ${DISABLED}`}
       >
         <Icon name={hidden ? 'eyeOff' : 'eye'} size="1.3rem" />
       </button>
@@ -207,7 +226,7 @@ function ArrangeRow({ dashboard, locked, hidden, canHide, onToggleHidden, onEdit
         type="button"
         onClick={onEdit}
         aria-label={`„${dashboard.name}“ bearbeiten`}
-        className={`flex h-form w-form flex-shrink-0 items-center justify-center text-ink-soft ${CONTROL} ${FOCUS} ${HOVER}`}
+        className={`flex h-form w-form flex-shrink-0 items-center justify-center ${active ? '' : 'text-ink-soft'} ${CONTROL} ${FOCUS} ${HOVER}`}
       >
         <Icon name="edit" size="1.3rem" />
       </button>

@@ -90,7 +90,7 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
   )
 }
 
-export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: () => void }) {
+export function StatusBar({ screen, onOpenMenu, onOpenDashboards }: { screen: Mode; onOpenMenu: () => void; onOpenDashboards?: () => void }) {
   const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
@@ -281,6 +281,19 @@ export function StatusBar({ screen, onOpenMenu }: { screen: Mode; onOpenMenu: ()
           <span className="font-normal">{sync.label}</span>
         </span>
       </span>
+
+      {/* Top right on dashboards: the bento menu - pick and manage dashboards (docs/15 D8). Part of
+          the fixed core like ☰, never given up for room. */}
+      {screen === 'boards' && onOpenDashboards && (
+        <button
+          type="button"
+          onClick={onOpenDashboards}
+          aria-label={t('openDashboards')}
+          className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-control px-2 [@media(hover:hover)]:hover:bg-scrim/15"
+        >
+          <Icon name="dashboards" size="1.75rem" />
+        </button>
+      )}
     </header>
   )
 }
