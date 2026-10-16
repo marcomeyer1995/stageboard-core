@@ -26,7 +26,7 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | | Entscheidung | Art |
 |---|---|---|
 | D1 Ecken | Bedienelemente (Buttons, Leisten, Chips, Felder) = kleine Ecke; Karten und Dialoge = normale Ecke; Pille nur für Badges | Theme-Wert |
-| D2 Größen | Bühne (Dashboards, Burger-Menü) 56 px · Formulare (Einstellungen, Editoren, Dialoge) 48 px · Show-Aktionen (Play, Weiter, Ready) 72 px. Themes dürfen größer, nie kleiner. **Handy (2026-10-16, Marco):** Bühnen-Bedienelemente in kleinen Widgets dürfen dort bis 48 px schrumpfen (Formularhöhe), nie darunter | Regel: Minimum · Theme: darüber |
+| D2 Größen | *(ersetzt durch D10)* Bühne (Dashboards, Burger-Menü) 56 px · Formulare (Einstellungen, Editoren, Dialoge) 48 px · Show-Aktionen (Play, Weiter, Ready) 72 px. Themes dürfen größer, nie kleiner. **Handy (2026-10-16, Marco):** Bühnen-Bedienelemente in kleinen Widgets dürfen dort bis 48 px schrumpfen (Formularhöhe), nie darunter | Regel: Minimum · Theme: darüber |
 | D3 Grau | Sekundäre Buttons im helleren Grau (`control-strong`) - hebt sich von Karten und nicht gewählten Segmenten ab | Theme-Wert |
 | D4 Aktiv | „Aktiv / das bist du“ = gelbe Umrandung + Badge „Du“ / „Aktiv“; gelbe Füllung bleibt für einen gewählten Wert reserviert | Regel |
 | D5 An/Aus | Echter Schalter (Knopf auf Schiene) | Regel |
@@ -34,6 +34,22 @@ Themes bleiben also und unterscheiden sich danach *sauberer*: Eine Theme-Einstel
 | D7 Eins vs. mehrere | Eins = zusammenhängende Leiste, gewähltes Segment gefüllt; mehrere = einzelne Chips mit Kästchen vorn (leer + Umriss = nicht gewählt, angehakt + gefüllt = gewählt; das Kästchen ist immer da, damit die Breite nie springt - präzisiert 2026-10-07) | Regel |
 | Tabs | Seiten-Navigation (System-Tabs, Editor-Tabs) = Text mit gelber Unterstreichung. „Ansicht“ im Burger-Menü ist eine zusammenhängende Leiste wie „Modus“ (präzisiert 2026-10-07: getrennte Buttons über einer Leiste wirkten wie zwei Systeme) | Regel |
 | Themes | Wie Dashboards: in der Band gespeichert, bandweit oder privat, Admins schützen Vorlagen, andere duplizieren; jedes Gerät wählt sein Theme. Theme-Editor = eigenes Projekt danach | - |
+
+### Navigation, Menüs und Größen-Stufen (2026-10-16, Marco)
+
+| | Entscheidung | Art |
+|---|---|---|
+| D8 Ecken oben | **Links oben = wohin, rechts oben = was kann ich hier tun.** ☰ steht auf jeder Ansicht links oben (Dashboards, Bibliothek, System, Editoren, Onboarding). Es öffnet eine **Schublade, die von links hereingleitet** (kein Dialog mehr): Boards / Bibliothek / System, Modus, Vollbild, Band und Profil. Auf Dashboards öffnet nur ein Tipp auf ☰, kein Wisch vom Rand (sonst geht sie mitten im Song aus Versehen auf); daneben tippen schließt (D6). Rechts oben steht auf Dashboards das **Bento-Menü** (neun Punkte): Dashboard wählen, Bearbeiten (Edit-Modus), Dashboards anlegen, ordnen, ausblenden. Die Dashboard-Liste verschwindet aus ☰. Auf den anderen Ansichten steht rechts oben das ⋮ der Seite (D9). **Nie aussperren:** Blendet ein Dashboard die Statusleiste aus, bleiben ☰ und Bento als kleine Eckknöpfe in den beiden oberen Ecken (ersetzt den schwebenden Menüknopf unten rechts) | Regel |
+| D9 ⋯ vs. ⋮ | **⋯ (waagerecht, „Meatballs“)** = Optionen für **einen Eintrag** unter gleichartigen: Widget, Song-, Setlist-, Mitglieder-, Plugin-, Hardware-Zeile. **⋮ (senkrecht, „Kebab“)** = Optionen für **die ganze Seite**, immer rechts oben in ihrer Kopfzeile: Song-Editor (Export, Löschen), Setlist-Detail, Dashboard-Einstellungen in der Edit-Leiste, ein System-Tab. Beide öffnen dasselbe `ActionMenuDialog`; der Wächter-Test prüft, dass ⋮ nur in Seitenköpfen vorkommt | Regel |
+| D10 Größen-Stufen | Ersetzt D2. Die Stufe kommt aus dem **Ort**, nicht aus dem Widget-Typ - siehe Tabelle unten. Was auf der Bühne benutzt werden kann, ist fett; was nur der Vorbereitung dient, darf kleiner sein, damit mehr auf den Bildschirm passt, ohne zu quetschen | Regel: Minimum · Theme: darüber |
+
+| Stufe | Wo | Sichtbar | Trefferfläche | Text |
+|---|---|---|---|---|
+| **Bühne** | Dashboards, die in **Gig** angeboten werden (auch „beide“), Statusleiste, ☰ und Bento, Schublade | 56 px, Show-Aktionen (Play, Weiter, Ready) 72 px; Handy in kleinen Widgets bis 48 px (D2-Ausnahme bleibt) | = sichtbar, keine unsichtbare Verlängerung | mind. 16 px |
+| **Üben** | Dashboards, die **nur in Solo Üben** angeboten werden | 48 px | 48 px | mind. 16 px |
+| **Vorbereitung** | Bibliothek, Song-Editor, Timeline-Werkzeuge, System, Dialoge, Assistenten | 40 px | 48 px (unsichtbar erweitert, mind. 8 px Abstand zwischen Trefferflächen) | 16 px; Nebenzeilen (Datum, Beschreibung, Hinweis) 14 px - **Versuch**, Marco prüft auf dem Dev-Build |
+
+Begründung: Apple verlangt mindestens 44 × 44 pt Trefferfläche, Google Material 48 × 48 dp mit 8 dp Abstand (das Sichtbare darf kleiner sein, z. B. ein 24-dp-Symbol), WCAG 2.2 24 px (AA) bzw. 44 px (AAA). 48 ist damit überall das Minimum einer Trefferfläche. Auf der Bühne liegen wir bewusst darüber (nasse Finger, Dunkelheit, ein Blick aus einem Meter, Tablet schräg am Ständer), und dort ist die Trefferfläche genau das, was man sieht - eine unsichtbar größere Fläche überrascht unter Stress. Die Stufe hängt am Dashboard („Anbieten in“), nicht am Widget: Ein Übungs-Widget auf einem Gig-Dashboard ist dort trotzdem fett, ein Transport-Widget auf einem reinen Übungs-Dashboard darf 48 px haben.
 
 ## 4. Welches Element wann
 
@@ -92,7 +108,7 @@ In `packages/stage-pwa/src/components/ui/`, jede mit Tests und passenden ARIA-At
 | Gruppe | Komponente | Ersetzt (ca. Stellen) |
 |---|---|---|
 | Aktionen | `Button` (Hauptaktion · sekundär · Gefahr · leise; Größe show · stage · form) | handgeschriebene Buttons, 10 lokale Stil-Konstanten (~245) |
-| | `IconButton` (nie unter 48 px) | ⋯, ×, ↑↓, Stepper (~25) |
+| | `IconButton` (Trefferfläche nie unter 48 px, D10) | ⋯, ×, ↑↓, Stepper (~25) |
 | Auswahl | `Segmented` | Ansicht, Modus, Sync, Blitzmeldungen, Editor-Umschalter (~20) |
 | | `ToggleChip` | Gig/Solo, Empfänger, Akkordarten, Timeline-Schalter (~25) |
 | | `Switch` (`role="switch"`) | native Checkboxen, „Einrasten“ (~10) |
@@ -124,3 +140,13 @@ Rot nur für Fehler und Gefahr (wie in der Statusleiste festgelegt).
 ## 8. Danach: eigene Themes (eigenes Projekt)
 
 Theme-Editor auf den Tokens aus Phase 1: Grundton (dunkel/hell), Akzentfarbe (+ optional zweite für Hauptaktionen), Ecken (eckig · weich · rund), Größe (normal · groß), Schrift (3-4 gut lesbare), Kontrast (normal · hoch), Schatten (an · aus). Leitplanken: Kontrast wird live geprüft und ungenügende Kombinationen lassen sich nicht speichern; Touch-Größen nie unter dem Minimum; Rot bleibt Fehlern vorbehalten; die Statusleiste behält ihre Zustandsfarben. Speicherung wie Dashboards (siehe §3); die fünf heutigen Themes werden geschützte Vorlagen.
+
+## 9. Umbau Navigation, Menüs, Größen (ab 2026-10-16)
+
+Reihenfolge, je ein PR, Marco prüft auf dem Dev-Build:
+
+1. **Schublade + Bento** (D8): ☰ als Schublade von links, Dashboard-Liste und „Bearbeiten“ ins Bento rechts oben, Eckknöpfe statt schwebendem Menüknopf; ☰ auf jeder Ansicht prüfen.
+2. **⋯ / ⋮** (D9): Seitenmenüs auf ⋮ rechts oben (Edit-Leiste, Song-Editor, Setlist-Detail, System-Tabs), Wächter-Test.
+3. **System neu sortiert** nach Geltungsbereich (Analyse 2026-10-16, Bericht: https://claude.ai/artifact/2y3PUooJap2ffXhTdAK1Kz): Dieses Gerät · Ton & Timing · Band · Bühnentechnik (Hardware samt Treibern, Klick und Backing-Track als eingebaute Rollen) · Tablets & Handys · Stage-Server (Verbindung, Sync, aktive Band, Backups, Server-Latenz) · Erweiterungen · Diagnose. Nachbericht wird „Shows“ in der Bibliothek, Geübt/Geprobt wandern in deren Sortierung. Schritt 1 (Aufräumen) ist #533.
+4. **Größen-Stufen** (D10): Token `--sb-h-prep` 40 px plus Trefferflächen-Erweiterung, Stufe aus „Anbieten in“ des Dashboards, 14-px-Nebenzeilen in der Vorbereitung.
+
