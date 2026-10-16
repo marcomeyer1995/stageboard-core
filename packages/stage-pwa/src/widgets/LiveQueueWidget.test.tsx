@@ -48,12 +48,12 @@ describe('LiveQueueWidget - sort mode and long-press menu (PR F1, stage GUI audi
     expect(screen.getByText('Sweet Home Alabama').className).toContain('line-clamp-2')
   })
 
-  it('"⇅ Sortieren" shows handles and "⋮" triggers on the upcoming rows, "Fertig" hides them', () => {
+  it('"⇅ Sortieren" shows handles and "⋯" triggers (one row - docs/15 D9) on the upcoming rows, "Fertig" hides them', () => {
     mockQueue()
     render(<LiveQueueWidget config={{}} />)
     fireEvent.click(screen.getByText('Sortieren'))
     expect(screen.getAllByLabelText('Ziehen zum Sortieren')).toHaveLength(2)
-    expect(screen.getAllByTitle('Menü öffnen')[0].querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
+    expect(screen.getAllByTitle('Menü öffnen')[0].querySelector('svg.lucide-ellipsis')).not.toBeNull()
     // 56px Gig-tier target (it was 40px, tablet check after #293).
     expect(screen.getAllByTitle('Menü öffnen')[0].className).toContain('h-touch w-touch')
     fireEvent.click(screen.getByText('Fertig'))
