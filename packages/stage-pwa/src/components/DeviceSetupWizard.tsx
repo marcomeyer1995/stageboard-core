@@ -6,7 +6,7 @@ import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
-import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
 import { listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -130,7 +130,8 @@ function TypeStep({
     <div className="flex flex-col gap-4">
       <p className="text-xs text-ink-faint">Welche Art Gerät ist das?</p>
       <div className="flex flex-col gap-2">
-        {PLUGIN_CATALOG.map((candidate) => {
+        {/* A device already set up on a test plugin keeps showing its type. */}
+        {PLUGIN_CATALOG.filter((candidate) => candidate.id === draft.pluginId || installableCatalog().includes(candidate)).map((candidate) => {
           const alreadyInstalled = installed.some((p) => p.id === candidate.id)
           const selected = draft.pluginId === candidate.id
           return (
@@ -144,7 +145,7 @@ function TypeStep({
             >
               <span>
                 {candidate.name}
-                <span className="ml-2 text-xs text-ink-faint">{candidate.capabilities.join(', ')}</span>
+                <span className="ml-2 text-xs text-ink-faint">{capabilitiesLabel(candidate.capabilities)}</span>
               </span>
               {!alreadyInstalled && <span className="shrink-0 text-xs text-ink-faint">wird installiert</span>}
             </button>

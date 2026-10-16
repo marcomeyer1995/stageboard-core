@@ -1,5 +1,50 @@
 import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 
+/** What each capability does, in the band's words - the ids themselves ("click-track") are for
+ * developers and stay off the screens (System cleanup, 2026-10-16). */
+const CAPABILITY_LABEL: Record<string, string> = {
+  [CAPABILITIES.mixer]: 'Mischpult',
+  [CAPABILITIES.lighting]: 'Licht',
+  [CAPABILITIES.showControl]: 'Show-Steuerung',
+  [CAPABILITIES.midiInput]: 'MIDI-Eingang',
+  [CAPABILITIES.audioPlayback]: 'Backing-Track',
+  [CAPABILITIES.clickTrack]: 'Klick',
+  [CAPABILITIES.backup]: 'Backup',
+  [CAPABILITIES.audioAnalysis]: 'Track-Analyse',
+  [CAPABILITIES.midiClock]: 'MIDI-Clock',
+  [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
+  [CAPABILITIES.stemSeparation]: 'Spuren trennen',
+  [CAPABILITIES.sectionAnnouncements]: 'Ansagen',
+}
+
+/** A plugin's capabilities as one readable line. A device's own capability ("kemper-control",
+ * one per device - see the catalog below) reads "Gerätesteuerung"; any other unknown id (a newer
+ * plugin) shows as it is. */
+export function capabilitiesLabel(capabilities: readonly string[]): string {
+  return capabilities.map((capability) => CAPABILITY_LABEL[capability] ?? (capability.endsWith('-control') ? 'Gerätesteuerung' : capability)).join(', ')
+}
+
+/**
+ * Stand-ins that only log what they receive (System analysis, 2026-10-16): a fake mixer, fake
+ * light and a backup that never happens. Only the dev app (and `vite dev`) offers them - in the
+ * release app and the browser they can't be installed, and where one already is, its card says
+ * "Test". Mock Click and Mock Playback are not in here: Gig mode still routes click and track
+ * through them until they become built-in roles.
+ */
+export const TEST_PLUGIN_IDS: readonly string[] = ['mock-mixer', 'mock-lighting', 'mock-backup']
+
+/** The dev app's build (docs/03 §0c) sets VITE_DEV_APP=1. */
+export const SHOW_TEST_PLUGINS = import.meta.env.DEV || import.meta.env.VITE_DEV_APP === '1'
+
+export function isTestPlugin(id: string): boolean {
+  return TEST_PLUGIN_IDS.includes(id)
+}
+
+/** The catalog this build offers to install. */
+export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS): typeof PLUGIN_CATALOG {
+  return showTestPlugins ? PLUGIN_CATALOG : PLUGIN_CATALOG.filter((entry) => !isTestPlugin(entry.id))
+}
+
 /**
  * The plugins a band can add without a plugin repository yet. Installing one writes a
  * document that replicates across the stage mesh - every other tablet and the
