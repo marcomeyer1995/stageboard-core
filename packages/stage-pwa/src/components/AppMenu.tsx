@@ -15,6 +15,10 @@ import { useActiveProfile } from '../lib/useActiveProfile'
 import { Drawer, Section, Switch } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
+/** A group in the drawer: separated from the one above by a thin line instead of a heading. */
+const GROUP = 'flex flex-col gap-2 border-t border-line pt-4'
+const GROUP_LINE = 'border-t border-line'
+
 interface AppMenuProps {
   mode: Mode
   onSelectMode: (mode: Mode) => void
@@ -76,18 +80,19 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
           </button>
         ))}
       </nav>
-      {/* No headings over Modus and Master - the bar and the row say it themselves, and ☰ fits one
-          landscape screen without them (Marco, 2026-10-16). */}
-      <section aria-label="Modus" className="flex flex-col gap-2">
+      {/* No headings over Modus and Master - the bar and the row say it themselves; a thin line
+          sets the groups apart instead, so ☰ fits one landscape screen (Marco, 2026-10-16). */}
+      <section aria-label="Modus" className={GROUP}>
         <SessionModeControl />
         {sessionMode === 'practice' && <PracticeSetlistPicker />}
       </section>
       {sessionMode === 'gig' && (
-        <section aria-label="Master-Kontrolle" className="flex flex-col gap-2">
+        <section aria-label="Master-Kontrolle" className={GROUP}>
           <MasterControl />
           <GigSetlistPicker />
         </section>
       )}
+      <div className={GROUP_LINE} aria-hidden />
       {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
       {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
