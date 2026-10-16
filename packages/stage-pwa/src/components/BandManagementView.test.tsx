@@ -86,6 +86,21 @@ describe('BandManagementView without the server band line', () => {
 })
 
 describe('BandManagementView', () => {
+  it('the active band shows how master works as a badge; admins change it there or from ⋯, the section below is gone (2026-10-16)', async () => {
+    const setMasterMode = vi.fn().mockResolvedValue(true)
+    useWorkspaceStore.setState({ setMasterMode })
+    render(<BandManagementView />)
+    expect(screen.queryByRole('region', { name: 'Master-Kontrolle' })).not.toBeInTheDocument()
+    // Only on the active band.
+    expect(screen.getAllByText(/^Master pro/)).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Master pro Gerät - Master-Kontrolle' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Pro Person' }))
+    await waitFor(() => expect(setMasterMode).toHaveBeenCalledWith('band-a', 'account'))
+    fireEvent.click(screen.getByRole('button', { name: 'Fertig' }))
+    openBandMenu('Band A')
+    expect(screen.getByText('Master-Kontrolle…')).toBeInTheDocument()
+  })
+
   it('lists every known band, admin controls only on bands this device administers', () => {
     render(<BandManagementView />)
 

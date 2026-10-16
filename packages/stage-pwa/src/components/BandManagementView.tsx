@@ -13,8 +13,9 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { ActionMenuDialog, AddRow, Badge, Segmented, Button } from './ui'
-import { INPUT_FREE } from './ui/styles'
+import { MASTER_MODE_LABEL, MasterModeDialog } from './MasterModeDialog'
+import { ActionMenuDialog, AddRow, Badge, Button } from './ui'
+import { CONTROL, FOCUS, INPUT_FREE } from './ui/styles'
 
 /**
  * SystemView.tsx's "Band" tab (see 2026-08-30 menu-decluttering follow-up) - every band/roster
@@ -227,7 +228,8 @@ export function BandManagementView() {
   const [actionsMenuWorkspaceId, setActionsMenuWorkspaceId] = useState<string | null>(null)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
-  const setMasterMode = useWorkspaceStore((state) => state.setMasterMode)
+  const [masterModeWorkspaceId, setMasterModeWorkspaceId] = useState<string | null>(null)
+  const masterModeWorkspace = workspaces.find((w) => w.id === masterModeWorkspaceId)
   const adminCount = profiles.filter((profile) => profile.stageRoles.includes('admin')).length
   const isLastAdmin = (profile: (typeof profiles)[number]) => profile.stageRoles.includes('admin') && adminCount <= 1
 
@@ -289,6 +291,18 @@ export function BandManagementView() {
               <span className="truncate">{workspace.name}</span>
               {workspace.id === activeWorkspaceId && <Badge tone="accent">Aktiv</Badge>}
             </button>
+            {/* How master works here - a band setting, so it sits with the band (Marco, 2026-10-16);
+                only on the active band. Tap: admins change it, everyone else reads what it means. */}
+            {workspace.id === activeWorkspaceId && !!workspace.username && (
+              <button
+                type="button"
+                onClick={() => setMasterModeWorkspaceId(workspace.id)}
+                aria-label={`Master ${MASTER_MODE_LABEL[workspace.masterMode ?? 'device']} - Master-Kontrolle`}
+                className={`flex min-h-form flex-shrink-0 items-center ${CONTROL} ${FOCUS}`}
+              >
+                <Badge>Master {MASTER_MODE_LABEL[workspace.masterMode ?? 'device']}</Badge>
+              </button>
+            )}
             {(workspace.isAdmin || !!workspace.username) && (
               <RowMenuButton
                 label={`Weitere Optionen für ${workspace.name}`}
@@ -325,6 +339,16 @@ export function BandManagementView() {
                     }}
                   >
                     Einladen
+                  </RowActionButton>
+                )}
+                {workspace.isAdmin && !!workspace.username && (
+                  <RowActionButton
+                    onClick={() => {
+                      setActionsMenuWorkspaceId(null)
+                      setMasterModeWorkspaceId(workspace.id)
+                    }}
+                  >
+                    Master-Kontrolle…
                   </RowActionButton>
                 )}
                 {/* 2026-09-02 thirteenth follow-up, at Marco's explicit request ("welche
@@ -626,27 +650,7 @@ export function BandManagementView() {
         </section>
       )}
 
-      {activeWorkspace?.isAdmin && activeWorkspace.username && (
-        <section className="space-y-2" aria-label="Master-Kontrolle">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Master-Kontrolle ({activeWorkspace.name})</h2>
-          <p className="text-sm text-ink-muted">
-            Pro Gerät: genau ein Gerät steuert die Show. Pro Person: alle Geräte der Person, die Master ist (z. B. Tablet
-            und Handy des Bandleaders), steuern gemeinsam.
-          </p>
-          <Segmented
-            label="Master-Kontrolle"
-            value={activeWorkspace.masterMode ?? 'device'}
-            onChange={async (mode) => {
-              // Saved on the Stage-Server - say so when that didn't work instead of silently staying (#409 review).
-              if (!(await setMasterMode(activeWorkspace.id, mode))) void alert('Nicht gespeichert - Stage-Server nicht erreichbar oder keine Admin-Anmeldung auf diesem Gerät.')
-            }}
-            options={[
-              { value: 'device', label: 'Pro Gerät' },
-              { value: 'account', label: 'Pro Person' },
-            ]}
-          />
-        </section>
-      )}
+      {masterModeWorkspace && <MasterModeDialog workspace={masterModeWorkspace} onClose={() => setMasterModeWorkspaceId(null)} />}
 
       {inviteWorkspaceId && (
         <InviteBandView workspaceId={inviteWorkspaceId} onClose={() => setInviteWorkspaceId(null)} />
