@@ -40,7 +40,7 @@ export function PluginManager() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Plugins</h1>
+      <h1 className="mb-1 text-2xl font-bold">Erweiterungen</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Installierte Plugins replizieren über das Bühnen-Netz zu allen Tablets und zum
         Stage-Server. Deaktivierte Plugins verschwinden aus der Widget-Bibliothek.

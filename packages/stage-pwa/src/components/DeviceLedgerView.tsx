@@ -140,7 +140,7 @@ export function DeviceLedgerView() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Geräte</h1>
+      <h1 className="mb-1 text-2xl font-bold">Tablets & Handys</h1>
       <p className="mb-4 text-sm text-ink-muted">
         Jedes Gerät, das dieser Band jemals beigetreten ist. „App offen“ und „Netzwerk erreichbar“
         sind zwei unabhängige Signale - ein Gerät kann im Netzwerk erreichbar sein, ohne dass die

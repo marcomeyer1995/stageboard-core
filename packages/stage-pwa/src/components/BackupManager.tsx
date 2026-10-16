@@ -73,11 +73,12 @@ export function BackupManager() {
   }
 
   return (
-    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-4 text-2xl font-bold">Backup</h1>
+    // A part of System → Stage-Server since the System split (2026-10-16), no tab of its own.
+    <section aria-label="Backup" className="flex flex-col text-ink">
+      <h2 className="mb-4 mt-4 text-xl font-bold">Backup</h2>
       <ServerBackupTargets />
 
-      {backupPlugins.length > 0 && <h2 className="mb-2 mt-8 text-xl font-bold">Backup-Plugins</h2>}
+      {backupPlugins.length > 0 && <h3 className="mb-2 mt-8 text-lg font-bold">Backup-Plugins</h3>}
       <div className="space-y-2">
         {backupPlugins.map((plugin) => (
           <div
@@ -96,7 +97,7 @@ export function BackupManager() {
         ))}
       </div>
 
-      <h2 className="mb-1 mt-8 text-xl font-bold">Lokale Snapshots</h2>
+      <h3 className="mb-1 mt-8 text-lg font-bold">Lokale Snapshots</h3>
       <p className="mb-4 text-sm text-ink-muted">
         Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieses Workspaces
         (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und
@@ -123,6 +124,6 @@ export function BackupManager() {
         />
       </div>
       {snapshotStatus && <p className="mt-2 text-sm text-ink-muted">{snapshotStatus}</p>}
-    </div>
+    </section>
   )
 }

@@ -175,7 +175,7 @@ export async function handleDetected(detected: DetectedHardware) {
   if (candidates.length === 0) {
     // Offers to open DeviceSetupWizard.tsx right here, pre-filled from what was just detected,
     // instead of just describing where to go find that option by hand (Marco, explicit request -
-    // this dialog can only ever fire while System → Hardware is already showing, per the gate
+    // this dialog can only ever fire while System → Bühnentechnik is already showing, per the gate
     // above, so there's nowhere else the confirmation needs to navigate first).
     const shouldCreate = await useDialogStore
       .getState()
@@ -221,7 +221,7 @@ function allHardwareStoresLoaded(): boolean {
  * required for Discovery Mode's own band-wide auto-discovery to work from any tablet regardless
  * of what that tablet's own screen shows (`handleDetected`'s Discovery-active branch reports
  * into the session unconditionally). Only the ad-hoc "never seen this device before, which role?"
- * popup is gated to System → Hardware being on screen - see `handleDetected`'s own comment at
+ * popup is gated to System → Bühnentechnik being on screen - see `handleDetected`'s own comment at
  * that check for why.
  *
  * A device that's already plugged in when the app launches fires its WebMIDI/WebUSB "connect"

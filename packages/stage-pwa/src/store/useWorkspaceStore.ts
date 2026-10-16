@@ -241,7 +241,7 @@ let nameChangesHandle: LocalChangesHandle<{ code: string; name: string }> | null
  * pairs with a server; the browser always knows the address it was loaded from. */
 function noServerMessage(): string {
   return isNativeApp()
-    ? 'Noch mit keinem Stage-Server gekoppelt - unter System → Einstellungen → Stage-Server suchen oder den QR-Code der Band scannen.'
+    ? 'Noch mit keinem Stage-Server gekoppelt - unter System → Stage-Server suchen oder den QR-Code der Band scannen.'
     : 'Stage-Server nicht konfiguriert - Beitritt nicht möglich.'
 }
 

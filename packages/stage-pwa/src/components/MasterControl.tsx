@@ -27,7 +27,7 @@ const PENDING_MS = 4000
 const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
   ok: '',
   'sync-error':
-    'Sync-Fehler: Dieses Gerät steuert die Show gerade nicht - die anderen sähen es nicht, und vielleicht hat schon ein anderes Gerät übernommen. Unter System → Einstellungen → Synchronisation „Reparieren“.',
+    'Sync-Fehler: Dieses Gerät steuert die Show gerade nicht - die anderen sähen es nicht, und vielleicht hat schon ein anderes Gerät übernommen. Unter System → Stage-Server → Synchronisation „Reparieren“.',
   offline: 'Keine Verbindung zum Stage-Server: Dieses Gerät steuert die Show erst wieder, wenn die Verbindung zurück ist.',
   unconfirmed:
     'Der Stage-Server bestätigt dieses Gerät nicht als Master - vermutlich hat ein anderes Gerät übernommen. Dieses Gerät steuert die Show gerade nicht.',
