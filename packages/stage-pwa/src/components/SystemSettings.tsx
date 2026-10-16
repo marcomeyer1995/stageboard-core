@@ -13,9 +13,6 @@ import { BackupManager } from './BackupManager'
 import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
-import { WebAudioTrackSettings } from './WebAudioTrackSettings'
-import { AnnouncementSettings } from './AnnouncementSettings'
-import { LatencyCompensationSettings } from './LatencyCompensationSettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -72,8 +69,9 @@ function Page({ title, description, children }: { title: string; description: st
 
 /*
  * The former "Einstellungen" tab (5-6 screens) split by scope (docs/15 §9 step 3, Marco
- * 2026-10-16): what only this device does, how it sounds and keeps time, and what the Stage-Server
- * does for everyone. What "Geübt" / "Geprobt" count sits in the Bibliothek beside that sort.
+ * 2026-10-16): what only this device does, and what the Stage-Server does for everyone. The short-
+ * lived "Ton & Timing" tab is gone again: latency sits in "Latenz…" (Tablets & Handys), the
+ * announcements switch with the Ansagen add-on, the Web Audio test switch in Diagnose. What "Geübt" / "Geprobt" count sits in the Bibliothek beside that sort.
  */
 
 /** System → Dieses Gerät: name, look, controls and storage of this tablet or phone only. */
@@ -127,29 +125,6 @@ export function DeviceSettings() {
           </Section>
         </Group>
       )}
-    </Page>
-  )
-}
-
-/** System → Ton & Timing: how this device plays the track, the click and the announcements. */
-export function SoundTimingSettings() {
-  return (
-    <Page title="Ton & Timing" description="Wie dieses Gerät Track, Klick und Ansagen ausgibt - nur auf diesem Gerät.">
-      <Group title="Wiedergabe" description="Womit der Backing-Track abgespielt wird.">
-        <Section title="Wiedergabe (Test)">
-          <WebAudioTrackSettings />
-        </Section>
-      </Group>
-      <Group title="Latenz" description="Damit Klick und Track trotz Verzögerung des Ausgangs (z. B. Bluetooth) auf dem Schlag klingen.">
-        <Section title="Ausgleich">
-          <LatencyCompensationSettings />
-        </Section>
-      </Group>
-      <Group title="Ansagen" description="Gesprochene Songteile über den Klick-Ausgang.">
-        <Section title="Songteile">
-          <AnnouncementSettings />
-        </Section>
-      </Group>
     </Page>
   )
 }

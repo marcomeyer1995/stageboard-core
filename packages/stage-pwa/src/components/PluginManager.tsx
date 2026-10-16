@@ -16,9 +16,9 @@ const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
 
 const HEADER: Record<PluginKind, { title: string; text: string; empty: string }> = {
   extensions: {
-    title: 'Erweiterungen',
-    text: 'Zusätzliche Funktionen für die ganze Band, z. B. Sprachausgabe oder Spuren trennen. Installierte Plugins replizieren über das Bühnen-Netz zu allen Tablets und zum Stage-Server. Deaktivierte verschwinden aus der Widget-Bibliothek.',
-    empty: 'Noch keine Erweiterung installiert.',
+    title: 'Add-ons',
+    text: 'Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter Bühnentechnik. Installierte Add-ons gelten auf allen Tablets und dem Stage-Server; deaktivierte verschwinden aus der Widget-Bibliothek.',
+    empty: 'Noch kein Add-on installiert.',
   },
   drivers: {
     title: 'Treiber',
@@ -33,9 +33,9 @@ const HEADER: Record<PluginKind, { title: string; text: string; empty: string }>
 }
 
 /**
- * Plugins of one kind (System split, 2026-10-16): Erweiterungen get their own tab, gear drivers
+ * Plugins of one kind (System split, 2026-10-16): Add-ons get their own tab, gear drivers
  * sit under Bühnentechnik next to the devices they drive, the test stand-ins under Diagnose. Only
- * Erweiterungen is a page of its own; the other two are a part of their page.
+ * Add-ons is a page of its own; the other two are a part of their page.
  */
 export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const installed = usePluginsStore((state) => state.installed)

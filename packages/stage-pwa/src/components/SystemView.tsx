@@ -3,7 +3,8 @@ import { BandManagementView } from './BandManagementView'
 import { DeviceLedgerView } from './DeviceLedgerView'
 import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
-import { DeviceSettings, SoundTimingSettings, StageServerPage } from './SystemSettings'
+import { DeviceSettings, StageServerPage } from './SystemSettings'
+import { WebAudioTrackSettings } from './WebAudioTrackSettings'
 import { useInputCapability } from '../lib/useInputCapability'
 import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSystemTabStore'
 import { DebugConsoleView } from './DebugConsoleView'
@@ -14,12 +15,11 @@ import { Tabs } from './ui'
  * band, the server - instead of the old mix where one tab held device, band and server settings. */
 const TAB_LABEL: Record<SystemTab, string> = {
   device: 'Dieses Gerät',
-  sound: 'Ton & Timing',
   band: 'Band',
   hardware: 'Bühnentechnik',
   devices: 'Tablets & Handys',
   server: 'Stage-Server',
-  plugins: 'Erweiterungen',
+  plugins: 'Add-ons',
   debug: 'Diagnose',
 }
 
@@ -62,7 +62,7 @@ export function SystemView() {
   const roles = useActiveProfile()?.stageRoles ?? []
   const showDebug = roles.includes('admin') || roles.includes('crew')
   // Nachbericht moved to the Bibliothek as "Shows" (2026-10-16).
-  const baseTabs: SystemTab[] = ['device', 'sound', 'band', 'hardware', 'devices', 'server', 'plugins']
+  const baseTabs: SystemTab[] = ['device', 'band', 'hardware', 'devices', 'server', 'plugins']
   const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('device')
   const activeTab = tabs.includes(tab) ? tab : 'device'
@@ -83,7 +83,6 @@ export function SystemView() {
   const content = (
     <>
       {activeTab === 'device' && <DeviceSettings />}
-      {activeTab === 'sound' && <SoundTimingSettings />}
       {activeTab === 'band' && <BandManagementView />}
       {activeTab === 'hardware' && <HardwareSetupManager />}
       {activeTab === 'devices' && <DeviceLedgerView />}
@@ -92,6 +91,11 @@ export function SystemView() {
       {activeTab === 'debug' && (
         <>
           <DebugConsoleView />
+          {/* A fallback, not a setting to tune (Marco, 2026-10-16): Web Audio has been the default since 2026-10-15. */}
+          <section aria-label="Wiedergabe (Test)" className="flex max-w-4xl flex-col gap-2 px-4 pb-4">
+            <h2 className="text-lg font-bold text-ink">Wiedergabe (Test)</h2>
+            <WebAudioTrackSettings />
+          </section>
           {/* The stand-ins that only log - for trying things out, not for the stage. */}
           <div className="max-w-4xl px-4 pb-4">
             <PluginManager kind="test" />
