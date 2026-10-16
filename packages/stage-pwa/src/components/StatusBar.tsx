@@ -90,7 +90,20 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
   )
 }
 
-export function StatusBar({ screen, onOpenMenu, onOpenDashboards }: { screen: Mode; onOpenMenu: () => void; onOpenDashboards?: () => void }) {
+export function StatusBar({
+  screen,
+  onOpenMenu,
+  onOpenDashboards,
+  menuOpen = false,
+  dashboardsOpen = false,
+}: {
+  screen: Mode
+  onOpenMenu: () => void
+  onOpenDashboards?: () => void
+  /** Its drawer is open: the symbol shows yellow, a tap closes it (Marco, 2026-10-16). */
+  menuOpen?: boolean
+  dashboardsOpen?: boolean
+}) {
   const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
@@ -212,7 +225,8 @@ export function StatusBar({ screen, onOpenMenu, onOpenDashboards }: { screen: Mo
         type="button"
         onClick={onOpenMenu}
         aria-label={t('openMenu')}
-        className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 [@media(hover:hover)]:hover:bg-scrim/15"
+        aria-pressed={menuOpen}
+        className={`flex h-touch min-w-touch flex-shrink-0 items-center justify-center gap-2 rounded-control px-3 ${menuOpen ? 'bg-accent text-accent-ink' : '[@media(hover:hover)]:hover:bg-scrim/15'}`}
       >
         <Icon name="menu" size="1.75rem" />
         <span {...item('screen')}>
@@ -289,7 +303,8 @@ export function StatusBar({ screen, onOpenMenu, onOpenDashboards }: { screen: Mo
           type="button"
           onClick={onOpenDashboards}
           aria-label={t('openDashboards')}
-          className="flex h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-control px-2 [@media(hover:hover)]:hover:bg-scrim/15"
+          aria-pressed={dashboardsOpen}
+          className={`flex h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-control px-2 ${dashboardsOpen ? 'bg-accent text-accent-ink' : '[@media(hover:hover)]:hover:bg-scrim/15'}`}
         >
           <Icon name="dashboards" size="1.75rem" />
         </button>

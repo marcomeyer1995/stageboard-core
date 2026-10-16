@@ -87,6 +87,15 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   // The bento menu top right on dashboards (docs/15 D8).
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false)
+  // The symbol that opened a drawer closes it again; only one drawer at a time.
+  const toggleMenu = () => {
+    setDashboardMenuOpen(false)
+    setMenuOpen((open) => !open)
+  }
+  const toggleDashboardMenu = () => {
+    setMenuOpen(false)
+    setDashboardMenuOpen((open) => !open)
+  }
   // Finishing a dashboard edit that started in the bento menu leads back to its list.
   const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
   useEffect(() => {
@@ -273,7 +282,9 @@ function App() {
       {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
         <EditBarSlot />
       ) : (
-        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} onOpenDashboards={() => setDashboardMenuOpen(true)} />
+        showStatusBar && (
+          <StatusBar screen={mode} menuOpen={menuOpen} dashboardsOpen={dashboardMenuOpen} onOpenMenu={toggleMenu} onOpenDashboards={toggleDashboardMenu} />
+        )
       )}
       {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
       <div className="relative min-h-0 flex-1">
@@ -313,8 +324,16 @@ function App() {
             2026-10-16 - before, one floating menu button bottom right). */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
           <>
-            <div className="absolute left-2 top-2 z-content">
-              <IconButton icon="menu" label={t('openMenu')} size="stage" className="relative opacity-90" onClick={() => setMenuOpen(true)} />
+            {/* Above the drawers, so the same button closes them again (Marco, 2026-10-16). */}
+            <div className="absolute left-2 top-2 z-dialog">
+              <IconButton
+                icon="menu"
+                label={t('openMenu')}
+                size="stage"
+                aria-pressed={menuOpen}
+                className={`relative ${menuOpen ? '!bg-accent !text-accent-ink' : 'opacity-90'}`}
+                onClick={toggleMenu}
+              />
               {/* Discreet at-a-glance sync status (see #33) - a dot, since this button is always on screen. */}
               <span
                 title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
@@ -329,18 +348,25 @@ function App() {
               />
             </div>
             {mode === 'boards' && (
-              <div className="absolute right-2 top-2 z-content">
-                <IconButton icon="dashboards" label={t('openDashboards')} size="stage" className="opacity-90" onClick={() => setDashboardMenuOpen(true)} />
+              <div className="absolute right-2 top-2 z-dialog">
+                <IconButton
+                  icon="dashboards"
+                  label={t('openDashboards')}
+                  size="stage"
+                  aria-pressed={dashboardMenuOpen}
+                  className={dashboardMenuOpen ? '!bg-accent !text-accent-ink' : 'opacity-90'}
+                  onClick={toggleDashboardMenu}
+                />
               </div>
             )}
           </>
         )}
-      </div>
 
-      {menuOpen && !inOnboarding && (
-        <AppMenu mode={mode} onSelectMode={setMode} onClose={() => setMenuOpen(false)} />
-      )}
-      {dashboardMenuOpen && !inOnboarding && mode === 'boards' && <DashboardMenu onClose={() => setDashboardMenuOpen(false)} />}
+        {/* Below the status bar, inside the screen area (Marco, 2026-10-16): ☰ and the nine dots
+            stay in sight and close their drawer again. */}
+        {menuOpen && !inOnboarding && <AppMenu mode={mode} onSelectMode={setMode} onClose={() => setMenuOpen(false)} clearCornerButtons={!showStatusBar} />}
+        {dashboardMenuOpen && !inOnboarding && mode === 'boards' && <DashboardMenu onClose={() => setDashboardMenuOpen(false)} clearCornerButtons={!showStatusBar} />}
+      </div>
 
       <DialogHost />
       <FlashOverlay />

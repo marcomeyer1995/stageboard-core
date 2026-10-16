@@ -69,6 +69,14 @@ describe('StatusBar (PR F2)', () => {
     expect(screen.queryByRole('button', { name: 'Dashboards' })).not.toBeInTheDocument()
   })
 
+  it('☰ and the nine dots show yellow while their drawer is open - the same symbol closes it (2026-10-16)', () => {
+    mockShow('stopped', null)
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} onOpenDashboards={vi.fn()} menuOpen />)
+    expect(screen.getByRole('button', { name: 'Menü öffnen' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Menü öffnen' })).toHaveClass('bg-accent')
+    expect(screen.getByRole('button', { name: 'Dashboards' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('shows state, song, time, mode, Master crown, clock, musician and sync', () => {
     mockShow('playing', 65_000)
     render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
