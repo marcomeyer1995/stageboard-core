@@ -67,7 +67,7 @@ function DriverHost({ workspaceId }: { workspaceId: string }) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(useAudioSyncStore).mockImplementation((selector) => selector({ modeFor: () => 'none' } as never))
+  vi.mocked(useAudioSyncStore).mockImplementation((selector) => selector({ modeFor: () => 'none', stemModeFor: () => 'none' } as never))
   vi.mocked(useAudioPinsStore).mockImplementation((selector) => selector({ pinsFor: () => [] } as never))
   vi.mocked(useSongVariantsStore).mockImplementation((selector) => selector({ variants: [] } as never))
   vi.mocked(useShowStateStore).mockImplementation((selector) => selector({ state: { trackOverride: null } } as never))
@@ -77,7 +77,7 @@ beforeEach(() => {
 describe('useAudioSyncReconciler', () => {
   it('passes an empty always-keep set when nothing is currently active', () => {
     render(<DriverHost workspaceId="ws-1" />)
-    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(), 'none')
   })
 
   it("always keeps whatever song is currently active in the queue, even in 'none' mode", () => {
@@ -86,7 +86,7 @@ describe('useAudioSyncReconciler', () => {
       currentVariant: variant('v1', 'song-a', [track('t1')]),
     })
     render(<DriverHost workspaceId="ws-1" />)
-    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['v1:t1']))
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['v1:t1']), 'none')
   })
 
   it('has nothing to always-keep when the current song has no track attached', () => {
@@ -95,6 +95,6 @@ describe('useAudioSyncReconciler', () => {
       currentVariant: variant('v1', 'song-a', []), // no tracks at all
     })
     render(<DriverHost workspaceId="ws-1" />)
-    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set())
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(), 'none')
   })
 })

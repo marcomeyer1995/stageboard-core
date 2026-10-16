@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   getCatalogSizeBytes,
+  getStemCatalogSizeBytes,
   getStorageEstimate,
   isFullSyncSafe,
   SAFE_QUOTA_FRACTION,
@@ -32,6 +33,8 @@ export function AudioSyncSettings() {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const mode = useAudioSyncStore((state) => state.modeFor(workspaceId))
   const setMode = useAudioSyncStore((state) => state.setMode)
+  const stemMode = useAudioSyncStore((state) => state.stemModeFor(workspaceId))
+  const setStemMode = useAudioSyncStore((state) => state.setStemMode)
   const variants = useSongVariantsStore((state) => state.variants)
   const [estimate, setEstimate] = useState<StorageEstimate | null>(null)
 
@@ -41,6 +44,9 @@ export function AudioSyncSettings() {
 
   const catalogSizeBytes = getCatalogSizeBytes(variants)
   const fullIsSafe = isFullSyncSafe(catalogSizeBytes, estimate)
+  const stemCatalogSizeBytes = getStemCatalogSizeBytes(variants)
+  // Both together must fit, not each on its own.
+  const stemsFullIsSafe = isFullSyncSafe(stemCatalogSizeBytes + (mode === 'full' ? catalogSizeBytes : 0), estimate)
 
   return (
     <div className="flex flex-col gap-2">
@@ -49,7 +55,7 @@ export function AudioSyncSettings() {
           ? `${formatMb(estimate.usageBytes)} von ${formatMb(estimate.quotaBytes)} genutzt`
           : 'Speicherbelegung unbekannt'}
         {' · '}
-        Katalog: {formatMb(catalogSizeBytes)}
+        Katalog: {formatMb(catalogSizeBytes)} · Stems: {formatMb(stemCatalogSizeBytes)}
       </p>
 
       <div className="flex gap-2">
@@ -68,6 +74,20 @@ export function AudioSyncSettings() {
           })}
         />
       </div>
+
+      {/* Stems on their own (Marco, 2026-10-16): they are big, and not every device needs them. */}
+      <Segmented
+        label="Stems"
+        showLabel
+        hint={stemMode === 'none' ? 'Keine: nur die Stems, die gerade geübt werden - vom Stage-Server geladen.' : 'Selektiv: Stems der aktiven Setlist und angehefteter Songs. Komplett: alle.'}
+        value={stemMode}
+        onChange={(candidate) => setStemMode(workspaceId, candidate)}
+        options={(['none', 'selective', 'full'] as const).map((candidate) => ({
+          value: candidate,
+          label: MODE_LABEL[candidate],
+          disabled: candidate === 'full' && !stemsFullIsSafe,
+        }))}
+      />
     </div>
   )
 }

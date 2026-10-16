@@ -315,3 +315,17 @@ describe('scheduleReconcileAudioCache (found live, 2026-09-16: useAudioSyncRecon
     expect(fetchTrack).not.toHaveBeenCalled() // both already cached, nothing to fetch
   })
 })
+
+describe('computeTargetKeys - stems on their own (Marco, 2026-10-16)', () => {
+  const withStems = [
+    variant({ id: 'v1', songId: 's1', isDefault: true, tracks: [track('mix'), track('drums', { kind: 'stem', parentTrackId: 'mix' })] }),
+    variant({ id: 'v2', songId: 's2', isDefault: true, tracks: [track('mix2'), track('bass', { kind: 'stem', parentTrackId: 'mix2' })] }),
+  ]
+  const list = setlist('gig', [entry('e1', 's1')])
+
+  it('"none" keeps no stems, "selective" those of the setlist, "full" all - independent of the tracks', () => {
+    expect([...computeTargetKeys('selective', withStems, list, [], new Set(), 'none')]).toEqual(['v1:mix'])
+    expect([...computeTargetKeys('none', withStems, list, [], new Set(), 'selective')]).toEqual(['v1:drums'])
+    expect([...computeTargetKeys('none', withStems, list, [], new Set(), 'full')].sort()).toEqual(['v1:drums', 'v2:bass'])
+  })
+})

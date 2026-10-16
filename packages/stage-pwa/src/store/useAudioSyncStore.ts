@@ -11,6 +11,11 @@ interface AudioSyncState {
   byWorkspace: Record<string, AudioSyncMode>
   modeFor: (workspaceId: string) => AudioSyncMode
   setMode: (workspaceId: string, mode: AudioSyncMode) => void
+  /** Stems kept on this device, separate from the tracks (Marco, 2026-10-16). Default "none":
+   * only the stems practiced right now, loaded from the Stage-Server. */
+  stemsByWorkspace: Record<string, AudioSyncMode>
+  stemModeFor: (workspaceId: string) => AudioSyncMode
+  setStemMode: (workspaceId: string, mode: AudioSyncMode) => void
 }
 
 /**
@@ -25,6 +30,9 @@ export const useAudioSyncStore = create<AudioSyncState>()(
       modeFor: (workspaceId) => get().byWorkspace[workspaceId] ?? DEFAULT_MODE,
       setMode: (workspaceId, mode) =>
         set({ byWorkspace: { ...get().byWorkspace, [workspaceId]: mode } }),
+      stemsByWorkspace: {},
+      stemModeFor: (workspaceId) => get().stemsByWorkspace[workspaceId] ?? 'none',
+      setStemMode: (workspaceId, mode) => set({ stemsByWorkspace: { ...get().stemsByWorkspace, [workspaceId]: mode } }),
     }),
     { name: 'stageboard-audio-sync-mode' },
   ),

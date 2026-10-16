@@ -26,6 +26,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
  */
 export function useAudioSyncReconciler(workspaceId: string) {
   const mode = useAudioSyncStore((state) => state.modeFor(workspaceId))
+  const stemMode = useAudioSyncStore((state) => state.stemModeFor(workspaceId))
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))
   const variants = useSongVariantsStore((state) => state.variants)
   const { activeSetlist, currentEntry, currentVariant } = useQueue()
@@ -43,6 +44,6 @@ export function useAudioSyncReconciler(workspaceId: string) {
   }, [currentVariant?.id, currentTrack?.id, stemKeys])
 
   useEffect(() => {
-    scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
-  }, [workspaceId, mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys])
+    scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)
+  }, [workspaceId, mode, stemMode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys])
 }

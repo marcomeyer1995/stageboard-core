@@ -3,7 +3,7 @@ import { fetchTrack } from './audioClient'
 import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import type { AudioSyncMode } from '../store/useAudioSyncStore'
-import { playableTracks } from './stems'
+import { isStem, playableTracks } from './stems'
 
 export interface StorageEstimate {
   usageBytes: number
@@ -38,6 +38,13 @@ export function getCatalogSizeBytes(variants: SongVariant[]): number {
 }
 
 /** No estimate available means "allow" - see getStorageEstimate's doc comment. */
+/** The stems of the whole catalog - "Komplett" for stems is checked against this. */
+export function getStemCatalogSizeBytes(variants: SongVariant[]): number {
+  return variants
+    .flatMap((variant) => variant.tracks.filter(isStem))
+    .reduce((sum, track) => sum + (track.sizeBytes ?? 0), 0)
+}
+
 export function isFullSyncSafe(
   catalogSizeBytes: number,
   estimate: StorageEstimate | null,
@@ -76,32 +83,32 @@ export function computeTargetKeys(
   activeSetlist: Setlist | null,
   pinnedSongIds: string[],
   alwaysKeepKeys: ReadonlySet<string> = new Set(),
+  /** Stems, chosen on their own (Marco, 2026-10-16) - "none" keeps only the ones practiced right
+   * now (they arrive through alwaysKeepKeys). */
+  stemMode: AudioSyncMode = 'none',
 ): Set<string> {
   const keys = new Set<string>(alwaysKeepKeys)
-
-  if (mode === 'full') {
-    for (const variant of variants) {
-      for (const track of playableTracks(variant.tracks)) keys.add(cacheKey(variant.id, track.id))
+  const add = (strategy: AudioSyncMode, pick: (variant: SongVariant) => readonly { id: string }[]) => {
+    if (strategy === 'none') return
+    if (strategy === 'full') {
+      for (const variant of variants) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id))
+      return
     }
-    return keys
+    const seenSongIds = new Set<string>()
+    const addSong = (songId: string, variantId: string | null) => {
+      seenSongIds.add(songId)
+      const variant = resolveVariant(songId, variantId, variants)
+      if (variant) for (const track of pick(variant)) keys.add(cacheKey(variant.id, track.id))
+    }
+    for (const entry of activeSetlist?.entries ?? []) {
+      if (isSongEntry(entry)) addSong(entry.songId, entry.variantId)
+    }
+    for (const songId of pinnedSongIds) {
+      if (!seenSongIds.has(songId)) addSong(songId, null)
+    }
   }
-  if (mode === 'none') return keys
-
-  const seenSongIds = new Set<string>()
-  const addSong = (songId: string, variantId: string | null) => {
-    seenSongIds.add(songId)
-    const variant = resolveVariant(songId, variantId, variants)
-    if (!variant) return
-    // Stems (#9) stay on the Stage-Server - heard on demand, not cached on every device.
-    for (const track of playableTracks(variant.tracks)) keys.add(cacheKey(variant.id, track.id))
-  }
-
-  for (const entry of activeSetlist?.entries ?? []) {
-    if (isSongEntry(entry)) addSong(entry.songId, entry.variantId)
-  }
-  for (const songId of pinnedSongIds) {
-    if (!seenSongIds.has(songId)) addSong(songId, null)
-  }
+  add(mode, (variant) => playableTracks(variant.tracks))
+  add(stemMode, (variant) => variant.tracks.filter(isStem))
   return keys
 }
 
@@ -128,9 +135,10 @@ export async function reconcileAudioCache(
   activeSetlist: Setlist | null,
   pinnedSongIds: string[],
   alwaysKeepKeys: ReadonlySet<string> = new Set(),
+  stemMode: AudioSyncMode = 'none',
 ): Promise<void> {
   const backend = getAudioStorageBackend()
-  const target = computeTargetKeys(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys)
+  const target = computeTargetKeys(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)
   const cached = new Set(await backend.listKeys())
 
   await Promise.all([...cached].filter((key) => !target.has(key)).map((key) => backend.remove(key)))
