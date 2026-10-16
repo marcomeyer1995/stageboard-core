@@ -1,5 +1,5 @@
 import { FLASH_SECONDS, useFlashPrefsStore, type FlashMode } from '../store/useFlashPrefsStore'
-import { Button, Segmented } from './ui'
+import { Button, Segmented, Stepper } from './ui'
 import { showLocalFlash } from '../lib/flash'
 
 const OPTIONS: { mode: FlashMode; label: string; hint: (seconds: number) => string }[] = [
@@ -26,21 +26,8 @@ export function FlashSettings() {
         </Button>
       )}
       {mode !== 'off' && (
-        <label className="flex flex-col gap-1 text-base text-ink-soft">
-          <span className="flex items-center justify-between">
-            Anzeigedauer
-            <span className="text-ink-faint">{seconds} s</span>
-          </span>
-          <input
-            type="range"
-            min={FLASH_SECONDS.min}
-            max={FLASH_SECONDS.max}
-            step={1}
-            value={seconds}
-            onChange={(e) => setSeconds(Number(e.target.value))}
-            className="h-form w-full accent-accent"
-          />
-        </label>
+        // − / + instead of a slider (Marco, 2026-10-16), like the text size.
+        <Stepper label="Anzeigedauer" value={seconds} unit="s" min={FLASH_SECONDS.min} max={FLASH_SECONDS.max} onChange={setSeconds} />
       )}
     </div>
   )
