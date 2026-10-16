@@ -68,7 +68,7 @@ export function Drawer({ title, side, onClose, clearCornerButtons = false, child
             const towardEdge = side === 'left' ? start - e.clientX : e.clientX - start
             if (towardEdge > SWIPE_CLOSE_PX) onClose()
           }}
-          className={`flex h-full w-[min(24rem,88vw)] flex-col border-line bg-surface shadow-sb transition-transform duration-200 ease-out motion-reduce:transition-none ${
+          className={`flex h-full w-[min(24rem,88vw)] landscape:w-[min(30rem,88vw)] flex-col border-line bg-surface shadow-sb transition-transform duration-200 ease-out motion-reduce:transition-none ${
             side === 'left' ? 'border-r' : 'border-l'
           } ${shown ? 'translate-x-0' : hidden}`}
         >

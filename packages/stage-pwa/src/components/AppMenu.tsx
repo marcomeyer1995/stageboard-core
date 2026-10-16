@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BandPickRow } from './BandPickRow'
 import { GigSetlistPicker } from './GigSetlistPicker'
@@ -12,12 +12,22 @@ import { MODES, type Mode } from '../lib/modes'
 import { Icon } from './Icon'
 import { SwitchProfileDialog } from './SwitchProfileDialog'
 import { useActiveProfile } from '../lib/useActiveProfile'
-import { Drawer, Section, Switch } from './ui'
+import { Drawer, Switch } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
-/** A group in the drawer: separated from the one above by a thin line instead of a heading. */
-const GROUP = 'flex flex-col gap-2 border-t border-line pt-4'
-const GROUP_LINE = 'border-t border-line'
+/**
+ * A group in the drawer with what it is for (Marco, 2026-10-16): in portrait the name sits above it,
+ * in landscape - where height is short and width is plenty - beside it on the left, so ☰ fits one
+ * screen. A thin line sets it apart from the group above.
+ */
+function MenuGroup({ label, first = false, children }: { label: string; first?: boolean; children: ReactNode }) {
+  return (
+    <section aria-label={label} className={`grid gap-2 landscape:grid-cols-[6.5rem_minmax(0,1fr)] landscape:gap-x-3 ${first ? '' : 'border-t border-line pt-4'}`}>
+      <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint landscape:pt-[1.1rem]">{label}</h3>
+      <div className="flex min-w-0 flex-col gap-2">{children}</div>
+    </section>
+  )
+}
 
 interface AppMenuProps {
   mode: Mode
@@ -26,7 +36,6 @@ interface AppMenuProps {
   /** Status bar hidden: room for the corner buttons on top. */
   clearCornerButtons?: boolean
 }
-
 
 /**
  * Just what's actually touched during a show - band/theme/sync-detail settings moved out to
@@ -63,58 +72,61 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
     <Drawer title="Menü" side="left" onClose={onClose} clearCornerButtons={clearCornerButtons}>
       {/* "Wohin?" = navigation (docs/15 §4): in a drawer one row per screen, below each other, the
           current one yellow (Marco, 2026-10-16) - not a pick-one bar. Choosing closes the menu. */}
-      <nav aria-label="Ansicht" className="flex flex-col gap-1">
-        {MODES.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            aria-current={candidate === mode ? 'page' : undefined}
-            onClick={() => {
-              onSelectMode(candidate)
-              onClose()
-            }}
-            className={`flex h-stage w-full items-center gap-3 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${candidate === mode ? SELECTED : `bg-control text-ink ${HOVER}`}`}
-          >
-            <Icon name={candidate} size="1.4rem" />
-            {t(`mode.${candidate}`)}
-          </button>
-        ))}
-      </nav>
+      <MenuGroup label="Ansicht" first>
+        <nav aria-label="Ansicht" className="flex flex-col gap-1">
+          {MODES.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              aria-current={candidate === mode ? 'page' : undefined}
+              onClick={() => {
+                onSelectMode(candidate)
+                onClose()
+              }}
+              className={`flex h-stage w-full items-center gap-3 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${candidate === mode ? SELECTED : `bg-control text-ink ${HOVER}`}`}
+            >
+              <Icon name={candidate} size="1.4rem" />
+              {t(`mode.${candidate}`)}
+            </button>
+          ))}
+        </nav>
+      </MenuGroup>
       {/* No headings over Modus and Master - the bar and the row say it themselves; a thin line
           sets the groups apart instead, so ☰ fits one landscape screen (Marco, 2026-10-16). */}
-      <section aria-label="Modus" className={GROUP}>
+      <MenuGroup label="Modus">
         <SessionModeControl />
         {sessionMode === 'practice' && <PracticeSetlistPicker />}
-      </section>
+      </MenuGroup>
       {sessionMode === 'gig' && (
-        <section aria-label="Master-Kontrolle" className={GROUP}>
+        <MenuGroup label="Master">
           <MasterControl />
           <GigSetlistPicker />
-        </section>
+        </MenuGroup>
       )}
-      <div className={GROUP_LINE} aria-hidden />
-      {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
+      <MenuGroup label="Band">
+        {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
-      {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
-      <BandPickRow />
-      {/* Who uses this device, same band (Marco, 2026-10-16) - here only, never on the status bar. */}
-      <button
-        type="button"
-        onClick={() => setSwitchingProfile(true)}
-        className={`flex h-stage w-full items-center justify-between gap-3 bg-control px-4 text-left text-lg text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
-      >
-        <span className="min-w-0 truncate">
-          <span className="text-ink-muted">Ich bin: </span>
-          {me?.name ?? 'kein Profil'}
-        </span>
-        <Icon name="next" size="1.4rem" className="text-ink-faint" />
-      </button>
-      {switchingProfile && <SwitchProfileDialog onClose={() => setSwitchingProfile(false)} />}
+        {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
+        <BandPickRow />
+        {/* Who uses this device, same band (Marco, 2026-10-16) - here only, never on the status bar. */}
+        <button
+          type="button"
+          onClick={() => setSwitchingProfile(true)}
+          className={`flex h-stage w-full items-center justify-between gap-3 bg-control px-4 text-left text-lg text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
+        >
+          <span className="min-w-0 truncate">
+            <span className="text-ink-muted">Ich bin: </span>
+            {me?.name ?? 'kein Profil'}
+          </span>
+          <Icon name="next" size="1.4rem" className="text-ink-faint" />
+        </button>
+        {switchingProfile && <SwitchProfileDialog onClose={() => setSwitchingProfile(false)} />}
+      </MenuGroup>
       {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
       {fullscreen.supported && !isNativeApp() && (
-        <Section title="Anzeige">
+        <MenuGroup label="Anzeige">
           <Switch label="Vollbild" checked={fullscreen.isFullscreen} onChange={() => void fullscreen.toggle()} />
-        </Section>
+        </MenuGroup>
       )}
     </Drawer>
   )
