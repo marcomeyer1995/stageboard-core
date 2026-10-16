@@ -76,6 +76,18 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
           </button>
         ))}
       </nav>
+      <Section title="Modus">
+        <SessionModeControl />
+        {sessionMode === 'practice' && <PracticeSetlistPicker />}
+      </Section>
+      {sessionMode === 'gig' && (
+        <Section title="Master-Kontrolle">
+          <MasterControl />
+          <GigSetlistPicker />
+        </Section>
+      )}
+      {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
+          first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
       {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
       <BandPickRow />
       {/* Who uses this device, same band (Marco, 2026-10-16) - here only, never on the status bar. */}
@@ -91,16 +103,6 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
         <Icon name="next" size="1.4rem" className="text-ink-faint" />
       </button>
       {switchingProfile && <SwitchProfileDialog onClose={() => setSwitchingProfile(false)} />}
-      <Section title="Modus">
-        <SessionModeControl />
-        {sessionMode === 'practice' && <PracticeSetlistPicker />}
-      </Section>
-      {sessionMode === 'gig' && (
-        <Section title="Master-Kontrolle">
-          <MasterControl />
-          <GigSetlistPicker />
-        </Section>
-      )}
       {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
       {fullscreen.supported && !isNativeApp() && (
         <Section title="Anzeige">
