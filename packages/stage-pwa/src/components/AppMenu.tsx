@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BandPickRow } from './BandPickRow'
 import { GigSetlistPicker } from './GigSetlistPicker'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -18,6 +19,8 @@ interface AppMenuProps {
   mode: Mode
   onSelectMode: (mode: Mode) => void
   onClose: () => void
+  /** Status bar hidden: room for the corner buttons on top. */
+  clearCornerButtons?: boolean
 }
 
 
@@ -45,7 +48,7 @@ interface AppMenuProps {
  * 2026-10-16 (docs/15 D8, Marco): a drawer sliding in from the left instead of a dialog, one
  * column; the dashboard list moved out to the bento menu top right (`DashboardMenu.tsx`).
  */
-export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
+export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: AppMenuProps) {
   const { t } = useTranslation('common')
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
@@ -53,7 +56,7 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const [switchingProfile, setSwitchingProfile] = useState(false)
 
   return (
-    <Drawer title="Menü" side="left" onClose={onClose}>
+    <Drawer title="Menü" side="left" onClose={onClose} clearCornerButtons={clearCornerButtons}>
       {/* "Wohin?" = navigation (docs/15 §4): in a drawer one row per screen, below each other, the
           current one yellow (Marco, 2026-10-16) - not a pick-one bar. Choosing closes the menu. */}
       <nav aria-label="Ansicht" className="flex flex-col gap-1">
@@ -73,6 +76,8 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           </button>
         ))}
       </nav>
+      {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
+      <BandPickRow />
       {/* Who uses this device, same band (Marco, 2026-10-16) - here only, never on the status bar. */}
       <button
         type="button"
