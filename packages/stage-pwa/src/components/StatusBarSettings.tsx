@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { STATUS_BAR_ITEM_LABEL } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
-import { Button, IconButton, Switch } from './ui'
+import { Button, Dialog, IconButton, Switch } from './ui'
 
 /**
  * The status bar's ranking on this device (Marco, 2026-10-07): what matters most stays longest.
@@ -33,6 +34,30 @@ export function StatusBarSettings() {
       <Button variant="quiet" onClick={reset} className="self-start">
         Standard wiederherstellen
       </Button>
+    </div>
+  )
+}
+
+/**
+ * In System → Dieses Gerät only a summary and "Anpassen…" (Marco, 2026-10-16: the ranked list with
+ * its switches and arrows made the page heavy) - the list itself opens in a dialog.
+ */
+export function StatusBarSettingsEntry() {
+  const order = useStatusBarPrefsStore((state) => state.order)
+  const hidden = useStatusBarPrefsStore((state) => state.hidden)
+  const [open, setOpen] = useState(false)
+  const shown = order.filter((item) => !hidden.includes(item))
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="min-w-0 flex-1 text-sm text-ink-muted">
+        {shown.length === order.length ? 'Alles an' : `${shown.length} von ${order.length} an`} - zuerst: {shown.slice(0, 3).map((item) => STATUS_BAR_ITEM_LABEL[item]).join(', ') || '-'}
+      </p>
+      <Button onClick={() => setOpen(true)}>Anpassen…</Button>
+      {open && (
+        <Dialog title="Statusleiste" onClose={() => setOpen(false)}>
+          <StatusBarSettings />
+        </Dialog>
+      )}
     </div>
   )
 }

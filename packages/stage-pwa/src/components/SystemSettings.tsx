@@ -6,7 +6,7 @@ import { DeviceNameSettings } from './DeviceNameSettings'
 import { StageServerSettings } from './StageServerSettings'
 import { SyncIndicator } from './SyncIndicator'
 import { TextSizeSettings } from './TextSizeSettings'
-import { StatusBarSettings } from './StatusBarSettings'
+import { StatusBarSettingsEntry } from './StatusBarSettings'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { WorkspaceHardwareSettings } from './WorkspaceHardwareSettings'
 import { BackupManager } from './BackupManager'
@@ -96,7 +96,7 @@ export function DeviceSettings() {
           <TextSizeSettings />
         </Section>
         <Section title="Statusleiste">
-          <StatusBarSettings />
+          <StatusBarSettingsEntry />
         </Section>
       </Group>
 

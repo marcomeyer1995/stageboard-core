@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   Grip,
+  Minus,
   LayoutDashboard,
   Library,
   Settings,
@@ -88,6 +89,9 @@ const ICONS = {
   note: NotebookPen,
   camera: Camera,
   add: Plus,
+  /** Steppers (− / +), unlike "add" a new entry. */
+  decrease: Minus,
+  increase: Plus,
   edit: Pencil,
 } satisfies Record<string, LucideIcon>
 

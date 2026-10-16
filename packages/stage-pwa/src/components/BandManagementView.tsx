@@ -273,11 +273,13 @@ export function BandManagementView() {
           Einstellungen - this line said the same again (System cleanup, 2026-10-16). */}
 
       <section className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Bands</h2>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">Bands</h2>
         {workspaces.map((workspace) => (
           <div
             key={workspace.id}
-            className={`flex items-center justify-between gap-2 rounded-container border px-4 py-3 ${
+            // Plain list rows in the Vorbereitung tier (docs/15 D10, Marco 2026-10-16: the cards took too much room).
+            // Wraps on the phone: the badges go below instead of squeezing the name away.
+            className={`flex flex-wrap items-center justify-between gap-x-2 rounded-control border px-3 py-1 ${
               // Active = yellow outline + badge (docs/15 D4), never a fill or tint.
               workspace.id === activeWorkspaceId ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
             }`}
@@ -286,7 +288,7 @@ export function BandManagementView() {
               type="button"
               onClick={() => setActiveWorkspace(workspace.id)}
               disabled={workspace.id === activeWorkspaceId}
-              className="flex min-h-form min-w-0 flex-1 items-center gap-3 text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
+              className="sb-hit flex min-h-prep min-w-[10rem] flex-1 items-center gap-3 text-left font-semibold [@media(hover:hover)]:hover:underline disabled:hover:no-underline"
             >
               <span className="truncate">{workspace.name}</span>
               {workspace.id === activeWorkspaceId && <Badge tone="accent">Aktiv</Badge>}
@@ -298,7 +300,7 @@ export function BandManagementView() {
                 type="button"
                 onClick={() => setMasterModeWorkspaceId(workspace.id)}
                 aria-label={`Master ${MASTER_MODE_LABEL[workspace.masterMode ?? 'device']} - Master-Kontrolle`}
-                className={`flex min-h-form flex-shrink-0 items-center ${CONTROL} ${FOCUS}`}
+                className={`sb-hit flex min-h-prep flex-shrink-0 items-center ${CONTROL} ${FOCUS}`}
               >
                 <Badge>Master {MASTER_MODE_LABEL[workspace.masterMode ?? 'device']}</Badge>
               </button>
@@ -455,13 +457,13 @@ export function BandManagementView() {
             return (
               <div
                 key={profile.id}
-                className={`flex flex-col gap-2 rounded-container border px-4 py-3 ${
+                className={`flex flex-col gap-2 rounded-control border px-3 py-1 ${
                   isActiveProfile ? 'border-accent bg-surface ring-1 ring-accent' : 'border-line bg-surface'
                 }`}
               >
-                {/* min-h-form: the same height whether or not there is a ⋯ (a non-admin has none,
-                    and the 48 px button was what held the row's height - Marco, 2026-10-07). */}
-                <div className="flex min-h-form flex-wrap items-center justify-between gap-2">
+                {/* min-h-prep: the same height whether or not there is a ⋯ (a non-admin has none,
+                    and the button was what held the row's height - Marco, 2026-10-07). */}
+                <div className="flex min-h-prep flex-wrap items-center justify-between gap-2">
                   {/* A tap anywhere on name/roles selects this profile (2026-09-02 tenth
                       follow-up) - already-active has nothing to select, so it's a plain div
                       there instead of a disabled-looking button. */}
@@ -474,7 +476,7 @@ export function BandManagementView() {
                       <Badge tone="accent">Du</Badge>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => handlePickProfile(profile)} className="min-h-form min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
+                    <button type="button" onClick={() => handlePickProfile(profile)} className="sb-hit min-h-prep min-w-0 flex-1 text-left [@media(hover:hover)]:hover:opacity-80">
                       <MemberRowLabel profile={profile} onlineDeviceCount={onlineDeviceCount} />
                     </button>
                   )}

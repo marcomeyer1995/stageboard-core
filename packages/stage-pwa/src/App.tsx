@@ -64,7 +64,7 @@ import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
-import { IconButton } from './components/ui'
+import { IconButton, PrepTier } from './components/ui'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -283,8 +283,17 @@ function App() {
         {!inOnboarding && (
           <>
             {mode === 'boards' && <Dashboard />}
-            {mode === 'library' && <LibraryView />}
-            {mode === 'system' && <SystemView />}
+            {/* Set-up screens: the Vorbereitung size tier (docs/15 D10) - 40 px controls, 14 px secondary lines. */}
+            {mode === 'library' && (
+              <PrepTier>
+                <LibraryView />
+              </PrepTier>
+            )}
+            {mode === 'system' && (
+              <PrepTier>
+                <SystemView />
+              </PrepTier>
+            )}
           </>
         )}
 

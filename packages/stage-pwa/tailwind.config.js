@@ -92,6 +92,8 @@ export default {
         show: 'var(--sb-h-show)',
         stage: 'var(--sb-h-stage)',
         form: 'var(--sb-h-form)',
+        // Vorbereitung tier (docs/15 D10): 40 visible, the hit area extended to 48 (.sb-hit).
+        prep: 'var(--sb-h-prep)',
       },
       minHeight: {
         touch: 'var(--sb-touch)',
@@ -99,6 +101,7 @@ export default {
         show: 'var(--sb-h-show)',
         stage: 'var(--sb-h-stage)',
         form: 'var(--sb-h-form)',
+        prep: 'var(--sb-h-prep)',
       },
       // Fixed layer scale (docs/15 §5) instead of free z-values per file: content < bars <
       // menus < dialogs < alerts (DialogHost's confirm above any dialog) < flash < takeover.
@@ -117,9 +120,10 @@ export default {
       },
       // Text floor: nothing on screen below 16px. xs and sm were 12/14px - the most common
       // "too small for the stage" finding in the GUI audit - so both now start at the floor.
+      // Secondary lines in the Vorbereitung tier are 14px (.sb-prep, docs/15 D10 - a trial).
       fontSize: {
-        xs: ['var(--sb-text-min)', { lineHeight: '1.35' }],
-        sm: ['var(--sb-text-min)', { lineHeight: '1.45' }],
+        xs: ['var(--sb-text-secondary)', { lineHeight: '1.35' }],
+        sm: ['var(--sb-text-secondary)', { lineHeight: '1.45' }],
       },
     },
   },

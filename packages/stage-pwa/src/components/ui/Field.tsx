@@ -1,4 +1,5 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import { useControlSize } from './PrepTier'
 import { FOCUS, INPUT, SIZE, type ControlSize } from './styles'
 
 
@@ -24,7 +25,8 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 }
 
 /** Text input: label above, hint or error below, one height (D2). */
-export function Field({ label, hint, error, size = 'form', id, className = '', ...rest }: FieldProps) {
+export function Field({ label, hint, error, size: sizeProp, id, className = '', ...rest }: FieldProps) {
+  const size = useControlSize(sizeProp)
   const autoId = useId()
   const fieldId = id ?? autoId
   return (
@@ -58,7 +60,8 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
 }
 
 /** Dropdown with the same height, corner and label as a Field. */
-export function Select({ label, hint, size = 'form', options, id, className = '', ...rest }: SelectProps) {
+export function Select({ label, hint, size: sizeProp, options, id, className = '', ...rest }: SelectProps) {
+  const size = useControlSize(sizeProp)
   const autoId = useId()
   const fieldId = id ?? autoId
   return (

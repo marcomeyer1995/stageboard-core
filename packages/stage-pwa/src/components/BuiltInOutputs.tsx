@@ -57,17 +57,24 @@ export function BuiltInOutputs() {
           ...(target !== FALLBACK && !tablets.some((device) => device.id === target) ? [{ value: target, label: 'unbekanntes Gerät' }] : []),
         ]
         return (
-          <div key={capability} aria-label={label} role="group" className="flex flex-col gap-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
-            <Select
-              label={`${label} - spielt auf`}
-              value={target}
-              options={options}
-              onChange={(e) => {
-                const executionTarget = e.target.value || null
-                if (role) void save({ ...role, pluginId: null, executionTarget })
-                else if (executionTarget) void save({ id: randomId(), name: label, capability, pluginId: null, executionTarget })
-              }}
-            />
+          // One list row like the gear below (docs/15 D10): name left, the playing device right.
+          <div key={capability} aria-label={label} role="group" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-line bg-surface px-3 py-1">
+            <label htmlFor={`output-${capability}`} className="w-32 flex-shrink-0 font-semibold">
+              {label}
+            </label>
+            <div className="min-w-[12rem] flex-1">
+              <Select
+                id={`output-${capability}`}
+                aria-label={`${label} - spielt auf`}
+                value={target}
+                options={options}
+                onChange={(e) => {
+                  const executionTarget = e.target.value || null
+                  if (role) void save({ ...role, pluginId: null, executionTarget })
+                  else if (executionTarget) void save({ id: randomId(), name: label, capability, pluginId: null, executionTarget })
+                }}
+              />
+            </div>
           </div>
         )
       })}

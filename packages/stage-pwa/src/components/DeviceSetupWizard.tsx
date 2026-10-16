@@ -19,7 +19,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { INPUT, INPUT_FREE } from './ui/styles'
-import { Button } from './ui'
+import { Button, PrepTier } from './ui'
 
 const TOTAL_STEPS = 4
 const STEP_TITLE: Record<number, string> = { 1: 'Name', 2: 'Typ', 3: 'Verbindung', 4: 'Prüfen' }
@@ -533,6 +533,8 @@ export function DeviceSetupWizard({
   }
 
   return (
+    // A wizard is set-up (docs/15 D10): the Vorbereitung tier.
+    <PrepTier>
     <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
@@ -555,5 +557,6 @@ export function DeviceSetupWizard({
         </div>
       </div>
     </div>
+    </PrepTier>
   )
 }
