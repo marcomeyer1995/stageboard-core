@@ -31,7 +31,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { AddRow, Switch, Tabs, Button } from './ui'
+import { ActionMenuDialog, AddRow, Switch, Tabs, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { playableTracks } from '../lib/stems'
 
@@ -151,6 +151,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapLinesOnOpen, setTapLinesOnOpen] = useState(false)
   const [isRecordingCues, setIsRecordingCues] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [insertMenuOpen, setInsertMenuOpen] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
@@ -702,8 +703,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const textContent = (
     <div className="flex flex-1 flex-col gap-3">
       <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-        <div className="flex items-center justify-between">
-          ChordPro-Text
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="max-[599px]:w-full">ChordPro-Text</span>
           <span className="flex gap-1">
             <Button onClick={() => setIsImporting(true)}>
               Song importieren
@@ -716,7 +717,22 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             </Button>
           </span>
         </div>
-        <div className="flex flex-wrap gap-1">
+        {/* Phone: one "+ Einfügen" instead of six buttons in three rows (2026-10-16). */}
+        <Button className="self-start min-[600px]:hidden" onClick={() => setInsertMenuOpen(true)}>
+          + Einfügen
+        </Button>
+        {insertMenuOpen && (
+          <ActionMenuDialog
+            title="Einfügen"
+            actions={[
+              ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
+              { label: '+ Kommentar', onClick: insertComment },
+              { label: '+ Tab', onClick: insertTabBlock },
+            ]}
+            onClose={() => setInsertMenuOpen(false)}
+          />
+        )}
+        <div className="flex flex-wrap gap-1 max-[599px]:hidden">
           {PART_LABELS.map((label) => (
             <Button className="uppercase tracking-wide" key={label} onClick={() => insertPart(label)}>
               + {label}
@@ -752,9 +768,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink">
         <div className="flex flex-wrap items-center gap-3">
           {viewSwitch}
+          {/* Phone: the status bar already names the song - here it shrank to "All …". */}
           <span className="min-w-0 flex-1 truncate text-lg font-bold">
-            {draft.title}
-            <span className="ml-2 font-normal text-ink-muted">{draft.variantLabel}</span>
+            <span className="mr-2 max-[599px]:hidden">{draft.title}</span>
+            <span className="font-normal text-ink-muted">{draft.variantLabel}</span>
           </span>
           {error && <span className="text-sm text-danger">{error}</span>}
           {savedAt && <span className="text-sm text-ink-faint">Gespeichert.</span>}
@@ -826,7 +843,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             has to be opened first. Key/Tuning/Capo moved here from their own now-removed
             Arrangement section (Marco, explicit request) - same always-visible treatment as
             Titel/Band, not a collapsible cluster of its own. */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-[599px]:flex-col">
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
             Titel
             <input
@@ -844,7 +861,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             />
           </label>
         </div>
-        <div className="grid grid-cols-3 gap-2 [&>label]:min-w-0">
+        {/* Phone: Key and Capo side by side, Tuning on its own row - it was cut to "E A D G B". */}
+        <div className="grid grid-cols-3 gap-2 max-[599px]:grid-cols-2 [&>label]:min-w-0">
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
@@ -853,7 +871,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          <label className="flex flex-col gap-1 text-sm text-ink-muted max-[599px]:order-last max-[599px]:col-span-2">
             Tuning
             <input
               className={`min-h-form px-3 ${INPUT}`}
