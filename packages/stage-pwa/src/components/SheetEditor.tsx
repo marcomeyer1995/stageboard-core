@@ -33,7 +33,7 @@ import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
 import { ActionMenuDialog, AddRow, Switch, Tabs, Button } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
-import { playableTracks } from '../lib/stems'
+import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -138,6 +138,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const confirm = useDialogStore((state) => state.confirm)
+  const promptFields = useDialogStore((state) => state.promptFields)
   const installedPlugins = usePluginsStore((state) => state.installed)
   // null only until the first `selectSong` resolves - there's no more "new, unsaved song"
   // state to represent here, since creation now happens in LibraryView before this editor
@@ -444,11 +445,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const handleAnalyzeTrack = async () => {
     if (!tapTrack) return
+    // Same question as the Timeline's "Track analysieren": with stems, mix or which stem.
+    const source = await askAnalysisSource(promptFields, stemsForTrack(currentTracks, tapTrack.id))
+    if (source === undefined) return
     if (draft.beatGrid && !(await confirm('Vorhandenes Klick-Raster durch die automatische Erkennung ersetzen?', { confirmLabel: 'Ersetzen' }))) return
     setIsAnalyzing(true)
     setAnalyzeError(null)
     try {
-      const result = await detectGrid()
+      const result = await detectGrid(source ?? undefined)
       if (!result) {
         setAnalyzeError('Keine Schläge erkannt - bitte in der Timeline setzen.')
         return

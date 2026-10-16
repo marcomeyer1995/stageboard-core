@@ -51,7 +51,7 @@ import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
 import { STEM_LANE_H, StemsToggle, TimelineStems, stemsBlockHeight } from './TimelineStems'
-import { stemSetsOf } from '../../lib/stems'
+import { askAnalysisSource, stemsForTrack } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
 import { Icon } from '../Icon'
@@ -257,10 +257,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const hiddenLanes = useMemo(() => new Set(hiddenLaneList), [hiddenLaneList])
   // Stems right under the waveform (docs/22 §5): those split from this track, else the uploaded ones.
   const variantTracks = useSongVariantsStore((state) => state.variants.find((v) => v.id === variantId)?.tracks)
-  const stems = useMemo(() => {
-    const sets = stemSetsOf(variantTracks ?? [])
-    return (sets.find((set) => set.key === trackId) ?? sets[0])?.stems ?? []
-  }, [variantTracks, trackId])
+  const stems = useMemo(() => stemsForTrack(variantTracks ?? [], trackId), [variantTracks, trackId])
   const [stemsOpen, setStemsOpen] = useState(() => readStemsOpen())
   const stemsH = stemsOpen && stems.length > 0 ? stemsBlockHeight(stems.length) : 0
   const layout = laneLayout(fill && box.height > 0 ? box.height : null, hiddenLanes, LANE_SIZES, stemsH)
@@ -1379,27 +1376,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setRefinePreview(result)
   }
 
-  /** With stems, "Track analysieren" asks which audio its hits come from (Marco 2026-10-16: the
-   * only action that needs the choice, so no setting to keep). Without stems: the mix, no question.
-   * Undefined: cancelled. */
-  async function askHitSource(): Promise<string | null | undefined> {
-    if (stems.length === 0) return null
-    const result = await promptFields(
-      'Welche Spur analysieren?',
-      [
-        {
-          key: 'source',
-          label: 'Treffer aus - der Mix ist meist zuverlässiger',
-          type: 'radio',
-          defaultValue: hitSourceId ?? '',
-          options: [{ value: '', label: 'Mix (ganzer Track)' }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
-        },
-      ],
-      'Analysieren',
-    )
-    if (!result) return undefined
-    return result.source || null
-  }
+  const askHitSource = () => askAnalysisSource(promptFields, stems, hitSourceId)
 
   async function redetectGrid(ask: boolean, source: string | null = hitSourceId) {
     if (!onDetectGrid) return

@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { RowActionButton, RowActionsMenu, RowMenuButton } from './RowActionsMenu'
 
 describe('RowMenuButton', () => {
-  it('renders the "⋮" glyph with the given accessible label, and calls onClick', () => {
+  it('renders the "⋯" glyph (one row - docs/15 D9) with the given accessible label, and calls onClick', () => {
     const onClick = vi.fn()
     render(<RowMenuButton label="Weitere Optionen für Marco" onClick={onClick} />)
 
     const button = screen.getByRole('button', { name: 'Weitere Optionen für Marco' })
-    expect(button.querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
+    expect(button.querySelector('svg.lucide-ellipsis')).not.toBeNull()
     fireEvent.click(button)
     expect(onClick).toHaveBeenCalledOnce()
   })

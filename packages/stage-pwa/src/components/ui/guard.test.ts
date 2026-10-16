@@ -93,4 +93,8 @@ describe('UI system guard (docs/15)', () => {
   it('dialogs have one way out at the bottom - no "Schließen" button left over', () => {
     expect(offending(/>\s*Schließen\s*</)).toEqual([])
   })
+
+  it('⋯ for one entry, ⋮ for the page (D9): menus pick their symbol through menuIcon / scope, never by name', () => {
+    expect(offending(/(icon|name)=["'{]+more(Vertical)?["'}]|["']moreVertical["']/)).toEqual([])
+  })
 })
