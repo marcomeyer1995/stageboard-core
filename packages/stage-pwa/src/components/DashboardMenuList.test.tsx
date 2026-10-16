@@ -55,6 +55,14 @@ describe('DashboardMenuList', () => {
     expect(onEdit).toHaveBeenCalled()
   })
 
+  it('"Bearbeiten" marks the dashboard on screen too, so it is clear which pen edits it', () => {
+    render(<DashboardMenuList onSelect={() => {}} onEdit={() => {}} />)
+    openEditing()
+    const rows = screen.getAllByRole('listitem')
+    expect(rows.map((row) => row.getAttribute('aria-current'))).toEqual(['true', null, null])
+    expect(rows[0]).toHaveClass('bg-accent')
+  })
+
   it('finishing an edit started here leads back to the list in "Bearbeiten"; one started elsewhere does not', () => {
     const { unmount } = render(<DashboardMenuList onSelect={vi.fn()} onEdit={vi.fn()} />)
     openEditing()

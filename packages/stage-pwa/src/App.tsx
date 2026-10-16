@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useMasterIdentity } from './lib/useMasterIdentity'
 import { EditBarSlot } from './components/EditBarSlot'
 import { AppMenu } from './components/AppMenu'
+import { DashboardMenu } from './components/DashboardMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
 import { Dashboard } from './components/Dashboard'
@@ -63,8 +64,7 @@ import { useSongsStore } from './store/useSongsStore'
 import { useSongVariantsStore } from './store/useSongVariantsStore'
 import { deriveSyncStatus, useSyncStore } from './store/useSyncStore'
 import { useWorkspaceStore } from './store/useWorkspaceStore'
-import { Icon } from './components/Icon'
-import { Button } from './components/ui'
+import { IconButton } from './components/ui'
 
 // Stable references, not inline lambdas - useWorkspaceResource's effect depends on these by
 // identity, so a fresh arrow function on every render would re-run it on every render too,
@@ -75,7 +75,7 @@ function noopStart(): TrackedSync | null {
 }
 
 function App() {
-  const { t } = useTranslation('common')
+  const { t } = useTranslation('statusbar')
   const [mode, setModeNow] = useState<Mode>('boards')
   // Switching the screen (☰ menu, Back) closes whatever editor is open - ask first if it has
   // unsaved changes (Marco, 2026-10-07: never lose edits silently).
@@ -85,10 +85,12 @@ function App() {
     void confirmLeave().then((ok) => ok && setModeNow(next))
   }
   const [menuOpen, setMenuOpen] = useState(false)
-  // Finishing a dashboard edit that started in the menu leads back to the menu's list.
+  // The bento menu top right on dashboards (docs/15 D8).
+  const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false)
+  // Finishing a dashboard edit that started in the bento menu leads back to its list.
   const reopenMenuEditing = useEditModeStore((state) => state.reopenMenuEditing)
   useEffect(() => {
-    if (reopenMenuEditing) setMenuOpen(true)
+    if (reopenMenuEditing) setDashboardMenuOpen(true)
   }, [reopenMenuEditing])
   // Native app: if the paired server moved to another address (new router at the venue), find it
   // by its certificate and follow (#351) - on start and whenever the network comes back.
@@ -271,7 +273,7 @@ function App() {
       {mode === 'boards' && isEditingDashboard && !inOnboarding ? (
         <EditBarSlot />
       ) : (
-        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} />
+        showStatusBar && <StatusBar screen={mode} onOpenMenu={() => setMenuOpen(true)} onOpenDashboards={() => setDashboardMenuOpen(true)} />
       )}
       {/* The screens fill what the status bar leaves (h-full, not their own h-dvh). */}
       <div className="relative min-h-0 flex-1">
@@ -297,20 +299,17 @@ function App() {
             profile on ProfileRolePickerView), and the menu's Band/Profil/Sync sections either
             have nothing real to show yet or just duplicate whichever gate is already the entire
             screen - only confusing, not-yet-functional controls during onboarding. */}
-        {/* Only where the status bar is hidden (a dashboard can switch it off) - elsewhere the
-            bar carries the menu button. */}
+        {/* Where the status bar is hidden (a dashboard can switch it off): ☰ and the bento menu
+            stay in the two top corners, so nobody is ever locked out (docs/15 D8, Marco
+            2026-10-16 - before, one floating menu button bottom right). */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
-          <div className="absolute bottom-3 right-3 z-content flex items-center gap-2">
-            <Button className="relative" onClick={() => setMenuOpen(true)}>
-              <Icon name="menu" size="1.5rem" />
-              {t(`mode.${mode}`)}
-              {/* Discreet at-a-glance sync status (see #33) - a dot here, not a full label,
-                  since this button is always on screen; the detailed SyncIndicator with its
-                  text/percentage lives in SystemView's Einstellungen tab for when someone
-                  actually wants it. */}
+          <>
+            <div className="absolute left-2 top-2 z-content">
+              <IconButton icon="menu" label={t('openMenu')} size="stage" className="relative opacity-90" onClick={() => setMenuOpen(true)} />
+              {/* Discreet at-a-glance sync status (see #33) - a dot, since this button is always on screen. */}
               <span
                 title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
-                className={`absolute right-1 top-1 h-2 w-2 rounded-full ${
+                className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ${
                   {
                     idle: 'bg-ok',
                     syncing: 'bg-info animate-pulse',
@@ -319,14 +318,20 @@ function App() {
                   }[syncStatus]
                 }`}
               />
-            </Button>
-          </div>
+            </div>
+            {mode === 'boards' && (
+              <div className="absolute right-2 top-2 z-content">
+                <IconButton icon="dashboards" label={t('openDashboards')} size="stage" className="opacity-90" onClick={() => setDashboardMenuOpen(true)} />
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {menuOpen && !inOnboarding && (
         <AppMenu mode={mode} onSelectMode={setMode} onClose={() => setMenuOpen(false)} />
       )}
+      {dashboardMenuOpen && !inOnboarding && mode === 'boards' && <DashboardMenu onClose={() => setDashboardMenuOpen(false)} />}
 
       <DialogHost />
       <FlashOverlay />

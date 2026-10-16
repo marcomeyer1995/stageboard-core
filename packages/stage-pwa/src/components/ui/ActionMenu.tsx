@@ -48,15 +48,22 @@ export function ActionMenuDialog({ title, actions, onClose }: { title: string; a
   )
 }
 
+/** docs/15 D9: ⋯ for one entry among similar ones (widget, song, plugin, member row), ⋮ for the
+ * whole page - always top right in its header (edit bar, opened setlist). The only place the two
+ * symbols are chosen; the guard test keeps it that way. */
+export function menuIcon(scope: 'entry' | 'page'): 'more' | 'moreVertical' {
+  return scope === 'page' ? 'moreVertical' : 'more'
+}
+
 /**
- * Every ⋯ menu (widget, song, setlist row): a wide trigger, the actions as full-width rows in
- * the dialog look; dangerous ones in red, set apart at the end.
+ * Every ⋯ / ⋮ menu: a wide trigger, the actions as full-width rows in the dialog look; dangerous
+ * ones in red, set apart at the end.
  */
-export function ActionMenu({ title, actions, size = 'form' }: { title: string; actions: MenuAction[]; size?: ControlSize }) {
+export function ActionMenu({ title, actions, size = 'form', scope = 'entry' }: { title: string; actions: MenuAction[]; size?: ControlSize; scope?: 'entry' | 'page' }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <IconButton icon="more" label={`Menü: ${title}`} size={size} onClick={() => setOpen(true)} className="!w-16" />
+      <IconButton icon={menuIcon(scope)} label={`Menü: ${title}`} size={size} onClick={() => setOpen(true)} className="!w-16" />
       {open && <ActionMenuDialog title={title} actions={actions} onClose={() => setOpen(false)} />}
     </>
   )
