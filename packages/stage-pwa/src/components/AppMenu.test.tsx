@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Dashboard } from 'shared-types'
 
@@ -34,12 +34,19 @@ beforeEach(() => {
 describe('AppMenu', () => {
   it('offers exactly the three top-level modes (Boards/Bibliothek/System)', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
-    render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    const onSelectMode = vi.fn()
+    const onClose = vi.fn()
+    render(<AppMenu mode="boards" onSelectMode={onSelectMode} onClose={onClose} />)
 
-    expect(screen.getByRole('radio', { name: 'Boards' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Bibliothek' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'System' })).toBeInTheDocument()
+    // Navigation rows below each other, the current one marked and stage-sized (Marco, 2026-10-16).
+    const nav = screen.getByRole('navigation', { name: 'Ansicht' })
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual(['Boards', 'Bibliothek', 'System'])
+    expect(within(nav).getByRole('button', { name: 'Boards' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('button', { name: 'Boards' })).toHaveClass('h-stage')
     expect(screen.queryByRole('button', { name: 'Plugins' })).not.toBeInTheDocument()
+    fireEvent.click(within(nav).getByRole('button', { name: 'System' }))
+    expect(onSelectMode).toHaveBeenCalledWith('system')
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('no longer shows the settings sections moved to SystemView (Darstellung, Sync, Speicher & Sync)', () => {
@@ -99,7 +106,7 @@ describe('AppMenu closing', () => {
     const onClose = vi.fn()
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={onClose} />)
     const done = screen.getByRole('button', { name: 'Fertig' })
-    const firstMode = screen.getByRole('radio', { name: 'Boards' })
+    const firstMode = screen.getByRole('button', { name: 'Boards' })
     // Never scrolls away: outside the scroll container that holds the entries.
     expect(done.closest('.overflow-y-auto')).toBeNull()
     expect(firstMode.closest('.overflow-y-auto')).not.toBeNull()
