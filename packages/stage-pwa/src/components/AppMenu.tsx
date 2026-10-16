@@ -95,14 +95,15 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
           sets the groups apart instead, so ☰ fits one landscape screen (Marco, 2026-10-16). */}
       <MenuGroup label="Modus">
         <SessionModeControl />
-        {sessionMode === 'practice' && <PracticeSetlistPicker />}
       </MenuGroup>
       {sessionMode === 'gig' && (
         <MenuGroup label="Master">
           <MasterControl />
-          <GigSetlistPicker />
         </MenuGroup>
       )}
+      {/* One place for the setlist in both modes (Marco, 2026-10-16: under Modus in Solo and under
+          Master in Gig made no sense) - the band's in Gig, this device's own in Solo Üben. */}
+      <MenuGroup label="Setlist">{sessionMode === 'gig' ? <GigSetlistPicker /> : <PracticeSetlistPicker />}</MenuGroup>
       <MenuGroup label="Band">
         {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
