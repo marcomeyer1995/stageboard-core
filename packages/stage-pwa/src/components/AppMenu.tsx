@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MasterControl } from './MasterControl'
 import { PracticeSetlistPicker } from './PracticeSetlistPicker'
@@ -7,6 +8,8 @@ import { isNativeApp } from '../lib/native'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { MODES, type Mode } from '../lib/modes'
 import { Icon } from './Icon'
+import { SwitchProfileDialog } from './SwitchProfileDialog'
+import { useActiveProfile } from '../lib/useActiveProfile'
 import { Drawer, Section, Switch } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
@@ -45,6 +48,8 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
   const { t } = useTranslation('common')
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
+  const me = useActiveProfile()
+  const [switchingProfile, setSwitchingProfile] = useState(false)
 
   return (
     <Drawer title="Menü" side="left" onClose={onClose}>
@@ -67,6 +72,19 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
           </button>
         ))}
       </nav>
+      {/* Who uses this device, same band (Marco, 2026-10-16) - here only, never on the status bar. */}
+      <button
+        type="button"
+        onClick={() => setSwitchingProfile(true)}
+        className={`flex h-stage w-full items-center justify-between gap-3 bg-control px-4 text-left text-lg text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
+      >
+        <span className="min-w-0 truncate">
+          <span className="text-ink-muted">Ich bin: </span>
+          {me?.name ?? 'kein Profil'}
+        </span>
+        <Icon name="next" size="1.4rem" className="text-ink-faint" />
+      </button>
+      {switchingProfile && <SwitchProfileDialog onClose={() => setSwitchingProfile(false)} />}
       <Section title="Modus">
         <SessionModeControl />
         {sessionMode === 'practice' && <PracticeSetlistPicker />}
