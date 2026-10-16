@@ -2,8 +2,8 @@ import { useId, useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
 import { useVisualViewport } from '../lib/useVisualViewport'
-import { Button, CheckRow, MENU_ROW } from './ui'
-import { INPUT, SELECTED } from './ui/styles'
+import { Button, CheckRow, choiceRow } from './ui'
+import { INPUT } from './ui/styles'
 
 /**
  * Renders whatever `useDialogStore`'s `request` currently holds - mounted once in App.tsx, so
@@ -133,7 +133,7 @@ function PromptFields({
                     aria-checked={chosen}
                     autoFocus={index === 0 && optionIndex === 0}
                     onClick={() => setValues((prev) => ({ ...prev, [field.key]: option.value }))}
-                    className={`${MENU_ROW} ${chosen ? SELECTED : 'text-ink-soft'}`}
+                    className={choiceRow(chosen, 'text-ink-soft')}
                   >
                     {option.label}
                   </button>

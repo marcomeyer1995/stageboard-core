@@ -36,8 +36,8 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, MENU_ROW, Button } from './ui'
-import { INPUT, SELECTED } from './ui/styles'
+import { AddRow, Badge, Dialog, Field, Button, choiceRow } from './ui'
+import { INPUT } from './ui/styles'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -116,7 +116,7 @@ function VariantPicker({
                   setOpen(false)
                   onSelect(variant.id)
                 }}
-                className={`${MENU_ROW} ${variant.id === selectedId ? SELECTED : 'text-ink'}`}
+                className={choiceRow(variant.id === selectedId)}
               >
                 {variant.label}
               </button>
@@ -199,7 +199,7 @@ function TransitionPicker({
                 role="radio"
                 aria-checked={option.type === type}
                 onClick={() => onChange(option.type, delayMs)}
-                className={`${MENU_ROW} !flex-col !items-start py-2 ${option.type === type ? SELECTED : 'text-ink'}`}
+                className={`${choiceRow(option.type === type)} !flex-col !items-start py-2`}
               >
                 <span className="text-base font-semibold">{option.label}</span>
                 <span className="text-sm opacity-80">{isItem ? option.itemHint : option.hint}</span>

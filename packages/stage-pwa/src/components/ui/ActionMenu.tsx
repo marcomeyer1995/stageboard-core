@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Dialog } from './Dialog'
 import { IconButton } from './IconButton'
-import { CONTROL, DISABLED, FOCUS, type ControlSize } from './styles'
+import { CONTROL, DISABLED, FOCUS, SELECTED, type ControlSize } from './styles'
 
 export interface MenuAction {
   label: string
@@ -10,8 +10,16 @@ export interface MenuAction {
   disabled?: boolean
 }
 
+const ROW = `flex min-h-form w-full items-center px-4 text-left text-base ${CONTROL} ${FOCUS} ${DISABLED}`
+
 /** One action row in a ⋯ menu - also for menus that build their rows themselves. */
-export const MENU_ROW = `flex min-h-form w-full items-center bg-control px-4 text-left text-base [@media(hover:hover)]:hover:bg-control-hover ${CONTROL} ${FOCUS} ${DISABLED}`
+export const MENU_ROW = `${ROW} bg-control [@media(hover:hover)]:hover:bg-control-hover`
+
+/** A pick-one row (docs/15 D7), the chosen one yellow. MENU_ROW plus SELECTED stayed grey with
+ * dark text - bg-control comes later in the stylesheet than bg-accent (2026-10-16). */
+export function choiceRow(chosen: boolean, idle = 'text-ink'): string {
+  return chosen ? `${ROW} ${SELECTED}` : `${MENU_ROW} ${idle}`
+}
 
 /** The open menu: the actions as full-width rows, dangerous ones in red and set apart at the
  * end; "Abbrechen" at the bottom (choosing an entry already closes it). */

@@ -18,8 +18,8 @@ import {
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { Icon } from './Icon'
-import { AddRow, Button, Dialog, MENU_ROW } from './ui'
-import { INPUT_FREE, SELECTED } from './ui/styles'
+import { AddRow, Button, Dialog, choiceRow } from './ui'
+import { INPUT_FREE } from './ui/styles'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -106,7 +106,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
   const action: KeyAction | null = choice === null ? null : choice === 'by-state' ? { kind: 'by-state', steps } : { kind: 'fixed', action: choice }
-  const option = (selected: boolean) => `${MENU_ROW} ${selected ? SELECTED : 'text-ink'}`
+  const option = (selected: boolean) => choiceRow(selected)
 
   return (
     <Dialog
