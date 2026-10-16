@@ -89,7 +89,15 @@ export function SystemView() {
       {activeTab === 'devices' && <DeviceLedgerView />}
       {activeTab === 'server' && <StageServerPage />}
       {activeTab === 'plugins' && <PluginManager />}
-      {activeTab === 'debug' && <DebugConsoleView />}
+      {activeTab === 'debug' && (
+        <>
+          <DebugConsoleView />
+          {/* The stand-ins that only log - for trying things out, not for the stage. */}
+          <div className="max-w-4xl px-4 pb-4">
+            <PluginManager kind="test" />
+          </div>
+        </>
+      )}
     </>
   )
 

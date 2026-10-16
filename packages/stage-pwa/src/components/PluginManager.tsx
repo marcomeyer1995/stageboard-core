@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { capabilitiesLabel, installableCatalog, isTestPlugin } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, isTestPlugin, pluginKind, type PluginKind } from '../lib/pluginCatalog'
 import { useDialogStore } from '../store/useDialogStore'
 import { useNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
@@ -14,7 +14,30 @@ const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
   'section-announcements': AnnouncementTextsDialog,
 }
 
-export function PluginManager() {
+const HEADER: Record<PluginKind, { title: string; text: string; empty: string }> = {
+  extensions: {
+    title: 'Erweiterungen',
+    text: 'Zusätzliche Funktionen für die ganze Band, z. B. Sprachausgabe oder Spuren trennen. Installierte Plugins replizieren über das Bühnen-Netz zu allen Tablets und zum Stage-Server. Deaktivierte verschwinden aus der Widget-Bibliothek.',
+    empty: 'Noch keine Erweiterung installiert.',
+  },
+  drivers: {
+    title: 'Treiber',
+    text: 'Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Ein Gerät oben braucht seinen Treiber - „Neues Gerät“ installiert ihn mit.',
+    empty: 'Noch kein Treiber installiert.',
+  },
+  test: {
+    title: 'Test-Plugins',
+    text: 'Platzhalter, die nur protokollieren, was sie bekommen - ein Mischpult, Licht oder Backup, das es nicht gibt. Nur zum Ausprobieren; installieren lassen sie sich nur in der Dev-App.',
+    empty: 'Kein Test-Plugin installiert.',
+  },
+}
+
+/**
+ * Plugins of one kind (System split, 2026-10-16): Erweiterungen get their own tab, gear drivers
+ * sit under Bühnentechnik next to the devices they drive, the test stand-ins under Diagnose. Only
+ * Erweiterungen is a page of its own; the other two are a part of their page.
+ */
+export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const install = usePluginsStore((state) => state.install)
@@ -34,23 +57,19 @@ export function PluginManager() {
     return 'online'
   }
 
-  const notInstalled = installableCatalog().filter(
-    (candidate) => !installed.some((plugin) => plugin.id === candidate.id),
-  )
+  const header = HEADER[kind]
+  const mine = installed.filter((plugin) => pluginKind(plugin) === kind)
+  const notInstalled = installableCatalog().filter((candidate) => pluginKind(candidate) === kind && !installed.some((plugin) => plugin.id === candidate.id))
+  const page = kind === 'extensions'
 
   return (
-    <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Erweiterungen</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Installierte Plugins replizieren über das Bühnen-Netz zu allen Tablets und zum
-        Stage-Server. Deaktivierte Plugins verschwinden aus der Widget-Bibliothek.
-      </p>
+    <section aria-label={header.title} className={page ? 'h-full overflow-y-auto sb-app-bg p-4 text-ink' : 'text-ink'}>
+      {page ? <h1 className="mb-1 text-2xl font-bold">{header.title}</h1> : <h2 className="mb-1 text-lg font-bold">{header.title}</h2>}
+      <p className="mb-4 text-sm text-ink-muted">{header.text}</p>
 
       <div className="mb-6 space-y-2">
-        {installed.length === 0 && (
-          <p className="text-sm text-ink-faint">Noch keine Plugins installiert.</p>
-        )}
-        {installed.map((plugin) => (
+        {mine.length === 0 && <p className="text-sm text-ink-faint">{header.empty}</p>}
+        {mine.map((plugin) => (
           <div key={plugin.id} className="flex flex-col gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
             {/* Text across the full width, the controls in one row below - beside the text they
                 squeezed name and description into a narrow column on the phone (Marco, 2026-10-07). */}
@@ -91,13 +110,8 @@ export function PluginManager() {
 
       {Settings && <Settings onClose={() => setSettingsOf(null)} />}
 
-      <h2 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">
-        Verfügbar
-      </h2>
+      {notInstalled.length > 0 && <h3 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Verfügbar</h3>}
       <div className="space-y-2">
-        {notInstalled.length === 0 && (
-          <p className="text-sm text-ink-faint">Alles aus dem Katalog ist installiert.</p>
-        )}
         {notInstalled.map((candidate) => (
           <div
             key={candidate.id}
@@ -115,6 +129,6 @@ export function PluginManager() {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   )
 }
