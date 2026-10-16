@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ShowLogEvent } from 'shared-types'
 
@@ -31,7 +31,7 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
       ],
     } as never)
     render(<PostShowReport />)
-    expect(screen.getByText(/2 Songs · 6:40 gespielt/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText(/2 Songs · 6:40 gespielt/))
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
     expect(screen.getByText('Notizen (1)')).toBeInTheDocument()
     const technik = screen.getByText('Technik (3)')
@@ -46,8 +46,28 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
       events: [{ id: 'start', showId: 'show', type: 'show-started', at: t0 }, song(1, 'Highway to Hell'), cue(1, true), cue(2, false, 'kein MIDI-Ausgang'), cue(3, true)],
     } as never)
     render(<PostShowReport />)
+    fireEvent.click(screen.getByText('1 Cues fehlgeschlagen'))
     expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
     expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
     expect(screen.getByText('Cues (3, 1 fehlgeschlagen)').closest('details')).not.toHaveAttribute('open')
+  })
+
+  it('lists the shows and opens one at a time; starts with nothing in them fold away (2026-10-16)', () => {
+    useProfilesStore.setState({ profiles: [] })
+    const later = t0 + 86_400_000
+    useShowLogStore.setState({
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        song(1, 'Highway to Hell'),
+        { id: 'start2', showId: 'test', type: 'show-started', at: later },
+      ],
+    } as never)
+    render(<PostShowReport />)
+    expect(screen.queryByText('Highway to Hell')).not.toBeInTheDocument()
+    expect(screen.getByText('Ohne gespielte Songs (1)').closest('details')).not.toHaveAttribute('open')
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+    expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Alle Shows/ }))
+    expect(screen.getByText('Nachbericht', { selector: 'h1' })).toBeInTheDocument()
   })
 })

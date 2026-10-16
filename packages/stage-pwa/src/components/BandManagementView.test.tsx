@@ -70,45 +70,18 @@ beforeEach(() => {
   usePresenceStore.setState({ presence: { devices: {} } })
 })
 
-describe('BandManagementView "Hardware auf diesem Server" indicator', () => {
-  it('shows nothing when no workspace has ever been activated on this box', async () => {
-    render(<BandManagementView />)
-    await Promise.resolve()
-    expect(screen.queryByText(/Hardware auf diesem Server aktiv für/)).not.toBeInTheDocument()
-  })
-
-  it('says the server is slow to answer, not unreachable, while its requests are merely late', async () => {
-    vi.useFakeTimers()
-    const never = () => new Promise<never>(() => {})
+describe('BandManagementView without the server band line', () => {
+  it('leaves which band the Stage-Server serves to Einstellungen (shown once)', async () => {
     useWorkspaceStore.setState({
-      listWorkspaces: vi.fn().mockImplementation(never),
-      fetchActiveWorkspaceHardware: vi.fn().mockImplementation(never),
-      fetchServerInfo: vi.fn().mockImplementation(never),
-    })
-    render(<BandManagementView />)
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(8100)
-    })
-
-    expect(screen.getByText('Stage-Server antwortet langsam…')).toBeInTheDocument()
-    expect(screen.queryByText('Stage-Server nicht erreichbar.')).not.toBeInTheDocument()
-    vi.useRealTimers()
-  })
-
-  it('shows the currently active band\'s name, resolved from the server-wide workspace list even when this device hasn\'t joined it locally', async () => {
-    useWorkspaceStore.setState({
-      listWorkspaces: vi.fn().mockResolvedValue([
-        { workspaceId: 'band-a', workspaceName: 'Band A' },
-        { workspaceId: 'band-c', workspaceName: 'SOAT' },
-      ]),
+      listWorkspaces: vi.fn().mockResolvedValue([{ workspaceId: 'band-c', workspaceName: 'SOAT' }]),
       fetchActiveWorkspaceHardware: vi.fn().mockResolvedValue({ activeWorkspaceId: 'band-c' }),
     })
-
     render(<BandManagementView />)
-
-    await waitFor(() => expect(screen.getByText(/Hardware auf diesem Server aktiv für/)).toBeInTheDocument())
-    expect(screen.getByText('SOAT')).toBeInTheDocument()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.queryByText(/Hardware auf diesem Server aktiv für/)).not.toBeInTheDocument()
+    expect(screen.queryByText('SOAT')).not.toBeInTheDocument()
   })
 })
 

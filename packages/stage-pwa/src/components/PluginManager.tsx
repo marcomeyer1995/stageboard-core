@@ -1,11 +1,12 @@
 import { useState, type ComponentType } from 'react'
 import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { PLUGIN_CATALOG } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, isTestPlugin } from '../lib/pluginCatalog'
+import { useDialogStore } from '../store/useDialogStore'
 import { useNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
-import { Button, Switch } from './ui'
+import { ActionMenu, Badge, Button, Switch } from './ui'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
 const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
@@ -19,6 +20,7 @@ export function PluginManager() {
   const install = usePluginsStore((state) => state.install)
   const setEnabled = usePluginsStore((state) => state.setEnabled)
   const uninstall = usePluginsStore((state) => state.uninstall)
+  const confirm = useDialogStore((state) => state.confirm)
   const now = useNow()
   const [settingsOf, setSettingsOf] = useState<string | null>(null)
   const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
@@ -32,7 +34,7 @@ export function PluginManager() {
     return 'online'
   }
 
-  const notInstalled = PLUGIN_CATALOG.filter(
+  const notInstalled = installableCatalog().filter(
     (candidate) => !installed.some((plugin) => plugin.id === candidate.id),
   )
 
@@ -54,10 +56,12 @@ export function PluginManager() {
                 squeezed name and description into a narrow column on the phone (Marco, 2026-10-07). */}
             <div className="min-w-0">
               <p className="font-semibold">
-                {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>
+                {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
+                {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
+                {isTestPlugin(plugin.id) && <Badge tone="warning">Test</Badge>}
               </p>
               <p className="text-sm text-ink-muted">
-                {plugin.capabilities.join(', ') || 'keine Capabilities'} · {healthLabel(plugin)}
+                {capabilitiesLabel(plugin.capabilities) || 'keine Funktionen'} · {healthLabel(plugin)}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -65,9 +69,20 @@ export function PluginManager() {
               <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
               <span className="flex flex-wrap gap-2">
                 {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>Einstellungen</Button>}
-                <Button variant="danger" onClick={() => void uninstall(plugin.id)}>
-                  Entfernen
-                </Button>
+                {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
+                    buttons on one page (System cleanup, 2026-10-16). */}
+                <ActionMenu
+                  title={plugin.name}
+                  actions={[
+                    {
+                      label: 'Entfernen',
+                      danger: true,
+                      onClick: async () => {
+                        if (await confirm(`"${plugin.name}" entfernen?`, { confirmLabel: 'Entfernen', danger: true })) void uninstall(plugin.id)
+                      },
+                    },
+                  ]}
+                />
               </span>
             </div>
           </div>
@@ -90,7 +105,7 @@ export function PluginManager() {
           >
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{candidate.name}</p>
-              <p className="text-sm text-ink-muted">{candidate.capabilities.join(', ')}</p>
+              <p className="text-sm text-ink-muted">{capabilitiesLabel(candidate.capabilities)}</p>
             </div>
             <Button onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })

@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
+import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
+import { Button } from './ui'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -128,7 +131,7 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
             {technical.map((event) => (
               <div key={event.id}>
                 <Icon name="warning" className="mr-1" />
-                {event.capability}: {event.from} → {event.to} ({fmtTime(event.at)})
+                {capabilitiesLabel([event.capability])}: {event.from} → {event.to} ({fmtTime(event.at)})
               </div>
             ))}
           </div>
@@ -138,15 +141,85 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
   )
 }
 
+interface ShowSummary {
+  songs: number
+  playedMs: number
+  notes: number
+  failedCues: number
+}
+
+function summarize(show: ShowGroup): ShowSummary {
+  const songs = show.events.filter((event): event is SongPlayed => event.type === 'song-played')
+  return {
+    songs: songs.length,
+    playedMs: songs.reduce((sum, song) => sum + song.activeMs, 0),
+    notes: show.events.filter((event) => event.type === 'note').length,
+    failedCues: show.events.filter((event) => event.type === 'cue-fired' && !event.ok).length,
+  }
+}
+
+/** A start with nothing worth reading - no song played long enough, no note, no failed cue
+ * (mostly a test start). */
+function isEmpty(summary: ShowSummary): boolean {
+  return summary.songs === 0 && summary.notes === 0 && summary.failedCues === 0
+}
+
+/** One show in the list: a full-width row that opens it. */
+function ShowRow({ show, onOpen }: { show: ShowGroup; onOpen: () => void }) {
+  const summary = summarize(show)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-touch w-full items-center gap-3 rounded-container border border-line bg-surface px-4 py-2 text-left shadow-sb [@media(hover:hover)]:hover:bg-control"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{fmtTime(show.startedAt)}</span>
+        <span className="block text-sm text-ink-muted">
+          {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
+          {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
+        </span>
+        {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
+        {summary.failedCues > 0 && <span className="block text-sm font-semibold text-danger">{summary.failedCues} Cues fehlgeschlagen</span>}
+      </span>
+      <Icon name="next" className="text-ink-faint" />
+    </button>
+  )
+}
+
+/**
+ * Every show as a list, opened one at a time (System cleanup, 2026-10-16) - all of them open at
+ * once were 23 screens after a month of rehearsals. Starts with nothing in them fold away.
+ */
 export function PostShowReport() {
   const events = useShowLogStore((state) => state.events)
   const profiles = useProfilesStore((state) => state.profiles)
+  const [openShowId, setOpenShowId] = useState<string | null>(null)
   const shows = groupByShow(events)
+  const openShow = shows.find((show) => show.showId === openShowId)
 
   function authorName(authorProfileId: string | null): string {
     if (!authorProfileId) return 'Unbekannt'
     return profiles.find((profile) => profile.id === authorProfileId)?.name ?? 'Unbekannt'
   }
+
+  if (openShow) {
+    return (
+      <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
+        <div className="mb-3">
+          <Button onClick={() => setOpenShowId(null)}>
+            <Icon name="back" /> Alle Shows
+          </Button>
+        </div>
+        <div className="rounded-container border border-line bg-surface p-4 shadow-sb">
+          <ShowSections show={openShow} authorName={authorName} />
+        </div>
+      </div>
+    )
+  }
+
+  const withContent = shows.filter((show) => !isEmpty(summarize(show)))
+  const empty = shows.filter((show) => isEmpty(summarize(show)))
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
@@ -159,16 +232,23 @@ export function PostShowReport() {
 
       {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
 
-      <div className="space-y-6">
-        {shows.map((show) => (
-          <div
-            key={show.showId}
-            className="rounded-container border border-line bg-surface p-4 shadow-sb"
-          >
-            <ShowSections show={show} authorName={authorName} />
-          </div>
+      <div className="space-y-2">
+        {withContent.map((show) => (
+          <ShowRow key={show.showId} show={show} onOpen={() => setOpenShowId(show.showId)} />
         ))}
       </div>
+      {empty.length > 0 && (
+        <details className="mt-4">
+          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">
+            Ohne gespielte Songs ({empty.length})
+          </summary>
+          <div className="space-y-2">
+            {empty.map((show) => (
+              <ShowRow key={show.showId} show={show} onOpen={() => setOpenShowId(show.showId)} />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   )
 }

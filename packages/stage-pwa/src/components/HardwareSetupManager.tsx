@@ -3,6 +3,7 @@ import { SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
+import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useHardwareSetupWizardStore, type NewDevicePrefill } from '../store/useHardwareSetupWizardStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
@@ -32,15 +33,18 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
   const variants = useSongVariantsStore((state) => state.variants)
   const songs = useSongsStore((state) => state.songs)
   const confirm = useDialogStore((state) => state.confirm)
+  const knownDevices = useDevicesStore((state) => state.devices)
 
-  function pluginNameOf(pluginId: string | null): string {
-    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || '—'
+  function pluginNameOf(pluginId: string | null): string | null {
+    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || null
   }
 
-  function targetLabel(executionTarget: string | null): string {
-    if (!executionTarget) return '—'
+  function targetLabel(executionTarget: string | null): string | null {
+    if (!executionTarget) return null
     if (executionTarget === SERVER_EXECUTION_TARGET) return 'Stage-Server'
-    return executionTarget === getDeviceId() ? 'Dieses Gerät' : executionTarget
+    if (executionTarget === getDeviceId()) return 'Dieses Gerät'
+    // The tablet's name from the Geräte list, never its internal id (System cleanup, 2026-10-16).
+    return knownDevices.find((d) => d.id === executionTarget)?.name ?? 'unbekanntes Gerät'
   }
 
   return (
@@ -57,7 +61,8 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
                 {device.name} <span className="text-xs font-normal text-ink-faint">({STATUS_LABEL[complete ? 'complete' : 'incomplete']})</span>
               </p>
               <p className="break-words text-sm text-ink-muted">
-                {pluginNameOf(device.pluginId)} · {targetLabel(device.executionTarget)}
+                {/* Only what is known - no "—" placeholders (System cleanup, 2026-10-16). */}
+                {[pluginNameOf(device.pluginId) ?? 'Typ fehlt', targetLabel(device.executionTarget) ?? 'kein Gerät gewählt'].join(' · ')}
                 {usage.length > 0 && <span className="text-ink-faint"> · verwendet in: {usage.map((u) => u.songTitle).join(', ')}</span>}
                 {hasOwnTransportConfig && device.executionTarget === getDeviceId() && <span className="text-ink-faint"> · Anschluss auf diesem Gerät gesetzt</span>}
               </p>
