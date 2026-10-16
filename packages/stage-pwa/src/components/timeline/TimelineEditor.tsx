@@ -342,6 +342,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const previewTaps = useRef<{ tapped: number[]; tempo: number } | null>(null)
   /** "Track analysieren" on an existing grid: the refined grid, shown before it is taken. */
   const [refinePreview, setRefinePreview] = useState<RefineResult | null>(null)
+  /** A preview's Übernehmen/Verwerfen lands under the lanes - below the screen edge with the stems
+   * open (Xiaomi portrait, 2026-10-16), so the timeline scrolls and brings it into view. */
+  const previewPanel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (refinePreview || tempoPreview) previewPanel.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [refinePreview, tempoPreview])
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -1719,7 +1725,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   )
 
   return (
-    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
+    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0 overflow-y-auto' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div ref={topRow} className="flex flex-wrap items-center gap-2">
         <Button onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
@@ -1989,7 +1995,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {refinePreview && (
-        <div className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Raster-Vorschau">
+        <div ref={previewPanel} className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Raster-Vorschau">
           <span className="font-semibold">
             Raster verfeinert: {refinePreview.addedBars.length} {refinePreview.addedBars.length === 1 ? 'Punkt' : 'Punkte'} ergänzt
             {refinePreview.addedBars.length > 0 ? ` (Takt ${refinePreview.addedBars.join(', ')})` : ''}, rote Takte {refinePreview.poorBefore} → {refinePreview.poorAfter}. Deine Punkte bleiben
@@ -2012,7 +2018,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {tempoPreview && (
-        <div className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
+        <div ref={previewPanel} className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
           <span className="font-semibold">
             {tempoPreview.endBpm < tempoPreview.startBpm ? 'Wird langsamer' : 'Wird schneller'}: {tempoPreview.startBpm.toFixed(0)} → {tempoPreview.endBpm.toFixed(0)} BPM, Takt{' '}
             {tempoPreview.startBar}–{tempoPreview.endBar} ({tempoPreview.pointCount} Ausrichtungspunkte). Die Linie zeigt das getippte Tempo.
