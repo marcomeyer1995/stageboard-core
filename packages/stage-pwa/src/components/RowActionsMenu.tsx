@@ -1,8 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Dialog, IconButton, MENU_ROW } from './ui'
+import { Dialog, IconButton, MENU_ROW, menuIcon } from './ui'
 
 /**
- * The "⋮ opens a popup of actions" pattern (see BandManagementView.tsx's member-row follow-up,
+ * The "⋯ opens a popup of actions" pattern (⋮ until 2026-10-16 - docs/15 D9: ⋯ for one row) (see BandManagementView.tsx's member-row follow-up,
  * found live on a phone: a row of inline text-link actions has no bound on how many can pile
  * up, and on a narrow screen runs out of horizontal room instead of wrapping onto a readable
  * line). Deliberately generic - not band/member-specific - so any future list of rows (songs,
@@ -14,7 +14,7 @@ import { Dialog, IconButton, MENU_ROW } from './ui'
  * needing a "Auswählen" entry in this popup at all.
  */
 export function RowMenuButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <IconButton icon="moreVertical" variant="quiet" label={label} onClick={onClick} />
+  return <IconButton icon={menuIcon('entry')} variant="quiet" label={label} onClick={onClick} />
 }
 
 /** The popup shell - the shared dialog (docs/15 D6): "Abbrechen" at the bottom, since picking

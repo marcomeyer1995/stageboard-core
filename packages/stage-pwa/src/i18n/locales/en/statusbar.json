@@ -1,5 +1,6 @@
 {
   "openMenu": "Open menu",
+  "openDashboards": "Dashboards",
   "state": {
     "ready": "Ready",
     "countIn": "Count-in",
