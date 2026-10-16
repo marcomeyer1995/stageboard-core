@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
-import { CAPABILITIES, SERVER_EXECUTION_TARGET } from 'shared-types'
+import { CAPABILITIES } from 'shared-types'
 import { entryTransitionType } from './trackEndTransition'
-import { pluginProviding } from './capabilities'
-import { supportsLocalExecution } from './clientTranslator'
 import { resolveTrackForEntry } from './computeQueue'
-import { resolveExecutionEngine } from './hardwareRouting'
 import {
   loadLocalTrack,
   preloadLocalTrack,
@@ -23,14 +20,12 @@ import {
   unloadWebAudioTrack,
   webAudioTrackEnabled,
 } from './webAudioTrackEngine'
-import { useHardwareBindingFor } from './useHardwareBindingFor'
+import { useCapabilityRouting } from './useCapabilityRouting'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { useShowMode } from './showMode'
 import { gigElapsedMsNow } from './usePlaybackElapsedMs'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
-import { usePluginsStore } from '../store/usePluginsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Drives Gig-mode audio-playback (#13) regardless of which top-level tab (Live/Bibliothek/
@@ -61,20 +56,10 @@ export function useAudioOutputDriver(): void {
   useEffect(() => {
     elapsedMsRef.current = elapsedMs
   })
-  const deviceId = useShowStateStore((state) => state.deviceId)
-  const audioBinding = useHardwareBindingFor(CAPABILITIES.audioPlayback)
-  const installed = usePluginsStore((state) => state.installed)
-
-  const usesDeviceOutput =
-    mode === 'gig' && audioBinding !== null && audioBinding.executionTarget !== SERVER_EXECUTION_TARGET
-  const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, CAPABILITIES.audioPlayback) : null
-  const engine = resolveExecutionEngine(
-    mode,
-    audioBinding,
-    deviceId,
-    pluginId,
-    supportsLocalExecution(installed, CAPABILITIES.audioPlayback),
-  )
+  // The same routing the transport widget shows (incl. "no tablet chosen: the device running the
+  // show plays it").
+  const { engine, pluginId } = useCapabilityRouting(CAPABILITIES.audioPlayback, mode)
+  const usesDeviceOutput = engine === 'local-mine' || engine === 'local-other'
   const isMyDeviceAudioOutput = mode === 'gig' && engine === 'local-mine'
   // Gig only, per device (#468 prototype): the track on the click's Web Audio clock instead of an
   // <audio> element. Solo keeps the element.

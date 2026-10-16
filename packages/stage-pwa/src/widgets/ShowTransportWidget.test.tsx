@@ -21,7 +21,7 @@ vi.mock('../components/MasterTakeoverButton', () => {
   return { MasterTakeoverButton: () => <button type="button">Master übernehmen</button> }
 })
 vi.mock('../lib/showControlClient', () => ({ triggerShowControl: vi.fn() }))
-vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
@@ -204,7 +204,10 @@ describe('ShowTransportWidget', () => {
     expect(screen.queryByText('Play')).not.toBeInTheDocument()
   })
 
-  it('calls play() and forwards to the resolved plugin on Play, when no device claims local output', () => {
+  it('calls play() and forwards to a real server player on Play, when no device claims local output', () => {
+    vi.mocked(usePluginsStore).mockImplementation((selector) =>
+      selector({ installed: [{ id: 'server-player', capabilities: [CAPABILITIES.audioPlayback], enabled: true }] } as never),
+    )
     const { play } = mockShowMode({
       currentSong: song('s1', 'Sweet Home Chicago'),
       currentEntry: entry('e1', 's1'),
@@ -215,7 +218,19 @@ describe('ShowTransportWidget', () => {
     fireEvent.click(screen.getByText('Play'))
 
     expect(play).toHaveBeenCalledTimes(1)
-    expect(triggerShowControl).toHaveBeenCalledWith('mock-playback', { type: 'play' })
+    expect(triggerShowControl).toHaveBeenCalledWith('server-player', { type: 'play' })
+  })
+
+  it('never forwards to the Mock Playback stand-in - with no tablet chosen, the device running the show plays (2026-10-16)', () => {
+    mockShowMode({
+      currentSong: song('s1', 'Sweet Home Chicago'),
+      currentEntry: entry('e1', 's1'),
+      currentVariant: variant('v1', 's1'),
+    })
+    render(<ShowTransportWidget config={{}} />)
+    fireEvent.click(screen.getByText('Play'))
+    expect(triggerShowControl).not.toHaveBeenCalled()
+    expect(screen.getByText('Audio läuft über ein anderes Gerät')).toBeInTheDocument()
   })
 
   it('shows "Kein Track angehängt" for a trackless song when this device is the claimed local output', () => {

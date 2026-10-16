@@ -1,10 +1,10 @@
 import { SERVER_EXECUTION_TARGET, type CapabilityId } from 'shared-types'
 import { supportsLocalExecution } from './clientTranslator'
 import { pluginProviding } from './capabilities'
-import { resolveExecutionEngine, type HardwareRoutingEngine } from './hardwareRouting'
+import { masterPlays, resolveExecutionEngine, STAND_IN_PLUGIN_IDS, type HardwareRoutingEngine } from './hardwareRouting'
 import { useHardwareBindingFor } from './useHardwareBindingFor'
 import { usePluginsStore } from '../store/usePluginsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
+import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 
 export interface CapabilityRouting {
   engine: HardwareRoutingEngine
@@ -32,10 +32,15 @@ export function useCapabilityRouting(capability: CapabilityId, mode: 'gig' | 'pr
   const deviceId = useShowStateStore((state) => state.deviceId)
   const installed = usePluginsStore((state) => state.installed)
   const binding = useHardwareBindingFor(capability)
+  const drives = useShowStateStore(drivesAutomation)
+  const builtIn = masterPlays(capability)
 
-  const usesDeviceOutput = mode === 'gig' && binding !== null && binding.executionTarget !== SERVER_EXECUTION_TARGET
-  const pluginId = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, capability) : null
-  const engine = resolveExecutionEngine(mode, binding, deviceId, pluginId, supportsLocalExecution(installed, capability))
+  const target = binding?.executionTarget ?? null
+  const usesDeviceOutput = mode === 'gig' && target !== null && target !== SERVER_EXECUTION_TARGET
+  const provider = mode === 'gig' && !usesDeviceOutput ? pluginProviding(installed, capability) : null
+  // Klick / Backing-Track never go to a stand-in that plays nothing.
+  const pluginId = builtIn && provider && STAND_IN_PLUGIN_IDS.includes(provider) ? null : provider
+  const engine = resolveExecutionEngine(mode, binding, deviceId, pluginId, supportsLocalExecution(installed, capability), builtIn ? { drivesAutomation: drives } : undefined)
 
   return { engine, pluginId }
 }

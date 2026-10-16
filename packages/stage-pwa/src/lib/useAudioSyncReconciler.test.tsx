@@ -13,7 +13,7 @@ vi.mock('./audioStorageManager', () => ({ scheduleReconcileAudioCache: vi.fn() }
 vi.mock('./queue', () => ({ useQueue: vi.fn() }))
 vi.mock('../store/useAudioPinsStore', () => ({ useAudioPinsStore: vi.fn() }))
 vi.mock('../store/useAudioSyncStore', () => ({ useAudioSyncStore: vi.fn() }))
-vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/useSongVariantsStore', () => ({ useSongVariantsStore: vi.fn() }))
 
 function track(id: string): TrackMeta {

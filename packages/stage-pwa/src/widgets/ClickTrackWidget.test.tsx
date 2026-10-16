@@ -17,7 +17,7 @@ vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 // The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
 const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
 vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))
-vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))
@@ -86,10 +86,18 @@ beforeEach(() => {
 })
 
 describe('ClickTrackWidget', () => {
-  it('shows a placeholder when no device is bound as the click output', () => {
+  it('no tablet chosen for the click: the device running the show plays it (System split, 2026-10-16)', () => {
     mockShowMode({ currentSong: song(true) })
+    const { unmount } = render(<ClickTrackWidget config={{}} />)
+    expect(screen.queryByText('Kein Klick-Ausgabegerät eingerichtet')).not.toBeInTheDocument()
+    expect(screen.queryByText('Klick · dieses Gerät')).not.toBeInTheDocument()
+    unmount()
+
+    vi.mocked(useShowStateStore).mockImplementation((selector) =>
+      selector({ state: {}, deviceId: DEVICE_ID, isMaster: true, claimMaster: vi.fn(), applyPatch: vi.fn(), init: vi.fn() } as never),
+    )
     render(<ClickTrackWidget config={{}} />)
-    expect(screen.getByText('Kein Klick-Ausgabegerät eingerichtet')).toBeInTheDocument()
+    expect(screen.getByText('Klick · dieses Gerät')).toBeInTheDocument()
   })
 
   it('shows the effective on/off state once a device is bound', () => {
