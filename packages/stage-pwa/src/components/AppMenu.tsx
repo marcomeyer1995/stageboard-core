@@ -76,15 +76,17 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
           </button>
         ))}
       </nav>
-      <Section title="Modus">
+      {/* No headings over Modus and Master - the bar and the row say it themselves, and ☰ fits one
+          landscape screen without them (Marco, 2026-10-16). */}
+      <section aria-label="Modus" className="flex flex-col gap-2">
         <SessionModeControl />
         {sessionMode === 'practice' && <PracticeSetlistPicker />}
-      </Section>
+      </section>
       {sessionMode === 'gig' && (
-        <Section title="Master-Kontrolle">
+        <section aria-label="Master-Kontrolle" className="flex flex-col gap-2">
           <MasterControl />
           <GigSetlistPicker />
-        </Section>
+        </section>
       )}
       {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
