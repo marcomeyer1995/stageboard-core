@@ -12,6 +12,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
+import { PluginManager } from './PluginManager'
 import { ActionMenu, AddRow } from './ui'
 
 const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
@@ -154,6 +155,9 @@ export function HardwareSetupManager() {
       <div className="mb-6">
         <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />
       </div>
+
+      {/* The drivers beside the gear they drive (System split, 2026-10-16). */}
+      <PluginManager kind="drivers" />
 
       {editing !== undefined && (
         <DeviceSetupWizard device={editing} initialDraft={editing === null ? newDevicePrefill : null} onClose={closeWizard} />

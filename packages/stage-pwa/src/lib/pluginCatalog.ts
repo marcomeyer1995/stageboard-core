@@ -40,6 +40,15 @@ export function isTestPlugin(id: string): boolean {
   return TEST_PLUGIN_IDS.includes(id)
 }
 
+/** Where a plugin is listed in System (2026-10-16): a driver talks to gear over a transport (MIDI,
+ * network) and sits under Bühnentechnik; a test stand-in under Diagnose; the rest are Erweiterungen. */
+export type PluginKind = 'extensions' | 'drivers' | 'test'
+
+export function pluginKind(plugin: { id: string; transports?: readonly unknown[] }): PluginKind {
+  if (isTestPlugin(plugin.id)) return 'test'
+  return (plugin.transports ?? []).length > 0 ? 'drivers' : 'extensions'
+}
+
 /** The catalog this build offers to install. */
 export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS): typeof PLUGIN_CATALOG {
   return showTestPlugins ? PLUGIN_CATALOG : PLUGIN_CATALOG.filter((entry) => !isTestPlugin(entry.id))

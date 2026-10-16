@@ -21,7 +21,7 @@ describe('PluginManager (System cleanup 2026-10-16)', () => {
     const confirm = vi.fn().mockResolvedValue(true)
     useDialogStore.setState({ confirm } as never)
     usePluginsStore.setState({ installed: [plugin('mock-mixer', 'Mock Mixer', ['mixer']), plugin('midi-clock', 'MIDI-Clock', ['midi-clock'])], uninstall } as never)
-    render(<PluginManager />)
+    render(<PluginManager kind="test" />)
 
     expect(screen.getByText(/Mischpult ·/)).toBeInTheDocument()
     expect(screen.getAllByText('Test')).toHaveLength(1)
@@ -31,5 +31,19 @@ describe('PluginManager (System cleanup 2026-10-16)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entfernen' }))
     await waitFor(() => expect(uninstall).toHaveBeenCalledWith('mock-mixer'))
     expect(confirm).toHaveBeenCalled()
+  })
+
+  it('lists each plugin in one place: drivers (with a transport), test stand-ins, the rest as Erweiterungen', () => {
+    const kemper = { ...plugin('kemper-profiler', 'Kemper Profiler', ['kemper-control']), transports: [{ kind: 'midi' }] }
+    usePluginsStore.setState({ installed: [kemper, plugin('mock-mixer', 'Mock Mixer', ['mixer']), plugin('piper-speech', 'Sprachausgabe (Piper)', ['speech-synthesis'])] } as never)
+    const shows = (kind: 'extensions' | 'drivers' | 'test') => {
+      const { unmount } = render(<PluginManager kind={kind} />)
+      const found = ['Kemper Profiler', 'Mock Mixer', 'Sprachausgabe (Piper)'].filter((name) => screen.queryByText(name) !== null)
+      unmount()
+      return found
+    }
+    expect(shows('extensions')).toEqual(['Sprachausgabe (Piper)'])
+    expect(shows('drivers')).toEqual(['Kemper Profiler'])
+    expect(shows('test')).toEqual(['Mock Mixer'])
   })
 })

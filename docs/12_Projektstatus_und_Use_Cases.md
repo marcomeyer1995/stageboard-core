@@ -518,12 +518,12 @@ Das Menü ist ein normaler Dialog mit „Fertig“ unten (docs/15 D6). Im Querfo
 
 ---
 
-### 7. System-Ansicht (`SystemView.tsx`) – acht Tabs
+### 7. System-Ansicht (`SystemView.tsx`) – Tabs nach Geltungsbereich
 
-Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbericht, Einstellungen, Diagnose** (Diagnose seit #402: Live-Debug-Konsole, `DebugConsoleView`) (\* nur sichtbar, wenn eine Backup-Capability installiert ist). Der aktive Tab wird in `useActiveSystemTabStore` veröffentlicht – die Hardware-Hot-Plug-Abfrage darf nur feuern, wenn „System → Hardware" tatsächlich offen ist.
+**Seit 2026-10-16 (docs/15 §9 Schritt 3, Namen von Marco):** sortiert danach, für wen eine Einstellung gilt - **Dieses Gerät, Ton & Timing, Band, Bühnentechnik, Tablets & Handys, Stage-Server, Erweiterungen**, dazu **Diagnose** (Crew/Admin; Live-Debug-Konsole `DebugConsoleView` seit #402, darunter die Test-Plugins). Vorher: Band, Plugins, Hardware, Geräte, Backup, Nachbericht, Einstellungen (5-6 Bildschirme, Gerät/Band/Server gemischt). Der **Nachbericht** ist jetzt der Tab **„Shows“ in der Bibliothek** (7.7), die Zeiträume für Geübt/Geprobt stehen dort unter der Sortierung. Der aktive Tab wird in `useActiveSystemTabStore` veröffentlicht – die Hardware-Hot-Plug-Abfrage darf nur feuern, wenn „System → Bühnentechnik" (Id `hardware`) tatsächlich offen ist.
 
 #### 7.1 Band (`BandManagementView`)
-- **Serverstatus-Zeile:** „Hardware auf diesem Server aktiv für: <Band>" / „Keine Band-Hardware aktiv" / „nicht erreichbar" / „antwortet langsam".
+- **Serverstatus-Zeile:** entfernt (2026-10-16) - welche Band die Server-Hardware nutzt, steht einmal unter Stage-Server → Aktive Band.
 - **Bands:** Namen antippen = aktive Band wechseln. Zeilenmenü: **Umbenennen** (Admin), **Einladen** (Admin, nur serververbundene Band → `InviteBandView`), **Von diesem Gerät entfernen** (jedes Mitglied; löscht nur lokale Daten, Server unberührt), **Löschen** (Admin, rot, „endgültig", für alle Geräte). **+ Band** → *Bestehender Band beitreten* / *Neue Band gründen*. **Verbinden** verbindet eine lokal gegründete Band mit einem Server.
 - **Roster:** Profil antippen = auf dieses Profil wechseln (lokale Band: sofort; serververbunden: Nicht-Admin sofort, Admin nach PIN-Eingabe). Zeilenmenü: **Meinen PIN setzen** (nur eigenes Admin-Profil), **Umbenennen**, **Stage-Rollen anpassen** (Checkboxen), **Passwort/PIN zurücksetzen** (anderer Admin; zeigt neuen 4-stelligen PIN), **Löschen** (mindestens **ein Admin muss bleiben**). **+ Neues Mitglied** (Admin). Nicht-Admins sehen „Nur der Band-Admin kann Mitglieder verwalten.". **Präsenzpunkte** je Mitglied (SSE-Präsenz, wie viele Geräte).
 - **UC:** Der Bassist verlässt die Band – Admin löscht sein Profil. **UC:** Bandleader vergisst seine PIN – ein zweiter Admin setzt sie zurück.
@@ -531,35 +531,40 @@ Tabs (Sidebar bzw. Leiste): **Band, Plugins, Hardware, Geräte, Backup\*, Nachbe
 #### 7.2 InviteBandView – „Einladen"
 - Zeigt den stehenden Zugangscode + **QR** (Band + Code gemeinsam); **Code ändern** (`rotateAccessCode`, bewusst, z. B. nach Leak); **Drucken / als PDF speichern** (Browser-Druck, versteckt alles außer QR/Code). Wird auch als Abschluss des Gründungs-Wizards genutzt.
 
-#### 7.3 Plugins (`PluginManager`)
+#### 7.3 Erweiterungen (`PluginManager`)
+- **Seit 2026-10-16** zeigt jeder Ort nur seine Art (`pluginKind`, `lib/pluginCatalog.ts`): **Treiber** (Plugins mit Transport - Kemper, CQ-18T, MG-30, RC-500, Ui24R, WebMIDI, MIDI-Clock) unter Bühnentechnik, **Test-Plugins** (`TEST_PLUGIN_IDS`: Mock Mixer/Lighting/Backup/Click/Playback, nur in der Dev-App installierbar, Badge „Test") unter Diagnose, alles andere (Sprachausgabe, Ansagen, Spuren trennen, Beat-Erkennung) hier. Entfernen liegt im ⋯ mit Rückfrage.
 - **Installiert:** Name/Version, Capabilities, **Health** (`läuft auf dem Tablet` / `online` / `Heartbeat veraltet` / `kein Heartbeat — Stage-Server offline?`), **Aktiv/Deaktiviert**-Schalter (deaktivierte Plugins verschwinden aus der Widget-Bibliothek), **Entfernen**. **Verfügbar:** Installieren aus dem **statischen, eingebauten Katalog** (`lib/pluginCatalog.ts`): mock-mixer, generic-webmidi, kemper-profiler, cq18t-mixer, nux-mg30, boss-rc500, soundcraft-ui24r, mock-lighting, mock-backup, mock-playback, music-tempo-beat-detection, mock-click.
 - Installationen sind Dokumente, die zu allen Tablets und zum Stage-Server replizieren.
 - **Gating:** keins in der UI (nicht admin-beschränkt gefunden). **Stub-Hinweis:** kein Plugin-Repository; mehrere Katalogeinträge sind `mock-*`.
 - **UC:** Vor dem ersten Gig „Kemper Profiler" installieren, damit Preset-Cues ausgelöst werden können.
 
-#### 7.4 Hardware (`HardwareSetupManager`, `DeviceSetupWizard`, `WorkspaceHardwareSettings` steht unter Einstellungen)
+#### 7.4 Bühnentechnik (`HardwareSetupManager`, `BuiltInOutputs`, `DeviceSetupWizard`; früher „Hardware")
+- **Klick und Backing-Track (seit 2026-10-16, `BuiltInOutputs`):** eingebaut, kein Plugin nötig. Je eine Auswahl „Gerät, das die Show führt" (Standard) oder ein Tablet der Band. Ohne gewähltes Tablet spielt im Gig das Gerät, das die Show führt (`hardwareRouting` `masterFallback`, `drivesAutomation`); vorher gingen Klick/Track ohne Rolle an die Platzhalter Mock Click/Mock Playback, die nichts spielen. Alte Rollen mit diesen Platzhaltern werden hier angezeigt und bearbeitet.
+- **Treiber:** die installierten Geräte-Plugins stehen unter der Geräteliste (7.3).
 - **Was:** Liste aller **Logical Devices** (Rollen wie „Marcos Kemper") mit **Einrichten** und **Entfernen**, **+ Neues Gerät**. Der **Wizard** (Home-Assistant-Stil, 4 Schritte): 1 Name (mit Liste bestehender Geräte, gegen Kollisionen), 2 Gerätetyp (installiert das passende Katalog-Plugin inline), 3 Verbindung (**Auto-Erkennung** über die Discovery-Session der ganzen Band, gefiltert auf das gewählte Plugin und beschriftet, wer es gemeldet hat — oder **manuell**: Ausführungsziel Server/Tablet + Transportfelder), 4 Verifizieren (**Testen** / **Speichern** / **Fertig**). „Einrichten" springt direkt zu Schritt 3.
 - **Hot-Plug:** Wird ein unbekanntes MIDI-Gerät erkannt, kann `useHardwareDetection` den Wizard vorbefüllen öffnen (nur wenn dieser Tab offen ist).
 - **Discovery-Banner:** Bei Mehrdeutigkeit fordert ein oben eingeblendetes Banner („Geräte-Erkennung — <Gerät>: <Anweisung>") dazu auf, das Gerät physisch zu bedienen; blockiert die UI nicht.
 - **Gating:** in der UI keine Rolle geprüft (nicht verifiziert im Hintergrund). Nur *dieses* Gerät kann seine eigene Transport-Verdrahtung bearbeiten (Browser sieht nur eigene USB/MIDI-Ports).
 - **UC:** Der Gitarrist steckt seinen Kemper per USB ein → Prompt „Neues Gerät: Kemper – welche Rolle?" → Wizard → Testen → Cues am Song zielen auf „Marcos Kemper".
 
-#### 7.5 Geräte (`DeviceLedgerView`)
+#### 7.5 Tablets & Handys (`DeviceLedgerView`; früher „Geräte")
 - **Geräte-Ledger:** jedes Gerät, das der Band je beigetreten ist; je Zeile Name, Hostname/OS/IP, Umgebung, Sync-Status, **„App offen"** (frische Geräte-Meldung) und **„Netzwerk erreichbar"** (echter ICMP-Ping des Stage-Servers), „Zuletzt gesehen". Oben: Stage-Server (LAN-IP). **Admin:** **Blockieren/Freigeben** eines Geräts (hieß „Entfernen“; Bestätigung; Server prüft Admin; 403 → Dialog). Seit #426/#428 **alte Geräte aus der Liste entfernen** (`POST /workspaces/:id/devices/:deviceId/forget`; einzeln oder „Inaktive entfernen“ = kein Live-Signal, nachdem der Server 5 min gesammelt hat). Geräte, die als Ausführungsziel von Hardware eingetragen sind, und blockierte bleiben. Geräte-Diagnose wird nur **gepollt, solange dieser Tab offen ist** (SSE-Connection-Budget des Browsers).
 - **UC:** Ein Tablet hört mitten im Soundcheck auf zu reagieren: im Ledger sieht man „Netzwerk erreichbar ✔, App offen ✘" → App wurde geschlossen, nicht das WLAN ausgefallen.
 
-#### 7.6 Backup (`BackupManager`)
+#### 7.6 Stage-Server (`StageServerPage` mit `BackupManager`; Backup war ein eigener Tab)
+- **Verbindung** (Stage-Server-Adresse, Synchronisation), **Aktive Band - gilt für alle** (Band wechseln…) und **Backup** auf einer Seite; Details zu den ersten beiden unter 7.8.
 - **Backup-Plugins:** nur Statusanzeige (Name, Health, Aktiv) – StageBoard löst selbst keine Backups aus. **Lokale Snapshots** (unabhängig vom Plugin, *real*): **Backup herunterladen** (JSON-Dump von Songs, Setlists, Dashboards, Profilen, Plugins, Show-Log) und **Backup wiederherstellen…** (Datei wählen, Bestätigung, wird mit lokalen Daten **zusammengeführt**).
 - **Gating:** Tab nur mit Backup-Capability sichtbar; Snapshot-Funktionen offen. **Stub-Hinweis:** der Katalog kennt nur `mock-backup` (seit #249 mit Server-Seite, die lediglich den Zeitpunkt der letzten Anforderung merkt).
 - **UC:** Vor der Tour: Snapshot ziehen und auf den USB-Stick kopieren.
 
-#### 7.7 Nachbericht (`PostShowReport`)
+#### 7.7 Shows - früher Nachbericht (`PostShowReport.tsx`: `ShowList`, `ShowDetail`)
+- **Seit 2026-10-16** ein Tab „Shows (n)" in der Bibliothek (n = Shows mit gespielten Songs, Notizen oder fehlgeschlagenen Cues): Liste links wie Setlists und Songs, eine Show rechts; Starts ohne Inhalt eingeklappt unter „Ohne gespielte Songs".
 - **Was:** Shows aus dem replizierten Show-Log (gruppiert nach `showId`, neueste zuerst). Je Show seit 2026-09-27: Kopfzeile mit Anzahl Songs und gespielter Zeit, dann die gespielten Songs nummeriert (Uhrzeit, aktive Dauer, Zählung ab **20 s** aktiv), dann die **Notizen** von Band/Crew (mit Autor), und die technischen Ereignisse (`capability-changed`, orange) zusammengeklappt in einer Zeile „Technik (n)“ - vorher standen Dutzende solcher Zeilen zwischen den Songs (GUI-Audit). Rein lesend.
 - **Cues (seit #452, 2026-10-08):** jeder gefeuerte Cue mit Uhrzeit, Ziel-Gerät und Ergebnis; fehlgeschlagene rot mit Grund („Kein Plugin oder Gerät führt diesen Cue aus“, Treiberfehler). Eine Id je Show + Durchlauf + Cue - meldet ihn mehr als ein Gerät, bleibt es ein Eintrag.
 - **UC:** Am Tag danach: welche Songs liefen wirklich, wann fiel das Licht-Gerät aus, welcher Cue kam nicht an.
 
-#### 7.8 Einstellungen (`SystemSettings`)
-Alles einmalig einzustellen, pro Gerät:
+#### 7.8 Dieses Gerät, Ton & Timing, Stage-Server (`SystemSettings.tsx`, früher ein Tab „Einstellungen")
+Seit 2026-10-16 verteilt: **Dieses Gerät** = Gerätename, Sprache, Darstellung, Textgröße, Statusleiste, Fußschalter & Tasten, Blitzmeldungen, Speicher & Sync, App; **Ton & Timing** = Wiedergabe über Web Audio (Test), Latenz-Ausgleich, Ansagen; **Stage-Server** = Stage-Server-Adresse, Synchronisation, Aktive Band (7.6). Im Einzelnen:
 - **App** (nur in der Android-App, #348): installierte Version und „Nach Update suchen" - bietet der Stage-Server eine neuere Version an, lädt die App sie selbst (über das gekoppelte Zertifikat) und öffnet den Android-Installer. Dieselbe Meldung erscheint beim App-Start als Leiste unten („Später" blendet sie bis zum nächsten Start aus).
 - **Gerätename** (`DeviceNameSettings`, selbst umbenennen; erscheint überall, z. B. Master-Anzeige).
 - **Darstellung** (`ThemeSwitcher`): 5 Designs *Klassisch, Stage Console, Soft Cards, High Contrast, Neon Live*; Hell/Dunkel nur bei „Klassisch" (die anderen sind dunkel). `localStorage`.
