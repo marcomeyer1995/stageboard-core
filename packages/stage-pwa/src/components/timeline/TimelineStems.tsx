@@ -4,7 +4,6 @@ import { timeToX, tokenColor, xToTime, type TimelineView } from '../../lib/timel
 import type { TrackAnalysis } from '../../lib/trackAnalysis'
 import { STEM_ROLE_LABELS } from '../../lib/stems'
 import { Icon } from '../Icon'
-import { Segmented } from '../ui'
 
 /** One stem lane: touch-sized, like every control on stage. */
 export const STEM_LANE_H = 48
@@ -26,32 +25,14 @@ interface TimelineStemsProps {
   /** The stem heard alone, or null = the mix. */
   soloId: string | null
   onSolo: (stemId: string | null) => void
-  /** Where "Track analysieren" and the red/green marks take their hits from: a stem, or null = the mix. */
-  analysisSourceId: string | null
-  onAnalysisSource: (stemId: string | null) => void
-  /** Phone: the lanes scroll inside a capped height (they pushed the timeline's own lanes
-   * together, 2026-10-16) and the analysis source sits in the tools panel instead. */
-  compact?: boolean
+  /** The stem the red/green marks and the magnet take their hits from (chosen at "Track
+   * analysieren"), or null = the mix. */
+  analysisSourceLabel: string | null
 }
 
-/** The phone shows this many stem lanes; more scroll. */
-const COMPACT_VISIBLE_LANES = 2.5
-
-/** "Treffer für die Analyse aus" - under the stems, or in the timeline's tools panel on the phone. */
-export function StemSourcePicker({ stems, analysisSourceId, onAnalysisSource }: Pick<TimelineStemsProps, 'stems' | 'analysisSourceId' | 'onAnalysisSource'>) {
-  const options = [{ value: '', label: 'Mix' }, ...stems.map((s) => ({ value: s.id, label: s.label }))]
-  return (
-    <Segmented
-      label="Treffer für die Analyse aus"
-      showLabel
-      compact={options.length >= 4}
-      value={analysisSourceId ?? ''}
-      onChange={(value) => onAnalysisSource(value === '' ? null : value)}
-      options={options}
-      hint="Rot/Grün und „Track analysieren“ - Mix ist meist zuverlässiger."
-    />
-  )
-}
+/** This many stem lanes are visible; more scroll inside the strip - any number of stems fits
+ * without pushing the timeline's own lanes together (2026-10-16). */
+const VISIBLE_LANES = 2.5
 
 /**
  * The stems under the timeline (docs/22 §5): collapsed by default - the waveform above stays the
@@ -60,7 +41,7 @@ export function StemSourcePicker({ stems, analysisSourceId, onAnalysisSource }: 
  * line or a cue onto a hit, e.g. drums only. The hits the analysis uses can come from a stem
  * instead of the mix; the mix stays the default (docs/22 §5: the drum stem alone was worse).
  */
-export function TimelineStems({ stems, analyses, open, onToggle, width, view, playheadMs, soloId, onSolo, analysisSourceId, onAnalysisSource, compact = false }: TimelineStemsProps) {
+export function TimelineStems({ stems, analyses, open, onToggle, width, view, playheadMs, soloId, onSolo, analysisSourceLabel }: TimelineStemsProps) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const height = stems.length * STEM_LANE_H
 
@@ -114,41 +95,35 @@ export function TimelineStems({ stems, analyses, open, onToggle, width, view, pl
       >
         <Icon name={open ? 'collapse' : 'expand'} />
         Stems ({stems.length}){soloId ? ` · nur ${stems.find((s) => s.id === soloId)?.label ?? ''}` : ''}
+        {analysisSourceLabel ? ` · Treffer aus ${analysisSourceLabel}` : ''}
       </button>
       {open && (
-        <>
-          <div
-            className="w-full overflow-y-auto overflow-x-hidden rounded-control border border-line bg-stage"
-            style={{ maxHeight: compact ? COMPACT_VISIBLE_LANES * STEM_LANE_H : undefined }}
-            data-testid="timeline-stem-lanes"
-          >
-            <div className="relative w-full" style={{ height }}>
-              <canvas ref={canvas} className="absolute left-0 top-0" style={{ width, height }} />
-              {stems.map((stem, i) => {
-                const solo = soloId === stem.id
-                return (
-                  <button
-                    key={stem.id}
-                    type="button"
-                    aria-pressed={solo}
-                    title={solo ? 'Wieder alle Spuren hören' : `Nur ${stem.label} hören`}
-                    onClick={() => onSolo(solo ? null : stem.id)}
-                    className="absolute left-0 flex w-full items-start"
-                    style={{ top: i * STEM_LANE_H, height: STEM_LANE_H }}
-                  >
-                    <span className={`m-1 rounded-control px-2 py-0.5 text-sm font-semibold ${solo ? 'bg-accent text-accent-ink' : 'bg-control/80 text-ink'}`}>
-                      {stem.label}
-                      {stem.role && stem.role !== 'other' && STEM_ROLE_LABELS[stem.role] !== stem.label ? ` · ${STEM_ROLE_LABELS[stem.role]}` : ''}
-                      {solo ? ' · solo' : ''}
-                    </span>
-                  </button>
-                )
-              })}
-              {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} />}
-            </div>
+        <div className="w-full overflow-y-auto overflow-x-hidden rounded-control border border-line bg-stage" style={{ maxHeight: VISIBLE_LANES * STEM_LANE_H }} data-testid="timeline-stem-lanes">
+          <div className="relative w-full" style={{ height }}>
+            <canvas ref={canvas} className="absolute left-0 top-0" style={{ width, height }} />
+            {stems.map((stem, i) => {
+              const solo = soloId === stem.id
+              return (
+                <button
+                  key={stem.id}
+                  type="button"
+                  aria-pressed={solo}
+                  title={solo ? 'Wieder alle Spuren hören' : `Nur ${stem.label} hören`}
+                  onClick={() => onSolo(solo ? null : stem.id)}
+                  className="absolute left-0 flex w-full items-start"
+                  style={{ top: i * STEM_LANE_H, height: STEM_LANE_H }}
+                >
+                  <span className={`m-1 rounded-control px-2 py-0.5 text-sm font-semibold ${solo ? 'bg-accent text-accent-ink' : 'bg-control/80 text-ink'}`}>
+                    {stem.label}
+                    {stem.role && stem.role !== 'other' && STEM_ROLE_LABELS[stem.role] !== stem.label ? ` · ${STEM_ROLE_LABELS[stem.role]}` : ''}
+                    {solo ? ' · solo' : ''}
+                  </span>
+                </button>
+              )
+            })}
+            {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} />}
           </div>
-          {!compact && <StemSourcePicker stems={stems} analysisSourceId={analysisSourceId} onAnalysisSource={onAnalysisSource} />}
-        </>
+        </div>
       )}
     </div>
   )

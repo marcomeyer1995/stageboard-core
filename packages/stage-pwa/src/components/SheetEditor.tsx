@@ -428,9 +428,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
    * with the timeline, which applies the result as an undoable step. Null: track missing on this
    * device or nothing detected. The variant's bpm follows the grid's first stretch, so the
    * count-in and every tempo display agree with what the click plays. */
-  const detectGrid = async (): Promise<{ bpm: number; beatGrid: BeatGrid } | null> => {
+  const detectGrid = async (trackId?: string): Promise<{ bpm: number; beatGrid: BeatGrid } | null> => {
     if (!tapTrack) return null
-    const blob = await getTrack(draft.variantId, tapTrack.id)
+    const blob = await getTrack(draft.variantId, trackId ?? tapTrack.id)
     if (!blob) return null
     const provider = pluginProviding(installedPlugins, CAPABILITIES.audioAnalysis) ? 'music-tempo' : 'hand-rolled'
     const result = await analyzeTrackBlob(blob, draft.timeSignature, provider)

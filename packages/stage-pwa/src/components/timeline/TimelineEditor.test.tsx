@@ -848,7 +848,7 @@ describe('stems under the timeline (docs/22 §5)', () => {
     expect(localStorage.getItem('sb:timeline:stems-open')).toBe('1')
   })
 
-  it('"Track analysieren" takes its hits from the chosen stem instead of the mix', async () => {
+  it('"Track analysieren" asks which stem or the mix its hits come from', async () => {
     withStems()
     // Mix: a band speeding up - the one-point grid drifts off. Drums: exactly on the grid.
     const drifting: number[] = []
@@ -860,15 +860,21 @@ describe('stems under the timeline (docs/22 §5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stems (2)' }))
     await waitFor(() => expect(loadTrackAnalysis).toHaveBeenCalledWith('v', 'drums'))
     await new Promise((r) => setTimeout(r, 0))
-    // A narrow timeline: the analysis source sits in the tools panel.
-    tool('Nächste Problemstelle')
-    fireEvent.click(screen.getByRole('radio', { name: 'Schlagzeug' }))
+    dialog.promptFields.mockResolvedValueOnce({ source: 'drums' })
     fireEvent.click(tool('Track analysieren'))
     expect(await screen.findByText('Das Raster passt schon - nichts zu ergänzen.')).toBeInTheDocument()
-    tool('Nächste Problemstelle')
-    fireEvent.click(screen.getByRole('radio', { name: 'Mix' }))
+    const [title, fields] = dialog.promptFields.mock.lastCall as unknown as [string, { options: { label: string }[] }[]]
+    expect(title).toBe('Welche Spur analysieren?')
+    expect(fields[0]!.options.map((o: { label: string }) => o.label)).toEqual(['Mix (ganzer Track)', 'Schlagzeug', 'Bass'])
+    expect(screen.getByRole('button', { name: /Treffer aus Schlagzeug/ })).toBeInTheDocument()
+    dialog.promptFields.mockResolvedValueOnce({ source: '' })
     fireEvent.click(tool('Track analysieren'))
     expect(await screen.findByRole('status', { name: 'Raster-Vorschau' })).toBeInTheDocument()
+    // Cancelled: nothing analysed.
+    dialog.promptFields.mockClear()
+    dialog.promptFields.mockResolvedValueOnce(null)
+    fireEvent.click(tool('Track analysieren'))
+    await waitFor(() => expect(dialog.promptFields).toHaveBeenCalledTimes(1))
     vi.mocked(loadTrackAnalysis).mockReset()
     vi.mocked(loadTrackAnalysis).mockResolvedValue(null)
   })

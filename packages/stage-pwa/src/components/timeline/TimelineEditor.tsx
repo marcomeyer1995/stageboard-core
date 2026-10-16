@@ -50,7 +50,7 @@ import { loadSpeechClip } from '../../lib/speechClips'
 import { MixFaders } from '../MixFaders'
 import { usePluginsStore } from '../../store/usePluginsStore'
 import { TimelineMinimap } from './TimelineMinimap'
-import { StemSourcePicker, TimelineStems } from './TimelineStems'
+import { TimelineStems } from './TimelineStems'
 import { stemSetsOf } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
@@ -93,8 +93,9 @@ export interface TimelineEditorProps {
   cues: ShowCue[]
   onChange: (next: TimelineEditState) => void
   /** Automatic beat detection turned into a grid (the song editor's "Track analysieren") -
-   * applied here as one undoable step. Null: nothing usable detected. */
-  onDetectGrid?: () => Promise<{ bpm: number; beatGrid: BeatGrid } | null>
+   * applied here as one undoable step. Null: nothing usable detected. `trackId`: a stem to detect
+   * from instead of the track. */
+  onDetectGrid?: (trackId?: string) => Promise<{ bpm: number; beatGrid: BeatGrid } | null>
   /** Full screen (docs/14): the lanes take all the height the parent gives the component. */
   fill?: boolean
   /** Opened from the text editor's "Tap-to-Sync" (#325): start "Zeilen tippen" right away;
@@ -323,7 +324,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const [stemAnalyses, setStemAnalyses] = useState<ReadonlyMap<string, TrackAnalysis>>(new Map())
   /** The stem heard alone (its file plays instead of the track, same position) - null: the mix. */
   const [solo, setSolo] = useState<{ id: string; url: string } | null>(null)
-  /** Where the hits for red/green, the magnet and "Track analysieren" come from - null: the mix. */
+  /** Where the hits for red/green, the magnet and "Track analysieren" come from - null: the mix.
+   * Chosen when "Track analysieren" asks (only with stems), not kept beyond the editor. */
   const [hitSourceId, setHitSourceId] = useState<string | null>(null)
   const [view, setView] = useState<TimelineView>({ startMs: 0, msPerPx: 20 })
   const [clickOn, setClickOn] = useState(true)
@@ -342,12 +344,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const previewTaps = useRef<{ tapped: number[]; tempo: number } | null>(null)
   /** "Track analysieren" on an existing grid: the refined grid, shown before it is taken. */
   const [refinePreview, setRefinePreview] = useState<RefineResult | null>(null)
-  /** A preview's Übernehmen/Verwerfen lands under the lanes - below the screen edge with the stems
-   * open (Xiaomi portrait, 2026-10-16), so the timeline scrolls and brings it into view. */
-  const previewPanel = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (refinePreview || tempoPreview) previewPanel.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
-  }, [refinePreview, tempoPreview])
   const [tapMode, setTapMode] = useState<TapMode>(null)
   const [tapCount, setTapCount] = useState(0)
   const taps = useRef<number[]>([])
@@ -1359,16 +1355,20 @@ export function TimelineEditor(props: TimelineEditorProps) {
   /** "Track analysieren" with a grid already there (2026-10-15): refine it - the musician's points
    * stay, a beat tracker adds points where the click leaves the drums (lib/gridRefine.ts). Shown
    * as a preview; replacing everything is still there as "Neu erkennen". */
-  function detectGrid() {
+  async function detectGrid() {
+    const source = await askHitSource()
+    if (source === undefined) return
+    setHitSourceId(source)
     if (!beatGrid) {
-      void redetectGrid(false)
+      void redetectGrid(false, source)
       return
     }
-    if (!hitsMs) {
+    const hits = (source ? stemAnalyses.get(source)?.onsetsMs : analysis?.onsetsMs) ?? null
+    if (!hits) {
       setNotice('Die Wellenform wird noch analysiert - gleich noch einmal versuchen.')
       return
     }
-    const result = refineGrid(beatGrid, bpm, timeSignature, hitsMs)
+    const result = refineGrid(beatGrid, bpm, timeSignature, hits)
     if (!result || (result.addedBars.length === 0 && result.movedBars.length === 0)) {
       setNotice('Das Raster passt schon - nichts zu ergänzen.')
       return
@@ -1378,14 +1378,36 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setRefinePreview(result)
   }
 
-  async function redetectGrid(ask: boolean) {
+  /** With stems, "Track analysieren" asks which audio its hits come from (Marco 2026-10-16: the
+   * only action that needs the choice, so no setting to keep). Without stems: the mix, no question.
+   * Undefined: cancelled. */
+  async function askHitSource(): Promise<string | null | undefined> {
+    if (stems.length === 0) return null
+    const result = await promptFields(
+      'Welche Spur analysieren?',
+      [
+        {
+          key: 'source',
+          label: 'Treffer aus - der Mix ist meist zuverlässiger',
+          type: 'radio',
+          defaultValue: hitSourceId ?? '',
+          options: [{ value: '', label: 'Mix (ganzer Track)' }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
+        },
+      ],
+      'Analysieren',
+    )
+    if (!result) return undefined
+    return result.source || null
+  }
+
+  async function redetectGrid(ask: boolean, source: string | null = hitSourceId) {
     if (!onDetectGrid) return
     if (ask && !(await confirm('Raster komplett neu erkennen? Deine Ausrichtungspunkte gehen dabei verloren. (Rückgängig möglich)', { confirmLabel: 'Neu erkennen' }))) return
     setRefinePreview(null)
     setDetecting(true)
     setNotice(null)
     try {
-      const result = await onDetectGrid()
+      const result = await onDetectGrid(source ?? undefined)
       if (!result) {
         setNotice('Keine Schläge erkannt.')
         return
@@ -1725,7 +1747,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   )
 
   return (
-    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0 overflow-y-auto' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
+    <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div ref={topRow} className="flex flex-wrap items-center gap-2">
         <Button onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
           <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
@@ -1781,14 +1803,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
           {tapMode === 'lines' ? `Tippen beenden (${tapCount})` : 'Zeilen tippen'}
         </Button>
         {onDetectGrid && (
-          <Button disabled={!trackSrc || detecting || tapMode !== null} onClick={detectGrid}>
+          <Button disabled={!trackSrc || detecting || tapMode !== null} onClick={() => void detectGrid()}>
             {detecting ? 'Analysiere…' : 'Track analysieren'}
           </Button>
-        )}
-        {phone && stems.length > 0 && (
-          <div className="w-full" data-keep-open>
-            <StemSourcePicker stems={stems} analysisSourceId={hitSourceId} onAnalysisSource={setHitSourceId} />
-          </div>
         )}
         <Button disabled={quality.length === 0} onClick={jumpToNextProblem}>
           Nächste Problemstelle
@@ -1880,9 +1897,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
           playheadMs={playheadMs}
           soloId={solo?.id ?? null}
           onSolo={(id) => void soloStem(id)}
-          analysisSourceId={hitSourceId}
-          onAnalysisSource={setHitSourceId}
-          compact={phone}
+          analysisSourceLabel={hitSourceId ? (stems.find((s) => s.id === hitSourceId)?.label ?? null) : null}
         />
       )}
 
@@ -1995,7 +2010,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {refinePreview && (
-        <div ref={previewPanel} className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Raster-Vorschau">
+        // Floats over the bottom of the timeline like a dialog, but leaves the lanes visible and
+        // scrollable: the preview is what it decides on. In the page flow it fell below the screen
+        // edge with the stems open (Xiaomi portrait, 2026-10-16).
+        <div className="absolute inset-x-0 bottom-0 z-content flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-3 shadow-sb" role="status" aria-label="Raster-Vorschau">
           <span className="font-semibold">
             Raster verfeinert: {refinePreview.addedBars.length} {refinePreview.addedBars.length === 1 ? 'Punkt' : 'Punkte'} ergänzt
             {refinePreview.addedBars.length > 0 ? ` (Takt ${refinePreview.addedBars.join(', ')})` : ''}, rote Takte {refinePreview.poorBefore} → {refinePreview.poorAfter}. Deine Punkte bleiben
@@ -2018,7 +2036,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       )}
 
       {tempoPreview && (
-        <div ref={previewPanel} className="flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-2" role="status" aria-label="Tempo-Vorschau">
+        <div className="absolute inset-x-0 bottom-0 z-content flex flex-wrap items-center gap-2 rounded-container border border-accent bg-control p-3 shadow-sb" role="status" aria-label="Tempo-Vorschau">
           <span className="font-semibold">
             {tempoPreview.endBpm < tempoPreview.startBpm ? 'Wird langsamer' : 'Wird schneller'}: {tempoPreview.startBpm.toFixed(0)} → {tempoPreview.endBpm.toFixed(0)} BPM, Takt{' '}
             {tempoPreview.startBar}–{tempoPreview.endBar} ({tempoPreview.pointCount} Ausrichtungspunkte). Die Linie zeigt das getippte Tempo.
