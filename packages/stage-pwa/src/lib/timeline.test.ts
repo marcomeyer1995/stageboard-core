@@ -141,6 +141,15 @@ describe('laneLayout (#328, #354)', () => {
     expect(compact.textTop).toBe(laneLayout(null, new Set(['tempo'] as const), sizes).textTop)
     expect(laneLayout(null, new Set(['tempo', 'text', 'cues'] as const), sizes).totalH).toBe(96 + 26 + 84 + 44)
   })
+
+  it('opened stems sit right under the waveform and push the lanes below down (docs/22 §5)', () => {
+    const full = laneLayout(1100, new Set(), sizes, 120)
+    expect(full.tempoTop).toBe(full.audioH + 120)
+    expect(full.cueTop + full.cueH).toBe(1100)
+    expect(full.audioH).toBeLessThan(laneLayout(1100, new Set(), sizes).audioH)
+    const compact = laneLayout(null, new Set(), sizes, 120)
+    expect([compact.tempoTop, compact.totalH]).toEqual([96 + 120, laneLayout(null, new Set(), sizes).totalH + 120])
+  })
 })
 
 describe('grabbableAt (#331)', () => {

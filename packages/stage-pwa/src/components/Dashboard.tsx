@@ -36,6 +36,7 @@ import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { Button } from './ui'
+import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -283,6 +284,8 @@ export function Dashboard() {
     () => (active ? displayLayout(active.layouts, breakpoint, minSizeFor(active, cellFor(breakpoint))) : null),
     [active, breakpoint, cellFor],
   )
+  const typesKey = active?.widgets.map((widget) => widget.type).join(',') ?? ''
+  const widgetTypes = useMemo(() => new Set(typesKey.split(',').filter(Boolean)), [typesKey])
   // Identifies the arrangement on screen, for the grid's remount key below.
   const shownSignature = useMemo(() => {
     const items = isEditing && active ? normalizeLayout(active.layouts[breakpoint] ?? []) : (current?.items ?? [])
@@ -354,112 +357,114 @@ export function Dashboard() {
 
       <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
         {mounted && (
-          <ResponsiveGridLayout
-            // A fresh instance per dashboard (and per reset of the active one, via
-            // resetNonce), not one instance reconciled in place: react-grid-layout keeps
-            // its own internal copy of the layout and resyncs it from props via a
-            // useEffect whose dependencies include that same internal copy. Switching
-            // dashboards, or Zurücksetzen rewriting the active one, can otherwise land it
-            // resyncing against its own now-stale internal state instead of the fresh
-            // props for a render or two - which regenerates a slightly different (and
-            // still wrong) layout every time, forever, entirely inside the library.
-            // Remounting sidesteps that class of bug outright: the initial state a fresh
-            // instance computes always comes straight from the current, consistent props.
-            //
-            // Also keyed on the widget id set (not just active.id/resetNonce): adding a
-            // widget (DashboardEditBar's "+ Widget") writes it to *this same* dashboard
-            // document, and that write's echo back through the local changes() feed hands
-            // Dashboard a fresh `layouts` object for the *same* active.id - previously not
-            // a remount at all, just a bare prop change on an already-mounted instance,
-            // which is exactly the class of bug above. A remote CouchDB pull landing
-            // moments after initial load hits the identical shape (found live, 2026-09-15:
-            // "widgets jumping and resizing", specifically right after initial load or
-            // right after adding a widget - never during otherwise-idle normal use).
-            //
-            // And on the breakpoint plus the arrangement actually shown (#369): after turning
-            // the phone, the library's responsive part kept its pre-rotation layout as internal
-            // state and alternated between that and the freshly derived one - widgets jumping
-            // back and forth without end (found live, 2026-10-05). A fresh instance per shown
-            // arrangement has nothing stale left to fall back to.
-            key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}`}
-            width={width}
-            layouts={layouts}
-            breakpoints={BREAKPOINT_WIDTHS}
-            cols={COLS}
-            rowHeight={metrics.rowHeight}
-            maxRows={GRID_ROWS}
-            margin={[metrics.margin, metrics.margin]}
-            containerPadding={[metrics.padding, metrics.padding]}
-            compactor={compactor}
-            // Read-only during the show (docs/07): nothing moves unless the Edit-Lock is
-            // open. The handle is the whole widget body (WidgetFrame's root), not a thin
-            // strip of it - `cancel` excludes the per-widget action menu, which sits inside
-            // that same element, so tapping a button there doesn't also start a drag.
-            dragConfig={{ enabled: isEditing, handle: '.widget-drag-handle', cancel: '.widget-menu' }}
-            // All eight handles, not just the bottom-right corner: a widget pinned to the
-            // bottom or right edge of the grid otherwise has nowhere reachable to grab.
-            resizeConfig={{
-              enabled: isEditing,
-              handles: ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'],
-            }}
-            onDragStart={captureBaseline}
-            onResizeStart={captureBaseline}
-            onDragStop={stopInteraction}
-            onResizeStop={stopInteraction}
-          >
-            {active.widgets.map((widget) => {
-              const definition = WIDGET_REGISTRY[widget.type]
-              if (!definition) {
-                // A widget type that no longer exists (renamed/removed in an app update) -
-                // previously a bare, unstyled <div>: harmless in that it never crashed the
-                // dashboard, but it also had no title bar and no "Entfernen" button, so it
-                // sat there forever with nothing to click. Still wrapped in the normal
-                // WidgetFrame so it's just as removable as any other widget.
+          <DashboardWidgetTypes.Provider value={widgetTypes}>
+            <ResponsiveGridLayout
+              // A fresh instance per dashboard (and per reset of the active one, via
+              // resetNonce), not one instance reconciled in place: react-grid-layout keeps
+              // its own internal copy of the layout and resyncs it from props via a
+              // useEffect whose dependencies include that same internal copy. Switching
+              // dashboards, or Zurücksetzen rewriting the active one, can otherwise land it
+              // resyncing against its own now-stale internal state instead of the fresh
+              // props for a render or two - which regenerates a slightly different (and
+              // still wrong) layout every time, forever, entirely inside the library.
+              // Remounting sidesteps that class of bug outright: the initial state a fresh
+              // instance computes always comes straight from the current, consistent props.
+              //
+              // Also keyed on the widget id set (not just active.id/resetNonce): adding a
+              // widget (DashboardEditBar's "+ Widget") writes it to *this same* dashboard
+              // document, and that write's echo back through the local changes() feed hands
+              // Dashboard a fresh `layouts` object for the *same* active.id - previously not
+              // a remount at all, just a bare prop change on an already-mounted instance,
+              // which is exactly the class of bug above. A remote CouchDB pull landing
+              // moments after initial load hits the identical shape (found live, 2026-09-15:
+              // "widgets jumping and resizing", specifically right after initial load or
+              // right after adding a widget - never during otherwise-idle normal use).
+              //
+              // And on the breakpoint plus the arrangement actually shown (#369): after turning
+              // the phone, the library's responsive part kept its pre-rotation layout as internal
+              // state and alternated between that and the freshly derived one - widgets jumping
+              // back and forth without end (found live, 2026-10-05). A fresh instance per shown
+              // arrangement has nothing stale left to fall back to.
+              key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}`}
+              width={width}
+              layouts={layouts}
+              breakpoints={BREAKPOINT_WIDTHS}
+              cols={COLS}
+              rowHeight={metrics.rowHeight}
+              maxRows={GRID_ROWS}
+              margin={[metrics.margin, metrics.margin]}
+              containerPadding={[metrics.padding, metrics.padding]}
+              compactor={compactor}
+              // Read-only during the show (docs/07): nothing moves unless the Edit-Lock is
+              // open. The handle is the whole widget body (WidgetFrame's root), not a thin
+              // strip of it - `cancel` excludes the per-widget action menu, which sits inside
+              // that same element, so tapping a button there doesn't also start a drag.
+              dragConfig={{ enabled: isEditing, handle: '.widget-drag-handle', cancel: '.widget-menu' }}
+              // All eight handles, not just the bottom-right corner: a widget pinned to the
+              // bottom or right edge of the grid otherwise has nowhere reachable to grab.
+              resizeConfig={{
+                enabled: isEditing,
+                handles: ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'],
+              }}
+              onDragStart={captureBaseline}
+              onResizeStart={captureBaseline}
+              onDragStop={stopInteraction}
+              onResizeStop={stopInteraction}
+            >
+              {active.widgets.map((widget) => {
+                const definition = WIDGET_REGISTRY[widget.type]
+                if (!definition) {
+                  // A widget type that no longer exists (renamed/removed in an app update) -
+                  // previously a bare, unstyled <div>: harmless in that it never crashed the
+                  // dashboard, but it also had no title bar and no "Entfernen" button, so it
+                  // sat there forever with nothing to click. Still wrapped in the normal
+                  // WidgetFrame so it's just as removable as any other widget.
+                  return (
+                    <div key={widget.i}>
+                      <WidgetFrame
+                        title="Unbekanntes Widget"
+                        status="missing"
+                        isEditing={isEditing}
+                        onRemove={() => removeWidget(widget.i)}
+                      >
+                        <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
+                          Unbekannter Widget-Typ „{widget.type}" - vermutlich in einem App-Update
+                          entfernt. Über „⋯" → „Entfernen" kann es aus dem Dashboard genommen
+                          werden.
+                        </div>
+                      </WidgetFrame>
+                    </div>
+                  )
+                }
+                const status = capabilityStatusFor(definition.requires, capabilities)
+                const { Component, ConfigPanel } = definition
+
                 return (
                   <div key={widget.i}>
                     <WidgetFrame
-                      title="Unbekanntes Widget"
-                      status="missing"
+                      title={definition.title}
+                      status={status}
                       isEditing={isEditing}
+                      tooSmall={tooSmall.has(widget.i)}
                       onRemove={() => removeWidget(widget.i)}
+                      frameless={widget.frameless}
+                      onToggleFrameless={() => toggleFrameless(widget.i)}
+                      configPanel={
+                        ConfigPanel && (
+                          <ConfigPanel
+                            config={widget.config}
+                            onChange={(next) => updateConfig(widget.i, next)}
+                          />
+                        )
+                      }
                     >
-                      <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-                        Unbekannter Widget-Typ „{widget.type}" - vermutlich in einem App-Update
-                        entfernt. Über „⋯" → „Entfernen" kann es aus dem Dashboard genommen
-                        werden.
-                      </div>
+                      <Component config={widget.config} />
                     </WidgetFrame>
                   </div>
                 )
-              }
-              const status = capabilityStatusFor(definition.requires, capabilities)
-              const { Component, ConfigPanel } = definition
-
-              return (
-                <div key={widget.i}>
-                  <WidgetFrame
-                    title={definition.title}
-                    status={status}
-                    isEditing={isEditing}
-                    tooSmall={tooSmall.has(widget.i)}
-                    onRemove={() => removeWidget(widget.i)}
-                    frameless={widget.frameless}
-                    onToggleFrameless={() => toggleFrameless(widget.i)}
-                    configPanel={
-                      ConfigPanel && (
-                        <ConfigPanel
-                          config={widget.config}
-                          onChange={(next) => updateConfig(widget.i, next)}
-                        />
-                      )
-                    }
-                  >
-                    <Component config={widget.config} />
-                  </WidgetFrame>
-                </div>
-              )
-            })}
-          </ResponsiveGridLayout>
+              })}
+            </ResponsiveGridLayout>
+          </DashboardWidgetTypes.Provider>
         )}
       </div>
     </div>

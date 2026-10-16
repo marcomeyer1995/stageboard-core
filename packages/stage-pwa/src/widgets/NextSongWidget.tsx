@@ -9,6 +9,7 @@ import { stageFontSize } from '../lib/stageSize'
 import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { Icon } from '../components/Icon'
+import { useDashboardHasWidget } from '../lib/dashboardWidgets'
 import { stageVariantLabel } from '../lib/variantLabel'
 
 /** What to call a non-song queue entry on screen. */
@@ -19,6 +20,9 @@ function itemLabel(entry: SetlistEntry): string {
 /** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const { queue, canControl, next, previous } = useShowMode()
+  // The takeover lives in the transport when the dashboard has one (2026-10-16): here it squeezed
+  // the info to "Aktuel… / Next…" on the phone - without control this stays the flat bar (docs/07).
+  const takeoverElsewhere = useDashboardHasWidget('show-transport')
   const { previousEntry, currentEntry, nextEntry, currentSong, nextSong, currentVariant, nextVariant } = queue
   const currentItem = currentEntry && !isSongEntry(currentEntry) ? currentEntry : null
   const nextItem = nextEntry && !isSongEntry(nextEntry) ? nextEntry : null
@@ -98,7 +102,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
             )}
           </button>
         </div>
-      ) : (
+      ) : takeoverElsewhere ? null : (
         <MasterTakeoverButton className="min-h-touch rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover" />
       )}
     </div>
