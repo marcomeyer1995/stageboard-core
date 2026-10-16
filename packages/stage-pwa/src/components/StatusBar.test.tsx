@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { StatusBar } from './StatusBar'
@@ -57,6 +57,18 @@ beforeEach(() => {
 })
 
 describe('StatusBar (PR F2)', () => {
+  it('carries the bento menu top right on dashboards only (docs/15 D8)', () => {
+    mockShow('stopped', null)
+    const onOpenDashboards = vi.fn()
+    const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} onOpenDashboards={onOpenDashboards} />)
+    const bento = screen.getByRole('button', { name: 'Dashboards' })
+    expect(bento.parentElement?.lastElementChild).toBe(bento)
+    fireEvent.click(bento)
+    expect(onOpenDashboards).toHaveBeenCalled()
+    rerender(<StatusBar screen="library" onOpenMenu={vi.fn()} onOpenDashboards={onOpenDashboards} />)
+    expect(screen.queryByRole('button', { name: 'Dashboards' })).not.toBeInTheDocument()
+  })
+
   it('shows state, song, time, mode, Master crown, clock, musician and sync', () => {
     mockShow('playing', 65_000)
     render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)

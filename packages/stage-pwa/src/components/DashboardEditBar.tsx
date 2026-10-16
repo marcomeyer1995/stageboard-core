@@ -12,7 +12,7 @@ import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { WidgetLibrary } from './WidgetLibrary'
 import { Icon } from './Icon'
-import { Button, IconButton } from './ui'
+import { Button, IconButton, menuIcon } from './ui'
 import { CONTROL, FOCUS, HOVER } from './ui/styles'
 import { DashboardSettingsDialog } from './DashboardSettingsDialog'
 
@@ -76,8 +76,9 @@ export function DashboardEditBar({ dashboard, breakpoint, capabilities }: Dashbo
         Widget
       </Button>
 
-      {/* Wide like "+ Widget" (Marco: the small ⋯ was hard to hit). */}
-      <IconButton icon="more" label="Dashboard-Einstellungen" onClick={() => setShowSettings(true)} className="!w-16 flex-shrink-0" />
+      {/* Wide like "+ Widget" (Marco: the small ⋯ was hard to hit). ⋮: the whole dashboard's
+          menu (docs/15 D9). */}
+      <IconButton icon={menuIcon('page')} label="Dashboard-Einstellungen" onClick={() => setShowSettings(true)} className="!w-16 flex-shrink-0" />
 
       <Button icon="locked" aria-label="Bearbeiten beenden" onClick={() => setEditing(false)} className="flex-shrink-0 !px-3">
         <span className="hidden sm:inline">Fertig</span>
