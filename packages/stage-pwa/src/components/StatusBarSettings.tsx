@@ -16,7 +16,7 @@ export function StatusBarSettings() {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-faint">
-        Oben = wichtiger. Wird es eng, verschwindet von unten her zuerst etwas. Immer da: Menü, Status-Symbol, Songtitel und Spielzeit; Fehler zeigen
+        Oben = wichtiger. Wird es eng, verschwindet von unten her zuerst etwas. Immer da und darum nicht in der Liste: Menü (☰), auf Dashboards die Dashboard-Auswahl (neun Punkte), Status-Symbol, Songtitel und Spielzeit; Fehler zeigen
         immer ihr Wort.
       </p>
       <ol className="flex flex-col gap-2" aria-label="Statusleiste - Reihenfolge">

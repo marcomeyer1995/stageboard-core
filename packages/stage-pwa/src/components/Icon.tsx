@@ -20,6 +20,9 @@ import {
   Eye,
   EyeOff,
   Grip,
+  LayoutDashboard,
+  Library,
+  Settings,
   Lock,
   LockOpen,
   Maximize2,
@@ -47,6 +50,10 @@ const ICONS = {
   menu: Menu,
   /** Bento menu (nine dots): pick and manage dashboards (docs/15 D8). */
   dashboards: Grip,
+  /** The three views in the ☰ drawer. */
+  boards: LayoutDashboard,
+  library: Library,
+  system: Settings,
   master: Crown,
   locked: Lock,
   unlocked: LockOpen,

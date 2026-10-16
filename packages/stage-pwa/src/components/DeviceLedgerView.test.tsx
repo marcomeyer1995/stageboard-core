@@ -166,7 +166,7 @@ describe('DeviceLedgerView', () => {
   it('a device hardware runs on says where it is used and cannot be removed', () => {
     useLogicalDevicesStore.setState({ devices: [{ id: 'k', name: 'Kemper', executionTarget: 'device-1' }] as never })
     render(<DeviceLedgerView />)
-    expect(screen.getByText(/In Verwendung: Kemper - im Tab Hardware ein anderes Gerät wählen/)).toBeInTheDocument()
+    expect(screen.getByText(/In Verwendung: Kemper - im Tab Bühnentechnik ein anderes Gerät wählen/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Menü: Marcos iPad' }))
     expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
   })

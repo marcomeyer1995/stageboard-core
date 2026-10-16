@@ -6,7 +6,9 @@ import { useFullscreen } from '../lib/useFullscreen'
 import { isNativeApp } from '../lib/native'
 import { useAppModeStore } from '../store/useAppModeStore'
 import { MODES, type Mode } from '../lib/modes'
-import { Drawer, Section, Segmented, Switch } from './ui'
+import { Icon } from './Icon'
+import { Drawer, Section, Switch } from './ui'
+import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 interface AppMenuProps {
   mode: Mode
@@ -46,18 +48,25 @@ export function AppMenu({ mode, onSelectMode, onClose }: AppMenuProps) {
 
   return (
     <Drawer title="Menü" side="left" onClose={onClose}>
-      {/* Choosing a screen closes the menu. */}
-      <Section title="Ansicht">
-        <Segmented
-          label="Ansicht"
-          value={mode}
-          onChange={(candidate) => {
-            onSelectMode(candidate)
-            onClose()
-          }}
-          options={MODES.map((candidate) => ({ value: candidate, label: t(`mode.${candidate}`) }))}
-        />
-      </Section>
+      {/* "Wohin?" = navigation (docs/15 §4): in a drawer one row per screen, below each other, the
+          current one yellow (Marco, 2026-10-16) - not a pick-one bar. Choosing closes the menu. */}
+      <nav aria-label="Ansicht" className="flex flex-col gap-1">
+        {MODES.map((candidate) => (
+          <button
+            key={candidate}
+            type="button"
+            aria-current={candidate === mode ? 'page' : undefined}
+            onClick={() => {
+              onSelectMode(candidate)
+              onClose()
+            }}
+            className={`flex h-stage w-full items-center gap-3 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${candidate === mode ? SELECTED : `bg-control text-ink ${HOVER}`}`}
+          >
+            <Icon name={candidate} size="1.4rem" />
+            {t(`mode.${candidate}`)}
+          </button>
+        ))}
+      </nav>
       <Section title="Modus">
         <SessionModeControl />
         {sessionMode === 'practice' && <PracticeSetlistPicker />}

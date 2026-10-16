@@ -61,7 +61,7 @@ export function PartCueDialog({
         {mode === 'band' && (
           <p className="text-base text-ink">
             Wie bei allen Teilen: <span className="font-semibold">{describeCuePattern(bandPattern, name)}</span>
-            <span className="block text-sm text-ink-muted">Einstellen unter Plugins → Ansagen der Songteile.</span>
+            <span className="block text-sm text-ink-muted">Einstellen unter System → Erweiterungen → Ansagen der Songteile.</span>
           </p>
         )}
         {mode === 'silent' && <p className="text-base text-ink">Vor diesem Teil wird nichts gesagt.</p>}

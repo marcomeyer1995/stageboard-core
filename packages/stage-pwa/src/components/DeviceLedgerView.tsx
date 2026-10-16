@@ -122,7 +122,7 @@ export function DeviceLedgerView() {
   async function forgetOne(device: Device) {
     if (!(await confirm(`„${device.name}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.`, { confirmLabel: 'Entfernen' }))) return
     const result = await forget(activeWorkspaceId, device.id)
-    if (result === 'in-use') void alert(`„${device.name}“ wird noch von Hardware verwendet - erst im Tab Hardware ein anderes Gerät wählen.`)
+    if (result === 'in-use') void alert(`„${device.name}“ wird noch in der Bühnentechnik verwendet - erst dort ein anderes Gerät wählen.`)
     else if (result === 'blocked') void alert(`„${device.name}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.`)
     else if (result === 'failed') void alert('Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.')
   }
@@ -273,7 +273,7 @@ export function DeviceLedgerView() {
               <LatencySummary deviceId={device.id} />
               {used.length > 0 && (
                 <p className="mt-2 text-sm text-warn">
-                  In Verwendung: {used.join(', ')} - im Tab Hardware ein anderes Gerät wählen, dann lässt es sich entfernen.
+                  In Verwendung: {used.join(', ')} - im Tab Bühnentechnik ein anderes Gerät wählen, dann lässt es sich entfernen.
                 </p>
               )}
             </div>

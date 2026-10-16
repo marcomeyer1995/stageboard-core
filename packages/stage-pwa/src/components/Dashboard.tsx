@@ -26,6 +26,7 @@ import {
 import { fmtItems, gridLog } from '../lib/gridDebug'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useElementSize } from '../lib/useElementSize'
+import { useKeyboardSteadyHeight } from '../lib/useKeyboardSteadyHeight'
 import { useEditBarSlot } from '../lib/useEditBarSlot'
 import { createPortal } from 'react-dom'
 import { useModeDashboards } from '../lib/useModeDashboards'
@@ -115,7 +116,9 @@ export function Dashboard() {
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
   const editBarSlot = useEditBarSlot(isEditing)
-  const [containerRef, { width, height }] = useElementSize()
+  const [containerRef, { width, height: measuredHeight }] = useElementSize()
+  // The on-screen keyboard (e.g. "Neues Dashboard" name) never squeezes the widgets.
+  const height = useKeyboardSteadyHeight(width, measuredHeight)
   // Real measurement or nothing: react-grid-layout's own bundled width hook starts every
   // mount with a hard-coded 1280px guess and only corrects a frame later, which on a real
   // device (rarely 1280px wide) put every widget at whatever position that guess implied
