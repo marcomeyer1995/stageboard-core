@@ -16,7 +16,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 // AudioContext.
 vi.mock('./sharedAudioContext', () => ({ holdAudioOutputAwake: vi.fn(), getSharedAudioContext: vi.fn() }))
 vi.mock('./showMode', () => ({ useShowMode: vi.fn() }))
-vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn() }))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: vi.fn() }))
 vi.mock('../store/useDeviceTransportConfigStore', () => ({ useDeviceTransportConfigStore: vi.fn() }))

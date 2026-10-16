@@ -19,13 +19,23 @@ describe('HardwareSetupManager (System cleanup 2026-10-16)', () => {
     useDevicesStore.setState({ devices: [{ id, name: 'Xiaomi Redmi Pad', lastSeenAt: 1, firstSeenAt: 1, revoked: false }] })
     useLogicalDevicesStore.setState({
       devices: [
-        { id: 'a', name: 'Click', capability: 'click-track', pluginId: null, executionTarget: id },
-        { id: 'b', name: 'Track', capability: 'audio-playback', pluginId: null, executionTarget: 'gone-0ac79ff5' },
+        { id: 'a', name: 'Kemper', capability: 'midi-input', pluginId: null, executionTarget: id },
+        { id: 'b', name: 'Licht', capability: 'lighting', pluginId: null, executionTarget: 'gone-0ac79ff5' },
       ],
     } as never)
     render(<HardwareSetupManager />)
-    expect(screen.getByText(/Xiaomi Redmi Pad/)).toBeInTheDocument()
+    expect(screen.getByText(/· Xiaomi Redmi Pad/)).toBeInTheDocument()
     expect(screen.getByText(/unbekanntes Gerät/)).toBeInTheDocument()
     expect(screen.queryByText(new RegExp(id))).not.toBeInTheDocument()
+  })
+
+  it('Klick and Backing-Track sit in their own section, not in the device list', () => {
+    useDevicesStore.setState({ devices: [] })
+    useLogicalDevicesStore.setState({
+      devices: [{ id: 'k', name: 'Mock Click', capability: 'click-track', pluginId: 'mock-click', executionTarget: null }],
+    } as never)
+    render(<HardwareSetupManager />)
+    expect(screen.getByRole('region', { name: 'Klick und Backing-Track' })).toBeInTheDocument()
+    expect(screen.queryByText(/Mock Click/)).not.toBeInTheDocument()
   })
 })

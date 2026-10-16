@@ -1,4 +1,4 @@
-import { SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET, type CapabilityId, type LogicalDevice } from 'shared-types'
 
 /**
  * Where a capability's triggers actually go, given a Logical Device's own live binding
@@ -86,7 +86,24 @@ export function resolveExecutionEngine(
   deviceId: string,
   pluginId: string | null,
   supportsLocalExecution: boolean,
+  /** Klick / Backing-Track only (`masterPlays`): whether this device runs the show. */
+  masterFallback?: { drivesAutomation: boolean },
 ): HardwareRoutingEngine {
   if (mode === 'practice') return supportsLocalExecution ? 'local-mine' : 'none'
+  const target = logicalDevice?.executionTarget ?? null
+  // No tablet chosen for Klick / Backing-Track (and no real server plugin): the device that runs
+  // the show plays it (System split, Marco 2026-10-16) - before, Gig sent it to the do-nothing
+  // server stand-in and nobody heard it.
+  if (masterFallback && (target === null || target === SERVER_EXECUTION_TARGET) && !pluginId) return masterFallback.drivesAutomation ? 'local-mine' : 'local-other'
   return resolveHardwareEngine(logicalDevice, deviceId, pluginId, supportsLocalExecution)
 }
+
+/** Klick and Backing-Track are built in (Bühnentechnik): no plugin needed, a role only says which
+ * tablet plays them - without one, the device that runs the show does. */
+export function masterPlays(capability: CapabilityId): boolean {
+  return capability === CAPABILITIES.clickTrack || capability === CAPABILITIES.audioPlayback
+}
+
+/** The server stand-ins Klick / Backing-Track used to need for Gig routing - they play nothing,
+ * so routing never sends a show to them. */
+export const STAND_IN_PLUGIN_IDS: readonly string[] = ['mock-click', 'mock-playback']

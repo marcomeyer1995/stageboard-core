@@ -10,6 +10,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
+import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
 import { ActionMenu, AddRow } from './ui'
 
@@ -26,7 +27,10 @@ const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
  * dropped), so there's exactly one list here, not three separate CRUD screens.
  */
 function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void; onAdd: () => void }) {
-  const devices = useLogicalDevicesStore((state) => state.devices)
+  const allDevices = useLogicalDevicesStore((state) => state.devices)
+  // Klick and Backing-Track have their own section above (BuiltInOutputs).
+  const builtIn = builtInRoles(allDevices)
+  const devices = allDevices.filter((device) => !builtIn.includes(device))
   const remove = useLogicalDevicesStore((state) => state.remove)
   const installed = usePluginsStore((state) => state.installed)
   const devicesRegistry = useDeviceTransportConfigStore((state) => state.configs)
@@ -134,11 +138,17 @@ export function HardwareSetupManager() {
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <h1 className="mb-1 text-2xl font-bold">Bühnentechnik</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Jedes Gerät ist eine benannte Rolle (z.B. „Marcos Kemper“) mit ihrer eigenen, aktuell
-        gültigen Verbindung - Typ, ausführendes Gerät und Anschluss. „Einrichten“ führt noch
-        einmal durch die Einrichtung, mit den bisherigen Angaben schon ausgefüllt - bei einem
-        bereits eingerichteten Gerät direkt beim Anschluss.
+      <p className="mb-4 text-sm text-ink-muted">Was im Gig spielt und gesteuert wird - für die ganze Band.</p>
+
+      <div className="mb-6">
+        <BuiltInOutputs />
+      </div>
+
+      <h2 className="mb-1 text-lg font-bold">Geräte</h2>
+      <p className="mb-3 text-sm text-ink-muted">
+        Jedes Gerät ist eine benannte Rolle (z.B. „Marcos Kemper“) mit Typ, ausführendem Gerät und
+        Anschluss. „Einrichten“ führt noch einmal durch die Einrichtung, mit den bisherigen Angaben
+        schon ausgefüllt.
       </p>
 
       <div className="mb-6">

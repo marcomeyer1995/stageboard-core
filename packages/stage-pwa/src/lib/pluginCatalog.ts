@@ -28,10 +28,10 @@ export function capabilitiesLabel(capabilities: readonly string[]): string {
  * Stand-ins that only log what they receive (System analysis, 2026-10-16): a fake mixer, fake
  * light and a backup that never happens. Only the dev app (and `vite dev`) offers them - in the
  * release app and the browser they can't be installed, and where one already is, its card says
- * "Test". Mock Click and Mock Playback are not in here: Gig mode still routes click and track
- * through them until they become built-in roles.
+ * "Test". Mock Click and Mock Playback too, since Klick and Backing-Track are built in
+ * (Bühnentechnik) and Gig routing never sends a show to them (hardwareRouting STAND_IN_PLUGIN_IDS).
  */
-export const TEST_PLUGIN_IDS: readonly string[] = ['mock-mixer', 'mock-lighting', 'mock-backup']
+export const TEST_PLUGIN_IDS: readonly string[] = ['mock-mixer', 'mock-lighting', 'mock-backup', 'mock-click', 'mock-playback']
 
 /** The dev app's build (docs/03 §0c) sets VITE_DEV_APP=1. */
 export const SHOW_TEST_PLUGINS = import.meta.env.DEV || import.meta.env.VITE_DEV_APP === '1'

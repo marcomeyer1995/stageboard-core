@@ -8,13 +8,13 @@ describe('pluginCatalog (System cleanup 2026-10-16)', () => {
     expect(capabilitiesLabel(['something-new'])).toBe('something-new')
   })
 
-  it('offers the test stand-ins only in the dev app; click and track routing stay', () => {
+  it('offers the test stand-ins only in the dev app - Klick and Backing-Track are built in now', () => {
     const release = installableCatalog(false).map((entry) => entry.id)
     expect(release).not.toContain('mock-mixer')
     expect(release).not.toContain('mock-lighting')
     expect(release).not.toContain('mock-backup')
-    expect(release).toContain('mock-click')
-    expect(release).toContain('mock-playback')
+    expect(release).not.toContain('mock-click')
+    expect(release).not.toContain('mock-playback')
     expect(installableCatalog(true)).toHaveLength(PLUGIN_CATALOG.length)
     expect(isTestPlugin('mock-mixer')).toBe(true)
     expect(isTestPlugin('kemper-profiler')).toBe(false)

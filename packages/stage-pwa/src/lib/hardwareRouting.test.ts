@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { LogicalDevice } from 'shared-types'
-import { resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
+import { masterPlays, resolveExecutionEngine, resolveHardwareBinding, resolveHardwareBindingById, resolveHardwareEngine, resolveTargetDevice } from './hardwareRouting'
 
 function kemper(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'midi-input', pluginId: null, executionTarget: null, ...overrides }
@@ -104,5 +104,27 @@ describe('resolveExecutionEngine', () => {
     expect(resolveExecutionEngine('gig', device, 'me', 'mock-playback', true)).toBe(
       resolveHardwareEngine(device, 'me', 'mock-playback', true),
     )
+  })
+})
+
+describe('Klick / Backing-Track without a chosen tablet (System split, 2026-10-16)', () => {
+  const role = (executionTarget: string | null): LogicalDevice => ({ id: 'klick', name: 'Klick', capability: CAPABILITIES.clickTrack, pluginId: null, executionTarget })
+
+  it('are the built-in ones', () => {
+    expect(masterPlays(CAPABILITIES.clickTrack)).toBe(true)
+    expect(masterPlays(CAPABILITIES.audioPlayback)).toBe(true)
+    expect(masterPlays(CAPABILITIES.lighting)).toBe(false)
+  })
+
+  it('no role, a role without a tablet, or the server without a real plugin: the device running the show plays', () => {
+    for (const device of [null, role(null), role(SERVER_EXECUTION_TARGET)]) {
+      expect(resolveExecutionEngine('gig', device, 'me', null, true, { drivesAutomation: true })).toBe('local-mine')
+      expect(resolveExecutionEngine('gig', device, 'me', null, true, { drivesAutomation: false })).toBe('local-other')
+    }
+  })
+
+  it('a chosen tablet and a real server plugin still win', () => {
+    expect(resolveExecutionEngine('gig', role('tablet-b'), 'me', null, true, { drivesAutomation: true })).toBe('local-other')
+    expect(resolveExecutionEngine('gig', role(SERVER_EXECUTION_TARGET), 'me', 'server-player', true, { drivesAutomation: true })).toBe('plugin')
   })
 })
