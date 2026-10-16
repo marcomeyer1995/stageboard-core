@@ -1,4 +1,5 @@
 import type { StemRole, TrackMeta } from 'shared-types'
+import type { DialogField } from '../store/useDialogStore'
 
 /**
  * Stems (#9, docs/22): `kind: 'stem'` tracks that together make the song - split from another
@@ -103,4 +104,38 @@ export function stemSetsOf(tracks: readonly TrackMeta[]): StemSet[] {
  * else the first. */
 export function pickStemSet(sets: readonly StemSet[], chosen: string | null, playingTrackId: string | null): StemSet | null {
   return sets.find((s) => s.key === chosen) ?? sets.find((s) => s.key === UPLOADED_SET) ?? sets.find((s) => s.key === playingTrackId) ?? sets[0] ?? null
+}
+
+/** The stems shown under the Timeline's waveform for `trackId`: those split from it, else the
+ * first set (uploaded first). */
+export function stemsForTrack(tracks: readonly TrackMeta[], trackId: string | null): TrackMeta[] {
+  const sets = stemSetsOf(tracks)
+  return (sets.find((set) => set.key === trackId) ?? sets[0])?.stems ?? []
+}
+
+/** With stems, "Track analysieren" asks which audio its hits come from (Marco 2026-10-16: the only
+ * action that needs the choice, so no setting to keep) - in the Timeline and on the Tempo page
+ * alike. Without stems: the mix, no question. Null: the mix, a stem id: that stem, undefined:
+ * cancelled. */
+export async function askAnalysisSource(
+  promptFields: (title: string, fields: DialogField[], submitLabel?: string) => Promise<Record<string, string> | null>,
+  stems: readonly TrackMeta[],
+  current: string | null = null,
+): Promise<string | null | undefined> {
+  if (stems.length === 0) return null
+  const result = await promptFields(
+    'Welche Spur analysieren?',
+    [
+      {
+        key: 'source',
+        label: 'Treffer aus - der Mix ist meist zuverlässiger',
+        type: 'radio',
+        defaultValue: current ?? '',
+        options: [{ value: '', label: 'Mix (ganzer Track)' }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
+      },
+    ],
+    'Analysieren',
+  )
+  if (!result) return undefined
+  return result.source || null
 }
