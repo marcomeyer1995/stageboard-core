@@ -34,7 +34,7 @@ const SELF_CHECK_HINT: Record<MasterSelfCheck, string> = {
 }
 
 export function MasterControl() {
-  const { isMaster, activeSetlist } = useQueue()
+  const { isMaster } = useQueue()
   const { status, canClaim, isForce, claim } = useMasterTakeover()
   const releaseMaster = useShowStateStore((state) => state.releaseMaster)
   const isPlaying = useShowStateStore((state) => state.state.playbackStatus === 'playing')
@@ -139,7 +139,8 @@ export function MasterControl() {
         onPointerLeave={() => endHold(false)}
         onPointerCancel={() => endHold(false)}
         onContextMenu={(e) => e.preventDefault()}
-        className={`relative flex h-stage w-full items-center justify-between overflow-hidden bg-control px-4 text-lg ${CONTROL} ${FOCUS} ${HOVER} disabled:cursor-not-allowed disabled:opacity-40`}
+        // Icon first, then the word - like the view rows above it in ☰ (Marco, 2026-10-16).
+        className={`relative flex h-stage w-full items-center gap-3 overflow-hidden bg-control px-4 text-left text-lg ${CONTROL} ${FOCUS} ${HOVER} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         <span
           aria-hidden
@@ -147,8 +148,8 @@ export function MasterControl() {
           className="absolute inset-y-0 left-0 bg-accent"
           style={{ width: fill, transition: holding ? `width ${HOLD_MS}ms linear` : 'none' }}
         />
-        <span className={`relative font-semibold ${darkText ? 'text-accent-ink' : 'text-ink-soft'}`}>Master</span>
-        <Icon name="master" size="1.4rem" className={`relative ${darkText ? 'text-accent-ink' : 'text-ink-soft'}`} />
+        <Icon name="master" size="1.4rem" className={`relative ${darkText ? 'text-accent-ink' : 'text-ink'}`} />
+        <span className={`relative ${darkText ? 'font-semibold text-accent-ink' : 'text-ink'}`}>Master</span>
       </button>
       {hint ? (
         <p role="status" className="text-sm text-accent">
@@ -159,14 +160,6 @@ export function MasterControl() {
           {statusLine}
         </p>
       )}
-      <div className={`flex min-h-stage items-center justify-between gap-3 bg-control px-4 text-lg text-ink-soft ${CONTROL}`}>
-        Aktive Setlist
-        {activeSetlist ? (
-          <span className="font-medium text-accent">{activeSetlist.name}</span>
-        ) : (
-          <span className="text-base text-ink-faint">Keine</span>
-        )}
-      </div>
     </div>
   )
 }

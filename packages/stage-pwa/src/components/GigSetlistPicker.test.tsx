@@ -8,43 +8,42 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-const queue = vi.hoisted(() => ({ isMaster: true, activeSetlist: null as { id: string } | null }))
+const queue = vi.hoisted(() => ({ isMaster: true, activeSetlist: null as { id: string; name: string } | null }))
 vi.mock('../lib/queue', () => ({ useQueue: () => queue }))
 
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
-const { useDialogStore } = await import('../store/useDialogStore')
 const { GigSetlistPicker } = await import('./GigSetlistPicker')
 
 const setActiveSetlist = vi.fn(async () => {})
-const confirm = vi.fn()
 
 beforeEach(() => {
   queue.isMaster = true
+  queue.activeSetlist = null
   setActiveSetlist.mockClear()
-  confirm.mockReset().mockResolvedValue(false)
   useSetlistsStore.setState({ setlists: [{ id: 'herbst', name: 'Herbst', entries: [], createdAt: 1 }] } as never)
   useShowStateStore.setState({ setActiveSetlist, state: { playbackStatus: 'stopped' } } as never)
-  useDialogStore.setState({ confirm } as never)
 })
 
 describe('GigSetlistPicker (☰, Marco 2026-10-16)', () => {
-  it('the master sets the active setlist; others see nothing', async () => {
-    const { unmount } = render(<GigSetlistPicker />)
-    fireEvent.change(screen.getByLabelText('Aktive Setlist'), { target: { value: 'herbst' } })
-    await waitFor(() => expect(setActiveSetlist).toHaveBeenCalledWith('herbst'))
-    expect(confirm).not.toHaveBeenCalled()
-    unmount()
-    queue.isMaster = false
+  it('the master taps the row and picks from a small list', async () => {
     render(<GigSetlistPicker />)
-    expect(screen.queryByLabelText('Aktive Setlist')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Setlist: keine/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Herbst' }))
+    await waitFor(() => expect(setActiveSetlist).toHaveBeenCalledWith('herbst'))
   })
 
-  it('while the show plays it asks first', async () => {
+  it('locked while a song plays, like switching to Solo Üben', () => {
     useShowStateStore.setState({ state: { playbackStatus: 'playing' } } as never)
     render(<GigSetlistPicker />)
-    fireEvent.change(screen.getByLabelText('Aktive Setlist'), { target: { value: 'herbst' } })
-    await waitFor(() => expect(confirm).toHaveBeenCalled())
-    expect(setActiveSetlist).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /Setlist: keine/ })).toBeDisabled()
+  })
+
+  it('everyone else reads it in the same row, without a button', () => {
+    queue.isMaster = false
+    queue.activeSetlist = { id: 'herbst', name: 'Herbst' }
+    render(<GigSetlistPicker />)
+    expect(screen.getByText('Herbst')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

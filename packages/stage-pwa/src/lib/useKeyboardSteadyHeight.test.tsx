@@ -1,6 +1,6 @@
 import { act, render, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { isTyping, useKeyboardSteadyHeight } from './useKeyboardSteadyHeight'
+import { isTyping, KEYBOARD_CLOSE_MS, useKeyboardSteadyHeight } from './useKeyboardSteadyHeight'
 
 describe('useKeyboardSteadyHeight (Marco, 2026-10-16: the keyboard must not squeeze the dashboard)', () => {
   it('keeps the height while a text field has the focus, takes the real one after', async () => {
@@ -11,9 +11,16 @@ describe('useKeyboardSteadyHeight (Marco, 2026-10-16: the keyboard must not sque
     expect(isTyping()).toBe(true)
     rerender({ w: 800, h: 700 })
     expect(result.current).toBe(1200)
+    // "Abbrechen": typing ends at once, the keyboard still covers the page for a moment.
     await act(async () => {
       input.blur()
       await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    rerender({ w: 800, h: 700 })
+    expect(result.current).toBe(1200)
+    // Once it had its time, a still smaller height is real.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, KEYBOARD_CLOSE_MS + 100))
     })
     expect(result.current).toBe(700)
   })

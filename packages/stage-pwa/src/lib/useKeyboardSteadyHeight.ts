@@ -14,16 +14,29 @@ export function isTyping(): boolean {
  * someone types (Marco, 2026-10-16: the keyboard of the "Neues Dashboard" name dialog squeezed
  * every widget behind it). Android makes the whole page smaller for the keyboard; the grid keeps
  * its size instead and the keyboard simply covers its lower part. A new width (rotation) or the
- * end of typing takes the real height again.
+ * end of typing takes the real height again - but only once the keyboard has had time to slide
+ * away: "Abbrechen" ends typing at once, while the page is still short for a moment (Marco,
+ * 2026-10-16: the widgets still shrank for an instant).
  */
+/** How long after typing ends a smaller height still counts as the keyboard sliding away. */
+export const KEYBOARD_CLOSE_MS = 1000
+
 export function useKeyboardSteadyHeight(width: number, height: number): number {
   const held = useRef({ width, height })
+  const typingEndedAt = useRef(0)
   const [, recheck] = useReducer((n: number) => n + 1, 0)
-  if (width !== held.current.width || height >= held.current.height || !isTyping()) held.current = { width, height }
+  const typing = isTyping()
+  const keyboardClosing = !typing && Date.now() - typingEndedAt.current < KEYBOARD_CLOSE_MS
+  if (width !== held.current.width || height >= held.current.height || (!typing && !keyboardClosing)) held.current = { width, height }
 
   useEffect(() => {
-    // After a field loses focus, document.activeElement only settles a moment later.
-    const onFocusOut = () => setTimeout(recheck, 0)
+    const onFocusOut = () => {
+      typingEndedAt.current = Date.now()
+      // After a field loses focus, document.activeElement only settles a moment later; once the
+      // keyboard had its time, a height that is still smaller is real and taken.
+      setTimeout(recheck, 0)
+      setTimeout(recheck, KEYBOARD_CLOSE_MS + 50)
+    }
     document.addEventListener('focusout', onFocusOut)
     return () => document.removeEventListener('focusout', onFocusOut)
   }, [])
