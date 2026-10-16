@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react'
+import { useControlSize } from './PrepTier'
 import { Icon, type IconName } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, SQUARE, type ControlSize } from './styles'
 
@@ -17,7 +18,8 @@ const VARIANT = {
 } as const
 
 /** ⋯, ×, ↑↓, steppers - never smaller than the form height (48 px). */
-export function IconButton({ icon, label, size = 'form', variant = 'secondary', className = '', type = 'button', ...rest }: IconButtonProps) {
+export function IconButton({ icon, label, size: sizeProp, variant = 'secondary', className = '', type = 'button', ...rest }: IconButtonProps) {
+  const size = useControlSize(sizeProp)
   return (
     <button
       type={type}

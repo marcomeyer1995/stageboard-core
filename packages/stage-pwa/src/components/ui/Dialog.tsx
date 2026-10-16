@@ -2,6 +2,7 @@ import { useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } 
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
+import { PrepTier } from './PrepTier'
 import { CONTAINER } from './styles'
 import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
 
@@ -40,44 +41,48 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   // its name for screen readers - and slimmer rows, so the content gets the height.
   const low = useMediaQuery(LOW_SCREEN)
   return createPortal(
-    // h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
-    // with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review).
-    <div className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`}
-      onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
-      onClick={(e) => {
-        if (closeOnBackdrop && pressedBackdrop.current && e.target === e.currentTarget) onClose()
-        pressedBackdrop.current = false
-      }}
-    >
+    // Dialogs are set-up, not stage (docs/15 D10): the Vorbereitung tier inside.
+    <PrepTier>
+      {/* h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
+        with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review). */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        data-typing={typing.active || undefined}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={typing.onPointerDown}
-        onFocus={typing.onFocus}
-        onBlur={typing.onBlur}
-        // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
-        // so its bottom row stays above the on-screen keyboard: the tablet browser lays the
-        // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
-        // Otherwise all the height the backdrop's safe padding leaves (max-h-full) - the Xiaomi in
-        // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
-        className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
+        className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`}
+        onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
+        onClick={(e) => {
+          if (closeOnBackdrop && pressedBackdrop.current && e.target === e.currentTarget) onClose()
+          pressedBackdrop.current = false
+        }}
       >
-        <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
-          <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
-        </div>
-        <div className={`flex min-h-0 flex-col overflow-y-auto ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
-        <div className={`flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
-          {actions ?? (
-            <Button variant="primary" onClick={onClose} className="ml-auto">
-              {closeLabel}
-            </Button>
-          )}
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          data-typing={typing.active || undefined}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={typing.onPointerDown}
+          onFocus={typing.onFocus}
+          onBlur={typing.onBlur}
+          // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
+          // so its bottom row stays above the on-screen keyboard: the tablet browser lays the
+          // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
+          // Otherwise all the height the backdrop's safe padding leaves (max-h-full) - the Xiaomi in
+          // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
+          className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
+        >
+          <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
+            <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
+          </div>
+          <div className={`flex min-h-0 flex-col overflow-y-auto ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
+          <div className={`flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
+            {actions ?? (
+              <Button variant="primary" onClick={onClose} className="ml-auto">
+                {closeLabel}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
-    </div>,
+    </PrepTier>,
     document.body,
   )
 }
@@ -92,8 +97,7 @@ function useTypingOnTouch() {
   const [active, setActive] = useState(false)
   const tapped = useRef(false)
   const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
-  const isText = (el: EventTarget | null) =>
-    el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_INPUT.test(el.type))
+  const isText = (el: EventTarget | null) => el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && TEXT_INPUT.test(el.type))
   return {
     active,
     onPointerDown: (e: PointerEvent<HTMLElement>) => {

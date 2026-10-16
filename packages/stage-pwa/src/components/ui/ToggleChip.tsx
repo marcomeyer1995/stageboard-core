@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useControlSize } from './PrepTier'
 import { Icon } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, HOVER, SIZE, type ControlSize } from './styles'
 
@@ -15,7 +16,8 @@ export interface ToggleChipProps {
  * chosen, ticked box and fill when chosen. Tapping a chosen chip removes it. The box is always
  * there, so the chip never changes width (Marco, 2026-10-07: no shifting, but also no empty gap
  * in front of the text - the checkbox gives that room a meaning). */
-export function ToggleChip({ label, selected, onToggle, disabled, title, size = 'form' }: ToggleChipProps) {
+export function ToggleChip({ label, selected, onToggle, disabled, title, size: sizeProp }: ToggleChipProps) {
+  const size = useControlSize(sizeProp)
   return (
     <button
       type="button"

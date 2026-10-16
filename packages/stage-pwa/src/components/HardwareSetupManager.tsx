@@ -61,7 +61,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
         const usage = findLogicalDeviceUsage(device.id, variants, songs)
         const hasOwnTransportConfig = devicesRegistry.some((c) => c.logicalDeviceId === device.id && c.deviceId === getDeviceId())
         return (
-          <div key={device.id} className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
+          <div key={device.id} className="flex items-center gap-3 rounded-control border border-line bg-surface px-3 py-1">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">
                 {device.name} <span className="text-xs font-normal text-ink-faint">({STATUS_LABEL[complete ? 'complete' : 'incomplete']})</span>

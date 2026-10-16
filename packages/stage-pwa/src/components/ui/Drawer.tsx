@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
+import { PrepTier } from './PrepTier'
 import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
 
 /** A swipe of this many px toward the drawer's own edge closes it. */
@@ -36,43 +37,46 @@ export function Drawer({ title, side, onClose, children }: DrawerProps) {
   const hidden = side === 'left' ? '-translate-x-full' : 'translate-x-full'
 
   return createPortal(
-    <div
-      className={`fixed inset-x-0 top-0 h-dvh z-dialog flex bg-scrim/60 ${side === 'left' ? 'justify-start' : 'justify-end'}`}
-      onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
-      onClick={(e) => {
-        if (pressedBackdrop.current && e.target === e.currentTarget) onClose()
-        pressedBackdrop.current = false
-      }}
-    >
+    // The drawer belongs to the stage (docs/15 D10) - stage sizes even when opened over the Bibliothek.
+    <PrepTier on={false}>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        data-side={side}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => (swipeStartX.current = e.clientX)}
-        onPointerUp={(e) => {
-          const start = swipeStartX.current
-          swipeStartX.current = null
-          if (start === null) return
-          const towardEdge = side === 'left' ? start - e.clientX : e.clientX - start
-          if (towardEdge > SWIPE_CLOSE_PX) onClose()
+        className={`fixed inset-x-0 top-0 h-dvh z-dialog flex bg-scrim/60 ${side === 'left' ? 'justify-start' : 'justify-end'}`}
+        onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
+        onClick={(e) => {
+          if (pressedBackdrop.current && e.target === e.currentTarget) onClose()
+          pressedBackdrop.current = false
         }}
-        className={`sb-pad-safe flex h-full w-[min(24rem,88vw)] flex-col border-line bg-surface shadow-sb transition-transform duration-200 ease-out motion-reduce:transition-none ${
-          side === 'left' ? 'border-r' : 'border-l'
-        } ${shown ? 'translate-x-0' : hidden}`}
       >
-        <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
-          <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
-        </div>
-        <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
-        <div className={`flex flex-shrink-0 items-center justify-end border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
-          <Button variant="primary" onClick={onClose}>
-            Fertig
-          </Button>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          data-side={side}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => (swipeStartX.current = e.clientX)}
+          onPointerUp={(e) => {
+            const start = swipeStartX.current
+            swipeStartX.current = null
+            if (start === null) return
+            const towardEdge = side === 'left' ? start - e.clientX : e.clientX - start
+            if (towardEdge > SWIPE_CLOSE_PX) onClose()
+          }}
+          className={`sb-pad-safe flex h-full w-[min(24rem,88vw)] flex-col border-line bg-surface shadow-sb transition-transform duration-200 ease-out motion-reduce:transition-none ${
+            side === 'left' ? 'border-r' : 'border-l'
+          } ${shown ? 'translate-x-0' : hidden}`}
+        >
+          <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
+            <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
+          </div>
+          <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
+          <div className={`flex flex-shrink-0 items-center justify-end border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
+            <Button variant="primary" onClick={onClose}>
+              Fertig
+            </Button>
+          </div>
         </div>
       </div>
-    </div>,
+    </PrepTier>,
     document.body,
   )
 }

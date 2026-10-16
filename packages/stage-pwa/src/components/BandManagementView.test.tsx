@@ -250,8 +250,8 @@ describe('BandManagementView', () => {
   it('highlights the active band with the same accent treatment as the active profile row, and no other band', () => {
     render(<BandManagementView />)
 
-    const activeBandRow = screen.getByText('Band A').closest('div.rounded-container')
-    const otherBandRow = screen.getByText('Band B').closest('div.rounded-container')
+    const activeBandRow = screen.getByText('Band A').closest('div.rounded-control.border')
+    const otherBandRow = screen.getByText('Band B').closest('div.rounded-control.border')
     expect(activeBandRow?.className).toMatch(/border-accent/)
     expect(otherBandRow?.className).not.toMatch(/border-accent/)
   })
@@ -295,9 +295,9 @@ describe('BandManagementView', () => {
   it('member rows keep their height without a ⋯ (non-admin) - the button no longer sets it', () => {
     useWorkspaceStore.setState({ activeWorkspaceId: 'band-b' })
     const { container } = render(<BandManagementView />)
-    const rows = [...container.querySelectorAll('section .rounded-container.flex-col > div:first-child')]
+    const rows = [...container.querySelectorAll('section .rounded-control.border.flex-col > div:first-child')]
     expect(rows.length).toBeGreaterThan(0)
-    for (const row of rows) expect(row).toHaveClass('min-h-form')
+    for (const row of rows) expect(row).toHaveClass('min-h-prep')
   })
 
   it('renaming a member calls update() with the new name', async () => {
@@ -563,8 +563,8 @@ describe('BandManagementView', () => {
 
       // p2 (Chris) is active - the accent border is the only "this is you" signal now
       // (2026-09-02 thirteenth follow-up: the "(du)" text label was redundant with it).
-      const chrisRow = screen.getByText('Chris').closest('div.rounded-container')
-      const marcoRow = screen.getByText('Marco').closest('div.rounded-container')
+      const chrisRow = screen.getByText('Chris').closest('div.rounded-control.border')
+      const marcoRow = screen.getByText('Marco').closest('div.rounded-control.border')
       expect(chrisRow?.className).toMatch(/border-accent/)
       expect(marcoRow?.className).not.toMatch(/border-accent/)
     })

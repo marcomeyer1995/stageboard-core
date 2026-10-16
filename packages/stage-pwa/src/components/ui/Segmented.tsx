@@ -1,4 +1,5 @@
 import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize, HOVER } from './styles'
+import { useControlSize } from './PrepTier'
 
 export interface SegmentedOption<T extends string> {
   value: T
@@ -27,7 +28,8 @@ export interface SegmentedProps<T extends string> {
  * Pick exactly one (D7): one joined bar, the chosen segment filled. Tapping the chosen segment
  * again changes nothing - the bar always has an answer.
  */
-export function Segmented<T extends string>({ options, value, onChange, label, size = 'form', showLabel = false, hint, onSelectedTap, compact = false }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, label, size: sizeProp, showLabel = false, hint, onSelectedTap, compact = false }: SegmentedProps<T>) {
+  const size = useControlSize(sizeProp)
   const bar = (
     <div role="radiogroup" aria-label={label} className={`flex w-full gap-0 border border-line bg-control p-1 ${CONTROL}`}>
       {options.map((option) => {

@@ -3,7 +3,7 @@
  * element, one meaning per colour. Components read from here; nothing outside `ui/` should spell
  * these out by hand (phase 5 adds a guard for that).
  */
-export type ControlSize = 'show' | 'stage' | 'form' | 'widget'
+export type ControlSize = 'show' | 'stage' | 'form' | 'widget' | 'prep'
 
 /** Height (and matching horizontal padding / text size) of every control. */
 export const SIZE: Record<ControlSize, string> = {
@@ -12,6 +12,8 @@ export const SIZE: Record<ControlSize, string> = {
   form: 'min-h-form px-4 text-base',
   /** Inside a widget face: at least the form height, text follows the widget's own size slider. */
   widget: 'min-h-form px-3 text-[length:inherit]',
+  /** Vorbereitung tier (docs/15 D10): 40 px seen, 48 px hit. The default inside <PrepTier>. */
+  prep: 'min-h-prep px-4 text-base sb-hit',
 }
 
 /** Square icon-only controls, same heights. */
@@ -20,6 +22,7 @@ export const SQUARE: Record<ControlSize, string> = {
   stage: 'h-stage w-stage',
   form: 'h-form w-form',
   widget: 'h-form w-form',
+  prep: 'h-prep w-prep sb-hit sb-hit-square',
 }
 
 /** D1: every control takes the small "control" corner. */

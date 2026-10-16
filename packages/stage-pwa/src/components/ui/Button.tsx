@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useControlSize } from './PrepTier'
 import { Icon, type IconName } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, SIZE, type ControlSize } from './styles'
 
@@ -28,9 +29,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /** Something that *does* something (docs/15 §4) - never a state; that is a Switch or a chip.
  * Passes a ref on to the <button> (a toolbar toggle that anchors its own menu needs it). */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'form', icon, fullWidth, className = '', children, type = 'button', ...rest },
+  { variant = 'secondary', size: sizeProp, icon, fullWidth, className = '', children, type = 'button', ...rest },
   ref,
 ) {
+  const size = useControlSize(sizeProp)
   return (
     <button
       ref={ref}

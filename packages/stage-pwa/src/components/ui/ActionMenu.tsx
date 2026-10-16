@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useControlSize } from './PrepTier'
 import { Dialog } from './Dialog'
 import { IconButton } from './IconButton'
 import { CONTROL, DISABLED, FOCUS, SELECTED, type ControlSize } from './styles'
@@ -59,7 +60,8 @@ export function menuIcon(scope: 'entry' | 'page'): 'more' | 'moreVertical' {
  * Every ⋯ / ⋮ menu: a wide trigger, the actions as full-width rows in the dialog look; dangerous
  * ones in red, set apart at the end.
  */
-export function ActionMenu({ title, actions, size = 'form', scope = 'entry' }: { title: string; actions: MenuAction[]; size?: ControlSize; scope?: 'entry' | 'page' }) {
+export function ActionMenu({ title, actions, size: sizeProp, scope = 'entry' }: { title: string; actions: MenuAction[]; size?: ControlSize; scope?: 'entry' | 'page' }) {
+  const size = useControlSize(sizeProp)
   const [open, setOpen] = useState(false)
   return (
     <>

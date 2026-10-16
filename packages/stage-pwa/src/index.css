@@ -1,5 +1,25 @@
 @tailwind base;
 @tailwind components;
+
+@layer components {
+  /* Vorbereitung tier (docs/15 D10): secondary lines 14 px - a trial Marco checks on the device. */
+  .sb-prep {
+    --sb-text-secondary: 0.875rem;
+  }
+  /* A 40 px control still answers to a 48 px finger: the hit area reaches 4 px above and below
+     (and beside, for square ones), invisibly. In a layer, so `absolute` & co. still win. */
+  .sb-hit {
+    position: relative;
+  }
+  .sb-hit::after {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
+  }
+  .sb-hit-square::after {
+    inset: -4px;
+  }
+}
 @tailwind utilities;
 
 /*
@@ -56,6 +76,11 @@
   --sb-h-show: var(--sb-touch-primary);
   --sb-h-stage: var(--sb-touch);
   --sb-h-form: 3rem;
+  /* Vorbereitung tier (docs/15 D10, 2026-10-16): Bibliothek, editors, System, dialogs - things
+     not touched on stage. 40 px visible, the hit area stays 48 (.sb-hit). */
+  --sb-h-prep: 2.5rem;
+  /* Secondary lines (text-sm / text-xs): the floor on stage, 14 px in the Vorbereitung tier. */
+  --sb-text-secondary: var(--sb-text-min);
   /* Meaning colours (docs/15 §5, 2026-10-08): every "this is an error / a warning / fine",
      the status bar's states, the flash message and the dimming behind dialogs come from here,
      never from Tailwind's palette - so a theme (and the later theme editor) changes them in
