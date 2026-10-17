@@ -50,7 +50,7 @@ const ctx = {
   resume: vi.fn(async () => {}),
   decodeAudioData: vi.fn(async (data: ArrayBuffer) => fakeBuffer(`full:${new TextDecoder().decode(data)}`, DURATION_S)),
   createBuffer: (_channels: number, length: number) => fakeBuffer('joined', length / SR),
-  createGain: () => ({ gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() }, connect: vi.fn() }),
+  createGain: () => ({ gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() }, connect: vi.fn() }),
   createBufferSource: () => {
     const node: FakeNode = { buffer: null, when: NaN, offset: NaN, stoppedAt: null, rate: 1 }
     nodes.push(node)
@@ -291,8 +291,8 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     const before = nodes.filter((n) => n.when < boundaryAt - 0.05)
     const after = nodes.filter((n) => n.when >= boundaryAt - 0.05)
     // Nothing of the old song sounds past the boundary (beyond the short fade) ...
-    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.03)).toBe(true)
-    // ... and the target comes in right on it.
-    expect(Math.min(...after.map((n) => n.when))).toBeCloseTo(boundaryAt, 2)
+    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.006)).toBe(true)
+    // ... and the target comes in on it - 5 ms early, crossfading with the old section (10 ms).
+    expect(Math.abs(Math.min(...after.map((n) => n.when)) - (boundaryAt - 0.005))).toBeLessThan(0.002)
   })
 })
