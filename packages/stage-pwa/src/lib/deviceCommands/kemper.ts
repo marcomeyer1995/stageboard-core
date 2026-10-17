@@ -12,6 +12,7 @@ export const KEMPER_COMMANDS: DeviceCommand[] = [
       { key: 'slot', label: 'Slot', kind: 'int', min: 1, max: 5 },
     ],
     describe: (p) => `Performance ${Number(p.performance) + 1}, Slot ${String(p.slot)}`,
+    stateKey: () => 'rig',
   },
   {
     type: 'kemper.stomp',
@@ -21,5 +22,6 @@ export const KEMPER_COMMANDS: DeviceCommand[] = [
       { key: 'tail', label: `Mit Nachklang (nur ${Object.keys(KEMPER_STOMP_CC_WITH_TAIL).join('/')})`, kind: 'bool' },
     ],
     describe: (p) => `Stomp ${String(p.stomp)}${p.tail === true ? ' (Tail)' : ''}`,
+    stateKey: (p) => `stomp:${String(p.stomp)}`,
   },
 ]

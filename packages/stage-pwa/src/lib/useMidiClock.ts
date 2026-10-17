@@ -4,7 +4,7 @@ import { clickTimeline, type ClickTimeline } from './beatGrid'
 import { getServerTime } from './clockSync'
 import type { CueTransport } from './cueSchedule'
 import { findLatencyProfile } from './latencyProfiles'
-import { MidiClockEngine, type ClockOutput } from './midiClockEngine'
+import { MidiClockEngine, type ClockOutput, type MidiClockInput } from './midiClockEngine'
 import { myClockDevices, resolveClockOutput } from './midiClockOutputs'
 import { useShowModeSong } from './showMode'
 import { getDeviceId } from './deviceId'
@@ -69,15 +69,18 @@ export function useMidiClock(): void {
     }
   }, [clockDevices, configs, profiles])
 
-  const inputRef = useRef({
+  // A queued section jump (#479): the clock ticks on across it and tells the gear the new position.
+  const jump = useShowStateStore((state) => state.state.playbackJump ?? null)
+  const inputRef = useRef<MidiClockInput>({
     timeline,
     transport: NOT_PLAYING,
-    takeKey: null as number | null,
+    takeKey: null,
   })
   inputRef.current = {
     timeline,
     transport: mode === 'gig' ? { status, startedAt, accumulatedMs } : NOT_PLAYING,
     takeKey: mode === 'gig' ? takeKey : null,
+    jump: mode === 'gig' && jump ? { at: jump.at, toMs: jump.toMs } : null,
   }
 
   const active = clockDevices.length > 0
