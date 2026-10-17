@@ -360,6 +360,11 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Without the status bar the grid stays exactly as on every other dashboard - same rows, same
+          distance from the bottom (Marco, 2026-10-17: the dashboard switcher at the bottom changed
+          size between dashboards). The bar's place stays empty; ☰ and the nine dots sit in it.
+          h-14 = StatusBar and EditBarSlot. */}
+      {!isEditing && active.statusBar === false && <div aria-hidden className="h-14 flex-shrink-0" data-testid="status-bar-space" />}
       {/* Outside edit mode nothing slides into place (sb-grid-still): a new size shows at once. */}
       <div ref={containerRef} className={`min-h-0 flex-1 overflow-hidden ${isEditing ? '' : 'sb-grid-still'}`}>
         {mounted && (
