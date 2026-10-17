@@ -410,7 +410,11 @@ export function Dashboard() {
               // state and alternated between that and the freshly derived one - widgets jumping
               // back and forth without end (found live, 2026-10-05). A fresh instance per shown
               // arrangement has nothing stale left to fall back to.
-              key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}`}
+              //
+              // And on edit mode: leaving it starts a fresh grid, so a drag or resize whose end never
+              // arrived (a touch that became a scroll, "Fertig" mid-gesture) can't leave its red
+              // placeholder over a widget (found on the Xiaomi, 2026-10-17).
+              key={`${active.id}:${resetNonce}:${active.widgets.map((widget) => widget.i).join(',')}:${breakpoint}:${shownSignature}:${isEditing ? 'edit' : 'show'}`}
               width={width}
               layouts={layouts}
               breakpoints={BREAKPOINT_WIDTHS}
