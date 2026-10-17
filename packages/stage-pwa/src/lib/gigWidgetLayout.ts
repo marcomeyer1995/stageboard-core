@@ -15,6 +15,15 @@ export const GAP = 8
 /** --sb-touch / --sb-touch-primary in px (index.css). */
 export const TOUCH = 56
 export const TOUCH_PRIMARY = 72
+
+/** The control sizes a widget lays itself out for - by the dashboard's size tier (docs/15 D10):
+ * Bühne 56 / 72 on dashboards offered in Gig, Üben 48 on ones offered only in Solo Üben. */
+export interface TouchSizes {
+  touch: number
+  primary: number
+}
+export const STAGE_TOUCH: TouchSizes = { touch: TOUCH, primary: TOUCH_PRIMARY }
+export const PRACTICE_TOUCH: TouchSizes = { touch: 48, primary: 48 }
 /** Smallest size for a key readout (running time, click state, tempo), px. */
 export const READOUT_MIN = 24
 /** Height of one small label/helper line at the 16px text floor, px. */
@@ -65,23 +74,23 @@ const TRANSPORT_INFO_TIME_ONLY = 96
  *   way first), four buttons right at the full widget height.
  * Ties go to stacked. Helper lines only while stacked buttons keep their touch height.
  */
-export function transportLayout(width: number, height: number, infoHeight: number): TransportLayout {
+export function transportLayout(width: number, height: number, infoHeight: number, sizes: TouchSizes = STAGE_TOUCH): TransportLayout {
   if (unmeasured(width, height)) {
     return { row: false, columns: 4, showTitle: true, showHelper: true, compactInfo: false, iconButtons: false }
   }
   const compactHeight = lineHeightFor(READOUT_MIN)
   const fullArea = height - infoHeight - GAP
-  const compactInfo = fullArea < TOUCH && infoHeight > compactHeight
+  const compactInfo = fullArea < sizes.touch && infoHeight > compactHeight
   const buttonsArea = compactInfo ? height - compactHeight - GAP : fullArea
 
   let columns: 2 | 4 = width >= 4 * 80 + 3 * GAP ? 4 : 2
-  if (columns === 2 && buttonsArea < 2 * 48 + GAP && width >= 4 * TOUCH + 3 * GAP) columns = 4
+  if (columns === 2 && buttonsArea < 2 * 48 + GAP && width >= 4 * sizes.touch + 3 * GAP) columns = 4
   const stackedSide =
     columns === 4
       ? Math.min((width - 3 * GAP) / 4, buttonsArea)
       : Math.min((width - GAP) / 2, (buttonsArea - GAP) / 2)
 
-  const showTitle = width - TRANSPORT_INFO_WITH_TITLE - GAP >= 4 * TOUCH_PRIMARY + 3 * GAP
+  const showTitle = width - TRANSPORT_INFO_WITH_TITLE - GAP >= 4 * sizes.primary + 3 * GAP
   const rowButtonsWidth = width - (showTitle ? TRANSPORT_INFO_WITH_TITLE : TRANSPORT_INFO_TIME_ONLY) - GAP
   const rowSide = Math.min((rowButtonsWidth - 3 * GAP) / 4, height)
 
@@ -92,7 +101,7 @@ export function transportLayout(width: number, height: number, infoHeight: numbe
   const rows = columns === 4 ? 1 : 2
   const perRowWithHelper = (buttonsArea - LINE - GAP - (rows - 1) * GAP) / rows
   const buttonWidth = columns === 4 ? (width - 3 * GAP) / 4 : (width - GAP) / 2
-  return { row: false, columns, showTitle: true, showHelper: perRowWithHelper >= TOUCH, compactInfo, iconButtons: buttonWidth < TRANSPORT_WORD_MIN }
+  return { row: false, columns, showTitle: true, showHelper: perRowWithHelper >= sizes.touch, compactInfo, iconButtons: buttonWidth < TRANSPORT_WORD_MIN }
 }
 
 export interface NextSongLayout {
@@ -109,9 +118,9 @@ const NEXT_BUTTONS_FULL = 400
 /** The song info needs at least this much width to show a useful part of a title. */
 const NEXT_INFO_MIN = 280
 
-export function nextSongLayout(width: number, height: number, lineHeight: number): NextSongLayout {
+export function nextSongLayout(width: number, height: number, lineHeight: number, sizes: TouchSizes = STAGE_TOUCH): NextSongLayout {
   if (unmeasured(width, height)) return { stacked: false, twoLines: false, shortLabels: false }
-  const stacked = width < 560 && height >= 2 * lineHeight + GAP + TOUCH
+  const stacked = width < 560 && height >= 2 * lineHeight + GAP + sizes.touch
   if (stacked) return { stacked, twoLines: true, shortLabels: width < NEXT_BUTTONS_FULL }
   return {
     stacked,
@@ -132,15 +141,15 @@ export interface ClickLayout {
   showState: boolean
 }
 
-export function clickLayout(width: number, height: number, stateFont: number): ClickLayout {
+export function clickLayout(width: number, height: number, stateFont: number, sizes: TouchSizes = STAGE_TOUCH): ClickLayout {
   if (unmeasured(width, height)) return { row: false, showLabel: true, shortLabels: false, showState: true }
   const state = lineHeightFor(stateFont)
-  const tooFlatToStack = height < state + GAP + TOUCH
+  const tooFlatToStack = height < state + GAP + sizes.touch
   const row = tooFlatToStack && width >= 260
   if (row) return { row, showLabel: false, shortLabels: width < 480, showState: true }
   return {
     row,
-    showLabel: height >= LINE + GAP + state + GAP + TOUCH,
+    showLabel: height >= LINE + GAP + state + GAP + sizes.touch,
     shortLabels: width < 300,
     showState: !tooFlatToStack,
   }
@@ -152,9 +161,9 @@ export interface TempoLayout {
   resetAsButton: boolean
 }
 
-export function tempoLayout(height: number): TempoLayout {
+export function tempoLayout(height: number, sizes: TouchSizes = STAGE_TOUCH): TempoLayout {
   if (height <= 0) return { showLabel: true, resetAsButton: true }
-  const showLabel = height >= LINE + GAP + TOUCH
-  const used = (showLabel ? LINE + GAP : 0) + TOUCH
+  const showLabel = height >= LINE + GAP + sizes.touch
+  const used = (showLabel ? LINE + GAP : 0) + sizes.touch
   return { showLabel, resetAsButton: height >= used + GAP + 48 }
 }

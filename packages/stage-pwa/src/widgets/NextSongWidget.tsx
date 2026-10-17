@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -30,7 +31,8 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   const [boxRef, box] = useElementSize()
-  const layout = nextSongLayout(box.width, box.height, lineHeightFor(fontSize))
+  const touchSizes = useTouchSizes()
+  const layout = nextSongLayout(box.width, box.height, lineHeightFor(fontSize), touchSizes)
   // Buttons fill the widget's height (or the row under the info when stacked), at least the
   // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
   const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`

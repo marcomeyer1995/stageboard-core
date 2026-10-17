@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { CAPABILITIES } from 'shared-types'
 import { effectiveClickEnabled } from '../lib/metronome'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
@@ -48,6 +49,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
 
   // Before any early return - hooks must run in the same order on every render.
   const [boxRef, box] = useElementSize()
+  const touchSizes = useTouchSizes()
 
   if (engine === 'none') {
     return (
@@ -58,7 +60,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   }
 
   const stateFontSize = Math.max(READOUT_MIN, fontSize)
-  const layout = clickLayout(box.width, box.height, stateFontSize)
+  const layout = clickLayout(box.width, box.height, stateFontSize, touchSizes)
 
   return (
     <div

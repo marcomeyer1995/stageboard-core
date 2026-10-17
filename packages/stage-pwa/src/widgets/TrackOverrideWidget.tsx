@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { INPUT } from '../components/ui/styles'
 import { isSongEntry } from 'shared-types'
 import { resolveTrackForEntry, resolveVariantForEntry } from '../lib/computeQueue'
@@ -58,7 +59,8 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   // With the variant picker, the track part below it (select or message) counts as the second
   // slot too - the message wraps over up to three lines otherwise and pushed the picker out of
   // a 3 x 3 tile (tablet, 2026-09-27).
-  const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker ? 2 : 1)
+  const touchSizes = useTouchSizes()
+  const { showLabels } = trackOverrideLayout(box.height, fontSize, showVariantPicker ? 2 : 1, touchSizes)
   const variantPrefix = showLabels ? '' : 'Variante: '
   const trackPrefix = showLabels ? '' : 'Track: '
   const selectClass = `min-h-touch px-3 ${INPUT}`

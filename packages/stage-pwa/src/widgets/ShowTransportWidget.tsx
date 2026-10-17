@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { useState } from 'react'
 import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-types'
 import { resolveTrackForEntry } from '../lib/computeQueue'
@@ -80,7 +81,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   // shrink (lib/gigWidgetLayout.ts).
   const clockFontSize = Math.max(READOUT_MIN, titleFontSize)
   const [boxRef, box] = useElementSize()
-  const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize))
+  const touchSizes = useTouchSizes()
+  const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize), touchSizes)
   const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
   const infoClockFontSize = layout.compactInfo ? READOUT_MIN : clockFontSize
 

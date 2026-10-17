@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -30,6 +31,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
 
   // Before any early return - hooks must run in the same order on every render.
   const [boxRef, box] = useElementSize()
+  const touchSizes = useTouchSizes()
 
   if (mode !== 'gig') {
     return (
@@ -43,7 +45,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   const atMax = liveTempoAdjustPercent >= LIVE_TEMPO_ADJUST_LIMIT_PERCENT
 
   const valueFontSize = Math.max(READOUT_MIN, fontSize)
-  const layout = tempoLayout(box.height)
+  const layout = tempoLayout(box.height, touchSizes)
   const value = `${liveTempoAdjustPercent > 0 ? '+' : ''}${liveTempoAdjustPercent}%`
   // Buttons as tall as the row allows and 30% of the width each (at least the touch size,
   // at most 96px wide), so a bigger widget means bigger - / + targets without squeezing the

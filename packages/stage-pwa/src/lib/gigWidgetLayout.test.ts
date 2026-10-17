@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clickLayout, lineHeightFor, nextSongLayout, tempoLayout, transportLayout } from './gigWidgetLayout'
+import { clickLayout, lineHeightFor, nextSongLayout, tempoLayout, transportLayout, PRACTICE_TOUCH, STAGE_TOUCH } from './gigWidgetLayout'
 
 // Content boxes measured on the band's Fire tablet (800 x 1280 portrait, 1280 x 800 landscape),
 // widget size minus the frame's padding.
@@ -84,6 +84,15 @@ describe('compact widgets on a phone (#369 follow-up: dashboards never scroll)',
     expect(clickLayout(177, 57, 40)).toMatchObject({ row: false, showState: false })
     expect(clickLayout(158, 160, 40).showState).toBe(true)
     expect(clickLayout(278, 67, 40)).toMatchObject({ row: true, showState: true })
+  })
+})
+
+describe('Üben tier sizes (docs/15 D10, Marco 2026-10-17)', () => {
+  it('a practice-only dashboard lays widgets out for 48 px - more fits than with 56 / 72', () => {
+    // 24 label + 8 gap + 56 = 88: a 80 px Tempo widget hides its label on stage, keeps it in practice.
+    expect(tempoLayout(80).showLabel).toBe(false)
+    expect(tempoLayout(80, PRACTICE_TOUCH).showLabel).toBe(true)
+    expect(tempoLayout(80, STAGE_TOUCH)).toEqual(tempoLayout(80))
   })
 })
 

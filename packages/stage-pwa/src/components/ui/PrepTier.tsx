@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import { PRACTICE_TOUCH, STAGE_TOUCH, type TouchSizes } from '../../lib/gigWidgetLayout'
 import type { ControlSize } from './styles'
 
 const PrepContext = createContext(false)
@@ -26,4 +27,25 @@ export function useControlSize(size: ControlSize | undefined): ControlSize {
 /** Whether this part of the screen is in the Vorbereitung tier. */
 export function useIsPrepTier(): boolean {
   return useContext(PrepContext)
+}
+
+const PracticeContext = createContext(false)
+
+/**
+ * The Üben size tier (docs/15 D10, Marco 2026-10-17: automatically from "Anbieten in"): a dashboard
+ * offered only in Solo Üben. Its stage controls are 48 px instead of 56 / 72 (the .sb-practice
+ * variables), and widgets lay themselves out for 48 (useTouchSizes) - more fits on a practice
+ * screen. A dashboard also offered in Gig stays Bühne.
+ */
+export function PracticeTier({ on, className, children }: { on: boolean; className: string; children: ReactNode }) {
+  return (
+    <PracticeContext.Provider value={on}>
+      <div className={on ? `sb-practice ${className}` : className}>{children}</div>
+    </PracticeContext.Provider>
+  )
+}
+
+/** The control sizes widgets here lay themselves out for. */
+export function useTouchSizes(): TouchSizes {
+  return useContext(PracticeContext) ? PRACTICE_TOUCH : STAGE_TOUCH
 }
