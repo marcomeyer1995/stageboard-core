@@ -14,15 +14,17 @@ import { useShowStateStore } from '../store/useShowStateStore'
  */
 /** The same value, read once without subscribing - for a timer that must not re-render (#400 review). */
 export function gigElapsedMsNow(): number | null {
-  const { playbackStatus: status, playbackStartedAt: startedAt, playbackAccumulatedMs: accumulatedMs } = useShowStateStore.getState().state
+  const { playbackStatus: status, playbackStartedAt: startedAt, playbackAccumulatedMs: accumulatedMs, playbackJump: jump } = useShowStateStore.getState().state
   if (status === 'stopped') return null
-  return computeActiveMs({ status, startedAt, accumulatedMs }, getServerTime())
+  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getServerTime())
 }
 
 export function usePlaybackElapsedMs(): number | null {
   const status = useShowStateStore((state) => state.state.playbackStatus)
   const startedAt = useShowStateStore((state) => state.state.playbackStartedAt)
   const accumulatedMs = useShowStateStore((state) => state.state.playbackAccumulatedMs)
+  // A section jump (#479) continues the clock at its target.
+  const jump = useShowStateStore((state) => state.state.playbackJump)
   const [, forceTick] = useState(0)
 
   useEffect(() => {
@@ -37,5 +39,5 @@ export function usePlaybackElapsedMs(): number | null {
   }, [status])
 
   if (status === 'stopped') return null
-  return computeActiveMs({ status, startedAt, accumulatedMs }, getServerTime())
+  return computeActiveMs({ status, startedAt, accumulatedMs, jump }, getServerTime())
 }

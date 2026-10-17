@@ -36,6 +36,11 @@ export interface ClickEngineState {
   /** How much later than scheduled this device's audio is heard (#491, latencyCompensation.ts) -
    * every click is scheduled that much earlier so it is heard on the beat. Absent means 0. */
   outputLatencyMs?: number
+  /** A section jump in the show (#479): at song time `boundaryMs` the song continues at `toMs`.
+   * Beats are scheduled across it ahead of time - the target's downbeat lands exactly on the
+   * boundary, nothing of the old song is queued past it. `id` tells two jumps between the same
+   * points apart (a looped section jumps back the same way every pass). */
+  jump?: { id: number; boundaryMs: number; toMs: number } | null
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
@@ -50,6 +55,11 @@ let nextBeatOnsetMs = 0
 /** `elapsedMs` as of the last tick - used to detect a large gap between ticks (see
  * RESYNC_GAP_MS below), not to schedule anything itself. */
 let lastTickElapsedMs: number | null = null
+/** The jump the schedule has already crossed (#479). Until the song clock jumps too, scheduled
+ * beats are in the target's song time while `elapsedMs` is still in the old one - `offsetMs`
+ * (boundary - target) converts between them; once the clock has jumped it is 0. Kept (by `id`)
+ * until the jump is gone, so it is crossed only once. */
+let crossedJump: { id: number; offsetMs: number } | null = null
 /** The AudioContext time `nextBeatOnsetMs` is scheduled at. Converted from song time only when
  * the schedule (re)anchors; every following beat is placed exactly one beat length later in
  * audio time. Converting each beat on its own - `currentTime + (onset - elapsed)` sampled per
@@ -76,6 +86,8 @@ const audioClock = createAudioClock()
  * that fell due during the whole stall in one instant burst once the tab is foregrounded again,
  * instead of just resuming cleanly from wherever elapsedMs actually is now. */
 const RESYNC_GAP_MS = 500
+/** A beat this close before a jump's boundary counts as on it (rounding of grid times). */
+const JUMP_EPSILON_MS = 1
 
 function getAudioContext(): AudioContext {
   return getSharedAudioContext()
@@ -116,12 +128,23 @@ function anchorSchedule(timeline: ClickTimeline, fromMs: number, inclusive: bool
  * (instead of bursting through a backlog) when `elapsedMs` jumped by more than RESYNC_GAP_MS
  * since the last tick (a throttled/backgrounded tab), or went backwards (a loop wrap or seek). */
 function tick(getState: () => ClickEngineState): void {
-  const { elapsedMs, timeline, playbackRate = 1, loop = null, outputLatencyMs = 0, clickOnAt } = getState()
+  const { elapsedMs, timeline, playbackRate = 1, loop = null, outputLatencyMs = 0, clickOnAt, jump = null } = getState()
   if (elapsedMs === null) {
     nextBeat = null
     nextBeatAudioTime = null
     lastTickElapsedMs = null
+    crossedJump = null
     return
+  }
+  if (crossedJump && (!jump || jump.id !== crossedJump.id)) crossedJump = null
+  // The song clock has jumped to the target too (#479): read in the target's time the new value
+  // continues the old one - no stall, no wrap, nothing to re-anchor.
+  if (crossedJump && crossedJump.offsetMs !== 0 && lastTickElapsedMs !== null) {
+    const asTarget = Math.abs(elapsedMs + crossedJump.offsetMs - lastTickElapsedMs)
+    if (asTarget < Math.abs(elapsedMs - lastTickElapsedMs)) {
+      crossedJump = { id: crossedJump.id, offsetMs: 0 }
+      lastTickElapsedMs = elapsedMs
+    }
   }
   const stalled = lastTickElapsedMs !== null && elapsedMs - lastTickElapsedMs > RESYNC_GAP_MS
   const wrapped = lastTickElapsedMs !== null && elapsedMs < lastTickElapsedMs
@@ -141,9 +164,19 @@ function tick(getState: () => ClickEngineState): void {
   const latencyS = outputLatencyMs / 1000
   while (nextBeat !== null) {
     if (timeline.rigid) nextBeatOnsetMs = timeline.timeOfBeat(nextBeat)
-    if (nextBeatOnsetMs >= elapsedMs + lookaheadSongMs) break
+    // Reaching a queued section jump (#479): the next beat is the target's, at the boundary's moment.
+    if (jump && !crossedJump && nextBeatOnsetMs >= jump.boundaryMs - JUMP_EPSILON_MS) {
+      const atBoundary =
+        (nextBeatAudioTime ?? audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS) - (nextBeatOnsetMs - jump.boundaryMs) / 1000 / playbackRate
+      anchorSchedule(timeline, jump.toMs, true)
+      nextBeatAudioTime = atBoundary + (nextBeatOnsetMs - jump.toMs) / 1000 / playbackRate
+      crossedJump = { id: jump.id, offsetMs: jump.boundaryMs - jump.toMs }
+      continue
+    }
+    const offsetMs = crossedJump?.offsetMs ?? 0
+    if (nextBeatOnsetMs + offsetMs >= elapsedMs + lookaheadSongMs) break
     if (loop && nextBeatOnsetMs >= loop.endMs) break
-    const converted = audioNow + (nextBeatOnsetMs - elapsedMs) / 1000 / playbackRate - latencyS
+    const converted = audioNow + (nextBeatOnsetMs + offsetMs - elapsedMs) / 1000 / playbackRate - latencyS
     if (nextBeatAudioTime === null || Math.abs(converted - nextBeatAudioTime) > AUDIO_TIME_TOLERANCE_S) {
       nextBeatAudioTime = converted
     }
@@ -180,6 +213,7 @@ export function stopClick(): void {
   nextBeatAudioTime = null
   audioClock.reset()
   lastTickElapsedMs = null
+  crossedJump = null
 }
 
 /** Test-only escape hatch - vitest's jsdom environment has no real AudioContext, and the module

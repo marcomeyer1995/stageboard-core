@@ -1,3 +1,4 @@
+import { jumpBoundaryMs } from './playbackTransport'
 import { useEffect, useRef } from 'react'
 import type { ShowCue } from 'shared-types'
 import { cueLatencyMs } from './capabilityTiming'
@@ -35,6 +36,9 @@ export function useCueScheduler(): void {
   const status = useShowStateStore((state) => state.state.playbackStatus)
   const startedAt = useShowStateStore((state) => state.state.playbackStartedAt)
   const accumulatedMs = useShowStateStore((state) => state.state.playbackAccumulatedMs)
+  // A queued section jump (#479): cues up to its boundary, then the target's - on time, and again
+  // on every pass of a looped section.
+  const jump = useShowStateStore((state) => state.state.playbackJump ?? null)
   const deviceId = useShowStateStore((state) => state.deviceId)
   const activeEntryStartedAt = useShowStateStore((state) => state.state.activeEntryStartedAt)
   // Server cues go out once - from the device that drives the automatic steps (one device even in
@@ -52,6 +56,9 @@ export function useCueScheduler(): void {
   const firedRef = useRef<{ sessionKey: number | null; ids: Set<string> }>({ sessionKey: null, ids: new Set() })
   // Cues whose MIDI was handed to WebMIDI for a moment still ahead (id -> send server time).
   const scheduledRef = useRef(new Map<string, number>())
+  // The target's cues already handed over for a queued jump - its own list, so a repeated section's
+  // cues go out again. Becomes the normal list once the jump is folded into the anchor.
+  const jumpFiredRef = useRef<{ at: number; ids: Set<string> } | null>(null)
 
   const cues: readonly ShowCue[] | undefined = queue.currentVariant?.cues
   const song = queue.currentSong
@@ -65,7 +72,20 @@ export function useCueScheduler(): void {
       // an app reload): only cues still ahead of the current position may fire.
       firedRef.current = { sessionKey: activeEntryStartedAt, ids: new Set(passedCueIds(cues, transport, getServerTime())) }
       scheduledRef.current.clear()
+      jumpFiredRef.current = null
     }
+    // The jump has been folded into the anchor: now in the target's song time, everything before
+    // the target counts as passed, plus what was already sent for it.
+    const folded = jumpFiredRef.current
+    if (folded && (!jump || jump.at !== folded.at)) {
+      if (startedAt === folded.at) firedRef.current.ids = new Set([...cues.filter((cue) => cue.timeMs < accumulatedMs).map((cue) => cue.id), ...folded.ids])
+      jumpFiredRef.current = null
+    }
+    if (jump && jumpFiredRef.current?.at !== jump.at) jumpFiredRef.current = { at: jump.at, ids: new Set() }
+    const boundaryMs = jump ? jumpBoundaryMs({ status, startedAt, accumulatedMs, jump }) : null
+    const before = boundaryMs === null ? cues : cues.filter((cue) => cue.timeMs < boundaryMs)
+    const after = jump && boundaryMs !== null ? cues.filter((cue) => cue.timeMs >= jump.toMs) : []
+    const afterTransport: CueTransport | null = jump ? { status, startedAt: jump.at, accumulatedMs: jump.toMs } : null
 
     // How late each tick comes and each cue is handed over (Diagnose tab, `cueTimingStats.ts`).
     let lastTick: number | null = null
@@ -76,8 +96,14 @@ export function useCueScheduler(): void {
       const fired = firedRef.current.ids
       const now = getServerTime()
       const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles)
-      for (const { cue, sendAt } of cuesToSchedule(cues, transport, now, fired, CUE_LOOKAHEAD_MS, latencyMs)) {
-        fired.add(cue.id)
+      const due = [
+        ...cuesToSchedule(before, transport, now, fired, CUE_LOOKAHEAD_MS, latencyMs).map((item) => ({ ...item, firedIn: fired })),
+        ...(afterTransport && jumpFiredRef.current
+          ? cuesToSchedule(after, afterTransport, now, jumpFiredRef.current.ids, CUE_LOOKAHEAD_MS, latencyMs).map((item) => ({ ...item, firedIn: jumpFiredRef.current!.ids }))
+          : []),
+      ]
+      for (const { cue, sendAt, firedIn } of due) {
+        firedIn.add(cue.id)
         recordHandover(now - sendAt)
         void fireCue(cue, {
           deviceId,
@@ -110,8 +136,11 @@ export function useCueScheduler(): void {
     tick()
     const timer = setInterval(tick, CUE_TICK_MS)
     return () => clearInterval(timer)
-  }, [mode, status, startedAt, accumulatedMs, cues, song, activeEntryStartedAt, logicalDevices, installed, latencyProfiles, deviceId, isMaster])
+  }, [mode, status, startedAt, accumulatedMs, jump, cues, song, activeEntryStartedAt, logicalDevices, installed, latencyProfiles, deviceId, isMaster])
 
+  // When song time 0 lies, in server time - what really changes the moment of a cue. Folding a
+  // passed section jump into the anchor (#479) keeps it, so cues sent for the target stay.
+  const songZeroAt = startedAt === null ? null : jump ? jump.at - jump.toMs : startedAt - accumulatedMs
   // Pause/Stop/seek: MIDI already handed over for a moment that is now not coming. Where WebMIDI
   // can take it back (`MIDIOutput.clear()`), do, and let those cues fire again later; elsewhere
   // they still go out - the price of the short CUE_LOOKAHEAD_MS window (#477).
@@ -125,5 +154,5 @@ export function useCueScheduler(): void {
         for (const id of stillAhead) firedRef.current.ids.delete(id)
       }
     }
-  }, [status, startedAt, accumulatedMs])
+  }, [status, songZeroAt])
 }

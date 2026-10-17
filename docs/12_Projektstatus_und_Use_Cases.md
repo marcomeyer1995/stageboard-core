@@ -403,6 +403,11 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 
 ### 3. Onboarding-Screens
 
+
+#### Abschnitte springen & wiederholen (#479, Schritt 1 seit 2026-10-17, Gig)
+- **Was:** Widget „Abschnitte" (`section-jump`): die Abschnitte des Songs aus den Teilen der Timeline (`showSections.ts`, Start auf den Taktstrich gerastet). Der Master tippt einen an - die Band springt am **Ende des Takts** oder am **Ende des laufenden Abschnitts** dorthin (Wahl im Widget, je Gerät gemerkt); nochmal tippen sagt den Sprung ab, solange er mehr als 0,3 s entfernt ist. „Wiederholen" wiederholt den laufenden Abschnitt, bis es gelöst wird; dann läuft der Song am Abschnittsende weiter.
+- **Wie:** `ShowState.playbackJump {at, toMs}` - ab Serverzeit `at` läuft die Songzeit bei `toMs` weiter (`computeActiveMs`), mindestens 1 s im Voraus angekündigt (`JUMP_NOTICE_MS`). Das Gerät, das die Automatik fährt, faltet einen vergangenen Sprung in den Anker und setzt bei `playbackLoop` vor jedem Abschnittsende den Rücksprung (`useSectionJumpDriver`). Der Klick plant über die Grenze hinweg (Downbeat des Ziels genau auf der Grenze), Cues bis zur Grenze, danach die des Ziels - bei jeder Wiederholung erneut. Pause, Stop und Songwechsel löschen Sprung und Wiederholung.
+- **Grenzen (Schritt 1):** Der Backing-Track springt noch mit einer kurzen Lücke (~0,4 s, Schritt 2: nahtlos), Zustands-Cues vor dem Ziel werden noch nicht nachgeschickt (Schritt 3), MIDI-Clock folgt erst nach dem Falten, kein Fußschalter (Schritt 4). Nur Gig; Solo Üben folgt, wenn sein Track auf Web Audio läuft.
 #### 3.1 JoinBandView – Band beitreten / gründen (`components/JoinBandView.tsx`)
 - **Was:** WLAN-artiger 3-Schritt-Ablauf: (1) verfügbare Bands des konfigurierten Stage-Servers listen (ohne Code) oder QR scannen, (2) Bandcode eingeben, (3) „Wer bist du?" aus dem Roster wählen (`fetchRoster` → `joinAsMember`). Zusätzlich: „Neue Band gründen", „Andere Band oder anderer Code", „Passwort direkt eingeben" (Workspace-ID + Benutzername + Passwort/PIN für Sonderfälle).
 - **Wo:** Vollbild beim allerersten Start; freiwillig erneut aus dem Band-Tab („+ Band → Bestehender Band beitreten"), dann mit „Abbrechen".

@@ -37,6 +37,16 @@ export const ShowStateSchema = z.object({
    * pause/resume cycles - this, not wall-clock `endedAt - at`, is what excludes paused/stopped
    * time from a song's logged duration (#13). */
   playbackAccumulatedMs: z.number(),
+  /** A section jump in the show (#479): from server time `at` on, the song continues at song time
+   * `toMs` - every device computes the same song time from it (playbackTransport.ts), and click,
+   * track and cues schedule across it. `at` lies on a bar or section boundary, far enough ahead for
+   * every device to prepare. Folded into `playbackStartedAt`/`playbackAccumulatedMs` by the driving
+   * device once it has passed. `label`: the target section, for the screens. Optional: older
+   * devices leave it out. */
+  playbackJump: z.object({ at: z.number(), toMs: z.number(), label: z.string().optional() }).nullable().optional(),
+  /** A section repeated until released (#479): the driving device queues a jump back to `startMs`
+   * before every `endMs`. Released, the song simply runs on past `endMs`. Optional, like above. */
+  playbackLoop: z.object({ startMs: z.number(), endMs: z.number(), label: z.string().optional() }).nullable().optional(),
   /** Per-device track swap for the *shared* live audio feed - e.g. tonight's second guitarist
    * is out, so the whole band needs the "1 guitar" mix instead of the setlist's declared
    * default. Unlike the setlist's own SetlistEntry.trackId (a lasting choice for that song),

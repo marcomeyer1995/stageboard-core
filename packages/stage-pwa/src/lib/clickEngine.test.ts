@@ -434,3 +434,42 @@ describe('"Klick aus" stretches (#485)', () => {
     expect(starts).toEqual([500, 2000, 2500]) // 1000 and 1500 silent (0 = the start itself, never scheduled)
   })
 })
+
+describe('section jump in the show (#479)', () => {
+  const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4' }) // 500 ms beats, 2000 ms bars
+  const clicks = () =>
+    fakeCtx.createOscillator.mock.results.map((result) => {
+      const osc = result.value as FakeOscillator
+      return { at: osc.start.mock.calls[0][0] as number, downbeat: osc.frequency.value === 1500 }
+    })
+
+  function run(jump: { id: number; boundaryMs: number; toMs: number }, startMs: number, steps: number): void {
+    let wallMs = 0
+    const songMs = () => {
+      const old = startMs + wallMs
+      return old >= jump.boundaryMs ? jump.toMs + (old - jump.boundaryMs) : old
+    }
+    startClick(() => ({ timeline, elapsedMs: songMs(), jump }))
+    for (let i = 0; i < steps; i++) {
+      vi.advanceTimersByTime(50)
+      wallMs += 50
+      fakeCtx.currentTime += 0.05
+    }
+  }
+
+  it('jumps back without a hiccup: one beat apart throughout, the target downbeat on the boundary', () => {
+    // From 7.7 s: at bar 5 (8 s) back to bar 2 (2 s).
+    run({ id: 1, boundaryMs: 8000, toMs: 2000 }, 7700, 40)
+    const all = clicks()
+    for (let i = 1; i < all.length; i++) expect(all[i].at - all[i - 1].at).toBeCloseTo(0.5, 3)
+    const atBoundary = all.find((c) => Math.abs(c.at - (1000 + 0.3)) < 0.01)
+    expect(atBoundary?.downbeat).toBe(true)
+  })
+
+  it('jumps forward the same way (skipping a section)', () => {
+    run({ id: 2, boundaryMs: 8000, toMs: 16000 }, 7700, 40)
+    const all = clicks()
+    for (let i = 1; i < all.length; i++) expect(all[i].at - all[i - 1].at).toBeCloseTo(0.5, 3)
+    expect(all.find((c) => Math.abs(c.at - 1000.3) < 0.01)?.downbeat).toBe(true)
+  })
+})

@@ -1,3 +1,5 @@
+import { jumpBoundaryMs } from './playbackTransport'
+import { useShowStateStore } from '../store/useShowStateStore'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
@@ -103,6 +105,15 @@ export function useClickOutputDriver(): void {
     const at = playbackLookup(cues ?? [])
     return (ms: number) => at(ms).click
   }, [cues])
+  // A queued section jump in the show (#479): the click schedules across it.
+  const playbackJump = useShowStateStore((state) => state.state.playbackJump)
+  const startedAt = useShowStateStore((state) => state.state.playbackStartedAt)
+  const accumulatedMs = useShowStateStore((state) => state.state.playbackAccumulatedMs)
+  const jump = useMemo(() => {
+    if (mode !== 'gig' || !playbackJump) return null
+    const boundaryMs = jumpBoundaryMs({ status: 'playing', startedAt, accumulatedMs, jump: playbackJump })
+    return boundaryMs === null ? null : { id: playbackJump.at, boundaryMs, toMs: playbackJump.toMs }
+  }, [mode, playbackJump, startedAt, accumulatedMs])
   const stateRef = useRef<ClickEngineState>({ elapsedMs, timeline })
   useEffect(() => {
     stateRef.current = {
@@ -113,6 +124,7 @@ export function useClickOutputDriver(): void {
       ...loopClickState(loopActive),
       outputLatencyMs,
       clickOnAt,
+      jump,
     }
   })
 

@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Repeat,
   ArrowRight,
   ArrowUpDown,
   Ban,
@@ -93,6 +94,8 @@ const ICONS = {
   decrease: Minus,
   increase: Plus,
   edit: Pencil,
+  /** A section repeated in the show (#479). */
+  repeat: Repeat,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS
