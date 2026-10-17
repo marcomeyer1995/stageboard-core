@@ -1,4 +1,4 @@
-import { useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBackHandler } from '../../lib/backNavigation'
 import { Button } from './Button'
@@ -21,6 +21,9 @@ export interface DialogProps {
   /** false: a tap beside the dialog does nothing - for a form whose input a stray tap would throw
    * away ("Neuer Song": only "Abbrechen"/"Weiter" close it, Marco 2026-10-09). */
   closeOnBackdrop?: boolean
+  /** While a slider in it is dragged, the dialog and the dimming behind it turn see-through - for
+   * settings whose effect shows behind it, e.g. a widget's text size (Marco, 2026-10-17). */
+  seeThroughWhileSliding?: boolean
 }
 
 /**
@@ -31,7 +34,7 @@ export interface DialogProps {
  * only names the dialog. Back gesture and a tap beside the dialog close it (unless `closeOnBackdrop`
  * is false).
  */
-export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm', closeOnBackdrop = true }: DialogProps) {
+export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm', closeOnBackdrop = true, seeThroughWhileSliding = false }: DialogProps) {
   useBackHandler(onClose)
   // Only a tap that also started on the backdrop closes: a press in a field that ends beside the
   // dialog - or one the dialog moved away from when the keyboard went down - is not "beside it".
@@ -40,13 +43,24 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   // Phone in landscape (under 300 px of height in the browser): no title row - the dialog keeps
   // its name for screen readers - and slimmer rows, so the content gets the height.
   const low = useMediaQuery(LOW_SCREEN)
+  const [sliding, setSliding] = useState(false)
+  useEffect(() => {
+    if (!sliding) return
+    const stop = () => setSliding(false)
+    document.addEventListener('pointerup', stop)
+    document.addEventListener('pointercancel', stop)
+    return () => {
+      document.removeEventListener('pointerup', stop)
+      document.removeEventListener('pointercancel', stop)
+    }
+  }, [sliding])
   return createPortal(
     // Dialogs are set-up, not stage (docs/15 D10): the Vorbereitung tier inside.
     <PrepTier>
       {/* h-dvh like DialogHost: the visible height, not the large viewport behind a browser's toolbar -
         with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review). */}
       <div
-        className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center bg-scrim/60 sb-pad-safe ${typing.active ? 'items-start' : 'items-center'}`}
+        className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center transition-colors sb-pad-safe ${sliding ? 'bg-transparent' : 'bg-scrim/60'} ${typing.active ? 'items-start' : 'items-center'}`}
         onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
         onClick={(e) => {
           if (closeOnBackdrop && pressedBackdrop.current && e.target === e.currentTarget) onClose()
@@ -59,7 +73,11 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
           aria-label={title}
           data-typing={typing.active || undefined}
           onClick={(e) => e.stopPropagation()}
-          onPointerDown={typing.onPointerDown}
+          onPointerDown={(e) => {
+            typing.onPointerDown(e)
+            if (seeThroughWhileSliding && e.target instanceof HTMLInputElement && e.target.type === 'range') setSliding(true)
+          }}
+          data-see-through={sliding || undefined}
           onFocus={typing.onFocus}
           onBlur={typing.onBlur}
           // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
@@ -67,7 +85,7 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
           // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
           // Otherwise all the height the backdrop's safe padding leaves (max-h-full) - the Xiaomi in
           // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
-          className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb ${CONTAINER}`}
+          className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb transition-opacity ${sliding ? 'opacity-25' : ''} ${CONTAINER}`}
         >
           <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
             <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>
