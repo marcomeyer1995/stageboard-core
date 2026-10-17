@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type Device } from 'shared-types'
+import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type Device, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
 import { useNow } from '../lib/useNow'
 import { useStageServerStatus } from '../lib/useStageServerStatus'
@@ -11,6 +11,7 @@ import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
 import { ActionMenu, Badge, Button } from './ui'
 import { BackupStatusLine } from './BackupStatusLine'
+import { BUILT_IN_OUTPUTS, builtInRoles } from './BuiltInOutputs'
 import { LatencyProfileDialog, LatencySummary } from './LatencyProfiles'
 
 /** How long the Stage-Server has to collect reports before a missing one means "inactive". */
@@ -95,7 +96,14 @@ export function DeviceLedgerView() {
   const myId = getDeviceId()
   /** Hardware that runs on a device (Hardware tab, `executionTarget`) - such a device is never
    * removed (Marco, 2026-10-07); the row names what has to move first. */
-  const usedBy = (deviceId: string) => logicalDevices.filter((d) => d.executionTarget === deviceId).map((d) => d.name)
+  const usedBy = (deviceId: string) => logicalDevices.filter((d) => d.executionTarget === deviceId).map(displayName)
+  /** Klick / Backing-Track / Ansagen by the name Bühnentechnik shows - old roles still carry their
+   * plugin-era names "Click", "Mock Playback" (Marco, 2026-10-17). */
+  const builtIn = builtInRoles(logicalDevices)
+  function displayName(device: LogicalDevice): string {
+    if (!builtIn.includes(device)) return device.name
+    return BUILT_IN_OUTPUTS.find((output) => output.capability === device.capability)?.label ?? device.name
+  }
   /** Live signal (app open or reachable). Right after a Stage-Server start no device has reported
    * yet - then every device would look inactive (found on the real server, 2026-10-07), so
    * missing reports only count once the server has collected for a while; an older server
