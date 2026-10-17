@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { guessDeviceName } from './guessDeviceName'
+import { firstDeviceName, guessDeviceName } from './guessDeviceName'
 
 function withUserAgent(ua: string): void {
   Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true })
@@ -42,5 +42,17 @@ describe('guessDeviceName', () => {
   it('falls back to a generic name for an unrecognized user agent', () => {
     withUserAgent('SomeExoticBrowser/1.0')
     expect(guessDeviceName()).toBe('Unbekanntes Gerät')
+  })
+})
+
+describe('firstDeviceName', () => {
+  it('numbers a name the band already has, adds "Dev" for the dev app (Marco 2026-10-17)', () => {
+    withUserAgent('Mozilla/5.0 (Linux; Android 14; 24075RP89G) Safari/537.36')
+    expect(firstDeviceName([], false)).toBe('Android-Tablet')
+    expect(firstDeviceName(['android-tablet'], false)).toBe('Android-Tablet 2')
+    expect(firstDeviceName(['Android-Tablet', 'Android-Tablet 2'], false)).toBe('Android-Tablet 3')
+    expect(firstDeviceName(['Android-Tablet'], true)).toBe('Android-Tablet Dev')
+    expect(firstDeviceName(['Android-Tablet Dev'], true)).toBe('Android-Tablet Dev 2')
+    withUserAgent(ORIGINAL_UA)
   })
 })

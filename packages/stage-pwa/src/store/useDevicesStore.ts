@@ -4,7 +4,7 @@ import type { Device } from 'shared-types'
 import { getAllDevices, putDevice, devicesChanges, switchDevicesWorkspace } from '../lib/devicesDb'
 import { getDeviceId } from '../lib/deviceId'
 import { rememberDeviceName, rememberedDeviceName } from '../lib/ownDeviceName'
-import { guessDeviceName } from '../lib/guessDeviceName'
+import { firstDeviceName } from '../lib/guessDeviceName'
 import { getStageServerUrl } from '../lib/stageServer'
 import { useDialogStore } from './useDialogStore'
 import { useWorkspaceStore } from './useWorkspaceStore'
@@ -44,7 +44,7 @@ async function refresh(set: (partial: Partial<DevicesState>) => void) {
 /**
  * The workspace-wide DeviceRegistry (#10's first slice) - `init` doubles as this device's own
  * self-registration: create a registry entry the first time this device is ever seen in this
- * workspace (auto-named via guessDeviceName.ts, always renameable after - see
+ * workspace (auto-named via guessDeviceName.ts firstDeviceName, always renameable after - see
  * DeviceNameSettings.tsx), or just refresh its `lastSeenAt` if it's been a while.
  */
 export const useDevicesStore = create<DevicesState>((set, get) => ({
@@ -64,7 +64,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     if (!mine) {
       const now = Date.now()
       // Back under its own name after "Aus Liste entfernen" (lib/ownDeviceName.ts).
-      await putDevice({ id: deviceId, name: rememberedDeviceName() ?? guessDeviceName(), lastSeenAt: now, firstSeenAt: now, revoked: false })
+      await putDevice({ id: deviceId, name: rememberedDeviceName() ?? firstDeviceName(docs.map((device) => device.name)), lastSeenAt: now, firstSeenAt: now, revoked: false })
     } else if (!mine.firstSeenAt) {
       // Backfill for a doc written before `firstSeenAt`/`revoked` existed (Device Ledger,
       // 2026-09-08) - unconditional on staleness, unlike the plain lastSeenAt refresh below,

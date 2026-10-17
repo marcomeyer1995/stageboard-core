@@ -27,7 +27,7 @@ vi.mock('../lib/devicesDb', () => ({
 }))
 
 vi.mock('../lib/deviceId', () => ({ getDeviceId: () => 'this-device' }))
-vi.mock('../lib/guessDeviceName', () => ({ guessDeviceName: () => 'iPad' }))
+vi.mock('../lib/guessDeviceName', () => ({ firstDeviceName: () => 'iPad' }))
 
 const { useDevicesStore } = await import('./useDevicesStore')
 const { useWorkspaceStore } = await import('./useWorkspaceStore')
