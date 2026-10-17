@@ -26,6 +26,9 @@ import { sourceOutput } from './audioMix'
 const LEAD_S = 0.15
 /** Same, when the position isn't decoded in advance (a jump, a start mid-song): open, seek, decode. */
 const STREAM_LEAD_S = 0.4
+/** A queued section jump (#479) is taken over this long before its boundary - after the moment
+ * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
+const JUMP_COMMIT_S = 0.9
 /** During the count-in the track is scheduled this long before song time 0. */
 const PREPARE_BEFORE_S = 1.5
 /** Decoded audio is scheduled this far ahead of what plays. */
@@ -117,7 +120,7 @@ interface Voice {
   /** Set when this voice is the target of a section jump (#479): it starts at the boundary with
    * the target (`toS`), the voice before it fading out there (`replacedGain`). Until then the song
    * clock still reads the old section. */
-  jump: { id: number; boundaryS: number; toS: number; replacedGain: GainNode | null } | null
+  jump: { id: number; boundaryS: number; toS: number; startsAt: number; replacedGain: GainNode | null } | null
 }
 
 /** A section jump queued in the show (#479): at song time `boundaryMs` the song continues at
@@ -474,20 +477,25 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   // fades out there, a new one starts with the target. Prepared as soon as it is queued (a second or
   // more ahead), so the target is decoded in time.
   const jump = jumpNow()
-  if (voice.jump && now < voice.seg.anchorTime && (!jump || jump.id !== voice.jump.id)) {
+  // Its own start time, not `seg.anchorTime` - that moves seconds ahead with every drift correction,
+  // and a jump long done then looked "called off": the track restarted every few seconds after a
+  // jump (2026-10-17, 15 restarts in a minute on the Xiaomi).
+  if (voice.jump && now < voice.jump.startsAt && (!jump || jump.id !== voice.jump.id)) {
     // Called off before it happened: back to the song as it runs (with a short restart).
     voice.jump.replacedGain?.gain.setTargetAtTime(0, ctx.currentTime, FADE_S / 3)
     stopVoice()
     return { blocked: false }
   }
-  if (jump && voice.jump?.id !== jump.id && (voice.jump === null || now >= voice.seg.anchorTime)) {
+  if (jump && voice.jump?.id !== jump.id && (voice.jump === null || now >= voice.jump.startsAt)) {
     const boundaryAt = timeOf(voice, jump.boundaryMs / 1000)
-    if (boundaryAt - now > STREAM_LEAD_S) {
+    // Taken over late enough that it can't be called off any more (sectionJump.ts CANCEL_MIN_MS),
+    // early enough for the target to be decoded.
+    if (boundaryAt - now > STREAM_LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
       const replacedGain = voice.gain
       stopVoice(boundaryAt - FADE_S / 2)
       startVoice(ctx, prepared, boundaryAt, jump.toMs / 1000)
       const started = voice as Voice | null
-      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, replacedGain }
+      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: boundaryAt, replacedGain }
       stats.jumps++
       return { blocked: false }
     }
