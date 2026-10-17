@@ -5,4 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_APP_VERSION_CODE?: string
   /** '1' in the dev app's build ("StageBoard Dev", docs/03 §0c) - offers the test plugins. */
   readonly VITE_DEV_APP?: string
+  /** A build for sale (#546): leaves the legally risky add-ons out of the catalog. */
+  readonly VITE_SALE_BUILD?: string
 }

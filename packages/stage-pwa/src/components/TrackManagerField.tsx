@@ -47,6 +47,8 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     .sort((a, b) => a.createdAt - b.createdAt)
   const installed = usePluginsStore((state) => state.installed)
   const canSeparate = pluginProviding(installed, CAPABILITIES.stemSeparation) !== null
+  // "Von YouTube laden" only with the YouTube-Download add-on (#546).
+  const canDownload = pluginProviding(installed, CAPABILITIES.videoDownload) !== null
   const promptFields = useDialogStore((state) => state.promptFields)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
@@ -258,6 +260,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           ))}
         </div>
       )}
+      {canDownload && (
       <form onSubmit={handleYoutubeSubmit} className="flex items-center gap-2">
         <input
           type="url"
@@ -271,6 +274,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           Von YouTube laden
         </Button>
       </form>
+      )}
       {youtubeError && <span className="text-xs text-danger">{youtubeError}</span>}
       <div className="flex items-center gap-2">
         <select

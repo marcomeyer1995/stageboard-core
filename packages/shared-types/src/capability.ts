@@ -40,4 +40,10 @@ export const CAPABILITIES = {
   /** Spoken section announcements in the in-ears (#63): "Chorus", "Bridge" a bar before the part,
    * played on the click's Web Audio clock - an audio source like click and track. */
   sectionAnnouncements: 'section-announcements',
+  /** Chord sheets from Ultimate Guitar in "Song importieren" (#546): an add-on - scraping a third
+   * party's site is legally risky (docs/16), so a sale build can leave it out. */
+  chordImport: 'chord-import',
+  /** A reference recording downloaded from YouTube onto the Stage-Server (yt-dlp, #5/#546): an
+   * add-on for the same reason. */
+  videoDownload: 'video-download',
 } as const satisfies Record<string, CapabilityId>

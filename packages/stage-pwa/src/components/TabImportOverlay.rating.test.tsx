@@ -12,6 +12,11 @@ vi.mock('../lib/lookupClient', () => ({
   fetchLookupDetail: vi.fn(),
 }))
 
+const plugins = vi.hoisted(() => ({
+  installed: [{ id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }] as unknown[],
+}))
+vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: (select: (state: typeof plugins) => unknown) => select(plugins) }))
+
 const { TabImportOverlay } = await import('./TabImportOverlay')
 
 describe('TabImportOverlay - star rating (Marco, 2026-10-05)', () => {

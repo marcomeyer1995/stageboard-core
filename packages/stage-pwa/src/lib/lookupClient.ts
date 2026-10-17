@@ -1,5 +1,11 @@
 import type { LookupResult } from 'shared-types'
 import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE, STAGE_SERVER_UNREACHABLE_MESSAGE } from './stageServer'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
+
+/** The band, so the server can check its add-ons (Ultimate Guitar, #546). */
+function bandParam(): string {
+  return `&workspace=${encodeURIComponent(useWorkspaceStore.getState().activeWorkspaceId)}`
+}
 
 export type LookupClientResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string }
 
@@ -26,12 +32,12 @@ export async function searchLookup(
   provider: string,
   query: string,
 ): Promise<LookupClientResult<LookupResult[]>> {
-  return getJson(`/lookup/${provider}/search?q=${encodeURIComponent(query)}`)
+  return getJson(`/lookup/${provider}/search?q=${encodeURIComponent(query)}${bandParam()}`)
 }
 
 export async function fetchLookupDetail(
   provider: string,
   resultId: string,
 ): Promise<LookupClientResult<Record<string, unknown>>> {
-  return getJson(`/lookup/${provider}/detail?resultId=${encodeURIComponent(resultId)}`)
+  return getJson(`/lookup/${provider}/detail?resultId=${encodeURIComponent(resultId)}${bandParam()}`)
 }
