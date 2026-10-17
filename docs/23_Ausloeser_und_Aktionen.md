@@ -75,7 +75,7 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 - **Aktion wählen** – ein Dialog, überall gleich: erst die Gruppe (Show, Abschnitte, Wiedergabe, Gerät, Ablauf), dann die Aktion, dann ihre Werte (Abschnitt, Zeitpunkt; bei Geräten dieselben Felder wie im Cue-Dialog).
 - **Tasten & Pedale** (System → Dieses Gerät): Liste „Taste → Aktion“, neue Zeile per „Pedal jetzt drücken“ wie heute.
 - **MIDI-Controller** (Bühnentechnik): ein Gerät „MIDI-Controller“; in seinem ⋯ „Knöpfe belegen“ – Knopf drücken, Aktion wählen.
-- **Widget „Trigger-Button“**: im ⋯-Menü statt Typ + JSON der Aktions-Dialog.
+- **Widget „Trigger-Button“**: im ⋯-Menü statt Typ + JSON der Aktions-Dialog – mit allen Aktionen, auch Show und Abschnitte (entschieden 2026-10-18).
 
 ## 8. Übergang
 
@@ -96,5 +96,5 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 1. ~~Nicht-Master~~ – entschieden: §5a.
 2. Abläufe: alle Aktionen sofort hintereinander, oder mit Abständen (in Takten oder ms)?
 3. ~~Name oder Nummer~~ – entschieden: über den Namen.
-4. Soll ein Widget-Knopf auch Show- und Abschnitts-Aktionen auslösen dürfen (dann gibt es eine zweite Art, Weiter oder Springen auf ein Dashboard zu legen)?
+4. ~~Widget-Knopf~~ – entschieden: ja, jede Aktion (Show, Abschnitte, Wiedergabe, Gerät, Ablauf) – so vielseitig wie möglich; die Rechte (§5a) gelten auch hier.
 5. Gerätebefehle von einem Gerät, das nicht Master ist (z. B. der Gitarrist schaltet mit seinem Pedal den eigenen Kemper um): erlaubt – oder auch nur für den Master? Heute löst der Trigger-Button Gerätebefehle auf jedem Gerät aus.
