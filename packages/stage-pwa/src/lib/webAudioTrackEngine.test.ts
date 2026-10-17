@@ -260,3 +260,35 @@ describe('webAudioTrackEngine, streaming (#468)', () => {
     expect(nodes.some((n) => !old.includes(n))).toBe(true)
   })
 })
+
+describe('webAudioTrackEngine, section jump in the show (#479)', () => {
+  it('the target section comes in exactly at the boundary - the old voice ends there, no restart after it', async () => {
+    await loadWebAudioTrack('v', 'a')
+    // Playing from 10 s; at song 12 s the band jumps back to 4 s.
+    const jump = { id: 1, boundaryMs: 12_000, toMs: 4_000 }
+    const startWall = wallMs
+    const song = () => {
+      const old = 10_000 + (wallMs - startWall)
+      return old >= jump.boundaryMs ? jump.toMs + (old - jump.boundaryMs) : old
+    }
+    syncWebAudioTrack(song, true, () => jump)
+    // A few frames to start the first voice, then the jump is taken over well ahead.
+    for (let t = 0; t < 3_000; t += 16) {
+      syncWebAudioTrack(song, true, () => jump)
+      wallMs += 16
+      await vi.advanceTimersByTimeAsync(16)
+    }
+    await flush()
+    const stats = __webAudioTrackStatsForTests()
+    expect(stats.jumps).toBe(1)
+    expect(stats.reschedules).toHaveLength(0)
+    // Song 12 s is reached 2 s after the start - that audio moment is the boundary.
+    const boundaryAt = 100 + (startWall + 2_000) / 1000
+    const before = nodes.filter((n) => n.when < boundaryAt - 0.05)
+    const after = nodes.filter((n) => n.when >= boundaryAt - 0.05)
+    // Nothing of the old song sounds past the boundary (beyond the short fade) ...
+    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.03)).toBe(true)
+    // ... and the target comes in right on it.
+    expect(Math.min(...after.map((n) => n.when))).toBeCloseTo(boundaryAt, 2)
+  })
+})

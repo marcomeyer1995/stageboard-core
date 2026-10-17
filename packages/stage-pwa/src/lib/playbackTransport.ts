@@ -1,4 +1,4 @@
-import type { PlaybackStatus } from 'shared-types'
+import type { PlaybackStatus, ShowState } from 'shared-types'
 
 export type { PlaybackStatus }
 
@@ -18,6 +18,11 @@ export interface SectionJump {
   at: number
   toMs: number
   label?: string
+}
+
+/** The transport slice of a show state. */
+export function transportOf(state: ShowState): TransportState {
+  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
 }
 
 /** "Unarmed": no time accumulated, nothing running. What Reset always returns to, and what a
