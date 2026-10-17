@@ -99,8 +99,10 @@ export function ChordProLyrics({
                 </pre>
               </div>
             ) : isChordOnlyLine(line) ? (
-              // Instrumental chord row: chords inline at lyric size, in the accent colour - they
-              // are the content of this row, not an annotation above it.
+              // Instrumental chord row: chords inline, in the accent colour - they are the content of
+              // this row, not an annotation above it. At the chord size like every other chord (Marco,
+              // 2026-10-17: the intro's chords were lyric size, the verse's chord size); the bars and
+              // spaces between them stay at lyric size.
               <p
                 data-line-index={lineIndex}
                 className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
@@ -109,7 +111,11 @@ export function ChordProLyrics({
               >
                 {line.segments.map((segment, segmentIndex) => (
                   <span key={segmentIndex}>
-                    {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
+                    {segment.chord && (
+                      <span style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }} className="font-bold text-accent">
+                        {segment.chord}
+                      </span>
+                    )}
                     <span className="text-ink-faint">{segment.text}</span>
                   </span>
                 ))}
@@ -201,7 +207,9 @@ function LyricLine({
             <>
               {'\u200B'}
               {segment.chord && (
-                <span aria-hidden="true" style={chordStyle} className={`${chordSizeClass} invisible pr-[0.6em] font-bold`}>
+                // lineHeight 0: only its width counts. A chord larger than the lyrics otherwise made
+                // this segment taller, and its chord stood higher than the others (Marco, 2026-10-17).
+                <span aria-hidden="true" style={{ ...chordStyle, lineHeight: 0 }} className={`${chordSizeClass} invisible pr-[0.6em] font-bold`}>
                   {segment.chord}
                 </span>
               )}
