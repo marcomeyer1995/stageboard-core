@@ -88,3 +88,17 @@ describe('NextSongWidget - takeover (2026-10-16)', () => {
     expect(screen.getByText('Were not gonna take it')).toBeInTheDocument()
   })
 })
+
+describe('NextSongWidget - declutter (Marco 2026-10-17)', () => {
+  it('hides "Aktuell" or "Next" when switched off in the ⋯ menu', () => {
+    mockSize.width = 422
+    mockSize.height = 119
+    mockQueue()
+    const { rerender } = render(<NextSongWidget config={{ showCurrent: false }} />)
+    expect(screen.queryByText('Were not gonna take it')).toBeNull()
+    expect(screen.getByText('Bohemian Rhapsody')).toBeInTheDocument()
+    rerender(<NextSongWidget config={{ showNext: false }} />)
+    expect(screen.getByText('Were not gonna take it')).toBeInTheDocument()
+    expect(screen.queryByText('Bohemian Rhapsody')).toBeNull()
+  })
+})

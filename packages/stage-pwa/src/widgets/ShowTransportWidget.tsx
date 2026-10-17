@@ -1,3 +1,4 @@
+import { Switch } from '../components/ui'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { useState } from 'react'
 import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-types'
@@ -84,6 +85,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const touchSizes = useTouchSizes()
   const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize), touchSizes)
   const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
+  // Off in the ⋯ menu: only the running time (the status bar has the title, Marco 2026-10-17).
+  const showTitle = layout.showTitle && config.showTitle !== false
   const infoClockFontSize = layout.compactInfo ? READOUT_MIN : clockFontSize
 
   async function forward(event: ShowControlEvent) {
@@ -120,8 +123,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
 
   return (
     <div ref={boxRef} className={`flex h-full gap-2 text-ink-soft ${layout.row ? 'items-stretch' : 'flex-col'}`}>
-      <div className={`flex items-baseline gap-3 ${layout.row ? `self-center ${layout.showTitle ? 'min-w-0 flex-1' : 'flex-none'}` : 'w-full flex-none'}`}>
-        <span style={{ fontSize: infoTitleFontSize }} className={`min-w-0 flex-1 truncate ${layout.showTitle ? '' : 'hidden'}`}>
+      <div className={`flex items-baseline gap-3 ${layout.row ? `self-center ${showTitle ? 'min-w-0 flex-1' : 'flex-none'}` : 'w-full flex-none'}`}>
+        <span style={{ fontSize: infoTitleFontSize }} className={`min-w-0 flex-1 truncate ${showTitle ? '' : 'hidden'}`}>
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
@@ -135,7 +138,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
         </span>
       </div>
       <div
-        className={`grid gap-2 ${layout.row ? (layout.showTitle ? 'w-[60%] flex-none' : 'min-w-0 flex-1') : 'min-h-0 flex-1'} ${
+        className={`grid gap-2 ${layout.row ? (showTitle ? 'w-[60%] flex-none' : 'min-w-0 flex-1') : 'min-h-0 flex-1'} ${
           layout.columns === 4 ? 'grid-cols-4' : 'grid-cols-2 grid-rows-2'
         }`}
       >
@@ -221,6 +224,7 @@ export function ShowTransportConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
+      <Switch label="Songtitel anzeigen" checked={config.showTitle !== false} onChange={(on) => onChange({ ...config, showTitle: on ? undefined : false })} />
       <SizeRatioSlider
         label="Titel & Uhr"
         ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}

@@ -132,3 +132,17 @@ describe('PrompterWidget - targeted comment filtering (issue #215 follow-up)', (
     expect(screen.getByText('Start solo fret 7')).toBeInTheDocument()
   })
 })
+
+describe('PrompterWidget - header (Marco 2026-10-17)', () => {
+  it('has no "Now Playing" and hides the title when switched off', () => {
+    mockShowMode(song('Lyric line'))
+    mockRoster([])
+    vi.mocked(useActiveProfile).mockReturnValue(profile('p1', 'Marco'))
+    const { rerender } = render(<PrompterWidget config={config} />)
+    expect(screen.queryByText(/now playing/i)).toBeNull()
+    expect(screen.getByText('Test Song')).toBeInTheDocument()
+    rerender(<PrompterWidget config={{ ...config, showTitle: false }} />)
+    expect(screen.queryByText('Test Song')).toBeNull()
+    expect(screen.getByText('Lyric line')).toBeInTheDocument()
+  })
+})
