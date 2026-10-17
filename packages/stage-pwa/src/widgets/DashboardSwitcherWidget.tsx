@@ -1,3 +1,4 @@
+import { useTouchSizes } from '../components/ui/PrepTier'
 import { Segmented } from '../components/ui'
 import { DEFAULT_SIZE_RATIO, type DashboardSwitcherConfig } from './dashboardSwitcherConfig'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
@@ -36,7 +37,8 @@ export function DashboardSwitcherView({ config }: { config: DashboardSwitcherCon
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
   const [boxRef, box] = useElementSize()
   const vertical = config.orientation === 'vertical'
-  const { wrap } = switcherLayout(box.height)
+  const touchSizes = useTouchSizes()
+  const { wrap } = switcherLayout(box.height, touchSizes)
 
   return (
     <div

@@ -1,4 +1,4 @@
-import { GAP, LINE, TOUCH, lineHeightFor } from './gigWidgetLayout'
+import { GAP, LINE, STAGE_TOUCH, lineHeightFor, type TouchSizes } from './gigWidgetLayout'
 
 /**
  * Size-dependent layouts for the remaining widgets (PR D of the stage GUI audit, 2026-09-27) -
@@ -92,9 +92,9 @@ export interface TrackOverrideLayout {
 }
 
 /** Variante & Track: the selects keep their touch height, the captions give way. */
-export function trackOverrideLayout(height: number, labelFont: number, selects: 1 | 2): TrackOverrideLayout {
+export function trackOverrideLayout(height: number, labelFont: number, selects: 1 | 2, sizes: TouchSizes = STAGE_TOUCH): TrackOverrideLayout {
   if (height <= 0) return { showLabels: true }
-  const perSelect = lineHeightFor(labelFont) + GAP + TOUCH
+  const perSelect = lineHeightFor(labelFont) + GAP + sizes.touch
   return { showLabels: height >= selects * perSelect + (selects - 1) * GAP }
 }
 
@@ -106,8 +106,8 @@ export interface SwitcherLayout {
 /** Dashboard-Umschalter (horizontal): buttons are as wide as their names - never cut off - and
  * wrap onto further rows when the widget is tall enough for two touch-height rows, otherwise
  * the single row scrolls sideways. */
-export function switcherLayout(height: number): SwitcherLayout {
-  return { wrap: height >= 2 * TOUCH + GAP }
+export function switcherLayout(height: number, sizes: TouchSizes = STAGE_TOUCH): SwitcherLayout {
+  return { wrap: height >= 2 * sizes.touch + GAP }
 }
 
 /** The Quintenzirkel's SVG is drawn in a 200-unit box. */

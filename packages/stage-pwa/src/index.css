@@ -6,6 +6,14 @@
   .sb-prep {
     --sb-text-secondary: 0.875rem;
   }
+  /* Üben tier (docs/15 D10): a dashboard offered only in Solo Üben - stage controls and show
+     actions 48 px (PracticeTier). Every alias is set again: a var() resolves where it is defined. */
+  .sb-practice {
+    --sb-touch: 3rem;
+    --sb-touch-primary: 3rem;
+    --sb-h-stage: 3rem;
+    --sb-h-show: 3rem;
+  }
   /* A 40 px control still answers to a 48 px finger: the hit area reaches 4 px above and below
      (and beside, for square ones), invisibly. In a layer, so `absolute` & co. still win. */
   .sb-hit {
