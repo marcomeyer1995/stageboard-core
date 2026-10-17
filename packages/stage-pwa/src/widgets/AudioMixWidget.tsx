@@ -26,15 +26,17 @@ export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
   const silentHere = mode === 'gig' && click !== 'local-mine' && track !== 'local-mine'
   // Vertical faders need height: in a short or narrow widget (the phone's grid) they shrank to
   // 30 px and the three "Stumm" chips overlapped (2026-10-16) - one row per source instead.
+  // Measured on the faders' own area, not the whole widget: the Gig hint below takes its share,
+  // and the faders used to run under it, over the Ansagen "Stumm" chip (2026-10-17).
   const [boxRef, box] = useElementSize()
   const horizontal = box.width > 0 && (box.height < VERTICAL_MIN_H || box.width < VERTICAL_MIN_W)
 
   return (
-    <div ref={boxRef} className={`flex h-full w-full flex-col gap-2 ${horizontal ? 'overflow-y-auto' : ''}`}>
-      <div className="min-h-0 flex-1">
+    <div className="flex h-full w-full flex-col gap-2">
+      <div ref={boxRef} className={`min-h-0 flex-1 ${horizontal ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         <MixFaders orientation={horizontal ? 'horizontal' : 'vertical'} fontSize={fontSize} size="stage" />
       </div>
-      {silentHere && <p className="text-base text-ink-faint">Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline.</p>}
+      {silentHere && <p className="flex-shrink-0 text-base text-ink-faint">Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline.</p>}
     </div>
   )
 }
