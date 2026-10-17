@@ -171,6 +171,17 @@ describe('DeviceLedgerView', () => {
     expect(screen.getByRole('button', { name: 'Aus Liste entfernen' })).toBeDisabled()
   })
 
+  it('built-in outputs read as in Bühnentechnik, not by their old role names', () => {
+    useLogicalDevicesStore.setState({
+      devices: [
+        { id: 'c', name: 'Click', capability: 'click-track', pluginId: 'mock-click', executionTarget: 'device-1' },
+        { id: 'p', name: 'Mock Playback', capability: 'audio-playback', pluginId: null, executionTarget: 'device-1' },
+      ] as never,
+    })
+    render(<DeviceLedgerView />)
+    expect(screen.getByText(/In Verwendung: Klick, Backing-Track - im Tab Bühnentechnik/)).toBeInTheDocument()
+  })
+
   it('"Inaktive entfernen" takes every device without a live signal once the server has collected for 5 minutes - not blocked, not used, not this one', async () => {
     const forget = vi.fn().mockResolvedValue('removed')
     const old = Date.now() - 10 * 86_400_000
