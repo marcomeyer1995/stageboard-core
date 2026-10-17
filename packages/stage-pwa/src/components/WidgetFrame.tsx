@@ -1,7 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import type { CapabilityStatus } from '../lib/capabilities'
-import { Button, CompactTier, Dialog, Switch, menuIcon } from './ui'
+import { Button, ChipGroup, CompactTier, Dialog, Switch, ToggleChip, menuIcon } from './ui'
+import { WidgetPartsProvider, type WidgetPart } from '../lib/widgetParts'
 import { Icon } from './Icon'
+
+const NONE_HIDDEN: readonly string[] = []
 
 interface WidgetFrameProps {
   title: string
@@ -22,6 +25,10 @@ interface WidgetFrameProps {
   /** "Kompakt": 48 px controls instead of 56 / 72 (docs/15 D10, Marco 2026-10-17). */
   compact?: boolean
   onToggleCompact?: () => void
+  /** "Anzeigen": the widget type's parts and which are switched off (lib/widgetParts). */
+  parts?: readonly WidgetPart[]
+  hidden?: readonly string[]
+  onToggleHidden?: (partId: string) => void
   /** Edit mode only: the widget is smaller than its minimum size - red outline and a
    * "zu klein" tag, so it is fixed while arranging, not discovered on stage. */
   tooSmall?: boolean
@@ -60,6 +67,9 @@ export function WidgetFrame({
   onToggleFrameless,
   compact = false,
   onToggleCompact,
+  parts = [],
+  hidden = NONE_HIDDEN,
+  onToggleHidden,
   tooSmall = false,
 }: WidgetFrameProps) {
   const isDisabled = status === 'degraded'
@@ -88,7 +98,7 @@ export function WidgetFrame({
         aria-disabled={isDisabled}
       >
         <CompactTier on={compact} className="h-full w-full">
-          {children}
+          <WidgetPartsProvider hidden={hidden}>{children}</WidgetPartsProvider>
         </CompactTier>
       </div>
 
@@ -129,6 +139,15 @@ export function WidgetFrame({
         // widget's small box.
         // See-through while a slider is dragged: the widget behind shows the new size live.
         <Dialog title={title} size="s" onClose={() => setMenuOpen(false)} seeThroughWhileSliding>
+          {/* The same "Anzeigen" group in every widget (Marco, 2026-10-17: declutter everywhere,
+              one look - chips even for a single part, never a switch here and chips there). */}
+          {parts.length > 0 && onToggleHidden && (
+            <ChipGroup label="Anzeigen" showLabel hint={null}>
+              {parts.map((part) => (
+                <ToggleChip key={part.id} label={part.label} selected={!hidden.includes(part.id)} onToggle={() => onToggleHidden(part.id)} />
+              ))}
+            </ChipGroup>
+          )}
           {configPanel}
 
           {onToggleFrameless && <Switch label="Rahmen anzeigen" checked={!frameless} onChange={onToggleFrameless} />}

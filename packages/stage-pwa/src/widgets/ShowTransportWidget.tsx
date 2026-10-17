@@ -1,4 +1,4 @@
-import { Switch } from '../components/ui'
+import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { useState } from 'react'
 import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-types'
@@ -83,10 +83,11 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const clockFontSize = Math.max(READOUT_MIN, titleFontSize)
   const [boxRef, box] = useElementSize()
   const touchSizes = useTouchSizes()
+  const titleShown = useShowPart('title')
   const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize), touchSizes)
   const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
   // Off in the ⋯ menu: only the running time (the status bar has the title, Marco 2026-10-17).
-  const showTitle = layout.showTitle && config.showTitle !== false
+  const showTitle = layout.showTitle && titleShown
   const infoClockFontSize = layout.compactInfo ? READOUT_MIN : clockFontSize
 
   async function forward(event: ShowControlEvent) {
@@ -224,7 +225,6 @@ export function ShowTransportConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Switch label="Songtitel anzeigen" checked={config.showTitle !== false} onChange={(on) => onChange({ ...config, showTitle: on ? undefined : false })} />
       <SizeRatioSlider
         label="Titel & Uhr"
         ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}

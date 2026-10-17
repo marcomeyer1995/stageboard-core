@@ -1,3 +1,4 @@
+import { WidgetPartsProvider } from '../lib/widgetParts'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Profile, Song } from 'shared-types'
@@ -141,7 +142,11 @@ describe('PrompterWidget - header (Marco 2026-10-17)', () => {
     const { rerender } = render(<PrompterWidget config={config} />)
     expect(screen.queryByText(/now playing/i)).toBeNull()
     expect(screen.getByText('Test Song')).toBeInTheDocument()
-    rerender(<PrompterWidget config={{ ...config, showTitle: false }} />)
+    rerender(
+      <WidgetPartsProvider hidden={['title']}>
+        <PrompterWidget config={config} />
+      </WidgetPartsProvider>,
+    )
     expect(screen.queryByText('Test Song')).toBeNull()
     expect(screen.getByText('Lyric line')).toBeInTheDocument()
   })

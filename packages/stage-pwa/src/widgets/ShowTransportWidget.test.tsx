@@ -1,3 +1,4 @@
+import { WidgetPartsProvider } from '../lib/widgetParts'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CAPABILITIES } from 'shared-types'
@@ -265,9 +266,13 @@ describe('ShowTransportWidget', () => {
 })
 
 describe('ShowTransportWidget - declutter (Marco 2026-10-17)', () => {
-  it('"Songtitel anzeigen" off leaves only the running time', () => {
+  it('"Songtitel" off under "Anzeigen" leaves only the running time', () => {
     mockShowMode({ currentSong: song('s1', 'All the small things'), currentEntry: entry('e1', 's1'), elapsedMs: 5_000 })
-    render(<ShowTransportWidget config={{ showTitle: false }} />)
+    render(
+      <WidgetPartsProvider hidden={['title']}>
+        <ShowTransportWidget config={{}} />
+      </WidgetPartsProvider>,
+    )
     expect(screen.getByText('All the small things').parentElement).toHaveClass('hidden')
     expect(screen.getByText('00:05')).toBeInTheDocument()
   })

@@ -1,3 +1,4 @@
+import { WidgetPartsProvider } from '../lib/widgetParts'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song } from 'shared-types'
@@ -49,7 +50,8 @@ describe('NextSongWidget - size-dependent layout (PR B, stage GUI audit)', () =>
     render(<NextSongWidget config={{}} />)
     expect(screen.getByTitle('Nächster Song')).toHaveTextContent('Weiter')
     expect(screen.getByTitle('Nächster Song').className).toContain('min-h-touch')
-    expect(screen.getByText('Ready-Check')).toBeInTheDocument()
+    // Ready-Check is its own widget now (Marco, 2026-10-17).
+    expect(screen.queryByText('Ready-Check')).toBeNull()
   })
 
   it('switches to arrow labels when full labels would leave the song names no room', () => {
@@ -59,7 +61,6 @@ describe('NextSongWidget - size-dependent layout (PR B, stage GUI audit)', () =>
     render(<NextSongWidget config={{}} />)
     expect(screen.getByTitle('Nächster Song').querySelector('svg.lucide-chevron-right')).not.toBeNull()
     expect(screen.getByTitle('Nächster Song')).not.toHaveTextContent('Weiter')
-    expect(screen.getByText('Ready')).toBeInTheDocument()
   })
 
   it('shows current and next song on separate, separately truncated lines when there is height', () => {
@@ -90,14 +91,22 @@ describe('NextSongWidget - takeover (2026-10-16)', () => {
 })
 
 describe('NextSongWidget - declutter (Marco 2026-10-17)', () => {
-  it('hides "Aktuell" or "Next" when switched off in the ⋯ menu', () => {
+  it('hides "Aktuell" or "Next" when switched off under "Anzeigen"', () => {
     mockSize.width = 422
     mockSize.height = 119
     mockQueue()
-    const { rerender } = render(<NextSongWidget config={{ showCurrent: false }} />)
+    const { rerender } = render(
+      <WidgetPartsProvider hidden={['current']}>
+        <NextSongWidget config={{}} />
+      </WidgetPartsProvider>,
+    )
     expect(screen.queryByText('Were not gonna take it')).toBeNull()
     expect(screen.getByText('Bohemian Rhapsody')).toBeInTheDocument()
-    rerender(<NextSongWidget config={{ showNext: false }} />)
+    rerender(
+      <WidgetPartsProvider hidden={['next']}>
+        <NextSongWidget config={{}} />
+      </WidgetPartsProvider>,
+    )
     expect(screen.getByText('Were not gonna take it')).toBeInTheDocument()
     expect(screen.queryByText('Bohemian Rhapsody')).toBeNull()
   })

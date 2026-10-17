@@ -95,10 +95,10 @@ Legende Modus-Spalte: „beide" = verhält sich in Gig und Practice über `useSh
 - **Use Cases:** (1) Bassist sieht im Blick, dass nach dem aktuellen Song noch fünf folgen, und scrollt zurück, um zu sehen, was schon lief. (2) Bandleader zieht per Drag einen Song hoch, weil das Publikum gerade steil geht – „Als nächstes spielen" macht das in einem Tipp; (3) Solo-Üben: Gitarrist wählt „Setlist zum Üben" und trainiert das ganze Set der Reihe nach, ohne die Show-Setlist der Band anzufassen.
 
 #### 3. Next Song (`next-song`)
-- **Was:** Eine Zeile: „Aktuell: <Titel> (Variante) | Next: <Titel> (BPM) (Variante)". Buttons „‹ Zurück" und „Weiter ›" (deaktiviert ohne Vorgänger/Nachfolger). Ohne Kontrolle statt der Buttons „Master übernehmen". Nur auf dem Master-Tablet zusätzlich (#60, neu) der **Ready-Check**: „Ready-Check" öffnet eine Abfrage an alle Tablets, danach zeigt das Widget live „x/y bereit" (Tooltip: „Warten auf: …"; grün mit ✓, sobald alle bereit sind) und einen „Ende"-Knopf.
+- **Was:** Eine Zeile: „Aktuell: <Titel> (Variante) | Next: <Titel> (BPM) (Variante)". Buttons „‹ Zurück" und „Weiter ›" (deaktiviert ohne Vorgänger/Nachfolger). Ohne Kontrolle statt der Buttons „Master übernehmen". „Aktuell" und „Next" lassen sich unter „Anzeigen" im ⋯-Menü einzeln ausblenden. Der Ready-Check ist seit 2026-10-17 ein eigenes Widget (`ready-check`, unten).
 - **Config:** `sizeRatio` (Default 1,5).
 - **Gig vs. Practice:** beide (`next`/`previous` aus `useShowMode()`); Gig nur mit Master-Token, Practice immer.
-- **Disabled/Degradation:** Ohne Songs „Keine Songs vorhanden". Ohne Kontrolle nur der Master-Übernehmen-Button (kein Ready-Check-Knopf).
+- **Disabled/Degradation:** Ohne Songs „Keine Songs vorhanden". Ohne Kontrolle nur der Master-Übernehmen-Button.
 - **Capability:** keine.
 - **Use Cases:** (1) Drummer sieht, welcher Song mit welchem Tempo als Nächstes kommt, und stellt sich vor dem Zählen ein. (2) Bandleader (Master) schaltet per „Weiter ›" durch die Setlist; der Keyboarder, dessen Tablet gerade nicht Master ist, sieht dieselbe Anzeige, kann aber nur „Master übernehmen".
 
@@ -395,6 +395,7 @@ Legende: **Gating** = wer/was die Funktion freischaltet. **UC** = konkreter Anwe
 - **Wer antworten muss:** jedes Profil mit einem Gerät, das innerhalb von `PRESENCE_TIMEOUT_MS` (30 s) zuletzt gemeldet wurde - **pro Profil, nicht pro Gerät** (zwei Tablets derselben Person zählen einmal, ein Tipp von einem genügt). Stille Geräte blockieren nicht; ein leeres Band gilt nie als „alle bereit" (`computeReadyStatus`). Das Profil des Masters antwortet automatisch.
 - **Overlay-Verhalten:** verschwindet, sobald dieses Profil geantwortet hat (auch von einem anderen Gerät), der Master die Abfrage beendet (eine neu gestartete Abfrage zeigt es erneut), oder per „Schließen" auf einem Gerät ohne Profil (das nicht antworten kann). Schlägt die Antwort fehl (Server nicht erreichbar), bleibt es mit Hinweis stehen. Nach einem Reload bei offener Abfrage erscheint es erneut.
 - **Abschluss:** Sind alle bereit, schließt das Master-Tablet die Abfrage nach 3 s selbst (`useReadyCheckResponder`).
+- **Widget `ready-check` (2026-10-17, vorher ein Knopf im Next Song):** Der Master startet die Abfrage mit einem großen Knopf und sieht live „x/y bereit", darunter „Warten auf: …" (unter „Anzeigen" ausblendbar) und „Ende". Andere sehen den Zähler, solange eine Abfrage läuft, sonst „Ready-Check startet der Master"; in Solo Üben „Nur im Gig".
 - **Nur Information:** Play wird **nie** gesperrt (bewusste Entscheidung, weicht vom optionalen Lock im Issue ab).
 - **Grenzen:** Ein Server-Neustart leert die Antworten (der Master sieht 0/n und kann die Abfrage neu starten); der Master-seitige Hook (Auto-Antwort/Auto-Abschluss) hat keinen eigenen Test; nicht auf Tablets geprüft.
 

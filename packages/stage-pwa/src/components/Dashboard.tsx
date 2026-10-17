@@ -333,6 +333,15 @@ export function Dashboard() {
     void updateWidget(active.id, instanceId, (widget) => ({ ...widget, frameless: !widget.frameless }))
   }
 
+  function toggleHidden(instanceId: string, partId: string) {
+    if (!active) return
+    void updateWidget(active.id, instanceId, (widget) => {
+      const hidden = widget.hidden ?? []
+      const next = hidden.includes(partId) ? hidden.filter((id) => id !== partId) : [...hidden, partId]
+      return { ...widget, hidden: next.length > 0 ? next : undefined }
+    })
+  }
+
   function toggleCompact(instanceId: string) {
     if (!active) return
     void updateWidget(active.id, instanceId, (widget) => ({ ...widget, compact: widget.compact ? undefined : true }))
@@ -467,6 +476,9 @@ export function Dashboard() {
                       onToggleFrameless={() => toggleFrameless(widget.i)}
                       compact={widget.compact === true}
                       onToggleCompact={() => toggleCompact(widget.i)}
+                      parts={definition.parts}
+                      hidden={widget.hidden}
+                      onToggleHidden={(partId) => toggleHidden(widget.i, partId)}
                       configPanel={
                         ConfigPanel && (
                           <ConfigPanel

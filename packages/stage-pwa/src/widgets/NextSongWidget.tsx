@@ -1,4 +1,4 @@
-import { ChipGroup, ToggleChip } from '../components/ui'
+import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
@@ -6,7 +6,6 @@ import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
-import { ReadyCheckControl } from '../components/ReadyCheckControl'
 import { stageFontSize } from '../lib/stageSize'
 import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
@@ -39,8 +38,8 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
 
   // Each line can be hidden in the ⋯ menu (Marco, 2026-10-17); with both off only the buttons stay.
-  const showCurrent = config.showCurrent !== false
-  const showNext = config.showNext !== false
+  const showCurrent = useShowPart('current')
+  const showNext = useShowPart('next')
   const current = !showCurrent ? null : currentItem ? (
     <>
       {itemLabel(currentItem)}: <span className="font-semibold text-ink">{currentItem.title}</span>
@@ -91,7 +90,6 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
       )}
       {canControl ? (
         <div className={`flex gap-2 ${layout.stacked ? 'min-h-0 flex-1' : ''}`}>
-          <ReadyCheckControl compact={layout.shortLabels} buttonClassName={buttonClass} />
           <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
             {layout.shortLabels ? (
               <Icon name="previous" size="2.25rem" />
@@ -126,16 +124,10 @@ export function NextSongConfigPanel({
   onChange: (next: NextSongConfig) => void
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <ChipGroup label="Anzeigen">
-        <ToggleChip label="Aktuell" selected={config.showCurrent !== false} onToggle={() => onChange({ ...config, showCurrent: config.showCurrent === false ? undefined : false })} />
-        <ToggleChip label="Next" selected={config.showNext !== false} onToggle={() => onChange({ ...config, showNext: config.showNext === false ? undefined : false })} />
-      </ChipGroup>
-      <SizeRatioSlider
-        label="Größe"
-        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
-        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
-      />
-    </div>
+    <SizeRatioSlider
+      label="Größe"
+      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+    />
   )
 }

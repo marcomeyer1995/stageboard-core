@@ -128,6 +128,31 @@ describe('WidgetFrame', () => {
     expect(screen.getByText('widget content').closest('.sb-compact')).not.toBeNull()
   })
 
+  it('"Anzeigen" lists the widget type\'s parts as chips - the same in every widget (Marco 2026-10-17)', () => {
+    const onToggleHidden = vi.fn()
+    render(
+      <WidgetFrame
+        title="Next Song"
+        status="available"
+        isEditing
+        onRemove={vi.fn()}
+        parts={[{ id: 'current', label: 'Aktuell' }, { id: 'next', label: 'Next' }]}
+        hidden={['next']}
+        onToggleHidden={onToggleHidden}
+      >
+        <p>widget content</p>
+      </WidgetFrame>,
+    )
+    fireEvent.click(screen.getByTitle('Widget-Menü'))
+    expect(screen.getByRole('group', { name: 'Anzeigen' })).toBeInTheDocument()
+    expect(screen.getByText('Anzeigen')).toBeVisible()
+    const next = screen.getByRole('button', { name: /Next/ })
+    expect(next).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /Aktuell/ })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(next)
+    expect(onToggleHidden).toHaveBeenCalledWith('next')
+  })
+
   it('outlines a too-small widget in edit mode only', () => {
     const { rerender, container } = render(
       <WidgetFrame title="Uhr" status="available" isEditing tooSmall onRemove={vi.fn()}>
