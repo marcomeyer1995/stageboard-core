@@ -903,3 +903,21 @@ describe('phone layout (2026-10-16)', () => {
     expect(screen.getByRole('button', { name: 'Klick' })).toBeInTheDocument()
   })
 })
+
+describe('section start of a part (#479)', () => {
+  const content = ['{part: Verse}', '[00:10.00] First line', '{part: Chorus}', '[00:14.00] Second line'].join('\n')
+  function tapAt(ms: number, y: number) {
+    const lanes = screen.getByTestId('timeline-lanes')
+    fireEvent.pointerDown(lanes, { pointerId: 1, clientX: ms / 60, clientY: y })
+    fireEvent.pointerUp(lanes, { pointerId: 1, clientX: ms / 60, clientY: y })
+  }
+
+  it('a tapped part shows where its section starts; − / + set it by hand as {x_bar}, "Automatisch" takes it back', () => {
+    const { onChange } = setup({ content })
+    tapAt(15000, 96 + 26 + 84 + 10)
+    expect(screen.getByText(/Abschnitt ab Takt \(automatisch\)/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Größer' }))
+    const written = (onChange.mock.calls.slice(-1)[0]![0] as { chordProContent: string }).chordProContent
+    expect(written.split('\n')).toEqual(['{part: Verse}', '[00:10.00] First line', '{part: Chorus}', expect.stringMatching(/^\{x_bar: \d+\}$/), '[00:14.00] Second line'])
+  })
+})
