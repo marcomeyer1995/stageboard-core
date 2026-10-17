@@ -1,4 +1,5 @@
-import { ChipGroup, Segmented, ToggleChip } from '../components/ui'
+import { Segmented } from '../components/ui'
+import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
@@ -59,6 +60,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const { queue, elapsedMs, playbackStatus } = useShowMode()
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
+  // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
+  const showTitle = useShowPart('title')
+  const artistShown = useShowPart('artist')
+  const showKey = useShowPart('key')
   // Who's targeted comments (`{cc4marco:}`, issue #215 follow-up) resolve against - this
   // device's active profile, and the whole roster (so a typo'd/stale target name still fails
   // open instead of silently vanishing forever, see commentVisibleTo's own doc comment).
@@ -156,9 +161,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     )
   }
 
-  const showTitle = config.showTitle !== false
-  const showArtistLine = config.showArtist !== false && !!currentSong?.artist
-  const showKey = config.showKey !== false
+  const showArtistLine = artistShown && !!currentSong?.artist
 
   if (!currentSong) {
     return (
@@ -269,12 +272,6 @@ export function PrompterConfigPanel({
 
       {/* The one anchor size (device-wide default, or this instance's own absolute
           override) - every slider below is a percentage of whatever this resolves to. */}
-      <ChipGroup label="Anzeigen">
-        <ToggleChip label="Titel" selected={config.showTitle !== false} onToggle={() => onChange({ ...config, showTitle: config.showTitle === false ? undefined : false })} />
-        <ToggleChip label="Interpret" selected={config.showArtist !== false} onToggle={() => onChange({ ...config, showArtist: config.showArtist === false ? undefined : false })} />
-        <ToggleChip label="Tonart" selected={config.showKey !== false} onToggle={() => onChange({ ...config, showKey: config.showKey === false ? undefined : false })} />
-      </ChipGroup>
-
       <ContentFontSizeConfigPanel config={config} onChange={(next) => onChange({ ...config, ...next })} />
 
       <SizeRatioSlider

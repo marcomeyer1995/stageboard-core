@@ -32,11 +32,5 @@ export const PrompterConfigSchema = ContentFontSizeConfigSchema.extend({
   arrangementInfoSizeRatio: z.number().positive().optional(),
   /** Musician comment lines (`{comment:}`/`{c:}`, issue #215). */
   commentSizeRatio: z.number().positive().optional(),
-  /** Header items, each hideable (Marco, 2026-10-17: declutter - the title stood four times on one
-   * dashboard). Unset = shown. */
-  showTitle: z.boolean().optional(),
-  showArtist: z.boolean().optional(),
-  /** The "Tonart" button (transpose/capo, #410) with the capo/tuning chips. */
-  showKey: z.boolean().optional(),
 })
 export type PrompterConfig = z.infer<typeof PrompterConfigSchema>

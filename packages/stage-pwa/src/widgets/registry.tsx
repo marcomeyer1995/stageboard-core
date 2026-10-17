@@ -1,3 +1,5 @@
+import type { WidgetPart } from '../lib/widgetParts'
+import { ReadyCheckWidget } from './ReadyCheckWidget'
 import { useMemo, type ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
@@ -114,6 +116,8 @@ export interface WidgetDefinition {
   /** Roles this widget is relevant to. Unset means relevant to everyone. */
   relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
+  /** Information the widget can leave out - one "Anzeigen" chip each in its ⋯ menu (lib/widgetParts). */
+  parts?: readonly WidgetPart[]
   Component: ComponentType<{ config: unknown }>
   ConfigPanel?: ComponentType<{
     config: unknown
@@ -136,6 +140,7 @@ interface WidgetSpec<C> {
   stageTier: StageTier
   relevantRoles?: StageRole[]
   defaultLayout: WidgetSize
+  parts?: readonly WidgetPart[]
   configSchema?: z.ZodType<C>
   Component: ComponentType<{ config: C }>
   ConfigPanel?: ComponentType<{ config: C; onChange: (next: C) => void }>
@@ -166,6 +171,7 @@ function defineWidget<C>(spec: WidgetSpec<C>): WidgetDefinition {
     stageTier: spec.stageTier,
     relevantRoles: spec.relevantRoles,
     defaultLayout: spec.defaultLayout,
+    parts: spec.parts,
     // `parse()` (Zod's safeParse) allocates a new object on every call, even for the exact
     // same raw input - without memoizing on the raw `config` prop's own reference, any parent
     // re-render (e.g. Dashboard.tsx's useCapabilities()/useNow() heartbeat, every 5s, with
@@ -200,6 +206,11 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     stageTier: 'gig',
     defaultLayout: { w: 12, h: 16, minW: 3, minH: 6 },
+    parts: [
+      { id: 'title', label: 'Titel' },
+      { id: 'artist', label: 'Interpret' },
+      { id: 'key', label: 'Tonart' },
+    ],
     configSchema: PrompterConfigSchema,
     Component: PrompterWidget,
     ConfigPanel: PrompterConfigPanel,
@@ -219,13 +230,27 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'next-song',
     title: 'Next Song',
-    description: 'Vorheriger, aktueller und nächster Song, Master-Token, Vor/Zurück.',
+    description: 'Aktueller und nächster Song, Vor/Zurück.',
     category: 'performance',
     stageTier: 'gig',
     defaultLayout: { w: 7, h: 3, minW: 4, minH: 3, maxH: 6 },
+    parts: [
+      { id: 'current', label: 'Aktuell' },
+      { id: 'next', label: 'Next' },
+    ],
     configSchema: NextSongConfigSchema,
     Component: NextSongWidget,
     ConfigPanel: NextSongConfigPanel,
+  }),
+  defineWidget({
+    type: 'ready-check',
+    title: 'Ready-Check',
+    description: 'Der Master fragt, ob alle bereit sind, und sieht, wer noch fehlt; alle anderen bestätigen im Hinweis.',
+    category: 'performance',
+    stageTier: 'gig',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 6 },
+    parts: [{ id: 'missing', label: 'Wer fehlt' }],
+    Component: ReadyCheckWidget,
   }),
   defineWidget({
     type: 'active-setlist',
@@ -245,6 +270,7 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     stageTier: 'gig',
     defaultLayout: { w: 6, h: 4, minW: 4, minH: 3, maxW: 8, maxH: 6 },
+    parts: [{ id: 'title', label: 'Songtitel' }],
     configSchema: ShowTransportConfigSchema,
     Component: ShowTransportWidget,
     ConfigPanel: ShowTransportConfigPanel,

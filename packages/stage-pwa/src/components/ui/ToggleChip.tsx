@@ -45,9 +45,21 @@ export function ToggleChip({ label, selected, onToggle, disabled, title, size: s
 }
 
 /** A group of chips under one question, with the "several allowed" hint (docs/15 §4). */
-export function ChipGroup({ label, hint = 'Mehrere möglich', children }: { label: string; hint?: string | null; children: ReactNode }) {
+export function ChipGroup({
+  label,
+  hint = 'Mehrere möglich',
+  showLabel = false,
+  children,
+}: {
+  label: string
+  hint?: string | null
+  /** The question above the chips, like a field's label (a settings form, docs/15 §4). */
+  showLabel?: boolean
+  children: ReactNode
+}) {
   return (
     <div role="group" aria-label={label} className="flex flex-col gap-2">
+      {showLabel && <p className="text-sm font-semibold text-ink-soft">{label}</p>}
       <div className="flex flex-wrap gap-2">{children}</div>
       {hint && <p className="text-sm text-ink-faint">{hint}</p>}
     </div>

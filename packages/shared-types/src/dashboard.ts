@@ -39,6 +39,10 @@ export const WidgetInstanceSchema = z.object({
    * from "Anbieten in": a size that changed as a side effect of where a dashboard is offered was
    * not understandable. Unset = stage size. */
   compact: z.boolean().optional(),
+  /** Parts of the widget switched off under "Anzeigen" in its ⋯ menu (Marco, 2026-10-17:
+   * declutter - e.g. the song title that already stands in the status bar). Ids from the widget
+   * type's `parts` in the registry; an id the type no longer has is ignored. Unset = all shown. */
+  hidden: z.array(z.string()).optional(),
 })
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>
 

@@ -25,6 +25,8 @@ describe('widget stage tiers', () => {
     expect(tier('circle-of-fifths')).toBe('rehearsal')
     expect(tier('chord-reference')).toBe('rehearsal')
     expect(tier('separator')).toBe('layout')
-    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(18)
+    // + Ready-Check, its own widget since 2026-10-17 (was a button in Next Song).
+    expect(tier('ready-check')).toBe('gig')
+    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(19)
   })
 })
