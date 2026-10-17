@@ -34,19 +34,19 @@ export function getQueueSnapshot(): Queue {
   )
 }
 
-function currentTransport(state: ShowState): TransportState {
-  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs }
+export function currentTransport(state: ShowState): TransportState {
+  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
 }
 
-function transportPatch(t: TransportState): Partial<ShowState> {
+export function transportPatch(t: TransportState): Partial<ShowState> {
   // Any transport change ends "Beendet" (#27) - only stopSongAtTrackEnd sets it.
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, trackEnded: false }
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, trackEnded: false }
 }
 
 /** Rearms the current entry: no time accumulated, no active-entry-started marker - what both
  * Stop (after logging, below) and Reset leave behind, so a later Play on the same entry starts
  * a genuinely new take rather than silently extending the old one. */
-const REARM_PATCH: Partial<ShowState> = { ...transportPatch(ARMED_TRANSPORT), activeEntryStartedAt: null }
+const REARM_PATCH: Partial<ShowState> = { ...transportPatch(ARMED_TRANSPORT), activeEntryStartedAt: null, playbackLoop: null }
 
 /** Logs the currently active entry's play-through if its active (unpaused) duration crossed
  * the minimum threshold - shared by every transition that ends a play-through: advancing the
@@ -92,6 +92,7 @@ async function activateEntry(entryId: string): Promise<void> {
     liveTempoAdjustPercent: 0,
     clickTrackOverride: null,
     clickExtendMs: 0,
+    playbackLoop: null,
     ...transportPatch(ARMED_TRANSPORT),
     ...showBookkeepingPatch(state, now),
   })

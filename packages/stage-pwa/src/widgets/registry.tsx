@@ -1,5 +1,6 @@
 import type { WidgetPart } from '../lib/widgetParts'
 import { ReadyCheckWidget } from './ReadyCheckWidget'
+import { SectionJumpWidget } from './SectionJumpWidget'
 import { useMemo, type ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
@@ -242,6 +243,19 @@ const DEFINITIONS: WidgetDefinition[] = [
     configSchema: NextSongConfigSchema,
     Component: NextSongWidget,
     ConfigPanel: NextSongConfigPanel,
+  }),
+  defineWidget({
+    type: 'section-jump',
+    title: 'Abschnitte',
+    description: 'Die Abschnitte des Songs aus der Timeline: der Master springt zum nächsten Ende eines Takts oder Abschnitts oder wiederholt einen Abschnitt - alle Geräte folgen.',
+    category: 'performance',
+    stageTier: 'gig',
+    defaultLayout: { w: 6, h: 4, minW: 3, minH: 3, maxW: 12, maxH: 8 },
+    parts: [
+      { id: 'when', label: 'Sprung-Zeitpunkt' },
+      { id: 'loop', label: 'Wiederholen' },
+    ],
+    Component: SectionJumpWidget,
   }),
   defineWidget({
     type: 'ready-check',

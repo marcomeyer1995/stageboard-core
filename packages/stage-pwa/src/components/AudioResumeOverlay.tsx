@@ -1,9 +1,7 @@
-import { getServerTime } from '../lib/clockSync'
 import { resumeWebAudio, webAudioTrackEnabled } from '../lib/webAudioTrackEngine'
 import { playLocalTrack } from '../lib/localAudioEngine'
-import { computeActiveMs } from '../lib/playbackTransport'
+import { gigElapsedMsNow } from '../lib/usePlaybackElapsedMs'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
-import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Full-screen, unmissable blocking overlay for the one moment useAudioOutputDriver.ts's
@@ -42,11 +40,7 @@ export function AudioResumeOverlay() {
       useLocalAudioOutputStore.setState({ audioBlocked: !(await resumeWebAudio()) })
       return
     }
-    const { playbackStatus, playbackStartedAt, playbackAccumulatedMs } = useShowStateStore.getState().state
-    const elapsedMs = computeActiveMs(
-      { status: playbackStatus, startedAt: playbackStartedAt, accumulatedMs: playbackAccumulatedMs },
-      getServerTime(),
-    )
+    const elapsedMs = gigElapsedMsNow() ?? 0
     const result = await playLocalTrack(Math.max(0, elapsedMs))
     useLocalAudioOutputStore.setState({ audioBlocked: result.status === 'error' })
   }

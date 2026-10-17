@@ -27,7 +27,9 @@ describe('widget stage tiers', () => {
     expect(tier('separator')).toBe('layout')
     // + Ready-Check, its own widget since 2026-10-17 (was a button in Next Song).
     expect(tier('ready-check')).toBe('gig')
-    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(19)
+    // + Abschnitte (#479, 2026-10-17).
+    expect(tier('section-jump')).toBe('gig')
+    expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(20)
   })
 })
 

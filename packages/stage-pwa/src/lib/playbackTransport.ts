@@ -9,33 +9,58 @@ export interface TransportState {
   status: PlaybackStatus
   startedAt: number | null
   accumulatedMs: number
+  /** A queued or just-passed section jump (#479, ShowState.playbackJump): from server time `at`
+   * on, song time continues at `toMs`. */
+  jump?: SectionJump | null
+}
+
+export interface SectionJump {
+  at: number
+  toMs: number
+  label?: string
 }
 
 /** "Unarmed": no time accumulated, nothing running. What Reset always returns to, and what a
  * freshly activated entry starts as. */
-export const ARMED_TRANSPORT: TransportState = { status: 'stopped', startedAt: null, accumulatedMs: 0 }
+export const ARMED_TRANSPORT: TransportState = { status: 'stopped', startedAt: null, accumulatedMs: 0, jump: null }
 
 /** Net active elapsed ms for the current play-through - the accumulated total, plus whatever
  * has elapsed since the current run began if still playing. Paused/stopped time is never
  * included, by construction (#13). */
 export function computeActiveMs(state: TransportState, now: number): number {
   if (state.status === 'playing' && state.startedAt !== null) {
+    // Past a section jump (#479) the song continues at its target.
+    if (state.jump && now >= state.jump.at) return state.jump.toMs + (now - state.jump.at)
     return state.accumulatedMs + Math.max(0, now - state.startedAt)
   }
   return state.accumulatedMs
+}
+
+/** The song time a queued jump leaves from - the boundary in the song as it runs now (#479). Null
+ * without a jump or while not playing. */
+export function jumpBoundaryMs(state: TransportState): number | null {
+  if (!state.jump || state.status !== 'playing' || state.startedAt === null) return null
+  return state.accumulatedMs + (state.jump.at - state.startedAt)
+}
+
+/** The same song clock without the passed jump: anchored on it (#479). Unchanged before the jump. */
+export function foldJump(state: TransportState, now: number): TransportState {
+  if (!state.jump || now < state.jump.at || state.status !== 'playing') return state
+  return { status: 'playing', startedAt: state.jump.at, accumulatedMs: state.jump.toMs, jump: null }
 }
 
 /** Starts or resumes - a no-op if already playing, so re-pressing Play mid-song never resets
  * the accumulated position. */
 export function play(state: TransportState, now: number): TransportState {
   if (state.status === 'playing') return state
-  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs }
+  return { status: 'playing', startedAt: now, accumulatedMs: state.accumulatedMs, jump: null }
 }
 
 /** Freezes the current position for a later resume - a no-op unless currently playing. */
 export function pause(state: TransportState, now: number): TransportState {
   if (state.status !== 'playing') return state
-  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(state, now) }
+  // A jump not reached yet is dropped - after Pause the song resumes where it stood.
+  return { status: 'paused', startedAt: null, accumulatedMs: computeActiveMs(state, now), jump: null }
 }
 
 /** Rearms: back to 0. Both Reset (no log) and Stop (queue.ts's stopSong logs first, from the
