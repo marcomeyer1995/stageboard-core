@@ -153,5 +153,12 @@ describe('Dashboard - read-only template guard (#16)', () => {
     expect(useEditModeStore.getState().isEditing).toBe(true)
     act(() => useEditModeStore.getState().setEditing(false))
   })
-})
 
+  it('keeps the status bar\'s place empty on a dashboard without it, so the grid is the same on every dashboard (Marco 2026-10-17)', () => {
+    const { container, rerender } = render(<Dashboard />)
+    expect(container.querySelector('[data-testid="status-bar-space"]')).toBeNull()
+    act(() => useDashboardsStore.setState({ dashboards: [{ ...makeDashboard(), statusBar: false }] }))
+    rerender(<Dashboard />)
+    expect(container.querySelector('[data-testid="status-bar-space"]')).toHaveClass('h-14')
+  })
+})
