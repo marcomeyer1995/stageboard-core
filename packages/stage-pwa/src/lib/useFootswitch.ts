@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { bindingForKey, isTypingTarget } from './keybindings'
-import { runAction, scheduleRelease, type Show } from './runAction'
+import type { Show } from './runAction'
+import { pressTrigger, releaseTrigger } from './triggerPress'
 import { useShowMode } from './showMode'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 
@@ -10,11 +11,6 @@ export { currentSongState, isCountingIn } from './runAction'
  * executed. */
 export const footswitchCapture = { active: false }
 
-/** Latching keys that are "on" right now (docs/23 §4a) - per key, on this device. */
-const latched = new Set<string>()
-/** Timed releases waiting, per key - a new press starts its own. */
-const pendingReleases = new Map<string, () => void>()
-
 function blocked(event: KeyboardEvent): boolean {
   if (footswitchCapture.active || isTypingTarget(event.target)) return true
   // A dialog or the ☰ menu is open: the pedal must not run the show behind it - and Enter/Space
@@ -23,33 +19,19 @@ function blocked(event: KeyboardEvent): boolean {
   return event.ctrlKey || event.metaKey || event.altKey
 }
 
-/** What a key press does (docs/23 §4a): the press action, a timed release, or the latch toggled. */
+/** What a key press does (docs/23 §4a) - the shared trigger logic (triggerPress.ts). */
 export function pressKey(key: string, show: Show): boolean {
   const binding = bindingForKey(useKeybindingsStore.getState().bindings, key)
   if (!binding) return false
-  const { behavior } = binding
-  if (behavior.kind === 'latching') {
-    const on = !latched.has(key)
-    if (on) latched.add(key)
-    else latched.delete(key)
-    void runAction(on ? behavior.on : behavior.off, show)
-    return true
-  }
-  void runAction(behavior.press, show)
-  const { release } = behavior
-  if (release.kind === 'after') {
-    pendingReleases.get(key)?.()
-    pendingReleases.set(key, scheduleRelease(release, show))
-  }
+  void pressTrigger(`key:${key}`, binding.behavior, show)
   return true
 }
 
-/** What letting go of a key does - only a momentary key with an action on release. */
+/** What letting go of a key does - only a tastend key with an action on release. */
 export function releaseKey(key: string, show: Show): boolean {
   const binding = bindingForKey(useKeybindingsStore.getState().bindings, key)
-  if (!binding || binding.behavior.kind !== 'momentary' || binding.behavior.release.kind !== 'on-release') return false
-  void runAction(binding.behavior.release.action, show)
-  return true
+  if (!binding) return false
+  return releaseTrigger(`key:${key}`, binding.behavior, show) !== null
 }
 
 /**

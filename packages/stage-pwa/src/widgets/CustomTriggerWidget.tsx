@@ -1,128 +1,76 @@
-import { Field, Segmented, Select, TextArea } from '../components/ui'
-import { useEffect, useState } from 'react'
-import type { ShowControlEvent } from 'shared-types'
-import { pluginProviding } from '../lib/capabilities'
-import { getTranslator, preloadDynamicTranslator, supportsLocalExecution } from '../lib/clientTranslator'
-import { triggerDeviceControl } from '../lib/deviceControlClient'
-import { resolveHardwareBindingById, resolveHardwareEngine } from '../lib/hardwareRouting'
-import { getStageServerUrl } from '../lib/stageServer'
-import { triggerShowControl } from '../lib/showControlClient'
+import { Field, Select } from '../components/ui'
+import { useId, useState } from 'react'
+import { BehaviorEditor } from '../components/BehaviorEditor'
+import { needsShowControl, type Behavior } from '../lib/actions'
+import { resolveHardwareBindingById } from '../lib/hardwareRouting'
+import { useShowMode } from '../lib/showMode'
+import { isLatched, pressTrigger, releaseTrigger } from '../lib/triggerPress'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
-import { usePluginsStore } from '../store/usePluginsStore'
-import { useShowStateStore } from '../store/useShowStateStore'
-import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
-import { DEFAULT_SIZE_RATIO, type CustomTriggerConfig } from './customTriggerConfig'
+import { DEFAULT_SIZE_RATIO, legacyPayloadUnreadable, triggerBehaviorOf, type CustomTriggerConfig } from './customTriggerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
 import { stageFontSize } from '../lib/stageSize'
 
 const INACTIVE_CLASS = 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
 
-function parsePayload(json: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(json)
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-  } catch {
-    return {}
-  }
-}
-
 /**
- * A configurable trigger button for an arbitrary Logical Device (#23) - latching (toggle,
- * like LightingCuesWidget's blackout) or momentary (fires only while held, like a strobe).
- * Unlike QuickActionsWidget/LightingCuesWidget, the target isn't a fixed capability this
- * widget's `requires` gates on, but a config-picked device (same reasoning DeviceStatusWidget
- * uses) - so firing mirrors cueFiring.ts's engine resolution by hand, plus the `local-other`
- * relay branch cueFiring.ts deliberately omits (that omission is specific to *scheduled* cues,
- * where the other bound device runs its own scheduler independently - an ad-hoc button press
- * has no such independent trigger on the other device, so it must go through the relay).
+ * A button for any action (docs/23 §7, #547): show, sections, playback or a device command -
+ * tastend (press + optional release), rastend (A/B) or zeitgesteuert, the same building block
+ * as the pedal keys (triggerPress.ts). The rights are runAction's: show control only where the
+ * musician may control the show - the button is greyed out elsewhere -, device commands from
+ * anyone. A button set up before is read as the device command it always sent.
  */
 export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig }) {
+  const show = useShowMode()
   const devices = useLogicalDevicesStore((s) => s.devices)
-  const installed = usePluginsStore((s) => s.installed)
-  const workspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
-  const deviceId = useShowStateStore((s) => s.deviceId)
-  const [on, setOn] = useState(false)
+  const id = `widget:${useId()}`
+  const [on, setOn] = useState(() => isLatched(id))
   const [pressed, setPressed] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [, forceRerender] = useState(0)
   // Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco,
   // 2026-09-14).
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
-  const device = resolveHardwareBindingById(devices, config.targetLogicalDeviceId ?? '')
+  const behavior = triggerBehaviorOf(config)
+  const first = behavior ? (behavior.kind === 'latching' ? behavior.on : behavior.press) : null
+  const reason = !behavior
+    ? 'Keine Aktion gewählt'
+    : first?.kind === 'device' && !resolveHardwareBindingById(devices, first.targetLogicalDeviceId)
+      ? 'Zielgerät fehlt'
+      : first && needsShowControl(first) && !show.canControl
+        ? 'Nur der Master steuert die Show'
+        : null
 
-  useEffect(() => {
-    if (!device) return
-    let cancelled = false
-    void preloadDynamicTranslator(device.capability, installed, getStageServerUrl() ?? null).then(() => {
-      if (!cancelled) forceRerender((n) => n + 1)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [device, installed])
+  const report = (result: Promise<string | null> | null) => void result?.then(setError)
 
-  async function fire(payload: Record<string, unknown>) {
-    if (!device) return
-    const pluginId = device.pluginId ?? pluginProviding(installed, device.capability)
-    const engine = resolveHardwareEngine(
-      device,
-      deviceId,
-      pluginId,
-      supportsLocalExecution(installed, device.capability),
-    )
-    const event: ShowControlEvent = { type: config.commandType, payload, ...(device ? { logicalDeviceId: device.id } : {}) }
-
-    if (engine === 'local-mine') {
-      const translator = getTranslator(device.capability)
-      if (translator) void translator(event)
-      return
-    }
-    if (engine === 'local-other') {
-      const result = await triggerDeviceControl(workspaceId, device.executionTarget!, device.capability, event)
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
-      return
-    }
-    if (engine === 'plugin' && pluginId) {
-      const result = await triggerShowControl(pluginId, event)
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
-    }
+  function press(active: Behavior) {
+    if (active.kind === 'latching') setOn(!isLatched(id))
+    else setPressed(true)
+    report(pressTrigger(id, active, show))
   }
 
-  const basePayload = parsePayload(config.commandPayloadJson)
-  const disabled = !device
-  const active = config.behavior === 'latching' ? on : pressed
-
-  function handleLatchingClick() {
-    const next = !on
-    setOn(next)
-    void fire({ ...basePayload, on: next })
-  }
-
-  function handleMomentaryDown() {
-    setPressed(true)
-    void fire({ ...basePayload, active: true })
-  }
-
-  function handleMomentaryUp() {
+  function release(active: Behavior) {
+    if (!pressed) return
     setPressed(false)
-    void fire({ ...basePayload, active: false })
+    report(releaseTrigger(id, active, show))
   }
+
+  const latching = behavior?.kind === 'latching'
+  const lit = latching ? on : pressed
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-hidden">
       <button
         type="button"
-        disabled={disabled}
-        onClick={config.behavior === 'latching' ? handleLatchingClick : undefined}
-        onPointerDown={config.behavior === 'momentary' ? handleMomentaryDown : undefined}
-        onPointerUp={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
-        onPointerLeave={config.behavior === 'momentary' ? handleMomentaryUp : undefined}
+        disabled={reason !== null}
+        onClick={latching && behavior ? () => press(behavior) : undefined}
+        onPointerDown={!latching && behavior ? () => press(behavior) : undefined}
+        onPointerUp={!latching && behavior ? () => release(behavior) : undefined}
+        onPointerLeave={!latching && behavior ? () => release(behavior) : undefined}
         className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-control font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-          active ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
+          lit ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
         }`}
       >
         <span style={{ fontSize }} className="whitespace-nowrap">
@@ -130,8 +78,8 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         </span>
       </button>
       {/* One line each: the button keeps its touch height, the hint gives way. */}
-      {disabled && <p className="flex-shrink-0 truncate text-xs text-ink-faint">Kein Zielgerät konfiguriert</p>}
-      {error && <p className="flex-shrink-0 truncate text-xs text-danger">{error}</p>}
+      {reason && <p className="flex-shrink-0 truncate text-xs text-ink-faint">{reason}</p>}
+      {!reason && error && <p className="flex-shrink-0 truncate text-xs text-danger">{error}</p>}
     </div>
   )
 }
@@ -143,16 +91,6 @@ export function CustomTriggerConfigPanel({
   config: CustomTriggerConfig
   onChange: (next: CustomTriggerConfig) => void
 }) {
-  const devices = useLogicalDevicesStore((s) => s.devices)
-  const payloadValid = (() => {
-    try {
-      JSON.parse(config.commandPayloadJson)
-      return true
-    } catch {
-      return false
-    }
-  })()
-
   return (
     <div className="flex flex-col gap-3">
       <Field label="Beschriftung" value={config.label} onChange={(e) => onChange({ ...config, label: e.target.value })} />
@@ -162,46 +100,13 @@ export function CustomTriggerConfigPanel({
         onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
         options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
       />
-      <Segmented
-        label="Verhalten"
-        showLabel
-        value={config.behavior}
-        onChange={(behavior) => onChange({ ...config, behavior })}
-        options={[
-          { value: 'momentary', label: 'Halten' },
-          { value: 'latching', label: 'Umschalten' },
-        ]}
-        hint={config.behavior === 'momentary' ? 'An, solange gedrückt (Momentary).' : 'Ein Druck an, der nächste aus (Latching).'}
+      {legacyPayloadUnreadable(config) && <p className="text-sm text-warn">Der bisherige Befehl hatte ungültiges JSON und wird ohne diese Werte gesendet - bitte neu wählen.</p>}
+      <BehaviorEditor
+        initial={triggerBehaviorOf(config)}
+        onChange={(action) => {
+          if (action && JSON.stringify(action) !== JSON.stringify(config.action)) onChange({ ...config, action })
+        }}
       />
-      <Select
-        label="Zielgerät"
-        value={config.targetLogicalDeviceId ?? ''}
-        onChange={(e) => onChange({ ...config, targetLogicalDeviceId: e.target.value || undefined })}
-        options={[{ value: '', label: '— Gerät wählen —' }, ...devices.map((device) => ({ value: device.id, label: device.name }))]}
-      />
-      <Field label="Command-Type" value={config.commandType} onChange={(e) => onChange({ ...config, commandType: e.target.value })} />
-      <TextArea
-        label="Payload (JSON)"
-        rows={3}
-        className="font-sb-mono text-sm"
-        value={config.commandPayloadJson}
-        error={payloadValid ? undefined : 'Ungültiges JSON'}
-        onChange={(e) => onChange({ ...config, commandPayloadJson: e.target.value })}
-      />
-      {config.commandType === 'click.extend' && (
-        <Field
-          label="Takte"
-          hint="Wie weit der Endpunkt bei jedem Druck verschoben wird (#231)."
-          type="number"
-          min={1}
-          step={1}
-          value={String(parsePayload(config.commandPayloadJson).bars ?? 1)}
-          onChange={(e) => {
-            const bars = Math.max(1, Math.round(Number(e.target.value) || 1))
-            onChange({ ...config, commandPayloadJson: JSON.stringify({ ...parsePayload(config.commandPayloadJson), bars }) })
-          }}
-        />
-      )}
       <SizeRatioSlider
         label="Größe"
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}

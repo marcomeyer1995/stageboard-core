@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { gridLabel, type Action, type Behavior, type Release } from '../lib/actions'
+import type { Behavior } from '../lib/actions'
 import { bindingForKey, isBindableKey, keyLabel, type KeyBinding } from '../lib/keybindings'
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
-import { ActionField, useDescribeAction } from './ActionPicker'
+import { BehaviorEditor, useDescribeBehavior } from './BehaviorEditor'
 import { Icon } from './Icon'
-import { AddRow, Button, Dialog, Segmented, Stepper, Switch } from './ui'
+import { AddRow, Button, Dialog } from './ui'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -62,38 +62,12 @@ export function KeybindingSettings() {
   )
 }
 
-type Mode = 'momentary' | 'latching' | 'timed'
-
-/** A mapping in one line, with device names. */
-function useDescribeBehavior(): (behavior: Behavior) => string {
-  const describe = useDescribeAction()
-  return (behavior) => {
-    if (behavior.kind === 'latching') return `${describe(behavior.on)} / ${describe(behavior.off)}`
-    const press = describe(behavior.press)
-    const { release } = behavior
-    if (release.kind === 'on-release') return `${press} · Loslassen: ${describe(release.action)}`
-    if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}${gridLabel(release)}: ${describe(release.action)}`
-    return press
-  }
-}
-
-const UNIT_LABEL = { ms: 'ms', beats: 'Schlägen', bars: 'Takten' } as const
-type Unit = keyof typeof UNIT_LABEL
-
 /** The step-by-step popup (docs/23 §4a): 1. press the pedal, 2. how it behaves, 3. what it does. */
 function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | null; onSave: (binding: KeyBinding) => void; onClose: () => void }) {
   const bindings = useKeybindingsStore((state) => state.bindings)
   const describeMapping = useDescribeBehavior()
-  const start = initial?.behavior
   const [key, setKey] = useState<string | null>(initial?.key ?? null)
-  const [mode, setMode] = useState<Mode>(start?.kind === 'latching' ? 'latching' : start?.release.kind === 'after' ? 'timed' : 'momentary')
-  const [press, setPress] = useState<Action | null>(start?.kind === 'momentary' ? start.press : start?.kind === 'latching' ? start.on : null)
-  const [second, setSecond] = useState<Action | null>(
-    start?.kind === 'latching' ? start.off : start?.kind === 'momentary' && start.release.kind !== 'none' ? start.release.action : null,
-  )
-  const [amount, setAmount] = useState(start?.kind === 'momentary' && start.release.kind === 'after' ? start.release.amount : 2)
-  const [unit, setUnit] = useState<Unit>(start?.kind === 'momentary' && start.release.kind === 'after' ? start.release.unit : 'bars')
-  const [onGrid, setOnGrid] = useState(start?.kind === 'momentary' && start.release.kind === 'after' ? (start.release.onGrid ?? false) : true)
+  const [behavior, setBehavior] = useState<Behavior | null>(initial?.behavior ?? null)
   const listening = key === null
 
   useEffect(() => {
@@ -117,18 +91,6 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
   }, [listening, onClose])
 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
-  const release: Release =
-    mode === 'timed' && second ? { kind: 'after', amount, unit, action: second, ...(unit !== 'ms' && onGrid ? { onGrid: true } : {}) } : mode === 'momentary' && second ? { kind: 'on-release', action: second } : { kind: 'none' }
-  const behavior: Behavior | null = !press
-    ? null
-    : mode === 'latching'
-      ? second
-        ? { kind: 'latching', on: press, off: second }
-        : null
-      : mode === 'timed' && !second
-        ? null
-        : { kind: 'momentary', press, release }
-
   return (
     <Dialog
       title={initial ? 'Zuordnung ändern' : 'Neue Zuordnung'}
@@ -159,61 +121,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
               {keyLabel(key)} ist schon belegt („{describeMapping(takenBy.behavior)}“) - beim Speichern wird das ersetzt.
             </p>
           )}
-          <Segmented
-            label="Verhalten"
-            showLabel
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'momentary', label: 'Tastend' },
-              { value: 'latching', label: 'Rastend' },
-              { value: 'timed', label: 'Zeitgesteuert' },
-            ]}
-            hint={
-              mode === 'momentary'
-                ? 'Drücken löst die Aktion aus, Loslassen auf Wunsch eine zweite.'
-                : mode === 'latching'
-                  ? 'Erster Druck: erste Aktion, zweiter Druck: zweite - z. B. Effekt an / aus.'
-                  : 'Drücken löst die Aktion aus, die zweite folgt von selbst nach der eingestellten Zeit.'
-            }
-          />
-          <ActionField label={mode === 'latching' ? '1. Druck' : 'Beim Drücken'} value={press} onChange={setPress} />
-          {mode === 'timed' && (
-            <div className="flex flex-col gap-2">
-              <Stepper label="Nach" value={amount} unit={UNIT_LABEL[unit]} min={1} max={unit === 'ms' ? 10000 : 64} step={unit === 'ms' ? 100 : 1} onChange={setAmount} />
-              <Segmented
-                label="Einheit"
-                value={unit}
-                onChange={(next) => {
-                  setUnit(next)
-                  setAmount(next === 'ms' ? 1000 : 2)
-                }}
-                options={[
-                  { value: 'bars', label: 'Takte' },
-                  { value: 'beats', label: 'Schläge' },
-                  { value: 'ms', label: 'ms' },
-                ]}
-              />
-              {unit !== 'ms' && (
-                <Switch
-                  label={unit === 'bars' ? 'Auf den Takt' : 'Auf den Schlag'}
-                  checked={onGrid}
-                  onChange={setOnGrid}
-                  description={
-                    onGrid
-                      ? `Landet genau auf einem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'} - gezählt ab dem, der dem Drücken am nächsten liegt, und vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
-                      : 'Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.'
-                  }
-                />
-              )}
-            </div>
-          )}
-          <ActionField
-            label={mode === 'latching' ? '2. Druck' : mode === 'timed' ? 'Danach' : 'Beim Loslassen (optional)'}
-            value={second}
-            onChange={setSecond}
-            optional={mode === 'momentary'}
-          />
+          <BehaviorEditor initial={initial?.behavior ?? null} onChange={setBehavior} />
         </div>
       )}
     </Dialog>

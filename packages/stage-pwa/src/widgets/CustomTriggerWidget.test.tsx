@@ -27,11 +27,14 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
+const show = vi.hoisted(() => ({ canControl: true, playbackStatus: 'stopped', elapsedMs: null, queue: {}, next: vi.fn(async () => {}) }))
+vi.mock('../lib/showMode', () => ({ useShowMode: () => show }))
+
 const { usePluginsStore } = await import('../store/usePluginsStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
-const { CustomTriggerWidget } = await import('./CustomTriggerWidget')
+const { CustomTriggerWidget, CustomTriggerConfigPanel } = await import('./CustomTriggerWidget')
 
 function device(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'mixer', pluginId: null, executionTarget: null, ...overrides }
@@ -65,6 +68,7 @@ function config(overrides: Partial<CustomTriggerConfig> = {}): CustomTriggerConf
 
 beforeEach(() => {
   vi.clearAllMocks()
+  show.canControl = true
   usePluginsStore.setState({ installed: [], health: { plugins: {} } })
   useLogicalDevicesStore.setState({ devices: [] })
   useWorkspaceStore.setState({ activeWorkspaceId: 'ws-1' })
@@ -74,10 +78,10 @@ describe('CustomTriggerWidget', () => {
   it('disables the button when no target device is configured', () => {
     render(<CustomTriggerWidget config={config()} />)
     expect(screen.getByRole('button')).toBeDisabled()
-    expect(screen.getByText('Kein Zielgerät konfiguriert')).toBeInTheDocument()
+    expect(screen.getByText('Keine Aktion gewählt')).toBeInTheDocument()
   })
 
-  it('momentary: fires active=true on press and active=false on release', () => {
+  it('momentary: fires active=true on press and active=false on release', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({ installed: [plugin()] })
@@ -90,13 +94,13 @@ describe('CustomTriggerWidget', () => {
     const button = screen.getByRole('button')
 
     fireEvent.pointerDown(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: true }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: true }, logicalDeviceId: mixer.id }))
 
     fireEvent.pointerUp(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id }))
   })
 
-  it('momentary: releases on pointer-leave too, so a drag-off never leaves it stuck on', () => {
+  it('momentary: releases on pointer-leave too, so a drag-off never leaves it stuck on', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({ installed: [plugin()] })
@@ -110,7 +114,7 @@ describe('CustomTriggerWidget', () => {
 
     fireEvent.pointerDown(button)
     fireEvent.pointerLeave(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'strobe', payload: { active: false }, logicalDeviceId: mixer.id }))
   })
 
   it('momentary: switches to the active color while held, and back on release', () => {
@@ -133,7 +137,7 @@ describe('CustomTriggerWidget', () => {
     expect(button).not.toHaveClass('bg-accent')
   })
 
-  it('latching: toggles on/off on successive clicks', () => {
+  it('latching: toggles on/off on successive clicks', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({ installed: [plugin()] })
@@ -146,13 +150,13 @@ describe('CustomTriggerWidget', () => {
     const button = screen.getByRole('button')
 
     fireEvent.click(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id }))
 
     fireEvent.click(button)
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: false }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: false }, logicalDeviceId: mixer.id }))
   })
 
-  it('merges the configured JSON payload into the fired event', () => {
+  it('merges the configured JSON payload into the fired event', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({ installed: [plugin()] })
@@ -168,14 +172,14 @@ describe('CustomTriggerWidget', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({
       type: 'blinder',
       payload: { channel: 'DMX-1', on: true },
       logicalDeviceId: mixer.id,
-    })
+    }))
   })
 
-  it('falls back to an empty payload for invalid JSON instead of crashing', () => {
+  it('falls back to an empty payload for invalid JSON instead of crashing', async () => {
     const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
     useLogicalDevicesStore.setState({ devices: [mixer] })
     usePluginsStore.setState({ installed: [plugin()] })
@@ -191,7 +195,7 @@ describe('CustomTriggerWidget', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id })
+    await vi.waitFor(() => expect(localMixerApplyEvent).toHaveBeenLastCalledWith({ type: 'blinder', payload: { on: true }, logicalDeviceId: mixer.id }))
   })
 
   it('routes through the relay when the device is bound to a different tablet', async () => {
@@ -232,6 +236,39 @@ describe('CustomTriggerWidget', () => {
 
     await vi.waitFor(() =>
       expect(triggerShowControl).toHaveBeenCalledWith('mock-lighting', { type: 'blackout', payload: { on: true }, logicalDeviceId: mixer.id }),
+    )
+  })
+
+  it('any action (docs/23 §7): a show action runs on the master', async () => {
+    render(<CustomTriggerWidget config={config({ action: { kind: 'momentary', press: { kind: 'show', op: 'next' }, release: { kind: 'none' } } })} />)
+    fireEvent.pointerDown(screen.getByRole('button'))
+    await vi.waitFor(() => expect(show.next).toHaveBeenCalled())
+  })
+
+  it('without show control the show button is greyed out with the reason - a device button stays usable', () => {
+    show.canControl = false
+    const mixer = device({ id: 'mixer-1', name: 'Mixer', executionTarget: useShowStateStore.getState().deviceId })
+    useLogicalDevicesStore.setState({ devices: [mixer] })
+    const { unmount } = render(<CustomTriggerWidget config={config({ action: { kind: 'momentary', press: { kind: 'show', op: 'next' }, release: { kind: 'none' } } })} />)
+    expect(screen.getByRole('button')).toBeDisabled()
+    expect(screen.getByText('Nur der Master steuert die Show')).toBeInTheDocument()
+    unmount()
+    render(<CustomTriggerWidget config={config({ targetLogicalDeviceId: mixer.id })} />)
+    expect(screen.getByRole('button')).toBeEnabled()
+  })
+
+  it('the panel shows an earlier button as its device command and stores it as an action', async () => {
+    const mixer = device({ id: 'mixer-1', name: 'Mixer' })
+    useLogicalDevicesStore.setState({ devices: [mixer] })
+    const onChange = vi.fn()
+    render(<CustomTriggerConfigPanel config={config({ behavior: 'latching', commandType: 'blinder', targetLogicalDeviceId: mixer.id })} onChange={onChange} />)
+    expect(screen.getByRole('radio', { name: 'Rastend' })).toHaveAttribute('aria-checked', 'true')
+    await vi.waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: { kind: 'latching', on: { kind: 'device', targetLogicalDeviceId: 'mixer-1', type: 'blinder', payload: { on: true } }, off: expect.objectContaining({ payload: { on: false } }) },
+        }),
+      ),
     )
   })
 })
