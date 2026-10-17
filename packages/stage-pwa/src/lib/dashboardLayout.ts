@@ -366,6 +366,9 @@ export function hasRoomFor(items: LayoutItem[], size: { w: number; h: number }):
 export interface MinSize {
   minW?: number
   minH?: number
+  /** The widget's own maximum: a pixel minimum is never raised above it. */
+  maxW?: number
+  maxH?: number
   /** Default size - what a collapsed widget is re-placed at when there is room. */
   w?: number
   h?: number
@@ -392,13 +395,15 @@ export function columnWidth(gridWidth: number, { margin, padding }: Pick<GridMet
  * A widget's minimum in grid units for the actual cell size: never smaller than its registry
  * minimum, and large enough that it is at least MIN_COLUMN_PX / MIN_ROW_PX per minimum unit
  * wide/tall - capped at the whole grid. The default size grows with it, so a repaired widget is
- * re-placed at a usable size.
+ * re-placed at a usable size. Never above the widget's own maximum: on a narrow grid (the Xiaomi in
+ * portrait, 41 px columns) the transport's 4 x 90 px needed 9 columns but may be at most 8 - it was
+ * "zu klein" at any size (Marco, 2026-10-17).
  */
 export function pixelMinimum(min: MinSize, colWidthPx: number, rowHeightPx: number): MinSize {
   const floorUnits = (units: number | undefined, cellPx: number, unitPx: number, cap: number) =>
     units === undefined ? undefined : Math.min(cap, Math.max(units, Math.ceil((units * unitPx) / Math.max(1, cellPx))))
-  const minW = floorUnits(min.minW, colWidthPx, MIN_COLUMN_PX, GRID_COLUMNS)
-  const minH = floorUnits(min.minH, rowHeightPx, MIN_ROW_PX, GRID_ROWS)
+  const minW = floorUnits(min.minW, colWidthPx, MIN_COLUMN_PX, min.maxW ?? GRID_COLUMNS)
+  const minH = floorUnits(min.minH, rowHeightPx, MIN_ROW_PX, min.maxH ?? GRID_ROWS)
   return {
     minW,
     minH,

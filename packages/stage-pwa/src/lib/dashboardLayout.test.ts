@@ -731,6 +731,12 @@ describe('belowMinimumItems (edit-mode outline)', () => {
 })
 
 describe('pixelMinimum (#369: minimums need a pixel floor)', () => {
+  it('never raises a minimum above the widget\'s own maximum - else no size is ever big enough (Marco 2026-10-17: transport on the Xiaomi in portrait)', () => {
+    // 41 px columns: 4 x 90 px would need 9 columns, the transport may have at most 8.
+    expect(pixelMinimum({ minW: 4, minH: 3, maxW: 8, maxH: 6 }, 41, 30).minW).toBe(8)
+    expect(pixelMinimum({ minW: 4, minH: 3 }, 41, 30).minW).toBe(9)
+  })
+
   it('leaves a landscape tablet unchanged - its columns are already wider than the floor', () => {
     expect(pixelMinimum({ minW: 3, minH: 6, w: 12, h: 16 }, 105, 28)).toEqual({ minW: 3, minH: 6, w: 12, h: 16 })
   })

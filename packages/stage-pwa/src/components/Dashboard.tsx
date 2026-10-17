@@ -62,7 +62,7 @@ function minSizeFor(dashboard: DashboardDoc, cell?: CellSize): (instanceId: stri
     const widget = dashboard.widgets.find((w) => w.i === instanceId)
     const bounds = widget ? WIDGET_REGISTRY[widget.type]?.defaultLayout : undefined
     if (!bounds) return undefined
-    const min = { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h }
+    const min = { minW: bounds.minW, minH: bounds.minH, w: bounds.w, h: bounds.h, maxW: bounds.maxW, maxH: bounds.maxH }
     return cell ? pixelMinimum(min, cell.colWidth, cell.rowHeight) : min
   }
 }
