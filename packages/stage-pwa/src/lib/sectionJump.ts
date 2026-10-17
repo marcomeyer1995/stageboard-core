@@ -13,11 +13,12 @@ import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
  */
 
 /** How far ahead a jump is announced - Wi-Fi to every device, and the track's target decoded. */
-export const JUMP_NOTICE_MS = 1000
-/** A queued jump closer than this can no longer be called off - devices have scheduled it. */
-const CANCEL_MIN_MS = 300
+export const JUMP_NOTICE_MS = 1500
+/** A queued jump closer than this can no longer be called off - the track takes it over 0.9 s
+ * ahead (webAudioTrackEngine JUMP_COMMIT_S); calling it off after that cost an audible restart. */
+const CANCEL_MIN_MS = 1000
 /** The driving device queues a loop's way back this long before the section end. */
-const LOOP_NOTICE_MS = 1500
+const LOOP_NOTICE_MS = 2000
 /** How often the driving device looks at jump and loop. */
 const DRIVER_TICK_MS = 100
 

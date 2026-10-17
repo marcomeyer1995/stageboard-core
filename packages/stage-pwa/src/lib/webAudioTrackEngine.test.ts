@@ -271,10 +271,13 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
       const old = 10_000 + (wallMs - startWall)
       return old >= jump.boundaryMs ? jump.toMs + (old - jump.boundaryMs) : old
     }
-    syncWebAudioTrack(song, true, () => jump)
-    // A few frames to start the first voice, then the jump is taken over well ahead.
-    for (let t = 0; t < 3_000; t += 16) {
-      syncWebAudioTrack(song, true, () => jump)
+    // After the jump the master folds it (no jump any more); the song clock drifts a little, so
+    // the engine corrects its rate - which once made it think the jump was called off and restart.
+    const jumpAt = () => (wallMs - startWall < 2_300 ? jump : null)
+    const drifting = () => song() + (wallMs - startWall) * 0.003
+    syncWebAudioTrack(song, true, jumpAt)
+    for (let t = 0; t < 8_000; t += 16) {
+      syncWebAudioTrack(wallMs - startWall < 2_300 ? song : drifting, true, jumpAt)
       wallMs += 16
       await vi.advanceTimersByTimeAsync(16)
     }
@@ -282,6 +285,7 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     const stats = __webAudioTrackStatsForTests()
     expect(stats.jumps).toBe(1)
     expect(stats.reschedules).toHaveLength(0)
+    expect(stats.starts).toBe(2)
     // Song 12 s is reached 2 s after the start - that audio moment is the boundary.
     const boundaryAt = 100 + (startWall + 2_000) / 1000
     const before = nodes.filter((n) => n.when < boundaryAt - 0.05)
