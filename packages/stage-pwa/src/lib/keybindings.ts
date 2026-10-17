@@ -1,3 +1,4 @@
+import type { Action, Behavior } from './actions'
 /**
  * Bluetooth foot switches (#27): AirTurn, PageFlip and similar pedals pair as a keyboard and send
  * plain keystrokes (PageUp/PageDown, arrow keys, Space, Enter). Each device maps keys to show
@@ -60,11 +61,21 @@ export const ONE_BUTTON_SHOW: Record<SongState, StepAction> = {
   finished: 'next-play',
 }
 
+/** The mapping before actions (docs/23): one fixed show action or one per song state. Kept to
+ * convert stored mappings - `bindingFromV2`. */
 export type KeyAction = { kind: 'fixed'; action: FixedAction } | { kind: 'by-state'; steps: Record<SongState, StepAction> }
 
+/** A key and what pressing (and letting go of) it does (docs/23 §4a). */
 export interface KeyBinding {
   key: string
-  action: KeyAction
+  behavior: Behavior
+}
+
+/** A stored mapping of the earlier form, as the same behaviour in the new one - nobody has to set
+ * up their pedal again (docs/23 §8). */
+export function bindingFromV2(old: { key: string; action: KeyAction }): KeyBinding {
+  const press: Action = old.action.kind === 'fixed' ? { kind: 'show', op: old.action.action } : { kind: 'by-state', steps: old.action.steps }
+  return { key: old.key, behavior: { kind: 'momentary', press, release: { kind: 'none' } } }
 }
 
 export type Keybindings = KeyBinding[]
@@ -89,14 +100,6 @@ export function upsertBinding(bindings: Keybindings, binding: KeyBinding, replac
 
 export function removeBinding(bindings: Keybindings, key: string): Keybindings {
   return bindings.filter((b) => b.key !== key)
-}
-
-/** What a key does, in one line for the list. */
-export function describeAction(action: KeyAction): string {
-  if (action.kind === 'fixed') return FIXED_ACTIONS.find((a) => a.id === action.action)?.label ?? action.action
-  return SONG_STATES.filter(({ id }) => action.steps[id] !== 'none')
-    .map(({ id, label }) => `${label} → ${STEP_LABEL[action.steps[id]]}`)
-    .join(' · ')
 }
 
 /** The song's state from what the transport knows. */

@@ -15,11 +15,21 @@ const show = vi.hoisted(() => ({
   stop: vi.fn(async () => {}),
 }))
 vi.mock('./showMode', () => ({ useShowMode: () => show }))
+// The executor's other paths (devices, section jumps) and the action picker's device list use
+// stores backed by PouchDB - not needed for the keys here.
+const device = vi.hoisted(() => ({ fireDeviceAction: vi.fn(async () => null) }))
+vi.mock('./deviceAction', () => device)
+vi.mock('./sectionJump', () => ({ queueSectionJump: vi.fn(), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
+vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: () => ({ state: {}, startReadyCheck: vi.fn() }) } }))
+vi.mock('../store/useLogicalDevicesStore', () => ({
+  useLogicalDevicesStore: (select: (state: { devices: { id: string; name: string; capability: string }[] }) => unknown) =>
+    select({ devices: [{ id: 'kemper', name: 'Kemper', capability: 'kemper-control' }] }),
+}))
 
 const { useFootswitch } = await import('./useFootswitch')
 const { useKeybindingsStore } = await import('../store/useKeybindingsStore')
 const { KeybindingSettings } = await import('../components/KeybindingSettings')
-const { ONE_BUTTON_SHOW, PROMPTER_SCROLL_EVENT } = await import('./keybindings')
+const { ONE_BUTTON_SHOW, PROMPTER_SCROLL_EVENT, bindingFromV2 } = await import('./keybindings')
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -32,7 +42,7 @@ beforeEach(() => {
 
 describe('useFootswitch (#27)', () => {
   it('a fixed key does its one thing - only on a dashboard, with control, not while typing', async () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } })] })
     const { rerender } = renderHook(({ active }) => useFootswitch(active), { initialProps: { active: true } })
     fireEvent.keyDown(window, { key: 'PageDown' })
     expect(show.next).toHaveBeenCalledTimes(1)
@@ -50,7 +60,7 @@ describe('useFootswitch (#27)', () => {
   })
 
   it('"Ein-Tasten-Show": one key runs the show through every song state', async () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } })] })
     renderHook(() => useFootswitch(true))
     const press = async () => {
       fireEvent.keyDown(window, { key: 'b' })
@@ -84,7 +94,7 @@ describe('useFootswitch (#27)', () => {
   })
 
   it('after the last song "next and play" does nothing - it never restarts the song that ended (#394 review)', async () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } })] })
     renderHook(() => useFootswitch(true))
     Object.assign(show, { playbackStatus: 'stopped', trackEnded: true })
     show.queue.nextEntry = null
@@ -96,7 +106,7 @@ describe('useFootswitch (#27)', () => {
   })
 
   it('does nothing while a confirmation (alertdialog, DialogHost) is open - and acts again once it closed', () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } })] })
     renderHook(() => useFootswitch(true))
     const dialog = document.createElement('div')
     dialog.setAttribute('role', 'alertdialog')
@@ -109,7 +119,7 @@ describe('useFootswitch (#27)', () => {
   })
 
   it('does nothing while a dialog or the menu is open (#394 review)', () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } })] })
     renderHook(() => useFootswitch(true))
     const dialog = document.createElement('div')
     dialog.setAttribute('role', 'dialog')
@@ -120,7 +130,7 @@ describe('useFootswitch (#27)', () => {
   })
 
   it('prompter keys page the prompter', () => {
-    useKeybindingsStore.setState({ bindings: [{ key: 'ArrowDown', action: { kind: 'fixed', action: 'prompter-down' } }] })
+    useKeybindingsStore.setState({ bindings: [bindingFromV2({ key: 'ArrowDown', action: { kind: 'fixed', action: 'prompter-down' } })] })
     const listener = vi.fn()
     window.addEventListener(PROMPTER_SCROLL_EVENT, listener)
     renderHook(() => useFootswitch(true))
@@ -139,12 +149,15 @@ describe('KeybindingSettings (#27)', () => {
     expect(within(dialog).getByText('Jetzt Pedal drücken …')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'PageDown' })
     expect(show.next).not.toHaveBeenCalled() // captured, not executed
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Je nach Zustand des Songs' }))
-    expect(within(dialog).getByLabelText('Wenn Spielt')).toHaveValue('stop-next')
-    fireEvent.change(within(dialog).getByLabelText('Wenn Spielt'), { target: { value: 'pause' } })
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Wählen' })[0]!)
+    const picker = screen.getByRole('dialog', { name: 'Beim Drücken' })
+    fireEvent.click(within(picker).getByRole('radio', { name: 'Je nach Zustand des Songs' }))
+    expect(within(picker).getByLabelText('Wenn Spielt')).toHaveValue('stop-next')
+    fireEvent.change(within(picker).getByLabelText('Wenn Spielt'), { target: { value: 'pause' } })
+    fireEvent.click(within(picker).getByRole('button', { name: 'Übernehmen' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
     expect(useKeybindingsStore.getState().bindings).toEqual([
-      { key: 'PageDown', action: { kind: 'by-state', steps: { ...ONE_BUTTON_SHOW, playing: 'pause' } } },
+      bindingFromV2({ key: 'PageDown', action: { kind: 'by-state', steps: { ...ONE_BUTTON_SHOW, playing: 'pause' } } }),
     ])
     expect(screen.getByText(/Spielt → Pause/)).toBeInTheDocument()
   })
@@ -152,8 +165,8 @@ describe('KeybindingSettings (#27)', () => {
   it('tapping a mapping edits it, ✕ deletes it, and a taken key is announced', () => {
     useKeybindingsStore.setState({
       bindings: [
-        { key: 'PageDown', action: { kind: 'fixed', action: 'next' } },
-        { key: 'PageUp', action: { kind: 'fixed', action: 'previous' } },
+        bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }),
+        bindingFromV2({ key: 'PageUp', action: { kind: 'fixed', action: 'previous' } }),
       ],
     })
     render(<KeybindingSettings />)
@@ -163,8 +176,64 @@ describe('KeybindingSettings (#27)', () => {
     fireEvent.keyDown(window, { key: 'PageUp' })
     expect(within(dialog).getByText(/ist schon belegt/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Speichern' }))
-    expect(useKeybindingsStore.getState().bindings).toEqual([{ key: 'PageUp', action: { kind: 'fixed', action: 'next' } }])
+    expect(useKeybindingsStore.getState().bindings).toEqual([bindingFromV2({ key: 'PageUp', action: { kind: 'fixed', action: 'next' } })])
     fireEvent.click(screen.getByRole('button', { name: 'Zuordnung für Bild ↑ löschen' }))
     expect(useKeybindingsStore.getState().bindings).toEqual([])
+  })
+})
+
+describe('pedal press and release (docs/23 §4a) and rights (§5a)', () => {
+  const blinder = (on: boolean) => ({ kind: 'device' as const, targetLogicalDeviceId: 'light', type: 'light.blinder', payload: { on } })
+
+  it('momentary: the press action, and the release action when let go', async () => {
+    useKeybindingsStore.setState({ bindings: [{ key: 'b', behavior: { kind: 'momentary', press: blinder(true), release: { kind: 'on-release', action: blinder(false) } } }] })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 'b' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: true })
+    fireEvent.keyUp(window, { key: 'b' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: false })
+  })
+
+  it('latching: first press A, second press B', async () => {
+    useKeybindingsStore.setState({ bindings: [{ key: 'l', behavior: { kind: 'latching', on: blinder(true), off: blinder(false) } }] })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 'l' })
+    fireEvent.keyUp(window, { key: 'l' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(window, { key: 'l' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: false })
+  })
+
+  it('timed: the second action follows by itself after 2 bars at the song tempo', async () => {
+    vi.useFakeTimers()
+    useKeybindingsStore.setState({ bindings: [{ key: 't', behavior: { kind: 'momentary', press: blinder(true), release: { kind: 'after', amount: 2, unit: 'bars', action: blinder(false) } } }] })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 't' })
+    fireEvent.keyUp(window, { key: 't' })
+    await vi.advanceTimersByTimeAsync(3_900) // 2 bars at 120 bpm 4/4 = 4 s
+    expect(device.fireDeviceAction).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: false })
+    vi.useRealTimers()
+  })
+
+  it('without show control: no show action (never passed on) - a device command still goes out', async () => {
+    show.canControl = false
+    useKeybindingsStore.setState({
+      bindings: [
+        bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } }),
+        { key: 'b', behavior: { kind: 'momentary', press: blinder(true), release: { kind: 'none' } } },
+      ],
+    })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 'PageDown' })
+    fireEvent.keyDown(window, { key: 'b' })
+    await flush()
+    expect(show.next).not.toHaveBeenCalled()
+    expect(device.fireDeviceAction).toHaveBeenCalledWith('light', 'light.blinder', { on: true })
   })
 })

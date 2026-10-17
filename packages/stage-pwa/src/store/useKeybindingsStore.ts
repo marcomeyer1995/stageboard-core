@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_KEYBINDINGS, removeBinding, upsertBinding, type KeyBinding, type Keybindings } from '../lib/keybindings'
+import { bindingFromV2, DEFAULT_KEYBINDINGS, removeBinding, upsertBinding, type KeyAction, type KeyBinding, type Keybindings } from '../lib/keybindings'
 
 interface KeybindingsState {
   bindings: Keybindings
@@ -23,8 +23,16 @@ export const useKeybindingsStore = create<KeybindingsState>()(
       name: 'stageboard-keybindings',
       // Version 2: a list of mappings (fixed or per song state) instead of keys per action, and
       // nothing pre-assigned - the old per-action defaults are not carried over.
-      version: 2,
-      migrate: () => ({ bindings: DEFAULT_KEYBINDINGS }),
+      // Version 3 (docs/23): each mapping an action with press/release behaviour - version 2
+      // mappings are converted, so a pedal keeps working.
+      version: 3,
+      migrate: (persisted, version) => {
+        if (version === 2) {
+          const old = (persisted as { bindings?: { key: string; action: KeyAction }[] } | null)?.bindings ?? []
+          return { bindings: old.filter((b) => b && typeof b.key === 'string' && b.action).map(bindingFromV2) }
+        }
+        return { bindings: DEFAULT_KEYBINDINGS }
+      },
     },
   ),
 )

@@ -1,6 +1,6 @@
 # 23 – Auslöser und Aktionen
 
-Konzept (2026-10-18, #547), mit Marco entschieden (§4a, §5a, §10), noch nicht gebaut.
+Konzept (2026-10-18, #547), mit Marco entschieden (§4a, §5a, §10). **Schritt 1 gebaut (2026-10-18):** Aktionen (`lib/actions.ts`), ein Ausführer mit Rechteprüfung (`lib/runAction.ts`), Gerätebefehle über `lib/deviceAction.ts` (derselbe Weg wie der Trigger-Button), Tasten & Pedale mit Tastend/Rastend/Zeitgesteuert (`useFootswitch.ts`) und dem Aktions-Dialog (`components/ActionPicker.tsx`); gespeicherte Belegungen werden umgeschrieben (Speicherversion 3). Zeitgesteuert rechnet Schläge und Takte mit dem Tempo an der Stelle des Drückens (ein Timer, nicht auf den Schlag genau geplant).
 
 ## 1. Ausgangslage
 
