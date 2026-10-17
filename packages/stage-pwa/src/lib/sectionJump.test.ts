@@ -21,9 +21,6 @@ vi.mock('../store/useShowStateStore', () => ({
   useShowStateStore: { getState: () => store },
   drivesAutomation: (s: typeof store) => s.isMaster,
 }))
-vi.mock('./queue', () => ({
-  currentTransport: (state: ShowState) => ({ status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }),
-}))
 
 const { cancelSectionJump, queueSectionJump, setSectionLoop, useSectionJumpDriver } = await import('./sectionJump')
 

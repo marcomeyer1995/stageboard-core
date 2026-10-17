@@ -4,7 +4,7 @@ import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
-import { ARMED_TRANSPORT, computeActiveMs, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
+import { ARMED_TRANSPORT, computeActiveMs, transportOf, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
 import { songDurationMs, stoppedNearEnd } from './entryDuration'
 import { useSetlistsStore } from '../store/useSetlistsStore'
@@ -34,8 +34,8 @@ export function getQueueSnapshot(): Queue {
   )
 }
 
-export function currentTransport(state: ShowState): TransportState {
-  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
+function currentTransport(state: ShowState): TransportState {
+  return transportOf(state)
 }
 
 export function transportPatch(t: TransportState): Partial<ShowState> {

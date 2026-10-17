@@ -114,6 +114,18 @@ interface Voice {
   /** Song position up to which audio is scheduled. */
   scheduledUntil: number
   feeder: { cancelled: boolean } | null
+  /** Set when this voice is the target of a section jump (#479): it starts at the boundary with
+   * the target (`toS`), the voice before it fading out there (`replacedGain`). Until then the song
+   * clock still reads the old section. */
+  jump: { id: number; boundaryS: number; toS: number; replacedGain: GainNode | null } | null
+}
+
+/** A section jump queued in the show (#479): at song time `boundaryMs` the song continues at
+ * `toMs`. `id` tells two jumps between the same points apart (every pass of a loop). */
+export interface TrackJump {
+  id: number
+  boundaryMs: number
+  toMs: number
 }
 
 /** Prepared tracks by key (variant:track) - audio is only ever played under its own key, never
@@ -142,6 +154,8 @@ const stats = {
   startLog: [] as { songMs: number; fromMs: number }[],
   late: 0,
   reschedules: [] as { at: number; errorMs: number }[],
+  /** Section jumps (#479) taken over seamlessly. */
+  jumps: 0,
   lastErrorMs: 0,
   rate: 1,
   trace: [] as { wall: number; raw: number; now: number; elapsedMs: number; errorMs: number | null }[],
@@ -390,7 +404,7 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
   gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
   if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
   gain.connect(sourceOutput('track', ctx))
-  const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null }
+  const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null, jump: null }
   voice = v
   stats.starts++
   stats.lastStartMs = Math.round(pos * 1000)
@@ -414,7 +428,7 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
  * song time (null = stopped). Returns whether audio is blocked by the browser (the context couldn't
  * be resumed without a tap).
  */
-export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: boolean): { blocked: boolean } {
+export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: boolean, jumpNow: () => TrackJump | null = () => null): { blocked: boolean } {
   const ctx = getSharedAudioContext()
   const prepared = wantedPrepared()
   if (!shouldPlay || !prepared || !wanted) {
@@ -456,11 +470,37 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     return { blocked: false }
   }
 
+  // A section jump (#479): the target section comes in exactly at the boundary - the running voice
+  // fades out there, a new one starts with the target. Prepared as soon as it is queued (a second or
+  // more ahead), so the target is decoded in time.
+  const jump = jumpNow()
+  if (voice.jump && now < voice.seg.anchorTime && (!jump || jump.id !== voice.jump.id)) {
+    // Called off before it happened: back to the song as it runs (with a short restart).
+    voice.jump.replacedGain?.gain.setTargetAtTime(0, ctx.currentTime, FADE_S / 3)
+    stopVoice()
+    return { blocked: false }
+  }
+  if (jump && voice.jump?.id !== jump.id && (voice.jump === null || now >= voice.seg.anchorTime)) {
+    const boundaryAt = timeOf(voice, jump.boundaryMs / 1000)
+    if (boundaryAt - now > STREAM_LEAD_S) {
+      const replacedGain = voice.gain
+      stopVoice(boundaryAt - FADE_S / 2)
+      startVoice(ctx, prepared, boundaryAt, jump.toMs / 1000)
+      const started = voice as Voice | null
+      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, replacedGain }
+      stats.jumps++
+      return { blocked: false }
+    }
+  }
+
   const v = voice
   const firstTime = v.prev?.anchorTime ?? v.seg.anchorTime
   const firstPos = v.prev?.anchorPos ?? v.seg.anchorPos
-  // Before the scheduled start: compare where it will start with where the song will be then.
-  const errorS = now < firstTime ? firstPos - (songNow + (firstTime - now)) : posAt(v, now) - songNow
+  // Before the scheduled start: compare where it will start with where the song will be then - for
+  // a jump's target, in the target's time.
+  const songAtFirst = songNow + (firstTime - now)
+  const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - 0.001 ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
+  const errorS = now < firstTime ? firstPos - expectedAtFirst : posAt(v, now) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   if (wall < stats.traceUntil) {
     stats.trace.push({ wall: Date.now(), raw: ctx.currentTime, now, elapsedMs, errorMs: Math.round(errorS * 1000) })

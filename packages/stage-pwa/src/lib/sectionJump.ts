@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { getServerTime } from './clockSync'
-import { computeActiveMs, foldJump } from './playbackTransport'
-import { currentTransport } from './queue'
+import { computeActiveMs, foldJump, transportOf } from './playbackTransport'
 import { jumpBoundary, type JumpWhen, type ShowSection } from './showSections'
 import type { ClickTimeline } from './beatGrid'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
@@ -31,7 +30,7 @@ export async function queueSectionJump(target: ShowSection, when: JumpWhen, sect
   if (!isMaster) return 'not-master'
   if (state.playbackStatus !== 'playing' || state.playbackStartedAt === null) return 'not-playing'
   const now = getServerTime()
-  const transport = foldJump(currentTransport(state), now)
+  const transport = foldJump(transportOf(state), now)
   if (transport.startedAt === null) return 'not-playing'
   const boundary = jumpBoundary(when, computeActiveMs(transport, now) + JUMP_NOTICE_MS, sections, timeline)
   if (boundary === null) return 'no-boundary'
@@ -79,7 +78,7 @@ export function useSectionJumpDriver(): void {
       const { state, applyPatch } = store
       if (!drivesAutomation(store) || state.playbackStatus !== 'playing' || state.playbackStartedAt === null) return
       const now = getServerTime()
-      const transport = currentTransport(state)
+      const transport = transportOf(state)
       if (state.playbackJump && now >= state.playbackJump.at) {
         const folded = foldJump(transport, now)
         void applyPatch({ playbackStartedAt: folded.startedAt, playbackAccumulatedMs: folded.accumulatedMs, playbackJump: null })

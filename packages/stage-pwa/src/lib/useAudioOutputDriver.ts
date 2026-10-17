@@ -17,15 +17,18 @@ import {
   loadWebAudioTrack,
   preloadWebAudioTrack,
   syncWebAudioTrack,
+  type TrackJump,
   unloadWebAudioTrack,
   webAudioTrackEnabled,
 } from './webAudioTrackEngine'
 import { useCapabilityRouting } from './useCapabilityRouting'
 import { holdAudioOutputAwake } from './sharedAudioContext'
 import { useShowMode } from './showMode'
-import { gigElapsedMsNow } from './usePlaybackElapsedMs'
+import { getServerTime } from './clockSync'
+import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
+import { useShowStateStore } from '../store/useShowStateStore'
 
 /**
  * Drives Gig-mode audio-playback (#13) regardless of which top-level tab (Live/Bibliothek/
@@ -185,19 +188,31 @@ export function useAudioOutputDriver(): void {
 
   // Web Audio track (#468): started, kept on the clock and stopped from here, every frame.
   const webAudioBlockedRef = useRef(false)
+  // Heard `latencyRef` later, so played that much ahead. A queued section jump (#479) switches at
+  // its boundary in this played-ahead song time - exactly where the engine starts the target.
   const compensatedElapsedNow = useRef(() => {
-    const elapsed = gigElapsedMsNow()
-    return elapsed === null ? null : elapsed + latencyRef.current
+    const state = useShowStateStore.getState().state
+    if (state.playbackStatus === 'stopped') return null
+    const transport = transportOf(state)
+    const played = computeActiveMs({ ...transport, jump: null }, getServerTime()) + latencyRef.current
+    const boundary = jumpBoundaryMs(transport)
+    return transport.jump && boundary !== null && played >= boundary ? transport.jump.toMs + (played - boundary) : played
+  }).current
+  const jumpNow = useRef((): TrackJump | null => {
+    const state = useShowStateStore.getState().state
+    const transport = transportOf(state)
+    const boundary = jumpBoundaryMs(transport)
+    return transport.jump && boundary !== null ? { id: transport.jump.at, boundaryMs: boundary, toMs: transport.jump.toMs } : null
   }).current
   useEffect(() => {
     if (!webAudio) return
     // The engine reads the song time itself, at the moment it reads the audio clock.
-    const { blocked } = syncWebAudioTrack(compensatedElapsedNow, playbackStatus === 'playing' && currentSong !== null)
+    const { blocked } = syncWebAudioTrack(compensatedElapsedNow, playbackStatus === 'playing' && currentSong !== null, jumpNow)
     if (blocked !== webAudioBlockedRef.current) {
       webAudioBlockedRef.current = blocked
       useLocalAudioOutputStore.setState({ audioBlocked: blocked })
     }
-  }, [webAudio, playbackStatus, elapsedMs, currentSong, compensatedElapsedNow])
+  }, [webAudio, playbackStatus, elapsedMs, currentSong, compensatedElapsedNow, jumpNow])
 
   // Continuously re-locks the local engine to the synced master clock while playing - the
   // backing-track equivalent of clickEngine.ts's scheduler re-anchoring to elapsedMs every tick.
