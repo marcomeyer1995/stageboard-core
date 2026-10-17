@@ -11,7 +11,7 @@ export interface PickItem {
 }
 
 /**
- * One choice as a row in the ☰ drawer - "Band: …", "Setlist: …" (Marco, 2026-10-16): tap it, pick
+ * One choice as a row in the ☰ drawer - the band, the setlist (Marco, 2026-10-16): tap it, pick
  * from a small list, the current one yellow; like "Ich bin". `readOnly` shows the same row without
  * the list; `locked` greys it out (a song is playing).
  */
@@ -25,7 +25,7 @@ export function PickRow({
   locked = false,
   lockedHint,
 }: {
-  /** "Band", "Setlist" - the row reads "<title>: <name>", the list is titled with it. */
+  /** "Band", "Setlist" - titles the list; the row shows only the name, its drawer group names it. */
   title: string
   items: readonly PickItem[]
   activeId: string | null
@@ -40,7 +40,8 @@ export function PickRow({
   const active = items.find((item) => item.id === activeId && item.id !== null)
   const label = (
     <span className="min-w-0 flex-1 truncate">
-      <span className="text-ink-muted">{title}: </span>
+      {/* The group label beside the row already says it (Marco, 2026-10-17) - kept for screen readers. */}
+      <span className="sr-only">{title}: </span>
       {active?.name ?? emptyName}
     </span>
   )
