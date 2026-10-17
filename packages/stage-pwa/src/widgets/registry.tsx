@@ -272,7 +272,10 @@ const DEFINITIONS: WidgetDefinition[] = [
     category: 'performance',
     stageTier: 'gig',
     defaultLayout: { w: 6, h: 4, minW: 4, minH: 3, maxW: 8, maxH: 6 },
-    parts: [{ id: 'title', label: 'Songtitel' }],
+    parts: [
+      { id: 'title', label: 'Songtitel' },
+      { id: 'time', label: 'Zeit' },
+    ],
     configSchema: ShowTransportConfigSchema,
     Component: ShowTransportWidget,
     ConfigPanel: ShowTransportConfigPanel,
