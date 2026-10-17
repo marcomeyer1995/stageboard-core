@@ -201,7 +201,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                   onChange={setOnGrid}
                   description={
                     onGrid
-                      ? `Landet genau auf dem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'}, gezählt vom nächsten zum Drücken - vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
+                      ? `Landet genau auf einem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'} - gezählt ab dem, der dem Drücken am nächsten liegt, und vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
                       : 'Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.'
                   }
                 />
