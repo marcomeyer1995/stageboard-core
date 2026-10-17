@@ -15,6 +15,8 @@ const CAPABILITY_LABEL: Record<string, string> = {
   [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
   [CAPABILITIES.stemSeparation]: 'Spuren trennen',
   [CAPABILITIES.sectionAnnouncements]: 'Ansagen',
+  [CAPABILITIES.chordImport]: 'Akkord-Import',
+  [CAPABILITIES.videoDownload]: 'YouTube-Download',
 }
 
 /** A plugin's capabilities as one readable line. A device's own capability ("kemper-control",
@@ -36,6 +38,11 @@ export const TEST_PLUGIN_IDS: readonly string[] = ['mock-mixer', 'mock-lighting'
 /** The dev app's build (docs/03 §0c) sets VITE_DEV_APP=1. */
 export const SHOW_TEST_PLUGINS = import.meta.env.DEV || import.meta.env.VITE_DEV_APP === '1'
 
+/** Legally risky add-ons (#546, docs/16): Ultimate Guitar import and YouTube download. A sale build
+ * (VITE_SALE_BUILD=1) doesn't offer them - before a real sale their code has to go entirely. */
+export const SALE_BUILD_LEFT_OUT: readonly string[] = ['ultimate-guitar-import', 'youtube-download']
+export const SALE_BUILD = import.meta.env.VITE_SALE_BUILD === '1'
+
 export function isTestPlugin(id: string): boolean {
   return TEST_PLUGIN_IDS.includes(id)
 }
@@ -50,8 +57,8 @@ export function pluginKind(plugin: { id: string; transports?: readonly unknown[]
 }
 
 /** The catalog this build offers to install. */
-export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS): typeof PLUGIN_CATALOG {
-  return showTestPlugins ? PLUGIN_CATALOG : PLUGIN_CATALOG.filter((entry) => !isTestPlugin(entry.id))
+export function installableCatalog(showTestPlugins = SHOW_TEST_PLUGINS, saleBuild = SALE_BUILD): typeof PLUGIN_CATALOG {
+  return PLUGIN_CATALOG.filter((entry) => (showTestPlugins || !isTestPlugin(entry.id)) && !(saleBuild && SALE_BUILD_LEFT_OUT.includes(entry.id)))
 }
 
 /**
@@ -374,6 +381,28 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     // full CPU per song), so a plugin: without it the song editor offers no "Spuren trennen".
     runtime: 'server',
     capabilities: [CAPABILITIES.stemSeparation],
+    transports: [],
+    hardwareIds: [],
+  },
+  {
+    id: 'ultimate-guitar-import',
+    name: 'Ultimate Guitar Import',
+    version: '0.0.1',
+    // Search Ultimate Guitar for chord sheets under "Song importieren" (#546). An add-on: it reads a
+    // third party's website (docs/16), so a band only has it when it installs it.
+    runtime: 'server',
+    capabilities: [CAPABILITIES.chordImport],
+    transports: [],
+    hardwareIds: [],
+  },
+  {
+    id: 'youtube-download',
+    name: 'YouTube-Download',
+    version: '0.0.1',
+    // "Von YouTube laden" in the song editor: the Stage-Server downloads a reference recording with
+    // yt-dlp (#5, #546). An add-on for the same reason as Ultimate Guitar.
+    runtime: 'server',
+    capabilities: [CAPABILITIES.videoDownload],
     transports: [],
     hardwareIds: [],
   },

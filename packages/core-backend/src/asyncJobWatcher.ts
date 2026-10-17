@@ -9,6 +9,7 @@ import { mimeTypeForExt, runYtDlpExtract } from './ytDlp.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readInstallations } from './plugins/pluginSync.js'
 import { STEM_SEPARATION_PLUGIN_ID } from './plugins/stemSeparationPlugin.js'
+import { bandHasAddon, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
 import { runStemSeparation } from './stems/stemSeparation.js'
 
 const CHANGES_TIMEOUT_MS = 30_000
@@ -253,11 +254,14 @@ export function createAsyncJobWatcher(options: AsyncJobWatcherOptions): AsyncJob
     // document is untrusted input. The URL guards the shell-out (shared-types' own doc comment
     // on isYoutubeUrl); the variant id becomes a path segment under the audio store, the same
     // check the upload route applies.
-    const rejection = !isYoutubeUrl(job.url)
-      ? 'Nur youtube.com/youtu.be-Links werden unterstützt.'
-      : !isSafeAudioId(job.variantId)
-        ? 'Ungültige Song-Varianten-ID.'
-        : null
+    // Only for a band with the YouTube-Download add-on (#546) - checked here, not only in the app.
+    const rejection = !(await bandHasAddon(couch, workspaceId, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false))
+      ? 'Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.'
+      : !isYoutubeUrl(job.url)
+        ? 'Nur youtube.com/youtu.be-Links werden unterstützt.'
+        : !isSafeAudioId(job.variantId)
+          ? 'Ungültige Song-Varianten-ID.'
+          : null
     if (rejection) {
       log.error('Rejected async job', { jobId: job.id, reason: rejection })
       await patchJob(job.id, { status: 'error', error: rejection }).catch((err) =>

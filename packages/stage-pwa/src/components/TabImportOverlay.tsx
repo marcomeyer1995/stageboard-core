@@ -5,11 +5,18 @@ import { useBackHandler } from '../lib/backNavigation'
 import { Icon } from './Icon'
 import { INPUT_FREE } from './ui/styles'
 import { Button } from './ui'
+import { CAPABILITIES } from 'shared-types'
+import { pluginProviding } from '../lib/capabilities'
+import { usePluginsStore } from '../store/usePluginsStore'
 
-const PROVIDERS = [
-  { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' },
-  { id: 'metadata-lookup', label: 'MusicBrainz (Metadaten)' },
-] as const
+const ULTIMATE_GUITAR = { id: 'ultimate-guitar-scraper', label: 'Ultimate Guitar (Akkorde)' }
+const MUSICBRAINZ = { id: 'metadata-lookup', label: 'MusicBrainz (Metadaten)' }
+
+/** Ultimate Guitar only with its add-on (#546); MusicBrainz is always there. */
+function useProviders(): { id: string; label: string }[] {
+  const installed = usePluginsStore((state) => state.installed)
+  return pluginProviding(installed, CAPABILITIES.chordImport) !== null ? [ULTIMATE_GUITAR, MUSICBRAINZ] : [MUSICBRAINZ]
+}
 
 /**
  * A real `<iframe>` of the source page won't render here - Ultimate Guitar (like most sites)
@@ -43,6 +50,7 @@ interface TabImportOverlayProps {
  * editor - the user never has to leave the app to find a chord sheet. */
 export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportOverlayProps) {
   useBackHandler(onClose)
+  const PROVIDERS = useProviders()
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
   const [query, setQuery] = useState(initialQuery?.trim() ?? '')
   const [results, setResults] = useState<LookupResult[]>([])

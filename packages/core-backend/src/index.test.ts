@@ -335,6 +335,48 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('Ultimate Guitar lookup only for a band with its add-on (#546)', () => {
+    const ug = () => fakeLookupPlugin({ name: 'ultimate-guitar-scraper' })
+    function stubFetch(responses: Array<Partial<Response>>) {
+      const fetchMock = vi.fn()
+      for (const response of responses) fetchMock.mockResolvedValueOnce(response as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('refuses without a band, and for a band without the add-on - the provider is never asked', async () => {
+      const plugin = ug()
+      await lookupRegistry.register(plugin, testContext())
+      const noBand = await app.inject({ method: 'GET', url: '/lookup/ultimate-guitar-scraper/search?q=wonderwall' })
+      expect(noBand.statusCode).toBe(403)
+      stubFetch([{ ok: true, status: 200, json: async () => ({ rows: [] }) }])
+      const notInstalled = await app.inject({ method: 'GET', url: '/lookup/ultimate-guitar-scraper/detail?resultId=1&workspace=band-a' })
+      expect(notInstalled.statusCode).toBe(403)
+      expect(notInstalled.json().message).toContain('Ultimate Guitar Import')
+      expect(plugin.search).not.toHaveBeenCalled()
+      expect(plugin.fetchDetail).not.toHaveBeenCalled()
+    })
+
+    it('answers a band that installed it', async () => {
+      await lookupRegistry.register(ug(), testContext())
+      // By URL, not by order: the band's background watchers poll through the same fetch.
+      const installation = { _id: 'plugins:ultimate-guitar-import', id: 'ultimate-guitar-import', name: 'Ultimate Guitar Import', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['chord-import'], transports: [], hardwareIds: [] }
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) =>
+          String(url).includes('stageboard-band-a/_all_docs')
+            ? ({ ok: true, status: 200, json: async () => ({ rows: [{ doc: installation }] }) } as Response)
+            : ({ ok: false, status: 404, json: async () => ({}) } as Response),
+        ),
+      )
+      const response = await app.inject({ method: 'GET', url: '/lookup/ultimate-guitar-scraper/search?q=wonderwall&workspace=band-a' })
+      expect(response.statusCode).toBe(200)
+    })
+  })
+
   describe('GET /lookup/:provider/detail', () => {
     it('returns 400 when resultId is missing', async () => {
       const response = await app.inject({ method: 'GET', url: '/lookup/fake-lookup/detail' })

@@ -119,9 +119,21 @@ describe('createAsyncJobWatcher', () => {
 
   beforeEach(() => {
     store.clear()
+    // The YouTube jobs below run for a band with the YouTube-Download add-on (#546).
+    store.set('plugins:youtube-download', { _id: 'plugins:youtube-download', id: 'youtube-download', name: 'YouTube-Download', version: '0.0.1', enabled: true, runtime: 'server', installedAt: 1, capabilities: ['video-download'], transports: [], hardwareIds: [] })
     vi.mocked(runYtDlpExtract).mockReset()
     vi.mocked(writeAudioFile).mockClear()
     vi.mocked(deleteAudioFile).mockClear()
+  })
+
+  it('refuses a YouTube job when the band has no YouTube-Download add-on (#546) - no download', async () => {
+    store.delete('plugins:youtube-download')
+    putJob({})
+    const watcher = createAsyncJobWatcher({ couch, workspaceId: 'ws', log })
+    await vi.waitFor(() => expect(storedJob('job-1')?.status).toBe('error'))
+    watcher.stop()
+    expect(storedJob('job-1')?.error).toContain('YouTube-Download')
+    expect(runYtDlpExtract).not.toHaveBeenCalled()
   })
 
   it('appends the extracted track to the variant, keeping every existing track', async () => {

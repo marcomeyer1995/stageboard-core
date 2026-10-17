@@ -59,6 +59,7 @@ import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
+import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER } from './plugins/importAddons.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
@@ -998,12 +999,23 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   const lookupRegistry = new LookupRegistry()
 
+  /** Ultimate Guitar only for a band that installed its add-on (#546) - the app sends its band as
+   * `workspace`. Other providers (MusicBrainz) need nothing. Returns the refusal, or null. */
+  async function lookupRefusal(provider: string, workspace: string | undefined): Promise<string | null> {
+    if (provider !== ULTIMATE_GUITAR_PROVIDER) return null
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return 'Für Ultimate Guitar fehlt die Band (Add-on-Prüfung).'
+    const installed = await bandHasAddon(couch, workspace, ULTIMATE_GUITAR_PLUGIN_ID).catch(() => false)
+    return installed ? null : 'Das Add-on „Ultimate Guitar Import“ ist für diese Band nicht installiert.'
+  }
+
   app.get('/lookup/:provider/search', async (request, reply) => {
     const { provider } = request.params as { provider: string }
-    const { q } = request.query as { q?: string }
+    const { q, workspace } = request.query as { q?: string; workspace?: string }
     if (!q) {
       return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
     }
+    const refusal = await lookupRefusal(provider, workspace)
+    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
 
     try {
       const results = await lookupRegistry.search(provider, q)
@@ -1023,10 +1035,12 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // per-segment ceiling.
   app.get('/lookup/:provider/detail', async (request, reply) => {
     const { provider } = request.params as { provider: string }
-    const { resultId } = request.query as { resultId?: string }
+    const { resultId, workspace } = request.query as { resultId?: string; workspace?: string }
     if (!resultId) {
       return reply.status(400).send({ status: 'error', message: 'Missing query parameter resultId' })
     }
+    const refusal = await lookupRefusal(provider, workspace)
+    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
 
     try {
       const detail = await lookupRegistry.fetchDetail(provider, resultId)

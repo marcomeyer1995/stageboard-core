@@ -20,3 +20,15 @@ describe('pluginCatalog (System cleanup 2026-10-16)', () => {
     expect(isTestPlugin('kemper-profiler')).toBe(false)
   })
 })
+
+describe('sale build (#546)', () => {
+  it('leaves Ultimate Guitar Import and YouTube-Download out, the normal build offers them', () => {
+    const sale = installableCatalog(false, true).map((entry) => entry.id)
+    expect(sale).not.toContain('ultimate-guitar-import')
+    expect(sale).not.toContain('youtube-download')
+    const normal = installableCatalog(false, false).map((entry) => entry.id)
+    expect(normal).toContain('ultimate-guitar-import')
+    expect(normal).toContain('youtube-download')
+  })
+})
+
