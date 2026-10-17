@@ -21,6 +21,8 @@ const device = vi.hoisted(() => ({ fireDeviceAction: vi.fn(async () => null) }))
 vi.mock('./deviceAction', () => device)
 vi.mock('./sectionJump', () => ({ queueSectionJump: vi.fn(), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: () => ({ state: {}, startReadyCheck: vi.fn() }) } }))
+vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: { getState: () => ({ installed: [] }) } }))
+vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { getState: () => ({ profiles: [] }) } }))
 vi.mock('../store/useLogicalDevicesStore', () => ({
   useLogicalDevicesStore: (select: (state: { devices: { id: string; name: string; capability: string }[] }) => unknown) =>
     select({ devices: [{ id: 'kemper', name: 'Kemper', capability: 'kemper-control' }] }),

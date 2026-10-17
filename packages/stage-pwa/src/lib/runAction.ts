@@ -2,13 +2,20 @@ import { isSongEntry } from 'shared-types'
 import type { Action, Release } from './actions'
 import { needsShowControl } from './actions'
 import { clickTimeline, type ClickTimeline } from './beatGrid'
+import { cueLatencyMs } from './capabilityTiming'
+import { getServerTime } from './clockSync'
 import { fireDeviceAction } from './deviceAction'
+import { gridReleaseAt } from './gridRelease'
+import { transportOf } from './playbackTransport'
 import { songDurationMs } from './entryDuration'
 import { PROMPTER_SCROLL_EVENT, songStateFor, type FixedAction, type PrompterScrollDetail, type SongState, type StepAction } from './keybindings'
 import { adjustedBpm, beatAt, effectiveClickEnabled } from './metronome'
 import { cancelSectionJump, queueSectionJump, setSectionLoop } from './sectionJump'
 import type { useShowMode } from './showMode'
 import { sectionIndexAt, showSections, type ShowSection } from './showSections'
+import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { usePluginsStore } from '../store/usePluginsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
 export type Show = ReturnType<typeof useShowMode>
@@ -38,6 +45,34 @@ export function releaseDelayMs(release: Extract<Release, { kind: 'after' }>, sho
   const beatMs = now.timeline.periodAfter(beat)
   const perBar = Number(now.timeline.timeSignatureAt(beat).split('/')[0]) || 4
   return release.amount * beatMs * (release.unit === 'bars' ? perBar : 1)
+}
+
+/** How long before its moment a planned device command is handed over: the driver or the
+ * Stage-Server holds it until then (more than the cue lookahead - a relay to another tablet goes
+ * over the WLAN). */
+const PLAN_AHEAD_MS = 1000
+
+/**
+ * A timed release (docs/23 §4a), started at the press. "Auf den Takt" while the song plays: on
+ * the bar line, a device command sent ahead with its moment and its output's latency, like a cue
+ * (docs/21 §3); otherwise a timer at the tempo of the press. Returns how to call it off.
+ */
+export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show): () => void {
+  const now = getServerTime()
+  const timeline = release.onGrid && release.unit !== 'ms' ? songSectionsNow(show)?.timeline : undefined
+  const at = timeline ? gridReleaseAt(timeline, transportOf(useShowStateStore.getState().state), now, release.amount, release.unit as 'beats' | 'bars') : null
+  if (at === null) {
+    const timer = setTimeout(() => void runAction(release.action, show), releaseDelayMs(release, show))
+    return () => clearTimeout(timer)
+  }
+  const { action } = release
+  if (action.kind !== 'device') {
+    const timer = setTimeout(() => void runAction(action, show), Math.max(0, at - now))
+    return () => clearTimeout(timer)
+  }
+  const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)
+  const timer = setTimeout(() => void fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload, sendAt), Math.max(0, sendAt - PLAN_AHEAD_MS - now))
+  return () => clearTimeout(timer)
 }
 
 /**

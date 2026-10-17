@@ -31,7 +31,7 @@ export function capabilityTiming(installed: PluginInstallation[], capability: Ca
  * (docs/21 §3): the stored (measured or entered) latency of the device that drives the output -
  * its executing tablet, or the Stage-Server - else the plugin's declared latency, else 0. */
 export function cueLatencyMs(
-  cue: ShowCue,
+  cue: Pick<ShowCue, 'targetLogicalDeviceId'>,
   logicalDevices: LogicalDevice[],
   installed: PluginInstallation[],
   profiles: readonly LatencyProfileDoc[] = [],
