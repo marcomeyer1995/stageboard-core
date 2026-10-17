@@ -1,6 +1,6 @@
 import type { ClickTimeline } from './beatGrid'
-import type { ChordProLine } from './chordpro'
-import { loopSections } from './loopSections'
+import { parseChordPro } from './chordpro'
+import { partStartBars } from './partStart'
 
 /** One section of the song for jumping and looping in the show (#479). */
 export interface ShowSection {
@@ -14,7 +14,7 @@ export interface ShowSection {
 /** When a queued jump happens (#479, Marco 2026-10-17: selectable per jump, like Prime). */
 export type JumpWhen = 'bar' | 'section'
 
-/** The bar line nearest to `ms` - a part's first time tag may sit a few ms off the grid. */
+/** The bar line nearest to `ms`. */
 export function snapToBar(timeline: ClickTimeline, ms: number): number {
   const bar = timeline.barOf(timeline.beatAtOrBefore(ms))
   const before = timeline.timeOfBeat(timeline.barStartBeat(bar))
@@ -22,20 +22,67 @@ export function snapToBar(timeline: ClickTimeline, ms: number): number {
   return ms - before <= after - ms ? before : after
 }
 
+/** From this far into a bar a singer's entry is a pickup to the next one (Marco, 2026-10-17: the
+ * last quarter - otherwise the section starts with the bar the entry falls in). */
+export const PICKUP_FROM = 0.75
+
+/** Where a part whose first line comes in at `entryMs` starts as a section: the bar the entry falls
+ * in, or the next one for an entry in the bar's last quarter (a pickup). */
+export function sectionStartForEntry(timeline: ClickTimeline, entryMs: number): number {
+  const bar = timeline.barOf(timeline.beatAtOrBefore(entryMs))
+  const start = timeline.timeOfBeat(timeline.barStartBeat(bar))
+  const next = timeline.timeOfBeat(timeline.barStartBeat(bar + 1))
+  return (entryMs - start) / (next - start) >= PICKUP_FROM ? next : start
+}
+
+/** A part's start as a section: its bar, the time, and whether it was set by hand. */
+export interface PartSectionStart {
+  partIndex: number
+  label: string
+  bar: number
+  startMs: number
+  manual: boolean
+}
+
+/** Every named part with a start - set by hand in the timeline (`{x_bar}`, partStart.ts), or from
+ * its first timed line (sectionStartForEntry). In part order. */
+export function partSectionStarts(content: string, timeline: ClickTimeline): PartSectionStart[] {
+  const bars = partStartBars(content)
+  const firstLine = new Map<number, { label: string | null; timeMs: number | null }>()
+  for (const line of parseChordPro(content)) {
+    const known = firstLine.get(line.partIndex)
+    if (!known) firstLine.set(line.partIndex, { label: line.partLabel, timeMs: line.timeMs })
+    else if (known.timeMs === null && line.timeMs !== null) firstLine.set(line.partIndex, { ...known, timeMs: line.timeMs })
+  }
+  const result: PartSectionStart[] = []
+  for (const [partIndex, part] of firstLine) {
+    if (part.label === null) continue
+    const manualBar = bars.get(partIndex)
+    if (manualBar !== undefined) {
+      result.push({ partIndex, label: part.label, bar: manualBar, startMs: timeline.timeOfBeat(timeline.barStartBeat(manualBar)), manual: true })
+      continue
+    }
+    if (part.timeMs === null) continue
+    const startMs = sectionStartForEntry(timeline, part.timeMs)
+    result.push({ partIndex, label: part.label, bar: timeline.barOf(timeline.beatAtOrBefore(startMs + 1)), startMs, manual: false })
+  }
+  return result
+}
+
 /**
  * The song's sections from its timeline parts (Marco, 2026-10-17: the parts already in the
- * timeline, no extra lane) - each start snapped to its bar line. Parts that snap onto the same bar
+ * timeline, no extra lane), in time order, each ending where the next starts. Parts on the same bar
  * keep the first.
  */
-export function showSections(lines: readonly ChordProLine[], timeline: ClickTimeline, trackDurationMs: number | null): ShowSection[] {
+export function showSections(content: string, timeline: ClickTimeline, trackDurationMs: number | null): ShowSection[] {
   const starts: { label: string; startMs: number }[] = []
-  for (const section of loopSections(lines, trackDurationMs)) {
-    const startMs = Math.max(0, snapToBar(timeline, section.startMs))
+  for (const part of partSectionStarts(content, timeline)) {
+    const startMs = Math.max(0, part.startMs)
     if (starts.some((s) => s.startMs === startMs)) continue
-    starts.push({ label: section.label, startMs })
+    starts.push({ label: part.label, startMs })
   }
   starts.sort((a, b) => a.startMs - b.startMs)
-  return starts.map((section, index) => ({ ...section, endMs: starts[index + 1]?.startMs ?? trackDurationMs }))
+  return starts.map(({ label, startMs }, index) => ({ label, startMs, endMs: starts[index + 1]?.startMs ?? trackDurationMs }))
 }
 
 /** The section playing at `ms` - the last one starting at or before it; -1 before the first. */

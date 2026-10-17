@@ -55,7 +55,9 @@ import { askAnalysisSource, stemsForTrack } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
 import { Icon } from '../Icon'
-import { Button, Dialog, ToggleChip } from '../ui'
+import { Button, Dialog, Stepper, ToggleChip } from '../ui'
+import { partSectionStarts } from '../../lib/showSections'
+import { setPartStartBar } from '../../lib/partStart'
 import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
@@ -429,6 +431,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const notes = useMemo(() => timelineNotes(content), [content])
   const durationMs = analysis?.durationMs ?? (clock.duration > 0 ? clock.duration * 1000 : timeline.bar1Ms + 60000)
   const blocks = useMemo(() => partBlocks(lines, durationMs), [lines, durationMs])
+  // Where each part starts as a section of the show (#479): set by hand, or from its first line.
+  const sectionStarts = useMemo(() => partSectionStarts(content, timeline), [content, timeline])
   /** Each part's own announcement (#63), by part index - null: the band's pattern. */
   const partCues = useMemo(() => new Map(partHeads(shownContent).map((head) => [head.partIndex, head.cue])), [shownContent])
   const countInStartMs = timeline.timeOfBeat(timeline.firstBeat)
@@ -872,6 +876,18 @@ export function TimelineEditor(props: TimelineEditorProps) {
           t.fillText(name, x0 + 6, PARTS_H - 9)
         }
       })
+      // Section starts (#479): a small flag on the bar line where the show's jumps land.
+      sectionStarts.forEach((start) => {
+        const x = timeToX(start.startMs, view)
+        if (x < -4 || x > width + 4) return
+        t.fillStyle = accent
+        t.fillRect(x - 1.5, 0, 3, PARTS_H)
+        t.beginPath()
+        t.moveTo(x + 1.5, 0)
+        t.lineTo(x + 9, 0)
+        t.lineTo(x + 1.5, 7)
+        t.fill()
+      })
       // Lines: a marker at each time tag, the lyric beside it up to the next marker - wrapped
       // over as many rows as the lane holds, so more than a few words are readable.
       // In time order: a song's text order and time order can differ (a repeated chorus), and each
@@ -987,7 +1003,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
       if (shownCues.length === 0) drawLaneHint(q, ['Cues · Doppeltipp: Cue hinzufügen', 'Doppeltipp: Cue'], width, CUE_H, faint)
       else drawLaneLabel(q, 'Cues', CUE_H - 6, cuesUsed, faint)
     }
-  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, selectedPartIndex, announcing, partCues, lines, blocks, shownCues, logicalDevices, notes, content, dragMs, tempoPreview, tempoH])
+  }, [width, audioH, gridH, textH, hiddenLanes, view, analysis, quality, timeline, stretches, shownGrid, bpm, countInStartMs, drag, selectedBar, selectedLine, selectedCueId, selectedNoteStart, selectedPartIndex, announcing, partCues, lines, blocks, sectionStarts, shownCues, logicalDevices, notes, content, dragMs, tempoPreview, tempoH])
 
   // --- pointer handling ---
   /** Pointer position inside the lanes. */
@@ -1173,8 +1189,9 @@ export function TimelineEditor(props: TimelineEditorProps) {
       return
     }
     const p = pan.current
-    if (p && p.pointerId === e.pointerId && !p.moved && p.lane === 'parts' && announcing) {
-      // A tap on a part selects it - its announcement (#63) is set in the selection bar.
+    if (p && p.pointerId === e.pointerId && !p.moved && p.lane === 'parts') {
+      // A tap on a part selects it - its section start (#479) and announcement (#63) are set in
+      // the selection bar.
       const at = xToTime(p.startX, view)
       const block = blocks.find((b) => at >= b.startMs && at < b.endMs)
       setSelection(block ? { kind: 'part', partIndex: block.partIndex } : null)
@@ -1521,6 +1538,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedPartCue = selectedPart ? (partCues.get(selectedPart.partIndex) ?? null) : null
   const selectedPartName = (selectedPart && spokenTexts(announcementSettings.texts)(selectedPart.label)) ?? selectedPart?.label ?? 'Teil'
   const selectedPartOnBar1 = selectedPart ? nearestBar(timeline, selectedPart.startMs) <= 1 : false
+  const selectedSection = selectedPart ? sectionStarts.find((start) => start.partIndex === selectedPart.partIndex) : undefined
+  const lastBar = timeline.barOf(timeline.beatAtOrBefore(durationMs))
 
   // --- playhead quick actions (#326): the playhead as the target of an edit ---
   /** Where the playhead is right now - the same clock tapping reads, exact while playing too. */
@@ -2132,10 +2151,30 @@ export function TimelineEditor(props: TimelineEditorProps) {
 
       {selectedPart && (
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
-          <span className="font-semibold">
-            {selectedPart.label ?? 'Teil'} · Ansage: {selectedPartCue === null ? 'Standard' : isSilentCue(selectedPartCue) ? 'stumm' : describeCuePattern(selectedPartCue, selectedPartName)}
-          </span>
-          <Button onClick={() => setPartCueOpen(true)}>Ansage ändern</Button>
+          <span className="font-semibold">{selectedPart.label ?? 'Teil'}</span>
+          {selectedSection && (
+            // Where a jump in the show lands (#479) - by hand when the first line's pickup rule
+            // doesn't fit (Marco, 2026-10-17).
+            <>
+              <Stepper
+                label={`Abschnitt ab Takt${selectedSection.manual ? '' : ' (automatisch)'}`}
+                value={selectedSection.bar}
+                unit=""
+                min={1}
+                max={Math.max(selectedSection.bar, lastBar)}
+                onChange={(bar) => commitText(setPartStartBar(content, selectedPart.partIndex, bar))}
+              />
+              {selectedSection.manual && <Button onClick={() => commitText(setPartStartBar(content, selectedPart.partIndex, null))}>Automatisch</Button>}
+            </>
+          )}
+          {announcing && (
+            <>
+              <span className="text-ink-soft">
+                Ansage: {selectedPartCue === null ? 'Standard' : isSilentCue(selectedPartCue) ? 'stumm' : describeCuePattern(selectedPartCue, selectedPartName)}
+              </span>
+              <Button onClick={() => setPartCueOpen(true)}>Ansage ändern</Button>
+            </>
+          )}
         </div>
       )}
 

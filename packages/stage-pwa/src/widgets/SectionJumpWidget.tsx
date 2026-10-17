@@ -3,7 +3,6 @@ import { isSongEntry } from 'shared-types'
 import { Icon } from '../components/Icon'
 import { Segmented } from '../components/ui'
 import { clickTimeline } from '../lib/beatGrid'
-import { parseChordPro } from '../lib/chordpro'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm } from '../lib/metronome'
 import { cancelSectionJump, queueSectionJump, setSectionLoop } from '../lib/sectionJump'
@@ -58,7 +57,7 @@ export function SectionJumpWidget() {
   )
   const durationMs = currentEntry && isSongEntry(currentEntry) ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ?? null) : null
   const content = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
-  const sections = useMemo(() => (timeline ? showSections(parseChordPro(content), timeline, durationMs) : []), [content, timeline, durationMs])
+  const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
   if (mode !== 'gig') return <p className="flex h-full items-center justify-center text-center text-ink-faint">Nur im Gig</p>
   if (!currentSong || sections.length === 0) {
