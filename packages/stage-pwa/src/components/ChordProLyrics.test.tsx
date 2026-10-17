@@ -192,12 +192,12 @@ describe('ChordProLyrics comment lines (#215)', () => {
 })
 
 describe('chord sizes (Marco 2026-10-17)', () => {
-  it('chords in a chord-only row (intro bars) take the chord size like chords over lyrics', () => {
+  it('a chord-only row (intro bars) is at the chord size as a whole - chords, bars and spaces', () => {
     const lines = parseChordPro('| [C] | [F] |\n[G]All the small things')
     render(<ChordProLyrics lines={lines} fontSize={20} chordFontSize={30} />)
-    const barChord = screen.getAllByText('C').find((el) => el.closest('p')?.textContent?.includes('|'))!
-    expect(barChord.style.fontSize).not.toBe('')
-    expect(barChord.style.fontSize).toBe(screen.getAllByText('G')[0].style.fontSize)
+    const row = screen.getAllByText('C').find((el) => el.closest('p')?.textContent?.includes('|'))!.closest('p')!
+    expect(row.style.fontSize).not.toBe('')
+    expect(row.style.fontSize).toBe(screen.getAllByText('G')[0].style.fontSize)
   })
 
   it('the width copy of a line-end chord takes no height, so the chord does not stand higher', () => {
