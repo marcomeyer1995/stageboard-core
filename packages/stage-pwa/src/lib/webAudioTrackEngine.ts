@@ -29,6 +29,8 @@ const STREAM_LEAD_S = 0.4
 /** A queued section jump (#479) is taken over this long before its boundary - after the moment
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
 const JUMP_COMMIT_S = 0.9
+/** Length of the linear crossfade at a section jump, centred on the bar line. */
+const JUMP_CROSSFADE_S = 0.01
 /** During the count-in the track is scheduled this long before song time 0. */
 const PREPARE_BEFORE_S = 1.5
 /** Decoded audio is scheduled this far ahead of what plays. */
@@ -328,13 +330,20 @@ function posAt(v: Voice, t: number): number {
 }
 
 /** Fades the voice out from `at` (audio time, default now), stops its feeding and forgets it. */
-function stopVoice(at?: number): void {
+function stopVoice(at?: number, crossfadeS?: number): void {
   if (!voice) return
   const ctx = getSharedAudioContext()
   const t = Math.max(at ?? 0, ctx.currentTime)
   if (voice.feeder) voice.feeder.cancelled = true
-  voice.gain.gain.setTargetAtTime(0, t, FADE_S / 3)
-  for (const node of voice.nodes) node.stop(t + FADE_S)
+  if (crossfadeS) {
+    // A straight line down while the next voice comes up the same line - together full level.
+    voice.gain.gain.setValueAtTime(1, t)
+    voice.gain.gain.linearRampToValueAtTime(0, t + crossfadeS)
+    for (const node of voice.nodes) node.stop(t + crossfadeS)
+  } else {
+    voice.gain.gain.setTargetAtTime(0, t, FADE_S / 3)
+    for (const node of voice.nodes) node.stop(t + FADE_S)
+  }
   voice = null
 }
 
@@ -398,14 +407,20 @@ async function feed(ctx: AudioContext, v: Voice, stream: TrackStream, fromS: num
 }
 
 /** Starts `prepared` so that song position `startPos` plays at audio time `when`. */
-function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPos: number): void {
+function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPos: number, crossfadeS?: number): void {
   const pos = Math.max(0, startPos)
   const anchorTime = when + Math.max(0, -startPos)
   if (pos >= prepared.durationS) return
   const gain = ctx.createGain()
-  // Fade in only when entering mid-song - a start at 0 begins with the track's own lead-in.
-  gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
-  if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
+  if (crossfadeS) {
+    // Up a straight line while the voice before goes down it (a section jump, #479).
+    gain.gain.setValueAtTime(0, anchorTime)
+    gain.gain.linearRampToValueAtTime(1, anchorTime + crossfadeS)
+  } else {
+    // Fade in only when entering mid-song - a start at 0 begins with the track's own lead-in.
+    gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
+    if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
+  }
   gain.connect(sourceOutput('track', ctx))
   const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null, jump: null }
   voice = v
@@ -491,11 +506,15 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     // Taken over late enough that it can't be called off any more (sectionJump.ts CANCEL_MIN_MS),
     // early enough for the target to be decoded.
     if (boundaryAt - now > STREAM_LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
+      // A linear crossfade centred on the bar line: the target starts JUMP_CROSSFADE_S / 2 early
+      // (from just before its own start), so the level never dips - an exponential fade out before
+      // and in after the line left a ~10 ms hole at -13 dB, heard on every loop pass (2026-10-17).
+      const half = JUMP_CROSSFADE_S / 2
       const replacedGain = voice.gain
-      stopVoice(boundaryAt - FADE_S / 2)
-      startVoice(ctx, prepared, boundaryAt, jump.toMs / 1000)
+      stopVoice(boundaryAt - half, JUMP_CROSSFADE_S)
+      startVoice(ctx, prepared, boundaryAt - half, jump.toMs / 1000 - half, JUMP_CROSSFADE_S)
       const started = voice as Voice | null
-      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: boundaryAt, replacedGain }
+      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: boundaryAt - half, replacedGain }
       stats.jumps++
       return { blocked: false }
     }
@@ -507,7 +526,9 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   // Before the scheduled start: compare where it will start with where the song will be then - for
   // a jump's target, in the target's time.
   const songAtFirst = songNow + (firstTime - now)
-  const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - 0.001 ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
+  const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - JUMP_CROSSFADE_S ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
+  // Inside the crossfade the target already plays while the song clock still reads the old section.
+  if (v.jump && now >= v.jump.startsAt && now < v.jump.startsAt + JUMP_CROSSFADE_S * 2) return { blocked: false }
   const errorS = now < firstTime ? firstPos - expectedAtFirst : posAt(v, now) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   if (wall < stats.traceUntil) {
