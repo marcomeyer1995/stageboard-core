@@ -96,3 +96,16 @@ describe('compact widget sizes (docs/15 D10, Marco 2026-10-17)', () => {
   })
 })
 
+describe('nextSongLayout - info above the buttons (Marco 2026-10-17)', () => {
+  it('stacks a wide widget too when the height allows it - side by side only when flat', () => {
+    expect(nextSongLayout(700, 200, 30).stacked).toBe(true)
+    expect(nextSongLayout(900, 67, 30).stacked).toBe(false)
+  })
+  it('counts only the info lines shown', () => {
+    // 1 x 30 + 8 + 56 = 94 fits one line, not two (128).
+    expect(nextSongLayout(400, 100, 30, STAGE_TOUCH, 1).stacked).toBe(true)
+    expect(nextSongLayout(400, 100, 30, STAGE_TOUCH, 2).stacked).toBe(false)
+    expect(nextSongLayout(400, 300, 30, STAGE_TOUCH, 0).stacked).toBe(false)
+  })
+})
+

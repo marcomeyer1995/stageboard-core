@@ -84,7 +84,10 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const [boxRef, box] = useElementSize()
   const touchSizes = useTouchSizes()
   const titleShown = useShowPart('title')
-  const layout = transportLayout(box.width, box.height, lineHeightFor(clockFontSize), touchSizes)
+  // The time can go too - the status bar has it (Marco, 2026-10-17). Both off: only the buttons.
+  const timeShown = useShowPart('time')
+  const infoShown = titleShown || timeShown
+  const layout = transportLayout(box.width, box.height, infoShown ? lineHeightFor(clockFontSize) : 0, touchSizes)
   const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
   // Off in the ⋯ menu: only the running time (the status bar has the title, Marco 2026-10-17).
   const showTitle = layout.showTitle && titleShown
@@ -124,14 +127,14 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
 
   return (
     <div ref={boxRef} className={`flex h-full gap-2 text-ink-soft ${layout.row ? 'items-stretch' : 'flex-col'}`}>
-      <div className={`flex items-baseline gap-3 ${layout.row ? `self-center ${showTitle ? 'min-w-0 flex-1' : 'flex-none'}` : 'w-full flex-none'}`}>
+      <div className={`flex items-baseline gap-3 ${infoShown ? '' : 'hidden'} ${layout.row ? `self-center ${showTitle ? 'min-w-0 flex-1' : 'flex-none'}` : 'w-full flex-none'}`}>
         <span style={{ fontSize: infoTitleFontSize }} className={`min-w-0 flex-1 truncate ${showTitle ? '' : 'hidden'}`}>
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
           )}
         </span>
-        <span style={{ fontSize: infoClockFontSize }} className="flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink">
+        <span style={{ fontSize: infoClockFontSize }} className={`flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink ${timeShown ? '' : 'hidden'}`}>
           {formatClock(elapsedMs ?? 0)}
           {transitionItem?.estimatedDurationMs ? (
             <span className="ml-1 font-normal text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>

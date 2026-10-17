@@ -118,9 +118,14 @@ const NEXT_BUTTONS_FULL = 400
 /** The song info needs at least this much width to show a useful part of a title. */
 const NEXT_INFO_MIN = 280
 
-export function nextSongLayout(width: number, height: number, lineHeight: number, sizes: TouchSizes = STAGE_TOUCH): NextSongLayout {
+/**
+ * Info above the buttons whenever the height allows it - like the transport (Marco, 2026-10-17:
+ * side by side the titles got almost no width and were cut to "Aktuel…"). Side by side only for a
+ * flat widget. `lines`: the info lines shown ("Aktuell" / "Next" can be hidden).
+ */
+export function nextSongLayout(width: number, height: number, lineHeight: number, sizes: TouchSizes = STAGE_TOUCH, lines = 2): NextSongLayout {
   if (unmeasured(width, height)) return { stacked: false, twoLines: false, shortLabels: false }
-  const stacked = width < 560 && height >= 2 * lineHeight + GAP + sizes.touch
+  const stacked = lines > 0 && height >= lines * lineHeight + GAP + sizes.touch
   if (stacked) return { stacked, twoLines: true, shortLabels: width < NEXT_BUTTONS_FULL }
   return {
     stacked,

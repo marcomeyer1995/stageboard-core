@@ -276,4 +276,17 @@ describe('ShowTransportWidget - declutter (Marco 2026-10-17)', () => {
     expect(screen.getByText('All the small things').parentElement).toHaveClass('hidden')
     expect(screen.getByText('00:05')).toBeInTheDocument()
   })
+
+  it('"Zeit" off hides the running time; with the title off too only the buttons stay', () => {
+    mockShowMode({ currentSong: song('s1', 'All the small things'), currentEntry: entry('e1', 's1'), elapsedMs: 5_000 })
+    render(
+      <WidgetPartsProvider hidden={['title', 'time']}>
+        <ShowTransportWidget config={{}} />
+      </WidgetPartsProvider>,
+    )
+    expect(screen.getByText('00:05')).toHaveClass('hidden')
+    expect(screen.getByText('00:05').parentElement).toHaveClass('hidden')
+    expect(screen.getByText('Play')).toBeInTheDocument()
+  })
 })
+
