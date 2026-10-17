@@ -263,3 +263,12 @@ describe('ShowTransportWidget', () => {
     expect(screen.getByText('Kein Track gefunden')).toBeInTheDocument()
   })
 })
+
+describe('ShowTransportWidget - declutter (Marco 2026-10-17)', () => {
+  it('"Songtitel anzeigen" off leaves only the running time', () => {
+    mockShowMode({ currentSong: song('s1', 'All the small things'), currentEntry: entry('e1', 's1'), elapsedMs: 5_000 })
+    render(<ShowTransportWidget config={{ showTitle: false }} />)
+    expect(screen.getByText('All the small things').parentElement).toHaveClass('hidden')
+    expect(screen.getByText('00:05')).toBeInTheDocument()
+  })
+})

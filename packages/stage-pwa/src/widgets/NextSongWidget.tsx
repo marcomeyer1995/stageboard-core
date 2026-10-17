@@ -1,3 +1,4 @@
+import { ChipGroup, ToggleChip } from '../components/ui'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
@@ -37,7 +38,10 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   // touch size - "Weiter" is the action hit mid-show (lib/gigWidgetLayout.ts).
   const buttonClass = `h-full min-h-touch min-w-touch rounded-control bg-control-strong px-4 font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40`
 
-  const current = currentItem ? (
+  // Each line can be hidden in the ⋯ menu (Marco, 2026-10-17); with both off only the buttons stay.
+  const showCurrent = config.showCurrent !== false
+  const showNext = config.showNext !== false
+  const current = !showCurrent ? null : currentItem ? (
     <>
       {itemLabel(currentItem)}: <span className="font-semibold text-ink">{currentItem.title}</span>
     </>
@@ -51,7 +55,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   ) : (
     'Keine Songs vorhanden'
   )
-  const upcoming = nextItem ? (
+  const upcoming = !showNext ? null : nextItem ? (
     <>
       Next: <span className="font-semibold text-ink">{nextItem.title}</span> ({itemLabel(nextItem)})
     </>
@@ -69,19 +73,22 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
       ref={boxRef}
       className={`flex h-full gap-2 text-ink-soft ${layout.stacked ? 'flex-col' : 'items-stretch justify-between'}`}
     >
-      <div style={{ fontSize }} className={`flex min-w-0 flex-col justify-center ${layout.stacked ? '' : 'flex-1'}`}>
-        {layout.twoLines ? (
-          <>
-            <span className="truncate">{current}</span>
-            {upcoming && <span className="truncate">{upcoming}</span>}
-          </>
-        ) : (
-          <span className="truncate">
-            {current}
-            {upcoming && <>{' | '}{upcoming}</>}
-          </span>
-        )}
-      </div>
+      {(current || upcoming) && (
+        <div style={{ fontSize }} className={`flex min-w-0 flex-col justify-center ${layout.stacked ? '' : 'flex-1'}`}>
+          {layout.twoLines || !current || !upcoming ? (
+            <>
+              {current && <span className="truncate">{current}</span>}
+              {upcoming && <span className="truncate">{upcoming}</span>}
+            </>
+          ) : (
+            <span className="truncate">
+              {current}
+              {' | '}
+              {upcoming}
+            </span>
+          )}
+        </div>
+      )}
       {canControl ? (
         <div className={`flex gap-2 ${layout.stacked ? 'min-h-0 flex-1' : ''}`}>
           <ReadyCheckControl compact={layout.shortLabels} buttonClassName={buttonClass} />
@@ -119,10 +126,16 @@ export function NextSongConfigPanel({
   onChange: (next: NextSongConfig) => void
 }) {
   return (
-    <SizeRatioSlider
-      label="Größe"
-      ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
-      onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
-    />
+    <div className="flex flex-col gap-3">
+      <ChipGroup label="Anzeigen">
+        <ToggleChip label="Aktuell" selected={config.showCurrent !== false} onToggle={() => onChange({ ...config, showCurrent: config.showCurrent === false ? undefined : false })} />
+        <ToggleChip label="Next" selected={config.showNext !== false} onToggle={() => onChange({ ...config, showNext: config.showNext === false ? undefined : false })} />
+      </ChipGroup>
+      <SizeRatioSlider
+        label="Größe"
+        ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
+        onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
+      />
+    </div>
   )
 }

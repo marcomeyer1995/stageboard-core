@@ -1,4 +1,4 @@
-import { Segmented } from '../components/ui'
+import { ChipGroup, Segmented, ToggleChip } from '../components/ui'
 import { useEffect, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
@@ -156,6 +156,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     )
   }
 
+  const showTitle = config.showTitle !== false
+  const showArtistLine = config.showArtist !== false && !!currentSong?.artist
+  const showKey = config.showKey !== false
+
   if (!currentSong) {
     return (
       <div className="flex h-full items-center justify-center text-ink-faint">
@@ -167,31 +171,37 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   return (
     <div className="flex h-full flex-col">
       {/* Song on the left, "Tonart" (transpose/capo, #410) in the free top right corner - so it
-          takes no extra line above the lyrics. */}
+          takes no extra line above the lyrics. Each part can be hidden in the ⋯ menu, and "Now
+          Playing" is gone (Marco, 2026-10-17: the title stood four times on one dashboard). */}
+      {(showTitle || showArtistLine || showKey) && (
       <div className="mb-2 flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm uppercase tracking-widest text-ink-faint">Now Playing</p>
-          <h1
-            style={{ fontSize: titleFontSize }}
-            className="overflow-hidden break-words font-bold leading-tight text-ink"
-          >
-            {currentSong.title}
-          </h1>
-          {currentSong.artist && (
+          {showTitle && (
+            <h1
+              style={{ fontSize: titleFontSize }}
+              className="overflow-hidden break-words font-bold leading-tight text-ink"
+            >
+              {currentSong.title}
+            </h1>
+          )}
+          {showArtistLine && (
             <p style={{ fontSize: artistFontSize }} className="overflow-hidden break-words text-ink-muted">
               {currentSong.artist}
             </p>
           )}
         </div>
-        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
-          {chips.map((chip) => (
-            <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-control bg-control px-2 py-1 font-semibold text-ink-soft">
-              {chip}
-            </span>
-          ))}
-          {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} baseKey={baseKey} />}
-        </div>
+        {showKey && (
+          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+            {chips.map((chip) => (
+              <span key={chip} style={{ fontSize: arrangementInfoFontSize }} className="rounded-control bg-control px-2 py-1 font-semibold text-ink-soft">
+                {chip}
+              </span>
+            ))}
+            {queue.currentEntry && <ChordOffsetControls offsets={offsets} authoredCapo={authoredCapo} baseKey={baseKey} />}
+          </div>
+        )}
       </div>
+      )}
 
       {config.viewMode === 'paginated' && page ? (
         <>
@@ -259,6 +269,12 @@ export function PrompterConfigPanel({
 
       {/* The one anchor size (device-wide default, or this instance's own absolute
           override) - every slider below is a percentage of whatever this resolves to. */}
+      <ChipGroup label="Anzeigen">
+        <ToggleChip label="Titel" selected={config.showTitle !== false} onToggle={() => onChange({ ...config, showTitle: config.showTitle === false ? undefined : false })} />
+        <ToggleChip label="Interpret" selected={config.showArtist !== false} onToggle={() => onChange({ ...config, showArtist: config.showArtist === false ? undefined : false })} />
+        <ToggleChip label="Tonart" selected={config.showKey !== false} onToggle={() => onChange({ ...config, showKey: config.showKey === false ? undefined : false })} />
+      </ChipGroup>
+
       <ContentFontSizeConfigPanel config={config} onChange={(next) => onChange({ ...config, ...next })} />
 
       <SizeRatioSlider
