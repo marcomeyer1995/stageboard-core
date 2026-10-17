@@ -110,4 +110,17 @@ describe('NextSongWidget - declutter (Marco 2026-10-17)', () => {
     expect(screen.getByText('Were not gonna take it')).toBeInTheDocument()
     expect(screen.queryByText('Bohemian Rhapsody')).toBeNull()
   })
+
+  it('with "Aktuell" and "Next" both hidden the buttons fill the width', () => {
+    mockSize.width = 300
+    mockSize.height = 119
+    mockQueue()
+    render(
+      <WidgetPartsProvider hidden={['current', 'next']}>
+        <NextSongWidget config={{}} />
+      </WidgetPartsProvider>,
+    )
+    expect(screen.getByTitle('Nächster Song')).toHaveClass('flex-1')
+    expect(screen.getByTitle('Vorheriger Song')).toHaveClass('flex-1')
+  })
 })

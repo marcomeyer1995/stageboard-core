@@ -67,12 +67,15 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
     </>
   ) : null
 
+  // With "Aktuell" and "Next" both hidden the buttons take the whole width (Marco, 2026-10-17).
+  const hasInfo = Boolean(current || upcoming)
+
   return (
     <div
       ref={boxRef}
       className={`flex h-full gap-2 text-ink-soft ${layout.stacked ? 'flex-col' : 'items-stretch justify-between'}`}
     >
-      {(current || upcoming) && (
+      {hasInfo && (
         <div style={{ fontSize }} className={`flex min-w-0 flex-col justify-center ${layout.stacked ? '' : 'flex-1'}`}>
           {layout.twoLines || !current || !upcoming ? (
             <>
@@ -89,8 +92,8 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
         </div>
       )}
       {canControl ? (
-        <div className={`flex gap-2 ${layout.stacked ? 'min-h-0 flex-1' : ''}`}>
-          <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
+        <div className={`flex gap-2 ${layout.stacked || !hasInfo ? 'min-h-0 flex-1' : ''}`}>
+          <button type="button" onClick={previous} disabled={!previousEntry} title="Vorheriger Song" className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
             {layout.shortLabels ? (
               <Icon name="previous" size="2.25rem" />
             ) : (
@@ -99,7 +102,7 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
               </span>
             )}
           </button>
-          <button type="button" onClick={next} disabled={!nextEntry} title="Nächster Song" className={`${buttonClass} ${layout.stacked ? 'flex-1' : ''}`}>
+          <button type="button" onClick={next} disabled={!nextEntry} title="Nächster Song" className={`${buttonClass} ${layout.stacked || !hasInfo ? 'flex-1' : ''}`}>
             {layout.shortLabels ? (
               <Icon name="next" size="2.25rem" />
             ) : (
