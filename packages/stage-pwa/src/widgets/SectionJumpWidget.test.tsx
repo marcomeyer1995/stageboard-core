@@ -25,6 +25,7 @@ vi.mock('../lib/showMode', () => ({ useShowMode: () => show }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: (select: (s: typeof state) => unknown) => select(state) }))
 vi.mock('../lib/sectionJump', () => actions)
 vi.mock('../lib/entryDuration', () => ({ songDurationMs: () => ({ ms: 30000, source: 'manual' }) }))
+vi.mock('../components/JumpCrossfadeSetting', () => ({ JumpCrossfadeSetting: () => null }))
 
 const { SectionJumpWidget } = await import('./SectionJumpWidget')
 

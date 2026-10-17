@@ -1,6 +1,6 @@
 import type { WidgetPart } from '../lib/widgetParts'
 import { ReadyCheckWidget } from './ReadyCheckWidget'
-import { SectionJumpWidget } from './SectionJumpWidget'
+import { SectionJumpConfigPanel, SectionJumpWidget } from './SectionJumpWidget'
 import { useMemo, type ComponentType } from 'react'
 import { z } from 'zod'
 import { CAPABILITIES, type CapabilityId, type StageRole } from 'shared-types'
@@ -256,6 +256,7 @@ const DEFINITIONS: WidgetDefinition[] = [
       { id: 'loop', label: 'Wiederholen' },
     ],
     Component: SectionJumpWidget,
+    ConfigPanel: SectionJumpConfigPanel,
   }),
   defineWidget({
     type: 'ready-check',

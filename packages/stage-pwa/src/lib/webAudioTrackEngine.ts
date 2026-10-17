@@ -30,8 +30,29 @@ const STREAM_LEAD_S = 0.4
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
 const JUMP_COMMIT_S = 0.9
 /** Length of the crossfade at a section jump - long enough for the old section's ring to fade
- * under the new one, short enough that the next downbeat of the old section stays in the shade. */
-const JUMP_CROSSFADE_S = 0.08
+ * under the new one, short enough that the next downbeat of the old section stays in the shade.
+ * Set per device (Marco, 2026-10-17: to try different lengths), read at every jump. */
+export const DEFAULT_JUMP_CROSSFADE_MS = 80
+export const JUMP_CROSSFADE_RANGE_MS = { min: 10, max: 300, step: 10 } as const
+const CROSSFADE_KEY = 'sb:audio:jump-crossfade-ms'
+
+export function jumpCrossfadeMs(): number {
+  try {
+    const stored = Number(localStorage.getItem(CROSSFADE_KEY))
+    if (Number.isFinite(stored) && stored >= JUMP_CROSSFADE_RANGE_MS.min && stored <= JUMP_CROSSFADE_RANGE_MS.max) return stored
+  } catch {
+    // Storage blocked: the default.
+  }
+  return DEFAULT_JUMP_CROSSFADE_MS
+}
+
+export function setJumpCrossfadeMs(ms: number): void {
+  try {
+    localStorage.setItem(CROSSFADE_KEY, String(ms))
+  } catch {
+    // Storage blocked: stays at the default.
+  }
+}
 /** How far before the bar line the crossfade starts - ahead of the downbeats' attacks. */
 const JUMP_PREROLL_S = 0.015
 const CURVE_POINTS = 64
@@ -136,7 +157,7 @@ interface Voice {
   /** Set when this voice is the target of a section jump (#479): it starts at the boundary with
    * the target (`toS`), the voice before it fading out there (`replacedGain`). Until then the song
    * clock still reads the old section. */
-  jump: { id: number; boundaryS: number; toS: number; startsAt: number; replacedGain: GainNode | null } | null
+  jump: { id: number; boundaryS: number; toS: number; startsAt: number; crossfadeS: number; replacedGain: GainNode | null } | null
 }
 
 /** A section jump queued in the show (#479): at song time `boundaryMs` the song continues at
@@ -521,18 +542,19 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     // Taken over late enough that it can't be called off any more (sectionJump.ts CANCEL_MIN_MS),
     // early enough for the target to be decoded.
     if (boundaryAt - now > STREAM_LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
-      // An equal-power crossfade of JUMP_CROSSFADE_S, from JUMP_PREROLL_S before the bar line - ahead
+      // An equal-power crossfade (its length set per device, jumpCrossfadeMs), from JUMP_PREROLL_S before the bar line - ahead
       // of both downbeats (a band hits a few ms before the grid line; measured on "All the small
       // things": 3-7 ms), so neither attack is chopped. The two sections overlap past the line:
       // both downbeats sound together (on the beat - the bars line up), and the old section's
       // ringing and room fade out under the new one instead of breaking off. A 10 ms cut on the
       // line sounded "cut and glued together" (Marco, 2026-10-17). The loop length is the same.
       const fadeAt = boundaryAt - JUMP_PREROLL_S
+      const crossfadeS = jumpCrossfadeMs() / 1000
       const replacedGain = voice.gain
-      stopVoice(fadeAt, JUMP_CROSSFADE_S)
-      startVoice(ctx, prepared, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S, JUMP_CROSSFADE_S)
+      stopVoice(fadeAt, crossfadeS)
+      startVoice(ctx, prepared, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S, crossfadeS)
       const started = voice as Voice | null
-      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: fadeAt, replacedGain }
+      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: fadeAt, crossfadeS, replacedGain }
       stats.jumps++
       return { blocked: false }
     }
@@ -547,7 +569,7 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - JUMP_PREROLL_S - 0.001 ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
   // From the crossfade to the bar line the target already plays while the song clock still reads
   // the old section.
-  if (v.jump && now >= v.jump.startsAt && now < v.jump.startsAt + JUMP_PREROLL_S + JUMP_CROSSFADE_S) return { blocked: false }
+  if (v.jump && now >= v.jump.startsAt && now < v.jump.startsAt + JUMP_PREROLL_S + v.jump.crossfadeS) return { blocked: false }
   const errorS = now < firstTime ? firstPos - expectedAtFirst : posAt(v, now) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   if (wall < stats.traceUntil) {

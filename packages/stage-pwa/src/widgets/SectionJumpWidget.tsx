@@ -10,6 +10,7 @@ import { useShowMode } from '../lib/showMode'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
 import { useShowPart } from '../lib/widgetParts'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { JumpCrossfadeSetting } from '../components/JumpCrossfadeSetting'
 
 const WHEN_KEY = 'sb:section-jump-when'
 
@@ -156,4 +157,10 @@ export function SectionJumpWidget() {
       {(message ?? status) && <p className="text-ink-faint">{message ?? status}</p>}
     </div>
   )
+}
+
+/** In the widget's ⋯ menu: the track's crossfade at a jump - a setting of this device, close at hand
+ * while trying it out (Marco, 2026-10-17). */
+export function SectionJumpConfigPanel() {
+  return <JumpCrossfadeSetting />
 }
