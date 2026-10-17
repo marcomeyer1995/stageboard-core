@@ -7,7 +7,7 @@ import {
 } from 'react-grid-layout'
 import type { Breakpoint, Dashboard as DashboardDoc, LayoutItem } from 'shared-types'
 import { capabilityStatusFor } from '../lib/capabilities'
-import { canEditDashboard, isPracticeOnly } from '../lib/dashboardLayout'
+import { canEditDashboard } from '../lib/dashboardLayout'
 import {
   belowMinimumItems,
   BREAKPOINT_CANVAS,
@@ -36,7 +36,7 @@ import { WIDGET_REGISTRY } from '../widgets/registry'
 import { DashboardEditBar } from './DashboardEditBar'
 import { WidgetFrame } from './WidgetFrame'
 import { useActiveProfile } from '../lib/useActiveProfile'
-import { Button, PracticeTier } from './ui'
+import { Button } from './ui'
 import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
@@ -333,9 +333,13 @@ export function Dashboard() {
     void updateWidget(active.id, instanceId, (widget) => ({ ...widget, frameless: !widget.frameless }))
   }
 
+  function toggleCompact(instanceId: string) {
+    if (!active) return
+    void updateWidget(active.id, instanceId, (widget) => ({ ...widget, compact: widget.compact ? undefined : true }))
+  }
+
   return (
-    // Size tier from "Anbieten in" (docs/15 D10): offered only in Solo Üben = Üben, 48 px controls.
-    <PracticeTier on={isPracticeOnly(active)} className="flex h-full flex-col sb-app-bg">
+    <div className="flex h-full flex-col sb-app-bg">
       {/* In the status bar's place (App renders the slot), not above the grid: the grid keeps
           exactly its show-mode area, so edit mode shows every widget at its true size without
           scrolling (#370, Marco's choice A). */}
@@ -461,6 +465,8 @@ export function Dashboard() {
                       onRemove={() => removeWidget(widget.i)}
                       frameless={widget.frameless}
                       onToggleFrameless={() => toggleFrameless(widget.i)}
+                      compact={widget.compact === true}
+                      onToggleCompact={() => toggleCompact(widget.i)}
                       configPanel={
                         ConfigPanel && (
                           <ConfigPanel
@@ -479,6 +485,6 @@ export function Dashboard() {
           </DashboardWidgetTypes.Provider>
         )}
       </div>
-    </PracticeTier>
+    </div>
   )
 }

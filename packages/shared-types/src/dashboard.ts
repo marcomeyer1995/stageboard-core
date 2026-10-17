@@ -34,6 +34,11 @@ export const WidgetInstanceSchema = z.object({
    * instance property, not part of `config`, since it's about the frame every widget type
    * shares, not any one type's own settings. */
   frameless: z.boolean().default(false),
+  /** Compact controls (Marco, 2026-10-17): 48 px instead of the stage sizes 56 / 72, chosen per
+   * widget in its ⋯ menu - so more fits where the widget is not touched mid-song. Not derived
+   * from "Anbieten in": a size that changed as a side effect of where a dashboard is offered was
+   * not understandable. Unset = stage size. */
+  compact: z.boolean().optional(),
 })
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>
 

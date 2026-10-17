@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { CapabilityStatus } from '../lib/capabilities'
-import { Button, Dialog, Switch, menuIcon } from './ui'
+import { Button, CompactTier, Dialog, Switch, menuIcon } from './ui'
 import { Icon } from './Icon'
 
 interface WidgetFrameProps {
@@ -19,6 +19,9 @@ interface WidgetFrameProps {
   /** Only rendered in the menu when provided - Dashboard.tsx wires it per instance;
    * WidgetFrame.test.tsx's bare renders simply don't offer the toggle. */
   onToggleFrameless?: () => void
+  /** "Kompakt": 48 px controls instead of 56 / 72 (docs/15 D10, Marco 2026-10-17). */
+  compact?: boolean
+  onToggleCompact?: () => void
   /** Edit mode only: the widget is smaller than its minimum size - red outline and a
    * "zu klein" tag, so it is fixed while arranging, not discovered on stage. */
   tooSmall?: boolean
@@ -55,6 +58,8 @@ export function WidgetFrame({
   configPanel,
   frameless = false,
   onToggleFrameless,
+  compact = false,
+  onToggleCompact,
   tooSmall = false,
 }: WidgetFrameProps) {
   const isDisabled = status === 'degraded'
@@ -75,7 +80,9 @@ export function WidgetFrame({
         className={`min-h-0 flex-1 ${hideChrome ? '' : 'p-4'} ${inert ? 'pointer-events-none' : ''} ${isDisabled ? 'opacity-50' : ''}`}
         aria-disabled={isDisabled}
       >
-        {children}
+        <CompactTier on={compact} className="h-full w-full">
+          {children}
+        </CompactTier>
       </div>
 
       {isEditing && (
@@ -117,6 +124,14 @@ export function WidgetFrame({
           {configPanel}
 
           {onToggleFrameless && <Switch label="Rahmen anzeigen" checked={!frameless} onChange={onToggleFrameless} />}
+          {onToggleCompact && (
+            <Switch
+              label="Kompakt"
+              description="Knöpfe 48 px statt 56 / 72 - für Widgets, die mitten im Song nicht bedient werden."
+              checked={compact}
+              onChange={onToggleCompact}
+            />
+          )}
 
           {/* Deliberately last, with a divider and extra space above it, and in red: the safety
               net against removing a widget by mistake is distance and visual isolation from
