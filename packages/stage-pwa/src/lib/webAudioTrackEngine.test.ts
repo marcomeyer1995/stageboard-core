@@ -293,8 +293,8 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     const before = nodes.filter((n) => n.when < boundaryAt && n.stoppedAt !== null)
     const after = nodes.filter((n) => n.stoppedAt === null)
     // Nothing of the old song sounds past the boundary (beyond the short fade) ...
-    // The old section fades out over 80 ms from 15 ms before the bar line ...
-    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.066)).toBe(true)
+    // The old section fades out over the default 200 ms from 15 ms before the bar line ...
+    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.186)).toBe(true)
     // ... while the target comes in, from 15 ms before its own start.
     const targetStart = Math.min(...after.map((n) => n.when))
     expect(Math.abs(targetStart - (boundaryAt - 0.015))).toBeLessThan(0.002)
@@ -325,10 +325,12 @@ describe('webAudioTrackEngine, crossfade length per device (#479)', () => {
     expect(Math.max(...old.map((n) => n.stoppedAt!))).toBeCloseTo(boundaryAt - 0.015 + 0.15, 2)
   })
 
-  it('falls back to 80 ms for nothing or nonsense stored', () => {
-    expect(jumpCrossfadeMs()).toBe(80)
+  it('falls back to 200 ms for nothing or nonsense stored; up to 500 ms is fine', () => {
+    expect(jumpCrossfadeMs()).toBe(200)
     localStorage.setItem('sb:audio:jump-crossfade-ms', '5000')
-    expect(jumpCrossfadeMs()).toBe(80)
+    expect(jumpCrossfadeMs()).toBe(200)
+    localStorage.setItem('sb:audio:jump-crossfade-ms', '500')
+    expect(jumpCrossfadeMs()).toBe(500)
   })
 })
 

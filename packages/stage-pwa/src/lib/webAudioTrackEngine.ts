@@ -31,9 +31,10 @@ const STREAM_LEAD_S = 0.4
 const JUMP_COMMIT_S = 0.9
 /** Length of the crossfade at a section jump - long enough for the old section's ring to fade
  * under the new one, short enough that the next downbeat of the old section stays in the shade.
- * Set per device (Marco, 2026-10-17: to try different lengths), read at every jump. */
-export const DEFAULT_JUMP_CROSSFADE_MS = 80
-export const JUMP_CROSSFADE_RANGE_MS = { min: 10, max: 300, step: 10 } as const
+ * Set per device (Marco, 2026-10-17: to try different lengths), read at every jump. 200 ms by
+ * default - what sounded smoothest to him on "All the small things". */
+export const DEFAULT_JUMP_CROSSFADE_MS = 200
+export const JUMP_CROSSFADE_RANGE_MS = { min: 10, max: 500, step: 10 } as const
 const CROSSFADE_KEY = 'sb:audio:jump-crossfade-ms'
 
 export function jumpCrossfadeMs(): number {

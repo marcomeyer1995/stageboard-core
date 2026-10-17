@@ -327,6 +327,18 @@ body {
 }
 
 /*
+ * Where a dragged or resized widget will land: a calm accent shade with a dashed edge instead of
+ * react-grid-layout's red - red is for faults only (docs/15).
+ */
+.react-grid-item.react-grid-placeholder {
+  background: rgb(var(--sb-accent));
+  opacity: 0.15;
+  border-radius: var(--sb-radius-container);
+  outline: 2px dashed rgb(var(--sb-accent));
+  outline-offset: -2px;
+}
+
+/*
  * react-grid-layout animates every position and size change (200 ms). Useful while dragging in
  * edit mode; during the show it only made widgets visibly slide and shrink after a dashboard
  * switch or a rotation (Marco, 2026-10-17) - there a new size shows at once.
