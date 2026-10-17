@@ -29,8 +29,10 @@ const STREAM_LEAD_S = 0.4
 /** A queued section jump (#479) is taken over this long before its boundary - after the moment
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
 const JUMP_COMMIT_S = 0.9
-/** Length of the linear crossfade at a section jump, centred on the bar line. */
+/** Length of the linear crossfade at a section jump. */
 const JUMP_CROSSFADE_S = 0.01
+/** How far before the bar line the crossfade starts - ahead of the downbeats' attacks. */
+const JUMP_PREROLL_S = 0.03
 /** During the count-in the track is scheduled this long before song time 0. */
 const PREPARE_BEFORE_S = 1.5
 /** Decoded audio is scheduled this far ahead of what plays. */
@@ -506,15 +508,18 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     // Taken over late enough that it can't be called off any more (sectionJump.ts CANCEL_MIN_MS),
     // early enough for the target to be decoded.
     if (boundaryAt - now > STREAM_LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
-      // A linear crossfade centred on the bar line: the target starts JUMP_CROSSFADE_S / 2 early
-      // (from just before its own start), so the level never dips - an exponential fade out before
-      // and in after the line left a ~10 ms hole at -13 dB, heard on every loop pass (2026-10-17).
-      const half = JUMP_CROSSFADE_S / 2
+      // A linear crossfade (the level never dips - an exponential fade out before and in after the
+      // line left a ~10 ms hole at -13 dB) placed JUMP_PREROLL_S before the bar line: a band's
+      // downbeat comes a few ms before the grid's line (measured on "All the small things": 3-7 ms).
+      // Centred on the line, the next downbeat's attack was chopped off and the target's own
+      // downbeat came in at 15 % - a stumble on every loop pass (Marco, 2026-10-17). Before it,
+      // both downbeats stay whole; the loop length is the same.
+      const fadeAt = boundaryAt - JUMP_PREROLL_S
       const replacedGain = voice.gain
-      stopVoice(boundaryAt - half, JUMP_CROSSFADE_S)
-      startVoice(ctx, prepared, boundaryAt - half, jump.toMs / 1000 - half, JUMP_CROSSFADE_S)
+      stopVoice(fadeAt, JUMP_CROSSFADE_S)
+      startVoice(ctx, prepared, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S, JUMP_CROSSFADE_S)
       const started = voice as Voice | null
-      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: boundaryAt - half, replacedGain }
+      if (started) started.jump = { id: jump.id, boundaryS: jump.boundaryMs / 1000, toS: jump.toMs / 1000, startsAt: fadeAt, replacedGain }
       stats.jumps++
       return { blocked: false }
     }
@@ -526,9 +531,10 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
   // Before the scheduled start: compare where it will start with where the song will be then - for
   // a jump's target, in the target's time.
   const songAtFirst = songNow + (firstTime - now)
-  const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - JUMP_CROSSFADE_S ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
-  // Inside the crossfade the target already plays while the song clock still reads the old section.
-  if (v.jump && now >= v.jump.startsAt && now < v.jump.startsAt + JUMP_CROSSFADE_S * 2) return { blocked: false }
+  const expectedAtFirst = v.jump && songAtFirst >= v.jump.boundaryS - JUMP_PREROLL_S - 0.001 ? v.jump.toS + (songAtFirst - v.jump.boundaryS) : songAtFirst
+  // From the crossfade to the bar line the target already plays while the song clock still reads
+  // the old section.
+  if (v.jump && now >= v.jump.startsAt && now < v.jump.startsAt + JUMP_PREROLL_S + JUMP_CROSSFADE_S) return { blocked: false }
   const errorS = now < firstTime ? firstPos - expectedAtFirst : posAt(v, now) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   if (wall < stats.traceUntil) {

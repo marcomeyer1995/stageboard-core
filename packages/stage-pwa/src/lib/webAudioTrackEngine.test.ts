@@ -288,11 +288,14 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     expect(stats.starts).toBe(2)
     // Song 12 s is reached 2 s after the start - that audio moment is the boundary.
     const boundaryAt = 100 + (startWall + 2_000) / 1000
-    const before = nodes.filter((n) => n.when < boundaryAt - 0.05)
-    const after = nodes.filter((n) => n.when >= boundaryAt - 0.05)
+    // The first voice's pieces (stopped at the jump) and the target's (still playing).
+    const before = nodes.filter((n) => n.when < boundaryAt && n.stoppedAt !== null)
+    const after = nodes.filter((n) => n.stoppedAt === null)
     // Nothing of the old song sounds past the boundary (beyond the short fade) ...
-    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.006)).toBe(true)
-    // ... and the target comes in on it - 5 ms early, crossfading with the old section (10 ms).
-    expect(Math.abs(Math.min(...after.map((n) => n.when)) - (boundaryAt - 0.005))).toBeLessThan(0.002)
+    // The old section is gone 20 ms before the bar line - its next downbeat's attack stays out ...
+    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt - 0.019)).toBe(true)
+    // ... and the target is in at full level by then, from 30 ms before its own start (crossfade 10 ms).
+    const targetStart = Math.min(...after.map((n) => n.when))
+    expect(Math.abs(targetStart - (boundaryAt - 0.03))).toBeLessThan(0.002)
   })
 })
