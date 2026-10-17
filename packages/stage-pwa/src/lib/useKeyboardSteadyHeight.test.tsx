@@ -37,4 +37,13 @@ describe('useKeyboardSteadyHeight (Marco, 2026-10-16: the keyboard must not sque
     rerender({ w: 1200, h: 600 })
     expect(result.current).toBe(600)
   })
+
+  it('holds on the first keyboard too: a rounded first width (601) vs the exact one (600.94) is no rotation (Marco 2026-10-17)', () => {
+    const { container } = render(<input type="text" />)
+    const { result, rerender } = renderHook(({ w, h }) => useKeyboardSteadyHeight(w, h), { initialProps: { w: 601, h: 950 } })
+    act(() => container.querySelector('input')!.focus())
+    rerender({ w: 600.94, h: 596 })
+    expect(result.current).toBe(950)
+  })
 })
+
