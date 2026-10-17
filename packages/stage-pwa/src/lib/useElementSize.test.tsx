@@ -21,8 +21,8 @@ function fire(width: number, height: number) {
   observed?.([{ contentRect: { width, height } as DOMRectReadOnly }])
 }
 
-function Probe({ onApi }: { onApi: (size: ElementSize) => void }) {
-  const [ref, size] = useElementSize()
+function Probe({ onApi, remeasureKey }: { onApi: (size: ElementSize) => void; remeasureKey?: string }) {
+  const [ref, size] = useElementSize(remeasureKey)
   onApi(size)
   return <div ref={ref} />
 }
@@ -73,6 +73,22 @@ describe('useElementSize', () => {
     })
     expect(size).toEqual({ width: 400, height: 300 })
     expect(renderCount).toBe(countAfterMount + 1) // exactly one settled update, not four
+  })
+
+  it('a new remeasureKey reads the size at once, before paint - no 150 ms with the old height (Marco 2026-10-17: dashboard without status bar)', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    let size!: ElementSize
+    let height = 600
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => height)
+    const { rerender } = render(<Probe remeasureKey="a" onApi={(s) => (size = s)} />)
+    expect(size.height).toBe(600)
+
+    height = 680
+    act(() => fire(0, 680)) // the observer's own report is still debouncing
+    rerender(<Probe remeasureKey="b" onApi={(s) => (size = s)} />)
+    expect(size.height).toBe(680)
+    vi.restoreAllMocks()
   })
 
   it('disconnects the observer and clears any pending debounce on unmount', () => {
