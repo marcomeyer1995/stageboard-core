@@ -319,6 +319,16 @@ body {
 }
 
 /*
+ * react-grid-layout animates every position and size change (200 ms). Useful while dragging in
+ * edit mode; during the show it only made widgets visibly slide and shrink after a dashboard
+ * switch or a rotation (Marco, 2026-10-17) - there a new size shows at once.
+ */
+.sb-grid-still .react-grid-layout,
+.sb-grid-still .react-grid-item {
+  transition: none;
+}
+
+/*
  * react-grid-layout ships all eight resize handles (Dashboard.tsx enables them all) but
  * draws each as a nearly invisible 5px corner-bracket inside a 20px hit box, opacity 0
  * until hover - built for a mouse, not a finger. This replaces it with a solid accent dot

@@ -116,7 +116,14 @@ export function Dashboard() {
   const isEditing = useEditModeStore((state) => state.isEditing)
   const capabilities = useCapabilities()
   const editBarSlot = useEditBarSlot(isEditing)
-  const [containerRef, { width, height: measuredHeight }] = useElementSize()
+  // Private Stations and dashboards not offered in the current session mode are filtered out
+  // before anything picks an active dashboard, so a device never lands on one it has no
+  // business showing. A remembered dashboard that was deleted, turned private or taken out of
+  // this mode since falls back the same way (useModeDashboards / resolveActiveDashboard).
+  const { active } = useModeDashboards()
+  // Another dashboard can hide the status bar, edit mode swaps it for the edit bar: both change
+  // the grid's height in the same render, so it is measured again right then (Marco, 2026-10-17).
+  const [containerRef, { width, height: measuredHeight }] = useElementSize(`${active?.id}:${active?.statusBar !== false}:${isEditing}`)
   // The on-screen keyboard (e.g. "Neues Dashboard" name) never squeezes the widgets.
   const height = useKeyboardSteadyHeight(width, measuredHeight)
   // Real measurement or nothing: react-grid-layout's own bundled width hook starts every
@@ -228,11 +235,6 @@ export function Dashboard() {
     [],
   )
 
-  // Private Stations and dashboards not offered in the current session mode are filtered out
-  // before anything picks an active dashboard, so a device never lands on one it has no
-  // business showing. A remembered dashboard that was deleted, turned private or taken out of
-  // this mode since falls back the same way (useModeDashboards / resolveActiveDashboard).
-  const { active } = useModeDashboards()
   // A read-only template (#16) can't be edited by non-admins - also not by switching to it via
   // the edit bar's dashboard menu while edit mode is already on (the bypass the issue names).
   const roles = useActiveProfile()?.stageRoles ?? []
@@ -358,7 +360,8 @@ export function Dashboard() {
         </div>
       )}
 
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden">
+      {/* Outside edit mode nothing slides into place (sb-grid-still): a new size shows at once. */}
+      <div ref={containerRef} className={`min-h-0 flex-1 overflow-hidden ${isEditing ? '' : 'sb-grid-still'}`}>
         {mounted && (
           <DashboardWidgetTypes.Provider value={widgetTypes}>
             <ResponsiveGridLayout

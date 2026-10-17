@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefCallback } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState, type RefCallback } from 'react'
 
 export interface ElementSize {
   width: number
@@ -30,7 +30,13 @@ const RESIZE_DEBOUNCE_MS = 150
  * callback ref instead fires every time the node is actually attached or detached, so the
  * observer (re)attaches exactly when there is something to measure.
  */
-export function useElementSize(): [RefCallback<HTMLElement>, ElementSize] {
+/**
+ * `remeasureKey`: when it changes, the size is read again at once, before the screen is painted -
+ * not 150 ms later through the debounce. For changes the caller itself causes, like switching to a
+ * dashboard without the status bar (Marco, 2026-10-17: the widgets first showed at the old height,
+ * then jumped).
+ */
+export function useElementSize(remeasureKey?: unknown): [RefCallback<HTMLElement>, ElementSize] {
   const [node, setNode] = useState<HTMLElement | null>(null)
   const [size, setSize] = useState<ElementSize>({ width: 0, height: 0 })
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -39,7 +45,10 @@ export function useElementSize(): [RefCallback<HTMLElement>, ElementSize] {
     setNode(element)
   }, [])
 
-  useEffect(() => {
+  // A layout effect, not a plain one: the first size is read before the screen is painted, so a
+  // widget never shows one frame laid out for size 0 (Marco, 2026-10-17: the transport widget
+  // flashed its compact form after switching dashboards).
+  useLayoutEffect(() => {
     if (!node) return
 
     // The very first measurement is applied immediately, not debounced - nothing to settle
@@ -59,6 +68,15 @@ export function useElementSize(): [RefCallback<HTMLElement>, ElementSize] {
       if (debounceRef.current !== null) clearTimeout(debounceRef.current)
     }
   }, [node])
+
+  const lastKey = useRef(remeasureKey)
+  useLayoutEffect(() => {
+    if (!node || Object.is(lastKey.current, remeasureKey)) return
+    lastKey.current = remeasureKey
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current)
+    debounceRef.current = null
+    setSize({ width: node.clientWidth, height: node.clientHeight })
+  }, [node, remeasureKey])
 
   return [ref, size]
 }
