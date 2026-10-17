@@ -100,22 +100,19 @@ export function ChordProLyrics({
               </div>
             ) : isChordOnlyLine(line) ? (
               // Instrumental chord row: chords inline, in the accent colour - they are the content of
-              // this row, not an annotation above it. At the chord size like every other chord (Marco,
-              // 2026-10-17: the intro's chords were lyric size, the verse's chord size); the bars and
-              // spaces between them stay at lyric size.
+              // this row, not an annotation above it. The whole row at the chord size, bars and spaces
+              // too (Marco, 2026-10-17: lyric-size chords next to chord-size ones, then small bars next
+              // to big chords, both looked odd).
               <p
                 data-line-index={lineIndex}
+                style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }}
                 className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
                 {line.segments.map((segment, segmentIndex) => (
                   <span key={segmentIndex}>
-                    {segment.chord && (
-                      <span style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }} className="font-bold text-accent">
-                        {segment.chord}
-                      </span>
-                    )}
+                    {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
                     <span className="text-ink-faint">{segment.text}</span>
                   </span>
                 ))}
