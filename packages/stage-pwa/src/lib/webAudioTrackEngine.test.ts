@@ -5,6 +5,7 @@ import {
   __resetWebAudioTrackForTests,
   __webAudioTrackStatsForTests,
   getWebAudioTrackDurationMs,
+  jumpCrossfadeMs,
   loadWebAudioTrack,
   preloadWebAudioTrack,
   syncWebAudioTrack,
@@ -299,3 +300,35 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     expect(Math.abs(targetStart - (boundaryAt - 0.015))).toBeLessThan(0.002)
   })
 })
+
+describe('webAudioTrackEngine, crossfade length per device (#479)', () => {
+  afterEach(() => localStorage.removeItem('sb:audio:jump-crossfade-ms'))
+
+  it('uses the length set on this device', async () => {
+    localStorage.setItem('sb:audio:jump-crossfade-ms', '150')
+    expect(jumpCrossfadeMs()).toBe(150)
+    await loadWebAudioTrack('v', 'a')
+    const jump = { id: 1, boundaryMs: 12_000, toMs: 4_000 }
+    const startWall = wallMs
+    const song = () => {
+      const old = 10_000 + (wallMs - startWall)
+      return old >= jump.boundaryMs ? jump.toMs + (old - jump.boundaryMs) : old
+    }
+    for (let t = 0; t < 3_000; t += 16) {
+      syncWebAudioTrack(song, true, () => jump)
+      wallMs += 16
+      await vi.advanceTimersByTimeAsync(16)
+    }
+    await flush()
+    const boundaryAt = 100 + (startWall + 2_000) / 1000
+    const old = nodes.filter((n) => n.when < boundaryAt && n.stoppedAt !== null)
+    expect(Math.max(...old.map((n) => n.stoppedAt!))).toBeCloseTo(boundaryAt - 0.015 + 0.15, 2)
+  })
+
+  it('falls back to 80 ms for nothing or nonsense stored', () => {
+    expect(jumpCrossfadeMs()).toBe(80)
+    localStorage.setItem('sb:audio:jump-crossfade-ms', '5000')
+    expect(jumpCrossfadeMs()).toBe(80)
+  })
+})
+
