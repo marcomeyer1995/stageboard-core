@@ -12,8 +12,9 @@ export interface DrawerProps {
   /** left = ☰ (where to go), right = bento (which dashboard) - docs/15 D8. */
   side: 'left' | 'right'
   onClose: () => void
-  /** The status bar is hidden: ☰ and the nine dots sit as corner buttons over the drawer's top,
-   * so its content starts below them. */
+  /** The status bar is hidden: ☰ and the nine dots sit as corner buttons in its empty place, so the
+   * drawer starts below that place - exactly where it starts under the status bar (Marco,
+   * 2026-10-17: switching Gig ↔ Solo Üben between such dashboards made the entries jump). */
   clearCornerButtons?: boolean
   children: ReactNode
 }
@@ -47,7 +48,7 @@ export function Drawer({ title, side, onClose, clearCornerButtons = false, child
     // The drawer belongs to the stage (docs/15 D10) - stage sizes even when opened over the Bibliothek.
     <PrepTier on={false}>
       <div
-        className={`absolute inset-0 z-menu flex bg-scrim/60 ${side === 'left' ? 'justify-start' : 'justify-end'}`}
+        className={`absolute inset-x-0 bottom-0 ${clearCornerButtons ? 'top-14' : 'top-0'} z-menu flex bg-scrim/60 ${side === 'left' ? 'justify-start' : 'justify-end'}`}
         onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
         onClick={(e) => {
           if (pressedBackdrop.current && e.target === e.currentTarget) onClose()
@@ -74,7 +75,7 @@ export function Drawer({ title, side, onClose, clearCornerButtons = false, child
         >
           {/* [&>*]:flex-shrink-0: when the entries are taller than the screen they scroll - they used to
               squeeze rows like "Band" / "Ich bin" to half their height (2026-10-16). */}
-          <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto [&>*]:flex-shrink-0 ${low ? 'gap-3 p-3' : 'gap-4 p-4'} ${clearCornerButtons ? '!pt-20' : ''}`}>{children}</div>
+          <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto [&>*]:flex-shrink-0 ${low ? 'gap-3 p-3' : 'gap-4 p-4'}`}>{children}</div>
           <div className={`flex flex-shrink-0 items-center justify-end border-t border-line ${low ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
             <Button variant="primary" onClick={onClose}>
               Fertig

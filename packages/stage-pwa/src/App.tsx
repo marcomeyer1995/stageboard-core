@@ -321,11 +321,12 @@ function App() {
             screen - only confusing, not-yet-functional controls during onboarding. */}
         {/* Where the status bar is hidden (a dashboard can switch it off): ☰ and the bento menu
             stay in the two top corners, so nobody is ever locked out (docs/15 D8, Marco
-            2026-10-16 - before, one floating menu button bottom right). */}
+            2026-10-16 - before, one floating menu button bottom right). They sit exactly where they
+            are in the status bar, in its empty place (Dashboard keeps it free, 2026-10-17). */}
         {!showStatusBar && !isEditingDashboard && !inOnboarding && (
           <>
             {/* Above the drawers, so the same button closes them again (Marco, 2026-10-16). */}
-            <div className="absolute left-2 top-2 z-dialog">
+            <div className="absolute left-2 top-0 z-dialog">
               <IconButton
                 icon="menu"
                 label={t('openMenu')}
@@ -348,7 +349,7 @@ function App() {
               />
             </div>
             {mode === 'boards' && (
-              <div className="absolute right-2 top-2 z-dialog">
+              <div className="absolute right-2 top-0 z-dialog">
                 <IconButton
                   icon="dashboards"
                   label={t('openDashboards')}
