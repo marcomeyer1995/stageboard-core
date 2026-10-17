@@ -27,7 +27,12 @@ export function useKeyboardSteadyHeight(width: number, height: number): number {
   const [, recheck] = useReducer((n: number) => n + 1, 0)
   const typing = isTyping()
   const keyboardClosing = !typing && Date.now() - typingEndedAt.current < KEYBOARD_CLOSE_MS
-  if (width !== held.current.width || height >= held.current.height || (!typing && !keyboardClosing)) held.current = { width, height }
+  // A real new width (rotation) is whole pixels away. Not a fraction: the first measurement comes
+  // from clientWidth (rounded, 601), the observer's later ones are exact (600.94) - the first
+  // keyboard after a dashboard switch took that for a rotation and shrank the widgets (Marco,
+  // 2026-10-17: only the first time).
+  const newWidth = Math.abs(width - held.current.width) >= 1
+  if (newWidth || height >= held.current.height || (!typing && !keyboardClosing)) held.current = { width, height }
 
   useEffect(() => {
     const onFocusOut = () => {
