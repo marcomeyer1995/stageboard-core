@@ -571,7 +571,7 @@ const DEFINITIONS: WidgetDefinition[] = [
   defineWidget({
     type: 'custom-trigger',
     title: 'Trigger-Button',
-    description: 'Frei konfigurierbarer Button (latching oder momentary) für ein Zielgerät.',
+    description: 'Ein Knopf für jede Aktion: Show, Abschnitte, Wiedergabe oder ein Gerätebefehl - tastend, rastend oder zeitgesteuert.',
     category: 'show-control',
     stageTier: 'gig',
     defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
