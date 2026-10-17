@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BREAKPOINTS, DashboardSchema, type Dashboard, type Profile } from 'shared-types'
-import { availableWidgets, belowMinimumItems, breakpointFor, canRemoveMode, dashboardsForMode, deriveLayout, displayLayout, GRID_COLUMNS, GRID_ROWS, gridHeight, hasRoomFor, gridMetrics, hasOverlap, isDashboardAvailableInMode, isDashboardVisible, normalizeLayout, squeezedItems, repairLayout, resolveActiveDashboard, resolveInteraction, toggleDashboardMode, withWidgetAppended, withWidgetRemoved, pixelMinimum, stackLayout, type MinSize, isPracticeOnly } from './dashboardLayout'
+import { availableWidgets, belowMinimumItems, breakpointFor, canRemoveMode, dashboardsForMode, deriveLayout, displayLayout, GRID_COLUMNS, GRID_ROWS, gridHeight, hasRoomFor, gridMetrics, hasOverlap, isDashboardAvailableInMode, isDashboardVisible, normalizeLayout, squeezedItems, repairLayout, resolveActiveDashboard, resolveInteraction, toggleDashboardMode, withWidgetAppended, withWidgetRemoved, pixelMinimum, stackLayout, type MinSize } from './dashboardLayout'
 import { defaultDashboards } from './defaultDashboards'
 import type { CapabilityStatus } from './capabilities'
 
@@ -795,16 +795,6 @@ describe('pixelMinimum (#369: minimums need a pixel floor)', () => {
     expect(hasOverlap(shown.items)).toBe(false)
     expect(squeezedItems(shown.items, minFor)).toHaveLength(0)
     expect(stackLayout([], minFor)).toEqual([])
-  })
-})
-
-describe('isPracticeOnly (Üben size tier, docs/15 D10)', () => {
-  const base = { id: 'd', name: 'D', order: 0, widgets: [], layouts: {}, visibility: 'public' as const }
-  it('only a dashboard offered in Solo Üben alone', () => {
-    expect(isPracticeOnly({ ...base, modes: ['practice'] })).toBe(true)
-    expect(isPracticeOnly({ ...base, modes: ['gig', 'practice'] })).toBe(false)
-    expect(isPracticeOnly({ ...base, modes: ['gig'] })).toBe(false)
-    expect(isPracticeOnly(base)).toBe(false)
   })
 })
 

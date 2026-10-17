@@ -16,14 +16,14 @@ export const GAP = 8
 export const TOUCH = 56
 export const TOUCH_PRIMARY = 72
 
-/** The control sizes a widget lays itself out for - by the dashboard's size tier (docs/15 D10):
- * Bühne 56 / 72 on dashboards offered in Gig, Üben 48 on ones offered only in Solo Üben. */
+/** The control sizes a widget lays itself out for (docs/15 D10): stage 56 / 72, or 48 for a widget
+ * switched to "Kompakt" in its ⋯ menu. */
 export interface TouchSizes {
   touch: number
   primary: number
 }
 export const STAGE_TOUCH: TouchSizes = { touch: TOUCH, primary: TOUCH_PRIMARY }
-export const PRACTICE_TOUCH: TouchSizes = { touch: 48, primary: 48 }
+export const COMPACT_TOUCH: TouchSizes = { touch: 48, primary: 48 }
 /** Smallest size for a key readout (running time, click state, tempo), px. */
 export const READOUT_MIN = 24
 /** Height of one small label/helper line at the 16px text floor, px. */

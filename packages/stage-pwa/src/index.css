@@ -6,9 +6,9 @@
   .sb-prep {
     --sb-text-secondary: 0.875rem;
   }
-  /* Üben tier (docs/15 D10): a dashboard offered only in Solo Üben - stage controls and show
-     actions 48 px (PracticeTier). Every alias is set again: a var() resolves where it is defined. */
-  .sb-practice {
+  /* A widget switched to "Kompakt" in its ⋯ menu (docs/15 D10): stage controls and show actions
+     48 px (CompactTier). Every alias is set again: a var() resolves where it is defined. */
+  .sb-compact {
     --sb-touch: 3rem;
     --sb-touch-primary: 3rem;
     --sb-h-stage: 3rem;

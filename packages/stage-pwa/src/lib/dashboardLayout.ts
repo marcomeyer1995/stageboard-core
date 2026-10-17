@@ -660,12 +660,6 @@ export function canRemoveMode(dashboards: Dashboard[], dashboard: Dashboard, mod
   return dashboards.some((other) => other.id !== dashboard.id && isDashboardAvailableInMode(other, mode))
 }
 
-/** Offered only in Solo Üben - the Üben size tier (docs/15 D10): 48 px controls instead of 56 / 72.
- * A dashboard also offered in Gig (or written before `modes` existed) stays Bühne. */
-export function isPracticeOnly(dashboard: Dashboard): boolean {
-  return !!dashboard.modes && !dashboard.modes.includes('gig')
-}
-
 /** The dashboard's `modes` after toggling one - `undefined` again once both are on, so a
  * dashboard offered everywhere stays indistinguishable from one written before the field. */
 export function toggleDashboardMode(dashboard: Dashboard, mode: DashboardMode): DashboardMode[] | undefined {

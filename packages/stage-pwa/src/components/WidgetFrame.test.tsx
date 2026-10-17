@@ -13,7 +13,7 @@ describe('WidgetFrame', () => {
     expect(screen.getByText('widget content')).toBeInTheDocument()
     expect(screen.queryByTitle('Hardware nicht erreichbar')).not.toBeInTheDocument()
 
-    const content = screen.getByText('widget content').parentElement
+    const content = screen.getByText('widget content').closest('[aria-disabled]')
     expect(content).not.toHaveClass('opacity-50')
     expect(content).toHaveAttribute('aria-disabled', 'false')
   })
@@ -25,7 +25,7 @@ describe('WidgetFrame', () => {
       </WidgetFrame>,
     )
 
-    const content = screen.getByText('widget content').parentElement
+    const content = screen.getByText('widget content').closest('[aria-disabled]')
     expect(content).toHaveClass('opacity-50')
     expect(content).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByTitle('Hardware nicht erreichbar')).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('WidgetFrame', () => {
         <p>widget content</p>
       </WidgetFrame>,
     )
-    const root = screen.getByText('widget content').parentElement!.parentElement!
+    const root = screen.getByText('widget content').closest('[aria-disabled]')!.parentElement!
     expect(root).not.toHaveClass('border')
     expect(root).not.toHaveClass('bg-surface')
   })
@@ -58,7 +58,7 @@ describe('WidgetFrame', () => {
         <p>widget content</p>
       </WidgetFrame>,
     )
-    const root = screen.getByText('widget content').parentElement!.parentElement!
+    const root = screen.getByText('widget content').closest('[aria-disabled]')!.parentElement!
     expect(root).toHaveClass('border')
     expect(root).toHaveClass('bg-surface')
   })
@@ -82,6 +82,28 @@ describe('WidgetFrame', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(toggle)
     expect(onToggleFrameless).toHaveBeenCalled()
+  })
+
+  it('"Kompakt" in the ⋯ menu switches the widget to 48 px controls - its own choice, visible (Marco 2026-10-17)', () => {
+    const onToggleCompact = vi.fn()
+    const { rerender } = render(
+      <WidgetFrame title="Transport" status="available" isEditing onRemove={vi.fn()} onToggleCompact={onToggleCompact}>
+        <p>widget content</p>
+      </WidgetFrame>,
+    )
+    expect(screen.getByText('widget content').closest('.sb-compact')).toBeNull()
+    fireEvent.click(screen.getByTitle('Widget-Menü'))
+    const toggle = screen.getByRole('switch', { name: /Kompakt/ })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(toggle)
+    expect(onToggleCompact).toHaveBeenCalled()
+
+    rerender(
+      <WidgetFrame title="Transport" status="available" isEditing onRemove={vi.fn()} compact onToggleCompact={onToggleCompact}>
+        <p>widget content</p>
+      </WidgetFrame>,
+    )
+    expect(screen.getByText('widget content').closest('.sb-compact')).not.toBeNull()
   })
 
   it('outlines a too-small widget in edit mode only', () => {

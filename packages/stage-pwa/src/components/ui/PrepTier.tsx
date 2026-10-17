@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import { PRACTICE_TOUCH, STAGE_TOUCH, type TouchSizes } from '../../lib/gigWidgetLayout'
+import { COMPACT_TOUCH, STAGE_TOUCH, type TouchSizes } from '../../lib/gigWidgetLayout'
 import type { ControlSize } from './styles'
 
 const PrepContext = createContext(false)
@@ -29,23 +29,22 @@ export function useIsPrepTier(): boolean {
   return useContext(PrepContext)
 }
 
-const PracticeContext = createContext(false)
+const CompactContext = createContext(false)
 
 /**
- * The Üben size tier (docs/15 D10, Marco 2026-10-17: automatically from "Anbieten in"): a dashboard
- * offered only in Solo Üben. Its stage controls are 48 px instead of 56 / 72 (the .sb-practice
- * variables), and widgets lay themselves out for 48 (useTouchSizes) - more fits on a practice
- * screen. A dashboard also offered in Gig stays Bühne.
+ * A widget switched to "Kompakt" in its ⋯ menu (docs/15 D10, Marco 2026-10-17): its stage controls
+ * are 48 px instead of 56 / 72 (the .sb-compact variables), and it lays itself out for 48
+ * (useTouchSizes). Chosen per widget, visibly - not derived from where the dashboard is offered.
  */
-export function PracticeTier({ on, className, children }: { on: boolean; className: string; children: ReactNode }) {
+export function CompactTier({ on, className, children }: { on: boolean; className: string; children: ReactNode }) {
   return (
-    <PracticeContext.Provider value={on}>
-      <div className={on ? `sb-practice ${className}` : className}>{children}</div>
-    </PracticeContext.Provider>
+    <CompactContext.Provider value={on}>
+      <div className={on ? `sb-compact ${className}` : className}>{children}</div>
+    </CompactContext.Provider>
   )
 }
 
 /** The control sizes widgets here lay themselves out for. */
 export function useTouchSizes(): TouchSizes {
-  return useContext(PracticeContext) ? PRACTICE_TOUCH : STAGE_TOUCH
+  return useContext(CompactContext) ? COMPACT_TOUCH : STAGE_TOUCH
 }
