@@ -12,6 +12,7 @@ export const CQ18T_COMMANDS: DeviceCommand[] = [
       { key: 'db', label: 'Pegel', kind: 'number', min: -60, max: 10, step: 1, unit: 'dB' },
     ],
     describe: (p) => `Kanal ${String(p.channel)}: ${String(p.db)} dB`,
+    stateKey: (p) => `level:${String(p.channel)}`,
   },
   {
     type: 'cq18t.setMute',
@@ -21,6 +22,7 @@ export const CQ18T_COMMANDS: DeviceCommand[] = [
       { key: 'muted', label: 'Stumm', kind: 'bool' },
     ],
     describe: (p) => `${p.channel === 'main' ? 'Main' : `Kanal ${String(p.channel)}`} ${onOff(p.muted)}`,
+    stateKey: (p) => `mute:${String(p.channel)}`,
   },
 ]
 
@@ -47,6 +49,7 @@ export const UI24R_COMMANDS: DeviceCommand[] = [
       { key: 'db', label: 'Pegel', kind: 'number', min: -60, max: 10, step: 1, unit: 'dB' },
     ],
     describe: (p) => `${ui24rChannel(p)}: ${String(p.db)} dB`,
+    stateKey: (p) => `level:${String(p.channelType)}${String(p.channel)}`,
   },
   {
     type: 'ui24r.setMute',
@@ -57,5 +60,6 @@ export const UI24R_COMMANDS: DeviceCommand[] = [
       { key: 'mute', label: 'Stumm', kind: 'bool' },
     ],
     describe: (p) => `${ui24rChannel(p)} ${onOff(p.mute)}`,
+    stateKey: (p) => `mute:${String(p.channelType)}${String(p.channel)}`,
   },
 ]

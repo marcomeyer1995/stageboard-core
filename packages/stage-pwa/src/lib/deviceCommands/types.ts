@@ -20,4 +20,9 @@ export interface DeviceCommand {
   fields: CommandField[]
   /** A short text for the cue marker ("Rig 12/3"). */
   describe: (payload: Record<string, unknown>) => string
+  /** For a command that sets a lasting state (a rig, a patch, a fader): which state - two cues
+   * with the same key overwrite each other. After a section jump (#479) the last one before the
+   * target is sent again when it differs from where the song stood ("chase"). Absent: a one-off
+   * event (click extension) - never repeated. */
+  stateKey?: (payload: Record<string, unknown>) => string
 }

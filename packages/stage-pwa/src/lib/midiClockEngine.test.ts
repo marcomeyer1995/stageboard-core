@@ -151,3 +151,24 @@ describe('MIDI clock engine (#478)', () => {
     expect(events(r.sent).slice(-1)[0]).toBe('stop')
   })
 })
+
+describe('MIDI clock across a section jump (#479)', () => {
+  it('ticks on evenly without Stop; Song Position at the boundary; the later fold changes nothing', () => {
+    const r = rig()
+    const playAt = r.now
+    const playing = { status: 'playing' as const, startedAt: playAt, accumulatedMs: -400 }
+    r.advance(1_000, { timeline, transport: playing, takeKey: playAt })
+    // At song 4 s (bar 3) back to song 0 (bar 1) - announced well ahead.
+    const jump = { at: playAt + 4_400, toMs: 0 }
+    r.advance(3_200, { timeline, transport: playing, takeKey: playAt, jump })
+    // The master folds it a little after the boundary.
+    r.advance(2_000, { timeline, transport: { status: 'playing', startedAt: jump.at, accumulatedMs: 0 }, takeKey: playAt })
+    expect(events(r.sent)).toEqual(['start', 'spp'])
+    const spp = r.sent.find((s) => kind(s.data) === 'spp')!
+    expect(spp.data[1]! + (spp.data[2]! << 7)).toBe(0)
+    expect(spp.at).toBeCloseTo(jump.at - 0.5, 3) // right before the boundary's tick
+    // Every clock exactly one tick apart across the boundary and the fold.
+    const clocks = r.sent.filter((s) => kind(s.data) === 'clock').map((s) => s.at).filter((at) => at >= playAt)
+    for (let i = 1; i < clocks.length; i++) expect(clocks[i]! - clocks[i - 1]!).toBeCloseTo(500 / 24, 3)
+  })
+})

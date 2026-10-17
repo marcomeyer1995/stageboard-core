@@ -8,6 +8,7 @@ export const RC500_COMMANDS: DeviceCommand[] = [
     label: 'Memory wählen',
     fields: [{ key: 'memory', label: 'Memory', kind: 'int', min: 1, max: 99 }],
     describe: (p) => `Memory ${String(p.memory)}`,
+    stateKey: () => 'memory',
   },
 ]
 
@@ -21,6 +22,7 @@ export const MG30_COMMANDS: DeviceCommand[] = [
     label: 'Patch wählen',
     fields: [{ key: 'program', label: 'Patch', kind: 'choice', options: Array.from({ length: 128 }, (_, program) => ({ value: program, label: mg30PatchName(program) })) }],
     describe: (p) => `Patch ${mg30PatchName(Number(p.program))}`,
+    stateKey: () => 'patch',
   },
   {
     type: 'mg30.setKnob',
@@ -30,5 +32,6 @@ export const MG30_COMMANDS: DeviceCommand[] = [
       { key: 'value', label: 'Wert', kind: 'int', min: 0, max: 100 },
     ],
     describe: (p) => `${MG30_KNOBS.get(Number(p.cc)) ?? `CC ${String(p.cc)}`} = ${String(p.value)}`,
+    stateKey: (p) => `knob:${String(p.cc)}`,
   },
 ]

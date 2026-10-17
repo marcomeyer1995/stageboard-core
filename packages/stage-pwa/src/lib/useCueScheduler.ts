@@ -1,4 +1,5 @@
 import { jumpBoundaryMs } from './playbackTransport'
+import { chaseCues } from './cueChase'
 import { useEffect, useRef } from 'react'
 import type { ShowCue } from 'shared-types'
 import { cueLatencyMs } from './capabilityTiming'
@@ -86,6 +87,10 @@ export function useCueScheduler(): void {
     const before = boundaryMs === null ? cues : cues.filter((cue) => cue.timeMs < boundaryMs)
     const after = jump && boundaryMs !== null ? cues.filter((cue) => cue.timeMs >= jump.toMs) : []
     const afterTransport: CueTransport | null = jump ? { status, startedAt: jump.at, accumulatedMs: jump.toMs } : null
+    // State cues to send again right at the jump (chase, cueChase.ts): the rig or patch the target
+    // needs when it differs from where the song stands.
+    const capabilityOf = (cue: ShowCue) => logicalDevices.find((device) => device.id === cue.targetLogicalDeviceId)?.capability
+    const chased = jump && boundaryMs !== null ? chaseCues(cues, boundaryMs, jump.toMs, capabilityOf) : []
 
     // How late each tick comes and each cue is handed over (Diagnose tab, `cueTimingStats.ts`).
     let lastTick: number | null = null
@@ -96,14 +101,24 @@ export function useCueScheduler(): void {
       const fired = firedRef.current.ids
       const now = getServerTime()
       const latencyMs = (cue: ShowCue) => cueLatencyMs(cue, logicalDevices, installed, latencyProfiles)
+      const jumpFired = jumpFiredRef.current
+      const chaseDue =
+        jump && jumpFired
+          ? chased
+              .filter((cue) => !jumpFired.ids.has(`chase:${cue.id}`))
+              .map((cue) => ({ cue, dueAt: jump.at, sendAt: jump.at - latencyMs(cue) }))
+              .filter((item) => item.sendAt <= now + CUE_LOOKAHEAD_MS)
+          : []
+      for (const item of chaseDue) jumpFired!.ids.add(`chase:${item.cue.id}`)
       const due = [
+        ...chaseDue.map((item) => ({ ...item, firedIn: null as Set<string> | null })),
         ...cuesToSchedule(before, transport, now, fired, CUE_LOOKAHEAD_MS, latencyMs).map((item) => ({ ...item, firedIn: fired })),
         ...(afterTransport && jumpFiredRef.current
           ? cuesToSchedule(after, afterTransport, now, jumpFiredRef.current.ids, CUE_LOOKAHEAD_MS, latencyMs).map((item) => ({ ...item, firedIn: jumpFiredRef.current!.ids }))
           : []),
       ]
       for (const { cue, sendAt, firedIn } of due) {
-        firedIn.add(cue.id)
+        firedIn?.add(cue.id)
         recordHandover(now - sendAt)
         void fireCue(cue, {
           deviceId,
