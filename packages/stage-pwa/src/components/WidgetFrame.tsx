@@ -65,15 +65,22 @@ export function WidgetFrame({
   const isDisabled = status === 'degraded'
   const [menuOpen, setMenuOpen] = useState(false)
   const inert = isDisabled || isEditing
-  // Hidden chrome is a live/locked-view thing only - while editing, every widget keeps its
-  // border so its drag/resize bounds stay visible, same reasoning `inert` already applies.
-  const hideChrome = frameless && !isEditing
+  // Without frame the content takes the padding's room too - also while editing, so edit mode shows
+  // it at its real size (Marco, 2026-10-17: the frame and its padding used to come back there). Its
+  // bounds stay visible for dragging as a dashed outline that takes no room.
+  const hideChrome = frameless
+  const outline =
+    isEditing && tooSmall
+      ? 'outline outline-2 -outline-offset-2 outline-danger'
+      : isEditing && frameless
+        ? 'outline-dashed outline-2 -outline-offset-2 outline-ink-faint'
+        : ''
 
   return (
     <div
       className={`relative flex h-full w-full flex-col overflow-hidden rounded-container ${
         hideChrome ? '' : 'border border-line bg-surface shadow-sb'
-      } ${isEditing ? 'widget-drag-handle cursor-move' : ''} ${isEditing && tooSmall ? 'outline outline-2 -outline-offset-2 outline-danger' : ''}`}
+      } ${isEditing ? 'widget-drag-handle cursor-move' : ''} ${outline}`}
       onDoubleClick={isEditing ? () => setMenuOpen(true) : undefined}
     >
       <div
@@ -120,7 +127,8 @@ export function WidgetFrame({
         // The shared dialog (docs/15 D6), portalled to <body>: react-grid-layout positions every
         // widget with a CSS transform, which would clip a fixed-positioned menu to this one
         // widget's small box.
-        <Dialog title={title} size="s" onClose={() => setMenuOpen(false)}>
+        // See-through while a slider is dragged: the widget behind shows the new size live.
+        <Dialog title={title} size="s" onClose={() => setMenuOpen(false)} seeThroughWhileSliding>
           {configPanel}
 
           {onToggleFrameless && <Switch label="Rahmen anzeigen" checked={!frameless} onChange={onToggleFrameless} />}
