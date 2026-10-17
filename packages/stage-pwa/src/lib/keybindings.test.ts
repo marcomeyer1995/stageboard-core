@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   bindingForKey,
   DEFAULT_KEYBINDINGS,
-  describeAction,
   isBindableKey,
   isTypingTarget,
   keyLabel,
@@ -11,11 +10,14 @@ import {
   songStateFor,
   STEP_CHOICES,
   upsertBinding,
+  bindingFromV2,
   type KeyBinding,
 } from './keybindings'
+import { describeAction, type Action } from './actions'
 
-const next: KeyBinding = { key: 'PageDown', action: { kind: 'fixed', action: 'next' } }
-const show: KeyBinding = { key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } }
+const next: KeyBinding = bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } })
+const show: KeyBinding = bindingFromV2({ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } })
+const pressOf = (b: KeyBinding): Action => (b.behavior.kind === 'momentary' ? b.behavior.press : b.behavior.on)
 
 describe('keybindings (#27)', () => {
   it('starts empty - nothing triggers by accident', () => {
@@ -25,8 +27,8 @@ describe('keybindings (#27)', () => {
   it('one key, one meaning: saving a key again replaces its mapping, editing can change the key', () => {
     let bindings = upsertBinding([], next)
     bindings = upsertBinding(bindings, show)
-    bindings = upsertBinding(bindings, { key: 'PageDown', action: { kind: 'fixed', action: 'stop' } })
-    expect(bindings.map((b) => [b.key, b.action.kind === 'fixed' ? b.action.action : 'by-state'])).toEqual([
+    bindings = upsertBinding(bindings, bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'stop' } }))
+    expect(bindings.map((b) => { const a = pressOf(b); return [b.key, a.kind === 'show' ? a.op : 'by-state'] })).toEqual([
       ['PageDown', 'stop'],
       ['b', 'by-state'],
     ])
@@ -49,9 +51,10 @@ describe('keybindings (#27)', () => {
     }
   })
 
-  it('describes a mapping in one line', () => {
-    expect(describeAction(next.action)).toBe('Nächster Song')
-    expect(describeAction(show.action)).toBe('Bereit → Play · Spielt → Stop & nächster Song · Pause → Fortsetzen · Beendet → Nächster Song und starten')
+  it('converts a stored mapping of the earlier form, and describes it in one line (docs/23 §8)', () => {
+    expect(next.behavior).toEqual({ kind: 'momentary', press: { kind: 'show', op: 'next' }, release: { kind: 'none' } })
+    expect(describeAction(pressOf(next))).toBe('Nächster Song')
+    expect(describeAction(pressOf(show))).toBe('Bereit → Play · Spielt → Stop & nächster Song · Pause → Fortsetzen · Beendet → Nächster Song und starten')
   })
 
   it('labels keys and leaves out modifiers and typing targets', () => {
