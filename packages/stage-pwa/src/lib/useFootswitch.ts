@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { bindingForKey, isTypingTarget } from './keybindings'
-import { releaseDelayMs, runAction, type Show } from './runAction'
+import { runAction, scheduleRelease, type Show } from './runAction'
 import { useShowMode } from './showMode'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 
@@ -13,7 +13,7 @@ export const footswitchCapture = { active: false }
 /** Latching keys that are "on" right now (docs/23 §4a) - per key, on this device. */
 const latched = new Set<string>()
 /** Timed releases waiting, per key - a new press starts its own. */
-const pendingReleases = new Map<string, ReturnType<typeof setTimeout>>()
+const pendingReleases = new Map<string, () => void>()
 
 function blocked(event: KeyboardEvent): boolean {
   if (footswitchCapture.active || isTypingTarget(event.target)) return true
@@ -38,15 +38,8 @@ export function pressKey(key: string, show: Show): boolean {
   void runAction(behavior.press, show)
   const { release } = behavior
   if (release.kind === 'after') {
-    const waiting = pendingReleases.get(key)
-    if (waiting) clearTimeout(waiting)
-    pendingReleases.set(
-      key,
-      setTimeout(() => {
-        pendingReleases.delete(key)
-        void runAction(release.action, show)
-      }, releaseDelayMs(release, show)),
-    )
+    pendingReleases.get(key)?.()
+    pendingReleases.set(key, scheduleRelease(release, show))
   }
   return true
 }

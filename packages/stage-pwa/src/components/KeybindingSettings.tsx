@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { Action, Behavior, Release } from '../lib/actions'
+import { gridLabel, type Action, type Behavior, type Release } from '../lib/actions'
 import { bindingForKey, isBindableKey, keyLabel, type KeyBinding } from '../lib/keybindings'
 import { footswitchCapture } from '../lib/useFootswitch'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 import { ActionField, useDescribeAction } from './ActionPicker'
 import { Icon } from './Icon'
-import { AddRow, Button, Dialog, Segmented, Stepper } from './ui'
+import { AddRow, Button, Dialog, Segmented, Stepper, Switch } from './ui'
 
 /**
  * Foot switch mapping (#27): an empty list to start with - each mapping is set up step by step in
@@ -72,7 +72,7 @@ function useDescribeBehavior(): (behavior: Behavior) => string {
     const press = describe(behavior.press)
     const { release } = behavior
     if (release.kind === 'on-release') return `${press} · Loslassen: ${describe(release.action)}`
-    if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}: ${describe(release.action)}`
+    if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}${gridLabel(release)}: ${describe(release.action)}`
     return press
   }
 }
@@ -93,6 +93,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
   )
   const [amount, setAmount] = useState(start?.kind === 'momentary' && start.release.kind === 'after' ? start.release.amount : 2)
   const [unit, setUnit] = useState<Unit>(start?.kind === 'momentary' && start.release.kind === 'after' ? start.release.unit : 'bars')
+  const [onGrid, setOnGrid] = useState(start?.kind === 'momentary' && start.release.kind === 'after' ? (start.release.onGrid ?? false) : true)
   const listening = key === null
 
   useEffect(() => {
@@ -117,7 +118,7 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
 
   const takenBy = key && key !== initial?.key ? bindingForKey(bindings, key) : null
   const release: Release =
-    mode === 'timed' && second ? { kind: 'after', amount, unit, action: second } : mode === 'momentary' && second ? { kind: 'on-release', action: second } : { kind: 'none' }
+    mode === 'timed' && second ? { kind: 'after', amount, unit, action: second, ...(unit !== 'ms' && onGrid ? { onGrid: true } : {}) } : mode === 'momentary' && second ? { kind: 'on-release', action: second } : { kind: 'none' }
   const behavior: Behavior | null = !press
     ? null
     : mode === 'latching'
@@ -193,6 +194,18 @@ function KeyMappingDialog({ initial, onSave, onClose }: { initial: KeyBinding | 
                   { value: 'ms', label: 'ms' },
                 ]}
               />
+              {unit !== 'ms' && (
+                <Switch
+                  label={unit === 'bars' ? 'Auf den Takt' : 'Auf den Schlag'}
+                  checked={onGrid}
+                  onChange={setOnGrid}
+                  description={
+                    onGrid
+                      ? `Landet genau auf einem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'} - gezählt ab dem, der dem Drücken am nächsten liegt, und vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
+                      : 'Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.'
+                  }
+                />
+              )}
             </div>
           )}
           <ActionField

@@ -26,8 +26,10 @@ export type Action =
 export type Release =
   | { kind: 'none' }
   | { kind: 'on-release'; action: Action }
-  /** "Zeitgesteuert": after a time or a number of beats/bars, whenever the key is let go. */
-  | { kind: 'after'; amount: number; unit: 'ms' | 'beats' | 'bars'; action: Action }
+  /** "Zeitgesteuert": after a time or a number of beats/bars, whenever the key is let go.
+   * `onGrid` ("auf den Takt"): on the bar line (beat) that many bars after the nearest one,
+   * planned ahead like a cue - else a timer at the tempo of the press. */
+  | { kind: 'after'; amount: number; unit: 'ms' | 'beats' | 'bars'; action: Action; onGrid?: boolean }
 
 /** Tastend (press + optional release) or rastend (first press A, second press B). */
 export type Behavior = { kind: 'momentary'; press: Action; release: Release } | { kind: 'latching'; on: Action; off: Action }
@@ -79,13 +81,18 @@ export function describeAction(action: Action, deviceName: (id: string) => strin
 
 const UNIT_LABEL = { ms: 'ms', beats: 'Schläge', bars: 'Takte' } as const
 
+/** " auf den Takt" / " auf den Schlag" for a release planned on the grid. */
+export function gridLabel(release: Extract<Release, { kind: 'after' }>): string {
+  return release.onGrid && release.unit !== 'ms' ? (release.unit === 'bars' ? ' auf den Takt' : ' auf den Schlag') : ''
+}
+
 /** A whole mapping in one line. */
 export function describeBehavior(behavior: Behavior, deviceName?: (id: string) => string): string {
   if (behavior.kind === 'latching') return `${describeAction(behavior.on, deviceName)} / ${describeAction(behavior.off, deviceName)}`
   const press = describeAction(behavior.press, deviceName)
   const { release } = behavior
   if (release.kind === 'on-release') return `${press} · Loslassen: ${describeAction(release.action, deviceName)}`
-  if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}: ${describeAction(release.action, deviceName)}`
+  if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}${gridLabel(release)}: ${describeAction(release.action, deviceName)}`
   return press
 }
 
