@@ -1,6 +1,6 @@
 # 23 – Auslöser und Aktionen
 
-Konzept (Entwurf 2026-10-18, #547), noch nicht gebaut. Erst lesen und entscheiden, dann bauen.
+Konzept (2026-10-18, #547), mit Marco entschieden (§4a, §5a, §10), noch nicht gebaut.
 
 ## 1. Ausgangslage
 
@@ -62,6 +62,8 @@ Die Loslass-Aktion ist optional; ohne sie tut Loslassen nichts (heute: alle Peda
 
 Ein Auslöser löst nur aus, was das Gerät bzw. der angemeldete Musiker selbst darf – das Rechtesystem gilt für jeden Weg gleich. Wer weder Master ist noch Master werden darf, hat keine Kontrolle über die Show: Show-, Abschnitts- und Wiedergabe-Aktionen tun auf seinem Gerät nichts (kurzer Hinweis), sie werden auch **nicht** an den Master weitergereicht. Prompter blättern betrifft nur den eigenen Bildschirm und geht immer.
 
+**Gerätebefehle** dagegen darf jeder Musiker von jedem Gerät auslösen – ohne Master zu sein, egal ob das Gerät an seinem Tablet, an einem anderen oder am Stage-Server hängt (entschieden 2026-10-18: der Lichttechniker am FOH steuert das Licht, das am Stage-Server hängt, während der Gitarrist Master ist). Eine Einschränkung nach Rollen („nur die Licht-Rolle steuert das Licht“) wäre ein späterer Schritt (#57).
+
 ## 6. Datenmodell (Skizze)
 
 ```ts
@@ -115,4 +117,4 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 2. ~~Abläufe mit Abständen~~ – entschieden: Abstände in ms, Schlägen oder Takten sind gewünscht (siehe §4a „Zeitgesteuert“; in Abläufen ebenso).
 3. ~~Name oder Nummer~~ – entschieden: über den Namen.
 4. ~~Widget-Knopf~~ – entschieden: ja, jede Aktion (Show, Abschnitte, Wiedergabe, Gerät, Ablauf) – so vielseitig wie möglich; die Rechte (§5a) gelten auch hier.
-5. Gerätebefehle von einem Gerät, das nicht Master ist (z. B. der Gitarrist schaltet mit seinem Pedal den eigenen Kemper um): erlaubt – oder auch nur für den Master? Heute löst der Trigger-Button Gerätebefehle auf jedem Gerät aus.
+5. ~~Gerätebefehle ohne Master~~ – entschieden: erlaubt, für jedes Gerät (§5a).
