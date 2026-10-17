@@ -50,7 +50,7 @@ const ctx = {
   resume: vi.fn(async () => {}),
   decodeAudioData: vi.fn(async (data: ArrayBuffer) => fakeBuffer(`full:${new TextDecoder().decode(data)}`, DURATION_S)),
   createBuffer: (_channels: number, length: number) => fakeBuffer('joined', length / SR),
-  createGain: () => ({ gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() }, connect: vi.fn() }),
+  createGain: () => ({ gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), setValueCurveAtTime: vi.fn(), cancelScheduledValues: vi.fn() }, connect: vi.fn() }),
   createBufferSource: () => {
     const node: FakeNode = { buffer: null, when: NaN, offset: NaN, stoppedAt: null, rate: 1 }
     nodes.push(node)
@@ -292,10 +292,10 @@ describe('webAudioTrackEngine, section jump in the show (#479)', () => {
     const before = nodes.filter((n) => n.when < boundaryAt && n.stoppedAt !== null)
     const after = nodes.filter((n) => n.stoppedAt === null)
     // Nothing of the old song sounds past the boundary (beyond the short fade) ...
-    // The old section is gone 20 ms before the bar line - its next downbeat's attack stays out ...
-    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt - 0.019)).toBe(true)
-    // ... and the target is in at full level by then, from 30 ms before its own start (crossfade 10 ms).
+    // The old section fades out over 80 ms from 15 ms before the bar line ...
+    expect(before.every((n) => n.stoppedAt !== null && n.stoppedAt <= boundaryAt + 0.066)).toBe(true)
+    // ... while the target comes in, from 15 ms before its own start.
     const targetStart = Math.min(...after.map((n) => n.when))
-    expect(Math.abs(targetStart - (boundaryAt - 0.03))).toBeLessThan(0.002)
+    expect(Math.abs(targetStart - (boundaryAt - 0.015))).toBeLessThan(0.002)
   })
 })

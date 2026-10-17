@@ -29,10 +29,22 @@ const STREAM_LEAD_S = 0.4
 /** A queued section jump (#479) is taken over this long before its boundary - after the moment
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
 const JUMP_COMMIT_S = 0.9
-/** Length of the linear crossfade at a section jump. */
-const JUMP_CROSSFADE_S = 0.01
+/** Length of the crossfade at a section jump - long enough for the old section's ring to fade
+ * under the new one, short enough that the next downbeat of the old section stays in the shade. */
+const JUMP_CROSSFADE_S = 0.08
 /** How far before the bar line the crossfade starts - ahead of the downbeats' attacks. */
-const JUMP_PREROLL_S = 0.03
+const JUMP_PREROLL_S = 0.015
+const CURVE_POINTS = 64
+
+/** Gain curve for an equal-power crossfade: sin up, cos down - the two powers always add to 1. */
+function equalPowerCurve(up: boolean): Float32Array {
+  const curve = new Float32Array(CURVE_POINTS)
+  for (let i = 0; i < CURVE_POINTS; i++) {
+    const x = (i / (CURVE_POINTS - 1)) * (Math.PI / 2)
+    curve[i] = up ? Math.sin(x) : Math.cos(x)
+  }
+  return curve
+}
 /** During the count-in the track is scheduled this long before song time 0. */
 const PREPARE_BEFORE_S = 1.5
 /** Decoded audio is scheduled this far ahead of what plays. */
@@ -338,9 +350,9 @@ function stopVoice(at?: number, crossfadeS?: number): void {
   const t = Math.max(at ?? 0, ctx.currentTime)
   if (voice.feeder) voice.feeder.cancelled = true
   if (crossfadeS) {
-    // A straight line down while the next voice comes up the same line - together full level.
-    voice.gain.gain.setValueAtTime(1, t)
-    voice.gain.gain.linearRampToValueAtTime(0, t + crossfadeS)
+    // Equal-power curve down while the next voice comes up its mirror - the loudness stays.
+    voice.gain.gain.cancelScheduledValues(t)
+    voice.gain.gain.setValueCurveAtTime(equalPowerCurve(false), t, crossfadeS)
     for (const node of voice.nodes) node.stop(t + crossfadeS)
   } else {
     voice.gain.gain.setTargetAtTime(0, t, FADE_S / 3)
@@ -415,9 +427,10 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
   if (pos >= prepared.durationS) return
   const gain = ctx.createGain()
   if (crossfadeS) {
-    // Up a straight line while the voice before goes down it (a section jump, #479).
-    gain.gain.setValueAtTime(0, anchorTime)
-    gain.gain.linearRampToValueAtTime(1, anchorTime + crossfadeS)
+    // Up the equal-power curve while the voice before goes down it (a section jump, #479). The
+    // curve starts at 0 itself - another event at its start time would make it throw.
+    gain.gain.value = 0
+    gain.gain.setValueCurveAtTime(equalPowerCurve(true), anchorTime, crossfadeS)
   } else {
     // Fade in only when entering mid-song - a start at 0 begins with the track's own lead-in.
     gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
@@ -508,12 +521,12 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     // Taken over late enough that it can't be called off any more (sectionJump.ts CANCEL_MIN_MS),
     // early enough for the target to be decoded.
     if (boundaryAt - now > STREAM_LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
-      // A linear crossfade (the level never dips - an exponential fade out before and in after the
-      // line left a ~10 ms hole at -13 dB) placed JUMP_PREROLL_S before the bar line: a band's
-      // downbeat comes a few ms before the grid's line (measured on "All the small things": 3-7 ms).
-      // Centred on the line, the next downbeat's attack was chopped off and the target's own
-      // downbeat came in at 15 % - a stumble on every loop pass (Marco, 2026-10-17). Before it,
-      // both downbeats stay whole; the loop length is the same.
+      // An equal-power crossfade of JUMP_CROSSFADE_S, from JUMP_PREROLL_S before the bar line - ahead
+      // of both downbeats (a band hits a few ms before the grid line; measured on "All the small
+      // things": 3-7 ms), so neither attack is chopped. The two sections overlap past the line:
+      // both downbeats sound together (on the beat - the bars line up), and the old section's
+      // ringing and room fade out under the new one instead of breaking off. A 10 ms cut on the
+      // line sounded "cut and glued together" (Marco, 2026-10-17). The loop length is the same.
       const fadeAt = boundaryAt - JUMP_PREROLL_S
       const replacedGain = voice.gain
       stopVoice(fadeAt, JUMP_CROSSFADE_S)
