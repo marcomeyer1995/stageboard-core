@@ -100,7 +100,7 @@ export function DeviceSettings() {
         </Section>
       </Group>
 
-      <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur für Weiter, Zurück, Play und den Prompter.">
+      <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur: Show, Abschnitte, Wiedergabe, Prompter und Gerätebefehle - tastend, rastend oder zeitgesteuert.">
         <Section title="Zuordnung">
           <KeybindingSettings />
         </Section>
