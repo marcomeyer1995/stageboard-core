@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
@@ -24,6 +25,8 @@ const STEP_PERCENT = 1
  * tile (Marco, 2026-09-14).
  */
 export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showCaption = useShowPart('caption')
   const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
     useShowMode()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
@@ -55,7 +58,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
 
   return (
     <div ref={boxRef} className="flex h-full flex-col items-center gap-2 text-ink-soft">
-      {layout.showLabel && <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>}
+      {showCaption && layout.showLabel && <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>}
       <div className="flex min-h-0 w-full flex-1 items-center justify-center gap-3">
         <button
           type="button"

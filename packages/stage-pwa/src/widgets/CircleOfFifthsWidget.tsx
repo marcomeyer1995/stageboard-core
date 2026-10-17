@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { useState } from 'react'
 import {
@@ -39,6 +40,9 @@ const WEDGE_STYLE: Record<Role, { fill: string; text: string }> = {
  * floor (they were 11-14px at the old 4 x 7 default, GUI audit 2026-09-27).
  */
 export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showRelations = useShowPart('relations')
+  const showSignature = useShowPart('signature')
   const naming = config.noteNaming ?? 'sharp'
   const [selected, setSelected] = useState<CircleKey>({ ring: 'major', index: 0 })
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
@@ -92,15 +96,19 @@ export function CircleOfFifthsWidget({ config }: { config: CircleOfFifthsConfig 
         className={`flex flex-shrink-0 flex-col items-center gap-0.5 text-center ${beside ? 'max-w-[45%]' : ''}`}
       >
         <span className="font-bold text-ink">{keyName(relations.selected, naming)}</span>
-        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
-          Paralleltonart: <span className="font-semibold text-ink">{keyName(relations.relative, naming)}</span>
-        </span>
-        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
-          Dominante: <span className="font-semibold text-ink">{circleLabel(relations.dominant, naming)}</span>
-          {' · '}
-          Subdominante: <span className="font-semibold text-ink">{circleLabel(relations.subdominant, naming)}</span>
-        </span>
-        <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-faint">{describeSignature(relations.selected.index, naming)}</span>
+        {showRelations && (
+          <>
+            <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
+              Paralleltonart: <span className="font-semibold text-ink">{keyName(relations.relative, naming)}</span>
+            </span>
+            <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-muted">
+              Dominante: <span className="font-semibold text-ink">{circleLabel(relations.dominant, naming)}</span>
+              {' · '}
+              Subdominante: <span className="font-semibold text-ink">{circleLabel(relations.subdominant, naming)}</span>
+            </span>
+          </>
+        )}
+        {showSignature && <span className="text-[length:max(var(--sb-text-min),0.7em)] text-ink-faint">{describeSignature(relations.selected.index, naming)}</span>}
       </div>
     </div>
   )

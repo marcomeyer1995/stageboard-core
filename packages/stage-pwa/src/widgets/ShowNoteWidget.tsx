@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
@@ -14,6 +15,9 @@ import type { ContentFontSizeConfig } from './contentFontSizeConfig'
  * show, per the Post-Gig Report discussion.
  */
 export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showAuthor = useShowPart('author')
+  const showInput = useShowPart('input')
   const events = useShowLogStore((state) => state.events)
   const addNote = useShowLogStore((state) => state.addNote)
   const activeProfile = useActiveProfile()
@@ -48,10 +52,11 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
         {notes.map((note) => (
           <div key={note.id} className="rounded-control bg-control px-2 py-1">
             <p className="text-ink">{note.text}</p>
-            <p className="text-xs text-ink-faint">{authorName(note.authorProfileId)}</p>
+            {showAuthor && <p className="text-xs text-ink-faint">{authorName(note.authorProfileId)}</p>}
           </div>
         ))}
       </div>
+      {showInput && (
       <div className="flex gap-2">
         <input
           value={text}
@@ -72,6 +77,7 @@ export function ShowNoteWidget({ config }: { config: ContentFontSizeConfig }) {
           Hinzufügen
         </button>
       </div>
+      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useContentFontSize } from '../lib/useContentFontSize'
@@ -35,6 +36,9 @@ const DRIFT_WARN_THRESHOLD_MS = 15
  * performing musician needs cluttering their own Station.
  */
 export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showPlugins = useShowPart('plugins')
+  const showSync = useShowPart('sync')
   const capabilities = useCapabilities()
   const entries = [...capabilities.entries()]
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
@@ -43,9 +47,9 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
 
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
-      <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">System-Status</p>
-      {entries.length === 0 && <p className="text-ink-faint">Keine Plugins installiert.</p>}
-      {entries.map(([capability, status]) => (
+      {showPlugins && <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">System-Status</p>}
+      {showPlugins && entries.length === 0 && <p className="text-ink-faint">Keine Plugins installiert.</p>}
+      {showPlugins && entries.map(([capability, status]) => (
         <div
           key={capability}
           className="flex items-center justify-between gap-2 rounded-control bg-control px-2 py-1"
@@ -61,6 +65,8 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
         </div>
       ))}
 
+      {showSync && (
+      <>
       <p className="mt-2 text-xs font-bold uppercase tracking-widest text-ink-faint">Uhrzeit-Sync</p>
       <div className="flex items-center justify-between gap-2 rounded-control bg-control px-2 py-1">
         <span className="text-ink">Stage-Server</span>
@@ -81,6 +87,8 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
           </span>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

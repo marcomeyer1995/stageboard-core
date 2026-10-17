@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { CAPABILITIES } from 'shared-types'
 import { effectiveClickEnabled } from '../lib/metronome'
@@ -38,6 +39,9 @@ const OVERRIDE_OPTIONS: Array<{ value: 'on' | 'off' | null; label: string }> = [
  * tile (Marco, 2026-09-14).
  */
 export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showCaption = useShowPart('caption')
+  const showState = useShowPart('state')
   const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
 
@@ -67,12 +71,12 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
       ref={boxRef}
       className={`flex h-full gap-2 text-ink-soft ${layout.row ? 'items-stretch' : 'flex-col items-center'}`}
     >
-      {layout.showLabel && (
+      {showCaption && layout.showLabel && (
         <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">
           Klick{isMyDeviceClickOutput ? ' · dieses Gerät' : ''}
         </span>
       )}
-      {layout.showState && (
+      {showState && layout.showState && (
         <div className={`flex items-center justify-center overflow-hidden ${layout.row ? 'flex-none px-2' : 'w-full flex-1'}`}>
           {/* The click state is the readout here - never below 24px, in every layout. */}
           <span style={{ fontSize: stateFontSize }} className="whitespace-nowrap font-bold leading-none">

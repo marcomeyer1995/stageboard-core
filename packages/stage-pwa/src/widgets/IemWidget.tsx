@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
@@ -33,6 +34,9 @@ import { stageFontSize } from '../lib/stageSize'
 const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
 export function IemWidget({ config }: { config: IemConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showNames = useShowPart('names')
+  const showValues = useShowPart('values')
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.mixer, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -78,11 +82,13 @@ export function IemWidget({ config }: { config: IemConfig }) {
       <div className="flex min-h-0 flex-1 gap-4">
         {CHANNELS.map((channel) => (
           <div key={channel} className="flex flex-1 flex-col items-center gap-2">
-            <div className="w-full overflow-hidden">
-              <span style={{ fontSize }} className="block truncate text-center uppercase tracking-wide text-ink-muted">
-                {channel}
-              </span>
-            </div>
+            {showNames && (
+              <div className="w-full overflow-hidden">
+                <span style={{ fontSize }} className="block truncate text-center uppercase tracking-wide text-ink-muted">
+                  {channel}
+                </span>
+              </div>
+            )}
             <input
               type="range"
               min={0}
@@ -95,9 +101,11 @@ export function IemWidget({ config }: { config: IemConfig }) {
               style={{ accentColor: 'rgb(var(--sb-accent))' }}
               className="h-full w-2 flex-1 appearance-none rounded-control bg-control-strong [writing-mode:vertical-lr] [direction:rtl]"
             />
-            <span style={{ fontSize }} className="font-sb-mono text-ink">
-              {levels[channel]}
-            </span>
+            {showValues && (
+              <span style={{ fontSize }} className="font-sb-mono text-ink">
+                {levels[channel]}
+              </span>
+            )}
           </div>
         ))}
       </div>

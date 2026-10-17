@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Button, Select, Switch } from '../components/ui'
 import { parseChordPro } from '../lib/chordpro'
 import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
@@ -56,6 +57,8 @@ function Stepper({
  * clock must never allow one tablet to do.
  */
 export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showCaption = useShowPart('caption')
   const { mode, queue, elapsedMs } = useShowMode()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const trackOverride = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).trackOverride)
@@ -87,7 +90,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-sm text-ink-soft">
-      <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>
+      {showCaption && <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>}
 
       <div className="flex items-center gap-2">
         <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })}>

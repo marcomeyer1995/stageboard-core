@@ -1,4 +1,5 @@
-import { Segmented, Switch } from '../components/ui'
+import { useShowPart } from '../lib/widgetParts'
+import { Segmented } from '../components/ui'
 import { useState } from 'react'
 import { GuitarChordDiagram } from '../components/GuitarChordDiagram'
 import { PianoChordDiagram } from '../components/PianoChordDiagram'
@@ -21,6 +22,11 @@ const chip = (selected: boolean) =>
  * transient state: a lookup, not a setting worth a PouchDB write.
  */
 export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showGuitar = useShowPart('guitar')
+  const showPiano = useShowPart('piano')
+  const showNotes = useShowPart('notes')
+  const showIntervals = useShowPart('intervals')
   const naming = config.noteNaming ?? 'sharp'
   const [root, setRoot] = useState(0)
   const [qualityId, setQualityId] = useState<ChordQualityId>('maj')
@@ -29,8 +35,6 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
 
   const chord = lookUpChord(root, qualityId, naming)
   const shape = guitarShapeFor(root, qualityId)
-  const showGuitar = config.showGuitar ?? true
-  const showPiano = config.showPiano ?? true
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft">
@@ -53,12 +57,16 @@ export function ChordReferenceWidget({ config }: { config: ChordReferenceConfig 
         <span data-testid="chord-symbol" style={{ fontSize }} className="font-bold leading-none text-ink">
           {chord.symbol}
         </span>
-        <span className="font-sb-mono text-ink" style={{ fontSize: stageFontSize(fontSize * 0.6) }}>
-          {chord.notes.join('  ')}
-        </span>
-        <span className="font-sb-mono text-ink-faint" style={{ fontSize: stageFontSize(fontSize * 0.45) }}>
-          {chord.intervals.join('  ')}
-        </span>
+        {showNotes && (
+          <span className="font-sb-mono text-ink" style={{ fontSize: stageFontSize(fontSize * 0.6) }}>
+            {chord.notes.join('  ')}
+          </span>
+        )}
+        {showIntervals && (
+          <span className="font-sb-mono text-ink-faint" style={{ fontSize: stageFontSize(fontSize * 0.45) }}>
+            {chord.intervals.join('  ')}
+          </span>
+        )}
       </div>
 
       {(showGuitar || showPiano) && (
@@ -87,8 +95,6 @@ export function ChordReferenceConfigPanel({
         onChange={(value) => onChange({ ...config, noteNaming: value as ChordReferenceConfig['noteNaming'] })}
         options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
       />
-      <Switch label="Gitarren-Griffbild" checked={config.showGuitar ?? true} onChange={(showGuitar) => onChange({ ...config, showGuitar })} />
-      <Switch label="Klaviatur" checked={config.showPiano ?? true} onChange={(showPiano) => onChange({ ...config, showPiano })} />
       <SizeRatioSlider label="Akkordname" ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO} onChange={(sizeRatio) => onChange({ ...config, sizeRatio })} />
     </div>
   )

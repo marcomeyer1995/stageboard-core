@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Select } from '../components/ui'
 import { CAPABILITIES, type CapabilityId } from 'shared-types'
 import { pluginProviding, pluginStatus, type CapabilityStatus } from '../lib/capabilities'
@@ -29,6 +30,8 @@ const STATUS_DOT: Record<CapabilityStatus, string> = {
  * (#149) each show their own real state instead of one blended answer.
  */
 export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showName = useShowPart('name')
   const devices = useLogicalDevicesStore((s) => s.devices)
   const installed = usePluginsStore((s) => s.installed)
   const health = usePluginsStore((s) => s.health)
@@ -64,9 +67,11 @@ export function DeviceStatusWidget({ config }: { config: DeviceStatusConfig }) {
 
   return (
     <div className="flex h-full flex-col items-center gap-1 text-center">
-      <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-        {device.name}
-      </span>
+      {showName && (
+        <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
+          {device.name}
+        </span>
+      )}
       <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
         <span style={{ fontSize }} className="flex items-center gap-[0.3em] whitespace-nowrap text-ink-soft">
           <span

@@ -30,3 +30,21 @@ describe('widget stage tiers', () => {
     expect(ALL_WIDGETS.filter((widget) => widget.stageTier === 'gig')).toHaveLength(19)
   })
 })
+
+describe('widget parts ("Anzeigen", Marco 2026-10-17)', () => {
+  it('each widget type names its parts once, with a label', () => {
+    for (const widget of ALL_WIDGETS) {
+      const ids = (widget.parts ?? []).map((part) => part.id)
+      expect(new Set(ids).size, widget.type).toBe(ids.length)
+      for (const part of widget.parts ?? []) expect(part.label.length, `${widget.type}.${part.id}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('every widget part id is asked for by its widget (useShowPart)', async () => {
+    const sources = import.meta.glob('./*Widget.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+    const all = Object.values(sources).join('\n')
+    for (const widget of ALL_WIDGETS) {
+      for (const part of widget.parts ?? []) expect(all, `${widget.type}.${part.id}`).toContain(`useShowPart('${part.id}')`)
+    }
+  })
+})

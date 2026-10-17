@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
 import { syncCheckLayout, type SyncClockFormat } from '../lib/stageWidgetLayout'
@@ -54,6 +55,9 @@ function formatClock(ms: number, format: SyncClockFormat = 'full'): string {
  * that (stageWidgetLayout.ts).
  */
 export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const captionShown = useShowPart('caption')
+  const offsetShown = useShowPart('offset')
   const serverTime = useServerTimeTick()
   const { offsetMs, driftMs, lastSyncedAt } = useClockSyncStore()
   const flashOn = Math.floor(serverTime / 1000) % 2 === 0
@@ -76,12 +80,12 @@ export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
           {formatClock(serverTime, layout.clock)}
         </span>
       </div>
-      {layout.showCaption && (
+      {captionShown && layout.showCaption && (
         <span className="max-w-full truncate px-2 text-xs uppercase tracking-widest opacity-70">
           Sync-Blitz - Geräte vergleichen
         </span>
       )}
-      {layout.showOffset && lastSyncedAt !== null && (
+      {offsetShown && layout.showOffset && lastSyncedAt !== null && (
         <span className="max-w-full truncate px-2 text-xs opacity-70">
           {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms`}
         </span>

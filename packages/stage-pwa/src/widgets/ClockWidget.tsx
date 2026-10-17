@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useLocale } from '../i18n'
 import { clockLayout } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
@@ -14,6 +15,8 @@ import { stageFontSize } from '../lib/stageSize'
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14) -
  * when "HH:MM:SS" at that size is wider than the tile, the seconds go instead (stageWidgetLayout.ts). */
 export function ClockWidget({ config }: { config: ClockConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const secondsShown = useShowPart('seconds')
   const now = useNow(1000)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
@@ -27,7 +30,7 @@ export function ClockWidget({ config }: { config: ClockConfig }) {
         {new Date(now).toLocaleTimeString(locale, {
           hour: '2-digit',
           minute: '2-digit',
-          second: showSeconds ? '2-digit' : undefined,
+          second: showSeconds && secondsShown ? '2-digit' : undefined,
           // 24 hours in every language - a stage clock, no AM/PM to misread (#456).
           hourCycle: 'h23',
         })}
