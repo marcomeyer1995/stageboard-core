@@ -49,6 +49,15 @@ describe('AppMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('without status bar the drawer starts below its empty place, so the entries stay where they are with it (Marco 2026-10-17)', () => {
+    const { rerender } = render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+    const backdrop = () => screen.getByRole('dialog').parentElement
+    expect(backdrop()).toHaveClass('top-0')
+    rerender(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} clearCornerButtons />)
+    expect(backdrop()).toHaveClass('top-14')
+    expect(screen.getByRole('dialog').innerHTML).not.toContain('pt-20')
+  })
+
   it('no longer shows the settings sections moved to SystemView (Darstellung, Sync, Speicher & Sync)', () => {
     useWorkspaceStore.setState({ workspaces: [{ id: 'band-a', name: 'Band A' }], activeWorkspaceId: 'band-a' })
     render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
