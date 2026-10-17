@@ -41,6 +41,18 @@ Abschnitte werden über ihren **Namen** gewählt („Chorus“, entschieden 2026
 | Zeitpunkt im Song | die Zeit | der Song – das sind die Cues; sie bleiben, wo sie sind, nutzen aber denselben Aktions-Baustein |
 | später: OSC | Adresse | – |
 
+### 4a. Drücken und Loslassen (entschieden 2026-10-18, Marco)
+
+Jeder Auslöser hat zwei Momente – **Drücken** und **Loslassen** (Pedal: Taste runter/hoch, MIDI: Note an/aus bzw. CC hoch/0, Widget-Knopf: Finger drauf/weg). Je Belegung wählt man das Verhalten:
+
+| Verhalten | Drücken | Loslassen / Ende | Beispiel |
+|---|---|---|---|
+| **Tastend** | Aktion „an“ | Aktion „aus“ beim Loslassen (optional) | Blinder, solange gedrückt |
+| **Rastend** | 1. Druck: Aktion A | 2. Druck: Aktion B | Effekt an / Effekt aus |
+| **Zeitgesteuert** | Aktion „an“ | Aktion „aus“ automatisch nach einer Zeit (ms) oder nach N Takten/Schlägen – egal, wann losgelassen wird | Blinder für genau 2 Takte |
+
+Die Loslass-Aktion ist optional; ohne sie tut Loslassen nichts (heute: alle Pedal-Belegungen). Takte und Schläge zählen auf dem Raster des laufenden Songs; ohne laufenden Song gilt die Zeit nach dem Songtempo. Ein rastender Knopf zeigt seinen Zustand (an/aus) im Widget.
+
 ## 5. Regeln und wo sie liegen
 
 - **Pro Gerät:** welche Taste auf diesem Tablet welche Aktion auslöst (ein Pedal gehört einem Musiker) – wie heute „Fußschalter & Tasten“.
@@ -65,7 +77,13 @@ type Trigger =
   | { kind: 'key'; key: string }
   | { kind: 'midi'; controllerId: string; message: 'note' | 'cc'; channel: number; number: number; value?: number }
 
-interface Rule { id: string; trigger: Trigger; action: Action }
+type Release = { kind: 'none' } | { kind: 'on-release'; action: Action } | { kind: 'after'; amount: number; unit: 'ms' | 'beats' | 'bars'; action: Action }
+
+type Behavior =
+  | { kind: 'momentary'; press: Action; release: Release }   // tastend oder zeitgesteuert
+  | { kind: 'latching'; on: Action; off: Action }             // rastend
+
+interface Rule { id: string; trigger: Trigger; behavior: Behavior }
 ```
 
 Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen durch dasselbe `fireCue` wie die Cues (gleiche Latenz, gleicher Weg).
@@ -75,7 +93,7 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 - **Aktion wählen** – ein Dialog, überall gleich: erst die Gruppe (Show, Abschnitte, Wiedergabe, Gerät, Ablauf), dann die Aktion, dann ihre Werte (Abschnitt, Zeitpunkt; bei Geräten dieselben Felder wie im Cue-Dialog).
 - **Tasten & Pedale** (System → Dieses Gerät): Liste „Taste → Aktion“, neue Zeile per „Pedal jetzt drücken“ wie heute.
 - **MIDI-Controller** (Bühnentechnik): ein Gerät „MIDI-Controller“; in seinem ⋯ „Knöpfe belegen“ – Knopf drücken, Aktion wählen.
-- **Widget „Trigger-Button“**: im ⋯-Menü statt Typ + JSON der Aktions-Dialog – mit allen Aktionen, auch Show und Abschnitte (entschieden 2026-10-18).
+- **Widget „Trigger-Button“**: im ⋯-Menü statt Typ + JSON der Aktions-Dialog – mit allen Aktionen, auch Show und Abschnitte (entschieden 2026-10-18), und dem Verhalten aus §4a (heute schon „tastend/rastend“ als Freitext-Payload).
 
 ## 8. Übergang
 
@@ -94,7 +112,7 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 ## 10. Offene Fragen
 
 1. ~~Nicht-Master~~ – entschieden: §5a.
-2. Abläufe: alle Aktionen sofort hintereinander, oder mit Abständen (in Takten oder ms)?
+2. ~~Abläufe mit Abständen~~ – entschieden: Abstände in ms, Schlägen oder Takten sind gewünscht (siehe §4a „Zeitgesteuert“; in Abläufen ebenso).
 3. ~~Name oder Nummer~~ – entschieden: über den Namen.
 4. ~~Widget-Knopf~~ – entschieden: ja, jede Aktion (Show, Abschnitte, Wiedergabe, Gerät, Ablauf) – so vielseitig wie möglich; die Rechte (§5a) gelten auch hier.
 5. Gerätebefehle von einem Gerät, das nicht Master ist (z. B. der Gitarrist schaltet mit seinem Pedal den eigenen Kemper um): erlaubt – oder auch nur für den Master? Heute löst der Trigger-Button Gerätebefehle auf jedem Gerät aus.
