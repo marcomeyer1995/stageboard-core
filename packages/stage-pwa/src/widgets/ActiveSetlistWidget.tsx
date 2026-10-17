@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { isSongEntry } from 'shared-types'
 import { useShowMode } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -12,6 +13,9 @@ import { stageFontSize } from '../lib/stageSize'
  *
  * Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showCaption = useShowPart('caption')
+  const showCount = useShowPart('count')
   // Mode-aware (#247): Gig = shared ShowState setlist, Solo Üben = the practice setlist.
   const {
     queue: { activeSetlist },
@@ -21,9 +25,11 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
 
   return (
     <div className="flex h-full flex-col items-center gap-1 text-center">
-      <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
-        Aktive Setlist
-      </span>
+      {showCaption && (
+        <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">
+          Aktive Setlist
+        </span>
+      )}
       <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
         <span
           style={{ fontSize }}
@@ -32,7 +38,7 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
           {activeSetlist ? activeSetlist.name : 'Keine'}
         </span>
       </div>
-      {activeSetlist && <span className="text-sm text-ink-muted">{activeSetlist.entries.filter(isSongEntry).length} Songs</span>}
+      {showCount && activeSetlist && <span className="text-sm text-ink-muted">{activeSetlist.entries.filter(isSongEntry).length} Songs</span>}
     </div>
   )
 }

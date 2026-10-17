@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { pluginProviding } from '../lib/capabilities'
@@ -32,6 +33,8 @@ const ACTIONS: CueAction[] = [
  * QuickActionsWidget's ad-hoc cues share the same binding, since they're the same physical rig.
  */
 export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showLast = useShowPart('last')
   const installed = usePluginsStore((state) => state.installed)
   useDynamicTranslatorPreload(CAPABILITIES.lighting, installed)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -64,7 +67,7 @@ export function LightingCuesWidget({ config }: { config: CueGridConfig }) {
       <div className="min-h-0 flex-1">
         <CueGrid actions={ACTIONS} onFire={(type) => void fire(type)} fontSize={fontSize} />
       </div>
-      {engine === 'local-mine' && lastCue && (
+      {showLast && engine === 'local-mine' && lastCue && (
         <p className="text-xs text-ink-faint">Zuletzt: {lastCue}</p>
       )}
       {error && <p className="text-xs text-danger">{error}</p>}

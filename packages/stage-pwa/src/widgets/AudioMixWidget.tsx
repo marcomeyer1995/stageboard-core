@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { CAPABILITIES } from 'shared-types'
 import { MixFaders } from '../components/MixFaders'
 import { useShowMode } from '../lib/showMode'
@@ -18,6 +19,8 @@ const VERTICAL_MIN_W = 330
  * its mix then only matters for Solo practice and the Timeline.
  */
 export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showHint = useShowPart('hint')
   const { mode } = useShowMode()
   const click = useCapabilityRouting(CAPABILITIES.clickTrack, mode).engine
   const track = useCapabilityRouting(CAPABILITIES.audioPlayback, mode).engine
@@ -36,7 +39,7 @@ export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
       <div ref={boxRef} className={`min-h-0 flex-1 ${horizontal ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         <MixFaders orientation={horizontal ? 'horizontal' : 'vertical'} fontSize={fontSize} size="stage" />
       </div>
-      {silentHere && <p className="flex-shrink-0 text-base text-ink-faint">Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline.</p>}
+      {showHint && silentHere && <p className="flex-shrink-0 text-base text-ink-faint">Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline.</p>}
     </div>
   )
 }

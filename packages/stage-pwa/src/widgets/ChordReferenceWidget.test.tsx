@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { WidgetPartsProvider } from '../lib/widgetParts'
 import { ChordReferenceWidget } from './ChordReferenceWidget'
 import type { ChordReferenceConfig } from './chordReferenceConfig'
 
-const config: ChordReferenceConfig = { noteNaming: 'sharp', showGuitar: true, showPiano: true }
+const config: ChordReferenceConfig = { noteNaming: 'sharp' }
 
 const pick = (group: string, name: string) =>
   fireEvent.click(within(screen.getByRole('group', { name: group })).getByRole('button', { name }))
@@ -44,8 +45,12 @@ describe('ChordReferenceWidget (#24)', () => {
     expect(within(screen.getByRole('group', { name: 'Grundton' })).getByRole('button', { name: 'C' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('can hide either diagram', () => {
-    render(<ChordReferenceWidget config={{ ...config, showGuitar: false }} />)
+  it('can hide either diagram under "Anzeigen"', () => {
+    render(
+      <WidgetPartsProvider hidden={['guitar']}>
+        <ChordReferenceWidget config={config} />
+      </WidgetPartsProvider>,
+    )
     expect(screen.queryByRole('img', { name: 'Griffbild' })).not.toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Klaviatur' })).toBeInTheDocument()
   })

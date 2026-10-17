@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useMidiTrigger, type MidiStatus } from '../lib/useMidiTrigger'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type MidiStatusConfig } from './midiStatusConfig'
@@ -20,6 +21,8 @@ const STATUS_DOT: Record<MidiStatus, string> = {
  * tile (Marco, 2026-09-14). The button reuses the same computed size for visual consistency,
  * same as before. */
 export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showSimulate = useShowPart('simulate')
   const { status, jumpToNextSection } = useMidiTrigger()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
@@ -35,6 +38,7 @@ export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
           {STATUS_LABEL[status]}
         </span>
       </div>
+      {showSimulate && (
       <button
         type="button"
         onClick={jumpToNextSection}
@@ -43,6 +47,7 @@ export function MidiStatusWidget({ config }: { config: MidiStatusConfig }) {
       >
         Fußtaster simulieren
       </button>
+      )}
     </div>
   )
 }

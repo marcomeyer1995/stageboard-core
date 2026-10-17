@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
 import { useShowMode } from '../lib/showMode'
@@ -45,6 +46,8 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
  * a follow-up issue since they need real output hardware to verify meaningfully).
  */
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showInfo = useShowPart('info')
   const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
   const song = queue.currentVariant ?? queue.currentSong
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
@@ -93,9 +96,11 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
           <span className={STATUS_TEXT}>{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
         </div>
-        <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
-          {bpmLabel} · {song.timeSignature}
-        </span>
+        {showInfo && (
+          <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
+            {bpmLabel} · {song.timeSignature}
+          </span>
+        )}
       </div>
     )
   }
@@ -129,9 +134,11 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
           </span>
         </div>
       )}
-      <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
-        {bpmLabel} · {song.timeSignature}
-      </span>
+      {showInfo && (
+        <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
+          {bpmLabel} · {song.timeSignature}
+        </span>
+      )}
     </div>
   )
 }

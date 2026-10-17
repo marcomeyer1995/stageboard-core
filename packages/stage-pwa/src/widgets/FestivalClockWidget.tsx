@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useLocale } from '../i18n'
 import { computeFestivalClock } from '../lib/festivalClock'
 import { useShowMode } from '../lib/showMode'
@@ -28,6 +29,10 @@ function formatMinutes(ms: number): string {
  * way (stageWidgetLayout.ts), and the remaining lines are single-line.
  */
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const captionShown = useShowPart('caption')
+  const targetShown = useShowPart('target')
+  const estimateShown = useShowPart('estimate')
   const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
   const now = useNow(1000)
   const locale = useLocale()
@@ -54,7 +59,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
 
   return (
     <div ref={boxRef} className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden text-center">
-      {showCaption && (
+      {captionShown && showCaption && (
         <span className="max-w-full truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
           Voraussichtliches Ende
         </span>
@@ -65,7 +70,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
       >
         {formatTime(result.predictedEnd, locale)}
       </span>
-      {result.targetEnd !== null && result.overrunMs !== null ? (
+      {!targetShown ? null : result.targetEnd !== null && result.overrunMs !== null ? (
         <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-danger' : 'text-ok'}`}>
           Ziel {formatTime(result.targetEnd, locale)} ·{' '}
           {overtime ? `${formatMinutes(result.overrunMs)} Überzug` : `${formatMinutes(result.overrunMs)} Puffer`}
@@ -73,7 +78,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
       ) : (
         <span className="max-w-full truncate text-xs text-ink-faint">Ziel-Ende in der Setlist setzen</span>
       )}
-      {showEstimate && result.estimatedSongs > 0 && (
+      {estimateShown && showEstimate && result.estimatedSongs > 0 && (
         <span className="max-w-full truncate text-xs text-ink-faint">
           {result.estimatedSongs} {result.estimatedSongs === 1 ? 'Song' : 'Songs'} geschätzt (Länge unbekannt)
         </span>

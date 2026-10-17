@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -52,6 +53,10 @@ interface QueueRowProps {
  * the row, the widget's in its header.
  */
 function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemove, currentRowRef }: QueueRowProps) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showNumbers = useShowPart('numbers')
+  const showVariant = useShowPart('variant')
+  const showDuration = useShowPart('duration')
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.entry.id,
     disabled: !canManage || !sorting,
@@ -100,7 +105,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
       {isSection ? (
         <span className="min-w-0 flex-1 truncate text-xs font-bold uppercase tracking-widest">
           {queueItemTitle(item)}
-          {isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
+          {showDuration && isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
             <span className="ml-2 font-normal normal-case tracking-normal opacity-70">
               {formatItemSeconds(item.entry.estimatedDurationMs)}
             </span>
@@ -112,7 +117,7 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
             Ansage
           </span>
           {queueItemTitle(item)}
-          {isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
+          {showDuration && isTransitionEntry(item.entry) && item.entry.estimatedDurationMs ? (
             <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-ink-faint'}`}>
               {formatItemSeconds(item.entry.estimatedDurationMs)}
             </span>
@@ -120,9 +125,9 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
         </span>
       ) : (
         <span className="line-clamp-2 min-w-0 flex-1 break-words">
-          <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{number}.</span>
+          {showNumbers && <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{number}.</span>}
           {queueItemTitle(item)}
-          {item.variant && !item.variant.isDefault && (
+          {showVariant && item.variant && !item.variant.isDefault && (
             <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-accent'}`}>
               ({stageVariantLabel(item.variant.label)})
             </span>
@@ -158,6 +163,8 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
  * 2026-09-27). Per-row actions open on a long press, in sort mode also from the row's "⋮".
  */
 export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showCaption = useShowPart('caption')
   const {
     mode,
     canControl,
@@ -218,7 +225,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       <div className="flex flex-none items-center justify-between gap-2">
-        <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>
+        {showCaption && <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-ink-faint">Queue</p>}
         {canManage && (
           <button
             type="button"

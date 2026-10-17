@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Segmented, Switch, ToggleChip } from '../components/ui'
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { useShowMode } from '../lib/showMode'
@@ -25,6 +26,8 @@ const STATUS_TEXT: Record<StemPlaybackStatus, string | null> = {
  * track plays.
  */
 export function StemsWidget({ config }: { config: StemsConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showValues = useShowPart('values')
   const { mode, queue, trackOverride } = useShowMode()
   const { currentEntry, currentVariant } = queue
   const byVariant = useStemMixStore((state) => state.byVariant)
@@ -65,7 +68,7 @@ export function StemsWidget({ config }: { config: StemsConfig }) {
               <div className={`flex min-w-32 flex-1 flex-col gap-1 ${silent ? 'opacity-40' : ''}`}>
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="truncate text-ink">{stem.label}</span>
-                  <span className="shrink-0 font-sb-mono text-ink-muted">{channel.muted ? 'stumm' : `${percent(channel.level)} %`}</span>
+                  {showValues && <span className="shrink-0 font-sb-mono text-ink-muted">{channel.muted ? 'stumm' : `${percent(channel.level)} %`}</span>}
                 </span>
                 <input
                   type="range"

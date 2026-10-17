@@ -1,3 +1,4 @@
+import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { centsToColor } from '../lib/centsColor'
@@ -36,6 +37,9 @@ type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-cont
  * meant to wrap onto multiple lines, not a fit-to-content concern.
  */
 export function TunerWidget({ config }: { config: TunerConfig }) {
+  // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
+  const showOctave = useShowPart('octave')
+  const showCents = useShowPart('cents')
   const [status, setStatus] = useState<MicStatus>('idle')
   const [note, setNote] = useState<NoteMatch | null>(null)
   const [frequency, setFrequency] = useState<number | null>(null)
@@ -149,7 +153,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
           <div className="flex w-full flex-[6] items-center justify-center overflow-hidden">
             <p style={{ fontSize: noteFontSize }} className="whitespace-nowrap font-bold leading-none text-ink">
               {note.name}
-              <span className="text-[0.35em] text-ink-faint">{note.octave}</span>
+              {showOctave && <span className="text-[0.35em] text-ink-faint">{note.octave}</span>}
             </p>
           </div>
           {/* The meter: a fixed center tick marks exactly where "in tune" is, taller
@@ -183,10 +187,12 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             </div>
           </div>
           <div className="flex w-full flex-[2] items-center justify-center">
-            <p style={{ fontSize: stageFontSize(meterFontSize * 0.6) }} className="font-medium text-ink-faint">
-              {note.cents > 0 ? '+' : ''}
-              {note.cents} Cent · {frequency?.toFixed(1)} Hz
-            </p>
+            {showCents && (
+              <p style={{ fontSize: stageFontSize(meterFontSize * 0.6) }} className="font-medium text-ink-faint">
+                {note.cents > 0 ? '+' : ''}
+                {note.cents} Cent · {frequency?.toFixed(1)} Hz
+              </p>
+            )}
           </div>
         </div>
       ) : (
