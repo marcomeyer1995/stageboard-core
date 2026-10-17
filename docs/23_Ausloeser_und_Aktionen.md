@@ -23,13 +23,13 @@ Ein System: **„Wenn [Auslöser], dann [Aktion]“**. Eine Aktion ist überall 
 
 | Gruppe | Aktionen | Wer führt aus |
 |---|---|---|
-| Show | Play/Pause, Stop, Nächster Song, Vorheriger Song, Stop & nächster Song, Nächster Song und starten, Prompter blättern ↑/↓, **Je nach Zustand** (eine Aktion je Songzustand, wie heute) | der Master; auf anderen Geräten nichts (Hinweis) |
+| Show | Play/Pause, Stop, Nächster Song, Vorheriger Song, Stop & nächster Song, Nächster Song und starten, Prompter blättern ↑/↓, **Je nach Zustand** (eine Aktion je Songzustand, wie heute) | der Master – siehe §5a |
 | Abschnitte (#479) | Springe zu „Chorus“, Nächster Abschnitt, Vorheriger Abschnitt, Wiederholen an/aus/umschalten, Sprung absagen – jeweils mit „am Ende des Takts / des Abschnitts“ | der Master |
 | Wiedergabe | Klick an/aus, Tempo ± (Tempo-Korrektur), Ready-Check starten | der Master |
 | Gerät | „Gerät → Befehl → Wert“ aus dem Befehlskatalog (`deviceCommands/`) – Kemper-Rig, Mischpult-Mute, RC-500-Memory, Blinder | wie ein Cue: das Tablet, an dem das Gerät hängt, oder der Stage-Server |
 | Ablauf | eine benannte Folge mehrerer Aktionen („Solo“: Rig 5, Delay an, Kanal 3 lauter) | jede Aktion wie oben |
 
-Abschnitte werden über ihren **Namen** gewählt („Chorus“): dieselbe Aktion passt auf jeden Song, der einen Chorus hat. Hat ein Song den Namen zweimal, springt sie zum nächsten danach.
+Abschnitte werden über ihren **Namen** gewählt („Chorus“, entschieden 2026-10-18): dieselbe Aktion passt auf jeden Song, der einen Chorus hat. Hat ein Song den Namen zweimal, springt sie zum nächsten danach.
 
 ## 4. Auslöser
 
@@ -45,6 +45,10 @@ Abschnitte werden über ihren **Namen** gewählt („Chorus“): dieselbe Aktion
 
 - **Pro Gerät:** welche Taste auf diesem Tablet welche Aktion auslöst (ein Pedal gehört einem Musiker) – wie heute „Fußschalter & Tasten“.
 - **Bandweit:** die Regeln eines MIDI-Controllers (er ist ein Band-Gerät in Bühnentechnik), die Knöpfe auf Dashboards, die benannten Abläufe.
+
+### 5a. Rechte (entschieden 2026-10-18, Marco)
+
+Ein Auslöser löst nur aus, was das Gerät bzw. der angemeldete Musiker selbst darf – das Rechtesystem gilt für jeden Weg gleich. Wer weder Master ist noch Master werden darf, hat keine Kontrolle über die Show: Show-, Abschnitts- und Wiedergabe-Aktionen tun auf seinem Gerät nichts (kurzer Hinweis), sie werden auch **nicht** an den Master weitergereicht. Prompter blättern betrifft nur den eigenen Bildschirm und geht immer.
 
 ## 6. Datenmodell (Skizze)
 
@@ -89,7 +93,8 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 
 ## 10. Offene Fragen
 
-1. Eine Show- oder Abschnitts-Aktion auf einem Gerät, das nicht Master ist: nichts tun (mit kurzem Hinweis) – oder dem Master Bescheid geben, der sie ausführt?
+1. ~~Nicht-Master~~ – entschieden: §5a.
 2. Abläufe: alle Aktionen sofort hintereinander, oder mit Abständen (in Takten oder ms)?
-3. Abschnitte über den Namen („Chorus“) – passt das, oder braucht es auch „Abschnitt Nr. 3“?
+3. ~~Name oder Nummer~~ – entschieden: über den Namen.
 4. Soll ein Widget-Knopf auch Show- und Abschnitts-Aktionen auslösen dürfen (dann gibt es eine zweite Art, Weiter oder Springen auf ein Dashboard zu legen)?
+5. Gerätebefehle von einem Gerät, das nicht Master ist (z. B. der Gitarrist schaltet mit seinem Pedal den eigenen Kemper um): erlaubt – oder auch nur für den Master? Heute löst der Trigger-Button Gerätebefehle auf jedem Gerät aus.
