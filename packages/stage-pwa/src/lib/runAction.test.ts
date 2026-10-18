@@ -11,8 +11,6 @@ vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: ()
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: { getState: () => ({ devices: [] }) } }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: { getState: () => ({ installed: [] }) } }))
 vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { getState: () => ({ profiles: [] }) } }))
-const sequences = vi.hoisted(() => ({ list: [] as unknown[] }))
-vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: { getState: () => ({ sequences: sequences.list }) } }))
 
 const { runAction, scheduleRelease, trackLatestShow } = await import('./runAction')
 
@@ -70,24 +68,22 @@ describe('scheduleRelease - "auf den Takt" (docs/23 §4a)', () => {
   })
 })
 
-describe('sequences - "Ablauf" (docs/23 §3)', () => {
+describe('Folge (docs/23 §11.2)', () => {
   const rig = { kind: 'device' as const, targetLogicalDeviceId: 'kemper', type: 'rig', payload: { rig: 5 } }
   const delay = { kind: 'device' as const, targetLogicalDeviceId: 'kemper', type: 'fx', payload: { delay: true } }
 
   it('runs the first step at once and the next on the bar line a bar later', async () => {
     vi.useFakeTimers()
     clock.now = 2_100 // just after the bar line at 2 s: one bar on = 4 s
-    sequences.list = [{ id: 'solo', name: 'Solo', steps: [{ wait: null, action: rig }, { wait: { amount: 1, unit: 'bars' }, action: delay }] }]
-    await runAction({ kind: 'sequence', sequenceId: 'solo' }, { ...show, elapsedMs: 2_100 } as never)
+    await runAction({ kind: 'steps', steps: [{ wait: null, action: rig }, { wait: { amount: 1, unit: 'bars' }, action: delay }] }, { ...show, elapsedMs: 2_100 } as never)
     expect(device.fireDeviceAction).toHaveBeenCalledWith('kemper', 'rig', { rig: 5 })
     await vi.advanceTimersByTimeAsync(1_000) // handed over 1 s before its moment: at 3 s
     expect(device.fireDeviceAction).toHaveBeenLastCalledWith('kemper', 'fx', { delay: true }, 4_000)
     vi.useRealTimers()
   })
 
-  it('a deleted sequence says so; a sequence never needs show control itself', async () => {
-    sequences.list = []
-    expect(await runAction({ kind: 'sequence', sequenceId: 'gone' }, { ...show, canControl: false } as never)).toBe('Ablauf fehlt')
+  it('never needs show control itself - each step is checked when it runs', async () => {
+    expect(await runAction({ kind: 'steps', steps: [{ wait: null, action: rig }] }, { ...show, canControl: false } as never)).toBeNull()
   })
 })
 
@@ -96,8 +92,7 @@ describe('planned actions run on the show as it is then', () => {
     vi.useFakeTimers()
     const setClickTrackOverride = vi.fn()
     const at = (override: 'on' | 'off' | null) => ({ ...show, clickTrackOverride: override, setClickTrackOverride, queue: { ...show.queue, currentSong: { ...show.queue.currentSong, clickTrackEnabled: false } } })
-    sequences.list = [{ id: 'k', name: 'K', steps: [{ wait: null, action: { kind: 'playback', op: 'click-toggle' } }, { wait: { amount: 500, unit: 'ms' }, action: { kind: 'playback', op: 'click-toggle' } }] }]
-    await runAction({ kind: 'sequence', sequenceId: 'k' }, at(null) as never)
+    await runAction({ kind: 'steps', steps: [{ wait: null, action: { kind: 'playback', op: 'click-toggle' } }, { wait: { amount: 500, unit: 'ms' }, action: { kind: 'playback', op: 'click-toggle' } }] }, at(null) as never)
     expect(setClickTrackOverride).toHaveBeenLastCalledWith('on')
     trackLatestShow(at('on') as never)
     await vi.advanceTimersByTimeAsync(600)

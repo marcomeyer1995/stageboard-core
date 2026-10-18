@@ -1,5 +1,5 @@
 import { isSongEntry } from 'shared-types'
-import type { Action, Release, WaitUnit } from './actions'
+import type { Action, Release, SequenceStep, WaitUnit } from './actions'
 import { needsShowControl } from './actions'
 import { clickTimeline, type ClickTimeline } from './beatGrid'
 import { cueLatencyMs } from './capabilityTiming'
@@ -13,7 +13,6 @@ import { adjustedBpm, beatAt, effectiveClickEnabled } from './metronome'
 import { cancelSectionJump, queueSectionJump, setSectionLoop } from './sectionJump'
 import type { useShowMode } from './showMode'
 import { sectionIndexAt, showSections, type ShowSection } from './showSections'
-import { useActionSequencesStore } from '../store/useActionSequencesStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -105,18 +104,16 @@ export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, sh
 }
 
 /**
- * A sequence (docs/23 §3 "Ablauf"): every step's moment is worked out at the start - waits in
- * beats and bars on the song's grid - and each step runs with its own rights. A step that is a
- * sequence itself is left out (no loops).
+ * A Folge (docs/23 §11.2): every step's moment is worked out at the start - waits in beats and
+ * bars on the song's grid - and each step runs with its own rights. A step that is a Folge itself
+ * is left out (no loops).
  */
-function runSequence(sequenceId: string, show: Show): Promise<string | null> {
-  const sequence = useActionSequencesStore.getState().sequences.find((s) => s.id === sequenceId)
-  if (!sequence) return Promise.resolve('Ablauf fehlt')
+function runSteps(steps: readonly SequenceStep[], show: Show): Promise<string | null> {
   let at = getServerTime()
   let first: Promise<string | null> = Promise.resolve(null)
-  sequence.steps.forEach((step, index) => {
+  steps.forEach((step, index) => {
     if (step.wait) at = waitUntil(at, step.wait, show)
-    if (step.action.kind === 'sequence') return
+    if (step.action.kind === 'steps') return
     if (index === 0 && !step.wait) first = runAction(step.action, show)
     else scheduleActionAt(step.action, show, at)
   })
@@ -144,8 +141,8 @@ export async function runAction(action: Action, show: Show): Promise<string | nu
       return runPlayback(action.op, show)
     case 'device':
       return fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload)
-    case 'sequence':
-      return runSequence(action.sequenceId, show)
+    case 'steps':
+      return runSteps(action.steps, show)
   }
 }
 

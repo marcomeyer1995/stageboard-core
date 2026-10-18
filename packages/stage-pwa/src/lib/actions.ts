@@ -21,23 +21,16 @@ export type Action =
   | { kind: 'section'; op: SectionOp; label?: string; when?: JumpWhen }
   | { kind: 'playback'; op: PlaybackOp }
   | { kind: 'device'; targetLogicalDeviceId: string; type: string; payload: Record<string, unknown> }
-  /** A named sequence of actions with waits between them (docs/23 §3 "Ablauf") - band-wide. */
-  | { kind: 'sequence'; sequenceId: string }
+  /** "Folge" (docs/23 §11.2): several actions with waits between them, kept right here - to reuse
+   * one, make it a switch. Replaced the named, separately stored "Abläufe" (Marco, 2026-10-18). */
+  | { kind: 'steps'; steps: SequenceStep[] }
 
 export type WaitUnit = 'ms' | 'beats' | 'bars'
 
-/** One step of a sequence: the wait before it (none for the first) and its action. */
+/** One step of a Folge: the wait before it (none for the first) and its action. */
 export interface SequenceStep {
   wait: { amount: number; unit: WaitUnit } | null
   action: Action
-}
-
-/** "Ablauf" (docs/23 §3, step 4): e.g. "Solo" - rig 5, a bar later delay on, channel 3 louder.
- * Each step keeps its own rights (§5a). */
-export interface ActionSequence {
-  id: string
-  name: string
-  steps: SequenceStep[]
 }
 
 /** What happens when a pressed trigger is let go (docs/23 §4a). */
@@ -101,12 +94,19 @@ export function describeAction(action: Action, deviceName: (id: string) => strin
       return PLAYBACK_OPS.find((o) => o.id === action.op)?.label ?? action.op
     case 'device':
       return `${deviceName(action.targetLogicalDeviceId)}: ${action.type}`
-    case 'sequence':
-      return 'Ablauf'
+    case 'steps':
+      return describeSteps(action.steps, (step) => describeAction(step, deviceName))
   }
 }
 
 const UNIT_LABEL = { ms: 'ms', beats: 'Schläge', bars: 'Takte' } as const
+
+/** "Klick an → 1 Takt → Klick aus" - a Folge in one line, `describe` naming each step. */
+export function describeSteps(steps: readonly SequenceStep[], describe: (action: Action) => string): string {
+  return steps
+    .map((step) => (step.wait ? `${step.wait.amount} ${step.wait.unit === 'ms' ? 'ms' : step.wait.amount === 1 ? (step.wait.unit === 'bars' ? 'Takt' : 'Schlag') : UNIT_LABEL[step.wait.unit]} → ` : '') + describe(step.action))
+    .join(' → ')
+}
 
 /** " auf den Takt" / " auf den Schlag" for a release planned on the grid. */
 export function gridLabel(release: Extract<Release, { kind: 'after' }>): string {
@@ -127,8 +127,8 @@ export function describeBehavior(behavior: Behavior, deviceName?: (id: string) =
 /** Whether an action is show control - only for who may control the show (docs/23 §5a). Paging
  * the prompter only moves this screen. */
 export function needsShowControl(action: Action): boolean {
-  // A sequence's steps are checked one by one when they run.
-  if (action.kind === 'device' || action.kind === 'sequence') return false
+  // A Folge's steps are checked one by one when they run.
+  if (action.kind === 'device' || action.kind === 'steps') return false
   if (action.kind === 'show') return action.op !== 'prompter-down' && action.op !== 'prompter-up'
   return true
 }

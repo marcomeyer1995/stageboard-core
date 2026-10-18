@@ -25,8 +25,14 @@ export const useKeybindingsStore = create<KeybindingsState>()(
       // nothing pre-assigned - the old per-action defaults are not carried over.
       // Version 3 (docs/23): each mapping an action with press/release behaviour - version 2
       // mappings are converted, so a pedal keeps working.
-      version: 3,
+      // Version 4: the named "Abläufe" are gone (Marco, 2026-10-18: not used productively) - a
+      // mapping that started one is dropped, everything else stays.
+      version: 4,
       migrate: (persisted, version) => {
+        if (version === 3) {
+          const bindings = (persisted as { bindings?: KeyBinding[] } | null)?.bindings ?? []
+          return { bindings: bindings.filter((b) => !JSON.stringify(b.behavior).includes('"kind":"sequence"')) }
+        }
         if (version === 2) {
           const old = (persisted as { bindings?: { key: string; action: KeyAction }[] } | null)?.bindings ?? []
           return { bindings: old.filter((b) => b && typeof b.key === 'string' && b.action).map(bindingFromV2) }

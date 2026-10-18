@@ -1,25 +1,23 @@
 import { useState } from 'react'
 import { CAPABILITIES, PLAYBACK_CUE_TARGET } from 'shared-types'
-import { describeAction, PLAYBACK_OPS, SECTION_OPS, sectionOpJumps, type Action, type ActionSequence, type SectionOp, type WaitUnit } from '../lib/actions'
+import { describeAction, describeSteps, PLAYBACK_OPS, SECTION_OPS, sectionOpJumps, type Action, type SectionOp, type WaitUnit } from '../lib/actions'
 import { commandsFor, describeCue } from '../lib/deviceCommands'
 import { FIXED_ACTIONS, ONE_BUTTON_SHOW, SONG_STATES, STEP_CHOICES, STEP_LABEL, type SongState, type StepAction } from '../lib/keybindings'
 import type { JumpWhen } from '../lib/showSections'
-import { useActionSequencesStore } from '../store/useActionSequencesStore'
-import { useDialogStore } from '../store/useDialogStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { CueDialog } from './timeline/CueDialog'
 import { Icon } from './Icon'
 import { AddRow, Button, Dialog, Field, Segmented, Stepper, choiceRow } from './ui'
 import { INPUT_FREE } from './ui/styles'
 
-type Group = 'show' | 'section' | 'playback' | 'device' | 'sequence'
+type Group = 'show' | 'section' | 'playback' | 'device' | 'steps'
 
 const GROUPS: { value: Group; label: string }[] = [
   { value: 'show', label: 'Show' },
   { value: 'section', label: 'Abschnitte' },
   { value: 'playback', label: 'Wiedergabe' },
   { value: 'device', label: 'Gerät' },
-  { value: 'sequence', label: 'Ablauf' },
+  { value: 'steps', label: 'Folge' },
 ]
 
 function groupOf(action: Action | null): Group {
@@ -30,13 +28,13 @@ function groupOf(action: Action | null): Group {
 /** An action in words, with the device's name for a device command. */
 export function useDescribeAction(): (action: Action) => string {
   const devices = useLogicalDevicesStore((state) => state.devices)
-  const sequences = useActionSequencesStore((state) => state.sequences)
-  return (action) => {
-    if (action.kind === 'sequence') return `Ablauf „${sequences.find((q) => q.id === action.sequenceId)?.name ?? 'gelöscht'}“`
+  const describe = (action: Action): string => {
+    if (action.kind === 'steps') return describeSteps(action.steps, describe)
     if (action.kind !== 'device') return describeAction(action)
     const device = devices.find((d) => d.id === action.targetLogicalDeviceId)
     return `${device?.name ?? 'Gerät fehlt'}: ${describeCue(action, device?.capability)}`
   }
+  return describe
 }
 
 /**
@@ -54,7 +52,7 @@ export function ActionField({
   value: Action | null
   onChange: (action: Action | null) => void
   optional?: boolean
-  /** False inside a sequence's own steps - no sequence within a sequence. */
+  /** False inside a Folge's own steps - no Folge within a Folge. */
   allowSequence?: boolean
 }) {
   const describe = useDescribeAction()
@@ -106,15 +104,18 @@ export function ActionDialog({
   const [label, setLabel] = useState(initial?.kind === 'section' ? (initial.label ?? '') : '')
   const [when, setWhen] = useState<JumpWhen>(initial?.kind === 'section' ? (initial.when ?? 'section') : 'section')
   const [deviceOpen, setDeviceOpen] = useState(false)
-  const sequences = useActionSequencesStore((state) => state.sequences)
   const commandDevices = devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController && d.capability !== CAPABILITIES.clickTrack && commandsFor(d.capability).length > 0)
-  const [editingSequence, setEditingSequence] = useState<ActionSequence | 'new' | null>(null)
+  const [folge, setFolge] = useState<DraftStep[]>(initial?.kind === 'steps' ? initial.steps : [{ wait: null, action: null }])
 
   const result: Action | null =
     group === 'section'
       ? sectionOp === 'jump' && label.trim() === ''
         ? null
         : { kind: 'section', op: sectionOp, ...(sectionOp === 'jump' ? { label: label.trim() } : {}), ...(sectionOpJumps(sectionOp) ? { when } : {}) }
+      : group === 'steps'
+        ? folge.length > 0 && folge.every((step) => step.action)
+          ? { kind: 'steps', steps: folge.map((step) => ({ wait: step.wait, action: step.action! })) }
+          : null
       : draft?.kind === 'by-state'
         ? { kind: 'by-state', steps }
         : draft && groupOf(draft) === group
@@ -135,7 +136,7 @@ export function ActionDialog({
       }
     >
       <div className="flex flex-col gap-3">
-        <Segmented label="Art" columns={3} value={group} onChange={setGroup} options={allowSequence ? GROUPS : GROUPS.filter((g) => g.value !== 'sequence')} />
+        <Segmented label="Art" columns={3} value={group} onChange={setGroup} options={allowSequence ? GROUPS : GROUPS.filter((g) => g.value !== 'steps')} />
 
         {group === 'show' && (
           <div className="flex flex-col gap-2" role="radiogroup" aria-label="Show">
@@ -207,44 +208,8 @@ export function ActionDialog({
             </p>
           </div>
         )}
-        {group === 'sequence' && (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-ink-muted">Mehrere Aktionen nacheinander, mit Pausen in ms, Schlägen oder Takten - für die ganze Band.</p>
-            <div className="flex flex-col gap-2" role="radiogroup" aria-label="Ablauf">
-              {sequences.map((sequence) => {
-                const chosen = draft?.kind === 'sequence' && draft.sequenceId === sequence.id
-                return (
-                  <div key={sequence.id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={chosen}
-                      onClick={() => setDraft({ kind: 'sequence', sequenceId: sequence.id })}
-                      className={`flex-1 min-w-0 ${choiceRow(chosen)}`}
-                    >
-                      {sequence.name}
-                    </button>
-                    <Button className="flex-shrink-0" onClick={() => setEditingSequence(sequence)}>
-                      Bearbeiten
-                    </Button>
-                  </div>
-                )
-              })}
-            </div>
-            <AddRow label="Neuer Ablauf" onClick={() => setEditingSequence('new')} />
-          </div>
-        )}
+        {group === 'steps' && <FolgeEditor steps={folge} onChange={setFolge} />}
       </div>
-      {editingSequence && (
-        <SequenceDialog
-          initial={editingSequence === 'new' ? null : editingSequence}
-          onSaved={(sequence) => {
-            setDraft({ kind: 'sequence', sequenceId: sequence.id })
-            setEditingSequence(null)
-          }}
-          onClose={() => setEditingSequence(null)}
-        />
-      )}
       {deviceOpen && (
         <CueDialog
           title="Gerät steuern"
@@ -305,96 +270,54 @@ interface DraftStep {
   action: Action | null
 }
 
-function newSequenceId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-/** A sequence ("Ablauf", docs/23 §3): a name and its steps, each with the wait before it. */
-function SequenceDialog({ initial, onSaved, onClose }: { initial: ActionSequence | null; onSaved: (sequence: ActionSequence) => void; onClose: () => void }) {
-  const save = useActionSequencesStore((state) => state.save)
-  const remove = useActionSequencesStore((state) => state.remove)
-  const confirm = useDialogStore((state) => state.confirm)
-  const [name, setName] = useState(initial?.name ?? '')
-  const [steps, setSteps] = useState<DraftStep[]>(initial?.steps ?? [{ wait: null, action: null }])
-  const complete = name.trim() !== '' && steps.length > 0 && steps.every((step) => step.action)
-
-  const setStep = (index: number, step: DraftStep) => setSteps(steps.map((s, i) => (i === index ? step : s)))
-
-  async function submit() {
-    if (!complete) return
-    const sequence: ActionSequence = { id: initial?.id ?? newSequenceId(), name: name.trim(), steps: steps.map((step) => ({ wait: step.wait, action: step.action! })) }
-    await save(sequence)
-    onSaved(sequence)
-  }
-
+/**
+ * A Folge (docs/23 §11.2): the steps, each further one with the wait before it - right inside the
+ * action. To use the same Folge from several triggers, make it a switch.
+ */
+function FolgeEditor({ steps, onChange }: { steps: DraftStep[]; onChange: (steps: DraftStep[]) => void }) {
+  const setStep = (index: number, step: DraftStep) => onChange(steps.map((s, i) => (i === index ? step : s)))
   return (
-    <Dialog
-      title={initial ? 'Ablauf bearbeiten' : 'Neuer Ablauf'}
-      onClose={onClose}
-      actions={
-        <>
-          {initial ? (
-            <Button
-              variant="danger"
-              onClick={async () => {
-                if (!(await confirm(`Ablauf „${initial.name}“ löschen? Knöpfe, die ihn auslösen, tun dann nichts mehr.`, { confirmLabel: 'Löschen', danger: true }))) return
-                await remove(initial.id)
-                onClose()
-              }}
-            >
-              Löschen
-            </Button>
-          ) : (
-            <Button onClick={onClose}>Abbrechen</Button>
-          )}
-          <Button variant="primary" disabled={!complete} onClick={() => void submit()}>
-            Speichern
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Solo" />
-        {steps.map((step, index) => (
-          <div key={index} className="flex flex-col gap-2 rounded-container bg-control p-3">
-            {step.wait && (
-              <div className="flex flex-col gap-2">
-                <Stepper
-                  label="Danach warten"
-                  value={step.wait.amount}
-                  unit={waitUnitLabel(step.wait.unit, step.wait.amount)}
-                  min={step.wait.unit === 'ms' ? 0 : 1}
-                  max={step.wait.unit === 'ms' ? 10000 : 64}
-                  step={step.wait.unit === 'ms' ? 100 : 1}
-                  onChange={(amount) => setStep(index, { ...step, wait: { amount, unit: step.wait!.unit } })}
-                />
-                <Segmented
-                  label={`Einheit Schritt ${index + 1}`}
-                  value={step.wait.unit}
-                  onChange={(unit) => setStep(index, { ...step, wait: { amount: unit === 'ms' ? 500 : 1, unit } })}
-                  options={WAIT_UNITS}
-                />
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <div className="flex-1 min-w-0">
-                <ActionField label={`Schritt ${index + 1}`} value={step.action} onChange={(action) => setStep(index, { ...step, action })} allowSequence={false} />
-              </div>
-              {steps.length > 1 && (
-                <Button
-                  className="w-12 flex-shrink-0"
-                  aria-label={`Schritt ${index + 1} entfernen`}
-                  onClick={() => setSteps(steps.filter((_, i) => i !== index).map((s, i) => (i === 0 ? { ...s, wait: null } : s)))}
-                >
-                  <Icon name="close" />
-                </Button>
-              )}
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-ink-muted">Mehrere Aktionen nacheinander, mit Pausen in ms, Schlägen oder Takten. Zum Wiederverwenden: als Schalter speichern.</p>
+      {steps.map((step, index) => (
+        <div key={index} className="flex flex-col gap-2 rounded-container bg-control p-3">
+          {step.wait && (
+            <div className="flex flex-col gap-2">
+              <Stepper
+                label="Danach warten"
+                value={step.wait.amount}
+                unit={waitUnitLabel(step.wait.unit, step.wait.amount)}
+                min={step.wait.unit === 'ms' ? 0 : 1}
+                max={step.wait.unit === 'ms' ? 10000 : 64}
+                step={step.wait.unit === 'ms' ? 100 : 1}
+                onChange={(amount) => setStep(index, { ...step, wait: { amount, unit: step.wait!.unit } })}
+              />
+              <Segmented
+                label={`Einheit Schritt ${index + 1}`}
+                value={step.wait.unit}
+                onChange={(unit) => setStep(index, { ...step, wait: { amount: unit === 'ms' ? 500 : 1, unit } })}
+                options={WAIT_UNITS}
+              />
             </div>
+          )}
+          <div className="flex items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <ActionField label={`Schritt ${index + 1}`} value={step.action} onChange={(action) => setStep(index, { ...step, action })} allowSequence={false} />
+            </div>
+            {steps.length > 1 && (
+              <Button
+                className="w-12 flex-shrink-0"
+                aria-label={`Schritt ${index + 1} entfernen`}
+                onClick={() => onChange(steps.filter((_, i) => i !== index).map((s, i) => (i === 0 ? { ...s, wait: null } : s)))}
+              >
+                <Icon name="close" />
+              </Button>
+            )}
           </div>
-        ))}
-        <AddRow label="Schritt hinzufügen" onClick={() => setSteps([...steps, { wait: { amount: 1, unit: 'bars' }, action: null }])} />
-        <p className="text-sm text-ink-faint">Schläge und Takte zählen auf dem Raster des laufenden Songs; ohne laufenden Song nach dem Songtempo.</p>
-      </div>
-    </Dialog>
+        </div>
+      ))}
+      <AddRow label="Schritt hinzufügen" onClick={() => onChange([...steps, { wait: { amount: 1, unit: 'bars' }, action: null }])} />
+      <p className="text-sm text-ink-faint">Schläge und Takte zählen auf dem Raster des laufenden Songs; ohne laufenden Song nach dem Songtempo.</p>
+    </div>
   )
 }
