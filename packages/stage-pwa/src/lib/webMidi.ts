@@ -4,6 +4,10 @@ export function isWebMidiSupported(): boolean {
   return typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator
 }
 
+/** Inputs a MIDI-Controller device listens on here (#547, useMidiControllers.ts) - the generic
+ * "any note = next section" foot switch below leaves them alone, so a button doesn't do two things. */
+export const claimedMidiInputs = new Set<string>()
+
 interface MidiListenHandle {
   inputCount: number
   stop: () => void
@@ -28,6 +32,8 @@ export async function listenForMidiTriggers(onTrigger: () => void): Promise<Midi
 
   const attached = new Set<MIDIInput>()
   const handler = (event: MIDIMessageEvent) => {
+    const input = event.target as MIDIInput | null
+    if (input && claimedMidiInputs.has(input.id)) return
     const data = event.data ? Array.from(event.data) : []
     const command = (data[0] ?? 0) & 0xf0
     const isNoteOn = command === 0x90 && (data[2] ?? 0) > 0

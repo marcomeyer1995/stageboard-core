@@ -7,6 +7,7 @@ import { useClickOutputDriver } from '../lib/useClickOutputDriver'
 import { useCueScheduler } from '../lib/useCueScheduler'
 import { useFootswitch } from '../lib/useFootswitch'
 import { useMidiClock } from '../lib/useMidiClock'
+import { useMidiControllers } from '../lib/useMidiControllers'
 import { useMasterSelfCheck } from '../lib/useMasterSelfCheck'
 import { useSongAlerts } from '../lib/useSongAlerts'
 import { useStallMonitor } from '../lib/useStallMonitor'
@@ -28,6 +29,8 @@ import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
 export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolean }) {
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
   useFootswitch(footswitchActive)
+  // Buttons of MIDI controllers plugged in here (#547): the same actions as pedal keys.
+  useMidiControllers()
   // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
   useSongAlerts()
   useCueScheduler()

@@ -33,6 +33,10 @@ export const CAPABILITIES = {
    * Position Pointer, sent to any MIDI output - a generic "MIDI-Clock" device, bound to the port
    * of the gear that should follow the song tempo (Kemper delay, RC-500 loop, drum machine). */
   midiClock: 'midi-clock',
+  /** A MIDI controller (foot controller, pad, keyboard) whose buttons trigger actions (#547,
+   * docs/23 §7): bound to the tablet it is plugged into and its MIDI input; the button rules
+   * are band-wide. */
+  midiController: 'midi-controller',
   /** Speech clips for spoken announcements (#63), generated on the Stage-Server (Piper). */
   speechSynthesis: 'speech-synthesis',
   /** Splits a track into stems (drums, bass, vocals ...) on the Stage-Server (#9). */

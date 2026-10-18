@@ -13,8 +13,9 @@ export const TransportFieldSchema = z.object({
   label: z.string().min(1),
   /** `midi-output`: a picker of this device's connected WebMIDI outputs (the value is the output
    * id, its name is kept next to it as `${key}Name` to find it again after a reconnect) - #478's
-   * MIDI-Clock device, which has no fixed name to detect it by. */
-  type: z.enum(['text', 'number', 'midi-output']).default('text'),
+   * MIDI-Clock device, which has no fixed name to detect it by. `midi-input`: the same for a
+   * connected WebMIDI input - the MIDI-Controller device whose buttons trigger actions (#547). */
+  type: z.enum(['text', 'number', 'midi-output', 'midi-input']).default('text'),
 })
 export type TransportField = z.infer<typeof TransportFieldSchema>
 
