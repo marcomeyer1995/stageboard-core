@@ -86,6 +86,8 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   const titleShown = useShowPart('title')
   // The time can go too - the status bar has it (Marco, 2026-10-17). Both off: only the buttons.
   const timeShown = useShowPart('time')
+  // Reset differs from Stop only in not counting the run as played (Nachbericht, "Geprobt") - can be hidden.
+  const resetShown = useShowPart('reset')
   const infoShown = titleShown || timeShown
   const layout = transportLayout(box.width, box.height, infoShown ? lineHeightFor(clockFontSize) : 0, touchSizes)
   const infoTitleFontSize = layout.compactInfo ? READOUT_MIN : titleFontSize
@@ -143,7 +145,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       </div>
       <div
         className={`grid gap-2 ${layout.row ? (showTitle ? 'w-[60%] flex-none' : 'min-w-0 flex-1') : 'min-h-0 flex-1'} ${
-          layout.columns === 4 ? 'grid-cols-4' : 'grid-cols-2 grid-rows-2'
+          layout.columns === 4 ? (resetShown ? 'grid-cols-4' : 'grid-cols-3') : 'grid-cols-2 grid-rows-2'
         }`}
       >
         <button
@@ -188,7 +190,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             void stop()
             if (!usesDeviceOutput && !transitionItem) void forward({ type: 'stop' })
           }}
-          className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+          className={`h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
+            !resetShown && layout.columns !== 4 ? 'col-span-2' : ''
+          }`}
         >
           {layout.iconButtons ? (
             <Icon name="stop" size="1.6em" label="Stop" className="mx-auto" />
@@ -196,17 +200,19 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             <span style={{ fontSize: buttonFontSize }}>Stop</span>
           )}
         </button>
-        <button
-          type="button"
-          onClick={() => void reset()}
-          className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
-        >
-          {layout.iconButtons ? (
-            <Icon name="reset" size="1.6em" label="Reset" className="mx-auto" />
-          ) : (
-            <span style={{ fontSize: buttonFontSize }}>Reset</span>
-          )}
-        </button>
+        {resetShown && (
+          <button
+            type="button"
+            onClick={() => void reset()}
+            className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+          >
+            {layout.iconButtons ? (
+              <Icon name="reset" size="1.6em" label="Reset" className="mx-auto" />
+            ) : (
+              <span style={{ fontSize: buttonFontSize }}>Reset</span>
+            )}
+          </button>
+        )}
       </div>
       {layout.showHelper && remoteDeviceOutput && <p className="flex-none text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
       {layout.showHelper && noLocalTrack && !transitionItem && <p className="flex-none text-xs text-ink-faint">Kein Track angehängt</p>}
