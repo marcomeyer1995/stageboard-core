@@ -1,3 +1,4 @@
+import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { useState } from 'react'
@@ -132,6 +133,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       <div className={`flex items-baseline gap-3 ${infoShown ? '' : 'hidden'} ${layout.row ? `self-center ${showTitle ? 'min-w-0 flex-1' : 'flex-none'}` : 'w-full flex-none'}`}>
         <span style={{ fontSize: infoTitleFontSize }} className={`min-w-0 flex-1 truncate ${showTitle ? '' : 'hidden'}`}>
           <span className="font-semibold text-ink">{transitionItem?.title ?? currentSong?.title}</span>
+          {!transitionItem && queue.currentVariantIssue && (
+            <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] font-semibold text-danger">({VARIANT_ISSUE_LABEL[queue.currentVariantIssue]})</span>
+          )}
           {currentVariant && !currentVariant.isDefault && (
             <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({currentVariant.label})</span>
           )}

@@ -111,9 +111,10 @@ describe('computeTargetKeys', () => {
     expect(computeTargetKeys('selective', variants, null, [])).toEqual(new Set())
   })
 
-  it('selective mode resolves an entry to its default variant when its own pick is not found', () => {
+  // Same rule as the queue (Marco, 2026-10-18): a deleted pick plays nothing, so nothing to cache.
+  it('selective mode caches nothing for an entry whose own pick is not found - never the default instead', () => {
     const active = setlist('s1', [entry('e1', 'song-a', 'no-such-variant')])
-    expect(computeTargetKeys('selective', variants, active, [])).toEqual(new Set(['va:a1']))
+    expect(computeTargetKeys('selective', variants, active, [])).toEqual(new Set())
   })
 
   describe('alwaysKeepKeys (found live, 2026-09-16: a reload must never depend on a live network fetch for a song already playing)', () => {

@@ -40,7 +40,7 @@ function mockShow(playbackStatus: 'playing' | 'paused' | 'stopped', elapsedMs: n
   vi.mocked(useShowMode).mockReturnValue({
     trackEnded,
     mode: 'gig',
-    queue: { currentEntry: entry, currentSong: song, currentVariant: variant },
+    queue: { currentEntry: entry, currentSong: song, currentVariant: variant, currentArrangement: variant ?? song },
     elapsedMs,
     playbackStatus,
     liveTempoAdjustPercent: 0,

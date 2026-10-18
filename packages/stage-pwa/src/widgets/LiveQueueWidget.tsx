@@ -16,7 +16,7 @@ import { useSetlistsStore } from '../store/useSetlistsStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 import { MasterTakeoverButton } from '../components/MasterTakeoverButton'
 import { Icon } from '../components/Icon'
-import { stageVariantLabel } from '../lib/variantLabel'
+import { stageVariantLabel, VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 
 type RowStatus = 'past' | 'current' | 'upcoming'
 
@@ -127,6 +127,11 @@ function QueueRow({ item, number, status, canManage, sorting, onPlayNext, onRemo
         <span className="line-clamp-2 min-w-0 flex-1 break-words">
           {showNumbers && <span className={`mr-2 ${status === 'current' ? '' : 'text-ink-faint'}`}>{number}.</span>}
           {queueItemTitle(item)}
+          {item.variantIssue && (
+            <span className={`ml-2 text-xs font-semibold ${status === 'current' ? '' : 'text-danger'}`}>
+              ({VARIANT_ISSUE_LABEL[item.variantIssue]})
+            </span>
+          )}
           {showVariant && item.variant && !item.variant.isDefault && (
             <span className={`ml-2 text-xs ${status === 'current' ? '' : 'text-accent'}`}>
               ({stageVariantLabel(item.variant.label)})

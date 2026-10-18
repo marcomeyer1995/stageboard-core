@@ -22,8 +22,8 @@ export type Show = ReturnType<typeof useShowMode>
 
 /** The current song's click grid and its sections (#479) - what section actions work on. */
 export function songSectionsNow(show: Show): { timeline: ClickTimeline; sections: ShowSection[] } | null {
-  const { currentEntry, currentSong, currentVariant } = show.queue
-  const song = currentVariant ?? currentSong
+  const { currentEntry, currentVariant, currentArrangement } = show.queue
+  const song = currentArrangement
   if (!song) return null
   const timeline = clickTimeline({
     beatGrid: currentVariant?.beatGrid,
@@ -32,7 +32,7 @@ export function songSectionsNow(show: Show): { timeline: ClickTimeline; sections
     countInBars: currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0,
   })
   const durationMs = currentEntry && isSongEntry(currentEntry) ? (songDurationMs(currentEntry, currentVariant, show.trackOverride)?.ms ?? null) : null
-  const content = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
+  const content = song.chordProContent
   return { timeline, sections: showSections(content, timeline, durationMs) }
 }
 
@@ -150,8 +150,7 @@ export async function runAction(action: Action, show: Show): Promise<string | nu
 export function isCountingIn(show: Show): boolean {
   if (show.playbackStatus !== 'playing' || show.elapsedMs === null) return false
   if (show.elapsedMs < 0) return true
-  const { currentVariant, currentSong } = show.queue
-  const song = currentVariant ?? currentSong
+  const { currentVariant, currentArrangement: song } = show.queue
   if (!song) return false
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
   const timeline = clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, show.liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
@@ -239,7 +238,7 @@ async function runPlayback(op: Extract<Action, { kind: 'playback' }>['op'], show
   else if (op === 'click-off') show.setClickTrackOverride('off')
   else if (op === 'click-song') show.setClickTrackOverride(null)
   else if (op === 'click-toggle') {
-    const song = show.queue.currentVariant ?? show.queue.currentSong
+    const song = show.queue.currentArrangement
     if (!song) return 'Kein Song'
     show.setClickTrackOverride(effectiveClickEnabled(song.clickTrackEnabled, show.clickTrackOverride) ? 'off' : 'on')
   }

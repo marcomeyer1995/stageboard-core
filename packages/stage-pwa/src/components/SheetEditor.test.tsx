@@ -48,12 +48,14 @@ const variant: SongVariant = {
   tracks: [],
 }
 
-// SheetEditor only needs `ensureDefaultVariant`/`getTrack` from here - mocked directly so
+// SheetEditor only needs `variantToOpen`/`getTrack` (plus delete/set-default) from here - mocked directly so
 // these layout-focused tests don't also have to exercise the real PouchDB-backed persistence
 // pipeline (variant creation, the legacy backing-track migration, etc.) just to render.
 vi.mock('../lib/songVariantsDb', () => ({
-  ensureDefaultVariant: vi.fn(async () => variant),
+  variantToOpen: vi.fn(async () => variant),
   getTrack: vi.fn(async () => null),
+  deleteVariant: vi.fn(async () => {}),
+  setDefaultVariant: vi.fn(async () => {}),
 }))
 
 const { SheetEditor } = await import('./SheetEditor')
@@ -96,7 +98,7 @@ afterEach(() => {
 /** Renders with a real, already-loaded song - `songId`/`variantId`/`onBack` are all required
  * now (SheetEditor no longer supports an unsaved/"new song" draft - creation moved to
  * LibraryView's own "+ Neu"). `findByLabelText` (not `getByLabelText`) for the first assertion
- * lets the async `selectSong`/`ensureDefaultVariant` load settle before asserting. */
+ * lets the async `selectSong`/`variantToOpen` load settle before asserting. */
 async function renderLoaded() {
   useSongsStore.setState({ songs: [song] })
   render(<SheetEditor songId={song.id} variantId={null} onBack={vi.fn()} />)
@@ -291,8 +293,8 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   it('keeps the rigid click grid when saving (docs/14 §5a)', async () => {
     stubViewport({ orientation: 'landscape' })
     const beatGrid = { points: [{ id: 'p1', bar: 1, timeMs: 1200 }], meters: [] }
-    const { ensureDefaultVariant } = await import('../lib/songVariantsDb')
-    vi.mocked(ensureDefaultVariant).mockResolvedValueOnce({ ...variant, beatGrid })
+    const { variantToOpen } = await import('../lib/songVariantsDb')
+    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, beatGrid })
     const saveVariant = vi.fn(async () => {})
     const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
     useSongVariantsStore.setState({ saveVariant })

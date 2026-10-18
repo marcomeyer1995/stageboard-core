@@ -16,6 +16,9 @@ const show = vi.hoisted(() => ({
       durationMs: 30000,
       chordProContent: ['{part: Intro}', '[00:00.00]x', '{part: Verse 1}', '[00:08.00]a', '{part: Chorus}', '[00:16.00]b'].join('\n'),
     },
+    get currentArrangement() {
+      return this.currentVariant
+    },
   },
 }))
 const state = vi.hoisted(() => ({ isMaster: true, state: { playbackJump: null as null | { at: number; toMs: number; label?: string }, playbackLoop: null, trackOverride: null, liveTempoAdjustPercent: 0 } }))

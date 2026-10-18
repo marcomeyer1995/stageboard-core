@@ -150,6 +150,27 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
   })
 })
 
+// Marco, 2026-10-18: a missing variant shows as missing - never the default in its place.
+describe('SetlistDetail - missing variant', () => {
+  it('shows "Variante gelöscht" for an entry whose picked variant no longer exists, even with one variant left', () => {
+    useSongVariantsStore.setState({ variants: [variant('v1', 'a', 'Original', true)] })
+    useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [{ ...entry('e1', 'a'), variantId: 'gone' }, entry('e2', 'b')] }] })
+    renderEditing()
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    expect(within(row).getByRole('button', { name: /Variante gelöscht/ })).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: 'Original' })).not.toBeInTheDocument()
+  })
+
+  it('shows "Keine Standard-Variante" for an entry without its own pick when the song has no default', () => {
+    useSongVariantsStore.setState({ variants: [variant('v2', 'a', 'Akustik', false)] })
+    renderEditing()
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    expect(within(row).getByRole('button', { name: /Keine Standard-Variante/ })).toBeInTheDocument()
+  })
+})
+
 describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)', () => {
   it('opens as a clean preview - numbered songs, gig date, no editing controls', () => {
     useSetlistsStore.setState({ setlists: [{ ...setlist, performanceDate: '2026-12-24', targetEndTime: '23:00' }] })

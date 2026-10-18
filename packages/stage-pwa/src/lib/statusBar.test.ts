@@ -27,6 +27,8 @@ describe('statusBarState', () => {
     expect(statusBarState({ ...base, syncStatus: 'error' }).label).toBe('syncError')
     expect(statusBarState({ ...base, syncStatus: 'offline' }).label).toBe('offline')
     expect(statusBarState({ ...base, noMaster: true }).label).toBe('noMaster')
+    expect(statusBarState({ ...base, variantIssue: 'deleted' })).toEqual({ kind: 'fault', label: 'variantDeleted' })
+    expect(statusBarState({ ...base, mode: 'practice', variantIssue: 'no-default' }).label).toBe('noDefaultVariant')
   })
 
   it('does not count offline or a missing Master as faults in Solo Üben', () => {

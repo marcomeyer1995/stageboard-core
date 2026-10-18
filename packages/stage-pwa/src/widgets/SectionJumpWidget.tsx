@@ -43,7 +43,7 @@ export function SectionJumpWidget() {
   const [message, setMessage] = useState<string | null>(null)
 
   const { currentEntry, currentSong, currentVariant } = queue
-  const song = currentVariant ?? currentSong
+  const song = queue.currentArrangement
   const timeline = useMemo(
     () =>
       song
@@ -57,7 +57,7 @@ export function SectionJumpWidget() {
     [song, currentVariant, liveTempoAdjustPercent],
   )
   const durationMs = currentEntry && isSongEntry(currentEntry) ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ?? null) : null
-  const content = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
+  const content = song?.chordProContent ?? ''
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
   if (mode !== 'gig') return <p className="flex h-full items-center justify-center text-center text-ink-faint">Nur im Gig</p>

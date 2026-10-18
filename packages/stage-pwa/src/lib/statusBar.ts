@@ -1,4 +1,5 @@
 import type { PlaybackStatus } from 'shared-types'
+import type { VariantIssue } from './computeQueue'
 import type { SessionMode } from '../store/useAppModeStore'
 import type { SyncStatus } from '../store/useSyncStore'
 
@@ -12,7 +13,7 @@ import type { SyncStatus } from '../store/useSyncStore'
 export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'paused' | 'finished' | 'fault'
 
 /** The word for the state - a key into the `statusbar` texts (state.*), translated where shown (#456). */
-export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster'
+export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
 
 export interface StatusBarState {
   kind: StatusBarKind
@@ -31,6 +32,9 @@ export interface StatusBarInput {
   syncStatus: SyncStatus
   /** The local audio driver's current error, if any. */
   audioError: string | null
+  /** The current song's variant is missing (Queue.currentVariantIssue) - nothing plays, and no
+   * other variant in its place (Marco, 2026-10-18), so the band must see why. */
+  variantIssue?: VariantIssue | null
 }
 
 /** Faults first (they matter most, whatever the transport does), then the transport state.
@@ -40,6 +44,8 @@ export function statusBarState(input: StatusBarInput): StatusBarState {
   if (input.syncStatus === 'error') return { kind: 'fault', label: 'syncError' }
   if (input.mode === 'gig' && input.syncStatus === 'offline') return { kind: 'fault', label: 'offline' }
   if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'noMaster' }
+  if (input.variantIssue === 'deleted') return { kind: 'fault', label: 'variantDeleted' }
+  if (input.variantIssue === 'no-default') return { kind: 'fault', label: 'noDefaultVariant' }
   if (input.playbackStatus === 'playing') {
     return input.isCountIn ? { kind: 'count-in', label: 'countIn' } : { kind: 'playing', label: 'playing' }
   }

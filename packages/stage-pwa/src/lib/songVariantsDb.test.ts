@@ -58,6 +58,9 @@ const {
   getTrack,
   removeTrack,
   ensureDefaultVariant,
+  variantToOpen,
+  deleteVariant,
+  setDefaultVariant,
   removeSongAndVariants,
   duplicateSongAndVariants,
 } = await import('./songVariantsDb')
@@ -338,5 +341,58 @@ describe('duplicateSongAndVariants (#178)', () => {
     const source = makeSong({ id: 'song-1' })
     const copy = await duplicateSongAndVariants(source, 'Copy')
     expect(copy.title).toBe('Copy')
+  })
+})
+
+// Marco, 2026-10-18: deleting a variant never makes another one the default, and nothing
+// recreates an "Original" behind the band's back.
+describe('deleteVariant / setDefaultVariant / variantToOpen', () => {
+  beforeEach(() => {
+    store.clear()
+    cacheStore.clear()
+    vi.clearAllMocks()
+    store.set('song-variants:v-orig', { _id: 'song-variants:v-orig', id: 'v-orig', songId: 'song-1', label: 'Original', isDefault: true, bpm: 120, chordProContent: 'orig', timecodes: [], tracks: [makeTrackMeta({ id: 't1' })] })
+    store.set('song-variants:v-akustik', { _id: 'song-variants:v-akustik', id: 'v-akustik', songId: 'song-1', label: 'Akustik', isDefault: false, bpm: 90, chordProContent: 'akustik', timecodes: [], tracks: [] })
+  })
+
+  it('deletes a variant with its audio, server-side and cached', async () => {
+    cacheStore.set('v-orig:t1', new Blob(['x']))
+    await deleteVariant('v-orig')
+    expect(store.has('song-variants:v-orig')).toBe(false)
+    expect(audioClientMocks.deleteTrackFile).toHaveBeenCalledWith('v-orig', 't1')
+    expect(cacheStore.has('v-orig:t1')).toBe(false)
+  })
+
+  it('leaves the song without a default when the default is deleted - no other variant takes over', async () => {
+    await deleteVariant('v-orig')
+    expect(store.get('song-variants:v-akustik')?.isDefault).toBe(false)
+  })
+
+  it('refuses to delete the last variant of a song', async () => {
+    await deleteVariant('v-orig')
+    await expect(deleteVariant('v-akustik')).rejects.toThrow()
+    expect(store.has('song-variants:v-akustik')).toBe(true)
+  })
+
+  it('opens an existing variant instead of recreating "Original" for a song without a default', async () => {
+    await deleteVariant('v-orig')
+    const opened = await variantToOpen(makeSong({ id: 'song-1' }))
+    expect(opened.id).toBe('v-akustik')
+    const variantsOfSong = [...store.values()].filter((doc) => doc.songId === 'song-1')
+    expect(variantsOfSong).toHaveLength(1)
+  })
+
+  it('opens the asked-for variant, else the default', async () => {
+    expect((await variantToOpen(makeSong({ id: 'song-1' }), 'v-akustik')).id).toBe('v-akustik')
+    expect((await variantToOpen(makeSong({ id: 'song-1' }), 'gone')).id).toBe('v-orig')
+  })
+
+  it('setDefaultVariant moves the default and mirrors its content onto the song', async () => {
+    await setDefaultVariant(makeSong({ id: 'song-1' }), 'v-akustik')
+    expect(store.get('song-variants:v-akustik')?.isDefault).toBe(true)
+    expect(store.get('song-variants:v-orig')?.isDefault).toBe(false)
+    const song = store.get('songs:song-1') as { bpm: number; chordProContent: string }
+    expect(song.bpm).toBe(90)
+    expect(song.chordProContent).toBe('akustik')
   })
 })

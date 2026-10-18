@@ -123,7 +123,7 @@ export function StatusBar({
   // every device - also one that just reloaded - shows the same.
   const finished = playbackStatus === 'stopped' && trackEnded
 
-  const song = currentVariant ?? currentSong
+  const song = queue.currentArrangement
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
   const timeline = song
     ? clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
@@ -140,6 +140,7 @@ export function StatusBar({
     noMaster,
     syncStatus,
     audioError,
+    variantIssue: queue.currentVariantIssue,
   })
   const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
   // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).

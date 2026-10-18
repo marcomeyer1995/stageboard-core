@@ -71,9 +71,9 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   const rosterNames = useProfilesStore((state) => state.profiles).map((profile) => profile.name)
 
   // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
-  // so the actual content to render comes from the variant, not the Song mirror - falling
-  // back to the Song only for a song Phase 1's lazy migration hasn't touched yet.
-  const chordProContent = currentVariant?.chordProContent ?? currentSong?.chordProContent ?? ''
+  // so the actual content to render comes from the variant, not the Song mirror - see
+  // Queue.currentArrangement (empty when the entry's variant is missing, never another one's).
+  const chordProContent = queue.currentArrangement?.chordProContent ?? ''
   // Filtered before anything else (pagination, section-jump, the scroll effect below) ever
   // sees these lines - a comment not meant for this device simply isn't part of the song, not
   // shown-but-greyed (Marco, issue #215 follow-up).

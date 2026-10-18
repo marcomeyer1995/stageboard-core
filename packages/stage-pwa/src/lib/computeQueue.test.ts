@@ -152,11 +152,36 @@ describe('computeQueue variant resolution', () => {
     expect(queue.currentVariant?.id).toBe('v-a-acoustic')
   })
 
-  it('falls back to isDefault when the entry selection points at a variant that no longer exists', () => {
+  // Marco, 2026-10-18: playing "Original" in place of a deleted "Akustik" is an absolute no-go.
+  it('never falls back to isDefault when the entry selection points at a variant that no longer exists', () => {
     const variants = [variant({ id: 'v-a-default', songId: 'a', isDefault: true })]
     const sl = setlist('sl-1', [entry('e1', 'a', 'deleted-variant'), entry('e2', 'b'), entry('e3', 'c')])
     const queue = computeQueue(songs, [sl], { ...emptyShowState, activeSetlistId: 'sl-1' }, variants)
-    expect(queue.currentVariant?.id).toBe('v-a-default')
+    expect(queue.currentVariant).toBeNull()
+    expect(queue.currentVariantIssue).toBe('deleted')
+    expect(queue.currentArrangement).toBeNull()
+    expect(queue.orderedItems[0]?.variantIssue).toBe('deleted')
+  })
+
+  it('never picks another variant when the song has no default', () => {
+    const variants = [variant({ id: 'v-a-acoustic', songId: 'a', isDefault: false, label: 'Akustik' })]
+    const queue = computeQueue(songs, [], emptyShowState, variants)
+    expect(queue.currentVariant).toBeNull()
+    expect(queue.currentVariantIssue).toBe('no-default')
+    expect(queue.currentArrangement).toBeNull()
+  })
+
+  it('plays the song itself only when it has no variants at all (data from before variants)', () => {
+    const queue = computeQueue(songs, [], emptyShowState, [])
+    expect(queue.currentVariantIssue).toBeNull()
+    expect(queue.currentArrangement?.id).toBe('a')
+  })
+
+  it('clears the issue when practice overrides the current variant with one that exists', () => {
+    const variants = [variant({ id: 'v-a-acoustic', songId: 'a', isDefault: false, label: 'Akustik' })]
+    const queue = computeQueue(songs, [], emptyShowState, variants, 'v-a-acoustic')
+    expect(queue.currentVariantIssue).toBeNull()
+    expect(queue.currentArrangement?.id).toBe('v-a-acoustic')
   })
 
   it('resolves nextVariant independently of currentVariant', () => {

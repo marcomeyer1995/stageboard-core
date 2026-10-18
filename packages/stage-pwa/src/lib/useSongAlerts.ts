@@ -13,7 +13,7 @@ export function useSongAlerts(): void {
   const { mode, queue, playbackStatus, elapsedNow } = useShowModeSong()
   const elapsed = useRef(elapsedNow)
   elapsed.current = elapsedNow
-  const content = queue.currentVariant?.chordProContent ?? queue.currentSong?.chordProContent ?? ''
+  const content = queue.currentArrangement?.chordProContent ?? ''
   const alerts = useMemo(() => songAlerts(content), [content])
   const lastMs = useRef<number | null>(null)
 

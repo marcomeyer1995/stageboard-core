@@ -121,15 +121,18 @@ function clearScheduledAudioStart(): void {
  * pause-then-resume mid-count-in needs no extra bookkeeping: each call here freshly reads
  * whatever `accumulatedMs` pause froze and reschedules from there. */
 export async function practicePlaySong(opts: PlayOptions = {}): Promise<void> {
-  const { currentEntry, currentSong, currentVariant } = snapshot()
+  const { currentEntry, currentSong, currentVariant, currentArrangement } = snapshot()
   // A transition item (#29) plays too - as a silent countdown: it has a clock but no audio.
   if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
+  // Its variant is missing (deleted, or the song has no default): nothing to play - no other
+  // arrangement in its place (Queue.currentArrangement). The status bar says why.
+  if (currentSong && !currentArrangement) return
   const state = currentPracticeState()
   const isFreshStart = state.playbackStatus === 'stopped'
   // A new take starts from scratch (a reload or anything that stopped without logging).
   if (isFreshStart) takeJumpMs = 0
   const seedCountIn = isFreshStart && !opts.skipCountIn && currentSong !== null
-  const activeSong = currentVariant ?? currentSong
+  const activeSong = currentArrangement
   // Song time 0 lies at least PLAY_LEAD_MS ahead, as in Gig mode (queue.ts): the Web Audio track
   // and stems (useStemPlaybackDriver.ts) need that long to schedule their start - started "now",
   // the first ~0.4 s of the song was skipped (Fire and Xiaomi, 2026-10-15).
@@ -297,9 +300,9 @@ export function practiceSetClickTrackOverride(override: 'on' | 'off' | null): vo
 export function practiceExtendClickTrack(bars: number): void {
   const state = currentPracticeState()
   if (state.playbackStatus === 'stopped') return
-  const { currentSong, currentVariant } = snapshot()
-  if (!currentSong) return
-  const activeSong = currentVariant ?? currentSong
+  const { currentVariant, currentArrangement } = snapshot()
+  if (!currentArrangement) return
+  const activeSong = currentArrangement
   const elapsedMs = computeActiveMs(currentTransport(state), Date.now())
   const perBarMs = barMsAt(
     elapsedMs,
