@@ -53,6 +53,15 @@ export function releaseDelayMs(release: { amount: number; unit: WaitUnit }, show
  * over the WLAN). */
 const PLAN_AHEAD_MS = 1000
 
+/** The show as it is now - a planned action runs on this, not on the snapshot from the moment
+ * it was planned (a delayed "Klick an/aus" toggled from the old state and changed nothing). Kept
+ * current by the always-mounted pedal hook (useFootswitch.ts). */
+let latestShow: Show | null = null
+export function trackLatestShow(show: Show): void {
+  latestShow = show
+}
+const current = (show: Show): Show => latestShow ?? show
+
 /**
  * Runs an action at a server-time moment: a device command handed over ahead with its moment and
  * its output's latency, like a cue (docs/21 §3); anything else by a timer. Returns how to call
@@ -61,7 +70,7 @@ const PLAN_AHEAD_MS = 1000
 export function scheduleActionAt(action: Action, show: Show, at: number): () => void {
   const now = getServerTime()
   if (action.kind !== 'device') {
-    const timer = setTimeout(() => void runAction(action, show), Math.max(0, at - now))
+    const timer = setTimeout(() => void runAction(action, current(show)), Math.max(0, at - now))
     return () => clearTimeout(timer)
   }
   const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)

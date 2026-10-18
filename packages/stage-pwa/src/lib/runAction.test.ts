@@ -14,7 +14,7 @@ vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { 
 const sequences = vi.hoisted(() => ({ list: [] as unknown[] }))
 vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: { getState: () => ({ sequences: sequences.list }) } }))
 
-const { runAction, scheduleRelease } = await import('./runAction')
+const { runAction, scheduleRelease, trackLatestShow } = await import('./runAction')
 
 // 120 bpm 4/4: a bar every 2 s. Intro 0, Chorus 8 s, Verse 16 s, Chorus 24 s.
 const content = ['{part: Intro}', '[00:00.00]x', '{part: Chorus}', '[00:08.00]a', '{part: Verse}', '[00:16.00]b', '{part: Chorus}', '[00:24.00]c'].join('\n')
@@ -88,5 +88,20 @@ describe('sequences - "Ablauf" (docs/23 §3)', () => {
   it('a deleted sequence says so; a sequence never needs show control itself', async () => {
     sequences.list = []
     expect(await runAction({ kind: 'sequence', sequenceId: 'gone' }, { ...show, canControl: false } as never)).toBe('Ablauf fehlt')
+  })
+})
+
+describe('planned actions run on the show as it is then', () => {
+  it('a delayed "Klick an/aus" toggles from the current state, not the one at the press', async () => {
+    vi.useFakeTimers()
+    const setClickTrackOverride = vi.fn()
+    const at = (override: 'on' | 'off' | null) => ({ ...show, clickTrackOverride: override, setClickTrackOverride, queue: { ...show.queue, currentSong: { ...show.queue.currentSong, clickTrackEnabled: false } } })
+    sequences.list = [{ id: 'k', name: 'K', steps: [{ wait: null, action: { kind: 'playback', op: 'click-toggle' } }, { wait: { amount: 500, unit: 'ms' }, action: { kind: 'playback', op: 'click-toggle' } }] }]
+    await runAction({ kind: 'sequence', sequenceId: 'k' }, at(null) as never)
+    expect(setClickTrackOverride).toHaveBeenLastCalledWith('on')
+    trackLatestShow(at('on') as never)
+    await vi.advanceTimersByTimeAsync(600)
+    expect(setClickTrackOverride).toHaveBeenLastCalledWith('off')
+    vi.useRealTimers()
   })
 })

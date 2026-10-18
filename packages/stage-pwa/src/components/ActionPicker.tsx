@@ -290,7 +290,7 @@ const WAIT_UNITS: { value: WaitUnit; label: string }[] = [
   { value: 'beats', label: 'Schläge' },
   { value: 'ms', label: 'ms' },
 ]
-const WAIT_UNIT_LABEL: Record<WaitUnit, string> = { bars: 'Takte', beats: 'Schläge', ms: 'ms' }
+const waitUnitLabel = (unit: WaitUnit, amount: number): string => (unit === 'ms' ? 'ms' : unit === 'bars' ? (amount === 1 ? 'Takt' : 'Takte') : amount === 1 ? 'Schlag' : 'Schläge')
 
 interface DraftStep {
   wait: { amount: number; unit: WaitUnit } | null
@@ -354,7 +354,7 @@ function SequenceDialog({ initial, onSaved, onClose }: { initial: ActionSequence
                 <Stepper
                   label="Danach warten"
                   value={step.wait.amount}
-                  unit={WAIT_UNIT_LABEL[step.wait.unit]}
+                  unit={waitUnitLabel(step.wait.unit, step.wait.amount)}
                   min={step.wait.unit === 'ms' ? 0 : 1}
                   max={step.wait.unit === 'ms' ? 10000 : 64}
                   step={step.wait.unit === 'ms' ? 100 : 1}
