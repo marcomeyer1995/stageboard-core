@@ -29,7 +29,7 @@ export function MidiControllerButtonsDialog({ device, onClose }: { device: Logic
   const store = (next: MidiControllerRule[]) => save({ id: device.id, rules: next })
 
   return (
-    <Dialog title={`${device.name}: Knöpfe`} onClose={onClose} actions={<Button variant="primary" onClick={onClose}>Fertig</Button>}>
+    <Dialog title={`${device.name}: Knöpfe`} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-ink-muted">
           Jeder Knopf löst eine Aktion aus - wie ein Pedal: tastend, rastend oder zeitgesteuert. Show und Abschnitte nur, wenn das Tablet, an

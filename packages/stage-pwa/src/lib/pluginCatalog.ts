@@ -12,6 +12,7 @@ const CAPABILITY_LABEL: Record<string, string> = {
   [CAPABILITIES.backup]: 'Backup',
   [CAPABILITIES.audioAnalysis]: 'Track-Analyse',
   [CAPABILITIES.midiClock]: 'MIDI-Clock',
+  [CAPABILITIES.midiController]: 'MIDI-Controller',
   [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
   [CAPABILITIES.stemSeparation]: 'Spuren trennen',
   [CAPABILITIES.sectionAnnouncements]: 'Ansagen',

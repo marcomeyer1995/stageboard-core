@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
-import { SERVER_EXECUTION_TARGET } from 'shared-types'
+import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/discoveryClient'
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
@@ -337,6 +337,7 @@ function ConnectionStep({
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
+              {d.id === getDeviceId() ? ' (dieses Gerät)' : ''}
             </option>
           ))}
         </select>
@@ -459,7 +460,10 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
 
   return (
     <div className="flex flex-col gap-4">
-      {canTestHere ? (
+      {draft.capability === CAPABILITIES.midiController ? (
+        // A controller only listens - nothing to send as a test; its buttons are tried out there.
+        <p className="text-sm text-ink-faint">Prüfen: im ⋯ des Geräts „Knöpfe belegen“ - ein Knopf am Controller wird dort sofort erkannt.</p>
+      ) : canTestHere ? (
         <div className="flex items-center gap-3">
           <Button onClick={() => void runTest()}>
             Testen
