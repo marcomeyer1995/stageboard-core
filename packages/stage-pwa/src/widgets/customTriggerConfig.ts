@@ -6,7 +6,8 @@ import { WIDGET_COLORS } from './widgetColors'
 export const DEFAULT_SIZE_RATIO = 1.8
 
 export const CustomTriggerConfigSchema = z.object({
-  label: z.string().min(1).default('Trigger'),
+  /** Empty with a switch: the switch's name. */
+  label: z.string().default('Trigger'),
   color: z.enum(WIDGET_COLORS).default('accent'),
   /** Latching (toggle) fires once per press with an alternating `on` payload; momentary
    * (press-and-hold) fires separate down/up payloads. */

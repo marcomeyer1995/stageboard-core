@@ -22,6 +22,13 @@ vi.mock('./deviceAction', () => device)
 vi.mock('./sectionJump', () => ({ queueSectionJump: vi.fn(), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: () => ({ state: {}, startReadyCheck: vi.fn() }) } }))
 vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: Object.assign((select: (state: { sequences: never[] }) => unknown) => select({ sequences: [] }), { getState: () => ({ sequences: [] }) }) }))
+const switchStore = vi.hoisted(() => {
+  const state = { switches: [] as unknown[], states: {} as Record<string, string>, setState: (id: string, value: string) => void (state.states[id] = value) }
+  return { state }
+})
+vi.mock('../store/useSwitchesStore', () => ({
+  useSwitchesStore: Object.assign((select: (s: typeof switchStore.state) => unknown) => select(switchStore.state), { getState: () => switchStore.state }),
+}))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: { getState: () => ({ installed: [] }) } }))
 vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { getState: () => ({ profiles: [] }) } }))
 vi.mock('../store/useLogicalDevicesStore', () => {
@@ -246,3 +253,50 @@ describe('pedal press and release (docs/23 §4a) and rights (§5a)', () => {
     expect(device.fireDeviceAction).toHaveBeenCalledWith('light', 'light.blinder', { on: true })
   })
 })
+
+describe('switches (docs/23 §11)', () => {
+  const blinderOn = { kind: 'device' as const, targetLogicalDeviceId: 'light', type: 'blinder', payload: { on: true } }
+  const blinderOff = { kind: 'device' as const, targetLogicalDeviceId: 'light', type: 'blinder', payload: { on: false } }
+
+  it('two keys on one tastend switch: one press, the release only when the last lets go - one shared state', async () => {
+    switchStore.state.switches = [{ id: 'bl', name: 'Blinder', color: 'amber', behavior: { kind: 'momentary', press: blinderOn, release: { kind: 'on-release', action: blinderOff } } }]
+    useKeybindingsStore.setState({
+      bindings: [
+        { key: 'a', behavior: { kind: 'switch', switchId: 'bl' } },
+        { key: 'b', behavior: { kind: 'switch', switchId: 'bl' } },
+      ],
+    })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 'a' })
+    fireEvent.keyDown(window, { key: 'b' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenCalledTimes(1)
+    expect(switchStore.state.states.bl).toBe('pressed')
+    fireEvent.keyUp(window, { key: 'a' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenCalledTimes(1)
+    fireEvent.keyUp(window, { key: 'b' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'blinder', { on: false })
+    expect(switchStore.state.states.bl).toBe('off')
+  })
+
+  it('a rastend switch: one key switches on, the other off', async () => {
+    switchStore.state.switches = [{ id: 'fx', name: 'Delay', color: 'accent', behavior: { kind: 'latching', on: blinderOn, off: blinderOff } }]
+    useKeybindingsStore.setState({
+      bindings: [
+        { key: 'a', behavior: { kind: 'switch', switchId: 'fx' } },
+        { key: 'b', behavior: { kind: 'switch', switchId: 'fx' } },
+      ],
+    })
+    renderHook(() => useFootswitch(true))
+    fireEvent.keyDown(window, { key: 'a' })
+    await flush()
+    expect(switchStore.state.states.fx).toBe('on')
+    fireEvent.keyDown(window, { key: 'b' })
+    await flush()
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'blinder', { on: false })
+    expect(switchStore.state.states.fx).toBe('off')
+  })
+})
+

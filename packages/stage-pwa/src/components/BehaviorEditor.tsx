@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { gridLabel, type Action, type Behavior, type Release } from '../lib/actions'
+import { useSwitchesStore } from '../store/useSwitchesStore'
 import { ActionField, useDescribeAction } from './ActionPicker'
-import { Segmented, Stepper, Switch } from './ui'
+import { SwitchDialog } from './SwitchEditor'
+import { AddRow, Button, Segmented, Stepper, Switch, choiceRow } from './ui'
 
 type Mode = 'momentary' | 'latching' | 'timed'
 
@@ -13,7 +15,9 @@ const unitLabel = (unit: Unit, amount: number): string => (amount === 1 && unit 
 /** A mapping in one line, with device names - for lists of pedal keys and the like. */
 export function useDescribeBehavior(): (behavior: Behavior) => string {
   const describe = useDescribeAction()
+  const switches = useSwitchesStore((state) => state.switches)
   return (behavior) => {
+    if (behavior.kind === 'switch') return `Schalter „${switches.find((s) => s.id === behavior.switchId)?.name ?? 'gelöscht'}“`
     if (behavior.kind === 'latching') return `${describe(behavior.on)} / ${describe(behavior.off)}`
     const press = describe(behavior.press)
     const { release } = behavior
@@ -28,8 +32,93 @@ export function useDescribeBehavior(): (behavior: Behavior) => string {
  * button: tastend, rastend or zeitgesteuert, then the actions. Reports the behaviour whenever it
  * is complete, null while something is still missing.
  */
-export function BehaviorEditor({ initial, onChange }: { initial: Behavior | null; onChange: (behavior: Behavior | null) => void }) {
-  const start = initial
+export function BehaviorEditor({
+  initial,
+  onChange,
+  allowSwitch = true,
+}: {
+  initial: Behavior | null
+  onChange: (behavior: Behavior | null) => void
+  /** False in a switch's own editor - a switch never points to another. */
+  allowSwitch?: boolean
+}) {
+  const switches = useSwitchesStore((state) => state.switches)
+  const [useSwitch, setUseSwitch] = useState(initial?.kind === 'switch')
+  const [switchId, setSwitchId] = useState<string | null>(initial?.kind === 'switch' ? initial.switchId : null)
+  const [own, setOwn] = useState<Behavior | null>(initial?.kind === 'switch' ? null : initial)
+  const [editing, setEditing] = useState<'new' | 'save-as' | string | null>(null)
+
+  const result: Behavior | null = useSwitch ? (switchId ? { kind: 'switch', switchId } : null) : own
+  const key = JSON.stringify(result)
+  useEffect(() => {
+    onChange(key === 'null' ? null : (JSON.parse(key) as Behavior))
+    // Only when the result itself changes - onChange is a fresh function on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  if (!allowSwitch) return <OwnBehaviorEditor initial={own} onChange={setOwn} />
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Segmented
+        label="Belegung"
+        showLabel
+        value={useSwitch ? 'switch' : 'own'}
+        onChange={(value) => setUseSwitch(value === 'switch')}
+        options={[
+          { value: 'switch', label: 'Schalter' },
+          { value: 'own', label: 'Eigene Belegung' },
+        ]}
+        hint={
+          useSwitch
+            ? 'Ein Schalter der Band, z. B. „Blinder“: einmal eingerichtet, von Pedal, MIDI-Knopf und Dashboard-Knopf gleich ausgelöst - alle zeigen denselben Zustand.'
+            : 'Nur für diesen Auslöser. Mit „Als Schalter speichern“ für andere Auslöser wiederverwendbar.'
+        }
+      />
+      {useSwitch ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Schalter">
+            {switches.map((sw) => (
+              <div key={sw.id} className="flex items-center gap-2">
+                <button type="button" role="radio" aria-checked={switchId === sw.id} onClick={() => setSwitchId(sw.id)} className={`flex-1 min-w-0 ${choiceRow(switchId === sw.id)}`}>
+                  {sw.name}
+                </button>
+                <Button className="flex-shrink-0" onClick={() => setEditing(sw.id)}>
+                  Bearbeiten
+                </Button>
+              </div>
+            ))}
+          </div>
+          <AddRow label="Neuer Schalter" onClick={() => setEditing('new')} />
+        </div>
+      ) : (
+        <>
+          <OwnBehaviorEditor initial={own} onChange={setOwn} />
+          {own && (
+            <Button className="self-start" onClick={() => setEditing('save-as')}>
+              Als Schalter speichern…
+            </Button>
+          )}
+        </>
+      )}
+      {editing && (
+        <SwitchDialog
+          initial={editing === 'new' ? null : editing === 'save-as' ? { behavior: own! } : (switches.find((s) => s.id === editing) ?? null)}
+          onSaved={(sw) => {
+            setSwitchId(sw.id)
+            setUseSwitch(true)
+            setEditing(null)
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Tastend, rastend or zeitgesteuert with its actions - a trigger's own setup or a switch's. */
+function OwnBehaviorEditor({ initial, onChange }: { initial: Behavior | null; onChange: (behavior: Behavior | null) => void }) {
+  const start = initial?.kind === 'switch' ? null : initial
   const [mode, setMode] = useState<Mode>(start?.kind === 'latching' ? 'latching' : start?.release.kind === 'after' ? 'timed' : 'momentary')
   const [press, setPress] = useState<Action | null>(start?.kind === 'momentary' ? start.press : start?.kind === 'latching' ? start.on : null)
   const [second, setSecond] = useState<Action | null>(

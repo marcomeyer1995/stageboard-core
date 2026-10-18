@@ -67,15 +67,23 @@ const current = (show: Show): Show => latestShow ?? show
  * its output's latency, like a cue (docs/21 §3); anything else by a timer. Returns how to call
  * it off (only before it was handed over).
  */
-export function scheduleActionAt(action: Action, show: Show, at: number): () => void {
+export function scheduleActionAt(action: Action, show: Show, at: number, onFire?: () => void): () => void {
   const now = getServerTime()
+  // A device command is handed over early; its moment is what a lit switch waits for.
+  const fired = onFire ? setTimeout(onFire, Math.max(0, at - now)) : null
   if (action.kind !== 'device') {
     const timer = setTimeout(() => void runAction(action, current(show)), Math.max(0, at - now))
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (fired) clearTimeout(fired)
+    }
   }
   const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)
   const timer = setTimeout(() => void fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload, sendAt), Math.max(0, sendAt - PLAN_AHEAD_MS - now))
-  return () => clearTimeout(timer)
+  return () => {
+      clearTimeout(timer)
+      if (fired) clearTimeout(fired)
+    }
 }
 
 /** The server time `amount` units after `from` - on the song's grid while it plays (the bar line
@@ -91,9 +99,9 @@ export function waitUntil(from: number, wait: { amount: number; unit: WaitUnit; 
  * A timed release (docs/23 §4a), started at the press. "Auf den Takt" while the song plays: on
  * the bar line, planned ahead like a cue; otherwise a timer at the tempo of the press.
  */
-export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show): () => void {
+export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show, onFire?: () => void): () => void {
   const now = getServerTime()
-  return scheduleActionAt(release.action, show, waitUntil(now, { ...release, onGrid: release.onGrid === true }, show))
+  return scheduleActionAt(release.action, show, waitUntil(now, { ...release, onGrid: release.onGrid === true }, show), onFire)
 }
 
 /**
