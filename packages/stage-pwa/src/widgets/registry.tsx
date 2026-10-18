@@ -290,6 +290,8 @@ const DEFINITIONS: WidgetDefinition[] = [
     parts: [
       { id: 'title', label: 'Songtitel' },
       { id: 'time', label: 'Zeit' },
+      // Reset = Stop without counting the run as played (a false start) - most bands never need it.
+      { id: 'reset', label: 'Reset' },
     ],
     configSchema: ShowTransportConfigSchema,
     Component: ShowTransportWidget,
