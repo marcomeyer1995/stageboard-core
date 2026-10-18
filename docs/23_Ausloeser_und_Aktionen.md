@@ -119,7 +119,7 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 4. ~~Widget-Knopf~~ – entschieden: ja, jede Aktion (Show, Abschnitte, Wiedergabe, Gerät, Ablauf) – so vielseitig wie möglich; die Rechte (§5a) gelten auch hier.
 5. ~~Gerätebefehle ohne Master~~ – entschieden: erlaubt, für jedes Gerät (§5a).
 
-## 11. Überarbeitung: Schalter (Entwurf 2026-10-18, noch nicht entschieden)
+## 11. Überarbeitung: Schalter (entschieden 2026-10-18, Marco: „Let's do it like that“)
 
 ### 11.1 Problem
 
@@ -219,10 +219,10 @@ Pedal-Belegung, MIDI-Regel und Trigger-Button speichern statt eines eigenen `Beh
 2. Zustand bandweit über den schnellen Weg, Knöpfe leuchten überall, Ausfall-Regel (§11.5).
 3. Abläufe in Schalter überführen, alte Formen automatisch umschreiben (§11.8).
 
-### 11.10 Offene Fragen
+### 11.10 Entscheidungen (2026-10-18, Marco – alle Vorschläge angenommen)
 
-1. **Name:** „Schalter“ oder anders („Funktion“, „Taster“)?
-2. **Tastend über mehrere Auslöser:** Loslass-Aktion erst, wenn der *letzte* loslässt (Vorschlag, §11.2), oder bei jedem Loslassen?
-3. **Ausfall-Wartezeit** für einen gedrückt gehaltenen Schalter, dessen Tablet wegfällt: Vorschlag 3 s.
-4. **Direkte Aktionen** behalten (§11.3), oder muss alles über einen Schalter gehen (einheitlicher, aber mehr Klicks)?
-5. **Pedal-Belegung** weiter pro Tablet (Vorschlag), oder auch bandweit mit „gilt für Tablet …“?
+1. **Name:** „Schalter“.
+2. **Tastend über mehrere Auslöser:** die Loslass-Aktion kommt erst, wenn der *letzte* Auslöser loslässt.
+3. **Ausfall-Wartezeit:** 3 s ohne Lebenszeichen, dann gilt ein gedrückt gehaltener Schalter als losgelassen.
+4. **Direkte Aktionen** bleiben neben den Schaltern (§11.3).
+5. **Pedal-Belegung** bleibt pro Tablet.
