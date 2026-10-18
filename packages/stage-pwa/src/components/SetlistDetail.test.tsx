@@ -154,7 +154,7 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
 describe('SetlistDetail - missing variant', () => {
   it('shows "Variante gelöscht" for an entry whose picked variant no longer exists, even with one variant left', () => {
     useSongVariantsStore.setState({ variants: [variant('v1', 'a', 'Original', true)] })
-    useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [{ ...entry('e1', 'a'), variantId: 'gone' }, entry('e2', 'b')] }] })
+    useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [{ id: 'e1', songId: 'a', variantId: 'gone', trackId: null }, entry('e2', 'b')] }] })
     renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
