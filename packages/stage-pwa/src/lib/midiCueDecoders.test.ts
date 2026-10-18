@@ -32,8 +32,11 @@ describe('Kemper decoder', () => {
     expect(decoder.decode(CC(0, 27, 127))).toEqual({ type: 'kemper.stomp', payload: { stomp: 'DELAY', tail: true } })
   })
 
-  it('ignores a stomp release (value 0)', () => {
-    expect(createMidiDecoder(KEMPER_CAPABILITY, 0)!.decode(CC(0, KEMPER_STOMP_CC.A, 0))).toBeNull()
+  it('records a stomp switched off (value 0) as "aus", and the tuner (Marco, 2026-10-18)', () => {
+    const decoder = createMidiDecoder(KEMPER_CAPABILITY, 0)!
+    expect(decoder.decode(CC(0, KEMPER_STOMP_CC.A, 0))).toEqual({ type: 'kemper.stomp', payload: { stomp: 'A', off: true } })
+    expect(decoder.decode(CC(0, 31, 127))).toEqual({ type: 'kemper.tuner', payload: {} })
+    expect(decoder.decode(CC(0, 31, 0))).toEqual({ type: 'kemper.tuner', payload: { off: true } })
   })
 })
 

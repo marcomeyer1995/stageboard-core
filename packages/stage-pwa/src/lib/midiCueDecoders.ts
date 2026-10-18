@@ -67,11 +67,14 @@ function kemperDecoder(channel: number | null): MidiDecoder {
         if (value < PRESSED_THRESHOLD || pendingPerformance === null) return null
         return { type: 'kemper.selectRig', payload: { performance: pendingPerformance, slot: slotIndex + 1 } }
       }
-      if (value < PRESSED_THRESHOLD) return null
+      // Below the threshold a stomp (or the tuner) is switched off - recorded as "aus" (Marco,
+      // 2026-10-18; the translator sends 0 for it since #596).
+      const off = value < PRESSED_THRESHOLD ? { off: true } : {}
+      if (cc === KEMPER_CC.tuner) return { type: 'kemper.tuner', payload: off }
       const tail = Object.entries(KEMPER_STOMP_CC_WITH_TAIL).find(([, stompCc]) => stompCc === cc)
-      if (tail) return { type: 'kemper.stomp', payload: { stomp: tail[0], tail: true } }
+      if (tail) return { type: 'kemper.stomp', payload: { stomp: tail[0], tail: true, ...off } }
       const stomp = Object.entries(KEMPER_STOMP_CC).find(([, stompCc]) => stompCc === cc)
-      return stomp ? { type: 'kemper.stomp', payload: { stomp: stomp[0] } } : null
+      return stomp ? { type: 'kemper.stomp', payload: { stomp: stomp[0], ...off } } : null
     },
   }
 }
