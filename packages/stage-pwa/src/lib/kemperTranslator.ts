@@ -64,8 +64,15 @@ function stomp(kemper: KemperOutput, payload: Record<string, unknown> | undefine
   const withTail = payload?.tail === true
   const cc = (withTail && STOMP_CC_WITH_TAIL[name]) || STOMP_CC[name]
   if (!cc) return { status: 'error', message: `kemper.stomp: unbekanntes Stomp-Slot "${name}".` }
-  sendControlChange(kemper.output, kemper.channel, cc, 127)
-  return { status: 'ok', data: { stomp: name, tail: withTail } }
+  const off = payload?.off === true
+  sendControlChange(kemper.output, kemper.channel, cc, off ? 0 : 127)
+  return { status: 'ok', data: { stomp: name, tail: withTail, on: !off } }
+}
+
+function tuner(kemper: KemperOutput, payload: Record<string, unknown> | undefined): ShowControlResult {
+  const off = payload?.off === true
+  sendControlChange(kemper.output, kemper.channel, KEMPER_CC.tuner, off ? 0 : 127)
+  return { status: 'ok', data: { on: !off } }
 }
 
 async function test(kemper: KemperOutput): Promise<ShowControlResult> {
@@ -86,6 +93,8 @@ export const kemperTranslator: Translator = async (event) => {
       return selectRig(kemper, event.payload)
     case 'kemper.stomp':
       return stomp(kemper, event.payload)
+    case 'kemper.tuner':
+      return tuner(kemper, event.payload)
     case 'test':
       return test(kemper)
     default:

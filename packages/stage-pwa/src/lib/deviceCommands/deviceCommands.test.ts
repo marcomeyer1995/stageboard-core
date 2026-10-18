@@ -67,3 +67,12 @@ describe('MG-30 in the musician\'s terms', () => {
     expect(options.some((o) => o.value === 16)).toBe(false)
   })
 })
+
+describe('Kemper: switch off too (Marco, 2026-10-18)', () => {
+  it('describes stomp on/off and the tuner', async () => {
+    const { describeCue } = await import('./index')
+    expect(describeCue({ type: 'kemper.stomp', payload: { stomp: 'DELAY' } }, 'kemper-control')).toBe('Stomp DELAY an')
+    expect(describeCue({ type: 'kemper.stomp', payload: { stomp: 'DELAY', off: true } }, 'kemper-control')).toBe('Stomp DELAY aus')
+    expect(describeCue({ type: 'kemper.tuner', payload: { off: true } }, 'kemper-control')).toBe('Tuner aus')
+  })
+})

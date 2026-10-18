@@ -113,6 +113,15 @@ describe('kemperTranslator', () => {
       expect(sendControlChange).toHaveBeenCalledWith(OUTPUT, 0, 17, 127)
     })
 
+    it('switches off with value 0, and the tuner on and off on CC 31 (Marco, 2026-10-18)', async () => {
+      await kemperTranslator({ type: 'kemper.stomp', payload: { stomp: 'A', off: true } })
+      expect(sendControlChange).toHaveBeenLastCalledWith(OUTPUT, 0, 17, 0)
+      await kemperTranslator({ type: 'kemper.tuner', payload: {} })
+      expect(sendControlChange).toHaveBeenLastCalledWith(OUTPUT, 0, 31, 127)
+      await kemperTranslator({ type: 'kemper.tuner', payload: { off: true } })
+      expect(sendControlChange).toHaveBeenLastCalledWith(OUTPUT, 0, 31, 0)
+    })
+
     it('is case-insensitive', async () => {
       await kemperTranslator({ type: 'kemper.stomp', payload: { stomp: 'mod' } })
       expect(sendControlChange).toHaveBeenCalledWith(OUTPUT, 0, 24, 127)
