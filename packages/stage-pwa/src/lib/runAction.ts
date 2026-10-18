@@ -1,5 +1,5 @@
 import { isSongEntry } from 'shared-types'
-import type { Action, Release } from './actions'
+import type { Action, Release, WaitUnit } from './actions'
 import { needsShowControl } from './actions'
 import { clickTimeline, type ClickTimeline } from './beatGrid'
 import { cueLatencyMs } from './capabilityTiming'
@@ -13,6 +13,7 @@ import { adjustedBpm, beatAt, effectiveClickEnabled } from './metronome'
 import { cancelSectionJump, queueSectionJump, setSectionLoop } from './sectionJump'
 import type { useShowMode } from './showMode'
 import { sectionIndexAt, showSections, type ShowSection } from './showSections'
+import { useActionSequencesStore } from '../store/useActionSequencesStore'
 import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -37,7 +38,7 @@ export function songSectionsNow(show: Show): { timeline: ClickTimeline; sections
 }
 
 /** How long a timed release waits (docs/23 §4a): beats and bars at the song's tempo where it plays now. */
-export function releaseDelayMs(release: Extract<Release, { kind: 'after' }>, show: Show): number {
+export function releaseDelayMs(release: { amount: number; unit: WaitUnit }, show: Show): number {
   if (release.unit === 'ms') return release.amount
   const now = songSectionsNow(show)
   if (!now) return release.amount * (release.unit === 'bars' ? 2000 : 500)
@@ -52,27 +53,66 @@ export function releaseDelayMs(release: Extract<Release, { kind: 'after' }>, sho
  * over the WLAN). */
 const PLAN_AHEAD_MS = 1000
 
+/** The show as it is now - a planned action runs on this, not on the snapshot from the moment
+ * it was planned (a delayed "Klick an/aus" toggled from the old state and changed nothing). Kept
+ * current by the always-mounted pedal hook (useFootswitch.ts). */
+let latestShow: Show | null = null
+export function trackLatestShow(show: Show): void {
+  latestShow = show
+}
+const current = (show: Show): Show => latestShow ?? show
+
 /**
- * A timed release (docs/23 §4a), started at the press. "Auf den Takt" while the song plays: on
- * the bar line, a device command sent ahead with its moment and its output's latency, like a cue
- * (docs/21 §3); otherwise a timer at the tempo of the press. Returns how to call it off.
+ * Runs an action at a server-time moment: a device command handed over ahead with its moment and
+ * its output's latency, like a cue (docs/21 §3); anything else by a timer. Returns how to call
+ * it off (only before it was handed over).
  */
-export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show): () => void {
+export function scheduleActionAt(action: Action, show: Show, at: number): () => void {
   const now = getServerTime()
-  const timeline = release.onGrid && release.unit !== 'ms' ? songSectionsNow(show)?.timeline : undefined
-  const at = timeline ? gridReleaseAt(timeline, transportOf(useShowStateStore.getState().state), now, release.amount, release.unit as 'beats' | 'bars') : null
-  if (at === null) {
-    const timer = setTimeout(() => void runAction(release.action, show), releaseDelayMs(release, show))
-    return () => clearTimeout(timer)
-  }
-  const { action } = release
   if (action.kind !== 'device') {
-    const timer = setTimeout(() => void runAction(action, show), Math.max(0, at - now))
+    const timer = setTimeout(() => void runAction(action, current(show)), Math.max(0, at - now))
     return () => clearTimeout(timer)
   }
   const sendAt = at - cueLatencyMs(action, useLogicalDevicesStore.getState().devices, usePluginsStore.getState().installed, useLatencyProfilesStore.getState().profiles)
   const timer = setTimeout(() => void fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload, sendAt), Math.max(0, sendAt - PLAN_AHEAD_MS - now))
   return () => clearTimeout(timer)
+}
+
+/** The server time `amount` units after `from` - on the song's grid while it plays (the bar line
+ * nearest to `from` plus that many bars), else at the tempo of the moment. */
+export function waitUntil(from: number, wait: { amount: number; unit: WaitUnit; onGrid?: boolean }, show: Show): number {
+  if (wait.unit === 'ms') return from + wait.amount
+  const timeline = wait.onGrid === false ? undefined : songSectionsNow(show)?.timeline
+  const at = timeline ? gridReleaseAt(timeline, transportOf(useShowStateStore.getState().state), from, wait.amount, wait.unit) : null
+  return at ?? from + releaseDelayMs(wait, show)
+}
+
+/**
+ * A timed release (docs/23 §4a), started at the press. "Auf den Takt" while the song plays: on
+ * the bar line, planned ahead like a cue; otherwise a timer at the tempo of the press.
+ */
+export function scheduleRelease(release: Extract<Release, { kind: 'after' }>, show: Show): () => void {
+  const now = getServerTime()
+  return scheduleActionAt(release.action, show, waitUntil(now, { ...release, onGrid: release.onGrid === true }, show))
+}
+
+/**
+ * A sequence (docs/23 §3 "Ablauf"): every step's moment is worked out at the start - waits in
+ * beats and bars on the song's grid - and each step runs with its own rights. A step that is a
+ * sequence itself is left out (no loops).
+ */
+function runSequence(sequenceId: string, show: Show): Promise<string | null> {
+  const sequence = useActionSequencesStore.getState().sequences.find((s) => s.id === sequenceId)
+  if (!sequence) return Promise.resolve('Ablauf fehlt')
+  let at = getServerTime()
+  let first: Promise<string | null> = Promise.resolve(null)
+  sequence.steps.forEach((step, index) => {
+    if (step.wait) at = waitUntil(at, step.wait, show)
+    if (step.action.kind === 'sequence') return
+    if (index === 0 && !step.wait) first = runAction(step.action, show)
+    else scheduleActionAt(step.action, show, at)
+  })
+  return first
 }
 
 /**
@@ -96,6 +136,8 @@ export async function runAction(action: Action, show: Show): Promise<string | nu
       return runPlayback(action.op, show)
     case 'device':
       return fireDeviceAction(action.targetLogicalDeviceId, action.type, action.payload)
+    case 'sequence':
+      return runSequence(action.sequenceId, show)
   }
 }
 

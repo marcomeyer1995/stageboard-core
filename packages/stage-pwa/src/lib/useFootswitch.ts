@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { bindingForKey, isTypingTarget } from './keybindings'
-import type { Show } from './runAction'
+import { trackLatestShow, type Show } from './runAction'
 import { pressTrigger, releaseTrigger } from './triggerPress'
 import { useShowMode } from './showMode'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
@@ -45,6 +45,7 @@ export function useFootswitch(active: boolean): void {
   const show = useShowMode()
   const latest = useRef(show)
   latest.current = show
+  trackLatestShow(show)
 
   useEffect(() => {
     if (!active) return

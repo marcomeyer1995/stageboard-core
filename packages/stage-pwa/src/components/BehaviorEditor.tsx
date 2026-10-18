@@ -7,6 +7,8 @@ type Mode = 'momentary' | 'latching' | 'timed'
 
 const UNIT_LABEL = { ms: 'ms', beats: 'Schlägen', bars: 'Takten' } as const
 type Unit = keyof typeof UNIT_LABEL
+/** "nach 1 Takt", "nach 2 Takten". */
+const unitLabel = (unit: Unit, amount: number): string => (amount === 1 && unit !== 'ms' ? (unit === 'bars' ? 'Takt' : 'Schlag') : UNIT_LABEL[unit])
 
 /** A mapping in one line, with device names - for lists of pedal keys and the like. */
 export function useDescribeBehavior(): (behavior: Behavior) => string {
@@ -16,7 +18,7 @@ export function useDescribeBehavior(): (behavior: Behavior) => string {
     const press = describe(behavior.press)
     const { release } = behavior
     if (release.kind === 'on-release') return `${press} · Loslassen: ${describe(release.action)}`
-    if (release.kind === 'after') return `${press} · nach ${release.amount} ${UNIT_LABEL[release.unit]}${gridLabel(release)}: ${describe(release.action)}`
+    if (release.kind === 'after') return `${press} · nach ${release.amount} ${unitLabel(release.unit, release.amount)}${gridLabel(release)}: ${describe(release.action)}`
     return press
   }
 }
@@ -83,7 +85,7 @@ export function BehaviorEditor({ initial, onChange }: { initial: Behavior | null
       <ActionField label={mode === 'latching' ? '1. Druck' : 'Beim Drücken'} value={press} onChange={setPress} />
       {mode === 'timed' && (
         <div className="flex flex-col gap-2">
-          <Stepper label="Nach" value={amount} unit={UNIT_LABEL[unit]} min={1} max={unit === 'ms' ? 10000 : 64} step={unit === 'ms' ? 100 : 1} onChange={setAmount} />
+          <Stepper label="Nach" value={amount} unit={unitLabel(unit, amount)} min={1} max={unit === 'ms' ? 10000 : 64} step={unit === 'ms' ? 100 : 1} onChange={setAmount} />
           <Segmented
             label="Einheit"
             value={unit}

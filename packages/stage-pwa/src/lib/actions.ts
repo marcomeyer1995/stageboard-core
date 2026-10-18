@@ -21,6 +21,24 @@ export type Action =
   | { kind: 'section'; op: SectionOp; label?: string; when?: JumpWhen }
   | { kind: 'playback'; op: PlaybackOp }
   | { kind: 'device'; targetLogicalDeviceId: string; type: string; payload: Record<string, unknown> }
+  /** A named sequence of actions with waits between them (docs/23 §3 "Ablauf") - band-wide. */
+  | { kind: 'sequence'; sequenceId: string }
+
+export type WaitUnit = 'ms' | 'beats' | 'bars'
+
+/** One step of a sequence: the wait before it (none for the first) and its action. */
+export interface SequenceStep {
+  wait: { amount: number; unit: WaitUnit } | null
+  action: Action
+}
+
+/** "Ablauf" (docs/23 §3, step 4): e.g. "Solo" - rig 5, a bar later delay on, channel 3 louder.
+ * Each step keeps its own rights (§5a). */
+export interface ActionSequence {
+  id: string
+  name: string
+  steps: SequenceStep[]
+}
 
 /** What happens when a pressed trigger is let go (docs/23 §4a). */
 export type Release =
@@ -76,6 +94,8 @@ export function describeAction(action: Action, deviceName: (id: string) => strin
       return PLAYBACK_OPS.find((o) => o.id === action.op)?.label ?? action.op
     case 'device':
       return `${deviceName(action.targetLogicalDeviceId)}: ${action.type}`
+    case 'sequence':
+      return 'Ablauf'
   }
 }
 
@@ -99,7 +119,8 @@ export function describeBehavior(behavior: Behavior, deviceName?: (id: string) =
 /** Whether an action is show control - only for who may control the show (docs/23 §5a). Paging
  * the prompter only moves this screen. */
 export function needsShowControl(action: Action): boolean {
-  if (action.kind === 'device') return false
+  // A sequence's steps are checked one by one when they run.
+  if (action.kind === 'device' || action.kind === 'sequence') return false
   if (action.kind === 'show') return action.op !== 'prompter-down' && action.op !== 'prompter-up'
   return true
 }
