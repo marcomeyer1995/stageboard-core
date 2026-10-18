@@ -3,6 +3,7 @@ import {
   SongSchema,
   SongVariantSchema,
   CAPABILITIES,
+  isSongEntry,
   type BeatGrid,
   type Song,
   type ShowCue,
@@ -15,10 +16,11 @@ import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
-import { ensureDefaultVariant, getTrack } from '../lib/songVariantsDb'
+import { deleteVariant, getTrack, setDefaultVariant, variantToOpen } from '../lib/songVariantsDb'
 import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
+import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
@@ -31,7 +33,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { ActionMenuDialog, AddRow, Switch, Tabs, Button } from './ui'
+import { ActionMenu, ActionMenuDialog, AddRow, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
 
@@ -136,6 +138,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
   const variants = useSongVariantsStore((state) => state.variants)
+  const setlists = useSetlistsStore((state) => state.setlists)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const confirm = useDialogStore((state) => state.confirm)
   const promptFields = useDialogStore((state) => state.promptFields)
@@ -201,10 +204,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
     if (!song) return
-    const defaultVariant = await ensureDefaultVariant(song)
-    const variant = preferredVariantId
-      ? (variants.find((v) => v.id === preferredVariantId) ?? defaultVariant)
-      : defaultVariant
+    const variant = await variantToOpen(song, preferredVariantId ?? null)
     const loaded = draftFrom(song, variant)
     setDraft(loaded)
     savedDraft.current = JSON.stringify(loaded)
@@ -288,6 +288,45 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setError(null)
     setSavedAt(null)
   }
+
+  // Delete and "Als Standard" (Marco, 2026-10-18): only for a variant that is saved already.
+  const variantSaved = variantsForSong.some((v) => v.id === draft.variantId)
+  const hasDefault = variantsForSong.some((v) => v.isDefault)
+
+  const handleDeleteVariant = async () => {
+    const usedIn = setlists.filter((setlist) => setlist.entries.some((entry) => isSongEntry(entry) && entry.variantId === draft.variantId))
+    const lines = [`Variante „${draft.variantLabel}“ mit ihren Audio-Spuren löschen?`]
+    if (draft.isDefaultVariant) lines.push('Sie ist die Standard-Variante: danach hat der Song keine, bis du eine andere als Standard festlegst. Setlist-Einträge ohne eigene Variante spielen bis dahin nichts.')
+    if (usedIn.length > 0) lines.push(`Gewählt in ${usedIn.map((setlist) => `„${setlist.name}“`).join(', ')} - dort steht dann „Variante gelöscht“, es spielt keine andere.`)
+    if (!(await confirm(lines.join('\n\n'), { title: 'Variante löschen', confirmLabel: 'Löschen', danger: true }))) return
+    try {
+      await deleteVariant(draft.variantId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return
+    }
+    // Opens what's left: the default, or (none left) the first by name - see variantToOpen.
+    await selectSong(draft.songId)
+  }
+
+  const handleSetDefault = async () => {
+    if (dirty && !(await handleSave())) return
+    const stored = songs.find((song) => song.id === draft.songId)
+    if (!stored) return
+    await setDefaultVariant({ ...stored, title: draft.title, artist: draft.artist }, draft.variantId)
+    const next = { ...draft, isDefaultVariant: true }
+    setDraft(next)
+    savedDraft.current = JSON.stringify(next)
+  }
+
+  const variantActions: MenuAction[] = variantSaved
+    ? [
+        ...(draft.isDefaultVariant ? [] : [{ label: 'Als Standard festlegen', onClick: () => void handleSetDefault() }]),
+        // The last one can't go: without any variant the song would play its old default's
+        // content again (the Song mirror) - delete the song instead (Bibliothek ⋯).
+        ...(variantsForSong.length > 1 ? [{ label: 'Variante löschen', danger: true, onClick: () => void handleDeleteVariant() }] : []),
+      ]
+    : []
 
   const handleSave = async (): Promise<boolean> => {
     const variant: SongVariant = {
@@ -824,13 +863,20 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               )}
               {variantsForSong.map((variant) => (
                 <option key={variant.id} value={variant.id}>
-                  {variant.label}
+                  {variant.isDefault ? `${variant.label} (Standard)` : variant.label}
                 </option>
               ))}
             </select>
               <AddRow inline label="Neue Variante" onClick={addVariant} />
+              {variantActions.length > 0 && <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={variantActions} />}
             </div>
           </label>
+        {!hasDefault && variantsForSong.length > 0 && (
+          <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
+            Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du
+            eine Variante als Standard festlegst (⋯ neben der Variante).
+          </p>
+        )}
         {!draft.isDefaultVariant && (
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Varianten-Name

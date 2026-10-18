@@ -29,11 +29,11 @@ function variantWith(songId: string, durationMs: number | undefined): SongVarian
 
 function songItem(id: string, durationMs: number | undefined, over: Partial<Extract<SetlistEntry, { songId: string }>> = {}): QueueItem {
   const entry = { id, songId: id, variantId: null, trackId: null, ...over }
-  return { entry, song: song(id), variant: variantWith(id, durationMs) }
+  return { entry, song: song(id), variant: variantWith(id, durationMs), variantIssue: null }
 }
 
 function itemEntry(id: string, over: Record<string, unknown> = {}): QueueItem {
-  return { entry: { id, kind: 'transition', title: id, notes: '', ...over } as SetlistEntry, song: null, variant: null }
+  return { entry: { id, kind: 'transition', title: id, notes: '', ...over } as SetlistEntry, song: null, variant: null, variantIssue: null }
 }
 
 const NOW = new Date('2026-09-19T22:15:00').getTime()
@@ -127,7 +127,7 @@ describe('computeFestivalClock', () => {
   })
 
   it('uses a manual length for a song without any track and does not count it as estimated', () => {
-    const noTrack: QueueItem = { entry: { id: 'a', songId: 'a', variantId: null, trackId: null }, song: song('a'), variant: { ...variantWith('a', undefined), tracks: [], durationMs: 3 * MIN } as SongVariant }
+    const noTrack: QueueItem = { entry: { id: 'a', songId: 'a', variantId: null, trackId: null }, song: song('a'), variant: { ...variantWith('a', undefined), tracks: [], durationMs: 3 * MIN } as SongVariant, variantIssue: null }
     const result = computeFestivalClock({ ...base, items: [noTrack], currentEntryId: 'a', setlist: null })
     expect(result.remainingMs).toBe(3 * MIN)
     expect(result.estimatedSongs).toBe(0)

@@ -2,12 +2,19 @@ import { isSongEntry } from 'shared-types'
 import type { Setlist, SetlistEntry, ShowState, Song, SongEntry, SongVariant, TrackMeta } from 'shared-types'
 import { playableTracks } from './stems'
 
+/** Why a song entry has no variant to play (Marco, 2026-10-18): never another arrangement in its
+ * place - falling back to "Original" when the band rehearsed "Akustik" is an absolute no-go on
+ * stage. `deleted`: the entry picked a variant that no longer exists. `no-default`: the entry plays
+ * the song's default, and the song has none (its default was deleted; one must be set again). */
+export type VariantIssue = 'deleted' | 'no-default'
+
 /** One resolved position in the queue: the setlist entry, its song, and the variant it plays.
  * A transition item or section heading (#29) has no song or variant - both are null. */
 export interface QueueItem {
   entry: SetlistEntry
   song: Song | null
   variant: SongVariant | null
+  variantIssue: VariantIssue | null
 }
 
 /** What to call a queue position on screen: the song's title, or the item's own. */
@@ -34,24 +41,38 @@ export interface Queue {
   previousEntry: SetlistEntry | null
   currentEntry: SetlistEntry | null
   nextEntry: SetlistEntry | null
-  /** The variant actually playing for previous/current/next: that entry's explicit pick,
-   * falling back to the song's isDefault variant, or null if neither exists yet (e.g. Phase
-   * 1's lazy per-document migration hasn't touched this song). */
+  /** The variant actually playing for previous/current/next: that entry's explicit pick, or the
+   * song's isDefault variant when it picked none. Null when that variant doesn't exist - see
+   * `*VariantIssue` - or the song has no variants at all yet (data from before variants). */
   previousVariant: SongVariant | null
   currentVariant: SongVariant | null
   nextVariant: SongVariant | null
+  currentVariantIssue: VariantIssue | null
+  nextVariantIssue: VariantIssue | null
+  /** What the current position plays - tempo, click, chart: its variant, or the song's own mirror
+   * fields only for a song with no variants at all yet. Null on a `currentVariantIssue`, so
+   * nothing (click, track, cues, chart) plays a different arrangement in its place. */
+  currentArrangement: Song | SongVariant | null
 }
 
 /**
- * Which variant an entry resolves to: its own explicit pick, falling back to the song's
- * isDefault variant. Per-entry (not per-songId) is what lets the same song appear twice in a
- * setlist with two different variants selected.
+ * Which variant an entry resolves to: its own explicit pick, or the song's isDefault variant
+ * when it picked none - never one for the other (see VariantIssue). Per-entry (not per-songId)
+ * is what lets the same song appear twice in a setlist with two different variants selected.
  */
-export function resolveVariantForEntry(entry: SongEntry, variants: SongVariant[]): SongVariant | null {
-  const selected = entry.variantId
-    ? variants.find((v) => v.id === entry.variantId && v.songId === entry.songId)
-    : undefined
-  return selected ?? variants.find((v) => v.songId === entry.songId && v.isDefault) ?? null
+export function resolveVariantForEntry(
+  entry: SongEntry,
+  variants: SongVariant[],
+): { variant: SongVariant | null; issue: VariantIssue | null } {
+  const ofSong = variants.filter((v) => v.songId === entry.songId)
+  if (entry.variantId) {
+    const selected = ofSong.find((v) => v.id === entry.variantId)
+    return selected ? { variant: selected, issue: null } : { variant: null, issue: 'deleted' }
+  }
+  const byDefault = ofSong.find((v) => v.isDefault)
+  if (byDefault) return { variant: byDefault, issue: null }
+  // No variants at all: a song from before variants - its own fields are its only arrangement.
+  return { variant: null, issue: ofSong.length > 0 ? 'no-default' : null }
 }
 
 /**
@@ -95,9 +116,11 @@ export function computeQueue(
     : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
 
   const orderedItems: QueueItem[] = entries.flatMap<QueueItem>((entry) => {
-    if (!isSongEntry(entry)) return [{ entry, song: null, variant: null }]
+    if (!isSongEntry(entry)) return [{ entry, song: null, variant: null, variantIssue: null }]
     const song = songs.find((s) => s.id === entry.songId)
-    return song ? [{ entry, song, variant: resolveVariantForEntry(entry, variants) }] : []
+    if (!song) return []
+    const { variant, issue } = resolveVariantForEntry(entry, variants)
+    return [{ entry, song, variant, variantIssue: issue }]
   })
   const orderedSongs = orderedItems.flatMap((item) => (item.song ? [item.song] : []))
 
@@ -115,6 +138,9 @@ export function computeQueue(
       previousVariant: null,
       currentVariant: null,
       nextVariant: null,
+      currentVariantIssue: null,
+      nextVariantIssue: null,
+      currentArrangement: null,
     }
   }
 
@@ -131,7 +157,7 @@ export function computeQueue(
   if (overrideVariant) {
     // `index` is always a valid position here (Math.max(0, ...) on a non-empty list), and the
     // list itself carries the swap too, so e.g. a setlist view shows the variant actually played.
-    current = { ...current, variant: overrideVariant }
+    current = { ...current, variant: overrideVariant, variantIssue: null }
     orderedItems[index] = current
   }
   return {
@@ -147,6 +173,9 @@ export function computeQueue(
     previousVariant: previous?.variant ?? null,
     currentVariant: current.variant,
     nextVariant: next?.variant ?? null,
+    currentVariantIssue: current.variantIssue,
+    nextVariantIssue: next?.variantIssue ?? null,
+    currentArrangement: current.variant ?? (current.variantIssue ? null : current.song),
   }
 }
 

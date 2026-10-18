@@ -40,7 +40,7 @@ export function useMidiClock(): void {
   const takeKey = useShowStateStore((state) => state.state.activeEntryStartedAt)
   const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
 
-  const song = queue.currentVariant ?? queue.currentSong
+  const song = queue.currentArrangement
   const beatGrid = queue.currentVariant?.beatGrid
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
   const bpm = song ? adjustedBpm(song.bpm, mode === 'gig' ? liveTempoAdjustPercent : 0) : null

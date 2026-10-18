@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { SongVariant } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
-import { ensureDefaultVariant } from '../lib/songVariantsDb'
+import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
-import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { Button } from './ui'
 import { playableTracks } from '../lib/stems'
@@ -18,12 +17,11 @@ interface SongPreviewProps {
  * Read-only glance at a song before committing to the full editor (Marco, explicit request:
  * selecting a song should land here first, "like Setlists" do - instead of jumping straight
  * into SheetEditor). Loads the variant the same way SheetEditor's own selectSong does
- * (ensureDefaultVariant, falling back to the reactive store for a specific `variantId`), since
+ * (variantToOpen), since
  * this is the exact same read, just without a draft to edit.
  */
 export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   const songs = useSongsStore((state) => state.songs)
-  const variants = useSongVariantsStore((state) => state.variants)
   const [variant, setVariant] = useState<SongVariant | null>(null)
 
   const song = songs.find((s) => s.id === songId)
@@ -32,10 +30,8 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     setVariant(null)
     if (!song) return
     let cancelled = false
-    void ensureDefaultVariant(song).then((defaultVariant) => {
-      if (cancelled) return
-      const picked = variantId ? (variants.find((v) => v.id === variantId) ?? defaultVariant) : defaultVariant
-      setVariant(picked)
+    void variantToOpen(song, variantId).then((picked) => {
+      if (!cancelled) setVariant(picked)
     })
     return () => {
       cancelled = true

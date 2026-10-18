@@ -49,7 +49,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showInfo = useShowPart('info')
   const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
-  const song = queue.currentVariant ?? queue.currentSong
+  const song = queue.currentArrangement
   const countInBars = queue.currentVariant?.countInEnabled ? (queue.currentVariant.countInBars ?? 0) : 0
 
   // The big beat number is sized as a ratio of the device-wide default, not auto-fit to the tile

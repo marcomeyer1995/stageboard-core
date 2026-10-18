@@ -23,7 +23,7 @@ const show = {
   trackEnded: false,
   liveTempoAdjustPercent: 0,
   trackOverride: null,
-  queue: { currentEntry: { id: 'e1', songId: 's1' }, currentSong: { bpm: 120, timeSignature: '4/4', chordProContent: content }, currentVariant: null },
+  queue: { currentEntry: { id: 'e1', songId: 's1' }, currentSong: { bpm: 120, timeSignature: '4/4', chordProContent: content }, currentVariant: null, currentArrangement: { bpm: 120, timeSignature: '4/4', chordProContent: content } },
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -91,7 +91,7 @@ describe('planned actions run on the show as it is then', () => {
   it('a delayed "Klick an/aus" toggles from the current state, not the one at the press', async () => {
     vi.useFakeTimers()
     const setClickTrackOverride = vi.fn()
-    const at = (override: 'on' | 'off' | null) => ({ ...show, clickTrackOverride: override, setClickTrackOverride, queue: { ...show.queue, currentSong: { ...show.queue.currentSong, clickTrackEnabled: false } } })
+    const at = (override: 'on' | 'off' | null) => ({ ...show, clickTrackOverride: override, setClickTrackOverride, queue: { ...show.queue, currentArrangement: { ...show.queue.currentArrangement, clickTrackEnabled: false } } })
     await runAction({ kind: 'steps', steps: [{ wait: null, action: { kind: 'playback', op: 'click-toggle' } }, { wait: { amount: 500, unit: 'ms' }, action: { kind: 'playback', op: 'click-toggle' } }] }, at(null) as never)
     expect(setClickTrackOverride).toHaveBeenLastCalledWith('on')
     trackLatestShow(at('on') as never)

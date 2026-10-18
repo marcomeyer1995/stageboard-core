@@ -4,6 +4,7 @@ import { cacheKey } from './audioCache'
 import { getAudioStorageBackend } from './audioStorageBackend'
 import type { AudioSyncMode } from '../store/useAudioSyncStore'
 import { isStem, playableTracks } from './stems'
+import { resolveVariantForEntry } from './computeQueue'
 
 export interface StorageEstimate {
   usageBytes: number
@@ -58,10 +59,8 @@ function resolveVariant(
   variantId: string | null,
   variants: SongVariant[],
 ): SongVariant | null {
-  const explicit = variantId
-    ? variants.find((v) => v.id === variantId && v.songId === songId)
-    : undefined
-  return explicit ?? variants.find((v) => v.songId === songId && v.isDefault) ?? null
+  // The same rule as the queue: a deleted pick is nothing to cache, never the default instead.
+  return resolveVariantForEntry({ id: '', songId, variantId, trackId: null }, variants).variant
 }
 
 /**

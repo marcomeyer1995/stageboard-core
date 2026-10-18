@@ -17,29 +17,53 @@ export const putVariant = variants.put
 export const removeVariant = variants.remove
 export const variantsChanges = variants.changes
 
+/** A raw, unvalidated PouchDB read (unlike useSongVariantsStore's own toVariant, which already
+ * normalizes its reactive `variants` array): a variant written before `cues` (#99) or
+ * `timeSignature` (#25) existed simply lacks the key. Found live: crashed CueListEditor on any
+ * song predating the `cues` field. */
+function withDefaults(variant: SongVariant): SongVariant {
+  return {
+    ...variant,
+    timeSignature: variant.timeSignature ?? '4/4',
+    clickTrackEnabled: variant.clickTrackEnabled ?? false,
+    cues: variant.cues ?? [],
+    countInEnabled: variant.countInEnabled ?? false,
+    countInBars: variant.countInBars ?? 1,
+  }
+}
+
+async function variantsOfSong(songId: string): Promise<SongVariant[]> {
+  return (await getAllVariants()).filter((v) => v.songId === songId).map(withDefaults)
+}
+
+/**
+ * Which variant the editor/preview opens: the asked-for one, else the default. A song whose
+ * default was deleted has none (Marco, 2026-10-18: no variant becomes default by itself) - then
+ * the first by name, so the editor can still open it and set a default again; that's editing,
+ * not playing, so no stage fallback. A song without any variant gets its default created
+ * (ensureDefaultVariant).
+ */
+export async function variantToOpen(song: Song, preferredVariantId: string | null = null): Promise<SongVariant> {
+  const ofSong = await variantsOfSong(song.id)
+  const preferred = preferredVariantId ? ofSong.find((v) => v.id === preferredVariantId) : undefined
+  if (preferred) return preferred
+  const byDefault = ofSong.find((v) => v.isDefault)
+  if (byDefault) return byDefault
+  if (ofSong.length > 0) return [...ofSong].sort((a, b) => a.label.localeCompare(b.label))[0]!
+  return ensureDefaultVariant(song)
+}
+
 /**
  * Creates the one isDefault variant for a song that predates variants, copying its content
  * and (if present) its legacy single 'backing-track' attachment across as a `band-mix` track.
  * Idempotent and safe to call redundantly from any tablet - this is a local-first mesh, there
  * is no single moment "the migration runs": every tablet calls this lazily on first touch.
+ * Only for a song with no variants at all - one whose default was deleted keeps having none
+ * (variantToOpen), it must not come back as a fresh "Original" from the Song's mirror fields.
  */
 export async function ensureDefaultVariant(song: Song): Promise<SongVariant> {
-  const existing = (await getAllVariants()).find((v) => v.songId === song.id && v.isDefault)
-  // A variant written before `cues` (#99) or `timeSignature` (#25) existed simply lacks the
-  // key - this is a raw, unvalidated PouchDB read (unlike useSongVariantsStore's own
-  // toVariant, which already normalizes this for its own reactive `variants` array), so the
-  // same fallback is needed here too. Found live: crashed CueListEditor on any song predating
-  // the `cues` field.
-  if (existing) {
-    return {
-      ...existing,
-      timeSignature: existing.timeSignature ?? '4/4',
-      clickTrackEnabled: existing.clickTrackEnabled ?? false,
-      cues: existing.cues ?? [],
-      countInEnabled: existing.countInEnabled ?? false,
-      countInBars: existing.countInBars ?? 1,
-    }
-  }
+  const existing = (await variantsOfSong(song.id)).find((v) => v.isDefault)
+  if (existing) return existing
 
   const variant: SongVariant = {
     id: randomId(),
@@ -123,6 +147,44 @@ export async function removeTrack(variantId: string, trackId: string): Promise<v
   const current = await db.get(variants.docId(variantId))
   const tracks = current.tracks.filter((t) => !gone.includes(t.id))
   await putVariant({ ...current, tracks })
+}
+
+/**
+ * Deletes one variant with its tracks (server audio + local cache, like `removeTrack`). Setlist
+ * entries that picked it stay as they are and show "Variante gelöscht" (Marco, 2026-10-18: never
+ * the default in its place - see computeQueue's VariantIssue). Deleting the default leaves the
+ * song without one until a variant is set as default again. The last variant can't go - without
+ * any, the song would play its old default's mirrored fields again; delete the song instead.
+ */
+export async function deleteVariant(variantId: string): Promise<void> {
+  const variant = (await getAllVariants()).find((v) => v.id === variantId)
+  if (!variant) return
+  if ((await variantsOfSong(variant.songId)).length <= 1) throw new Error('Die letzte Variante kann nicht gelöscht werden.')
+  for (const track of variant.tracks) {
+    await deleteTrackFile(variantId, track.id)
+    await getAudioStorageBackend().remove(cacheKey(variantId, track.id))
+  }
+  await removeVariant(variantId)
+}
+
+/** Makes `variantId` the song's one default variant and mirrors its content onto the Song doc
+ * (Song.bpm/chordProContent/... - the read-compatibility mirror of the default, see song.ts). */
+export async function setDefaultVariant(song: Song, variantId: string): Promise<void> {
+  const ofSong = await variantsOfSong(song.id)
+  const next = ofSong.find((v) => v.id === variantId)
+  if (!next) return
+  for (const variant of ofSong) {
+    const isDefault = variant.id === variantId
+    if (variant.isDefault !== isDefault) await putVariant({ ...variant, isDefault })
+  }
+  await putSong({
+    ...song,
+    bpm: next.bpm,
+    timeSignature: next.timeSignature,
+    clickTrackEnabled: next.clickTrackEnabled,
+    chordProContent: next.chordProContent,
+    timecodes: next.timecodes,
+  })
 }
 
 /** A stem's new name and role (docs/22 §2) - e.g. "Gitarre links" becomes "Gitarre Marco";

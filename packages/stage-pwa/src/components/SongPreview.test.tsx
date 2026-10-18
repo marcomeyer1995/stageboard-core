@@ -69,13 +69,13 @@ const variantWithContent: SongVariant = {
   beatGrid: { points: [{ id: 'p1', bar: 1, timeMs: 0 }], meters: [] },
 }
 
-// SongPreview only needs `ensureDefaultVariant` from here - mocked directly so these
+// SongPreview only needs `variantToOpen` from here - mocked directly so these
 // rendering-focused tests don't also have to exercise the real PouchDB-backed persistence
 // pipeline just to render, same reasoning as SheetEditor.test.tsx. A mutable variable (not a
 // fixed `vi.fn(async () => variant)`) so individual tests can swap in `variantWithContent`.
 let resolvedVariant = variant
 vi.mock('../lib/songVariantsDb', () => ({
-  ensureDefaultVariant: vi.fn(async () => resolvedVariant),
+  variantToOpen: vi.fn(async () => resolvedVariant),
 }))
 
 const { SongPreview } = await import('./SongPreview')

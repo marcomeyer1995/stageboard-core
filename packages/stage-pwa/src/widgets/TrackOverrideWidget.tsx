@@ -46,7 +46,7 @@ export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig })
   // something to choose. The default option names the variant the entry itself resolves to -
   // the setlist's pick, else the song's default variant.
   const songVariants = currentSong ? variants.filter((v) => v.songId === currentSong.id) : []
-  const entryVariant = currentEntry && isSongEntry(currentEntry) ? resolveVariantForEntry(currentEntry, variants) : null
+  const entryVariant = currentEntry && isSongEntry(currentEntry) ? resolveVariantForEntry(currentEntry, variants).variant : null
   const showVariantPicker = setVariantOverride !== null && songVariants.length > 1
 
   const tracks = playableTracks(currentVariant?.tracks ?? [])

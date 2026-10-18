@@ -10,7 +10,9 @@
     "audioError": "Audio-Fehler",
     "syncError": "Sync-Fehler",
     "offline": "Offline",
-    "noMaster": "Kein Master"
+    "noMaster": "Kein Master",
+    "variantDeleted": "Variante gelöscht",
+    "noDefaultVariant": "Keine Standard-Variante"
   },
   "sync": {
     "idle": "Synchron",

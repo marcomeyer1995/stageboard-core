@@ -45,7 +45,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
 
-  const song = queue.currentVariant ?? queue.currentSong
+  const song = queue.currentArrangement
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)

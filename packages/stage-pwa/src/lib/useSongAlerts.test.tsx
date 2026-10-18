@@ -6,7 +6,7 @@ const show = vi.hoisted(() => ({
   mode: 'gig',
   playbackStatus: 'playing' as string,
   elapsedNow: () => clock.ms,
-  queue: { currentVariant: { chordProContent: '[00:01.00]Line\n[00:05.00] {alert: VAMP}\n[00:09.00]Line' }, currentSong: null },
+  queue: { currentArrangement: { chordProContent: '[00:01.00]Line\n[00:05.00] {alert: VAMP}\n[00:09.00]Line' } },
 }))
 vi.mock('./showMode', () => ({ useShowModeSong: () => show }))
 

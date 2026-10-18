@@ -83,7 +83,7 @@ export function useClickOutputDriver(): void {
   // Heard that much later than scheduled on this device's current output (#491).
   const outputLatencyMs = useAudioOutputLatencyMs()
 
-  const song = queue.currentVariant ?? queue.currentSong
+  const song = queue.currentArrangement
   const isMyDeviceClickOutput = engine === 'local-mine'
   const enabled = song ? effectiveClickEnabled(song.clickTrackEnabled, clickTrackOverride) : false
   const shouldPlay = isMyDeviceClickOutput && enabled && playbackStatus === 'playing' && elapsedMs !== null && isPageVisible

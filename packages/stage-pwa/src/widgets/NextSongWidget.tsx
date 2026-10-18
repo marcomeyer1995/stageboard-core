@@ -11,7 +11,7 @@ import { lineHeightFor, nextSongLayout } from '../lib/gigWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { Icon } from '../components/Icon'
 import { useDashboardHasWidget } from '../lib/dashboardWidgets'
-import { stageVariantLabel } from '../lib/variantLabel'
+import { stageVariantLabel, VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 
 /** What to call a non-song queue entry on screen. */
 function itemLabel(entry: SetlistEntry): string {
@@ -49,6 +49,9 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
   ) : currentSong ? (
     <>
       Aktuell: <span className="font-semibold text-ink">{currentSong.title}</span>
+      {queue.currentVariantIssue && (
+        <span className="ml-1 font-semibold text-danger">({VARIANT_ISSUE_LABEL[queue.currentVariantIssue]})</span>
+      )}
       {currentVariant && !currentVariant.isDefault && (
         <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({stageVariantLabel(currentVariant.label)})</span>
       )}
@@ -62,7 +65,12 @@ export function NextSongWidget({ config }: { config: NextSongConfig }) {
     </>
   ) : nextSong ? (
     <>
-      Next: <span className="font-semibold text-ink">{nextSong.title}</span> ({(nextVariant ?? nextSong).bpm} BPM)
+      Next: <span className="font-semibold text-ink">{nextSong.title}</span>{' '}
+      {queue.nextVariantIssue ? (
+        <span className="font-semibold text-danger">({VARIANT_ISSUE_LABEL[queue.nextVariantIssue]})</span>
+      ) : (
+        `(${(nextVariant ?? nextSong).bpm} BPM)`
+      )}
       {nextVariant && !nextVariant.isDefault && (
         <span className="ml-1 text-[length:max(var(--sb-text-min),0.6em)] text-accent">({nextVariant.label})</span>
       )}

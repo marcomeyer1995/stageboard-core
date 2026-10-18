@@ -32,6 +32,7 @@ function mockShowMode(entryId: string, variant: Partial<SongVariant>) {
       currentSong: SONG,
       currentEntry: { id: entryId, songId: SONG.id, variantId: null, trackId: null },
       currentVariant: { chordProContent: SONG.chordProContent, ...variant },
+      currentArrangement: { chordProContent: SONG.chordProContent, ...variant },
     },
     elapsedMs: 0,
     playbackStatus: 'stopped',

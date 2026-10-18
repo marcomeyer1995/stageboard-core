@@ -129,9 +129,12 @@ export { PLAY_LEAD_MS }
 export async function playSong(opts: PlayOptions = {}): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster) return
-  const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
+  const { currentEntry, currentSong, currentVariant, currentArrangement } = getQueueSnapshot()
   // A transition item (#29) plays too - as a silent countdown, so it has a clock but no song.
   if (!currentEntry || (!currentSong && !isTransitionEntry(currentEntry))) return
+  // Its variant is missing (deleted, or the song has no default): nothing to play - no other
+  // arrangement in its place (Queue.currentArrangement). The status bar says why.
+  if (currentSong && !currentArrangement) return
   // Server time, not this device's clock: every tablet - this one included - computes the
   // elapsed time as getServerTime() minus playbackStartedAt (usePlaybackElapsedMs.ts). Stamped
   // with Date.now(), a Master whose clock ran 2.1 s ahead of the Stage-Server froze every
@@ -146,7 +149,7 @@ export async function playSong(opts: PlayOptions = {}): Promise<void> {
   // track came in 160-300 ms into the song on 26 of 30 starts (2026-10-10, #468).
   const isNewTake = state.playbackStatus === 'stopped'
   const seedCountIn = isNewTake && !opts.skipCountIn && currentSong !== null
-  const activeSong = currentVariant ?? currentSong // same fallback shape useClickOutputDriver.ts uses
+  const activeSong = currentArrangement
   // Ahead-of-time start (docs/00 §4, #468): song time 0 lies at least PLAY_LEAD_MS in the future,
   // so every device - this one included - learns about Play before it must sound and can start
   // track and click exactly on 0. Started "now", the Web Audio track came in 165 ms into the song.
@@ -267,9 +270,9 @@ export async function setClickTrackOverride(override: 'on' | 'off' | null): Prom
 export async function extendClickTrack(bars: number): Promise<void> {
   const { isMaster, state, applyPatch } = useShowStateStore.getState()
   if (!isMaster || state.playbackStatus === 'stopped') return
-  const { currentSong, currentVariant } = getQueueSnapshot()
-  if (!currentSong) return
-  const activeSong = currentVariant ?? currentSong
+  const { currentVariant, currentArrangement } = getQueueSnapshot()
+  if (!currentArrangement) return
+  const activeSong = currentArrangement
   const elapsedMs = computeActiveMs(currentTransport(state), getServerTime())
   const perBarMs = barMsAt(
     elapsedMs,

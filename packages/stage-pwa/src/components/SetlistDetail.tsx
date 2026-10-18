@@ -22,7 +22,9 @@ import {
   type TransitionEntry,
   type TransitionType,
 } from 'shared-types'
+import { resolveVariantForEntry, type VariantIssue } from '../lib/computeQueue'
 import { useQueue } from '../lib/queue'
+import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { randomId } from '../lib/id'
 import { useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
@@ -80,14 +82,17 @@ export function sameSetlist(a: Setlist, b: Setlist): boolean {
 function VariantPicker({
   variants,
   selectedId,
+  issue,
   onSelect,
 }: {
   variants: SongVariant[]
   selectedId: string
+  /** The entry's variant is missing - shown instead of a name, never another variant's. */
+  issue: VariantIssue | null
   onSelect: (variantId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const selectedLabel = variants.find((v) => v.id === selectedId)?.label ?? ''
+  const selectedLabel = issue ? VARIANT_ISSUE_LABEL[issue] : (variants.find((v) => v.id === selectedId)?.label ?? '')
 
   return (
     <>
@@ -99,9 +104,13 @@ function VariantPicker({
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
         // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
         // title 0 px wide.
-        className="min-h-form max-w-full self-start whitespace-normal break-words rounded-control bg-control-strong px-3 py-1 text-left text-base leading-tight text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
+        className={`min-h-form max-w-full self-start whitespace-normal break-words rounded-control px-3 py-1 text-left text-base leading-tight ${
+          issue
+            ? 'border border-danger bg-danger/15 text-danger'
+            : 'bg-control-strong text-ink [@media(hover:hover)]:hover:bg-control-strong-hover'
+        }`}
       >
-        {selectedLabel}
+        {issue && <Icon name="warning" />} {selectedLabel}
       </button>
       {open && (
         // Choosing one already closes it - so the way out is "Abbrechen" (docs/15 D6).
@@ -256,7 +265,10 @@ function EntryRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
   })
-  const selectedVariantId = entry.variantId ?? songVariants.find((v) => v.isDefault)?.id ?? ''
+  // Same rule as the show (computeQueue): a deleted pick or a missing default is shown as such -
+  // no other variant stands in for it (Marco, 2026-10-18).
+  const { variant: resolved, issue } = resolveVariantForEntry(entry, songVariants)
+  const selectedVariantId = resolved?.id ?? ''
   const title = song?.title ?? '(unbekannter Song)'
 
   return (
@@ -285,10 +297,11 @@ function EntryRow({
         >
           {songNumber}. {title}
         </button>
-        {songVariants.length > 1 && (
+        {(songVariants.length > 1 || issue) && (
           <VariantPicker
             variants={songVariants}
             selectedId={selectedVariantId}
+            issue={issue}
             onSelect={(variantId) => onSetVariant(entry.id, variantId)}
           />
         )}

@@ -1,3 +1,5 @@
+import type { VariantIssue } from './computeQueue'
+
 /**
  * How a variant's name is shown on stage (status bar, Live-Queue, Next-Song). Variants created by
  * beat detection carry the algorithm in their name - "Auto: music-tempo (Beatroot, MIT)" - which
@@ -6,4 +8,11 @@
  */
 export function stageVariantLabel(label: string): string {
   return /^auto\s*:/i.test(label.trim()) ? 'Auto' : label
+}
+
+/** What stands where a song entry's variant is missing (computeQueue's VariantIssue) - in the
+ * setlist, the queue and the status bar alike, never another variant's name. */
+export const VARIANT_ISSUE_LABEL: Record<VariantIssue, string> = {
+  deleted: 'Variante gelöscht',
+  'no-default': 'Keine Standard-Variante',
 }
