@@ -11,6 +11,8 @@ vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: ()
 vi.mock('../store/useLogicalDevicesStore', () => ({ useLogicalDevicesStore: { getState: () => ({ devices: [] }) } }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: { getState: () => ({ installed: [] }) } }))
 vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { getState: () => ({ profiles: [] }) } }))
+const sequences = vi.hoisted(() => ({ list: [] as unknown[] }))
+vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: { getState: () => ({ sequences: sequences.list }) } }))
 
 const { runAction, scheduleRelease } = await import('./runAction')
 
@@ -62,7 +64,29 @@ describe('scheduleRelease - "auf den Takt" (docs/23 §4a)', () => {
     vi.useFakeTimers()
     scheduleRelease({ kind: 'after', amount: 2, unit: 'bars', action: off }, { ...show, elapsedMs: 2_100 } as never)
     await vi.advanceTimersByTimeAsync(4_000)
-    expect(device.fireDeviceAction).toHaveBeenCalledWith('light', 'light.blinder', { on: false })
+    // 2 bars at 120 bpm = 4 s after the press at 2.1 s - sent ahead with that moment like any planned command.
+    expect(device.fireDeviceAction).toHaveBeenCalledWith('light', 'light.blinder', { on: false }, 6_100)
     vi.useRealTimers()
+  })
+})
+
+describe('sequences - "Ablauf" (docs/23 §3)', () => {
+  const rig = { kind: 'device' as const, targetLogicalDeviceId: 'kemper', type: 'rig', payload: { rig: 5 } }
+  const delay = { kind: 'device' as const, targetLogicalDeviceId: 'kemper', type: 'fx', payload: { delay: true } }
+
+  it('runs the first step at once and the next on the bar line a bar later', async () => {
+    vi.useFakeTimers()
+    clock.now = 2_100 // just after the bar line at 2 s: one bar on = 4 s
+    sequences.list = [{ id: 'solo', name: 'Solo', steps: [{ wait: null, action: rig }, { wait: { amount: 1, unit: 'bars' }, action: delay }] }]
+    await runAction({ kind: 'sequence', sequenceId: 'solo' }, { ...show, elapsedMs: 2_100 } as never)
+    expect(device.fireDeviceAction).toHaveBeenCalledWith('kemper', 'rig', { rig: 5 })
+    await vi.advanceTimersByTimeAsync(1_000) // handed over 1 s before its moment: at 3 s
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('kemper', 'fx', { delay: true }, 4_000)
+    vi.useRealTimers()
+  })
+
+  it('a deleted sequence says so; a sequence never needs show control itself', async () => {
+    sequences.list = []
+    expect(await runAction({ kind: 'sequence', sequenceId: 'gone' }, { ...show, canControl: false } as never)).toBe('Ablauf fehlt')
   })
 })

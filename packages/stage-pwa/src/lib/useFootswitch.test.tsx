@@ -21,14 +21,16 @@ const device = vi.hoisted(() => ({ fireDeviceAction: vi.fn(async () => null) }))
 vi.mock('./deviceAction', () => device)
 vi.mock('./sectionJump', () => ({ queueSectionJump: vi.fn(), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: () => ({ state: {}, startReadyCheck: vi.fn() }) } }))
+vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: Object.assign((select: (state: { sequences: never[] }) => unknown) => select({ sequences: [] }), { getState: () => ({ sequences: [] }) }) }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: { getState: () => ({ installed: [] }) } }))
 vi.mock('../store/useLatencyProfilesStore', () => ({ useLatencyProfilesStore: { getState: () => ({ profiles: [] }) } }))
-vi.mock('../store/useLogicalDevicesStore', () => ({
-  useLogicalDevicesStore: (select: (state: { devices: { id: string; name: string; capability: string }[] }) => unknown) =>
-    select({ devices: [{ id: 'kemper', name: 'Kemper', capability: 'kemper-control' }] }),
-}))
+vi.mock('../store/useLogicalDevicesStore', () => {
+  const state = { devices: [{ id: 'kemper', name: 'Kemper', capability: 'kemper-control' }] }
+  return { useLogicalDevicesStore: Object.assign((select: (s: typeof state) => unknown) => select(state), { getState: () => state }) }
+})
 
 const { useFootswitch } = await import('./useFootswitch')
+const { getServerTime } = await import('./clockSync')
 const { useKeybindingsStore } = await import('../store/useKeybindingsStore')
 const { KeybindingSettings } = await import('../components/KeybindingSettings')
 const { ONE_BUTTON_SHOW, PROMPTER_SCROLL_EVENT, bindingFromV2 } = await import('./keybindings')
@@ -214,12 +216,17 @@ describe('pedal press and release (docs/23 §4a) and rights (§5a)', () => {
     vi.useFakeTimers()
     useKeybindingsStore.setState({ bindings: [{ key: 't', behavior: { kind: 'momentary', press: blinder(true), release: { kind: 'after', amount: 2, unit: 'bars', action: blinder(false) } } }] })
     renderHook(() => useFootswitch(true))
+    const pressedAt = getServerTime()
     fireEvent.keyDown(window, { key: 't' })
     fireEvent.keyUp(window, { key: 't' })
-    await vi.advanceTimersByTimeAsync(3_900) // 2 bars at 120 bpm 4/4 = 4 s
+    // Handed over 1 s ahead with its moment: 2 bars at 120 bpm 4/4 = 4 s after the press.
+    await vi.advanceTimersByTimeAsync(2_900)
     expect(device.fireDeviceAction).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(200)
-    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: false })
+    expect(device.fireDeviceAction).toHaveBeenLastCalledWith('light', 'light.blinder', { on: false }, expect.any(Number))
+    const at = (device.fireDeviceAction.mock.lastCall as unknown as [string, string, object, number])[3]
+    expect(at - pressedAt).toBeGreaterThanOrEqual(3_990)
+    expect(at - pressedAt).toBeLessThanOrEqual(4_010)
     vi.useRealTimers()
   })
 
