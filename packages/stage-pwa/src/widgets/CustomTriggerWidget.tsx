@@ -7,6 +7,7 @@ import { useShowMode } from '../lib/showMode'
 import { isLatched, pressTrigger, releaseTrigger } from '../lib/triggerPress'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
+import { useSwitchesStore } from '../store/useSwitchesStore'
 import { DEFAULT_SIZE_RATIO, legacyPayloadUnreadable, triggerBehaviorOf, type CustomTriggerConfig } from './customTriggerConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 import { WIDGET_COLORS, WIDGET_COLOR_SOLID } from './widgetColors'
@@ -34,19 +35,26 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   const behavior = triggerBehaviorOf(config)
-  const first = behavior ? (behavior.kind === 'latching' ? behavior.on : behavior.press) : null
+  // Bound to a switch (docs/23 §11): its name, colour, behaviour and state - shared with every
+  // pedal and MIDI button that triggers it.
+  const sw = useSwitchesStore((state) => (behavior?.kind === 'switch' ? state.switches.find((s) => s.id === behavior.switchId) : undefined))
+  const switchState = useSwitchesStore((state) => (behavior?.kind === 'switch' ? (state.states[behavior.switchId] ?? 'off') : 'off'))
+  const own = behavior?.kind === 'switch' ? sw?.behavior : behavior
+  const first = own && own.kind !== 'switch' ? (own.kind === 'latching' ? own.on : own.press) : null
   const reason = !behavior
     ? 'Keine Aktion gewählt'
-    : first?.kind === 'device' && !resolveHardwareBindingById(devices, first.targetLogicalDeviceId)
-      ? 'Zielgerät fehlt'
-      : first && needsShowControl(first) && !show.canControl
-        ? 'Nur der Master steuert die Show'
-        : null
+    : behavior.kind === 'switch' && !sw
+      ? 'Schalter fehlt'
+      : first?.kind === 'device' && !resolveHardwareBindingById(devices, first.targetLogicalDeviceId)
+        ? 'Zielgerät fehlt'
+        : first && needsShowControl(first) && !show.canControl
+          ? 'Nur der Master steuert die Show'
+          : null
 
   const report = (result: Promise<string | null> | null) => void result?.then(setError)
 
   function press(active: Behavior) {
-    if (active.kind === 'latching') setOn(!isLatched(id))
+    if (latching) setOn(!isLatched(id))
     else setPressed(true)
     report(pressTrigger(id, active, show))
   }
@@ -57,8 +65,11 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
     report(releaseTrigger(id, active, show))
   }
 
-  const latching = behavior?.kind === 'latching'
-  const lit = latching ? on : pressed
+  // A rastend switch is switched by a click like a rastend button; every other one is held.
+  const latching = own?.kind === 'latching'
+  const lit = sw ? switchState !== 'off' : latching ? on : pressed
+  const label = sw && (config.label.trim() === '' || config.label === 'Trigger') ? sw.name : config.label
+  const color = sw ? sw.color : config.color
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-hidden">
@@ -70,11 +81,11 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
         onPointerUp={!latching && behavior ? () => release(behavior) : undefined}
         onPointerLeave={!latching && behavior ? () => release(behavior) : undefined}
         className={`flex h-full min-h-touch flex-1 items-center justify-center overflow-hidden rounded-control font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-          lit ? WIDGET_COLOR_SOLID[config.color] : INACTIVE_CLASS
+          lit ? WIDGET_COLOR_SOLID[color] : INACTIVE_CLASS
         }`}
       >
         <span style={{ fontSize }} className="whitespace-nowrap">
-          {config.label}
+          {label}
         </span>
       </button>
       {/* One line each: the button keeps its touch height, the hint gives way. */}
@@ -93,13 +104,20 @@ export function CustomTriggerConfigPanel({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Field label="Beschriftung" value={config.label} onChange={(e) => onChange({ ...config, label: e.target.value })} />
-      <Select
-        label="Farbe"
-        value={config.color}
-        onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
-        options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
+      <Field
+        label="Beschriftung"
+        value={config.label}
+        onChange={(e) => onChange({ ...config, label: e.target.value })}
+        hint={config.action?.kind === 'switch' ? 'Leer oder „Trigger“: der Name des Schalters.' : undefined}
       />
+      {config.action?.kind !== 'switch' && (
+        <Select
+          label="Farbe"
+          value={config.color}
+          onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
+          options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
+        />
+      )}
       {legacyPayloadUnreadable(config) && <p className="text-sm text-warn">Der bisherige Befehl hatte ungültiges JSON und wird ohne diese Werte gesendet - bitte neu wählen.</p>}
       <BehaviorEditor
         initial={triggerBehaviorOf(config)}

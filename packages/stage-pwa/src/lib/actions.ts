@@ -49,8 +49,12 @@ export type Release =
    * planned ahead like a cue - else a timer at the tempo of the press. */
   | { kind: 'after'; amount: number; unit: 'ms' | 'beats' | 'bars'; action: Action; onGrid?: boolean }
 
-/** Tastend (press + optional release) or rastend (first press A, second press B). */
-export type Behavior = { kind: 'momentary'; press: Action; release: Release } | { kind: 'latching'; on: Action; off: Action }
+/** Tastend (press + optional release), rastend (first press A, second press B) - or a pointer to
+ * a band-wide switch that holds its own behaviour (docs/23 §11). */
+export type Behavior =
+  | { kind: 'momentary'; press: Action; release: Release }
+  | { kind: 'latching'; on: Action; off: Action }
+  | { kind: 'switch'; switchId: string }
 
 export const SECTION_OPS: { id: SectionOp; label: string }[] = [
   { id: 'jump', label: 'Springe zu Abschnitt …' },
@@ -108,6 +112,7 @@ export function gridLabel(release: Extract<Release, { kind: 'after' }>): string 
 
 /** A whole mapping in one line. */
 export function describeBehavior(behavior: Behavior, deviceName?: (id: string) => string): string {
+  if (behavior.kind === 'switch') return 'Schalter'
   if (behavior.kind === 'latching') return `${describeAction(behavior.on, deviceName)} / ${describeAction(behavior.off, deviceName)}`
   const press = describeAction(behavior.press, deviceName)
   const { release } = behavior

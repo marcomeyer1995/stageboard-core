@@ -1,3 +1,4 @@
+import { SwitchOverview } from './SwitchOverview'
 import { useMemo, useState } from 'react'
 import { PRESENCE_TIMEOUT_MS, STAGE_ROLES, type Profile, type StageRole } from 'shared-types'
 import { InviteBandView } from './InviteBandView'
@@ -674,6 +675,8 @@ export function BandManagementView() {
           ]}
         />
       )}
+      {/* Switches are band-wide (docs/23 §11.4): one place to see what triggers the blinder. */}
+      <SwitchOverview />
     </div>
   )
 }

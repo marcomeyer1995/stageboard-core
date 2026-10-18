@@ -17,7 +17,7 @@ import { describeAction, type Action } from './actions'
 
 const next: KeyBinding = bindingFromV2({ key: 'PageDown', action: { kind: 'fixed', action: 'next' } })
 const show: KeyBinding = bindingFromV2({ key: 'b', action: { kind: 'by-state', steps: ONE_BUTTON_SHOW } })
-const pressOf = (b: KeyBinding): Action => (b.behavior.kind === 'momentary' ? b.behavior.press : b.behavior.on)
+const pressOf = (b: KeyBinding): Action => (b.behavior.kind === 'momentary' ? b.behavior.press : b.behavior.kind === 'latching' ? b.behavior.on : ({} as Action))
 
 describe('keybindings (#27)', () => {
   it('starts empty - nothing triggers by accident', () => {

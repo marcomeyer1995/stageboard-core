@@ -219,6 +219,8 @@ Pedal-Belegung, MIDI-Regel und Trigger-Button speichern statt eines eigenen `Beh
 2. Zustand bandweit über den schnellen Weg, Knöpfe leuchten überall, Ausfall-Regel (§11.5).
 3. Abläufe in Schalter überführen, alte Formen automatisch umschreiben (§11.8).
 
+**Schritt 1 gebaut (2026-10-18):** Schalter (`lib/switches.ts`, Sammlung `switch`, `useSwitchesStore`), Editor `components/SwitchEditor.tsx`; im Verhaltens-Editor erst „Schalter“ oder „Eigene Belegung“, dazu „Als Schalter speichern…“; Pedal, MIDI-Knopf und Trigger-Button speichern dann `{ kind: 'switch', switchId }`. `lib/triggerPress.ts` führt pro Schalter einen Zustand und die haltenden Auslöser (Loslassen erst beim letzten). Der Trigger-Button übernimmt Name und Farbe und leuchtet mit dem Zustand. Übersicht „Schalter“ im Tab Band (`SwitchOverview.tsx`, „Ausgelöst von“ aus `lib/switchUsage.ts`; Pedale nur die dieses Geräts). Zustand vorerst nur auf dem eigenen Tablet (Schritt 2).
+
 ### 11.10 Entscheidungen (2026-10-18, Marco – alle Vorschläge angenommen)
 
 1. **Name:** „Schalter“.

@@ -35,6 +35,7 @@ const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore
 const { useWorkspaceStore } = await import('../store/useWorkspaceStore')
 const { useShowStateStore } = await import('../store/useShowStateStore')
 const { CustomTriggerWidget, CustomTriggerConfigPanel } = await import('./CustomTriggerWidget')
+const { useSwitchesStore } = await import('../store/useSwitchesStore')
 
 function device(overrides: Partial<LogicalDevice> & Pick<LogicalDevice, 'id' | 'name'>): LogicalDevice {
   return { capability: 'mixer', pluginId: null, executionTarget: null, ...overrides }
@@ -271,4 +272,20 @@ describe('CustomTriggerWidget', () => {
       ),
     )
   })
+
+  it('bound to a switch: its name and colour, lit while another trigger holds it', async () => {
+    const { act } = await import('@testing-library/react')
+    useSwitchesStore.setState({
+      switches: [{ id: 'bl', name: 'Blinder', color: 'amber', behavior: { kind: 'momentary', press: { kind: 'playback', op: 'click-toggle' }, release: { kind: 'none' } } }],
+      states: {},
+    })
+    render(<CustomTriggerWidget config={config({ label: 'Trigger', action: { kind: 'switch', switchId: 'bl' } })} />)
+    const button = screen.getByRole('button', { name: 'Blinder' })
+    expect(button).not.toHaveClass('bg-amber')
+    act(() => useSwitchesStore.getState().setState('bl', 'pressed')) // e.g. a MIDI pedal held down
+    expect(button.className).toMatch(/amber/)
+    act(() => useSwitchesStore.getState().setState('bl', 'off'))
+    expect(button.className).not.toMatch(/amber/)
+  })
 })
+
