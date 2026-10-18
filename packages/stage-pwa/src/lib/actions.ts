@@ -12,7 +12,7 @@ export type ShowOp = FixedAction
 
 export type SectionOp = 'jump' | 'next' | 'previous' | 'loop-toggle' | 'loop-on' | 'loop-off' | 'cancel'
 
-export type PlaybackOp = 'click-toggle' | 'tempo-up' | 'tempo-down' | 'tempo-reset' | 'ready-check'
+export type PlaybackOp = 'click-on' | 'click-off' | 'click-toggle' | 'click-song' | 'tempo-up' | 'tempo-down' | 'tempo-reset' | 'ready-check'
 
 export type Action =
   | { kind: 'show'; op: ShowOp }
@@ -67,7 +67,10 @@ export const SECTION_OPS: { id: SectionOp; label: string }[] = [
 ]
 
 export const PLAYBACK_OPS: { id: PlaybackOp; label: string }[] = [
+  { id: 'click-on', label: 'Klick an' },
+  { id: 'click-off', label: 'Klick aus' },
   { id: 'click-toggle', label: 'Klick an/aus' },
+  { id: 'click-song', label: 'Klick wie im Song' },
   { id: 'tempo-up', label: 'Tempo +1 %' },
   { id: 'tempo-down', label: 'Tempo −1 %' },
   { id: 'tempo-reset', label: 'Tempo zurücksetzen' },

@@ -11,6 +11,7 @@ vi.mock('pouchdb-browser', () => ({
 
 const { ActionDialog } = await import('./ActionPicker')
 const { useActionSequencesStore } = await import('../store/useActionSequencesStore')
+const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
 
 describe('ActionDialog - "Ablauf" (docs/23 §3)', () => {
   it('a new sequence: name, two steps with a bar between them, saved and chosen', async () => {
@@ -51,4 +52,26 @@ describe('ActionDialog - "Ablauf" (docs/23 §3)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
     expect(onSave).toHaveBeenCalledWith({ kind: 'sequence', sequenceId: expect.any(String) })
   })
+
+  it('"Gerät" lists only devices with ready-made commands, and not the timeline\'s "Wiedergabe" entry (Marco, 2026-10-18)', () => {
+    useLogicalDevicesStore.setState({
+      devices: [
+        { id: 'k', name: 'Kemper', capability: 'kemper-control', pluginId: 'kemper-profiler', executionTarget: null },
+        { id: 'c', name: 'Kemper Clock', capability: 'midi-clock', pluginId: 'midi-clock', executionTarget: null },
+      ],
+    })
+    render(<ActionDialog title="Beim Drücken" initial={null} onSave={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Gerät' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Gerät und Befehl wählen' }))
+    const deviceSelect = within(screen.getByRole('dialog', { name: 'Gerät steuern' })).getAllByRole('combobox')[0]!
+    const options = within(deviceSelect).getAllByRole('option').map((o) => o.textContent)
+    expect(options).toEqual(['Gerät wählen…', 'Kemper'])
+  })
+
+  it('"Wiedergabe" offers Klick an, Klick aus and Klick wie im Song besides an/aus', () => {
+    render(<ActionDialog title="Beim Drücken" initial={null} onSave={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Wiedergabe' }))
+    for (const name of ['Klick an', 'Klick aus', 'Klick an/aus', 'Klick wie im Song']) expect(screen.getByRole('radio', { name })).toBeInTheDocument()
+  })
 })
+

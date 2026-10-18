@@ -22,16 +22,23 @@ export interface SegmentedProps<T extends string> {
   hint?: string
   /** Less padding per segment - for a narrow place, e.g. a column of the ☰ menu on a phone in landscape. */
   compact?: boolean
+  /** Lay the options out in rows of this many - for more options than fit side by side on a phone. */
+  columns?: number
 }
 
 /**
  * Pick exactly one (D7): one joined bar, the chosen segment filled. Tapping the chosen segment
  * again changes nothing - the bar always has an answer.
  */
-export function Segmented<T extends string>({ options, value, onChange, label, size: sizeProp, showLabel = false, hint, onSelectedTap, compact = false }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, label, size: sizeProp, showLabel = false, hint, onSelectedTap, compact = false, columns }: SegmentedProps<T>) {
   const size = useControlSize(sizeProp)
   const bar = (
-    <div role="radiogroup" aria-label={label} className={`flex w-full gap-0 border border-line bg-control p-1 ${CONTROL}`}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={`w-full gap-0 border border-line bg-control p-1 ${columns ? 'grid' : 'flex'} ${CONTROL}`}
+      style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
+    >
       {options.map((option) => {
         const selected = option.value === value
         return (
