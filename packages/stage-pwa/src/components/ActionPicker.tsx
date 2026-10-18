@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CAPABILITIES, PLAYBACK_CUE_TARGET } from 'shared-types'
 import { describeAction, PLAYBACK_OPS, SECTION_OPS, sectionOpJumps, type Action, type ActionSequence, type SectionOp, type WaitUnit } from '../lib/actions'
-import { describeCue } from '../lib/deviceCommands'
+import { commandsFor, describeCue } from '../lib/deviceCommands'
 import { FIXED_ACTIONS, ONE_BUTTON_SHOW, SONG_STATES, STEP_CHOICES, STEP_LABEL, type SongState, type StepAction } from '../lib/keybindings'
 import type { JumpWhen } from '../lib/showSections'
 import { useActionSequencesStore } from '../store/useActionSequencesStore'
@@ -107,6 +107,7 @@ export function ActionDialog({
   const [when, setWhen] = useState<JumpWhen>(initial?.kind === 'section' ? (initial.when ?? 'section') : 'section')
   const [deviceOpen, setDeviceOpen] = useState(false)
   const sequences = useActionSequencesStore((state) => state.sequences)
+  const commandDevices = devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController && commandsFor(d.capability).length > 0)
   const [editingSequence, setEditingSequence] = useState<ActionSequence | 'new' | null>(null)
 
   const result: Action | null =
@@ -134,7 +135,7 @@ export function ActionDialog({
       }
     >
       <div className="flex flex-col gap-3">
-        <Segmented label="Art" value={group} onChange={setGroup} options={allowSequence ? GROUPS : GROUPS.filter((g) => g.value !== 'sequence')} />
+        <Segmented label="Art" columns={3} value={group} onChange={setGroup} options={allowSequence ? GROUPS : GROUPS.filter((g) => g.value !== 'sequence')} />
 
         {group === 'show' && (
           <div className="flex flex-col gap-2" role="radiogroup" aria-label="Show">
@@ -199,7 +200,11 @@ export function ActionDialog({
             <Button className="self-start" onClick={() => setDeviceOpen(true)}>
               {draft?.kind === 'device' ? 'Befehl ändern' : 'Gerät und Befehl wählen'}
             </Button>
-            <p className="text-sm text-ink-faint">Wie ein Cue in der Timeline. Darf jeder auslösen, auch ohne Master zu sein.</p>
+            <p className="text-sm text-ink-faint">
+              {commandDevices.length === 0
+                ? 'Kein Gerät mit fertigen Befehlen eingerichtet (Bühnentechnik) - z. B. Kemper Profiler, NUX MG-30, BOSS RC-500 oder ein Mischpult.'
+                : 'Wie ein Cue in der Timeline. Darf jeder auslösen, auch ohne Master zu sein.'}
+            </p>
           </div>
         )}
         {group === 'sequence' && (
@@ -243,7 +248,10 @@ export function ActionDialog({
       {deviceOpen && (
         <CueDialog
           title="Gerät steuern"
-          devices={devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController)}
+          // Only devices with ready-made commands ("Rig wählen", "Patch") - nobody on stage types a
+          // JSON payload (Marco, 2026-10-18). Click, track and announcements are under "Wiedergabe".
+          devices={commandDevices}
+          withPlayback={false}
           initial={draft?.kind === 'device' ? draft : undefined}
           onSubmit={(content) => {
             setDraft({ kind: 'device', targetLogicalDeviceId: content.targetLogicalDeviceId, type: content.type, payload: content.payload ?? {} })

@@ -238,6 +238,9 @@ async function runPlayback(op: Extract<Action, { kind: 'playback' }>['op'], show
   else if (op === 'tempo-down') show.nudgeLiveTempoAdjustPercent(-1)
   else if (op === 'tempo-reset') show.setLiveTempoAdjustPercent(0)
   else if (op === 'ready-check') await useShowStateStore.getState().startReadyCheck()
+  else if (op === 'click-on') show.setClickTrackOverride('on')
+  else if (op === 'click-off') show.setClickTrackOverride('off')
+  else if (op === 'click-song') show.setClickTrackOverride(null)
   else if (op === 'click-toggle') {
     const song = show.queue.currentVariant ?? show.queue.currentSong
     if (!song) return 'Kein Song'

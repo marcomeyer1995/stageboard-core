@@ -21,12 +21,16 @@ export function CueDialog({
   initial,
   onSubmit,
   onCancel,
+  withPlayback = true,
 }: {
   title: string
   devices: readonly LogicalDevice[]
   initial?: CueContent
   onSubmit: (content: CueContent) => void
   onCancel: () => void
+  /** Offer "Wiedergabe: Klick & Ansagen" (a timeline cue). Off in the action picker, where the
+   * click has its own group "Wiedergabe" - one place for it, not two (Marco, 2026-10-18). */
+  withPlayback?: boolean
 }) {
   const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? '')
   const device = devices.find((d) => d.id === deviceId)
@@ -118,7 +122,7 @@ export function CueDialog({
             <option value="" disabled>
               Gerät wählen…
             </option>
-            <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick & Ansagen</option>
+            {withPlayback && <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick & Ansagen</option>}
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
