@@ -21,7 +21,6 @@ const device = vi.hoisted(() => ({ fireDeviceAction: vi.fn(async () => null) }))
 vi.mock('./deviceAction', () => device)
 vi.mock('./sectionJump', () => ({ queueSectionJump: vi.fn(), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: { getState: () => ({ state: {}, startReadyCheck: vi.fn() }) } }))
-vi.mock('../store/useActionSequencesStore', () => ({ useActionSequencesStore: Object.assign((select: (state: { sequences: never[] }) => unknown) => select({ sequences: [] }), { getState: () => ({ sequences: [] }) }) }))
 const switchStore = vi.hoisted(() => {
   const state = { switches: [] as unknown[], states: {} as Record<string, string>, setState: (id: string, value: string) => void (state.states[id] = value) }
   return { state }
