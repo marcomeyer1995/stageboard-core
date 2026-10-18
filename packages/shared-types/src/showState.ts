@@ -145,3 +145,17 @@ export const ShowStatePushAckSchema = z.object({
   via: z.enum(['push', 'db']),
 })
 export type ShowStatePushAck = z.infer<typeof ShowStatePushAckSchema>
+
+/**
+ * A switch's state change from one device (docs/23 §11.5): `held`/`released` for a tastend or
+ * running zeitgesteuert switch (a holder repeats `held` every second; 3 s without, it counts as
+ * released), `on`/`off` for a rastend one. Pushed through the Stage-Server so every button bound to
+ * the switch lights up at once.
+ */
+export const SwitchStateEventSchema = z.object({
+  deviceId: z.string().min(1).max(200),
+  switchId: z.string().min(1).max(200),
+  kind: z.enum(['held', 'released', 'on', 'off']),
+  at: z.number(),
+})
+export type SwitchStateEvent = z.infer<typeof SwitchStateEventSchema>

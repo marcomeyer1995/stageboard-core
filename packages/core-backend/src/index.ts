@@ -43,7 +43,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SpeechSpeedSchema, SpeechVoiceKeySchema } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -64,6 +64,7 @@ import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
 import * as showStatePushHub from './showStatePushHub.js'
+import * as switchStateHub from './switchStateHub.js'
 import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
@@ -610,6 +611,32 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     }
     const devices = showStatePushHub.broadcast(workspaceId, parsed.data)
     app.log.info({ workspaceId, deviceId: parsed.data.deviceId, issuedAt: parsed.data.issuedAt, receivedMs: Date.now() - parsed.data.issuedAt, keys: Object.keys(parsed.data.patch), devices }, 'Show state pushed')
+    return reply.status(204).send()
+  })
+
+  // Switch states (docs/23 §11.5): a held blinder lights its button on every tablet at once. Any
+  // device of the band may - device commands need no show control (§5a).
+  app.get('/workspaces/:workspaceId/switch-state/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    beginSseStream(request, reply)
+    const unsubscribe = switchStateHub.subscribe(workspaceId, (event) => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.post('/workspaces/:workspaceId/switch-state/push', async (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    const parsed = SwitchStateEventSchema.safeParse(request.body)
+    if (!parsed.success) {
+      return reply.status(400).send({ status: 'error', message: parsed.error.issues[0]?.message })
+    }
+    if (!(await isBandDevice(workspaceId, request.headers.authorization))) {
+      app.log.warn({ workspaceId, remoteAddress: request.ip }, 'Switch state refused - not signed in to this band')
+      return reply.status(401).send({ status: 'error', message: 'Only a device of this band can switch' })
+    }
+    const devices = switchStateHub.broadcast(workspaceId, parsed.data)
+    if (parsed.data.kind !== 'held') app.log.info({ workspaceId, ...parsed.data, devices }, 'Switch state pushed')
     return reply.status(204).send()
   })
 
