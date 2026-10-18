@@ -107,7 +107,7 @@ export function ActionDialog({
   const [when, setWhen] = useState<JumpWhen>(initial?.kind === 'section' ? (initial.when ?? 'section') : 'section')
   const [deviceOpen, setDeviceOpen] = useState(false)
   const sequences = useActionSequencesStore((state) => state.sequences)
-  const commandDevices = devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController && commandsFor(d.capability).length > 0)
+  const commandDevices = devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController && d.capability !== CAPABILITIES.clickTrack && commandsFor(d.capability).length > 0)
   const [editingSequence, setEditingSequence] = useState<ActionSequence | 'new' | null>(null)
 
   const result: Action | null =

@@ -16,12 +16,21 @@ export const KEMPER_COMMANDS: DeviceCommand[] = [
   },
   {
     type: 'kemper.stomp',
-    label: 'Stomp einschalten',
+    label: 'Stomp an/aus',
     fields: [
       { key: 'stomp', label: 'Stomp', kind: 'choice', options: Object.keys(KEMPER_STOMP_CC).map((name) => ({ value: name, label: name })) },
+      // "aus" next to "an" (Marco, 2026-10-18): a pedal that switches an effect on must switch it off again.
+      { key: 'off', label: 'Ausschalten', kind: 'bool' },
       { key: 'tail', label: `Mit Nachklang (nur ${Object.keys(KEMPER_STOMP_CC_WITH_TAIL).join('/')})`, kind: 'bool' },
     ],
-    describe: (p) => `Stomp ${String(p.stomp)}${p.tail === true ? ' (Tail)' : ''}`,
+    describe: (p) => `Stomp ${String(p.stomp)} ${p.off === true ? 'aus' : 'an'}${p.tail === true ? ' (Tail)' : ''}`,
     stateKey: (p) => `stomp:${String(p.stomp)}`,
+  },
+  {
+    type: 'kemper.tuner',
+    label: 'Tuner an/aus',
+    fields: [{ key: 'off', label: 'Ausschalten', kind: 'bool' }],
+    describe: (p) => `Tuner ${p.off === true ? 'aus' : 'an'}`,
+    stateKey: () => 'tuner',
   },
 ]
