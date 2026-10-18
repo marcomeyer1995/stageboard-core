@@ -118,3 +118,111 @@ Ein Ausführer `runAction(action)` für alle Auslöser; Gerätebefehle gehen dur
 3. ~~Name oder Nummer~~ – entschieden: über den Namen.
 4. ~~Widget-Knopf~~ – entschieden: ja, jede Aktion (Show, Abschnitte, Wiedergabe, Gerät, Ablauf) – so vielseitig wie möglich; die Rechte (§5a) gelten auch hier.
 5. ~~Gerätebefehle ohne Master~~ – entschieden: erlaubt, für jedes Gerät (§5a).
+
+## 11. Überarbeitung: Schalter (entschieden 2026-10-18, Marco: „Let's do it like that“)
+
+### 11.1 Problem
+
+Nach Schritt 1–4 ist die *Aktion* ein gemeinsamer Baustein, das *Verhalten* aber nicht. Tastend/Rastend/Zeitgesteuert samt Aktionen wird an drei Stellen getrennt festgelegt:
+
+| Wo | Was dort steht | Gespeichert |
+|---|---|---|
+| Taste / Pedal | Verhalten + Aktionen | pro Tablet |
+| MIDI-Controller-Knopf | dasselbe noch einmal | bandweit |
+| Trigger-Button | dasselbe noch einmal | im Dashboard |
+
+Folgen (Marco, 2026-10-18):
+
+- **Doppelt einrichten:** ein Blinder, der per Dashboard-Knopf und per MIDI-Pedal geht, wird zweimal angelegt und muss zweimal geändert werden.
+- **Kein gemeinsamer Zustand:** jede Stelle hat ihren eigenen An/Aus-Zustand. Hält jemand das Pedal, leuchtet der Dashboard-Knopf nicht. Schaltet man einen rastenden Effekt per Pedal an, steht der Knopf noch auf „aus“, und sein nächster Druck schaltet wieder „an“.
+- **Keine Übersicht:** nirgends sieht man, was alles den Blinder auslöst.
+
+### 11.2 Idee: ein Schalter, viele Auslöser
+
+Ein **Schalter** ist ein benanntes, bandweites Ding: „Blinder“, „Solo“, „Delay“. Er hat:
+
+- einen **Namen** und eine **Farbe**,
+- ein **Verhalten**: tastend, rastend oder zeitgesteuert (§4a),
+- seine **Aktionen**: beim Drücken / Loslassen bzw. 1. / 2. Druck bzw. danach; jede Aktion darf auch eine Folge mit Pausen sein. Abläufe (Schritt 4) gehen damit in den Schaltern auf: ein Ablauf ist ein tastender Schalter, dessen Druck-Aktion eine Folge ist.
+- einen **Zustand**: gedrückt / an / aus. Es gibt ihn einmal für die ganze Band.
+
+**Auslöser zeigen nur auf einen Schalter:**
+
+- Pedal-Taste B → „Blinder“. Welche Taste welchen Schalter auslöst, bleibt pro Tablet, denn das Pedal gehört einem Musiker.
+- FCB Note 36 → „Blinder“ (bandweit, wie der Controller).
+- Dashboard-Knopf → „Blinder“: der Knopf übernimmt Name und Farbe, Beschriftung optional überschreibbar.
+
+**Ein Druck wirkt auf den Schalter, nicht auf den Auslöser:**
+
+- *Rastend:* jeder Auslöser schaltet um. Pedal schaltet an, der Knopf leuchtet, ein Tipp auf den Knopf schaltet aus.
+- *Tastend:* der Schalter ist gedrückt, solange irgendein Auslöser gedrückt ist; erst wenn der letzte losgelassen wird, kommt die Loslass-Aktion.
+- *Zeitgesteuert:* der Schalter leuchtet vom Drücken bis zur zweiten Aktion; ein neuer Druck startet die Zeit neu.
+
+Jeder Knopf, der auf den Schalter zeigt, leuchtet bei jedem Druck, egal von welchem Auslöser auf welchem Tablet. Das gilt auch beim Lichttechniker am FOH.
+
+### 11.3 Einfache Aktionen bleiben direkt
+
+Nicht alles braucht einen Schalter: „Nächster Song“ auf einem Pedal hat keinen Zustand und wird selten mehrfach belegt. Ein Auslöser wählt deshalb entweder
+
+- **eine Aktion direkt** (wie heute, immer „tastend ohne Loslassen“), oder
+- **einen Schalter** aus der Liste.
+
+Im Aktions-Dialog gibt es dafür „Als Schalter speichern…“: aus der gerade gewählten Aktion samt Verhalten wird ein Schalter, den andere Auslöser wiederverwenden.
+
+### 11.4 Übersicht „Schalter“
+
+Neue Seite im Tab **Band**: alle Schalter der Band, je Zeile Name, Farbe, Verhalten, aktueller Zustand und **womit er ausgelöst wird**, z. B.:
+
+> **Blinder** · tastend · Pedal B (Marco, Xiaomi), FCB Note 36, Knopf auf „Monitoring“
+
+Antippen öffnet den Schalter zum Bearbeiten. Eine Änderung gilt für alle Auslöser. Löschen fragt nach und nennt die betroffenen Auslöser.
+
+### 11.5 Zustand über alle Tablets
+
+- Der Zustand muss schnell überall ankommen: ein Knopf, der erst nach einer Sekunde leuchtet, wirkt kaputt. Die Datenbank-Replikation braucht bis zu 1 s (docs/19 §6). Deshalb geht der Zustand über den **schnellen Show-State-Weg** (`showStatePush.ts`, Stage-Server `/show-state/push` → `/show-state/stream`), den Play/Pause heute schon nutzen. Zusätzlich wird er in die Datenbank geschrieben, damit ein Tablet, das später dazukommt, ihn kennt.
+- **Wer den Zustand führt:** das Tablet, auf dem gedrückt wurde. Es schickt „Blinder gedrückt / losgelassen / an / aus“ mit Server-Zeit. Bei zwei gleichzeitigen Drücken auf verschiedenen Tablets gilt der spätere (Server-Zeit).
+- **Ein Tablet fällt weg, während es gedrückt hält** (Akku, WLAN): ein gedrückter Schalter fällt nach einer Wartezeit ohne Lebenszeichen von selbst auf „losgelassen“, damit kein Blinder ewig an bleibt. Rastende Schalter bleiben, wie sie sind.
+- **Rechte (§5a) gelten unverändert:** pro Aktion im Moment der Ausführung. Ein Schalter mit Show-Aktion ist auf einem Tablet ohne Show-Kontrolle ausgegraut. Ein Schalter, der nur Gerätebefehle sendet, geht überall.
+
+### 11.6 Was „leuchtet“ bedeutet
+
+Der Knopf zeigt den **Zustand des Schalters** in StageBoard, nicht den echten Zustand des Geräts. Stellt jemand den Effekt direkt am Kemper aus, leuchtet der Knopf weiter. Den echten Gerätezustand anzeigen (Rückmeldung per MIDI vom Gerät) wäre ein späterer, eigener Schritt pro Geräte-Plugin.
+
+### 11.7 Datenmodell (Skizze)
+
+```ts
+interface Switch {
+  id: string
+  name: string
+  color: WidgetColor
+  behavior: Behavior            // §6 - Aktionen dürfen Folgen mit Pausen sein
+}
+
+// Auslöser zeigen auf eine Aktion oder einen Schalter:
+type Target = { kind: 'action'; action: Action } | { kind: 'switch'; switchId: string }
+
+// Zustand, schnell verteilt (§11.5):
+interface SwitchState { switchId: string; state: 'pressed' | 'on' | 'off'; at: number; byDevice: string; holders: string[] }
+```
+
+Pedal-Belegung, MIDI-Regel und Trigger-Button speichern statt eines eigenen `Behavior` ein `Target`.
+
+### 11.8 Übergang
+
+- Bestehende Pedal-Belegungen, MIDI-Knöpfe und Trigger-Buttons mit **gleichem Verhalten und gleichen Aktionen** werden zu **einem** Schalter zusammengeführt; Name aus der Knopf-Beschriftung, sonst aus der Aktion („Kemper: Rig 5“).
+- Alles mit einer einzelnen Aktion ohne Loslassen bleibt eine direkte Aktion.
+- Abläufe werden zu Schaltern (tastend, Druck = Folge); die Aktion „Ablauf X“ zeigt danach auf den Schalter.
+
+### 11.9 Reihenfolge
+
+1. Schalter + Übersicht + „Als Schalter speichern“; Auslöser können auf Schalter zeigen; Zustand nur auf dem eigenen Tablet.
+2. Zustand bandweit über den schnellen Weg, Knöpfe leuchten überall, Ausfall-Regel (§11.5).
+3. Abläufe in Schalter überführen, alte Formen automatisch umschreiben (§11.8).
+
+### 11.10 Entscheidungen (2026-10-18, Marco – alle Vorschläge angenommen)
+
+1. **Name:** „Schalter“.
+2. **Tastend über mehrere Auslöser:** die Loslass-Aktion kommt erst, wenn der *letzte* Auslöser loslässt.
+3. **Ausfall-Wartezeit:** 3 s ohne Lebenszeichen, dann gilt ein gedrückt gehaltener Schalter als losgelassen.
+4. **Direkte Aktionen** bleiben neben den Schaltern (§11.3).
+5. **Pedal-Belegung** bleibt pro Tablet.
