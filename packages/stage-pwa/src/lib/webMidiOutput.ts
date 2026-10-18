@@ -31,6 +31,18 @@ export async function listMidiOutputs(): Promise<{ id: string; name: string }[]>
   return access ? [...access.outputs.values()].map((output) => ({ id: output.id, name: output.name ?? output.id })) : []
 }
 
+/** The connected MIDI inputs (id and name) - empty when WebMIDI is unsupported or denied. */
+export async function listMidiInputs(): Promise<{ id: string; name: string }[]> {
+  const access = await getAccess()
+  return access ? [...access.inputs.values()].map((input) => ({ id: input.id, name: input.name ?? input.id })) : []
+}
+
+/** The shared MIDI access, for listening on inputs (a MIDI controller, #547) - null when WebMIDI
+ * is unsupported or denied. */
+export function getMidiAccess(): Promise<MIDIAccess | null> {
+  return getAccess()
+}
+
 /** Per output, the latest moment (`performance.now()` time base) a message was scheduled for -
  * what `recallScheduledMidi` would have to take back. */
 const pendingUntil = new Map<MIDIOutput, number>()

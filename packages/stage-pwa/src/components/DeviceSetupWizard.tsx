@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
-import { SERVER_EXECUTION_TARGET } from 'shared-types'
+import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/discoveryClient'
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
@@ -8,7 +8,7 @@ import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
-import { listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
+import { listMidiInputs, listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
 import { useDiscoverySessionStore } from '../store/useDiscoverySessionStore'
@@ -337,6 +337,7 @@ function ConnectionStep({
           {devices.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
+              {d.id === getDeviceId() ? ' (dieses Gerät)' : ''}
             </option>
           ))}
         </select>
@@ -360,8 +361,9 @@ function ConnectionStep({
             {transport && (
               <div className="flex flex-wrap gap-2">
                 {transport.fields.map((field) =>
-                  field.type === 'midi-output' ? (
+                  field.type === 'midi-output' || field.type === 'midi-input' ? (
                     <MidiOutputPicker
+                      inputs={field.type === 'midi-input'}
                       key={field.key}
                       label={field.label}
                       value={manualValues[field.key] ?? ''}
@@ -403,17 +405,18 @@ function ConnectionStep({
 /** A `midi-output` transport field (#478): this device's connected MIDI outputs to pick from -
  * the MIDI-Clock device has no name to detect its port by. The name is stored too, to find the
  * port again when Android hands out a new id after a replug. */
-function MidiOutputPicker({ label, value, onChange }: { label: string; value: string; onChange: (id: string, name: string) => void }) {
+/** The connected MIDI outputs - or, with `inputs`, the inputs (a MIDI controller, #547). */
+function MidiOutputPicker({ label, value, onChange, inputs = false }: { label: string; value: string; onChange: (id: string, name: string) => void; inputs?: boolean }) {
   const [outputs, setOutputs] = useState<{ id: string; name: string }[] | null>(null)
   useEffect(() => {
     let cancelled = false
-    void listMidiOutputs().then((list) => {
+    void (inputs ? listMidiInputs() : listMidiOutputs()).then((list) => {
       if (!cancelled) setOutputs(list)
     })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [inputs])
   return (
     <label className="flex w-full flex-col gap-1 text-xs text-ink-muted">
       {label}
@@ -422,7 +425,13 @@ function MidiOutputPicker({ label, value, onChange }: { label: string; value: st
         onChange={(e) => onChange(e.target.value, outputs?.find((o) => o.id === e.target.value)?.name ?? '')}
         className={`min-h-form px-3 text-base ${INPUT}`}
       >
-        <option value="">{outputs === null ? 'Suche MIDI-Ausgänge…' : outputs.length === 0 ? 'Kein MIDI-Ausgang verbunden' : 'MIDI-Ausgang wählen…'}</option>
+        <option value="">
+          {outputs === null
+            ? `Suche MIDI-${inputs ? 'Eingänge' : 'Ausgänge'}…`
+            : outputs.length === 0
+              ? `Kein MIDI-${inputs ? 'Eingang' : 'Ausgang'} verbunden`
+              : `MIDI-${inputs ? 'Eingang' : 'Ausgang'} wählen…`}
+        </option>
         {outputs?.map((o) => (
           <option key={o.id} value={o.id}>
             {o.name}
@@ -451,7 +460,10 @@ function VerifyStep({ draft, device, onBack, onFinish }: { draft: Draft; device:
 
   return (
     <div className="flex flex-col gap-4">
-      {canTestHere ? (
+      {draft.capability === CAPABILITIES.midiController ? (
+        // A controller only listens - nothing to send as a test; its buttons are tried out there.
+        <p className="text-sm text-ink-faint">Prüfen: im ⋯ des Geräts „Knöpfe belegen“ - ein Knopf am Controller wird dort sofort erkannt.</p>
+      ) : canTestHere ? (
         <div className="flex items-center gap-3">
           <Button onClick={() => void runTest()}>
             Testen

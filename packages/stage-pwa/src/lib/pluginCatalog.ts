@@ -12,6 +12,7 @@ const CAPABILITY_LABEL: Record<string, string> = {
   [CAPABILITIES.backup]: 'Backup',
   [CAPABILITIES.audioAnalysis]: 'Track-Analyse',
   [CAPABILITIES.midiClock]: 'MIDI-Clock',
+  [CAPABILITIES.midiController]: 'MIDI-Controller',
   [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
   [CAPABILITIES.stemSeparation]: 'Spuren trennen',
   [CAPABILITIES.sectionAnnouncements]: 'Ansagen',
@@ -358,6 +359,23 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
       },
     ],
     // Nothing to detect: the port belongs to the gear (Kemper, RC-500 …), whose own plugin claims it.
+    hardwareIds: [],
+  },
+  {
+    id: 'midi-controller',
+    name: 'MIDI-Controller',
+    version: '0.0.1',
+    runtime: 'client',
+    // Generic (#547, docs/23 §7): a foot controller, pad or keyboard plugged into a tablet - its
+    // buttons trigger actions ("Knöpfe belegen" in the device's ⋯). Listens only; sends nothing.
+    capabilities: [CAPABILITIES.midiController],
+    transports: [
+      {
+        id: 'usb-midi',
+        label: 'USB-MIDI',
+        fields: [{ key: 'midiInputId', label: 'MIDI-Eingang', type: 'midi-input' }],
+      },
+    ],
     hardwareIds: [],
   },
   {

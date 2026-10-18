@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PLAYBACK_CUE_TARGET } from 'shared-types'
+import { CAPABILITIES, PLAYBACK_CUE_TARGET } from 'shared-types'
 import { describeAction, PLAYBACK_OPS, SECTION_OPS, sectionOpJumps, type Action, type SectionOp } from '../lib/actions'
 import { describeCue } from '../lib/deviceCommands'
 import { FIXED_ACTIONS, ONE_BUTTON_SHOW, SONG_STATES, STEP_CHOICES, STEP_LABEL, type SongState, type StepAction } from '../lib/keybindings'
@@ -172,7 +172,7 @@ export function ActionDialog({ title, initial, onSave, onClose }: { title: strin
       {deviceOpen && (
         <CueDialog
           title="Gerät steuern"
-          devices={devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET)}
+          devices={devices.filter((d) => d.id !== PLAYBACK_CUE_TARGET && d.capability !== CAPABILITIES.midiController)}
           initial={draft?.kind === 'device' ? draft : undefined}
           onSubmit={(content) => {
             setDraft({ kind: 'device', targetLogicalDeviceId: content.targetLogicalDeviceId, type: content.type, payload: content.payload ?? {} })

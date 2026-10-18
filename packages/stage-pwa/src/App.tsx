@@ -47,6 +47,7 @@ import { useDevicesStore } from './store/useDevicesStore'
 import { useDiscoverySessionStore } from './store/useDiscoverySessionStore'
 import { useEditModeStore } from './store/useEditModeStore'
 import { FlashOverlay } from './components/FlashOverlay'
+import { useMidiControllerRulesStore } from './store/useMidiControllerRulesStore'
 import { useLatencyProfilesStore } from './store/useLatencyProfilesStore'
 import { useAudioRouteStore } from './store/useAudioRouteStore'
 import { useLogicalDevicesStore } from './store/useLogicalDevicesStore'
@@ -170,6 +171,7 @@ function App() {
   useWorkspaceResource(useLogicalDevicesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDeviceTransportConfigStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useLatencyProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
+  useWorkspaceResource(useMidiControllerRulesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useDashboardsStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useProfilesStore((state) => state.init), noopStart, activeWorkspaceId)
   useWorkspaceResource(useWorkspaceStore((state) => state.initNameSync), noopStart, activeWorkspaceId)

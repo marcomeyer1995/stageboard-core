@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
+import { CAPABILITIES, SERVER_EXECUTION_TARGET, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from '../lib/deviceId'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
 import { useDeviceTransportConfigStore } from '../store/useDeviceTransportConfigStore'
@@ -7,11 +7,13 @@ import { useDevicesStore } from '../store/useDevicesStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useHardwareSetupWizardStore, type NewDevicePrefill } from '../store/useHardwareSetupWizardStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { useMidiControllerRulesStore } from '../store/useMidiControllerRulesStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
+import { MidiControllerButtonsDialog } from './MidiControllerButtons'
 import { pluginKind } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow } from './ui'
 
@@ -40,6 +42,8 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
   const songs = useSongsStore((state) => state.songs)
   const confirm = useDialogStore((state) => state.confirm)
   const knownDevices = useDevicesStore((state) => state.devices)
+  const removeButtons = useMidiControllerRulesStore((state) => state.remove)
+  const [buttonsFor, setButtonsFor] = useState<LogicalDevice | null>(null)
 
   function pluginNameOf(pluginId: string | null): string | null {
     return (pluginId && installed.find((p) => p.id === pluginId)?.name) || null
@@ -79,12 +83,14 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
               title={device.name}
               actions={[
                 { label: 'Einrichten', onClick: () => onEdit(device) },
+                ...(device.capability === CAPABILITIES.midiController ? [{ label: 'Knöpfe belegen', onClick: () => setButtonsFor(device) }] : []),
                 {
                   label: 'Entfernen',
                   danger: true,
                   onClick: async () => {
                     if (!(await confirm(`"${device.name}" löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
                     await remove(device.id)
+                    if (device.capability === CAPABILITIES.midiController) void removeButtons(device.id)
                     // Drivers stay out of sight (Marco, 2026-10-16): one no device needs any more is
                     // offered for removal with its last device.
                     const driver = installed.find((p) => p.id === device.pluginId)
@@ -99,6 +105,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
       })}
 
       <AddRow label="Neues Gerät" onClick={onAdd} />
+      {buttonsFor && <MidiControllerButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />}
     </div>
   )
 }
