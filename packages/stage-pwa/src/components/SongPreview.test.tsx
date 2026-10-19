@@ -90,7 +90,8 @@ describe('SongPreview', () => {
     expect(await screen.findByText('Sweet Child O’ Mine')).toBeInTheDocument()
     expect(screen.getByText('Guns N’ Roses')).toBeInTheDocument()
     expect(screen.getByText('Key: Db')).toBeInTheDocument()
-    expect(screen.getByText('Tuning: Standard')).toBeInTheDocument()
+    // Standard tuning takes no chip.
+    expect(screen.queryByText(/Tuning|Stimmung/)).not.toBeInTheDocument()
     expect(screen.getByText('Capo: 3')).toBeInTheDocument()
     expect(screen.getByText('125 BPM · 4/4')).toBeInTheDocument()
     // The rendered chord sheet, not raw ChordPro markup - "Take my hand" with the [C]/[G]

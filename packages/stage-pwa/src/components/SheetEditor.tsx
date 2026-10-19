@@ -9,6 +9,7 @@ import {
   type ShowCue,
   type SongVariant,
   type TimecodeMarker,
+  type Tuning,
 } from 'shared-types'
 import { analyzeTrackBlob } from '../lib/analyzeTrack'
 import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
@@ -16,6 +17,9 @@ import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro } from '../lib/chordpro'
 import { randomId } from '../lib/id'
+import { isStandard, parseTuning, variantChordShift } from '../lib/pitch'
+import { KeyTuningField } from './KeyTuningField'
+import { TuningSelect } from './TuningSelect'
 import { deleteVariant, getTrack, setDefaultVariant, variantToOpen } from '../lib/songVariantsDb'
 import { useIsPanelLayout } from '../lib/useIsPanelLayout'
 import { useDialogStore } from '../store/useDialogStore'
@@ -36,6 +40,17 @@ import { Icon } from './Icon'
 import { ActionMenu, ActionMenuDialog, AddRow, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
+
+/** An old/imported tuning text as draft fields: read into chartTuning, or kept as text when it can't be. */
+function tuningFromText(text: string): Pick<EditorDraft, 'chartTuning' | 'tuning'> {
+  const parsed = parseTuning(text)
+  return parsed ? { chartTuning: isStandard(parsed) ? undefined : parsed, tuning: undefined } : { chartTuning: undefined, tuning: text }
+}
+
+function variantTuningDraft(variant: SongVariant): Pick<EditorDraft, 'tuningSpec' | 'chartTuning' | 'tuning'> {
+  if (variant.chartTuning) return { tuningSpec: variant.tuningSpec, chartTuning: variant.chartTuning, tuning: undefined }
+  return { tuningSpec: variant.tuningSpec, ...(variant.tuning ? tuningFromText(variant.tuning) : { chartTuning: undefined, tuning: undefined }) }
+}
 
 /** The part labels docs/04 asks for as "große Buttons am Rand" of the editor. */
 const PART_LABELS = ['Verse', 'Chorus', 'Bridge', 'Solo'] as const
@@ -64,8 +79,12 @@ interface EditorDraft {
   /** Hand-entered playing length in ms (Festival Clock, #28). */
   durationMs?: number
   key?: string
+  /** Old free text (what the chart is written for) - kept only while it can't be read. */
   tuning?: string
   capo?: number
+  tuningSpec?: Tuning
+  chartTuning?: Tuning
+  transpose?: number
 }
 
 function draftFrom(song: Song, variant: SongVariant): EditorDraft {
@@ -87,8 +106,9 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
     countInBars: variant.countInBars,
     durationMs: variant.durationMs,
     key: variant.key,
-    tuning: variant.tuning,
+    ...variantTuningDraft(variant),
     capo: variant.capo,
+    transpose: variant.transpose,
   }
 }
 
@@ -268,8 +288,9 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       countInBars: variant.countInBars,
       durationMs: variant.durationMs,
       key: variant.key,
-      tuning: variant.tuning,
+      ...variantTuningDraft(variant),
       capo: variant.capo,
+      transpose: variant.transpose,
     }
     setDraft(next)
     // Switching variants loads that variant as saved - its own baseline.
@@ -346,8 +367,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       durationMs: draft.durationMs,
       tracks: currentTracks,
       key: draft.key,
-      tuning: draft.tuning,
+      // The old text only while it can't be read - a recognised one lives on as chartTuning.
+      ...(draft.tuning && !draft.chartTuning ? { tuning: draft.tuning } : {}),
       capo: draft.capo,
+      ...(draft.tuningSpec ? { tuningSpec: draft.tuningSpec } : {}),
+      ...(draft.chartTuning && !isStandard(draft.chartTuning) ? { chartTuning: draft.chartTuning } : {}),
+      ...(draft.transpose ? { transpose: draft.transpose } : {}),
     }
     const variantResult = SongVariantSchema.safeParse(variant)
     if (!variantResult.success) {
@@ -455,7 +480,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       chordProContent: imported.chordProContent,
       artist: imported.artist ?? draft.artist,
       key: imported.key ?? draft.key,
-      tuning: imported.tuning ?? draft.tuning,
+      ...(imported.tuning ? tuningFromText(imported.tuning) : {}),
       capo: imported.capo ?? draft.capo,
       bpm: imported.bpm ?? draft.bpm,
     })
@@ -911,22 +936,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             />
           </label>
         </div>
-        {/* Phone: Key and Capo side by side, Tuning on its own row - it was cut to "E A D G B". */}
-        <div className="grid grid-cols-3 gap-2 max-[599px]:grid-cols-2 [&>label]:min-w-0">
+        <div className="grid grid-cols-2 gap-2 [&>label]:min-w-0">
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             Key
             <input
               className={`min-h-form px-3 ${INPUT}`}
               value={draft.key ?? ''}
               onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-ink-muted max-[599px]:order-last max-[599px]:col-span-2">
-            Tuning
-            <input
-              className={`min-h-form px-3 ${INPUT}`}
-              value={draft.tuning ?? ''}
-              onChange={(e) => setDraft({ ...draft, tuning: e.target.value || undefined })}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
@@ -942,6 +958,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             />
           </label>
         </div>
+        {/* Band-wide for this variant (Marco, 2026-10-18): how it sounds against the original, how
+            the band tunes for it, and what the chart is written for - the chords on stage follow
+            from all three (lib/pitch.ts). Guided pickers, no free text. */}
+        <div className="grid grid-cols-[2fr_1fr] gap-2 max-[599px]:grid-cols-1 [&>*]:min-w-0">
+          <KeyTuningField value={draft} onChange={(next) => setDraft({ ...draft, ...next })} />
+          <TuningSelect
+            label="Akkorde notiert für"
+            value={draft.chartTuning}
+            onChange={(chartTuning) => setDraft({ ...draft, chartTuning, tuning: undefined })}
+          />
+        </div>
+        {draft.tuning && !draft.chartTuning && (
+          <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
+            Unbekannte Stimmung „{draft.tuning}“ (alter Freitext) - bitte unter „Akkorde notiert für“ wählen.
+          </p>
+        )}
+        {variantChordShift(draft) !== 0 && (
+          <p className="text-sm text-ink-faint">
+            Auf der Bühne stehen die Akkorde verschoben (siehe Tonart &amp; Stimmung) - hier im Text bleiben sie wie
+            geschrieben.
+          </p>
+        )}
 
         {/* Below lg only - landscape/desktop show every section at once (as collapsible
             accordions below) and need no switcher. Four tabs (#180's follow-up separated

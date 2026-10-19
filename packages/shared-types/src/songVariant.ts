@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TuningSchema } from './tuning.js'
 import { TimecodeMarkerSchema } from './song.js'
 import { ShowCueSchema } from './showCue.js'
 
@@ -119,8 +120,21 @@ export const SongVariantSchema = z.object({
    * most sources (including Ultimate Guitar's own data) simply omit it when unknown, and a
    * blank string would be indistinguishable from "known to have no key". */
   key: z.string().optional(),
-  /** e.g. "E A D G B E" or "Drop D". */
+  /** Free text from before the guided fields ("E A D G B E", "Drop D", mostly from imports) -
+   * what the chart is written for. Read only as a fallback for `chartTuning` (parsed, stage-pwa
+   * lib/pitch.ts) and dropped once the variant is saved with a recognised one. Nothing writes
+   * new text here. */
   tuning: z.string().optional(),
+  /** How this variant is played ("Stimmung") - per song, not band-wide: it depends on which
+   * guitar is taken (Marco, 2026-10-18). Absent = standard. */
+  tuningSpec: TuningSchema.optional(),
+  /** The tuning the chart's chords are written for ("Akkorde notiert für") - e.g. an imported
+   * chart of a song recorded a half step down. Absent = standard. */
+  chartTuning: TuningSchema.optional(),
+  /** Half steps this variant sounds from the original recording (-2 = two lower), band-wide so
+   * everyone plays the same (Marco, 2026-10-18). The chords shown are the written ones shifted by
+   * transpose - played tuning + chart tuning (stage-pwa lib/pitch.ts). Absent = 0. */
+  transpose: z.number().int().min(-11).max(11).optional(),
   /** Fret number. Absent (not 0) means "no capo", matching how Ultimate Guitar itself only
    * includes this field at all when a capo is actually used. */
   capo: z.number().int().nonnegative().optional(),

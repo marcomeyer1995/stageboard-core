@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { SongVariant } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
+import { isStandard, stageTuning, signedSteps, soundingKey, tuningLabel, unrecognisedTuningText, variantChordShift } from '../lib/pitch'
+import { transposeLines } from '../lib/transposeChord'
 import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { ChordProLyrics } from './ChordProLyrics'
@@ -47,7 +49,10 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
   }
 
-  const lines = parseChordPro(variant.chordProContent)
+  // The grips as on stage: transpose, played and chart tuning (lib/pitch.ts).
+  const lines = transposeLines(parseChordPro(variant.chordProContent), variantChordShift(variant), soundingKey(variant))
+  const tuning = stageTuning(variant)
+  const unknownTuning = unrecognisedTuningText(variant)
   const contentBadges = [
     { label: 'Cues', count: variant.cues.length },
     { label: 'Audio', count: playableTracks(variant.tracks).length },
@@ -90,8 +95,12 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {variant.key && <span className="rounded-control bg-control px-2 py-1">Key: {variant.key}</span>}
-        {variant.tuning && <span className="rounded-control bg-control px-2 py-1">Tuning: {variant.tuning}</span>}
+        {variant.key && <span className="rounded-control bg-control px-2 py-1">Key: {soundingKey(variant)}</span>}
+        {(variant.transpose ?? 0) !== 0 && (
+          <span className="rounded-control bg-control px-2 py-1">Transponiert: {signedSteps(variant.transpose ?? 0)}</span>
+        )}
+        {!isStandard(tuning) && <span className="rounded-control bg-control px-2 py-1">Stimmung: {tuningLabel(tuning)}</span>}
+        {unknownTuning && <span className="rounded-control bg-control px-2 py-1">Tuning: {unknownTuning}</span>}
         {variant.capo !== undefined && (
           <span className="rounded-control bg-control px-2 py-1">Capo: {variant.capo}</span>
         )}

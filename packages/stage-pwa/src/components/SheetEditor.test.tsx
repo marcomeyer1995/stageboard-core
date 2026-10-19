@@ -115,7 +115,8 @@ describe('SheetEditor - always-visible header (Titel/Band/Key/Tuning/Capo)', () 
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
     expect(screen.getByLabelText('Band')).toBeInTheDocument()
     expect(screen.getByLabelText('Key')).toBeInTheDocument()
-    expect(screen.getByLabelText('Tuning')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ändern…' })).toBeInTheDocument() // Tonart & Stimmung
+    expect(screen.getByLabelText('Akkorde notiert für')).toBeInTheDocument()
     expect(screen.getByLabelText('Capo')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tempo' }))

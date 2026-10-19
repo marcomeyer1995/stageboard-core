@@ -8,7 +8,7 @@ import { ChordProLyrics } from '../components/ChordProLyrics'
 import { buildPages, commentVisibleTo, currentLineIndex, currentPageIndex, parseChordPro } from '../lib/chordpro'
 import { configLog } from '../lib/configDebug'
 import { transposeLines } from '../lib/transposeChord'
-import { isStandardTuning } from '../lib/tuning'
+import { isStandard, stageTuning, soundingKey, tuningLabel, unrecognisedTuningText, variantChordShift } from '../lib/pitch'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useChordOffsets } from '../lib/useChordOffsets'
 import { useContentFontSize } from '../lib/useContentFontSize'
@@ -79,13 +79,17 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // shown-but-greyed (Marco, issue #215 follow-up).
   const authoredCapo = currentVariant?.capo ?? 0
   const offsets = useChordOffsets(queue.currentEntry?.id ?? null, authoredCapo)
-  const baseKey = currentVariant?.key
-  // #59: this device's own transpose/capo shift, applied to the chords only (line count and
-  // indices stay identical, so pagination and scrolling are unaffected).
+  // The key the song sounds in after the variant's stored transpose - the "Tonart" button and
+  // this device's own transpose start from there.
+  const baseKey = soundingKey(currentVariant)
+  const tuning = stageTuning(currentVariant)
+  // The variant's band-wide transpose, played and chart tuning (lib/pitch.ts), plus this device's own
+  // transpose/capo shift (#59) - applied to the chords only (line count and indices stay
+  // identical, so pagination and scrolling are unaffected).
   const lines = currentSong
     ? transposeLines(
         parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames)),
-        offsets.chordShift,
+        variantChordShift(currentVariant) + offsets.chordShift,
         baseKey,
       )
     : []
@@ -95,7 +99,9 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // in the common case (standard tuning, no capo) nothing at all takes room above the lyrics.
   const chips = [
     offsets.effectiveCapo > 0 && `Capo ${offsets.effectiveCapo}`,
-    !isStandardTuning(currentVariant?.tuning) && currentVariant?.tuning,
+    // How to tune for this song - the chart's own notation is already in the chords.
+    !isStandard(tuning) && `Stimmung ${tuningLabel(tuning)}`,
+    unrecognisedTuningText(currentVariant),
   ].filter((chip): chip is string => Boolean(chip))
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
   const pages = buildPages(lines)
