@@ -1,3 +1,4 @@
+import { isStandard, parseTuning } from '../lib/pitch'
 import { useState } from 'react'
 import type { Song, SongVariant } from 'shared-types'
 import { useBackHandler } from '../lib/backNavigation'
@@ -14,6 +15,15 @@ interface NewSongWizardProps {
   onCancel: () => void
   /** The new song and its default variant - written by the caller only now, at the end. */
   onFinish: (song: Song, variant: SongVariant) => void
+}
+
+/** An imported tuning text as variant fields (lib/pitch.ts): the chart tuning when it can be
+ * read, else the text itself so nothing is lost. */
+function importedTuning(text: string | undefined): Pick<SongVariant, 'chartTuning' | 'tuning'> {
+  if (!text) return {}
+  const parsed = parseTuning(text)
+  if (!parsed) return { tuning: text }
+  return isStandard(parsed) ? {} : { chartTuning: parsed }
 }
 
 /**
@@ -73,7 +83,8 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
       countInEnabled: false,
       countInBars: 1,
       key: key.trim() || undefined,
-      tuning: imported?.tuning,
+      // What the imported chart is written for - read into the guided field when possible.
+      ...importedTuning(imported?.tuning),
       capo: imported?.capo,
     }
     onFinish(song, variant)

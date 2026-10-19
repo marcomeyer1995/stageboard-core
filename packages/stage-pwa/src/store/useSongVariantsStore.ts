@@ -9,36 +9,24 @@ import {
   type SongVariantDoc,
 } from '../lib/songVariantsDb'
 
-function toVariant(doc: SongVariantDoc): SongVariant {
+/** A stored variant as the app uses it: every field of the doc (the hand-picked copy it used to
+ * be silently dropped each new field - `durationMs` #28, `transpose`/tuning 2026-10-18), with
+ * read-time fallbacks for keys older docs lack - PouchDB returns exactly what was stored,
+ * unvalidated, so these matter even though the type says they're always present. */
+export function toVariant(doc: SongVariantDoc): SongVariant {
+  const { _id, _rev, _deleted, _conflicts, ...rest } = doc as SongVariantDoc & { _deleted?: boolean; _conflicts?: string[] }
+  void _id
+  void _rev
+  void _deleted
+  void _conflicts
   return {
-    id: doc.id,
-    songId: doc.songId,
-    label: doc.label,
-    isDefault: doc.isDefault,
-    bpm: doc.bpm,
-    // A variant written before `timeSignature` existed (#25) simply lacks the key - PouchDB
-    // returns exactly what was stored, unvalidated, so this read-time fallback matters even
-    // though the type says it's always present (same spirit as `cues` below).
-    timeSignature: doc.timeSignature ?? '4/4',
-    clickTrackEnabled: doc.clickTrackEnabled ?? false,
-    chordProContent: doc.chordProContent,
-    timecodes: doc.timecodes,
-    tracks: doc.tracks,
-    // A variant written before `cues` existed (#99) simply lacks the key - PouchDB returns
-    // exactly what was stored, unvalidated, so this read-time fallback matters even though the
-    // type says it's always present (same spirit as useSetlistsStore's `toSetlist` fallback).
-    cues: doc.cues ?? [],
-    // The click grid (docs/14 §5a) - optional, absent on every variant without one. Copied
-    // explicitly like every field here: this mapper drops whatever it doesn't name.
-    beatGrid: doc.beatGrid,
-    countInEnabled: doc.countInEnabled ?? false,
-    countInBars: doc.countInBars ?? 1,
-    // Correctly written by saveVariant (plain fields on SongVariant), but silently dropped on
-    // every read here until now - same bug, same fix as useSongsStore.ts's `toSong`/`artist`:
-    // nothing defaulted these away, this mapper just never copied them across.
-    key: doc.key,
-    tuning: doc.tuning,
-    capo: doc.capo,
+    ...rest,
+    // Before `timeSignature` (#25), `cues` (#99) and the count-in existed.
+    timeSignature: rest.timeSignature ?? '4/4',
+    clickTrackEnabled: rest.clickTrackEnabled ?? false,
+    cues: rest.cues ?? [],
+    countInEnabled: rest.countInEnabled ?? false,
+    countInBars: rest.countInBars ?? 1,
   }
 }
 

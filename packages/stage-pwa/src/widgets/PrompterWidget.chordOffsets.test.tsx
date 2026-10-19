@@ -137,6 +137,48 @@ describe('PrompterWidget - transpose and capo (#59)', () => {
     expect(screen.queryByText(/E A D G B E|Tuning/)).not.toBeInTheDocument()
     mockShowMode('e1', { key: 'G', tuning: 'Drop D' })
     rerender(<PrompterWidget config={config} />)
-    expect(screen.getByText('Drop D')).toBeInTheDocument()
+    // Old free text is read as what the chart is written for - a Drop D chart is played in Drop D.
+    expect(screen.getByText('Stimmung Drop D')).toBeInTheDocument()
+    mockShowMode('e1', { key: 'G', tuning: 'Nashville' })
+    rerender(<PrompterWidget config={config} />)
+    expect(screen.getByText('Nashville')).toBeInTheDocument()
+  })
+})
+
+// Marco, 2026-10-18: transpose is how the variant sounds against the original; the tuning gives part of it.
+describe('PrompterWidget - stored transpose and tuning', () => {
+  beforeEach(() => {
+    useChordOffsetStore.getState().reset()
+    vi.mocked(useActiveProfile).mockReturnValue(undefined)
+    vi.mocked(useProfilesStore).mockImplementation(((selector: (state: { profiles: never[] }) => unknown) =>
+      selector({ profiles: [] })) as never)
+  })
+
+  it('shows the transposed chords and the sounding key for every player', () => {
+    mockShowMode('e1', { key: 'G', transpose: -2 })
+    render(<PrompterWidget config={config} />)
+    expect(screen.getByText('F')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tonart: F' })).toBeInTheDocument()
+  })
+
+  it('a guitar tuned a half step down grabs the written chords for a song a half step lower', () => {
+    mockShowMode('e1', { key: 'G', transpose: -1, tuningSpec: { semitones: -1 } })
+    render(<PrompterWidget config={config} />)
+    expect(screen.getByText('G')).toBeInTheDocument()
+    expect(screen.getByText('Stimmung ½ Ton tiefer (Eb)')).toBeInTheDocument()
+  })
+
+  it('without a Stimmung the song is played in standard tuning', () => {
+    mockShowMode('e1', { key: 'G', transpose: -2 })
+    render(<PrompterWidget config={config} />)
+    expect(screen.getByText('F')).toBeInTheDocument()
+    expect(screen.queryByText(/Stimmung/)).not.toBeInTheDocument()
+  })
+
+  it('a chart written for Eb shows as written on a guitar in Eb sounding like the original, and Drop is a chip only', () => {
+    mockShowMode('e1', { key: 'G', chartTuning: { semitones: -1 }, tuningSpec: { semitones: -1, drop: true } })
+    render(<PrompterWidget config={config} />)
+    expect(screen.getByText('G')).toBeInTheDocument()
+    expect(screen.getByText('Stimmung Drop C#')).toBeInTheDocument()
   })
 })
