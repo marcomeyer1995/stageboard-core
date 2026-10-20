@@ -99,169 +99,160 @@ afterEach(() => {
 })
 
 /** Renders with a real, already-loaded song - `songId`/`variantId`/`onBack` are all required
- * now (SheetEditor no longer supports an unsaved/"new song" draft - creation moved to
- * LibraryView's own "+ Neu"). `findByLabelText` (not `getByLabelText`) for the first assertion
- * lets the async `selectSong`/`variantToOpen` load settle before asserting. */
-async function renderLoaded(songOverride: Song = song) {
+ * (creation moved to LibraryView's own "+ Neu"). Waits for the text field, the view the editor
+ * opens on (#617), so the async `selectSong`/`variantToOpen` load has settled. */
+async function renderLoaded(songOverride: Song = song, content?: string) {
+  if (content !== undefined) {
+    const { variantToOpen } = await import('../lib/songVariantsDb')
+    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: content })
+  }
   useSongsStore.setState({ songs: [songOverride] })
   render(<SheetEditor songId={songOverride.id} variantId={null} onBack={vi.fn()} />)
-  await screen.findByRole('button', { name: 'Song-Angaben' })
+  return (await screen.findByRole('textbox', { name: 'ChordPro-Text' })) as HTMLTextAreaElement
 }
 
-const chordProPlaceholder = "[00:00.00] Come on baby [G] don't you wanna go"
+const phone = { orientation: 'portrait' as const }
+const desktop = { width1280: true, width1024: true, width768: true }
+const tab = (name: string) => screen.getByRole('tab', { name })
 
-describe('SheetEditor - song details as a summary line (#603)', () => {
-  it('phone: one summary line until opened; stays open while sections change', async () => {
-    stubViewport({ orientation: 'portrait' })
+describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#617)', () => {
+  it('phone: opens on the text alone; the views are tabs in the header, Speichern once, top right', async () => {
+    stubViewport(phone)
     await renderLoaded()
+    expect(['Text', 'Vorschau', 'Timeline', 'Details'].map((name) => tab(name).getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false'])
+    expect(screen.getAllByRole('button', { name: 'Speichern' })).toHaveLength(1)
+    // The text view is only the variant row and the text - no preview, no sections, no buttons.
+    expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+    expect(document.querySelector('[data-source-line]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Tempo & Klick' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Song importieren')).not.toBeInTheDocument()
+  })
 
-    const summary = screen.getByRole('button', { name: 'Song-Angaben' })
-    expect(summary).toHaveAttribute('aria-expanded', 'false')
-    expect(summary).toHaveTextContent('Sweet Child O’ Mine · Guns N’ Roses · 125 BPM')
+  it('phone: while the text field has the focus, the variant row steps aside', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded()
+    fireEvent.focus(textarea)
+    expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
+    fireEvent.blur(textarea)
+    expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+  })
+
+  it('wide screen: text and preview side by side, no Vorschau tab', async () => {
+    stubViewport(desktop)
+    await renderLoaded()
+    expect(screen.queryByRole('tab', { name: 'Vorschau' })).not.toBeInTheDocument()
+    expect(document.querySelector('[data-source-line]')).not.toBeNull()
+  })
+
+  it('Details: Song-Angaben (a summary line while closed), Tempo & Klick, Audio, Kommentare - all closed, open independently', async () => {
+    stubViewport(phone)
+    await renderLoaded()
+    fireEvent.click(tab('Details'))
+
+    const meta = screen.getByRole('button', { name: 'Song-Angaben' })
+    expect(meta).toHaveAttribute('aria-expanded', 'false')
+    expect(meta).toHaveTextContent('Sweet Child O’ Mine · Guns N’ Roses · 125 BPM')
     expect(screen.queryByLabelText('Titel')).not.toBeInTheDocument()
-
-    fireEvent.click(summary)
+    fireEvent.click(meta)
     expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-    expect(screen.getByLabelText('Band')).toBeInTheDocument()
     expect(screen.getByLabelText('Key')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ändern…' })).toBeInTheDocument() // Tonart & Stimmung
     expect(screen.getByLabelText('Akkorde notiert für')).toBeInTheDocument()
-    expect(screen.getByLabelText('Capo')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Tempo & Klick/ }))
-    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-  })
-
-  it('opens by itself for a song without a title (a new one); landscape/desktop: see below', async () => {
-    stubViewport({ orientation: 'portrait' })
-    await renderLoaded({ ...song, title: '' })
-    expect(screen.getByRole('button', { name: 'Song-Angaben' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-  })
-
-  it('has no separate Arrangement tab or accordion', async () => {
-    stubViewport({ orientation: 'portrait' })
-    await renderLoaded()
-    expect(screen.queryByRole('button', { name: 'Arr.' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Arrangement/ })).not.toBeInTheDocument()
-  })
-})
-
-describe('SheetEditor - phone/tablet portrait: accordions instead of a tab strip (#603)', () => {
-  for (const [name, viewport] of [
-    ['phone portrait', { orientation: 'portrait' as const }],
-    ['tablet portrait', { width640: true, orientation: 'portrait' as const }],
-  ] as const) {
-    it(`${name}: Text/Tempo & Klick/Audio/Kommentare start collapsed and open independently, no tab strip`, async () => {
-      stubViewport(viewport)
-      await renderLoaded()
-
-      expect(screen.queryByRole('tablist', { name: 'Bereich' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Cues' })).not.toBeInTheDocument()
-      expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
-
-      fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
-      expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: /Tempo & Klick/ }))
-      expect(screen.getByLabelText('Takt')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Audio', expanded: false }))
-      expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'Kommentare', expanded: false }))
-      expect(screen.getByText(/Noch keine Kommentare/)).toBeInTheDocument()
-    })
-  }
-
-  it('one Speichern, in the header - not at the end of the page', async () => {
-    stubViewport({ orientation: 'portrait' })
-    await renderLoaded()
-    const save = screen.getAllByRole('button', { name: 'Speichern' })
-    expect(save).toHaveLength(1)
-    // Before the content: the header comes first in document order.
-    expect(save[0]!.compareDocumentPosition(screen.getByRole('button', { name: 'Song-Angaben' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-})
-
-describe('SheetEditor - "+ Kommentar" button (issue #215 follow-up)', () => {
-  it('inserts a blank {cc: } directive into the ChordPro text, immediately listed under Kommentare', async () => {
-    stubViewport({ orientation: 'portrait' })
-    await renderLoaded()
-
-    // Not queried by accessible name (getByRole): this button sits inside the same <label> as
-    // several siblings, so its computed accessible name absorbs the whole label's text (a
-    // pre-existing quirk of every button in this row, not something #215 introduced).
-    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
-    fireEvent.click(screen.getByText('+ Kommentar'))
-    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
-    expect(textarea.value).toContain('{cc: }')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Kommentare', expanded: false }))
-    expect(screen.queryByText(/Noch keine Kommentare/)).not.toBeInTheDocument()
-  })
-})
-
-describe('SheetEditor - landscape/desktop: every section collapsible, all start collapsed', () => {
-  it('desktop: no tab switcher; Text/Tempo & Klick/Audio all start collapsed, expand independently', async () => {
-    stubViewport({ width1280: true, width1024: true, width768: true })
-    await renderLoaded()
-
-    expect(screen.queryAllByRole('button', { name: 'Text' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
-    expect(screen.queryAllByRole('button', { name: 'Tempo' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
-
-    // Header always visible; everything collapsible starts collapsed.
-    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
-    expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
-    expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Tempo & Klick/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tempo & Klick' }))
     expect(screen.getByLabelText('Takt')).toBeInTheDocument()
-    // Expanding Tempo & Klick didn't collapse Text.
-    expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Audio', expanded: false }))
+    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Audio' }))
     expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
-
+    fireEvent.click(screen.getByRole('button', { name: 'Kommentare' }))
+    expect(screen.getByText(/Noch keine Kommentare/)).toBeInTheDocument()
     // No Cues section any more - cues are placed in the timeline (#602).
     expect(screen.queryByRole('button', { name: 'Cues' })).not.toBeInTheDocument()
   })
 
-  it('landscape below xl: same all-collapsed default as desktop', async () => {
-    stubViewport({ width1024: true, width768: true })
-    await renderLoaded()
-
-    expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Tempo & Klick/ }))
-    expect(screen.getByLabelText('Takt')).toBeInTheDocument()
+  it('Song-Angaben are open for a song without a title (a new one)', async () => {
+    stubViewport(phone)
+    await renderLoaded({ ...song, title: '' })
+    fireEvent.click(tab('Details'))
+    expect(screen.getByRole('button', { name: 'Song-Angaben' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('landscape tablet under 1024px wide: gets the panel layout, not the tab switcher', async () => {
-    // md (768px) and landscape, but short of lg (1024px) - the one 'panel' condition that
-    // isn't just "width >= 1024".
-    stubViewport({ width768: true, orientation: 'landscape' })
-    await renderLoaded()
+  it('⋮ holds Einfügen, Song importieren and Tap-to-Sync; "+ Kommentar" lands in the text', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
+    expect(screen.getByRole('button', { name: 'Song importieren' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tap-to-Sync starten' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Einfügen …' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Kommentar' }))
+    expect(textarea.value).toContain('{cc: }')
+  })
 
-    expect(screen.getByLabelText('Titel')).toBeInTheDocument()
-    expect(screen.queryAllByRole('button', { name: 'Text' }).filter((b) => !b.hasAttribute('aria-expanded'))).toHaveLength(0)
-    expect(screen.getByRole('button', { name: /Tempo & Klick/ })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
+  it('"Neue Variante" lives in the variant ⋯', async () => {
+    stubViewport(phone)
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: /^Menü: Variante/ }))
+    expect(screen.getByRole('button', { name: 'Neue Variante' })).toBeInTheDocument()
+  })
+
+  it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {
+    stubViewport(desktop)
+    await renderLoaded()
+    fireEvent.click(tab('Timeline'))
+    expect(screen.getByLabelText('Timeline', { selector: ':not([role=tab])' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'ChordPro-Text' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
+    fireEvent.click(tab('Text'))
+    expect(screen.getByRole('textbox', { name: 'ChordPro-Text' })).toBeInTheDocument()
+  })
+})
+
+describe('SheetEditor - preview and text find each other (#607, #617)', () => {
+  const twoChoruses = '{part: Chorus}\n[C]Take my [G]hand\n{part: Chorus}\n[C]Take my [G]hand'
+
+  it('phone: Vorschau marks the cursor\'s line; a tap there returns to Text at exactly that line, also when its text appears twice', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded(song, twoChoruses)
+    textarea.setSelectionRange(twoChoruses.length, twoChoruses.length)
+    fireEvent.select(textarea)
+    fireEvent.click(tab('Vorschau'))
+
+    const lines = document.querySelectorAll<HTMLElement>('[data-source-line]')
+    expect(lines).toHaveLength(2)
+    expect(lines[1]).toHaveAttribute('data-active-line', 'true')
+    expect(lines[0]).not.toHaveAttribute('data-active-line')
+
+    await act(async () => fireEvent.click(lines[0]))
+    const back = screen.getByRole('textbox', { name: 'ChordPro-Text' }) as HTMLTextAreaElement
+    expect(tab('Text')).toHaveAttribute('aria-selected', 'true')
+    expect(back).toHaveFocus()
+    expect(back.selectionStart).toBe(twoChoruses.indexOf('[C]Take'))
+  })
+
+  it('wide screen: the preview beside the text follows the cursor', async () => {
+    stubViewport(desktop)
+    const textarea = await renderLoaded(song, twoChoruses)
+    const lines = () => document.querySelectorAll<HTMLElement>('[data-source-line]')
+    textarea.setSelectionRange(0, 0)
+    fireEvent.select(textarea)
+    expect(lines()[0]).toHaveAttribute('data-active-line', 'true')
+    textarea.setSelectionRange(twoChoruses.length, twoChoruses.length)
+    fireEvent.select(textarea)
+    expect(lines()[1]).toHaveAttribute('data-active-line', 'true')
+
+    await act(async () => fireEvent.click(lines()[0]))
+    expect(textarea).toHaveFocus()
+    expect(textarea.selectionStart).toBe(twoChoruses.indexOf('[C]Take'))
   })
 })
 
 describe('SheetEditor - song switching moved to LibraryView', () => {
   it('has no Song dropdown, no "+ Neuer Song", and no "Song löschen" - only "← Bibliothek"', async () => {
-    stubViewport({ width1280: true, width1024: true, width768: true })
+    stubViewport(desktop)
     await renderLoaded()
-
     expect(screen.queryByLabelText('Song')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Neuer Song' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Song löschen' })).not.toBeInTheDocument()
-    // Icon-only on the phone, with its word from 600 px - one of the two is shown (CSS).
     expect(screen.getAllByRole('button', { name: 'Bibliothek' }).length).toBeGreaterThan(0)
   })
 })
@@ -271,25 +262,14 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   // store only picks the new song up a moment later (change feed -> refreshSongs). The editor
   // must load it once it arrives instead of staying on "Lade…" forever.
   it('loads the song as soon as it reaches the store', async () => {
-    stubViewport({ orientation: 'portrait' })
+    stubViewport(phone)
     useSongsStore.setState({ songs: [] })
     render(<SheetEditor songId={song.id} variantId={null} onBack={vi.fn()} />)
     expect(screen.getByText('Lade…')).toBeInTheDocument()
 
     act(() => useSongsStore.setState({ songs: [song] }))
 
-    expect(await screen.findByRole('button', { name: 'Song-Angaben' })).toBeInTheDocument()
-  })
-
-  it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {
-    stubViewport({ width1024: true, width768: true })
-    await renderLoaded()
-    fireEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
-    expect(screen.getByLabelText('Timeline', { selector: ':not([role=tab])' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Song-Angaben' })).not.toBeInTheDocument() // the text editor is gone
-    expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Text' }))
-    expect(screen.getByRole('button', { name: 'Song-Angaben' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'ChordPro-Text' })).toBeInTheDocument()
   })
 
   it('keeps the rigid click grid when saving (docs/14 §5a)', async () => {
@@ -306,56 +286,19 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   })
 })
 
-
-describe('SheetEditor - tap a preview line to jump to it in the text (#607)', () => {
-  const twoChoruses = '{part: Chorus}\n[C]Take my [G]hand\n{part: Chorus}\n[C]Take my [G]hand'
-
-  it('phone: the cursor lands on exactly the tapped line, also when its text appears twice', async () => {
-    stubViewport({ orientation: 'portrait' })
-    const { variantToOpen } = await import('../lib/songVariantsDb')
-    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: twoChoruses })
-    await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
-
-    const lines = document.querySelectorAll<HTMLElement>('[data-source-line]')
-    expect(lines).toHaveLength(2)
-    await act(async () => fireEvent.click(lines[1]))
-    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
-    expect(textarea).toHaveFocus()
-    expect(textarea.selectionStart).toBe(twoChoruses.lastIndexOf('[C]Take'))
-  })
-
-  it('wide screen: opens a collapsed Text section first, then places the cursor', async () => {
-    stubViewport({ width1024: true, width768: true })
-    const { variantToOpen } = await import('../lib/songVariantsDb')
-    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: twoChoruses })
-    await renderLoaded()
-    expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
-
-    await act(async () => fireEvent.click(document.querySelectorAll<HTMLElement>('[data-source-line]')[0]))
-    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
-    expect(textarea).toHaveFocus()
-    expect(textarea.selectionStart).toBe(twoChoruses.indexOf('[C]Take'))
-  })
-})
-
 describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
   /** The on-screen keyboard is up: the visible area is a small part of the screen. */
   const keyboardUp = () =>
     vi.stubGlobal('visualViewport', { offsetTop: 0, height: 100, addEventListener: () => {}, removeEventListener: () => {} })
 
   async function focusText(content = '[Am]Hello [C]world [Am]again') {
-    const { variantToOpen } = await import('../lib/songVariantsDb')
-    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: content })
-    await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
-    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
+    const textarea = await renderLoaded(song, content)
     fireEvent.focus(textarea)
     return textarea
   }
 
   it('touchscreen + keyboard up: [ ] / | and the song\'s chords, most used first; a key types at the caret', async () => {
-    stubViewport({ orientation: 'portrait', coarse: true })
+    stubViewport({ ...phone, coarse: true })
     keyboardUp()
     const textarea = await focusText()
     const bar = screen.getByRole('toolbar', { name: 'ChordPro-Tasten' })
@@ -369,7 +312,7 @@ describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
   })
 
   it('[ with text selected wraps it as a chord: "Am" → "[Am]"', async () => {
-    stubViewport({ orientation: 'portrait', coarse: true })
+    stubViewport({ ...phone, coarse: true })
     keyboardUp()
     const textarea = await focusText('Am Hello')
     textarea.setSelectionRange(0, 2)
@@ -378,15 +321,15 @@ describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
     expect(textarea.selectionStart).toBe(4)
   })
 
-  it('no bar without a touchscreen, or while the keyboard is down', async () => {
-    stubViewport({ orientation: 'portrait' })
+  it('no bar without a touchscreen', async () => {
+    stubViewport(phone)
     keyboardUp()
     await focusText()
     expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
   })
 
   it('keyboard down on a touchscreen: no bar', async () => {
-    stubViewport({ orientation: 'portrait', coarse: true })
+    stubViewport({ ...phone, coarse: true })
     vi.stubGlobal('visualViewport', { offsetTop: 0, height: window.screen.height, addEventListener: () => {}, removeEventListener: () => {} })
     await focusText()
     expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()

@@ -53,9 +53,11 @@ describe('TrackManagerField - stems (#9)', () => {
 
 describe('TrackManagerField - stem sets (docs/22)', () => {
   it('uploads several stems at once, named and with a role from the file name', async () => {
-    const { container } = render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} />)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'stem' } })
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'Art' }), { target: { value: 'stem' } })
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement
     expect(input.multiple).toBe(true)
     const files = [new File(['k'], '01_Hammond.wav', { type: 'audio/wav' }), new File(['b'], 'Bass.wav', { type: 'audio/wav' }), new File(['x'], 'Didgeridoo.wav', { type: 'audio/wav' })]
     fireEvent.change(input, { target: { files } })
@@ -75,5 +77,31 @@ describe('TrackManagerField - stem sets (docs/22)', () => {
     expect(screen.getByText('Hammond')).toBeInTheDocument()
     expect(screen.getByText('Chor hoch')).toBeInTheDocument()
     expect(screen.getByText(/unterschiedlich lang/)).toBeInTheDocument()
+  })
+})
+
+describe('TrackManagerField - one row per track (#604)', () => {
+  it('play, edit and delete are icons; removing asks first', async () => {
+    const { useDialogStore } = await import('../store/useDialogStore')
+    const confirm = vi.fn(async () => true)
+    useDialogStore.setState({ confirm })
+    render(<TrackManagerField variantId="v1" tracks={tracks} disabled={false} />)
+    expect(screen.getByRole('button', { name: 'Band-Playback anhören' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Schlagzeug anhören' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Schlagzeug bearbeiten' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Entfernen' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schlagzeug entfernen' }))
+    await waitFor(() => expect(variants.removeTrack).toHaveBeenCalledWith('v1', 'drums'))
+    expect(confirm).toHaveBeenCalledWith('„Schlagzeug“ entfernen?', expect.objectContaining({ danger: true }))
+  })
+
+  it('keeps the track when the question is declined', async () => {
+    const { useDialogStore } = await import('../store/useDialogStore')
+    useDialogStore.setState({ confirm: vi.fn(async () => false) })
+    render(<TrackManagerField variantId="v1" tracks={tracks} disabled={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Band-Playback entfernen' }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(variants.removeTrack).not.toHaveBeenCalled()
   })
 })
