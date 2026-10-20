@@ -5,14 +5,16 @@ import { isStandard, stageTuning, signedSteps, soundingKey, tuningLabel, unrecog
 import { transposeLines } from '../lib/transposeChord'
 import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
-import { Button } from './ui'
+import { Button, Select } from './ui'
 import { playableTracks } from '../lib/stems'
 
 interface SongPreviewProps {
   songId: string
   variantId: string | null
-  onEdit: () => void
+  /** Opens the editor on the variant the preview currently shows. */
+  onEdit: (variantId: string) => void
 }
 
 /**
@@ -21,18 +23,30 @@ interface SongPreviewProps {
  * into SheetEditor). Loads the variant the same way SheetEditor's own selectSong does
  * (variantToOpen), since
  * this is the exact same read, just without a draft to edit.
+ *
+ * #601: a dropdown switches between the song's variants - view only, it changes nothing in the
+ * ShowState, queue or default; it only decides which variant "Bearbeiten" opens.
  */
 export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   const songs = useSongsStore((state) => state.songs)
+  const allVariants = useSongVariantsStore((state) => state.variants)
   const [variant, setVariant] = useState<SongVariant | null>(null)
+  // The variant picked in the dropdown - null = the one asked for (`variantId`), else the default.
+  const [pickedId, setPickedId] = useState<string | null>(null)
 
   const song = songs.find((s) => s.id === songId)
+  const variantsOfSong = allVariants.filter((v) => v.songId === songId)
 
+  // Another song or another asked-for variant starts over on that one.
   useEffect(() => {
     setVariant(null)
+    setPickedId(null)
+  }, [songId, variantId])
+
+  useEffect(() => {
     if (!song) return
     let cancelled = false
-    void variantToOpen(song, variantId).then((picked) => {
+    void variantToOpen(song, pickedId ?? variantId).then((picked) => {
       if (!cancelled) setVariant(picked)
     })
     return () => {
@@ -43,7 +57,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
     // update. `!!song` is the one exception: a song that reaches the store only after this
     // mounted (just created, or still syncing in) must still load instead of staying "Lade…".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songId, variantId, !!song])
+  }, [songId, variantId, pickedId, !!song])
 
   if (!song || !variant) {
     return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
@@ -72,10 +86,20 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
           <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || '(ohne Titel)'}</h2>
           {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
         </div>
-        <Button variant="primary" className="flex-shrink-0" onClick={onEdit}>
+        <Button variant="primary" className="flex-shrink-0" onClick={() => onEdit(variant.id)}>
           Bearbeiten
         </Button>
       </div>
+
+      {variantsOfSong.length > 1 && (
+        <Select
+          aria-label="Variante"
+          className="min-w-0"
+          value={variant.id}
+          onChange={(e) => setPickedId(e.target.value)}
+          options={variantsOfSong.map((v) => ({ value: v.id, label: v.isDefault ? `${v.label} (Standard)` : v.label }))}
+        />
+      )}
 
       {/* At-a-glance overview of what this song actually has attached, present or not (Marco,
           explicit request) - shown even at zero, muted, rather than only appearing once

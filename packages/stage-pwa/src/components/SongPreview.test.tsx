@@ -74,12 +74,15 @@ const variantWithContent: SongVariant = {
 // pipeline just to render, same reasoning as SheetEditor.test.tsx. A mutable variable (not a
 // fixed `vi.fn(async () => variant)`) so individual tests can swap in `variantWithContent`.
 let resolvedVariant = variant
+// #601 tests pick by id from this list instead, like the real variantToOpen.
+let variantsById: SongVariant[] | null = null
 vi.mock('../lib/songVariantsDb', () => ({
-  variantToOpen: vi.fn(async () => resolvedVariant),
+  variantToOpen: vi.fn(async (_song: Song, id: string | null) => variantsById?.find((v) => v.id === id) ?? resolvedVariant),
 }))
 
 const { SongPreview } = await import('./SongPreview')
 const { useSongsStore } = await import('../store/useSongsStore')
+const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
 
 describe('SongPreview', () => {
   it('shows title, artist, key/tuning/capo/bpm and the rendered chord sheet once loaded', async () => {
@@ -131,7 +134,7 @@ describe('SongPreview', () => {
     render(<SongPreview songId={song.id} variantId={null} onEdit={onEdit} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Bearbeiten' }))
-    expect(onEdit).toHaveBeenCalled()
+    expect(onEdit).toHaveBeenCalledWith('variant-1')
   })
 
   it('shows a loading state before the song is found', () => {
@@ -152,5 +155,43 @@ describe('SongPreview - song not in the store yet when it mounts', () => {
     act(() => useSongsStore.setState({ songs: [song] }))
 
     expect(await screen.findByText('Sweet Child O’ Mine')).toBeInTheDocument()
+  })
+})
+
+describe('SongPreview - variant dropdown (#601)', () => {
+  const live: SongVariant = { ...variant, id: 'variant-live', label: 'Live -2', isDefault: false, transpose: -2, capo: undefined }
+
+  it('starts on the default, switches the chords and chips, and "Bearbeiten" opens the shown one', async () => {
+    resolvedVariant = variant
+    variantsById = [variant, live]
+    useSongsStore.setState({ songs: [song] })
+    useSongVariantsStore.setState({ variants: [variant, live] })
+    const onEdit = vi.fn()
+    render(<SongPreview songId={song.id} variantId={null} onEdit={onEdit} />)
+
+    const select = await screen.findByRole('combobox', { name: 'Variante' })
+    expect(select).toHaveValue('variant-1')
+    expect(screen.getByRole('option', { name: 'Original (Standard)' })).toBeInTheDocument()
+    expect(screen.getByText('Key: Db')).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: 'variant-live' } })
+
+    expect(await screen.findByText('Key: B')).toBeInTheDocument()
+    expect(screen.getByText('Transponiert: −2')).toBeInTheDocument()
+    expect(screen.queryByText('Capo: 3')).not.toBeInTheDocument()
+    expect(screen.getByText('F')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    expect(onEdit).toHaveBeenCalledWith('variant-live')
+  })
+
+  it('shows no dropdown for a song with one variant', async () => {
+    resolvedVariant = variant
+    variantsById = [variant]
+    useSongsStore.setState({ songs: [song] })
+    useSongVariantsStore.setState({ variants: [variant] })
+    render(<SongPreview songId={song.id} variantId={null} onEdit={vi.fn()} />)
+
+    expect(await screen.findByText('Key: Db')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
   })
 })
