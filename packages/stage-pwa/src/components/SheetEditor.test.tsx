@@ -188,11 +188,13 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
     expect(textarea.value).toContain('{cc: }')
   })
 
-  it('"Neue Variante" lives in the variant ⋯', async () => {
+  it('"+ Neue Variante" is an AddRow below the variant select, not in its ⋯ (2026-10-20)', async () => {
     stubViewport(phone)
     await renderLoaded()
-    fireEvent.click(screen.getByRole('button', { name: /^Menü: Variante/ }))
-    expect(screen.getByRole('button', { name: 'Neue Variante' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Neue Variante' }))
+    expect(screen.getByRole('combobox', { name: 'Variante' })).toHaveDisplayValue('Neue Variante (neu)')
+    // Nothing to do with an unsaved variant yet - no empty ⋯.
+    expect(screen.queryByRole('button', { name: /^Menü: Variante/ })).not.toBeInTheDocument()
   })
 
   it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {

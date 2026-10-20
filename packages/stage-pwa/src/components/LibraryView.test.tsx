@@ -109,14 +109,17 @@ describe('LibraryView', () => {
     expect(screen.getByRole('tab', { name: /^Setlists/ })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('songs of the active setlist get the yellow outline, the loaded one also "Aktuell"; songs outside it stay plain', () => {
+  it('songs of the active setlist get a quiet setlist icon; only the loaded one gets the yellow outline and "Aktuell" (2026-10-20)', () => {
     useSetlistsStore.setState({
       setlists: [{ ...setlist('new', 'Newer Gig', 2000), entries: [{ id: 'e1', songId: 'b', variantId: null, trackId: null }, { id: 'e2', songId: 'c', variantId: null, trackId: null }] }],
     })
     useShowStateStore.setState({ state: { ...DEFAULT_SHOW_STATE, activeSetlistId: 'new', activeEntryId: 'e2' } })
     render(<LibraryView />)
     const row = (name: string) => screen.getByText(name).closest('div.relative') as HTMLElement
-    expect(row('Bravo')).toHaveClass('outline-accent')
+    expect(within(row('Bravo')).getByRole('img', { name: 'In der aktiven Setlist' })).toBeInTheDocument()
+    expect(within(row('Charlie')).getByRole('img', { name: 'In der aktiven Setlist' })).toBeInTheDocument()
+    expect(within(row('Alpha')).queryByRole('img', { name: 'In der aktiven Setlist' })).not.toBeInTheDocument()
+    expect(row('Bravo')).not.toHaveClass('outline-accent')
     expect(row('Charlie')).toHaveClass('outline-accent')
     expect(row('Alpha')).not.toHaveClass('outline-accent')
     expect(within(row('Charlie')).getByText('Aktuell')).toBeInTheDocument()

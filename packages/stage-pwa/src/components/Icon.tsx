@@ -29,6 +29,7 @@ import {
   Minus,
   LayoutDashboard,
   Library,
+  ListMusic,
   Settings,
   Lock,
   LockOpen,
@@ -110,6 +111,8 @@ const ICONS = {
   text: FileText,
   timeline: AudioWaveform,
   details: SlidersHorizontal,
+  /** Song is in the active setlist - a quiet marker in the song list (2026-10-20). */
+  setlist: ListMusic,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

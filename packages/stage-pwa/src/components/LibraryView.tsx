@@ -127,9 +127,6 @@ interface DraggableSongRowProps {
   onRemoveFromActiveSetlist?: () => void
   /** The song currently loaded in the show - the "Aktuell" badge. */
   current?: boolean
-  /** Part of the active setlist (or the current song when there is none) - the yellow outline, so the
-   * songs not in the setlist stand out (Marco, 2026-10-07). */
-  inSetlist?: boolean
   song: Song
   onClick: () => void
   /** Same selected-state treatment the Setlists list already has (Marco: "why is the setlist
@@ -179,7 +176,6 @@ function DraggableSongRow({
   onDelete,
   keyboardFocused,
   current = false,
-  inSetlist = false,
   inActiveSetlist = false,
   note,
   onRemoveFromActiveSetlist,
@@ -260,7 +256,7 @@ function DraggableSongRow({
         }}
         className={`relative z-content flex items-center gap-1 rounded-control py-1 pl-2 pr-1 ${
           selected ? 'bg-accent text-accent-ink' : 'bg-control [@media(hover:hover)]:hover:bg-control-hover'
-        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${inSetlist ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
+        } ${keyboardFocused ? 'ring-2 ring-inset ring-accent' : ''} ${current ? 'outline outline-2 -outline-offset-2 outline-accent' : ''}`}
       >
         <button
           type="button"
@@ -271,7 +267,11 @@ function DraggableSongRow({
           {song.artist && <span className={selected ? '' : 'text-ink-faint'}> — {song.artist}</span>}
           {note && <span className={selected ? '' : 'text-ink-faint'}> · {note}</span>}
         </button>
+        {/* Setlist songs get a quiet icon, not the yellow outline - with most songs in the setlist
+            the outlines drowned the titles; yellow stays for the current song alone. The icon comes after
+            "Aktuell" so it stays in one column next to ⋯ (Marco, 2026-10-20). */}
         {current && <Badge tone={selected ? 'neutral' : 'accent'}>Aktuell</Badge>}
+        {inActiveSetlist && <Icon name="setlist" label="In der aktiven Setlist" className={selected ? '' : 'text-ink-faint'} />}
         {showAddButton && (
           <Button className="w-form flex-shrink-0" onClick={() => onAddToActiveSetlist?.()} disabled={!onAddToActiveSetlist} title={onAddToActiveSetlist ? 'Zur aktiven Setlist hinzufügen' : 'Keine aktive Setlist'}>
             <Icon name="add" />
@@ -778,7 +778,6 @@ export function LibraryView() {
                     onClick={() => selectSong(song.id, null)}
                     selected={selection?.type === 'song' && selection.songId === song.id}
                     current={song.id === currentSongId}
-                    inSetlist={activeSetlist ? setlistSongIds.has(song.id) : song.id === currentSongId}
                     inActiveSetlist={!!activeSetlist && setlistSongIds.has(song.id)}
                     note={
                       sort.songs.by === 'practiced'

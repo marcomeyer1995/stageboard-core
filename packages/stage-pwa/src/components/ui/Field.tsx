@@ -60,13 +60,23 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
 }
 
 /** Dropdown with the same height, corner and label as a Field. */
-export function Select({ label, hint, size: sizeProp, options, id, className = '', ...rest }: SelectProps) {
+export function Select({ label, hint, size: sizeProp, options, id, className = '', onChange, ...rest }: SelectProps) {
   const size = useControlSize(sizeProp)
   const autoId = useId()
   const fieldId = id ?? autoId
   return (
     <Wrap id={fieldId} label={label} hint={hint}>
-      <select id={fieldId} className={`${INPUT} ${SIZE[size]} ${className}`} {...rest}>
+      <select
+        id={fieldId}
+        className={`${INPUT} ${SIZE[size]} ${className}`}
+        onChange={(e) => {
+          onChange?.(e)
+          // After a pick by touch the select kept focus and Chromium showed its keyboard ring,
+          // an orange frame that looked like a marking (2026-10-20). A keyboard user keeps focus.
+          if (matchMedia('(pointer: coarse)').matches) e.currentTarget.blur()
+        }}
+        {...rest}
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
