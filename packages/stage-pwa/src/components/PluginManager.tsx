@@ -71,38 +71,39 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
         {mine.length === 0 && <p className="text-sm text-ink-faint">{header.empty}</p>}
         {mine.map((plugin) => (
           <div key={plugin.id} className="flex flex-col gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
-            {/* Text across the full width, the controls in one row below - beside the text they
-                squeezed name and description into a narrow column on the phone (Marco, 2026-10-07). */}
-            <div className="min-w-0">
-              <p className="font-semibold">
-                {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
-                {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
-                {isTestPlugin(plugin.id) && <Badge tone="warning">Test</Badge>}
-              </p>
-              <p className="text-sm text-ink-muted">
-                {capabilitiesLabel(plugin.capabilities) || 'keine Funktionen'} · {healthLabel(plugin)}
-              </p>
+            {/* Name and ⋯ on top - the ⋯ always top right, on every card (2026-10-20: beside the
+                switch it wandered into the middle once "Einstellungen" wrapped). Text keeps the full
+                width otherwise; the controls go in one row below (Marco, 2026-10-07). */}
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">
+                  {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
+                  {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
+                  {isTestPlugin(plugin.id) && <Badge tone="warning">Test</Badge>}
+                </p>
+                <p className="text-sm text-ink-muted">
+                  {capabilitiesLabel(plugin.capabilities) || 'keine Funktionen'} · {healthLabel(plugin)}
+                </p>
+              </div>
+              {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
+                  buttons on one page (System cleanup, 2026-10-16). */}
+              <ActionMenu
+                title={plugin.name}
+                actions={[
+                  {
+                    label: 'Entfernen',
+                    danger: true,
+                    onClick: async () => {
+                      if (await confirm(`"${plugin.name}" entfernen?`, { confirmLabel: 'Entfernen', danger: true })) void uninstall(plugin.id)
+                    },
+                  },
+                ]}
+              />
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
               <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
-              <span className="flex flex-wrap gap-2">
-                {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>Einstellungen</Button>}
-                {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
-                    buttons on one page (System cleanup, 2026-10-16). */}
-                <ActionMenu
-                  title={plugin.name}
-                  actions={[
-                    {
-                      label: 'Entfernen',
-                      danger: true,
-                      onClick: async () => {
-                        if (await confirm(`"${plugin.name}" entfernen?`, { confirmLabel: 'Entfernen', danger: true })) void uninstall(plugin.id)
-                      },
-                    },
-                  ]}
-                />
-              </span>
+              {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>Einstellungen</Button>}
             </div>
           </div>
         ))}

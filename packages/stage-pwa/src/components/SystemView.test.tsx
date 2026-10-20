@@ -132,6 +132,32 @@ describe('SystemView - sidebar (pointer or wide screen) vs. tab strip (narrow to
     expectStrip()
   })
 
+  it('narrow touch: a swipe left/right goes to the next/previous tab; a vertical scroll or a slider does not (2026-10-20)', () => {
+    stubMatchMedia({ pointer: false, wide: false })
+    usePluginsStore.setState({ installed: [] })
+    render(<SystemView />)
+    const page = screen.getByRole('tab', { name: 'Dieses Gerät' }).closest('div.h-full') as HTMLElement
+    const swipe = (target: Element, dx: number, dy: number) => {
+      fireEvent.touchStart(target, { touches: [{ clientX: 200, clientY: 300 }] })
+      fireEvent.touchEnd(target, { changedTouches: [{ clientX: 200 + dx, clientY: 300 + dy }] })
+    }
+    const selected = () => screen.getByRole('tab', { selected: true }).textContent
+    swipe(page, -150, 10)
+    expect(selected()).toBe('Band')
+    swipe(page, 20, 200)
+    expect(selected()).toBe('Band')
+    swipe(page, 150, 0)
+    expect(selected()).toBe('Dieses Gerät')
+    // The first tab has no previous one.
+    swipe(page, 150, 0)
+    expect(selected()).toBe('Dieses Gerät')
+    const slider = document.createElement('input')
+    slider.type = 'range'
+    page.appendChild(slider)
+    swipe(slider, -150, 0)
+    expect(selected()).toBe('Dieses Gerät')
+  })
+
   it('wide touch (e.g. a tablet in landscape): the sidebar too, same as Bibliothek\'s own two-pane switch', () => {
     stubMatchMedia({ pointer: false, wide: true })
     usePluginsStore.setState({ installed: [] })

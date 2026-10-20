@@ -55,7 +55,7 @@ import { askAnalysisSource, stemsForTrack } from '../../lib/stems'
 import { getTrack } from '../../lib/songVariantsDb'
 import { useSongVariantsStore } from '../../store/useSongVariantsStore'
 import { Icon } from '../Icon'
-import { Button, Dialog, Stepper, ToggleChip } from '../ui'
+import { Button, Dialog, IconButton, Stepper, ToggleChip } from '../ui'
 import { partSectionStarts } from '../../lib/showSections'
 import { setPartStartBar } from '../../lib/partStart'
 import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
@@ -172,17 +172,6 @@ const CUE_COLORS = ['#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7', '#14b
 function cssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback
   return tokenColor(getComputedStyle(document.documentElement).getPropertyValue(name), fallback)
-}
-
-/** Undo arrow as an SVG: the ↶/↷ characters came out tiny on the Fire tablet's font, whatever the
- * font size. */
-function UndoIcon({ mirrored = false }: { mirrored?: boolean }) {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
-      <path d="M9 14 4 9l5-5" />
-      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-    </svg>
-  )
 }
 
 // `x` / `effectiveX` is where the finger counts as being - in fine mode (#334) that lags behind the
@@ -1665,7 +1654,6 @@ export function TimelineEditor(props: TimelineEditorProps) {
   }
 
   const playheadX = timeToX(playheadMs, view)
-  const iconButton = 'flex min-h-form min-w-12 items-center justify-center rounded-control bg-control-strong px-3 text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:opacity-40'
   // Whether bar lines in view are far enough apart to grab (the bar at the left edge decides).
   const viewBar = timeline.barOf(Math.max(0, timeline.beatAtOrBefore(view.startMs)))
   const barsGrabbable = (timeline.timeOfBeat(timeline.barStartBeat(viewBar + 1)) - timeline.timeOfBeat(timeline.barStartBeat(viewBar))) / view.msPerPx >= 2 * TOLERANCE_PX
@@ -1753,17 +1741,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
   return (
     <div className={`relative flex flex-col gap-3 ${fill ? 'h-full min-h-0' : ''}`} onKeyDown={onKeyDown} tabIndex={0} aria-label="Timeline">
       <div ref={topRow} className="flex flex-wrap items-center gap-2">
-        <Button onClick={clock.togglePlay} disabled={!trackSrc} aria-label={clock.isPlaying ? 'Pause' : 'Abspielen'}>
-          <Icon name={clock.isPlaying ? 'pause' : 'play'} size="1.25rem" />
-        </Button>
+        {/* All shared controls, so the row has one height and one grey (2026-10-20). */}
+        <IconButton icon={clock.isPlaying ? 'pause' : 'play'} label={clock.isPlaying ? 'Pause' : 'Abspielen'} onClick={clock.togglePlay} disabled={!trackSrc} />
         <span className={`${phone ? '' : 'min-w-20'} font-bold tabular-nums`}>{formatTimelineTime(playheadMs)}</span>
         {!phone && playbackSettings}
-        <button type="button" className={iconButton} onClick={undo} disabled={undoStack.length === 0} aria-label="Rückgängig">
-          <UndoIcon />
-        </button>
-        <button type="button" className={iconButton} onClick={redo} disabled={redoStack.length === 0} aria-label="Wiederholen">
-          <UndoIcon mirrored />
-        </button>
+        <IconButton icon="undo" label="Rückgängig" onClick={undo} disabled={undoStack.length === 0} />
+        <IconButton icon="redo" label="Wiederholen" onClick={redo} disabled={redoStack.length === 0} />
         {compactTools && tapMode === null && (
           <Button ref={toolsToggle} aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}>
             Werkzeuge

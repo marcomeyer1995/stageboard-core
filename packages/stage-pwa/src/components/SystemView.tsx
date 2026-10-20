@@ -10,6 +10,7 @@ import { useActiveSystemTabStore, type SystemTab } from '../store/useActiveSyste
 import { DebugConsoleView } from './DebugConsoleView'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { Tabs } from './ui'
+import { useTabSwipe } from '../lib/useTabSwipe'
 
 /** Names and order Marco chose 2026-10-16 (docs/15 §9 step 3): by scope - this device, the
  * band, the server - instead of the old mix where one tab held device, band and server settings. */
@@ -66,6 +67,7 @@ export function SystemView() {
   const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('device')
   const activeTab = tabs.includes(tab) ? tab : 'device'
+  const swipe = useTabSwipe(tabs, activeTab, setTab)
   const setActiveSystemTab = useActiveSystemTabStore((state) => state.setActiveTab)
   const inputCapability = useInputCapability()
   const isWideScreen = useIsWideScreen()
@@ -128,7 +130,8 @@ export function SystemView() {
   // Narrow touch (phone, tablet portrait): the tabs wrap onto a second row instead of scrolling
   // sideways - a scrolling strip hid Band/Plugins on the phone with no hint that more existed (#373).
   return (
-    <div className="h-full overflow-y-auto sb-app-bg text-ink">
+    // A swipe left/right goes to the next/previous tab (2026-10-20).
+    <div className="h-full overflow-y-auto sb-app-bg text-ink" {...swipe}>
       {/* Page navigation = underline tabs (docs/15). They wrap onto a second row instead of
           scrolling sideways - a scrolling strip hid Band/Plugins on the phone (#373). */}
       <div className="sticky top-0 z-content border-b border-line bg-surface px-2 pt-1">

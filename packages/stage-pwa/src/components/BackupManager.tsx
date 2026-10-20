@@ -13,6 +13,9 @@ import {
 import { ServerBackupTargets } from './ServerBackupTargets'
 import { Badge, Button } from './ui'
 
+/** Same look as the "Sicherung des Stage-Servers" heading above it (ui Section). */
+const SUBHEADING = 'text-xs font-bold uppercase tracking-widest text-ink-faint'
+
 /**
  * A focused view of just the band's backup-capability plugin(s), for the "gated built-in
  * mode" version of Backup (docs/02): StageBoard itself never triggers a backup, it only
@@ -73,12 +76,12 @@ export function BackupManager() {
   }
 
   return (
-    // A part of System → Stage-Server since the System split (2026-10-16), no tab of its own.
-    <section aria-label="Backup" className="flex flex-col text-ink">
-      <h2 className="mb-4 mt-4 text-xl font-bold">Backup</h2>
+    // A part of System → Stage-Server since the System split (2026-10-16), no tab of its own; the
+    // card and its "Backup" heading come from there (SystemSettings Group).
+    <div className="flex flex-col text-ink">
       <ServerBackupTargets />
 
-      {backupPlugins.length > 0 && <h3 className="mb-2 mt-8 text-lg font-bold">Backup-Plugins</h3>}
+      {backupPlugins.length > 0 && <h4 className={`mb-2 mt-3 ${SUBHEADING}`}>Backup-Plugins</h4>}
       <div className="space-y-2">
         {backupPlugins.map((plugin) => (
           <div
@@ -97,7 +100,7 @@ export function BackupManager() {
         ))}
       </div>
 
-      <h3 className="mb-1 mt-8 text-lg font-bold">Lokale Snapshots</h3>
+      <h4 className={`mb-1 mt-3 ${SUBHEADING}`}>Lokale Snapshots</h4>
       <p className="mb-4 text-sm text-ink-muted">
         Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieses Workspaces
         (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und
@@ -124,6 +127,6 @@ export function BackupManager() {
         />
       </div>
       {snapshotStatus && <p className="mt-2 text-sm text-ink-muted">{snapshotStatus}</p>}
-    </section>
+    </div>
   )
 }
