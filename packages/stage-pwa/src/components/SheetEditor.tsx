@@ -15,7 +15,7 @@ import { analyzeTrackBlob } from '../lib/analyzeTrack'
 import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
-import { parseChordPro, sourcePosition } from '../lib/chordpro'
+import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
@@ -29,6 +29,7 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
+import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
 import { CommentListEditor } from './CommentListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
@@ -169,6 +170,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // A tapped preview line's position in the text (#607) - applied once the text field is there,
   // since the Text section may first have to open.
   const [jumpTo, setJumpTo] = useState<number | null>(null)
+  // The text field has the focus - shows the ChordPro keys above the phone keyboard (#606).
+  const [textFocused, setTextFocused] = useState(false)
   useEffect(() => {
     const textarea = textareaRef.current
     if (jumpTo === null || !textarea) return
@@ -433,6 +436,32 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       textarea?.focus()
       textarea?.setSelectionRange(caretAfter, caretAfter)
     })
+  }
+
+  /** Replaces the selection (or inserts at the caret) with `before` + selection + `after` and puts
+   * the caret after it - the ChordPro keys and chord buttons (#606). The field keeps the focus. */
+  const typeAtCaret = (before: string, after = '', keepSelection = false) => {
+    const textarea = textareaRef.current
+    const content = draft.chordProContent
+    const start = textarea?.selectionStart ?? content.length
+    const end = textarea?.selectionEnd ?? start
+    const selected = keepSelection ? content.slice(start, end) : ''
+    const inserted = before + selected + after
+    setDraft({ ...draft, chordProContent: content.slice(0, start) + inserted + content.slice(end) })
+    requestAnimationFrame(() => {
+      const caretAfter = start + inserted.length
+      textarea?.focus()
+      textarea?.setSelectionRange(caretAfter, caretAfter)
+    })
+  }
+
+  /** `[` with text selected wraps it as a chord - "Am" → "[Am]" (#606), from the key bar or the
+   * keyboard; the other keys just type. */
+  const typeChordProKey = (key: (typeof CHORDPRO_KEYS)[number]) => {
+    const textarea = textareaRef.current
+    const hasSelection = textarea !== null && textarea.selectionStart !== textarea.selectionEnd
+    if (key === '[' && hasSelection) typeAtCaret('[', ']', true)
+    else typeAtCaret(key)
   }
 
   /** Inserts a blank `{cc: }` comment directive at the caret's line (issue #215 follow-up) -
@@ -797,7 +826,23 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           className={`min-h-[240px] flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
           value={draft.chordProContent}
           onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
+          onFocus={() => setTextFocused(true)}
+          onBlur={() => setTextFocused(false)}
+          onBeforeInput={(e) => {
+            const textarea = e.currentTarget
+            if ((e.nativeEvent as InputEvent).data === '[' && textarea.selectionStart !== textarea.selectionEnd) {
+              e.preventDefault()
+              typeChordProKey('[')
+            }
+          }}
           placeholder="[00:00.00] Come on baby [G] don't you wanna go"
+        />
+        <ChordProKeyBar
+          active={textFocused}
+          chords={songChords(preview)}
+          onKey={typeChordProKey}
+          onChord={(chord) => typeAtCaret(`[${chord}]`)}
+          onInsertMenu={() => setInsertMenuOpen(true)}
         />
       </label>
       {layout !== 'panel' && (
