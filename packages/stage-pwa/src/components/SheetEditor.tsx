@@ -29,8 +29,6 @@ import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CommentListEditor } from './CommentListEditor'
-import { CueListEditor } from './CueListEditor'
-import { CueRecorder } from './CueRecorder'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
@@ -173,7 +171,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [savedAt, setSavedAt] = useState<number | null>(null)
   // "Tap-to-Sync" opens the timeline straight into "Zeilen tippen" (#325) - the one place lines are tapped.
   const [tapLinesOnOpen, setTapLinesOnOpen] = useState(false)
-  const [isRecordingCues, setIsRecordingCues] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [insertMenuOpen, setInsertMenuOpen] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -181,14 +178,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
-  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'cues' | 'comments'>('text')
+  const [mobileTab, setMobileTab] = useState<'text' | 'tempo' | 'audio' | 'comments'>('text')
   // Every section starts collapsed (Marco, explicit request) - opening a song for editing
   // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
   // deliberately expanded, not a screenful of whichever section used to default open.
   const [textExpanded, setTextExpanded] = useState(false)
   const [tempoExpanded, setTempoExpanded] = useState(false)
   const [audioExpanded, setAudioExpanded] = useState(false)
-  const [cuesExpanded, setCuesExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   // Two views of the same draft (docs/14): the text editor (what) and the full-screen timeline
   // (when) - not a section squeezed into the details column.
@@ -204,7 +200,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   useEffect(() => {
     setTapTrackSrc(null)
     const timelineOpen = editorView === 'timeline'
-    if (!draft || (!isRecordingCues && !timelineOpen) || !tapTrack) return
+    if (!draft || !timelineOpen || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
     getTrack(draft.variantId, tapTrack.id).then((blob) => {
@@ -219,7 +215,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecordingCues, editorView, draft?.variantId, tapTrack?.id])
+  }, [editorView, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -615,8 +611,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     </div>
   )
 
-  // Audio (attached recordings) and Cues (show-control triggers) are different topics that
-  // used to share one "leftover" tab - split for the same reason.
+  // Cues live only in the timeline (#602) - placed over the waveform, with the guided CueDialog
+  // and the recorder; the old list with raw JSON is gone.
   // With a track attached, its length *is* the song's length (read-only, measured from the file);
   // the hand-entered one only exists for songs without a track - e.g. click-only playback (#28).
   const playingTrack = currentTracks.find((t) => t.kind === 'band-mix') ?? playableTracks(currentTracks)[0]
@@ -664,27 +660,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     </div>
   )
 
-  const cuesContent = isRecordingCues ? (
-    <CueRecorder
-      trackSrc={tapTrackSrc}
-      chordProContent={draft.chordProContent}
-      onComplete={(recorded) => {
-        setDraft({ ...draft, cues: [...draft.cues, ...recorded].sort((a, b) => a.timeMs - b.timeMs) })
-        setIsRecordingCues(false)
-      }}
-      onCancel={() => setIsRecordingCues(false)}
-    />
-  ) : (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
-        <span>Cues live einspielen: Track abspielen und am Gerät bedienen.</span>
-        <Button onClick={() => setIsRecordingCues(true)}>
-          Cues aufnehmen
-        </Button>
-      </div>
-      <CueListEditor cues={draft.cues} onChange={(cues) => setDraft({ ...draft, cues })} />
-    </div>
-  )
   const commentsContent = (
     <CommentListEditor
       content={draft.chordProContent}
@@ -744,14 +719,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       content: audioContent,
       expanded: audioExpanded,
       onToggleExpand: () => setAudioExpanded((v) => !v),
-    },
-    {
-      key: 'cues' as const,
-      label: 'Cues',
-      fullLabel: 'Cues',
-      content: cuesContent,
-      expanded: cuesExpanded,
-      onToggleExpand: () => setCuesExpanded((v) => !v),
     },
     {
       key: 'comments' as const,
@@ -982,8 +949,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         )}
 
         {/* Below lg only - landscape/desktop show every section at once (as collapsible
-            accordions below) and need no switcher. Four tabs (#180's follow-up separated
-            Audio/Cues; Key/Tuning/Capo's own Arrangement tab was later folded into the
+            accordions below) and need no switcher. Three tabs besides Text (Cues moved to the
+            timeline, #602; Key/Tuning/Capo's own Arrangement tab was later folded into the
             always-visible header above instead), so the strip scrolls horizontally rather than
             stretching each tab thinner - same pattern SystemView.tsx already uses for its own
             seven tabs, not a new idiom. */}

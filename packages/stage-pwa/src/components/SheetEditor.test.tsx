@@ -137,15 +137,15 @@ describe('SheetEditor - always-visible header (Titel/Band/Key/Tuning/Capo)', () 
   })
 })
 
-describe('SheetEditor - Text/Tempo/Audio/Cues/Kommentare tabs (phone/tablet portrait)', () => {
-  it('phone portrait: five tabs, Text active by default', async () => {
+describe('SheetEditor - Text/Tempo/Audio/Kommentare tabs (phone/tablet portrait)', () => {
+  it('phone portrait: four tabs, Text active by default - no Cues tab, cues live in the timeline (#602)', async () => {
     stubViewport({ orientation: 'portrait' })
     await renderLoaded()
 
     expect(within(screen.getByRole('tablist', { name: 'Bereich' })).getByRole('tab', { name: 'Text' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Tempo' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Cues' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Cues' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Kommentare' })).toBeInTheDocument()
 
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
@@ -158,11 +158,6 @@ describe('SheetEditor - Text/Tempo/Audio/Cues/Kommentare tabs (phone/tablet port
 
     fireEvent.click(screen.getByRole('tab', { name: 'Audio' }))
     expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
-    expect(screen.queryByText('Noch keine Cues für diese Variante.')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Cues' }))
-    expect(screen.getByText('Noch keine Cues für diese Variante.')).toBeInTheDocument()
-    expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Kommentare' }))
     expect(
@@ -200,7 +195,7 @@ describe('SheetEditor - "+ Kommentar" button (issue #215 follow-up)', () => {
 })
 
 describe('SheetEditor - landscape/desktop: every section collapsible, all start collapsed', () => {
-  it('desktop: no tab switcher; Text/Tempo & Klick/Audio/Cues all start collapsed, expand independently', async () => {
+  it('desktop: no tab switcher; Text/Tempo & Klick/Audio all start collapsed, expand independently', async () => {
     stubViewport({ width1280: true, width1024: true, width768: true })
     await renderLoaded()
 
@@ -212,7 +207,6 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Takt')).not.toBeInTheDocument()
     expect(screen.queryByText('Keine Tracks')).not.toBeInTheDocument()
-    expect(screen.queryByText('Noch keine Cues für diese Variante.')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
     expect(screen.getByPlaceholderText(chordProPlaceholder)).toBeInTheDocument()
@@ -225,8 +219,8 @@ describe('SheetEditor - landscape/desktop: every section collapsible, all start 
     fireEvent.click(screen.getByRole('button', { name: 'Audio', expanded: false }))
     expect(screen.getByText('Keine Tracks')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cues', expanded: false }))
-    expect(screen.getByText('Noch keine Cues für diese Variante.')).toBeInTheDocument()
+    // No Cues section any more - cues are placed in the timeline (#602).
+    expect(screen.queryByRole('button', { name: 'Cues' })).not.toBeInTheDocument()
   })
 
   it('landscape below xl: same all-collapsed default as desktop', async () => {

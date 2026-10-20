@@ -13,7 +13,7 @@ import type { Translator } from './clientTranslator'
  * The other three hooks are declared because the issue calls for the shape to exist, but stay
  * loosely typed (`unknown`) rather than fully speculated out: `registerWidgets` needs a real
  * dashboard-widget consumer, `registerEditorPanel` a real Song Editor per-plugin panel (today's
- * `CueListEditor` is generic, #99), and `registerHalProbe` real hardware detection (#106) -
+ * cue editing is the generic timeline CueDialog, #99/#602), and `registerHalProbe` real hardware detection (#106) -
  * none of which exist yet to design a precise interface against.
  */
 export interface ClientPluginModule {
