@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { checkForAppUpdate, installAppUpdate, type AppUpdate } from '../lib/native'
+import { checkForAppUpdate, installAppUpdate, updateFailureReason, type AppUpdate } from '../lib/native'
 import { useStageServerStore } from '../store/useStageServerStore'
 
 /**
@@ -38,8 +38,8 @@ export function AppUpdateBanner() {
           setError(null)
           try {
             await installAppUpdate()
-          } catch {
-            setError('Update konnte nicht geladen werden – später erneut versuchen.')
+          } catch (err) {
+            setError(`Update konnte nicht geladen werden – später erneut versuchen. (${updateFailureReason(err)})`)
           }
           setBusy(false)
         }}

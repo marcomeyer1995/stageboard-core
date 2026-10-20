@@ -12,9 +12,14 @@ export type RehearsalWindow = z.infer<typeof RehearsalWindowSchema>
 
 export const DEFAULT_REHEARSAL_WINDOW: RehearsalWindow = { kind: 'days', days: 90 }
 
+/** Ready-made texts for "+ Kommentar" in the song editor (#608) - the band's own, managed in
+ * System → Band. Until the band changes them, these defaults are offered. */
+export const DEFAULT_COMMENT_TEMPLATES: readonly string[] = ['A cappella', 'Build-up', 'Solo 8 Takte', 'Auf Drummer achten']
+
 /** Settings that apply to the whole band - one document (id "band"); only admins may change it. */
 export const BandSettingsSchema = z.object({
   id: z.literal('band'),
   rehearsalWindow: RehearsalWindowSchema.optional(),
+  commentTemplates: z.array(z.string().min(1)).optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>

@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Song, SongVariant } from 'shared-types'
 
@@ -177,15 +177,52 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
     expect(screen.getByRole('button', { name: 'Song-Angaben' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('⋮ holds Einfügen, Song importieren and Tap-to-Sync; "+ Kommentar" lands in the text', async () => {
+  it('⋮ holds Einfügen, Song importieren and Tap-to-Sync', async () => {
     stubViewport(phone)
-    const textarea = await renderLoaded()
+    await renderLoaded()
     fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
     expect(screen.getByRole('button', { name: 'Song importieren' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tap-to-Sync starten' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Einfügen …' })).toBeInTheDocument()
+  })
+
+  it('"+ Kommentar": a band template for Marco and Jamie becomes {cc4Marco,Jamie: Solo 8 Takte} above the caret line (#608)', async () => {
+    const { useProfilesStore } = await import('../store/useProfilesStore')
+    const { useBandSettingsStore } = await import('../store/useBandSettingsStore')
+    useProfilesStore.setState({ profiles: [{ id: 'p1', name: 'Marco' }, { id: 'p2', name: 'Jamie' }, { id: 'p3', name: 'Caro' }] as never })
+    useBandSettingsStore.setState({ settings: { id: 'band', commentTemplates: ['Solo 8 Takte', 'A cappella'] } })
+    stubViewport(phone)
+    const textarea = await renderLoaded()
+    textarea.setSelectionRange(textarea.value.indexOf('[C]'), textarea.value.indexOf('[C]'))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
     fireEvent.click(screen.getByRole('button', { name: 'Einfügen …' }))
     fireEvent.click(screen.getByRole('button', { name: '+ Kommentar' }))
-    expect(textarea.value).toContain('{cc: }')
+    const dialog = screen.getByRole('dialog', { name: 'Kommentar einfügen' })
+    expect(within(dialog).getByRole('button', { name: 'Einfügen' })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Solo 8 Takte' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Marco' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Jamie' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Einfügen' }))
+    expect(textarea.value).toBe('[Verse]\n{cc4Marco,Jamie: Solo 8 Takte}\n[C]Take my [G]hand')
+    useProfilesStore.setState({ profiles: [] })
+    useBandSettingsStore.setState({ settings: { id: 'band' } })
+  })
+
+  it('"+ Tab" for Marco inserts {sot4Marco}, a six-string skeleton and {end_of_tab} (#608)', async () => {
+    const { useProfilesStore } = await import('../store/useProfilesStore')
+    useProfilesStore.setState({ profiles: [{ id: 'p1', name: 'Marco' }] as never })
+    stubViewport(phone)
+    const textarea = await renderLoaded()
+    textarea.setSelectionRange(0, 0)
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Einfügen …' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Tab' }))
+    const dialog = screen.getByRole('dialog', { name: 'Tab einfügen' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Marco' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Einfügen' }))
+    const lines = textarea.value.split('\n')
+    expect(lines.slice(0, 8)).toEqual(['{sot4Marco}', 'e|----------------|', 'B|----------------|', 'G|----------------|', 'D|----------------|', 'A|----------------|', 'E|----------------|', '{end_of_tab}'])
+    useProfilesStore.setState({ profiles: [] })
   })
 
   it('"+ Neue Variante" is an AddRow below the variant select, not in its ⋯ (2026-10-20)', async () => {

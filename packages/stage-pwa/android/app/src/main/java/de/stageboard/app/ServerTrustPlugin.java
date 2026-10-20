@@ -3,6 +3,7 @@ package de.stageboard.app;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.Log;
 import android.net.Uri;
 
 import androidx.core.content.FileProvider;
@@ -129,7 +130,7 @@ public class ServerTrustPlugin extends Plugin {
             String host = target.getHost();
             String pinned = pinnedFingerprint(getContext(), host);
             if (!"https".equals(target.getProtocol()) || pinned == null) {
-                call.reject("Only the paired Stage-Server can provide updates");
+                updateFailed(call, "Only the paired Stage-Server can provide updates (host " + host + ", pinned " + (pinned != null) + ")");
                 return;
             }
             TrustManager[] pinnedOnly = { new X509TrustManager() {
@@ -156,7 +157,7 @@ public class ServerTrustPlugin extends Plugin {
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(30000);
             if (connection.getResponseCode() != 200) {
-                call.reject("Download failed: HTTP " + connection.getResponseCode());
+                updateFailed(call, "Download failed: HTTP " + connection.getResponseCode());
                 return;
             }
             File dir = new File(getContext().getCacheDir(), "updates");
@@ -174,7 +175,14 @@ public class ServerTrustPlugin extends Plugin {
             getContext().startActivity(install);
             call.resolve();
         } catch (Exception e) {
-            call.reject("Update failed: " + e.getMessage());
+            updateFailed(call, "Update failed: " + e);
         }
+    }
+
+    /** A failed update also goes to the log - on one Samsung phone it failed without a trace
+     * (2026-10-20); the app shows the same text. */
+    private static void updateFailed(PluginCall call, String reason) {
+        Log.w("StageBoardUpdate", reason);
+        call.reject(reason);
     }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { APP_VERSION_CODE, fetchOfferedAppVersion, installAppUpdate, type AppUpdate } from '../lib/native'
+import { APP_VERSION_CODE, fetchOfferedAppVersion, installAppUpdate, updateFailureReason, type AppUpdate } from '../lib/native'
 
 type CheckState = { kind: 'idle' } | { kind: 'checking' } | { kind: 'current' } | { kind: 'none' } | { kind: 'available'; update: AppUpdate } | { kind: 'error'; message: string }
 
@@ -23,8 +23,8 @@ export function AppVersionSettings() {
     setInstalling(true)
     try {
       await installAppUpdate()
-    } catch {
-      setState({ kind: 'error', message: 'Update konnte nicht geladen werden – später erneut versuchen.' })
+    } catch (err) {
+      setState({ kind: 'error', message: `Update konnte nicht geladen werden – später erneut versuchen. (${updateFailureReason(err)})` })
     }
     setInstalling(false)
   }
