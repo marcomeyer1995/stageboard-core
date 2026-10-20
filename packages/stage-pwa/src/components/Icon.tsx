@@ -3,6 +3,7 @@ import {
   Repeat,
   ArrowRight,
   ArrowUpDown,
+  AudioWaveform,
   Ban,
   Camera,
   Plus,
@@ -18,6 +19,7 @@ import {
   Ellipsis,
   EllipsisVertical,
   ExternalLink,
+  FileText,
   Eye,
   EyeOff,
   Grip,
@@ -36,6 +38,7 @@ import {
   RefreshCw,
   RotateCcw,
   RotateCw,
+  Save,
   Square,
   TriangleAlert,
   X,
@@ -96,6 +99,10 @@ const ICONS = {
   edit: Pencil,
   /** A section repeated in the show (#479). */
   repeat: Repeat,
+  /** Phone headers, where the word doesn't fit (#603): Speichern, and the editor's Text / Timeline view. */
+  save: Save,
+  text: FileText,
+  timeline: AudioWaveform,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

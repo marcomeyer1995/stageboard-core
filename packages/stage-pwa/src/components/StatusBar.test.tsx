@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { StatusBar } from './StatusBar'
 import { useShowMode } from '../lib/showMode'
+import { useEditingTitleStore } from '../store/useEditingTitleStore'
 
 vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p', name: 'Marco' }) }))
@@ -54,6 +55,7 @@ const bar = () => screen.getByRole('banner')
 beforeEach(() => {
   stores.masterHolderId = 'tablet'
   stores.audioError = null
+  useEditingTitleStore.setState({ editing: null })
 })
 
 describe('StatusBar (PR F2)', () => {
@@ -137,5 +139,39 @@ describe('StatusBar (PR F2)', () => {
     render(<StatusBar screen="boards" onOpenMenu={onOpenMenu} />)
     screen.getByLabelText('Menü öffnen').click()
     expect(onOpenMenu).toHaveBeenCalled()
+  })
+})
+
+describe('StatusBar - while an editor is open (#603)', () => {
+  it('names the edited song and variant instead of the queue song, also while playing; state and sync stay', () => {
+    mockShow('playing', 65_000)
+    useEditingTitleStore.setState({ editing: { title: 'All the small things', variantLabel: 'Abadschen' } })
+    const { rerender } = render(<StatusBar screen="library" onOpenMenu={vi.fn()} />)
+    expect(bar().textContent).toContain('All the small things')
+    expect(bar().textContent).toContain('Abadschen')
+    expect(screen.getByLabelText('Bearbeitet')).toBeInTheDocument()
+    expect(bar().textContent).not.toContain('Free Bird')
+    expect(bar().textContent).not.toContain('1:05')
+    expect(bar().dataset.status).toBe('playing')
+    expect(screen.getByLabelText('Synchron')).toBeInTheDocument()
+
+    useEditingTitleStore.setState({ editing: null })
+    rerender(<StatusBar screen="library" onOpenMenu={vi.fn()} />)
+    expect(bar().textContent).toContain('Free Bird')
+    expect(bar().textContent).toContain('1:05')
+  })
+
+  it('a fault shows only its red icon while editing - the word comes back after leaving the editor (2026-10-20)', () => {
+    stores.masterHolderId = null
+    mockShow('stopped', null, false)
+    useEditingTitleStore.setState({ editing: { title: 'All the small things', variantLabel: '' } })
+    const { rerender } = render(<StatusBar screen="library" onOpenMenu={vi.fn()} />)
+    expect(bar().className).toContain('bg-state-fault')
+    expect(screen.getByLabelText('Kein Master')).toBeInTheDocument()
+    expect(screen.getByText('Kein Master').className).toContain('invisible')
+
+    useEditingTitleStore.setState({ editing: null })
+    rerender(<StatusBar screen="library" onOpenMenu={vi.fn()} />)
+    expect(screen.getByText('Kein Master').className).not.toContain('invisible')
   })
 })

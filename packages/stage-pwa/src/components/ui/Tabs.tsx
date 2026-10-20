@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { Icon, type IconName } from '../Icon'
 import { FOCUS } from './styles'
 
 export interface TabsProps<T extends string> {
-  tabs: { value: T; label: string }[]
+  /** `icon`: below 600 px the tab shows only the icon (label stays its accessible name) - for
+   * headers where the words don't fit on the phone (#603). */
+  tabs: { value: T; label: string; icon?: IconName }[]
   value: T
   onChange: (value: T) => void
   label: string
@@ -38,13 +41,22 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, orientati
             type="button"
             role="tab"
             aria-selected={selected}
+            aria-label={tab.icon ? tab.label : undefined}
+            title={tab.icon ? tab.label : undefined}
             ref={selected ? selectedRef : undefined}
             onClick={() => onChange(tab.value)}
-            className={`min-h-form flex-none whitespace-nowrap px-4 text-base ${vertical ? 'border-l-[3px] text-left' : '-mb-px border-b-[3px]'} ${FOCUS} ${
+            className={`min-h-form flex-none whitespace-nowrap px-4 text-base ${tab.icon ? 'max-[599px]:px-3' : ''} ${vertical ? 'border-l-[3px] text-left' : '-mb-px border-b-[3px]'} ${FOCUS} ${
               selected ? 'border-accent font-semibold text-ink' : 'border-transparent text-ink-soft [@media(hover:hover)]:hover:text-ink'
             }`}
           >
-            {tab.label}
+            {tab.icon ? (
+              <>
+                <Icon name={tab.icon} size="1.4em" className="min-[600px]:hidden" />
+                <span className="max-[599px]:hidden">{tab.label}</span>
+              </>
+            ) : (
+              tab.label
+            )}
           </button>
         )
       })}

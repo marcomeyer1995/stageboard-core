@@ -30,5 +30,6 @@
     "aria": "Count-in, bar {{bar}} of {{bars}}, beat {{beat}}",
     "bar": "Bar {{bar}}/{{bars}}",
     "single": "Count-in"
-  }
+  },
+  "editing": "Editing"
 }

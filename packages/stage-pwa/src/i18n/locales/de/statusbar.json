@@ -30,5 +30,6 @@
     "aria": "Einzählen, Takt {{bar}} von {{bars}}, Schlag {{beat}}",
     "bar": "Takt {{bar}}/{{bars}}",
     "single": "Einzählen"
-  }
+  },
+  "editing": "Bearbeitet"
 }
