@@ -4,6 +4,7 @@ import { CueTimingPanel } from './CueTimingPanel'
 import { SyncTestPanel } from './SyncTestPanel'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
 import { INPUT_FREE } from './ui/styles'
+import { useMediaQuery } from '../lib/useMediaQuery'
 
 const LEVELS: Array<{ id: LogLevel | 'all'; label: string }> = [
   { id: 'all', label: 'Alles' },
@@ -29,6 +30,7 @@ export function DebugConsoleView() {
   const entries = useDebugLogStore((state) => state.entries)
   const clear = useDebugLogStore((state) => state.clear)
   const [level, setLevel] = useState<LogLevel | 'all'>('all')
+  const phone = useMediaQuery('(max-width: 599px)')
   const [query, setQuery] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const [, rerender] = useState(0)
@@ -60,6 +62,8 @@ export function DebugConsoleView() {
         value={level}
         onChange={setLevel}
         options={LEVELS.map((l) => ({ value: l.id, label: l.id === 'all' ? l.label : `${l.label} (${entries.filter((e) => e.level === l.id).length})` }))}
+        // Five filters don't fit side by side on a phone - the page scrolled sideways (2026-10-20).
+        columns={phone ? 3 : undefined}
       />
       <div className="flex flex-wrap gap-2">
         <input

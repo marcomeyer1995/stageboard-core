@@ -30,6 +30,8 @@ import {
   LayoutDashboard,
   Library,
   ListMusic,
+  Redo2,
+  Undo2,
   Settings,
   Lock,
   LockOpen,
@@ -111,6 +113,8 @@ const ICONS = {
   text: FileText,
   timeline: AudioWaveform,
   details: SlidersHorizontal,
+  undo: Undo2,
+  redo: Redo2,
   /** Song is in the active setlist - a quiet marker in the song list (2026-10-20). */
   setlist: ListMusic,
 } satisfies Record<string, LucideIcon>

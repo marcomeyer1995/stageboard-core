@@ -148,7 +148,10 @@ export function StageServerPage() {
         </Section>
       </Group>
 
-      <BackupManager />
+      {/* A card like every other topic of the page (2026-10-20: it sat bare below the cards). */}
+      <Group title="Backup" description="Wie der Stage-Server die Band-Daten sichert, und Snapshots zum Mitnehmen.">
+        <BackupManager />
+      </Group>
     </Page>
   )
 }

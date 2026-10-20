@@ -18,7 +18,8 @@ describe('the bundled languages (#456)', () => {
   const reference = resources[DEFAULT_LANGUAGE]!
 
   it('German and English are there, each named in itself', () => {
-    expect(LANGUAGES).toEqual(expect.arrayContaining([{ code: 'de', name: 'Deutsch' }, { code: 'en', name: 'English' }]))
+    // "incomplete" until #456 has translated everything past the status bar (2026-10-20).
+    expect(LANGUAGES).toEqual(expect.arrayContaining([{ code: 'de', name: 'Deutsch' }, { code: 'en', name: 'English (incomplete)' }]))
   })
 
   for (const { code } of LANGUAGES.filter((l) => l.code !== DEFAULT_LANGUAGE)) {
