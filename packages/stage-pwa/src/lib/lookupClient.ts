@@ -3,13 +3,14 @@ import { getStageServerUrl, NO_STAGE_SERVER_MESSAGE, STAGE_SERVER_UNREACHABLE_ME
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /** The band, so the server can check its add-ons (Ultimate Guitar, #546). */
-function bandParam(): string {
+export function bandParam(): string {
   return `&workspace=${encodeURIComponent(useWorkspaceStore.getState().activeWorkspaceId)}`
 }
 
 export type LookupClientResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string }
 
-async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
+/** GET a JSON answer from the Stage-Server, with its errors as a message (also the YouTube search, #618). */
+export async function getJson<T>(url: string): Promise<LookupClientResult<T>> {
   const base = getStageServerUrl()
   if (!base) return { status: 'error', message: NO_STAGE_SERVER_MESSAGE }
 

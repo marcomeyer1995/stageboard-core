@@ -6,6 +6,8 @@ const db = vi.hoisted(() => ({ putAsyncJob: vi.fn(async () => {}), removeAsyncJo
 vi.mock('../lib/asyncJobsDb', () => db)
 const variants = vi.hoisted(() => ({ putTrack: vi.fn(async () => {}), removeTrack: vi.fn(), updateStem: vi.fn(), getTrack: vi.fn() }))
 vi.mock('../lib/songVariantsDb', () => variants)
+const youtube = vi.hoisted(() => ({ searchYoutube: vi.fn(), youtubeThumbnailUrl: (id: string) => `https://server/youtube/thumbnail?id=${id}`, formatVideoLength: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }))
+vi.mock('../lib/youtubeSearch', () => youtube)
 vi.mock('../lib/measureAudioDuration', () => ({ measureAudioDurationMs: vi.fn(async () => 180_000) }))
 vi.mock('pouchdb-browser', () => ({
   default: class FakePouchDB {
@@ -103,5 +105,47 @@ describe('TrackManagerField - one row per track (#604)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Band-Playback entfernen' }))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(variants.removeTrack).not.toHaveBeenCalled()
+  })
+})
+
+describe('TrackManagerField - YouTube search in "Track hinzufügen" (#618)', () => {
+  const ytPlugin = { ...stemPlugin, id: 'youtube-download', name: 'YouTube-Download', capabilities: ['video-download'] } as unknown as PluginInstallation
+
+  it('searches with "Titel Band", lists the hits, and a tap queues the extraction', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    youtube.searchYoutube.mockResolvedValueOnce({
+      status: 'ok',
+      data: [{ id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' }],
+    })
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="All the small things Blink-182" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('searchbox', { name: 'YouTube durchsuchen' })).toHaveValue('All the small things Blink-182')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Suchen' }))
+    expect(youtube.searchYoutube).toHaveBeenCalledWith('All the small things Blink-182')
+
+    const hit = await within(dialog).findByRole('button', { name: /All The Small Things/ })
+    expect(hit).toHaveTextContent('blink-182 · 2:51')
+    fireEvent.click(hit)
+    await waitFor(() =>
+      expect(db.putAsyncJob).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'youtube-extract', variantId: 'v1', url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw', label: 'blink-182 - All The Small Things' }),
+      ),
+    )
+  })
+
+  it('shows the server\'s message when the search fails (e.g. no internet)', async () => {
+    usePluginsStore.setState({ installed: [ytPlugin] })
+    youtube.searchYoutube.mockResolvedValueOnce({ status: 'error', message: 'Stage-Server nicht erreichbar.' })
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suchen' }))
+    expect(await screen.findByText('Stage-Server nicht erreichbar.')).toBeInTheDocument()
+  })
+
+  it('no search without the add-on', () => {
+    render(<TrackManagerField variantId="v1" tracks={[]} disabled={false} searchQuery="x" />)
+    fireEvent.click(screen.getByRole('button', { name: /Track hinzufügen/ }))
+    expect(screen.queryByRole('searchbox', { name: 'YouTube durchsuchen' })).not.toBeInTheDocument()
   })
 })

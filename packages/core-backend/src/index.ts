@@ -43,7 +43,7 @@ import {
   WorkspaceProvisionRequestSchema,
   type Device,
 } from 'shared-types'
-import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema } from 'shared-types'
+import { BackupAdminRequestSchema, BackupSaveRequestSchema, BackupTargetRequestSchema, FlashReportSchema, ShowStatePushAckSchema, ShowStatePushSchema, SwitchStateEventSchema, SpeechSpeedSchema, SpeechVoiceKeySchema, YOUTUBE_VIDEO_ID_RE } from 'shared-types'
 import { createBackupService, realBackupDeps, type BackupService } from './backup.js'
 import { deleteAudioFile, isSafeAudioId, readAudioFile, writeAudioFile } from './audioStore.js'
 import { readPersistedActiveWorkspace } from './activeWorkspaceStateStore.js'
@@ -59,7 +59,8 @@ import { startMdnsResponder } from './mdnsResponder.js'
 import { startPingLoop } from './pingLoop.js'
 import * as healthStore from './plugins/healthStore.js'
 import { LOOKUP_CATALOG } from './plugins/lookupCatalog.js'
-import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER } from './plugins/importAddons.js'
+import { bandHasAddon, ULTIMATE_GUITAR_PLUGIN_ID, ULTIMATE_GUITAR_PROVIDER, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './plugins/importAddons.js'
+import { runYtDlpSearch } from './ytDlp.js'
 import { LookupRegistry } from './plugins/lookupRegistry.js'
 import { lookupErrorBody } from './plugins/lookupError.js'
 import * as presenceStore from './presenceStore.js'
@@ -1078,6 +1079,45 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
     } catch (err) {
       app.log.error({ err, provider, cause: (err as { cause?: unknown }).cause }, 'Lookup detail failed')
       return reply.status(502).send(lookupErrorBody(err))
+    }
+  })
+
+  /** The YouTube add-on (#546) for this band, or the refusal - like `lookupRefusal` for UG. */
+  async function youtubeRefusal(workspace: string | undefined): Promise<string | null> {
+    if (!workspace || !/^[a-z0-9_-]+$/i.test(workspace)) return 'Für die YouTube-Suche fehlt die Band (Add-on-Prüfung).'
+    const installed = await bandHasAddon(couch, workspace, YOUTUBE_DOWNLOAD_PLUGIN_ID).catch(() => false)
+    return installed ? null : 'Das Add-on „YouTube-Download“ ist für diese Band nicht installiert.'
+  }
+
+  // YouTube search for "Track hinzufügen" (#618): the same yt-dlp as the download, metadata only.
+  app.get('/youtube/search', async (request, reply) => {
+    const { q, workspace } = request.query as { q?: string; workspace?: string }
+    if (!q?.trim()) return reply.status(400).send({ status: 'error', message: 'Missing query parameter q' })
+    const refusal = await youtubeRefusal(workspace)
+    if (refusal) return reply.status(403).send({ status: 'error', message: refusal })
+    try {
+      return await runYtDlpSearch(q.trim().slice(0, 200))
+    } catch (err) {
+      app.log.error({ err, q }, 'YouTube search failed')
+      return reply.status(502).send({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
+  // The hits' thumbnails through the Stage-Server (#618): the tablets on stage often have no
+  // internet of their own, only the server does.
+  app.get('/youtube/thumbnail', async (request, reply) => {
+    const { id } = request.query as { id?: string }
+    if (!id || !YOUTUBE_VIDEO_ID_RE.test(id)) return reply.status(400).send({ status: 'error', message: 'Invalid video id' })
+    try {
+      const response = await fetch(`https://i.ytimg.com/vi/${id}/mqdefault.jpg`, { signal: AbortSignal.timeout(10_000) })
+      if (!response.ok) return reply.status(404).send({ status: 'error', message: `Thumbnail HTTP ${response.status}` })
+      return reply
+        .type(response.headers.get('content-type') ?? 'image/jpeg')
+        .header('cache-control', 'public, max-age=86400')
+        .send(Buffer.from(await response.arrayBuffer()))
+    } catch (err) {
+      app.log.warn({ err, id }, 'YouTube thumbnail failed')
+      return reply.status(502).send({ status: 'error', message: 'Thumbnail not reachable' })
     }
   })
 

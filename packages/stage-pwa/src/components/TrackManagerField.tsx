@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { CAPABILITIES, isYoutubeUrl, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta } from 'shared-types'
+import { CAPABILITIES, isYoutubeUrl, StemRoleSchema, type AsyncJob, type StemModel, type StemRole, type TrackKind, type TrackMeta, type YoutubeSearchResult } from 'shared-types'
 import { measureAudioDurationMs } from '../lib/measureAudioDuration'
 import { randomId } from '../lib/id'
 import { pluginProviding } from '../lib/capabilities'
 import { putAsyncJob, removeAsyncJob } from '../lib/asyncJobsDb'
 import { getTrack, putTrack, removeTrack, updateStem } from '../lib/songVariantsDb'
 import { guessStemRole, labelFromFileName, playableTracks, STEM_ROLE_LABELS, stemLengthsDiffer, stemsOf, uploadedStems } from '../lib/stems'
+import { formatVideoLength, searchYoutube, youtubeThumbnailUrl } from '../lib/youtubeSearch'
 import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -20,6 +21,8 @@ interface TrackManagerFieldProps {
   tracks: TrackMeta[]
   /** True when the variant hasn't been saved yet - there's no document to attach anything to. */
   disabled: boolean
+  /** "Titel Band" - what the YouTube search starts with (#618). */
+  searchQuery?: string
 }
 
 const KIND_LABELS: Record<TrackKind, string> = {
@@ -34,7 +37,7 @@ const NO_ROLE = 'none'
  * with the stem-separation plugin installed (#9), split one into stems on the Stage-Server.
  * Stems form sets (docs/22 §2): those split from a track are listed under it, uploaded ones
  * (several files at once, e.g. from the band leader) in a set of their own. */
-export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerFieldProps) {
+export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '' }: TrackManagerFieldProps) {
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<TrackKind>('band-mix')
   const [youtubeUrl, setYoutubeUrl] = useState('')
@@ -54,6 +57,9 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
   // "+ Track hinzufügen" (#604): kind, then a file or a YouTube link - in a dialog, not squeezed
   // into the section.
   const [adding, setAdding] = useState(false)
+  const [query, setQuery] = useState(searchQuery)
+  const [hits, setHits] = useState<YoutubeSearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
@@ -220,6 +226,25 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
       setYoutubeError('Bitte einen youtube.com- oder youtu.be-Link einfügen.')
       return
     }
+    await queueYoutube(url, 'YouTube Referenz')
+  }
+
+  /** Searched by the Stage-Server (#618) - no copying links out of YouTube any more. */
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (!query.trim()) return
+    setSearching(true)
+    setYoutubeError(null)
+    const result = await searchYoutube(query.trim())
+    setSearching(false)
+    if (result.status === 'ok') setHits(result.data)
+    else {
+      setHits(null)
+      setYoutubeError(result.message)
+    }
+  }
+
+  async function queueYoutube(url: string, label: string) {
     setYoutubeError(null)
     await putAsyncJob({
       id: randomId(),
@@ -230,9 +255,10 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
       updatedAt: Date.now(),
       variantId,
       url,
-      label: 'YouTube Referenz',
+      label,
     })
     setYoutubeUrl('')
+    setHits(null)
     setAdding(false)
   }
 
@@ -319,22 +345,65 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
               <span className="text-sm text-ink-faint">Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.</span>
             )}
             {canDownload && (
-              <form onSubmit={handleYoutubeSubmit} className="flex flex-col gap-2 border-t border-line pt-3">
-                <label className="flex flex-col gap-1 text-sm text-ink-muted">
-                  Oder eine Referenz von YouTube
+              <div className="flex flex-col gap-2 border-t border-line pt-3">
+                <form onSubmit={handleSearch} className="flex flex-col gap-2">
+                  <span className="text-sm text-ink-muted">Oder eine Referenz von YouTube</span>
+                  {/* Not inside a <label>: its text would become the button's name too. */}
+                  <div className="flex gap-2">
+                    <input
+                      type="search"
+                      aria-label="YouTube durchsuchen"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Titel und Band"
+                      className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
+                    />
+                    <Button type="submit" disabled={searching || !query.trim()}>
+                      {searching ? 'Suche…' : 'Suchen'}
+                    </Button>
+                  </div>
+                </form>
+                {hits && hits.length === 0 && <span className="text-sm text-ink-faint">Nichts gefunden.</span>}
+                {hits && hits.length > 0 && (
+                  // A tap on a hit loads it - the same job as a pasted link.
+                  <ul aria-label="Suchergebnisse" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+                    {hits.map((hit) => {
+                      const thumbnail = youtubeThumbnailUrl(hit.id)
+                      return (
+                        <li key={hit.id}>
+                          <button
+                            type="button"
+                            onClick={() => void queueYoutube(hit.url, hit.title)}
+                            className="flex min-h-form w-full items-center gap-3 rounded-control bg-control p-1 text-left [@media(hover:hover)]:hover:bg-control-hover"
+                          >
+                            {thumbnail && <img src={thumbnail} alt="" loading="lazy" className="h-form w-20 flex-none rounded-control bg-surface object-cover" />}
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span className="line-clamp-2 text-base text-ink">{hit.title}</span>
+                              <span className="truncate text-sm text-ink-faint">
+                                {[hit.channel, hit.durationSec !== null && formatVideoLength(hit.durationSec)].filter(Boolean).join(' · ')}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <form onSubmit={handleYoutubeSubmit} className="flex gap-2">
                   <input
                     type="url"
+                    aria-label="YouTube-Link"
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder="https://youtu.be/…"
-                    className={`min-h-form min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
+                    placeholder="oder Link einfügen: https://youtu.be/…"
+                    className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
                   />
-                </label>
+                  <Button type="submit" disabled={youtubeUrl.trim() === ''}>
+                    Laden
+                  </Button>
+                </form>
                 {youtubeError && <span className="text-sm text-danger">{youtubeError}</span>}
-                <Button type="submit" className="self-end" disabled={youtubeUrl.trim() === ''}>
-                  Von YouTube laden
-                </Button>
-              </form>
+              </div>
             )}
           </div>
         </Dialog>

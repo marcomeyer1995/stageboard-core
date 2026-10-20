@@ -377,6 +377,31 @@ describe('Fastify routes', () => {
     })
   })
 
+  describe('YouTube search and thumbnails (#618)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('search: 400 without a query, 403 without a band or without the add-on', async () => {
+      expect((await app.inject({ method: 'GET', url: '/youtube/search?workspace=band-a' })).statusCode).toBe(400)
+      expect((await app.inject({ method: 'GET', url: '/youtube/search?q=blink' })).statusCode).toBe(403)
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ rows: [] }) }) as Response))
+      const notInstalled = await app.inject({ method: 'GET', url: '/youtube/search?q=blink&workspace=band-a' })
+      expect(notInstalled.statusCode).toBe(403)
+      expect(notInstalled.json().message).toContain('YouTube-Download')
+    })
+
+    it('thumbnail: only a real video id, fetched through the server', async () => {
+      expect((await app.inject({ method: 'GET', url: '/youtube/thumbnail?id=../../etc' })).statusCode).toBe(400)
+      const fetchMock = vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'image/jpeg' }), arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }) as unknown as Response)
+      vi.stubGlobal('fetch', fetchMock)
+      const response = await app.inject({ method: 'GET', url: '/youtube/thumbnail?id=9Ht5RZpzPqw' })
+      expect(response.statusCode).toBe(200)
+      expect(response.headers['content-type']).toBe('image/jpeg')
+      expect(fetchMock).toHaveBeenCalledWith('https://i.ytimg.com/vi/9Ht5RZpzPqw/mqdefault.jpg', expect.anything())
+    })
+  })
+
   describe('GET /lookup/:provider/detail', () => {
     it('returns 400 when resultId is missing', async () => {
       const response = await app.inject({ method: 'GET', url: '/lookup/fake-lookup/detail' })
