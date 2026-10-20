@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  sourcePosition,
   buildPages,
   commentVisibleTo,
   currentLineIndex,
@@ -21,7 +22,7 @@ describe('parseChordPro', () => {
       "[01:14.50] I shot the [G] Sheriff, but I didn't shoot the [C] deputy.",
     )
     expect(line.timeMs).toBe(74500)
-    expect(line.segments).toEqual([
+    expect(line.segments).toMatchObject([
       { chord: null, text: 'I shot the ' },
       { chord: 'G', text: " Sheriff, but I didn't shoot the " },
       { chord: 'C', text: ' deputy.' },
@@ -31,7 +32,7 @@ describe('parseChordPro', () => {
   it('handles a line with no time tag', () => {
     const [line] = parseChordPro('Just a [Am] plain line')
     expect(line.timeMs).toBeNull()
-    expect(line.segments).toEqual([
+    expect(line.segments).toMatchObject([
       { chord: null, text: 'Just a ' },
       { chord: 'Am', text: ' plain line' },
     ])
@@ -39,12 +40,12 @@ describe('parseChordPro', () => {
 
   it('handles a line with no chords at all', () => {
     const [line] = parseChordPro('No chords here')
-    expect(line.segments).toEqual([{ chord: null, text: 'No chords here' }])
+    expect(line.segments).toMatchObject([{ chord: null, text: 'No chords here' }])
   })
 
   it('handles back-to-back chords with no text between them', () => {
     const [line] = parseChordPro('[G][C]word')
-    expect(line.segments).toEqual([
+    expect(line.segments).toMatchObject([
       { chord: 'G', text: '' },
       { chord: 'C', text: 'word' },
     ])
@@ -118,7 +119,7 @@ describe('song parts', () => {
   it('emits no line for the directive itself', () => {
     const lines = parseChordPro('{part: Chorus}\nOnly lyric')
     expect(lines).toHaveLength(1)
-    expect(lines[0].segments).toEqual([{ chord: null, text: 'Only lyric' }])
+    expect(lines[0].segments).toMatchObject([{ chord: null, text: 'Only lyric' }])
   })
 
   it('leaves lines before the first directive unlabelled', () => {
@@ -149,7 +150,7 @@ describe('song parts', () => {
     const lines = parseChordPro('{title: Sweet Home}')
     expect(lines).toHaveLength(1)
     expect(lines[0].partLabel).toBeNull()
-    expect(lines[0].segments).toEqual([{ chord: null, text: '{title: Sweet Home}' }])
+    expect(lines[0].segments).toMatchObject([{ chord: null, text: '{title: Sweet Home}' }])
   })
 
   it('keeps timecodes and chords working inside a part', () => {
@@ -164,9 +165,9 @@ describe('musician comments (#215)', () => {
     const lines = parseChordPro('{comment: Play softer here}\nActual lyric')
     expect(lines).toHaveLength(2)
     expect(lines[0].comment).toBe('Play softer here')
-    expect(lines[0].segments).toEqual([])
+    expect(lines[0].segments).toMatchObject([])
     expect(lines[1].comment).toBeNull()
-    expect(lines[1].segments).toEqual([{ chord: null, text: 'Actual lyric' }])
+    expect(lines[1].segments).toMatchObject([{ chord: null, text: 'Actual lyric' }])
   })
 
   it('accepts the {c: ...} shorthand', () => {
@@ -381,13 +382,13 @@ describe('tab blocks ({start_of_tab} ... {end_of_tab})', () => {
     expect(lines[0]).toMatchObject({ timeMs: null, segments: [], comment: null, commentTargets: null, partLabel: 'Intro' })
     expect(lines[0].tab).toEqual({ label: null, lines: riff })
     expect(lines[1].tab).toBeNull()
-    expect(lines[1].segments[0]).toEqual({ chord: 'G', text: 'Hello' })
+    expect(lines[1].segments[0]).toMatchObject({ chord: 'G', text: 'Hello' })
   })
 
   it('never reads brackets inside a tab block as chords', () => {
     const [line] = parseChordPro('{sot}\ne|---[A]---|\nB|---2---|\n{eot}')
     expect(line.tab?.lines).toEqual(['e|---[A]---|', 'B|---2---|'])
-    expect(line.segments).toEqual([])
+    expect(line.segments).toMatchObject([])
   })
 
   it('reads a label and member targets from {sot4marco,jamie: Riff}', () => {
@@ -423,6 +424,27 @@ describe('comment lines stamped by an older Tap-to-Sync', () => {
   it('still parse as comments, not as lyric text', () => {
     const [line] = parseChordPro('[00:12.00] {c: play softer}')
     expect(line.comment).toBe('play softer')
-    expect(line.segments).toEqual([])
+    expect(line.segments).toMatchObject([])
+  })
+})
+
+describe('source positions (#607)', () => {
+  const content = '{part: Chorus}\n[00:12.00] Take [G]my hand\n\n{c: softer}\nTake [G]my hand'
+
+  it('every line knows its source line - two equal chorus lines stay apart', () => {
+    const lines = parseChordPro(content)
+    expect(lines.map((line) => line.sourceLine)).toEqual([1, 3, 4])
+  })
+
+  it('every segment knows its column, past a time tag; a chord segment starts at its [', () => {
+    const [first, , last] = parseChordPro(content)
+    expect(first.segments.map((segment) => segment.sourceOffset)).toEqual([11, 16])
+    expect(last.segments.map((segment) => segment.sourceOffset)).toEqual([0, 5])
+  })
+
+  it('sourcePosition turns line + column into a cursor position in the text', () => {
+    expect(content.slice(sourcePosition(content, 4, 5))).toBe('[G]my hand')
+    expect(content.slice(sourcePosition(content, 1))).toMatch(/^\[00:12\.00\]/)
+    expect(sourcePosition(content, 99)).toBe(content.length)
   })
 })

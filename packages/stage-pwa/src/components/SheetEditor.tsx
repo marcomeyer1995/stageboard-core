@@ -15,7 +15,7 @@ import { analyzeTrackBlob } from '../lib/analyzeTrack'
 import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
-import { parseChordPro } from '../lib/chordpro'
+import { parseChordPro, sourcePosition } from '../lib/chordpro'
 import { randomId } from '../lib/id'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
@@ -166,6 +166,25 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
   // deliberately expanded, not a screenful of whichever section used to default open.
   const [textExpanded, setTextExpanded] = useState(false)
+  // A tapped preview line's position in the text (#607) - applied once the text field is there,
+  // since the Text section may first have to open.
+  const [jumpTo, setJumpTo] = useState<number | null>(null)
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (jumpTo === null || !textarea) return
+    setJumpTo(null)
+    // Scroll the field so the line sits a third from its top: measure the text up to the caret
+    // with the field's own wrapping, then put the content back (no input event - React's value
+    // stays as it is).
+    const value = textarea.value
+    textarea.value = value.slice(0, jumpTo)
+    const caretTop = textarea.scrollHeight
+    textarea.value = value
+    textarea.scrollTop = Math.max(0, caretTop - textarea.clientHeight / 3)
+    textarea.focus({ preventScroll: true })
+    textarea.setSelectionRange(jumpTo, jumpTo)
+    textarea.scrollIntoView?.({ block: 'nearest' })
+  }, [jumpTo, textExpanded])
   const [tempoExpanded, setTempoExpanded] = useState(false)
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
@@ -526,6 +545,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   }
 
   const preview = parseChordPro(draft.chordProContent)
+  /** Tap a preview line → cursor at that line (and word) in the text (#607). No coupled scrolling. */
+  const jumpToSource = (sourceLine: number, column: number) => {
+    setTextExpanded(true)
+    setJumpTo(sourcePosition(draft.chordProContent, sourceLine, column))
+  }
 
   // One topic (#180 follow-up): BPM/Takt/click/count-in are the "set it and glance at it"
   // basics, and the click grid below the divider is the same topic gone deeper - its editing
@@ -778,7 +802,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       </label>
       {layout !== 'panel' && (
         <div className="rounded-container border border-line bg-surface p-4 shadow-sb">
-          <ChordProLyrics lines={preview} />
+          <ChordProLyrics lines={preview} onSourceTap={jumpToSource} />
         </div>
       )}
     </div>
@@ -994,7 +1018,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           inline at the end of `textContent`, right below the textarea. */}
       {isPanel && (
         <div className="overflow-y-auto rounded-container border border-line bg-surface p-6 shadow-sb">
-          <ChordProLyrics lines={preview} />
+          <ChordProLyrics lines={preview} onSourceTap={jumpToSource} />
         </div>
       )}
       </div>

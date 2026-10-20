@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 import { stageFontSize } from '../lib/stageSize'
 
@@ -51,6 +51,23 @@ interface ChordProLyricsProps {
    * (Marco, 2026-09-14: key/tuning/capo shouldn't need permanent screen space). Only
    * PrompterWidget.tsx passes this; every other caller is unaffected. */
   headerContent?: ReactNode
+  /** A tap on a line reports where it came from in the ChordPro text - source line and column of
+   * the tapped word or chord - so the song editor can put its cursor there (#607). Unset: the
+   * lines are not tappable. */
+  onSourceTap?: (sourceLine: number, column: number) => void
+}
+
+/** Column of a tap in the source line: the tapped segment's start, plus the character tapped
+ * inside its lyric text where the browser can tell (caretRangeFromPoint). */
+function tappedColumn(event: MouseEvent, lineElement: HTMLElement): number {
+  const segment = (event.target as HTMLElement).closest<HTMLElement>('[data-source-offset]')
+  if (!segment || !lineElement.contains(segment)) return 0
+  const start = Number(segment.dataset.sourceOffset)
+  const range = document.caretRangeFromPoint?.(event.clientX, event.clientY)
+  const node = range?.startContainer
+  // Only the segment's own lyric text node - not its chord, which sits in a child span.
+  if (!range || !node || node.nodeType !== Node.TEXT_NODE || node.parentElement !== segment) return start
+  return start + Number(segment.dataset.textStart ?? 0) + range.startOffset
 }
 
 export function ChordProLyrics({
@@ -62,13 +79,24 @@ export function ChordProLyrics({
   chordFontSize,
   commentFontSize,
   headerContent,
+  onSourceTap,
 }: ChordProLyricsProps) {
   if (lines.length === 0) {
     return <p className="text-ink-faint">Kein Text.</p>
   }
 
   return (
-    <div className="space-y-3 pt-4 font-sb-mono leading-loose text-ink" style={{ fontSize }}>
+    <div
+      className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : ''}`}
+      style={{ fontSize }}
+      onClick={
+        onSourceTap &&
+        ((event) => {
+          const lineElement = (event.target as HTMLElement).closest<HTMLElement>('[data-source-line]')
+          if (lineElement) onSourceTap(Number(lineElement.dataset.sourceLine), tappedColumn(event, lineElement))
+        })
+      }
+    >
       {headerContent}
       {lines.map((line, offset) => {
         const lineIndex = startIndex + offset
@@ -89,6 +117,7 @@ export function ChordProLyrics({
               // sideways instead. Tighter leading than lyrics: the strings belong together.
               <div
                 data-line-index={lineIndex}
+                data-source-line={line.sourceLine}
                 className={`-mx-2 overflow-x-auto rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
@@ -105,13 +134,14 @@ export function ChordProLyrics({
               // to big chords, both looked odd).
               <p
                 data-line-index={lineIndex}
+                data-source-line={line.sourceLine}
                 style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }}
                 className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
               >
                 {line.segments.map((segment, segmentIndex) => (
-                  <span key={segmentIndex}>
+                  <span key={segmentIndex} data-source-offset={segment.sourceOffset}>
                     {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
                     <span className="text-ink-faint">{segment.text}</span>
                   </span>
@@ -122,6 +152,7 @@ export function ChordProLyrics({
               // sets it apart from the lyric's own font-sb-mono, same way a part label does.
               <p
                 data-line-index={lineIndex}
+                data-source-line={line.sourceLine}
                 style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
                 className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-control px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
@@ -181,6 +212,7 @@ function LyricLine({
   return (
     <p
       data-line-index={lineIndex}
+      data-source-line={line.sourceLine}
       style={lineStyle}
       className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
         // Keeps a little air between a part label and its first line.
@@ -188,7 +220,14 @@ function LyricLine({
       } ${active ? 'bg-accent-2/20' : ''}`}
     >
       {line.segments.map((segment, segmentIndex) => (
-        <span key={segmentIndex} style={segmentRoomStyle} className={`${segmentRoomClass} relative inline-block`}>
+        <span
+          key={segmentIndex}
+          data-source-offset={segment.sourceOffset}
+          // The lyric text starts after the chord's "[...]" in the source.
+          data-text-start={segment.chord === null ? 0 : segment.chord.length + 2}
+          style={segmentRoomStyle}
+          className={`${segmentRoomClass} relative inline-block`}
+        >
           {segment.chord && (
             <span style={{ ...chordStyle, lineHeight: 1.15 }} className={`${chordSizeClass} absolute left-0 top-0 font-bold text-accent`}>
               {segment.chord}

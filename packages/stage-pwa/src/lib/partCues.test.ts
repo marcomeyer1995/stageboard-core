@@ -48,7 +48,10 @@ describe("a part's own announcement (#63 step 2)", () => {
   it('changes neither the part numbering, the sheet nor what can be tapped', () => {
     const own = setPartCue(song, chorusIndex, [['']])
     expect(partBlocks(timelineLines(own), 30000)).toEqual(partBlocks(timelineLines(song), 30000))
-    expect(parseChordPro(own)).toEqual(parseChordPro(song))
+    // The cue line itself shifts the source lines below it (#607) - the sheet is what must match.
+    const sheet = (content: string) =>
+      parseChordPro(content).map((line) => ({ ...line, sourceLine: undefined, segments: line.segments.map((segment) => ({ ...segment, sourceOffset: undefined })) }))
+    expect(sheet(own)).toEqual(sheet(song))
     expect(tappableLines(own.split('\n'))[4]).toBe(false)
   })
 
