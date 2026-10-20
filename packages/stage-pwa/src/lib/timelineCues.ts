@@ -4,7 +4,7 @@ import { randomId } from './id'
 /**
  * Cues on the timeline (docs/14 §7, phase 3): pure edits of a variant's cue list - kept sorted by
  * time, never before 0:00. The cue's content (target device, type, payload) is edited through the
- * same fields as the cue list (`CueListEditor.tsx`), see `parseCuePayload`.
+ * same fields the old cue list had (removed in #602), see `parseCuePayload`.
  */
 
 const byTime = (a: ShowCue, b: ShowCue) => a.timeMs - b.timeMs

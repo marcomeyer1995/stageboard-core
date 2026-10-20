@@ -62,7 +62,7 @@ export function CommentListEditor({ content, onChange }: CommentListEditorProps)
           Noch keine Kommentare - "+ Kommentar" im ChordPro-Text fügt einen an der Cursorposition ein.
         </p>
       ) : (
-        // Capped height, not open-ended - same reasoning as CueListEditor.tsx.
+        // Capped height, not open-ended - a long list must not push what follows it down.
         <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
           {occurrences.map((occurrence) => (
             <div
