@@ -335,3 +335,36 @@ describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
     expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
   })
 })
+
+describe('SheetEditor - text tools (#605)', () => {
+  async function runTool(name: string) {
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Textwerkzeuge …' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name })))
+  }
+
+  it('Aufräumen on the whole text, then Rückgängig brings the text back', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded(song, '[am]Hello  \n\n\n\nWorld')
+    await runTool('Aufräumen')
+    expect(textarea.value).toBe('[Am]Hello\n\nWorld')
+    fireEvent.click(screen.getByRole('button', { name: 'Rückgängig' }))
+    expect(textarea.value).toBe('[am]Hello  \n\n\n\nWorld')
+  })
+
+  it('a selection limits a tool to its lines: only the selected chord line is merged', async () => {
+    stubViewport(phone)
+    const text = 'G     D\nHello World\nC     F\nSecond line'
+    const textarea = await renderLoaded(song, text)
+    textarea.setSelectionRange(0, 3)
+    // The chord line alone is selected - its lyric line below is not, so it stays a chord line.
+    await runTool('Akkordzeilen zusammenführen')
+    expect(textarea.value).toBe('[G]     [D]\nHello World\nC     F\nSecond line')
+  })
+
+  it('names an unclosed bracket with its line once typing has paused', async () => {
+    stubViewport(phone)
+    await renderLoaded(song, '[G]fine\n[Am wrong')
+    expect(await screen.findByText('Zeile 2: „[“ nicht geschlossen', undefined, { timeout: 2000 })).toBeInTheDocument()
+  })
+})
