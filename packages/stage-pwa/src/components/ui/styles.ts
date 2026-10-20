@@ -42,9 +42,13 @@ export const SELECTED = 'bg-accent text-accent-ink font-semibold'
  * sticks after a tap and makes an unselected control look selected. */
 export const HOVER = '[@media(hover:hover)]:hover:bg-control-hover'
 
+/** Fields are often full width inside a scroll pane that clips sideways - their ring sits inside the
+ * edge, so it is never cut off left and right (variant select, 2026-10-20). */
+const FIELD_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+
 /** Text inputs and dropdowns (Field, Select, TextArea) - also for the few special inputs that
  * can't use them (e.g. a widget's own scaled select). */
-export const INPUT = `w-full border border-transparent bg-control text-ink placeholder:text-ink-faint ${CONTROL} ${FOCUS} disabled:opacity-40`
+export const INPUT = `w-full border border-transparent bg-control text-ink placeholder:text-ink-faint ${CONTROL} ${FIELD_FOCUS} disabled:opacity-40`
 
 /** INPUT without the full width - for a field that sets its own width. */
 export const INPUT_FREE = INPUT.replace('w-full ', '')

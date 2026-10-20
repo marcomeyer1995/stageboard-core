@@ -40,7 +40,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { ActionMenu, ActionMenuDialog, IconButton, menuIcon, Switch, Tabs, Button, type MenuAction } from './ui'
+import { ActionMenu, AddRow, ActionMenuDialog, IconButton, menuIcon, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
 
@@ -1030,8 +1030,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             </option>
           ))}
         </select>
-        <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={[{ label: 'Neue Variante', onClick: addVariant }, ...variantActions]} />
+        {variantActions.length > 0 && <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={variantActions} />}
       </div>
+      {/* Adding a variant looks like adding anywhere else (docs/15 AddRow), not hidden in the ⋯
+          (Marco, 2026-10-20). */}
+      <AddRow label="Neue Variante" onClick={addVariant} />
       {!hasDefault && variantsForSong.length > 0 && (
         <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
           Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du eine Variante als
