@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
+import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { isSongEntry } from 'shared-types'
 import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
@@ -150,8 +151,15 @@ export function StatusBar({
     state.kind === 'count-in' && countInBeat && elapsedMs !== null
       ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
       : null
-  const title = currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
-  const variantLabel = currentVariant && !currentVariant.isDefault ? stageVariantLabel(currentVariant.label) : null
+  // An open editor names what it edits instead of the queue's song (#603) - always, also while
+  // the queue plays; state, faults and sync stay as they are.
+  const editing = useEditingTitleStore((s) => s.editing)
+  const title = editing ? editing.title : currentEntry ? queueItemTitle({ entry: currentEntry, song: currentSong }) : null
+  const variantLabel = editing
+    ? editing.variantLabel || null
+    : currentVariant && !currentVariant.isDefault
+      ? stageVariantLabel(currentVariant.label)
+      : null
   const sync = { icon: SYNC_ICON[syncStatus], label: t(`sync.${syncStatus}`) }
   const stateLabel = t(`state.${state.label}`)
 
@@ -166,10 +174,14 @@ export function StatusBar({
   const [shownKey, setShownKey] = useState(wanted.join(','))
   const shown = new Set(shownKey.split(',').filter(Boolean) as StatusBarItem[])
   const fault = state.kind === 'fault'
+  // While an editor is open a fault shows only its red icon, never its word - the edited song needs
+  // the room on a phone; leaving the editor brings the word back (Marco, 2026-10-20, #603).
+  const faultWordHidden = fault && editing !== null
   // 'syncing' is the normal short phase of every write - pinning it made the bar jump on every
   // Play/Weiter (#429 review). Only offline / error is a problem that must stay visible.
   const syncProblem = syncStatus === 'offline' || syncStatus === 'error'
-  const isShown = (item: StatusBarItem) => (item === 'stateText' && fault) || (item === 'sync' && syncProblem) || shown.has(item)
+  const isShown = (item: StatusBarItem) =>
+    item === 'stateText' && faultWordHidden ? false : (item === 'stateText' && fault) || (item === 'sync' && syncProblem) || shown.has(item)
   const item = (id: StatusBarItem) => ({
     'data-sbitem': id,
     className: isShown(id) ? '' : 'pointer-events-none invisible absolute',
@@ -183,7 +195,7 @@ export function StatusBar({
     const header = headerRef.current
     const title = titleRef.current
     if (!header || !title) return
-    const signature = `${resizes}|${shownKey}|${wanted.join(',')}|${fault}|${syncProblem}|${header.textContent}`
+    const signature = `${resizes}|${shownKey}|${wanted.join(',')}|${fault}|${faultWordHidden}|${syncProblem}|${header.textContent}`
     if (signature === measuredFor.current) return
     measuredFor.current = signature
     const widths: Partial<Record<StatusBarItem, number>> = {}
@@ -196,9 +208,10 @@ export function StatusBar({
     }
     // Always-shown items (a fault's word, a sync problem) take their room off the top - also when
     // hidden in Einstellungen, they are shown anyway (#429 review).
-    const pinned = STATUS_BAR_ITEMS.filter((id) => (id === 'stateText' && fault) || (id === 'sync' && syncProblem))
+    const pinned = STATUS_BAR_ITEMS.filter((id) => (id === 'stateText' && fault && !faultWordHidden) || (id === 'sync' && syncProblem))
     const room = title.clientWidth + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
-    const next = [...fitStatusBarItems(wanted.filter((id) => !(pinned as readonly StatusBarItem[]).includes(id)), widths, room)].join(',')
+    const fitted = wanted.filter((id) => !(pinned as readonly StatusBarItem[]).includes(id) && !(id === 'stateText' && faultWordHidden))
+    const next = [...fitStatusBarItems(fitted, widths, room)].join(',')
     if (next !== shownKey) setShownKey(next)
   })
   useEffect(() => {
@@ -248,12 +261,13 @@ export function StatusBar({
 
       <span ref={titleRef} className="min-w-0 flex-1">
         <ScrollOnceText cycleKey={`${title ?? ''}|${variantLabel ?? ''}`} className="min-w-0 text-lg font-semibold">
+          {editing && <Icon name="edit" size="1.1em" className="mr-2" label={t('editing')} />}
           {title}
           {variantLabel && <span className="ml-2 font-normal opacity-80">({variantLabel})</span>}
         </ScrollOnceText>
       </span>
 
-      {title && (
+      {title && !editing && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
           {formatSongTime(elapsedMs ?? 0)}
           {durationMs !== null && (
