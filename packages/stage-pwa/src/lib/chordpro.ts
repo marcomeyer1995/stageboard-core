@@ -1,6 +1,9 @@
 export interface ChordSegment {
   chord: string | null
   text: string
+  /** Column in the source line where this segment starts - its `[` when it has a chord. Set by
+   * parseChordPro, so a tap in a preview can put the cursor there (#607). */
+  sourceOffset?: number
 }
 
 export interface ChordProLine {
@@ -24,6 +27,10 @@ export interface ChordProLine {
    * visibility (`{sot4marco}`) lives in `commentTargets`, so every place that already filters
    * comments by member filters tab blocks the same way. Null for every other line. */
   tab: { label: string | null; lines: string[] } | null
+  /** Index of the line in the ChordPro text this line came from (the `{sot}` line for a tab
+   * block). Set by parseChordPro; lets a preview tap jump to exactly this line, also when the
+   * same chorus text appears several times (#607). */
+  sourceLine?: number
 }
 
 /** A block of consecutive lines the Paginated View shows as one "page" (docs/07). */
@@ -311,24 +318,36 @@ export function parseTimeTag(line: string): { timeMs: number | null; rest: strin
   return { timeMs, rest: line.slice(match[0].length) }
 }
 
-function parseChordSegments(line: string): ChordSegment[] {
+/** `base`: where `line` starts in its source line (after a time tag), for `sourceOffset`. */
+function parseChordSegments(line: string, base = 0): ChordSegment[] {
   const segments: ChordSegment[] = []
   let lastIndex = 0
   let pendingChord: string | null = null
+  let segmentStart = 0
   let match: RegExpExecArray | null
   CHORD_RE.lastIndex = 0
 
   while ((match = CHORD_RE.exec(line)) !== null) {
     const textBefore = line.slice(lastIndex, match.index)
     if (textBefore.length > 0 || pendingChord !== null) {
-      segments.push({ chord: pendingChord, text: textBefore })
+      segments.push({ chord: pendingChord, text: textBefore, sourceOffset: base + segmentStart })
     }
     pendingChord = match[1]
+    segmentStart = match.index
     lastIndex = CHORD_RE.lastIndex
   }
 
-  segments.push({ chord: pendingChord, text: line.slice(lastIndex) })
+  segments.push({ chord: pendingChord, text: line.slice(lastIndex), sourceOffset: base + (pendingChord === null ? lastIndex : segmentStart) })
   return segments
+}
+
+/** The position in `content` of column `column` of source line `sourceLine` - where a preview
+ * tap puts the cursor (#607). */
+export function sourcePosition(content: string, sourceLine: number, column = 0): number {
+  const rawLines = content.split('\n')
+  let position = 0
+  for (let index = 0; index < Math.min(sourceLine, rawLines.length); index++) position += rawLines[index].length + 1
+  return Math.min(position + Math.max(0, Math.min(column, rawLines[sourceLine]?.length ?? 0)), content.length)
 }
 
 /**
@@ -358,6 +377,7 @@ export function parseChordPro(content: string): ChordProLine[] {
         comment: null,
         commentTargets: tabStart.targets,
         tab: { label: tabStart.label, lines: tabBlockLines(rawLines, rawIndex, endIndex) },
+        sourceLine: rawIndex,
       })
       partStarted = true
       // Past the `{eot}`; without one, stop right before the part directive that ended it so
@@ -393,6 +413,7 @@ export function parseChordPro(content: string): ChordProLine[] {
         comment: comment.text,
         commentTargets: comment.targets,
         tab: null,
+        sourceLine: rawIndex,
       })
       partStarted = true
       continue
@@ -401,12 +422,13 @@ export function parseChordPro(content: string): ChordProLine[] {
     const { timeMs, rest } = parseTimeTag(raw)
     lines.push({
       timeMs,
-      segments: parseChordSegments(rest),
+      segments: parseChordSegments(rest, raw.length - rest.length),
       partIndex,
       partLabel,
       comment: null,
       commentTargets: null,
       tab: null,
+      sourceLine: rawIndex,
     })
     partStarted = true
   }

@@ -279,7 +279,7 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   })
 
   it('switches to a full-screen timeline and back, keeping Speichern at hand (docs/14)', async () => {
-    stubViewport({ orientation: 'landscape' })
+    stubViewport({ width1024: true, width768: true })
     await renderLoaded()
     fireEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
     expect(screen.getByLabelText('Timeline', { selector: ':not([role=tab])' })).toBeInTheDocument()
@@ -303,3 +303,35 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
   })
 })
 
+
+describe('SheetEditor - tap a preview line to jump to it in the text (#607)', () => {
+  const twoChoruses = '{part: Chorus}\n[C]Take my [G]hand\n{part: Chorus}\n[C]Take my [G]hand'
+
+  it('phone: the cursor lands on exactly the tapped line, also when its text appears twice', async () => {
+    stubViewport({ orientation: 'portrait' })
+    const { variantToOpen } = await import('../lib/songVariantsDb')
+    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: twoChoruses })
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
+
+    const lines = document.querySelectorAll<HTMLElement>('[data-source-line]')
+    expect(lines).toHaveLength(2)
+    await act(async () => fireEvent.click(lines[1]))
+    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
+    expect(textarea).toHaveFocus()
+    expect(textarea.selectionStart).toBe(twoChoruses.lastIndexOf('[C]Take'))
+  })
+
+  it('wide screen: opens a collapsed Text section first, then places the cursor', async () => {
+    stubViewport({ width1024: true, width768: true })
+    const { variantToOpen } = await import('../lib/songVariantsDb')
+    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: twoChoruses })
+    await renderLoaded()
+    expect(screen.queryByPlaceholderText(chordProPlaceholder)).not.toBeInTheDocument()
+
+    await act(async () => fireEvent.click(document.querySelectorAll<HTMLElement>('[data-source-line]')[0]))
+    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
+    expect(textarea).toHaveFocus()
+    expect(textarea.selectionStart).toBe(twoChoruses.indexOf('[C]Take'))
+  })
+})
