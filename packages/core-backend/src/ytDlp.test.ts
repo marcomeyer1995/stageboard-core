@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildYtDlpArgs, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, ytDlpErrorSummary } from './ytDlp.js'
+import { buildYtDlpArgs, buildYtDlpSearchArgs, parseYtDlpSearch, mimeTypeForExt, parseYtDlpProgress, resolveYtDlpExecutable, runYtDlpExtract, ytDlpErrorSummary } from './ytDlp.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:child_process')>()),
@@ -159,5 +159,26 @@ describe('runYtDlpExtract', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('YouTube search (#618)', () => {
+  it('searches metadata only, the query after -- so it can never be read as an option', () => {
+    expect(buildYtDlpSearchArgs('-x evil', 10, '/usr/bin/node')).toEqual(['--flat-playlist', '-J', '--js-runtimes', 'node:/usr/bin/node', '--', 'ytsearch10:-x evil'])
+  })
+
+  it('turns the -J playlist into hits: id, title, channel, length, a clean watch URL; skips broken entries', () => {
+    const json = JSON.stringify({
+      entries: [
+        { id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', duration: 171.4, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw&list=x' },
+        { id: 'r8RxevrNrbs', title: 'Lyrics', uploader: '7clouds Rock' },
+        { id: 'short', title: 'no real id' },
+        { title: 'no id at all' },
+      ],
+    })
+    expect(parseYtDlpSearch(json)).toEqual([
+      { id: '9Ht5RZpzPqw', title: 'blink-182 - All The Small Things', channel: 'blink-182', durationSec: 171, url: 'https://www.youtube.com/watch?v=9Ht5RZpzPqw' },
+      { id: 'r8RxevrNrbs', title: 'Lyrics', channel: '7clouds Rock', durationSec: null, url: 'https://www.youtube.com/watch?v=r8RxevrNrbs' },
+    ])
   })
 })

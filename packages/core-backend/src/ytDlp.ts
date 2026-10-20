@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
+import { YOUTUBE_VIDEO_ID_RE, type YoutubeSearchResult } from 'shared-types'
 
 /** Same "find whichever binary is already on the host" pattern as ultimateGuitarPlugin.ts's
  * `resolveChromeExecutable` - yt-dlp is not bundled or auto-installed (fetching an executable
@@ -168,6 +169,70 @@ export function runYtDlpExtract(
         return
       }
       resolve({ filePath })
+    })
+  })
+}
+
+/** How many hits a search lists (#618) - a screenful on a phone; the right take is near the top. */
+export const YT_DLP_SEARCH_COUNT = 10
+
+/** A search answers in ~2.5 s (measured 2026-10-20); a hung one must not keep the dialog waiting. */
+export const YT_DLP_SEARCH_TIMEOUT_MS = 30_000
+
+/** Search, metadata only: `--flat-playlist` lists the hits without resolving each video's formats. */
+export function buildYtDlpSearchArgs(query: string, count: number = YT_DLP_SEARCH_COUNT, jsRuntime: string = process.execPath): string[] {
+  return ['--flat-playlist', '-J', '--js-runtimes', `node:${jsRuntime}`, '--', `ytsearch${count}:${query}`]
+}
+
+/** The hits out of yt-dlp's `-J` playlist JSON - entries without an id or title are skipped. */
+export function parseYtDlpSearch(json: string): YoutubeSearchResult[] {
+  const data = JSON.parse(json) as { entries?: Array<Record<string, unknown>> }
+  return (data.entries ?? []).flatMap((entry) => {
+    const id = typeof entry.id === 'string' ? entry.id : null
+    const title = typeof entry.title === 'string' ? entry.title : null
+    if (!id || !title || !YOUTUBE_VIDEO_ID_RE.test(id)) return []
+    return [
+      {
+        id,
+        title,
+        channel: typeof entry.channel === 'string' ? entry.channel : typeof entry.uploader === 'string' ? entry.uploader : null,
+        durationSec: typeof entry.duration === 'number' ? Math.round(entry.duration) : null,
+        url: `https://www.youtube.com/watch?v=${id}`,
+      },
+    ]
+  })
+}
+
+/** Runs a YouTube search on the Stage-Server (#618) - the same yt-dlp the download uses. */
+export function runYtDlpSearch(query: string, timeoutMs: number = YT_DLP_SEARCH_TIMEOUT_MS): Promise<YoutubeSearchResult[]> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(resolveYtDlpExecutable(), buildYtDlpSearchArgs(query))
+    let stdout = ''
+    let stderrTail = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGKILL')
+    }, timeoutMs)
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrTail = (stderrTail + chunk.toString()).slice(-2000)
+    })
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (timedOut) return reject(new Error('Die YouTube-Suche hat nicht geantwortet - ist der Stage-Server online?'))
+      if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}: ${ytDlpErrorSummary(stderrTail)}`))
+      try {
+        resolve(parseYtDlpSearch(stdout))
+      } catch (err) {
+        reject(err)
+      }
     })
   })
 }

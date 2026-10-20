@@ -723,6 +723,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         // fresh "+ Neue Variante" click that hasn't been saved yet, not "this song is new" (that
         // state no longer exists here at all - see the props/selectSong doc comments above).
         disabled={!variantsForSong.some((v) => v.id === draft.variantId)}
+        searchQuery={[draft.title, draft.artist ?? ''].filter((part) => part.trim()).join(' ')}
       />
     </div>
   )
