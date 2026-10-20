@@ -4,6 +4,7 @@ import {
   SongVariantSchema,
   CAPABILITIES,
   isSongEntry,
+  mergeChordLines,
   type BeatGrid,
   type Song,
   type ShowCue,
@@ -16,6 +17,7 @@ import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
+import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
 import { randomId } from '../lib/id'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
@@ -177,6 +179,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [pageMenuOpen, setPageMenuOpen] = useState(false)
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  // The text before the last text tool ran (#605) - "Rückgängig" until the next edit by hand.
+  const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
+  // The text as it was a moment ago - the bracket hint follows it, not every keystroke (#605:
+  // must not slow typing on a phone, and a "[Am" being typed is not a mistake yet).
+  const [settledText, setSettledText] = useState('')
   // Views of the same draft in the header (#617): the text, its preview (phone - on wide screens
   // it stands beside the text), the full-screen timeline (docs/14) and the song's details.
   const [editorView, setEditorView] = useState<EditorView>('text')
@@ -204,6 +212,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const previewRef = useRef<HTMLDivElement>(null)
   const keyboardOpen = useTouchKeyboardOpen()
   const content = draft?.chordProContent ?? ''
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledText(content), 800)
+    return () => clearTimeout(timer)
+  }, [content])
   useEffect(() => {
     const box = previewRef.current
     if (!box) return
@@ -774,6 +786,67 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     />
   )
 
+  /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
+  const applyTextTool = (label: string, tool: (text: string) => string) => {
+    const textarea = textareaRef.current
+    const before = draft.chordProContent
+    let start = textarea?.selectionStart ?? 0
+    let end = textarea?.selectionEnd ?? 0
+    if (start === end) {
+      start = 0
+      end = before.length
+    } else {
+      // Whole lines: a chord line and its lyric belong together.
+      start = before.lastIndexOf('\n', start - 1) + 1
+      const lineEnd = before.indexOf('\n', end)
+      end = lineEnd === -1 ? before.length : lineEnd
+    }
+    const after = before.slice(0, start) + tool(before.slice(start, end)) + before.slice(end)
+    if (after === before) {
+      setToolUndo(null)
+      setError(`${label}: nichts zu ändern.`)
+      return
+    }
+    setError(null)
+    setDraft({ ...draft, chordProContent: after })
+    setToolUndo({ before, label })
+  }
+
+  const askTranspose = async () => {
+    const result = await promptFields('Text transponieren', [{ key: 'steps', label: 'Halbtöne (z. B. 2 oder -3)', defaultValue: '2' }], 'Transponieren')
+    const steps = Number(result?.steps?.replace(',', '.').trim())
+    if (!result || !Number.isInteger(steps) || steps === 0 || Math.abs(steps) > 11) return
+    applyTextTool(`Transponiert ${signedSteps(steps)}`, (text) => transposeText(text, steps, draft.key))
+  }
+
+  const askReplace = async () => {
+    const result = await promptFields(
+      'Suchen & Ersetzen',
+      [
+        { key: 'find', label: 'Suchen' },
+        { key: 'replace', label: 'Ersetzen durch' },
+      ],
+      'Alle ersetzen',
+    )
+    if (!result?.find) return
+    let count = 0
+    applyTextTool('Ersetzt', (text) => {
+      const replaced = replaceAllText(text, result.find, result.replace ?? '')
+      count = replaced.count
+      return replaced.content
+    })
+    if (count > 0) setToolUndo((undo) => (undo ? { ...undo, label: `${count}× ersetzt` } : undo))
+  }
+
+  // In the text itself (#605) - for imported or pasted charts; the variant's own transpose stays
+  // in Song-Angaben.
+  const toolActions: MenuAction[] = [
+    { label: 'Transponieren …', onClick: () => void askTranspose() },
+    { label: 'Akkordzeilen zusammenführen', onClick: () => applyTextTool('Akkordzeilen zusammengeführt', mergeChordLines) },
+    { label: 'Aufräumen', onClick: () => applyTextTool('Aufgeräumt', cleanupText) },
+    { label: 'Suchen & Ersetzen …', onClick: () => void askReplace() },
+  ]
+
   const insertActions: MenuAction[] = [
     ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
     { label: '+ Kommentar', onClick: insertComment },
@@ -782,6 +855,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The page's own actions behind ⋮ (docs/15 D9, #617) - out of the way of the text.
   const pageActions: MenuAction[] = [
     { label: 'Einfügen …', onClick: () => setInsertMenuOpen(true) },
+    { label: 'Textwerkzeuge …', onClick: () => setToolsMenuOpen(true) },
     { label: 'Song importieren', onClick: () => setIsImporting(true) },
     {
       label: 'Tap-to-Sync starten',
@@ -974,12 +1048,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   )
 
   const trackCaret = (e: { currentTarget: HTMLTextAreaElement }) => setCaret(e.currentTarget.selectionStart)
+  // Unclosed [ or { (#605) - a hint naming the line, never fixed by itself.
+  const brackets = bracketProblems(settledText)
   // Phone with the keyboard up: the text alone (#617) - no variant row above it.
   const typingOnPhone = textFocused && !isPanel
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
       {!typingOnPhone && variantRow}
+      {toolUndo && (
+        <div className="flex items-center gap-2 rounded-control bg-control px-3 text-base text-ink">
+          <span className="min-w-0 flex-1 truncate">{toolUndo.label}</span>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setDraft({ ...draft, chordProContent: toolUndo.before })
+              setToolUndo(null)
+            }}
+          >
+            Rückgängig
+          </Button>
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         aria-label="ChordPro-Text"
@@ -987,6 +1077,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         value={draft.chordProContent}
         onChange={(e) => {
           setDraft({ ...draft, chordProContent: e.target.value })
+          setToolUndo(null)
           trackCaret(e)
         }}
         onSelect={trackCaret}
@@ -1004,6 +1095,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         }}
         placeholder="[00:00.00] Come on baby [G] don't you wanna go"
       />
+      {brackets.length > 0 && (
+        <p role="status" className="text-sm text-warn">
+          {brackets
+            .slice(0, 3)
+            .map((problem) => `Zeile ${problem.line}: „${problem.bracket}“ nicht geschlossen`)
+            .join(' · ')}
+          {brackets.length > 3 && ` · +${brackets.length - 3}`}
+        </p>
+      )}
       <ChordProKeyBar
         active={textFocused}
         chords={songChords(preview)}
@@ -1056,6 +1156,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         )}
       </div>
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
+      {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
       {isImporting && (
         <TabImportOverlay

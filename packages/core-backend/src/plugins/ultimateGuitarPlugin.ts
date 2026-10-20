@@ -1,8 +1,7 @@
 import { existsSync } from 'node:fs'
 import puppeteer, { type Browser, type Page } from 'puppeteer-core'
-import type { ILookupPlugin, LookupResult, PluginContext } from 'shared-types'
+import { convertUltimateGuitarContent, type ILookupPlugin, type LookupResult, type PluginContext } from 'shared-types'
 import { LookupError } from './lookupError.js'
-import { convertUltimateGuitarContent } from './ultimateGuitarFormat.js'
 
 const SEARCH_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'

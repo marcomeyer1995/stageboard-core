@@ -246,3 +246,48 @@ export function convertUltimateGuitarContent(raw: string): string {
 
   return output.join('\n')
 }
+
+/** A word of a pasted chord line that is a chord - the same strict vocabulary as UG's untagged
+ * chords, so "Am I" in a lyric never counts. */
+function isPlainChord(token: string): boolean {
+  return UNTAGGED_CHORD_RE.test(token) || NO_CHORD_RE.test(token)
+}
+
+/** A pasted line of only chords (and bars / repeat marks / comments) - `G   D/F#   Em`. Lines
+ * that are ChordPro already (`[`, `{`) never are. */
+function plainChordLine(line: string): { stripped: string; tokens: ChordLineToken[] } | null {
+  if (line.trim() === '' || /[[{]/.test(line)) return null
+  // Tag the chords the way UG does, then read the line with the same parser as the UG import -
+  // one place decides what a chord line is and where each chord stands.
+  const tagged = line.replace(/\S+/g, (token) => (isPlainChord(token) ? `[ch]${token}[/ch]` : token))
+  if (!tagged.includes('[ch]')) return null
+  return parseChordLine(tagged)
+}
+
+/**
+ * "Akkordzeilen zusammenführen" (#605): chords written on their own line above the lyric, as
+ * copied from websites (`G   D` / `Hello World`), become inline ChordPro (`[G]Hello [D]World`)
+ * at exactly the columns they stood at - mid-word too (Marco: UG chord positions stay exact). A
+ * chord line with no lyric beneath stays a line of its own, its chords bracketed in place. Every
+ * other line - ChordPro already, directives, lyrics - is left as it is.
+ */
+export function mergeChordLines(text: string): string {
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  const output: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const chordLine = plainChordLine(lines[i])
+    if (!chordLine) {
+      output.push(lines[i])
+      continue
+    }
+    const next = lines[i + 1]
+    const nextIsLyric = next !== undefined && next.trim() !== '' && !/^\s*[[{]/.test(next) && plainChordLine(next) === null
+    if (nextIsLyric) {
+      output.push(spliceChordsIntoLyric(next, chordLine.tokens))
+      i += 1
+    } else {
+      output.push(chordLineToInline(chordLine.stripped, chordLine.tokens))
+    }
+  }
+  return output.join('\n')
+}
