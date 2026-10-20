@@ -70,3 +70,25 @@ describe('useIsPanelLayout', () => {
     expect(result.current).toBe(false)
   })
 })
+
+describe('useIsPanelLayout - on-screen keyboard (#606)', () => {
+  it('keeps the layout while a text field has the focus; leaving it re-checks', async () => {
+    const media = stubMatchMedia({ width1024: false, width768: true, landscape: false })
+    const field = document.createElement('textarea')
+    document.body.append(field)
+    const { result } = renderHook(() => useIsPanelLayout())
+    expect(result.current).toBe(false)
+
+    field.focus()
+    // The keyboard makes the portrait page shorter than wide - same width, so not a rotation.
+    act(() => media.set({ landscape: true }))
+    expect(result.current).toBe(false)
+
+    await act(async () => {
+      field.blur()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(result.current).toBe(true)
+    field.remove()
+  })
+})

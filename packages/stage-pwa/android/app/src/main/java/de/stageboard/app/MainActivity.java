@@ -1,7 +1,10 @@
 package de.stageboard.app;
 
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 
 import androidx.activity.OnBackPressedCallback;
@@ -34,6 +37,7 @@ public class MainActivity extends BridgeActivity {
             getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         hideSystemBars();
+        followKeyboard();
         // Android's back gesture (a swipe in from the left or right edge) must never leave the
         // app: dragging a slider that starts near the edge triggered it and sent StageBoard to the
         // home screen mid-song (Xiaomi, 2026-10-15). The app has no back history of its own -
@@ -51,6 +55,36 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         // Android shows the bars again after dialogs, the recents screen etc.
         if (hasFocus) hideSystemBars();
+    }
+
+    /**
+     * The page ends where the on-screen keyboard begins (#606). From Android 11 Capacitor's
+     * SystemBars does this from the keyboard's window insets. Older Android (the Fire tablets, API
+     * 28) sends none while the system bars are hidden, so the keyboard covered the lower part of the
+     * page - text fields, dialog buttons, the ChordPro keys. There the WebView gets shorter by the
+     * part of the window the keyboard hides; the page sees it as a smaller viewport, like a browser.
+     */
+    private void followKeyboard() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return;
+        View decor = getWindow().getDecorView();
+        Rect visible = new Rect();
+        int[] onScreen = new int[2];
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            decor.getWindowVisibleDisplayFrame(visible);
+            View webView = bridge.getWebView();
+            View parent = (View) webView.getParent();
+            // Measured against where the WebView's container really ends - not the screen height:
+            // when Android itself shortens the container too, the keyboard must not count twice.
+            parent.getLocationOnScreen(onScreen);
+            int covered = Math.max(0, onScreen[1] + parent.getHeight() - visible.bottom);
+            // A sliver (a navigation bar showing briefly) is not a keyboard.
+            int keyboard = covered > decor.getHeight() * 0.15 ? covered : 0;
+            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
+            if (params.bottomMargin != keyboard) {
+                params.bottomMargin = keyboard;
+                webView.setLayoutParams(params);
+            }
+        });
     }
 
     /** Immersive: status and navigation bar hidden; a swipe from the edge shows them briefly. */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isTyping } from './useKeyboardSteadyHeight'
 
 function computeIsPanelLayout(): boolean {
   return (
@@ -25,9 +26,22 @@ export function useIsPanelLayout(): boolean {
       window.matchMedia('(min-width: 768px)'),
       window.matchMedia('(orientation: landscape)'),
     ]
-    const update = () => setIsPanel(computeIsPanelLayout())
+    let width = window.innerWidth
+    const update = () => {
+      // The on-screen keyboard makes the page shorter - a portrait tablet then reads as landscape
+      // and the editor jumped to two columns mid-typing, its text field gone (#606, Fire). Only a
+      // new width (rotation) counts while a text field has the focus; leaving it re-checks.
+      if (isTyping() && window.innerWidth === width) return
+      width = window.innerWidth
+      setIsPanel(computeIsPanelLayout())
+    }
+    const recheck = () => setTimeout(update, 0)
     queries.forEach((q) => q.addEventListener('change', update))
-    return () => queries.forEach((q) => q.removeEventListener('change', update))
+    document.addEventListener('focusout', recheck)
+    return () => {
+      queries.forEach((q) => q.removeEventListener('change', update))
+      document.removeEventListener('focusout', recheck)
+    }
   }, [])
 
   return isPanel

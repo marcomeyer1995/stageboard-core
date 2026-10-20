@@ -71,6 +71,8 @@ function stubViewport(opts: {
   width768?: boolean
   width640?: boolean
   orientation?: 'portrait' | 'landscape'
+  /** A touchscreen (`pointer: coarse`) - the ChordPro keys above the keyboard (#606). */
+  coarse?: boolean
 }) {
   vi.stubGlobal(
     'matchMedia',
@@ -82,6 +84,7 @@ function stubViewport(opts: {
       else if (query.includes('640')) matches = !!opts.width640
       else if (query.includes('orientation: portrait')) matches = opts.orientation === 'portrait'
       else if (query.includes('orientation: landscape')) matches = opts.orientation === 'landscape'
+      else if (query.includes('pointer: coarse')) matches = !!opts.coarse
       return {
         matches,
         addEventListener: () => {},
@@ -333,5 +336,59 @@ describe('SheetEditor - tap a preview line to jump to it in the text (#607)', ()
     const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
     expect(textarea).toHaveFocus()
     expect(textarea.selectionStart).toBe(twoChoruses.indexOf('[C]Take'))
+  })
+})
+
+describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
+  /** The on-screen keyboard is up: the visible area is a small part of the screen. */
+  const keyboardUp = () =>
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 100, addEventListener: () => {}, removeEventListener: () => {} })
+
+  async function focusText(content = '[Am]Hello [C]world [Am]again') {
+    const { variantToOpen } = await import('../lib/songVariantsDb')
+    vi.mocked(variantToOpen).mockResolvedValueOnce({ ...variant, chordProContent: content })
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Text', expanded: false }))
+    const textarea = screen.getByPlaceholderText(chordProPlaceholder) as HTMLTextAreaElement
+    fireEvent.focus(textarea)
+    return textarea
+  }
+
+  it('touchscreen + keyboard up: [ ] / | and the song\'s chords, most used first; a key types at the caret', async () => {
+    stubViewport({ orientation: 'portrait', coarse: true })
+    keyboardUp()
+    const textarea = await focusText()
+    const bar = screen.getByRole('toolbar', { name: 'ChordPro-Tasten' })
+    expect([...bar.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))).toEqual(['[', ']', '/', '|', '[Am] einfügen', '[C] einfügen', 'Einfügen'])
+
+    textarea.setSelectionRange(0, 0)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '|' })))
+    expect(textarea.value).toBe('|[Am]Hello [C]world [Am]again')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '[C] einfügen' })))
+    expect(textarea.value.startsWith('|[C][Am]Hello')).toBe(true)
+  })
+
+  it('[ with text selected wraps it as a chord: "Am" → "[Am]"', async () => {
+    stubViewport({ orientation: 'portrait', coarse: true })
+    keyboardUp()
+    const textarea = await focusText('Am Hello')
+    textarea.setSelectionRange(0, 2)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '[' })))
+    expect(textarea.value).toBe('[Am] Hello')
+    expect(textarea.selectionStart).toBe(4)
+  })
+
+  it('no bar without a touchscreen, or while the keyboard is down', async () => {
+    stubViewport({ orientation: 'portrait' })
+    keyboardUp()
+    await focusText()
+    expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
+  })
+
+  it('keyboard down on a touchscreen: no bar', async () => {
+    stubViewport({ orientation: 'portrait', coarse: true })
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: window.screen.height, addEventListener: () => {}, removeEventListener: () => {} })
+    await focusText()
+    expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
   })
 })

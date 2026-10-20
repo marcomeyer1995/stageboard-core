@@ -520,3 +520,13 @@ export function nextSectionIndex(lines: ChordProLine[], index: number): number |
   }
   return null
 }
+
+/** The chords a song uses most, at most `max`, ties in order of first use. */
+export function songChords(lines: readonly ChordProLine[], max = 5): string[] {
+  const counts = new Map<string, number>()
+  for (const line of lines) for (const { chord } of line.segments) if (chord) counts.set(chord, (counts.get(chord) ?? 0) + 1)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([chord]) => chord)
+}
