@@ -131,6 +131,13 @@ export async function installAppUpdate(): Promise<void> {
   await ServerTrust.downloadAndInstall({ url: `${base}/app/stageboard.apk` })
 }
 
+/** The native side's own reason for a failed update (e.g. "certificate is not the paired one"),
+ * shown with the message - without it a failure on one phone could not be told apart (2026-10-20). */
+export function updateFailureReason(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err)
+  return text.replace(/^Update failed: /, '') || 'unbekannter Fehler'
+}
+
 /** The question asked before trusting a Stage-Server's certificate (#377): name, address and the
  * fingerprint each on their own line instead of one long sentence. */
 export function pairingConfirmation(name: string, host: string, fingerprint: string): { title: string; message: string } {

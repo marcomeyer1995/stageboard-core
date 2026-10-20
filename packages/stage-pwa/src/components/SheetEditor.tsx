@@ -34,6 +34,7 @@ import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
 import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { CommentListEditor } from './CommentListEditor'
+import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
@@ -182,6 +183,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
   // The text before the last text tool ran (#605) - "Rückgängig" until the next edit by hand.
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
+  // "+ Kommentar" / "+ Tab" dialogs (#608).
+  const [noteDialog, setNoteDialog] = useState<'comment' | 'tab' | null>(null)
   // The text as it was a moment ago - the bracket hint follows it, not every keystroke (#605:
   // must not slow typing on a phone, and a "[Am" being typed is not a mistake yet).
   const [settledText, setSettledText] = useState('')
@@ -494,44 +497,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     else typeAtCaret(key)
   }
 
-  /** Inserts a blank `{cc: }` comment directive at the caret's line (issue #215 follow-up) -
-   * "+ Kommentar" alongside the part buttons above. Puts the caret *inside* the braces, unlike
-   * insertPart's fixed labels - a comment has no label to pick, it's typed right here. Starts
-   * targeted at everyone (`cc`, no name); retarget it afterward in the Kommentare tab. */
-  const insertComment = () => {
+  /** "+ Kommentar" / "+ Tab" (#608) open a dialog - text, template and "Sichtbar für" - which hands
+   * back finished ChordPro lines; they go in above the caret's line, the caret after them. */
+  const insertLinesAtCaret = (lines: string) => {
     const textarea = textareaRef.current
     const content = draft.chordProContent
     const caret = textarea?.selectionStart ?? content.length
     const lineStart = content.lastIndexOf('\n', caret - 1) + 1
-    const prefix = '{cc: '
-    const directive = `${prefix}}\n`
-    setDraft({
-      ...draft,
-      chordProContent: content.slice(0, lineStart) + directive + content.slice(lineStart),
-    })
+    const block = `${lines}\n`
+    setDraft({ ...draft, chordProContent: content.slice(0, lineStart) + block + content.slice(lineStart) })
     requestAnimationFrame(() => {
-      const caretAfter = lineStart + prefix.length
-      textarea?.focus()
-      textarea?.setSelectionRange(caretAfter, caretAfter)
-    })
-  }
-
-  /** Inserts an empty tab block (`{start_of_tab}` ... `{end_of_tab}`) at the caret's line and
-   * puts the caret on the blank line inside it, ready to paste a riff. For everyone by default;
-   * narrow it to specific members afterward in the Kommentare tab's "Tab-Blöcke" list. */
-  const insertTabBlock = () => {
-    const textarea = textareaRef.current
-    const content = draft.chordProContent
-    const caret = textarea?.selectionStart ?? content.length
-    const lineStart = content.lastIndexOf('\n', caret - 1) + 1
-    const opening = '{start_of_tab}\n'
-    const block = `${opening}\n{end_of_tab}\n`
-    setDraft({
-      ...draft,
-      chordProContent: content.slice(0, lineStart) + block + content.slice(lineStart),
-    })
-    requestAnimationFrame(() => {
-      const caretAfter = lineStart + opening.length
+      const caretAfter = lineStart + block.length
       textarea?.focus()
       textarea?.setSelectionRange(caretAfter, caretAfter)
     })
@@ -849,8 +825,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const insertActions: MenuAction[] = [
     ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
-    { label: '+ Kommentar', onClick: insertComment },
-    { label: '+ Tab', onClick: insertTabBlock },
+    { label: '+ Kommentar', onClick: () => setNoteDialog('comment') },
+    { label: '+ Tab', onClick: () => setNoteDialog('tab') },
   ]
   // The page's own actions behind ⋮ (docs/15 D9, #617) - out of the way of the text.
   const pageActions: MenuAction[] = [
@@ -1161,6 +1137,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
+      {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
+      {noteDialog === 'tab' && <InsertTabDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {isImporting && (
         <TabImportOverlay
           onImport={handleImport}
