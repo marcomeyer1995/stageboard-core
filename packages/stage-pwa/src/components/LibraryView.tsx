@@ -864,7 +864,11 @@ export function LibraryView() {
               <SongPreview
                 songId={selection.songId}
                 variantId={selection.variantId}
-                onEdit={() => setSongMode('edit')}
+                onEdit={(variantId) =>
+                  variantId === selection.variantId
+                    ? setSongMode('edit')
+                    : setSelection({ ...selection, variantId }, () => setSongMode('edit'))
+                }
               />
             </>
           ) : (
