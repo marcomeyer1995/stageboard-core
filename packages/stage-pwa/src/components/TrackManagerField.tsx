@@ -10,8 +10,8 @@ import { useAsyncJobsStore } from '../store/useAsyncJobsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { StemSeparationDialog } from './StemSeparationDialog'
-import { INPUT, INPUT_FREE } from './ui/styles'
-import { Button } from './ui'
+import { INPUT } from './ui/styles'
+import { AddRow, Button, Dialog, IconButton } from './ui'
 
 const JOB_LABELS: Record<AsyncJob['type'], string> = { 'youtube-extract': 'YouTube-Extraktion', 'stem-separation': 'Spuren trennen' }
 
@@ -50,6 +50,10 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
   // "Von YouTube laden" only with the YouTube-Download add-on (#546).
   const canDownload = pluginProviding(installed, CAPABILITIES.videoDownload) !== null
   const promptFields = useDialogStore((state) => state.promptFields)
+  const confirm = useDialogStore((state) => state.confirm)
+  // "+ Track hinzufügen" (#604): kind, then a file or a YouTube link - in a dialog, not squeezed
+  // into the section.
+  const [adding, setAdding] = useState(false)
   const [separating, setSeparating] = useState<TrackMeta | null>(null)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   // The stem being listened to, as a local object URL (fetched from the Stage-Server on demand).
@@ -93,24 +97,49 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     await updateStem(variantId, track.id, result.label, role.success ? role.data : undefined)
   }
 
+  /** ▶ / ✎ / 🗑 as icons (Marco, 2026-10-20: clear enough) - one row per track on the phone (#604). */
+  function playButton(track: TrackMeta) {
+    const playing = listening?.trackId === track.id
+    return (
+      <IconButton
+        icon={playing ? 'pause' : 'play'}
+        label={playing ? `${track.label} anhalten` : `${track.label} anhören`}
+        variant={playing ? 'primary' : 'secondary'}
+        aria-pressed={playing}
+        onClick={() => void listen(track)}
+        disabled={busyTrackId === track.id}
+      />
+    )
+  }
+
+  function removeButton(track: TrackMeta) {
+    return (
+      <IconButton
+        icon="delete"
+        label={`${track.label} entfernen`}
+        // Red like every destructive action - over the button's own ink colour.
+        className="!text-danger"
+        onClick={() => void handleRemove(track)}
+        disabled={disabled || busyTrackId === track.id}
+      />
+    )
+  }
+
   function stemSet(stems: TrackMeta[]) {
     return (
       <>
         {stemLengthsDiffer(stems) && <span className="ml-4 text-sm text-warn">Die Spuren sind unterschiedlich lang - sie laufen ab 0:00 zusammen, eine passt vielleicht nicht.</span>}
         {stems.map((stem) => (
           <div key={stem.id} className="ml-4 flex flex-col gap-1 border-l-2 border-line pl-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-ink">{stem.label}</span>
-              {stem.role && <span className="text-xs text-ink-faint">{STEM_ROLE_LABELS[stem.role]}</span>}
-              <Button variant={listening?.trackId === stem.id ? 'primary' : 'secondary'} aria-pressed={listening?.trackId === stem.id} onClick={() => void listen(stem)} disabled={busyTrackId === stem.id}>
-                Anhören
-              </Button>
-              <Button onClick={() => void editStem(stem)} disabled={disabled}>
-                Bearbeiten
-              </Button>
-              <Button onClick={() => handleRemove(stem.id)} disabled={disabled || busyTrackId === stem.id}>
-                Entfernen
-              </Button>
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">
+                {stem.label}
+                {/* The role only where the name doesn't already say it ("Schlagzeug Schlagzeug"). */}
+                {stem.role && STEM_ROLE_LABELS[stem.role] !== stem.label && <span className="ml-2 text-xs text-ink-faint">{STEM_ROLE_LABELS[stem.role]}</span>}
+              </span>
+              {playButton(stem)}
+              <IconButton icon="edit" label={`${stem.label} bearbeiten`} onClick={() => void editStem(stem)} disabled={disabled} />
+              {removeButton(stem)}
             </div>
             {listening?.trackId === stem.id && <audio controls autoPlay src={listening.url} className="w-full" />}
           </div>
@@ -170,11 +199,14 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
     }
     setUploadProgress(null)
     setBusyTrackId(null)
+    setAdding(false)
   }
 
-  async function handleRemove(trackId: string) {
-    setBusyTrackId(trackId)
-    await removeTrack(variantId, trackId)
+  /** An icon is quickly tapped by mistake - removing asks first (#604). */
+  async function handleRemove(track: TrackMeta) {
+    if (!(await confirm(`„${track.label}“ entfernen?`, { confirmLabel: 'Entfernen', danger: true }))) return
+    setBusyTrackId(track.id)
+    await removeTrack(variantId, track.id)
     setBusyTrackId(null)
   }
 
@@ -201,6 +233,7 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
       label: 'YouTube Referenz',
     })
     setYoutubeUrl('')
+    setAdding(false)
   }
 
   return (
@@ -213,19 +246,16 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
         {tracks.length === 0 && <span className="text-xs text-ink-faint">Keine Tracks</span>}
         {playableTracks(tracks).map((track) => (
           <div key={track.id} className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-ink-faint">
-                {KIND_LABELS[track.kind]}: {track.label}
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">
+                {track.label}
+                <span className="ml-2 text-xs text-ink-faint">{KIND_LABELS[track.kind]}</span>
               </span>
-              {canSeparate && (
-                <Button onClick={() => setSeparating(track)} disabled={disabled}>
-                  Spuren trennen
-                </Button>
-              )}
-              <Button onClick={() => handleRemove(track.id)} disabled={disabled || busyTrackId === track.id}>
-                Entfernen
-              </Button>
+              {playButton(track)}
+              {canSeparate && <IconButton icon="split" label="Spuren trennen" onClick={() => setSeparating(track)} disabled={disabled} />}
+              {removeButton(track)}
             </div>
+            {listening?.trackId === track.id && <audio controls autoPlay src={listening.url} className="w-full" />}
             {stemSet(stemsOf(tracks, track.id))}
           </div>
         ))}
@@ -260,54 +290,55 @@ export function TrackManagerField({ variantId, tracks, disabled }: TrackManagerF
           ))}
         </div>
       )}
-      {canDownload && (
-      <form onSubmit={handleYoutubeSubmit} className="flex items-center gap-2">
-        <input
-          type="url"
-          value={youtubeUrl}
-          onChange={(e) => setYoutubeUrl(e.target.value)}
-          placeholder="YouTube-Link für eine Referenzaufnahme"
-          disabled={disabled}
-          className={`min-w-0 flex-1 min-w-0 px-2 py-1 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
-        />
-        <Button type="submit" disabled={disabled || youtubeUrl.trim() === ''}>
-          Von YouTube laden
-        </Button>
-      </form>
-      )}
-      {youtubeError && <span className="text-xs text-danger">{youtubeError}</span>}
-      <div className="flex items-center gap-2">
-        <select
-          className={`min-h-form px-3 text-base ${INPUT}`}
-          value={uploadKind}
-          onChange={(e) => setUploadKind(e.target.value as TrackKind)}
-          disabled={disabled}
-        >
-          {(Object.keys(KIND_LABELS) as TrackKind[]).map((kind) => (
-            <option key={kind} value={kind}>
-              {KIND_LABELS[kind]}
-            </option>
-          ))}
-        </select>
-        <label
-          className={`rounded-control bg-control-strong px-2 py-1 text-xs text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-            disabled || busyTrackId !== null ? 'pointer-events-none opacity-40' : 'cursor-pointer'
-          }`}
-        >
-          {uploadKind === 'stem' ? 'Spuren hochladen' : 'Hochladen'}
-          <input
-            type="file"
-            accept="audio/*"
-            multiple={uploadKind === 'stem'}
-            className="hidden"
-            disabled={disabled || busyTrackId !== null}
-            onChange={handleFiles}
-          />
-        </label>
-      </div>
-      {uploadKind === 'stem' && <span className="text-xs text-ink-faint">Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.</span>}
+      <AddRow label="Track hinzufügen" onClick={() => setAdding(true)} disabled={disabled || busyTrackId !== null} />
       {uploadProgress && <span className="text-xs text-ink-faint">{uploadProgress}</span>}
       {disabled && <span className="text-xs text-ink-faint">Erst speichern, dann Tracks anhängen.</span>}
+      {adding && (
+        <Dialog title="Track hinzufügen" closeLabel="Abbrechen" onClose={() => setAdding(false)}>
+          <div className="flex flex-col gap-3 text-base text-ink">
+            <label className="flex flex-col gap-1 text-sm text-ink-muted">
+              Art
+              <select className={`min-h-form px-3 text-base ${INPUT}`} value={uploadKind} onChange={(e) => setUploadKind(e.target.value as TrackKind)}>
+                {(Object.keys(KIND_LABELS) as TrackKind[]).map((kind) => (
+                  <option key={kind} value={kind}>
+                    {KIND_LABELS[kind]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* A file input behind a button-sized label - the input itself can't be styled. */}
+            <label
+              className={`inline-flex min-h-form cursor-pointer items-center justify-center rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
+                busyTrackId !== null ? 'pointer-events-none opacity-40' : ''
+              }`}
+            >
+              {uploadKind === 'stem' ? 'Dateien wählen' : 'Datei wählen'}
+              <input type="file" accept="audio/*" multiple={uploadKind === 'stem'} className="hidden" disabled={busyTrackId !== null} onChange={handleFiles} />
+            </label>
+            {uploadKind === 'stem' && (
+              <span className="text-sm text-ink-faint">Mehrere Dateien auf einmal - alle gleich lang ab 0:00. Name und Rolle kommen aus dem Dateinamen.</span>
+            )}
+            {canDownload && (
+              <form onSubmit={handleYoutubeSubmit} className="flex flex-col gap-2 border-t border-line pt-3">
+                <label className="flex flex-col gap-1 text-sm text-ink-muted">
+                  Oder eine Referenz von YouTube
+                  <input
+                    type="url"
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    placeholder="https://youtu.be/…"
+                    className={`min-h-form min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
+                  />
+                </label>
+                {youtubeError && <span className="text-sm text-danger">{youtubeError}</span>}
+                <Button type="submit" className="self-end" disabled={youtubeUrl.trim() === ''}>
+                  Von YouTube laden
+                </Button>
+              </form>
+            )}
+          </div>
+        </Dialog>
+      )}
       {separating && (
         <StemSeparationDialog
           trackLabel={separating.label}

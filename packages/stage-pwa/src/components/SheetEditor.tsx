@@ -30,6 +30,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
+import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { CommentListEditor } from './CommentListEditor'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
@@ -37,7 +38,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { ActionMenu, ActionMenuDialog, AddRow, Switch, Tabs, Button, type MenuAction } from './ui'
+import { ActionMenu, ActionMenuDialog, IconButton, menuIcon, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
 
@@ -113,6 +114,7 @@ function draftFrom(song: Song, variant: SongVariant): EditorDraft {
 }
 
 type EditorLayout = 'stacked' | 'panel'
+type EditorView = 'text' | 'preview' | 'timeline' | 'details'
 
 /** Landscape/desktop ('panel', useIsPanelLayout.ts - shared with LibraryView.tsx) put the preview
  * in its own column; phone and tablet portrait stack everything in one. Both use the same
@@ -160,18 +162,26 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tapTrackSrc, setTapTrackSrc] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const layout = useEditorLayout()
-  // Titel/Band/Key/Capo/Stimmung (#603): a one-line summary until opened. null = not touched yet:
-  // open in landscape/desktop and for a song without a title (a new one), closed otherwise.
+  // Song-Angaben in Details (#617): open for a song without a title (a new one), closed otherwise.
   const [metaOpen, setMetaOpen] = useState<boolean | null>(null)
-  // Every section starts collapsed (Marco, explicit request) - opening a song for editing
-  // shows just the always-visible header (Titel/Band/Key/Tuning/Capo) until something is
-  // deliberately expanded, not a screenful of whichever section used to default open.
-  const [textExpanded, setTextExpanded] = useState(false)
   // A tapped preview line's position in the text (#607) - applied once the text field is there,
-  // since the Text section may first have to open.
+  // since the Text view may first have to open.
   const [jumpTo, setJumpTo] = useState<number | null>(null)
-  // The text field has the focus - shows the ChordPro keys above the phone keyboard (#606).
+  // The text field has the focus - shows the ChordPro keys above the phone keyboard (#606) and,
+  // on the phone, leaves the screen to the text alone (#617).
   const [textFocused, setTextFocused] = useState(false)
+  // Where the cursor is in the text: the preview follows it (#617).
+  const [caret, setCaret] = useState(0)
+  // Every section starts collapsed (Marco, explicit request).
+  const [tempoExpanded, setTempoExpanded] = useState(false)
+  const [audioExpanded, setAudioExpanded] = useState(false)
+  const [commentsExpanded, setCommentsExpanded] = useState(false)
+  const [pageMenuOpen, setPageMenuOpen] = useState(false)
+  // Views of the same draft in the header (#617): the text, its preview (phone - on wide screens
+  // it stands beside the text), the full-screen timeline (docs/14) and the song's details.
+  const [editorView, setEditorView] = useState<EditorView>('text')
+  // On a wide screen the preview has no view of its own - it stands beside the text.
+  const view: EditorView = editorView === 'preview' && layout === 'panel' ? 'text' : editorView
   useEffect(() => {
     const textarea = textareaRef.current
     if (jumpTo === null || !textarea) return
@@ -186,14 +196,22 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     textarea.scrollTop = Math.max(0, caretTop - textarea.clientHeight / 3)
     textarea.focus({ preventScroll: true })
     textarea.setSelectionRange(jumpTo, jumpTo)
-    textarea.scrollIntoView?.({ block: 'nearest' })
-  }, [jumpTo, textExpanded])
-  const [tempoExpanded, setTempoExpanded] = useState(false)
-  const [audioExpanded, setAudioExpanded] = useState(false)
-  const [commentsExpanded, setCommentsExpanded] = useState(false)
-  // Two views of the same draft (docs/14): the text editor (what) and the full-screen timeline
-  // (when) - not a section squeezed into the details column.
-  const [editorView, setEditorView] = useState<'text' | 'timeline'>('text')
+    setCaret(jumpTo)
+  }, [jumpTo, view])
+
+  // The cursor's line, scrolled into the preview's view (#617) - inside the preview's own scroll
+  // box, never the page. Marked there through `activeIndex`.
+  const previewRef = useRef<HTMLDivElement>(null)
+  const keyboardOpen = useTouchKeyboardOpen()
+  const content = draft?.chordProContent ?? ''
+  useEffect(() => {
+    const box = previewRef.current
+    if (!box) return
+    const line = box.querySelector<HTMLElement>('[data-active-line="true"]')
+    if (!line) return
+    const top = line.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    box.scrollTo?.({ top: Math.max(0, top - box.clientHeight / 3) })
+  }, [caret, view, content])
 
   const variantsForSong = draft ? variants.filter((v) => v.songId === draft.songId) : []
   const currentTracks = draft ? (variants.find((v) => v.id === draft.variantId)?.tracks ?? []) : []
@@ -213,7 +231,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   useEffect(() => {
     setTapTrackSrc(null)
-    const timelineOpen = editorView === 'timeline'
+    const timelineOpen = view === 'timeline'
     if (!draft || !timelineOpen || !tapTrack) return
     let cancelled = false
     let objectUrl: string | null = null
@@ -229,7 +247,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Only the ids matter here - re-running on every tracks-array reference change (a new
     // array each render, since currentTracks is derived) would tear down/re-fetch needlessly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorView, draft?.variantId, tapTrack?.id])
+  }, [view, draft?.variantId, tapTrack?.id])
 
   async function selectSong(id: string, preferredVariantId?: string | null) {
     const song = songs.find((s) => s.id === id)
@@ -261,8 +279,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const leave = async () => {
     if (await confirmLeave()) onBack()
   }
-  // Back closes the current view: the timeline returns to the text view, the editor to the library.
-  useBackHandler(editorView === 'timeline' ? () => setEditorView('text') : () => void leave())
+  // Back closes the current view: every other view returns to the text, the text to the library.
+  useBackHandler(view !== 'text' ? () => setEditorView('text') : () => void leave())
 
   useEffect(() => {
     // The open song was deleted - here, or on another device mid-sync. There's nothing left
@@ -576,9 +594,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const preview = parseChordPro(draft.chordProContent)
   /** Tap a preview line → cursor at that line (and word) in the text (#607). No coupled scrolling. */
   const jumpToSource = (sourceLine: number, column: number) => {
-    setTextExpanded(true)
+    setEditorView('text')
     setJumpTo(sourcePosition(draft.chordProContent, sourceLine, column))
   }
+  // The preview line the cursor is in: the last one starting at or before the cursor's line (#617)
+  // - or the first one, while the cursor is still above it (a `{part:}` line).
+  const caretLine = draft.chordProContent.slice(0, caret).split('\n').length - 1
+  const caretIndex = Math.max(0, preview.reduce((found, line, index) => ((line.sourceLine ?? 0) <= caretLine ? index : found), -1))
 
   // One topic (#180 follow-up): BPM/Takt/click/count-in are the "set it and glance at it"
   // basics, and the click grid below the divider is the same topic gone deeper - its editing
@@ -640,16 +662,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       <div className="flex flex-col gap-2 border-t border-line pt-3">
         <span className="text-sm text-ink-muted">Klick-Raster</span>
         <p className="text-sm text-ink-soft">{gridSummary}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setEditorView('timeline')}>
-            In der Timeline bearbeiten
-          </Button>
-          <Button onClick={() => void handleAnalyzeTrack()} disabled={!tapTrack || isAnalyzing}>
-            {isAnalyzing ? 'Analysiere…' : 'Track analysieren'}
-          </Button>
-          <Button variant="danger" onClick={() => void handleClearGrid()} disabled={!draft.beatGrid}>
-            Raster löschen
-          </Button>
+        {/* The main way into the grid, the rest behind ⋯ (#604) - one row on the phone. */}
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setEditorView('timeline')}>In der Timeline bearbeiten</Button>
+          <ActionMenu
+            title="Klick-Raster"
+            actions={[
+              { label: isAnalyzing ? 'Analysiere…' : 'Track analysieren', disabled: !tapTrack || isAnalyzing, onClick: () => void handleAnalyzeTrack() },
+              { label: 'Raster löschen', danger: true, disabled: !draft.beatGrid, onClick: () => void handleClearGrid() },
+            ]}
+          />
         </div>
         {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
       </div>
@@ -734,152 +756,276 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     />
   )
 
-  // Switching the editor's page = underline tabs (docs/15), like System and the phone tabs below.
+  const isPanel = layout === 'panel'
+  // Views in the header (#617) - icons on the phone, words from 600 px (ui/Tabs). Vorschau only
+  // where it has no column of its own.
   const viewSwitch = (
     <Tabs
       label="Ansicht"
-      value={editorView}
+      value={view}
       onChange={setEditorView}
       tabs={[
-        { value: 'text', label: 'Text', icon: 'text' },
-        { value: 'timeline', label: 'Timeline', icon: 'timeline' },
+        { value: 'text' as const, label: 'Text', icon: 'text' as const },
+        ...(isPanel ? [] : [{ value: 'preview' as const, label: 'Vorschau', icon: 'eye' as const }]),
+        { value: 'timeline' as const, label: 'Timeline', icon: 'timeline' as const },
+        { value: 'details' as const, label: 'Details', icon: 'details' as const },
       ]}
     />
   )
 
+  const insertActions: MenuAction[] = [
+    ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
+    { label: '+ Kommentar', onClick: insertComment },
+    { label: '+ Tab', onClick: insertTabBlock },
+  ]
+  // The page's own actions behind ⋮ (docs/15 D9, #617) - out of the way of the text.
+  const pageActions: MenuAction[] = [
+    { label: 'Einfügen …', onClick: () => setInsertMenuOpen(true) },
+    { label: 'Song importieren', onClick: () => setIsImporting(true) },
+    {
+      label: 'Tap-to-Sync starten',
+      disabled: !draft.chordProContent.trim(),
+      onClick: () => {
+        setTapLinesOnOpen(true)
+        setEditorView('timeline')
+      },
+    },
+  ]
+
+  const isStandardTuning = isStandard(stageTuning(draft))
+  const showMeta = metaOpen ?? !draft.title.trim()
+  const metaSummary = [
+    draft.title.trim() || '(ohne Titel)',
+    draft.artist,
+    draft.key && `Key ${soundingKey(draft)}`,
+    (draft.transpose ?? 0) !== 0 && `Transponiert ${signedSteps(draft.transpose ?? 0)}`,
+    !isStandardTuning && tuningLabel(stageTuning(draft)),
+    draft.capo !== undefined && `Capo ${draft.capo}`,
+    `${draft.bpm} BPM`,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ')
+
+  // "Which song is this, and how do I play it" (#603) - the first section of Details (#617).
+  const metaContent = (
+    <div className="flex flex-col gap-3">
+      {!draft.isDefaultVariant && (
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Varianten-Name
+          <input
+            className={`min-h-form px-3 ${INPUT}`}
+            value={draft.variantLabel}
+            onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
+          />
+        </label>
+      )}
+      <div className="flex gap-2 max-[599px]:flex-col">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
+          Titel
+          <input className={`min-h-form px-3 ${INPUT}`} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+        </label>
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
+          Band
+          <input
+            className={`min-h-form px-3 ${INPUT}`}
+            value={draft.artist ?? ''}
+            onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
+          />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2 [&>label]:min-w-0">
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Key
+          <input
+            className={`min-h-form px-3 ${INPUT}`}
+            value={draft.key ?? ''}
+            onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-ink-muted">
+          Capo
+          <input
+            type="number"
+            min={0}
+            className={`min-h-form px-3 ${INPUT}`}
+            value={draft.capo ?? ''}
+            onChange={(e) => setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })}
+          />
+        </label>
+      </div>
+      {/* Band-wide for this variant (Marco, 2026-10-18): how it sounds against the original, how
+          the band tunes for it, and what the chart is written for - the chords on stage follow
+          from all three (lib/pitch.ts). Guided pickers, no free text. */}
+      <div className="grid grid-cols-[2fr_1fr] gap-2 max-[599px]:grid-cols-1 [&>*]:min-w-0">
+        <KeyTuningField value={draft} onChange={(next) => setDraft({ ...draft, ...next })} />
+        <TuningSelect
+          label="Akkorde notiert für"
+          value={draft.chartTuning}
+          onChange={(chartTuning) => setDraft({ ...draft, chartTuning, tuning: undefined })}
+        />
+      </div>
+      {variantChordShift(draft) !== 0 && (
+        <p className="text-sm text-ink-faint">
+          Auf der Bühne stehen die Akkorde verschoben (siehe Tonart &amp; Stimmung) - hier im Text bleiben sie wie geschrieben.
+        </p>
+      )}
+    </div>
+  )
+
   const detailSections = [
     {
+      key: 'meta' as const,
+      label: 'Song-Angaben',
+      // Closed it still says which song and how it is played.
+      summary: metaSummary,
+      content: metaContent,
+      expanded: showMeta,
+      onToggleExpand: () => setMetaOpen(!showMeta),
+    },
+    {
       key: 'tempo' as const,
-      fullLabel: 'Tempo & Klick',
+      label: 'Tempo & Klick',
+      summary: null,
       content: tempoContent,
       expanded: tempoExpanded,
       onToggleExpand: () => setTempoExpanded((v) => !v),
     },
     {
       key: 'audio' as const,
-      fullLabel: 'Audio',
+      label: 'Audio',
+      summary: null,
       content: audioContent,
       expanded: audioExpanded,
       onToggleExpand: () => setAudioExpanded((v) => !v),
     },
     {
       key: 'comments' as const,
-      fullLabel: 'Kommentare',
+      label: 'Kommentare',
+      summary: null,
       content: commentsContent,
       expanded: commentsExpanded,
       onToggleExpand: () => setCommentsExpanded((v) => !v),
     },
   ]
 
-  // The ChordPro editor itself - still the most commonly needed section by default (see
-  // `textExpanded` above), but now genuinely its own collapsible section like everything else,
-  // not the one thing permanently pinned open. Title/Band moved out to the always-visible
-  // header above (see the JSX below) - unlike the chords, they're glanced at for context
-  // regardless of which section is open, not "the thing you're actively editing".
-  const textContent = (
-    <div className="flex flex-1 flex-col gap-3">
-      <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-        <div className="flex flex-wrap items-center justify-between gap-1">
-          <span className="max-[599px]:w-full">ChordPro-Text</span>
-          <span className="flex gap-1">
-            <Button onClick={() => setIsImporting(true)}>
-              Song importieren
-            </Button>
-            <Button onClick={() => {
-                setTapLinesOnOpen(true)
-                setEditorView('timeline')
-              }} disabled={!draft.chordProContent.trim()}>
-              Tap-to-Sync starten
-            </Button>
-          </span>
+  const detailsView = (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb">
+      {draft.tuning && !draft.chartTuning && (
+        <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
+          Unbekannte Stimmung „{draft.tuning}“ (alter Freitext) - bitte unter „Akkorde notiert für“ wählen.
+        </p>
+      )}
+      {detailSections.map((section, index) => (
+        <div key={section.key} className={`flex flex-col gap-3 ${index > 0 ? 'border-t border-line pt-3' : ''}`}>
+          <button
+            type="button"
+            onClick={section.onToggleExpand}
+            aria-expanded={section.expanded}
+            aria-label={section.label}
+            className="flex min-h-form w-full min-w-0 items-center gap-2 text-left text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
+          >
+            <Icon name={section.expanded ? 'collapse' : 'expand'} />
+            <span className="flex-none">{section.label}</span>
+            {section.summary && !section.expanded && (
+              <span className="min-w-0 flex-1 truncate font-normal text-ink-faint">{section.summary}</span>
+            )}
+          </button>
+          {section.expanded && section.content}
         </div>
-        {/* Phone: one "+ Einfügen" instead of six buttons in three rows (2026-10-16). */}
-        <Button className="self-start min-[600px]:hidden" onClick={() => setInsertMenuOpen(true)}>
-          + Einfügen
-        </Button>
-        {insertMenuOpen && (
-          <ActionMenuDialog
-            title="Einfügen"
-            actions={[
-              ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
-              { label: '+ Kommentar', onClick: insertComment },
-              { label: '+ Tab', onClick: insertTabBlock },
-            ]}
-            onClose={() => setInsertMenuOpen(false)}
-          />
-        )}
-        <div className="flex flex-wrap gap-1 max-[599px]:hidden">
-          {PART_LABELS.map((label) => (
-            <Button className="uppercase tracking-wide" key={label} onClick={() => insertPart(label)}>
-              + {label}
-            </Button>
+      ))}
+    </div>
+  )
+
+  // One compact row (#617): the select, and everything about variants behind its ⋯ - "Neue
+  // Variante" included.
+  const variantRow = (
+    <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        {/* min-w-0: a long variant name made the select push the form past the right edge (#373). */}
+        <select
+          aria-label="Variante"
+          className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT}`}
+          value={draft.variantId}
+          onChange={(e) => selectVariant(e.target.value)}
+        >
+          {!variantsForSong.some((v) => v.id === draft.variantId) && <option value={draft.variantId}>{draft.variantLabel} (neu)</option>}
+          {variantsForSong.map((variant) => (
+            <option key={variant.id} value={variant.id}>
+              {variant.isDefault ? `${variant.label} (Standard)` : variant.label}
+            </option>
           ))}
-          <Button className="uppercase tracking-wide" onClick={insertComment}>
-            + Kommentar
-          </Button>
-          <Button className="uppercase tracking-wide" onClick={insertTabBlock}>
-            + Tab
-          </Button>
-        </div>
-        <textarea
-          ref={textareaRef}
-          className={`min-h-[240px] flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
-          value={draft.chordProContent}
-          onChange={(e) => setDraft({ ...draft, chordProContent: e.target.value })}
-          onFocus={() => setTextFocused(true)}
-          onBlur={() => setTextFocused(false)}
-          onBeforeInput={(e) => {
-            const textarea = e.currentTarget
-            if ((e.nativeEvent as InputEvent).data === '[' && textarea.selectionStart !== textarea.selectionEnd) {
-              e.preventDefault()
-              typeChordProKey('[')
-            }
-          }}
-          placeholder="[00:00.00] Come on baby [G] don't you wanna go"
-        />
-        <ChordProKeyBar
-          active={textFocused}
-          chords={songChords(preview)}
-          onKey={typeChordProKey}
-          onChord={(chord) => typeAtCaret(`[${chord}]`)}
-          onInsertMenu={() => setInsertMenuOpen(true)}
-        />
-      </label>
-      {layout !== 'panel' && (
-        <div className="rounded-container border border-line bg-surface p-4 shadow-sb">
-          <ChordProLyrics lines={preview} onSourceTap={jumpToSource} />
-        </div>
+        </select>
+        <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={[{ label: 'Neue Variante', onClick: addVariant }, ...variantActions]} />
+      </div>
+      {!hasDefault && variantsForSong.length > 0 && (
+        <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
+          Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du eine Variante als
+          Standard festlegst (⋯ neben der Variante).
+        </p>
       )}
     </div>
   )
 
-  // Text and the detail sections are the same accordions on every screen (#603).
-  const sections = [
-    {
-      key: 'text' as const,
-      fullLabel: 'Text',
-      content: textContent,
-      expanded: textExpanded,
-      onToggleExpand: () => setTextExpanded((v) => !v),
-    },
-    ...detailSections,
-  ]
+  const previewPane = (
+    <div ref={previewRef} className="min-h-0 flex-1 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb min-[600px]:p-6">
+      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} />
+    </div>
+  )
+
+  const trackCaret = (e: { currentTarget: HTMLTextAreaElement }) => setCaret(e.currentTarget.selectionStart)
+  // Phone with the keyboard up: the text alone (#617) - no variant row above it.
+  const typingOnPhone = textFocused && !isPanel
+  // The key bar lies over the bottom of the page - the text field ends above it.
+  const textPane = (
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
+      {!typingOnPhone && variantRow}
+      <textarea
+        ref={textareaRef}
+        aria-label="ChordPro-Text"
+        className={`min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
+        value={draft.chordProContent}
+        onChange={(e) => {
+          setDraft({ ...draft, chordProContent: e.target.value })
+          trackCaret(e)
+        }}
+        onSelect={trackCaret}
+        onFocus={() => setTextFocused(true)}
+        onBlur={(e) => {
+          setTextFocused(false)
+          trackCaret(e)
+        }}
+        onBeforeInput={(e) => {
+          const textarea = e.currentTarget
+          if ((e.nativeEvent as InputEvent).data === '[' && textarea.selectionStart !== textarea.selectionEnd) {
+            e.preventDefault()
+            typeChordProKey('[')
+          }
+        }}
+        placeholder="[00:00.00] Come on baby [G] don't you wanna go"
+      />
+      <ChordProKeyBar
+        active={textFocused}
+        chords={songChords(preview)}
+        onKey={typeChordProKey}
+        onChord={(chord) => typeAtCaret(`[${chord}]`)}
+        onInsertMenu={() => setInsertMenuOpen(true)}
+      />
+    </div>
+  )
 
   // Speichern lives in the page header, top right, and never scrolls away (#603, docs/15 D11) -
-  // the same row in the text and the timeline view. Leaving goes through ← / Back, which asks
-  // about unsaved changes (lib/unsavedChanges).
+  // the same row in every view. Leaving goes through ← / Back, which asks about unsaved changes
+  // (lib/unsavedChanges).
   const pageHeader = (
-    <div className="flex items-center gap-2">
-      {/* Phone: icons instead of words so the song being edited still fits - the status bar shows
-          the queue's song, not this one (#603). From 600 px the words come back. */}
+    <div className="flex items-center gap-1 min-[600px]:gap-2">
+      {/* Phone: icons instead of words (#603). From 600 px the words come back. */}
       <Button aria-label="Bibliothek" title="Bibliothek" className="max-[599px]:px-3" onClick={() => void leave()}>
         <Icon name="back" />
         <span className="max-[599px]:hidden">Bibliothek</span>
       </Button>
-      {viewSwitch}
-      {/* The song's name is up in the status bar while the editor is open (useEditingTitleStore). */}
-      <span className="flex-1" />
+      <div className="min-w-0 flex-1">{viewSwitch}</div>
       {savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">Gespeichert.</span>}
+      <IconButton icon={menuIcon('page')} label="Menü: Song-Editor" onClick={() => setPageMenuOpen(true)} />
       <Button variant="primary" aria-label="Speichern" title="Speichern" className="max-[599px]:px-3" onClick={() => void handleSave()}>
         <Icon name="save" size="1.4em" className="min-[600px]:hidden" />
         <span className="max-[599px]:hidden">Speichern</span>
@@ -887,186 +1033,29 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     </div>
   )
 
-  if (editorView === 'timeline') {
-    return (
-      <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink">
-        {pageHeader}
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <div className="min-h-0 flex-1">{timelineContent}</div>
-      </div>
-    )
-  }
-
-  const isPanel = layout === 'panel'
-  const showMeta = metaOpen ?? (isPanel || !draft.title.trim())
-  const metaTuning = stageTuning(draft)
-  const metaSummary = [
-    draft.title.trim() || '(ohne Titel)',
-    draft.artist,
-    draft.key && `Key ${soundingKey(draft)}`,
-    (draft.transpose ?? 0) !== 0 && `Transponiert ${signedSteps(draft.transpose ?? 0)}`,
-    !isStandard(metaTuning) && tuningLabel(metaTuning),
-    draft.capo !== undefined && `Capo ${draft.capo}`,
-    `${draft.bpm} BPM`,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(' · ')
-
   return (
-    <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink">
+    <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink max-[599px]:p-2">
       {pageHeader}
       {error && <p className="text-sm text-danger">{error}</p>}
-      {/* Landscape/desktop: two columns that scroll each on their own; phone/tablet portrait:
-          one column that scrolls as a whole, under the fixed header. */}
-      <div className={`min-h-0 flex-1 gap-3 ${isPanel ? 'grid grid-cols-2' : 'flex flex-col overflow-y-auto'}`}>
-      <div className={`flex flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb ${isPanel ? 'overflow-y-auto' : ''}`}>
-        {/* Switching to a different song, creating a new one, and deleting this one all moved
-            to LibraryView's own tree (its "+ Neu" and each row's ⋯ menu) - going back there is
-            how you pick a different song now, not a dropdown duplicating the same list. */}
-        <label className="flex min-w-0 flex-col gap-1 text-sm text-ink-muted">
-          Variante
-          {/* min-w-0: a long variant name ("Auto: Hand-rolled (FFT/Spectral-Flux)…") made the
-              select push the whole form past the right edge on a phone (#373). */}
-          {/* Phone: the select on its own line - beside "+ Neue Variante" it shrank to "Ori" (#603). */}
-          <div className="flex min-w-0 items-center gap-2 max-[599px]:flex-wrap [&>select]:min-w-0">
-            <select
-              className={`min-h-form px-3 text-base flex-1 min-w-0 max-[599px]:basis-full ${INPUT}`}
-              value={draft.variantId}
-              onChange={(e) => selectVariant(e.target.value)}
-            >
-              {!variantsForSong.some((v) => v.id === draft.variantId) && (
-                <option value={draft.variantId}>{draft.variantLabel} (neu)</option>
-              )}
-              {variantsForSong.map((variant) => (
-                <option key={variant.id} value={variant.id}>
-                  {variant.isDefault ? `${variant.label} (Standard)` : variant.label}
-                </option>
-              ))}
-            </select>
-              <AddRow inline label="Neue Variante" onClick={addVariant} />
-              {variantActions.length > 0 && <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={variantActions} />}
-            </div>
-          </label>
-        {!hasDefault && variantsForSong.length > 0 && (
-          <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
-            Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du
-            eine Variante als Standard festlegst (⋯ neben der Variante).
-          </p>
-        )}
-        {!draft.isDefaultVariant && (
-          <label className="flex flex-col gap-1 text-sm text-ink-muted">
-            Varianten-Name
-            <input
-              className={`min-h-form px-3 ${INPUT}`}
-              value={draft.variantLabel}
-              onChange={(e) => setDraft({ ...draft, variantLabel: e.target.value })}
-            />
-          </label>
-        )}
-
-        {/* "Which song is this, and how do I play it" - one summary line until opened (#603: on
-            the phone the fields filled the whole screen before the text). */}
-        <button
-          type="button"
-          onClick={() => setMetaOpen(!showMeta)}
-          aria-expanded={showMeta}
-          aria-label="Song-Angaben"
-          className="flex min-h-form w-full min-w-0 items-center gap-2 rounded-control bg-control px-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
-        >
-          <Icon name={showMeta ? 'collapse' : 'expand'} />
-          <span className="min-w-0 flex-1 truncate">{metaSummary}</span>
-        </button>
-        {showMeta && (
-          <>
-            <div className="flex gap-2 max-[599px]:flex-col">
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
-                Titel
-                <input
-                  className={`min-h-form px-3 ${INPUT}`}
-                  value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                />
-              </label>
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
-                Band
-                <input
-                  className={`min-h-form px-3 ${INPUT}`}
-                  value={draft.artist ?? ''}
-                  onChange={(e) => setDraft({ ...draft, artist: e.target.value || undefined })}
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2 [&>label]:min-w-0">
-              <label className="flex flex-col gap-1 text-sm text-ink-muted">
-                Key
-                <input
-                  className={`min-h-form px-3 ${INPUT}`}
-                  value={draft.key ?? ''}
-                  onChange={(e) => setDraft({ ...draft, key: e.target.value || undefined })}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-ink-muted">
-                Capo
-                <input
-                  type="number"
-                  min={0}
-                  className={`min-h-form px-3 ${INPUT}`}
-                  value={draft.capo ?? ''}
-                  onChange={(e) =>
-                    setDraft({ ...draft, capo: e.target.value === '' ? undefined : Number(e.target.value) })
-                  }
-                />
-              </label>
-            </div>
-            {/* Band-wide for this variant (Marco, 2026-10-18): how it sounds against the original, how
-                the band tunes for it, and what the chart is written for - the chords on stage follow
-                from all three (lib/pitch.ts). Guided pickers, no free text. */}
-            <div className="grid grid-cols-[2fr_1fr] gap-2 max-[599px]:grid-cols-1 [&>*]:min-w-0">
-              <KeyTuningField value={draft} onChange={(next) => setDraft({ ...draft, ...next })} />
-              <TuningSelect
-                label="Akkorde notiert für"
-                value={draft.chartTuning}
-                onChange={(chartTuning) => setDraft({ ...draft, chartTuning, tuning: undefined })}
-              />
-            </div>
-            {variantChordShift(draft) !== 0 && (
-              <p className="text-sm text-ink-faint">
-                Auf der Bühne stehen die Akkorde verschoben (siehe Tonart &amp; Stimmung) - hier im Text bleiben sie wie
-                geschrieben.
-              </p>
-            )}
-          </>
-        )}
-        {draft.tuning && !draft.chartTuning && (
-          <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
-            Unbekannte Stimmung „{draft.tuning}“ (alter Freitext) - bitte unter „Akkorde notiert für“ wählen.
-          </p>
-        )}
-
-        {/* Every section an independently-collapsible accordion, on every screen (#180, #603 -
-            the portrait tab strip ran off the phone). All start collapsed (Marco). */}
-        {sections.map((section) => (
-          <div key={section.key} className="flex flex-col gap-3 border-t border-line pt-3">
-            <button
-              type="button"
-              onClick={section.onToggleExpand}
-              aria-expanded={section.expanded}
-              className="flex min-h-form items-center gap-2 self-start text-base font-medium text-ink-soft [@media(hover:hover)]:hover:text-ink"
-            >
-              <Icon name={section.expanded ? 'collapse' : 'expand'} /> {section.fullLabel}
-            </button>
-            {section.expanded && section.content}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {view === 'timeline' ? (
+          <div className="min-h-0 flex-1">{timelineContent}</div>
+        ) : view === 'details' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">{detailsView}</div>
+        ) : view === 'preview' ? (
+          previewPane
+        ) : isPanel ? (
+          // Wide screens: text and preview side by side, each scrolling on its own (#617).
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 [&>*]:min-h-0">
+            {textPane}
+            <div className="flex min-h-0 flex-col">{previewPane}</div>
           </div>
-        ))}
+        ) : (
+          textPane
+        )}
       </div>
-      {/* Its own grid column only in 'panel' layout - otherwise the preview already renders
-          inline at the end of `textContent`, right below the textarea. */}
-      {isPanel && (
-        <div className="overflow-y-auto rounded-container border border-line bg-surface p-6 shadow-sb">
-          <ChordProLyrics lines={preview} onSourceTap={jumpToSource} />
-        </div>
-      )}
-      </div>
+      {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
+      {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
       {isImporting && (
         <TabImportOverlay
           onImport={handleImport}

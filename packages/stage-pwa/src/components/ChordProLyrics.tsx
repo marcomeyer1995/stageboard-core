@@ -118,6 +118,7 @@ export function ChordProLyrics({
               <div
                 data-line-index={lineIndex}
                 data-source-line={line.sourceLine}
+                data-active-line={lineIndex === activeIndex || undefined}
                 className={`-mx-2 overflow-x-auto rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
                 } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
@@ -135,6 +136,7 @@ export function ChordProLyrics({
               <p
                 data-line-index={lineIndex}
                 data-source-line={line.sourceLine}
+                data-active-line={lineIndex === activeIndex || undefined}
                 style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }}
                 className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
@@ -153,6 +155,7 @@ export function ChordProLyrics({
               <p
                 data-line-index={lineIndex}
                 data-source-line={line.sourceLine}
+                data-active-line={lineIndex === activeIndex || undefined}
                 style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
                 className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-control px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
                   !hidePartLabels && startsPart ? 'mt-6' : ''
@@ -213,6 +216,7 @@ function LyricLine({
     <p
       data-line-index={lineIndex}
       data-source-line={line.sourceLine}
+      data-active-line={active || undefined}
       style={lineStyle}
       className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
         // Keeps a little air between a part label and its first line.

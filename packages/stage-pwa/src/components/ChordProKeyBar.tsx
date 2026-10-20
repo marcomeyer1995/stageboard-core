@@ -1,12 +1,10 @@
 import type { PointerEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { useVisualViewport } from '../lib/useVisualViewport'
 
 /** The four characters ChordPro needs that phone keyboards hide behind a symbol page (#606). */
 export const CHORDPRO_KEYS = ['[', ']', '/', '|'] as const
-
-/** Below this share of the screen height the visible area counts as squeezed by a keyboard. */
-const KEYBOARD_SHARE = 0.75
 
 /** Keeps the focus (and so the keyboard) in the text field: a button that took the focus would
  * close the keyboard on every tap. */
@@ -49,9 +47,8 @@ interface ChordProKeyBarProps {
  */
 export function ChordProKeyBar({ active, chords, onKey, onChord, onInsertMenu }: ChordProKeyBarProps) {
   const visible = useVisualViewport()
-  const touch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
-  const keyboardOpen = visible !== null && visible.height < window.screen.height * KEYBOARD_SHARE
-  if (!active || !touch || !keyboardOpen) return null
+  const keyboardOpen = useTouchKeyboardOpen()
+  if (!active || !keyboardOpen || !visible) return null
 
   return createPortal(
     <div

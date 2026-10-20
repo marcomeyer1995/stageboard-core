@@ -21,6 +21,9 @@ import {
   ExternalLink,
   FileText,
   Eye,
+  Trash2,
+  Split,
+  SlidersHorizontal,
   EyeOff,
   Grip,
   Minus,
@@ -97,12 +100,16 @@ const ICONS = {
   decrease: Minus,
   increase: Plus,
   edit: Pencil,
+  delete: Trash2,
+  // Spuren trennen (#9): one track forking into several (Marco, 2026-10-20).
+  split: Split,
   /** A section repeated in the show (#479). */
   repeat: Repeat,
   /** Phone headers, where the word doesn't fit (#603): Speichern, and the editor's Text / Timeline view. */
   save: Save,
   text: FileText,
   timeline: AudioWaveform,
+  details: SlidersHorizontal,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS
