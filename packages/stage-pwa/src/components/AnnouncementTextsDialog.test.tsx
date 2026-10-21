@@ -18,7 +18,7 @@ describe('AnnouncementTextsDialog (Marco, 2026-10-16)', () => {
       installed: [{ id: 'section-announcements', name: 'Ansagen der Songteile', version: '0.0.1', runtime: 'client', capabilities: ['section-announcements'], transports: [], hardwareIds: [], enabled: true, installedAt: 1 }],
     } as never)
     render(<AnnouncementTextsDialog onClose={() => {}} />)
-    const here = screen.getByText('Auf diesem Gerät').parentElement!
+    const here = screen.getByText('Auf diesem Gerät').closest('section')!
     expect(within(here).getByText('Ansagen der Songteile')).toBeInTheDocument()
   })
 })

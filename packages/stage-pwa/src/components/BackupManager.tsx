@@ -11,7 +11,7 @@ import {
   restoreWorkspaceSnapshot,
 } from '../lib/workspaceSnapshot'
 import { ServerBackupTargets } from './ServerBackupTargets'
-import { Badge, Button } from './ui'
+import { Badge, Button, InfoHint } from './ui'
 
 /** Same look as the "Sicherung des Stage-Servers" heading above it (ui Section). */
 const SUBHEADING = 'text-xs font-bold uppercase tracking-widest text-ink-faint'
@@ -100,12 +100,13 @@ export function BackupManager() {
         ))}
       </div>
 
-      <h4 className={`mb-1 mt-3 ${SUBHEADING}`}>Lokale Snapshots</h4>
-      <p className="mb-4 text-sm text-ink-muted">
-        Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieses Workspaces
-        (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und
-        Wiederherstellen - ideal vor größeren Änderungen oder Tourbeginn.
-      </p>
+      <div className="mb-2 mt-3 flex items-center gap-1">
+        <h4 className={SUBHEADING}>Lokale Snapshots</h4>
+        <InfoHint
+          label="Erklärung: Lokale Snapshots"
+          text="Unabhängig von einem Backup-Plugin: ein vollständiger Datei-Dump dieser Band (Songs, Setlists, Dashboards, Profile, Plugins, Show-Log) zum lokalen Speichern und Wiederherstellen - ideal vor größeren Änderungen oder Tourbeginn."
+        />
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="primary" onClick={() => void handleExport()}>

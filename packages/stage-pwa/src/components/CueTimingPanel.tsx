@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button } from './ui'
+import { Button, InfoHint } from './ui'
 import { CUE_LOOKAHEAD_MS, CUE_TICK_MS } from '../lib/cueSchedule'
 import { getCueTimingStats, resetCueTimingStats, STALL_BUCKETS_MS, TICK_GAP_BUCKETS_MS } from '../lib/cueTimingStats'
 
@@ -26,11 +26,14 @@ export function CueTimingPanel() {
 
   return (
     <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4" aria-label="Cue-Timing">
-      <h3 className="text-base font-bold text-ink">Cue-Timing auf diesem Gerät</h3>
-      <p className="text-sm text-ink-muted">
-        Seit {new Date(stats.since).toLocaleTimeString('de-DE')}, nur während ein Song läuft. Ein Cue kommt zu spät, wenn die App länger als {critical} ms
-        stillsteht (Vorlauf {CUE_LOOKAHEAD_MS} ms minus ein Takt von {CUE_TICK_MS} ms). Pausen des Planers gibt es nur bei Songs mit Cues.
-      </p>
+      <div className="flex items-center gap-1">
+        <h3 className="text-base font-bold text-ink">Cue-Timing auf diesem Gerät</h3>
+        <InfoHint
+          label="Erklärung: Cue-Timing"
+          text={`Gemessen nur, während ein Song läuft. Ein Cue kommt zu spät, wenn die App länger als ${critical} ms stillsteht (Vorlauf ${CUE_LOOKAHEAD_MS} ms minus ein Takt von ${CUE_TICK_MS} ms). Pausen des Planers gibt es nur bei Songs mit Cues.`}
+        />
+      </div>
+      <p className="text-sm text-ink-muted">Seit {new Date(stats.since).toLocaleTimeString('de-DE')}</p>
       {stats.watchedMs === 0 ? (
         <p className="text-base text-ink-faint">Noch keine Messung - einen Song im Gig-Modus abspielen.</p>
       ) : (

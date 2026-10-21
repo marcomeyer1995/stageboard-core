@@ -28,6 +28,7 @@ import {
   Grip,
   Minus,
   LayoutDashboard,
+  Info,
   Library,
   ListMusic,
   Redo2,
@@ -113,6 +114,8 @@ const ICONS = {
   text: FileText,
   timeline: AudioWaveform,
   details: SlidersHorizontal,
+  /** An explanation behind it (docs/15 D12). */
+  info: Info,
   undo: Undo2,
   redo: Redo2,
   /** Song is in the active setlist - a quiet marker in the song list (2026-10-20). */

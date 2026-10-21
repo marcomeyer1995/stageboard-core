@@ -127,7 +127,7 @@ export function ServerBackupTargets() {
     <div className="flex flex-col gap-3">
       <Section
         title="Sicherung des Stage-Servers"
-        hint="Am sichersten zwei Ziele, z. B. USB-Stick und NAS. Ein ZFS-Spiegel allein ist keine Sicherung: Gelöschtes ist auch auf dem Spiegel weg."
+        info="Am sichersten zwei Ziele, z. B. USB-Stick und NAS. Ein ZFS-Spiegel allein ist keine Sicherung: Gelöschtes ist auch auf dem Spiegel weg."
       >
         {error && <p className="text-sm text-danger">{error}</p>}
         {overview?.targets.length === 0 && <p className="text-sm text-ink-faint">Noch kein Ziel eingerichtet - der Server sichert sich nicht.</p>}
@@ -173,7 +173,7 @@ export function ServerBackupTargets() {
       </Section>
 
       {overview?.publicKey && overview.targets.some((t) => t.target.kind === 'ssh') && (
-        <Section title="Schlüssel des Servers für die NAS" hint="Einmal auf der NAS beim Backup-Benutzer in ~/.ssh/authorized_keys eintragen - dann braucht der Server kein Passwort.">
+        <Section title="Schlüssel des Servers für die NAS" info="Einmal auf der NAS beim Backup-Benutzer in ~/.ssh/authorized_keys eintragen - dann braucht der Server kein Passwort.">
           <code className="block select-all break-all rounded-control border border-line bg-control p-3 text-sm">{overview.publicKey}</code>
           <div>
             <Button onClick={() => void navigator.clipboard?.writeText(overview.publicKey!).then(() => alert('Schlüssel kopiert.'))}>Kopieren</Button>

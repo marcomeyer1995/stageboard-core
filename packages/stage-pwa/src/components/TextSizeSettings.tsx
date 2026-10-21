@@ -19,7 +19,6 @@ export function TextSizeSettings() {
       <p style={{ fontSize: baseFontSize, lineHeight: 1.3 }} className="overflow-x-auto whitespace-nowrap rounded-control bg-control px-2 py-1 font-sb-mono text-ink">
         1. Highway to Hell
       </p>
-      <p className="text-sm text-ink-faint">Gilt für Prompter, Live-Queue, Show-Notizen und System-Status - pro Widget im „⋯"-Menü überschreibbar.</p>
     </div>
   )
 }

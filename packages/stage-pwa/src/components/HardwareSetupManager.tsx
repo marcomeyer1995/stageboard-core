@@ -15,7 +15,7 @@ import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
 import { MidiControllerButtonsDialog } from './MidiControllerButtons'
 import { pluginKind } from '../lib/pluginCatalog'
-import { ActionMenu, AddRow } from './ui'
+import { ActionMenu, AddRow, InfoHint } from './ui'
 
 const STATUS_LABEL: Record<'complete' | 'incomplete', string> = {
   complete: 'vollständig',
@@ -152,13 +152,15 @@ export function HardwareSetupManager() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Bühnentechnik</h1>
       {/* One list (Marco, 2026-10-16): what the band has and where it hangs. Drivers are a technical
           detail - installed with a device, offered for removal with its last one; Diagnose lists them. */}
-      <p className="mb-4 text-sm text-ink-muted">
-        Alle Geräte der Band und wo sie hängen. Oben Klick, Backing-Track und Ansagen - eingebaut, nur das spielende Gerät ist wählbar. Darunter Amp, Mischpult, Looper und
-        Co., je mit Typ und dem Tablet, an dem sie hängen.
-      </p>
+      <div className="mb-4 flex items-center gap-1">
+        <h1 className="text-2xl font-bold">Bühnentechnik</h1>
+        <InfoHint
+          label="Erklärung: Bühnentechnik"
+          text="Alle Geräte der Band und wo sie hängen. Oben Klick, Backing-Track und Ansagen - eingebaut, nur das spielende Gerät ist wählbar. Darunter Amp, Mischpult, Looper und Co., je mit Typ und dem Tablet, an dem sie hängen."
+        />
+      </div>
 
       <div className="mb-6">
         <DeviceList onEdit={setEditing} onAdd={openBlankWizard} />
