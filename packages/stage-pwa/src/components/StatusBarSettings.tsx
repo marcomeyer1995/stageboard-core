@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { STATUS_BAR_ITEM_LABEL } from '../lib/statusBarItems'
 import { useStatusBarPrefsStore } from '../store/useStatusBarPrefsStore'
-import { Button, Dialog, IconButton, Switch } from './ui'
+import { Button, Dialog, IconButton, Switch, InfoHint } from './ui'
 
 /**
  * The status bar's ranking on this device (Marco, 2026-10-07): what matters most stays longest.
@@ -16,10 +16,13 @@ export function StatusBarSettings() {
   const reset = useStatusBarPrefsStore((state) => state.reset)
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-ink-faint">
-        Oben = wichtiger. Wird es eng, verschwindet von unten her zuerst etwas. Immer da und darum nicht in der Liste: Menü (☰), auf Dashboards die Dashboard-Auswahl (neun Punkte), Status-Symbol, Songtitel und Spielzeit; Fehler zeigen
-        immer ihr Wort.
-      </p>
+      <div className="flex items-center gap-1">
+        <span className="text-sm font-semibold text-ink-soft">Reihenfolge</span>
+        <InfoHint
+          label="Erklärung: Reihenfolge"
+          text="Oben = wichtiger. Wird es eng, verschwindet von unten her zuerst etwas. Immer da und darum nicht in der Liste: Menü (☰), auf Dashboards die Dashboard-Auswahl (neun Punkte), Status-Symbol, Songtitel und Spielzeit; Fehler zeigen immer ihr Wort."
+        />
+      </div>
       <ol className="flex flex-col gap-2" aria-label="Statusleiste - Reihenfolge">
         {order.map((item, index) => (
           <li key={item} className="flex items-center gap-2">

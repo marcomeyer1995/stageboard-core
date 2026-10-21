@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Segmented, Switch, Button } from './ui'
+import { Segmented, Switch, Button, InfoHint } from './ui'
 import { CueTimingPanel } from './CueTimingPanel'
 import { SyncTestPanel } from './SyncTestPanel'
 import { DEBUG_FLAGS, debugFlagOn, entriesAsText, setDebugFlag, useDebugLogStore, type LogLevel } from '../lib/debugLog'
@@ -52,9 +52,9 @@ export function DebugConsoleView() {
 
   return (
     <div className="flex max-w-4xl flex-col gap-4 p-4">
-      <header className="flex flex-col gap-1">
+      <header className="flex items-center gap-1">
         <h2 className="text-xl font-bold text-ink">Diagnose</h2>
-        <p className="text-sm text-ink-muted">Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge.</p>
+        <InfoHint label="Erklärung: Diagnose" text="Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge." />
       </header>
 
       <Segmented
@@ -100,8 +100,10 @@ export function DebugConsoleView() {
       <SyncTestPanel />
 
       <section className="flex flex-col gap-2 rounded-container border border-line bg-surface p-4">
-        <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
-        <p className="text-sm text-ink-muted">Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten.</p>
+        <div className="flex items-center gap-1">
+          <h3 className="text-base font-bold text-ink">Detail-Protokolle</h3>
+          <InfoHint label="Erklärung: Detail-Protokolle" text="Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten." />
+        </div>
         {DEBUG_FLAGS.map((flag) => (
           <Switch
             key={flag.key}

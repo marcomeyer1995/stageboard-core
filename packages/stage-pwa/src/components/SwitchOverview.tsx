@@ -9,7 +9,7 @@ import { useSwitchesStore } from '../store/useSwitchesStore'
 import { WIDGET_COLOR_SOLID } from '../widgets/widgetColors'
 import { useDescribeBehavior } from './BehaviorEditor'
 import { SwitchDialog } from './SwitchEditor'
-import { AddRow, Badge } from './ui'
+import { AddRow, Badge, InfoHint } from './ui'
 
 const STATE_LABEL = { pressed: 'gedrückt', on: 'an', off: 'aus' } as const
 
@@ -29,10 +29,13 @@ export function SwitchOverview() {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">Schalter</h2>
-      <p className="text-sm text-ink-muted">
-        Einmal einrichten, überall auslösen: ein Schalter wie „Blinder“ geht per Pedal, MIDI-Knopf und Dashboard-Knopf - alle zeigen denselben Zustand.
-      </p>
+      <div className="flex items-center gap-1">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-ink-faint">Schalter</h2>
+        <InfoHint
+          label="Erklärung: Schalter"
+          text="Einmal einrichten, überall auslösen: ein Schalter wie „Blinder“ geht per Pedal, MIDI-Knopf und Dashboard-Knopf - alle zeigen denselben Zustand."
+        />
+      </div>
       {switches.length === 0 && <p className="text-base text-ink-soft">Noch kein Schalter.</p>}
       {switches.map((sw) => {
         const usage = switchUsage(sw.id, { bindings, midiDocs, devices, dashboards })

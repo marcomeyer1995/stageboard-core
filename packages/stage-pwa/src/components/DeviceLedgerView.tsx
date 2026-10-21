@@ -9,7 +9,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { getDeviceId } from '../lib/deviceId'
-import { ActionMenu, Badge, Button } from './ui'
+import { ActionMenu, Badge, Button, InfoHint } from './ui'
 import { BackupStatusLine } from './BackupStatusLine'
 import { BUILT_IN_OUTPUTS, builtInRoles } from './BuiltInOutputs'
 import { LatencyProfileDialog, LatencySummary } from './LatencyProfiles'
@@ -148,12 +148,13 @@ export function DeviceLedgerView() {
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
-      <h1 className="mb-1 text-2xl font-bold">Tablets & Handys</h1>
-      <p className="mb-4 text-sm text-ink-muted">
-        Jedes Gerät, das dieser Band jemals beigetreten ist. „App offen“ und „Netzwerk erreichbar“
-        sind zwei unabhängige Signale - ein Gerät kann im Netzwerk erreichbar sein, ohne dass die
-        App gerade läuft, oder umgekehrt gerade das Netzwerk gewechselt haben.
-      </p>
+      <div className="mb-4 flex items-center gap-1">
+        <h1 className="text-2xl font-bold">Tablets & Handys</h1>
+        <InfoHint
+          label="Erklärung: Tablets & Handys"
+          text="Jedes Gerät, das dieser Band jemals beigetreten ist. „App offen“ und „Netzwerk erreichbar“ sind zwei unabhängige Signale - ein Gerät kann im Netzwerk erreichbar sein, ohne dass die App gerade läuft, oder umgekehrt gerade das Netzwerk gewechselt haben."
+        />
+      </div>
 
       {/* The Stage-Server itself, not a roster `Device` (it never joins a band, it hosts one) -
           its own row, same visual language as the tablets below, so "is anything down" reads
@@ -197,11 +198,16 @@ export function DeviceLedgerView() {
 
       {isAdmin && sorted.length > 0 && (
         <div className="mb-3 flex flex-col gap-1">
-          <Button disabled={inactive.length === 0} onClick={() => void forgetInactive()} className="self-start">
-            Inaktive entfernen ({inactive.length})
-          </Button>
-          <p className="text-sm text-ink-faint">
-            Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder.
+          <div className="flex items-center gap-1">
+            <Button disabled={inactive.length === 0} onClick={() => void forgetInactive()}>
+              Inaktive entfernen ({inactive.length})
+            </Button>
+            <InfoHint
+              label="Erklärung: Inaktive entfernen"
+              text="Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder."
+            />
+          </div>
+          <p className="text-sm text-ink-faint empty:hidden">
             {skippedInUse.length > 0 && ` ${skippedInUse.length} inaktive bleiben, weil Hardware sie verwendet.`}
             {deviceInfo.collectingSince !== undefined && !collectedLongEnough && ' Der Stage-Server wurde gerade gestartet - die Geräte melden sich noch, erst danach zählen sie als inaktiv.'}
           </p>

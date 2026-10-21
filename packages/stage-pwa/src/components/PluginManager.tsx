@@ -6,7 +6,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
-import { ActionMenu, Badge, Button, Switch } from './ui'
+import { ActionMenu, Badge, Button, Switch, InfoHint } from './ui'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
 const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
@@ -64,8 +64,10 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
 
   return (
     <section aria-label={header.title} className={page ? 'h-full overflow-y-auto sb-app-bg p-4 text-ink' : 'text-ink'}>
-      {page ? <h1 className="mb-1 text-2xl font-bold">{header.title}</h1> : <h2 className="mb-1 text-lg font-bold">{header.title}</h2>}
-      <p className="mb-4 text-sm text-ink-muted">{header.text}</p>
+      <div className="mb-4 flex items-center gap-1">
+        {page ? <h1 className="text-2xl font-bold">{header.title}</h1> : <h2 className="text-lg font-bold">{header.title}</h2>}
+        <InfoHint text={header.text} label={`Erklärung: ${header.title}`} />
+      </div>
 
       <div className="mb-6 space-y-2">
         {mine.length === 0 && <p className="text-sm text-ink-faint">{header.empty}</p>}

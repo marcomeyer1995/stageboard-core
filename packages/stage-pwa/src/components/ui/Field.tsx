@@ -1,15 +1,20 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { useControlSize } from './PrepTier'
 import { FOCUS, INPUT, SIZE, type ControlSize } from './styles'
+import { InfoHint } from './InfoHint'
 
 
-function Wrap({ id, label, hint, error, children }: { id: string; label?: string; hint?: string; error?: string; children: ReactNode }) {
+/** `hint` stays visible below (a status or a consequence); `info` is an explanation behind ⓘ beside the label (D12). */
+function Wrap({ id, label, hint, info, error, children }: { id: string; label?: string; hint?: string; info?: string; error?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label htmlFor={id} className="text-sm font-semibold text-ink-soft">
-          {label}
-        </label>
+        <div className="flex min-w-0 items-center gap-1">
+          <label htmlFor={id} className="min-w-0 text-sm font-semibold text-ink-soft">
+            {label}
+          </label>
+          {info && <InfoHint text={info} label={`Erklärung: ${label}`} />}
+        </div>
       )}
       {children}
       {error ? <p className="text-sm text-danger">{error}</p> : hint ? <p className="text-sm text-ink-faint">{hint}</p> : null}
@@ -20,17 +25,19 @@ function Wrap({ id, label, hint, error, children }: { id: string; label?: string
 export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string
   hint?: string
+  /** An explanation behind ⓘ beside the label (docs/15 D12). */
+  info?: string
   error?: string
   size?: ControlSize
 }
 
 /** Text input: label above, hint or error below, one height (D2). */
-export function Field({ label, hint, error, size: sizeProp, id, className = '', ...rest }: FieldProps) {
+export function Field({ label, hint, info, error, size: sizeProp, id, className = '', ...rest }: FieldProps) {
   const size = useControlSize(sizeProp)
   const autoId = useId()
   const fieldId = id ?? autoId
   return (
-    <Wrap id={fieldId} label={label} hint={hint} error={error}>
+    <Wrap id={fieldId} label={label} hint={hint} info={info} error={error}>
       <input id={fieldId} aria-invalid={error ? true : undefined} className={`${INPUT} ${SIZE[size]} ${error ? '!border-danger' : ''} ${className}`} {...rest} />
     </Wrap>
   )
@@ -39,14 +46,16 @@ export function Field({ label, hint, error, size: sizeProp, id, className = '', 
 export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
   hint?: string
+  /** An explanation behind ⓘ beside the label (docs/15 D12). */
+  info?: string
   error?: string
 }
 
-export function TextArea({ label, hint, error, id, className = '', rows = 4, ...rest }: TextAreaProps) {
+export function TextArea({ label, hint, info, error, id, className = '', rows = 4, ...rest }: TextAreaProps) {
   const autoId = useId()
   const fieldId = id ?? autoId
   return (
-    <Wrap id={fieldId} label={label} hint={hint} error={error}>
+    <Wrap id={fieldId} label={label} hint={hint} info={info} error={error}>
       <textarea id={fieldId} rows={rows} aria-invalid={error ? true : undefined} className={`${INPUT} px-4 py-3 text-base ${className}`} {...rest} />
     </Wrap>
   )
@@ -55,17 +64,19 @@ export function TextArea({ label, hint, error, id, className = '', rows = 4, ...
 export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   label?: string
   hint?: string
+  /** An explanation behind ⓘ beside the label (docs/15 D12). */
+  info?: string
   size?: ControlSize
   options: { value: string; label: string; disabled?: boolean }[]
 }
 
 /** Dropdown with the same height, corner and label as a Field. */
-export function Select({ label, hint, size: sizeProp, options, id, className = '', onChange, ...rest }: SelectProps) {
+export function Select({ label, hint, info, size: sizeProp, options, id, className = '', onChange, ...rest }: SelectProps) {
   const size = useControlSize(sizeProp)
   const autoId = useId()
   const fieldId = id ?? autoId
   return (
-    <Wrap id={fieldId} label={label} hint={hint}>
+    <Wrap id={fieldId} label={label} hint={hint} info={info}>
       <select
         id={fieldId}
         className={`${INPUT} ${SIZE[size]} ${className}`}

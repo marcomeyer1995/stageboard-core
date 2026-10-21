@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { InfoHint } from './ui'
 import { AppVersionSettings } from './AppVersionSettings'
 import { AudioSyncSettings } from './AudioSyncSettings'
 import { isNativeApp } from '../lib/native'
@@ -35,20 +36,24 @@ function Group({
       aria-label={title}
       className={`flex flex-col gap-4 rounded-container border bg-surface p-4 shadow-sb ${shared ? 'border-warn/60' : 'border-line'}`}
     >
-      <header className="flex flex-col gap-1">
-        <h3 className="text-lg font-bold text-ink">{title}</h3>
-        <p className="text-sm text-ink-muted">{description}</p>
+      {/* What the card is for sits behind ⓘ (docs/15 D12, #625) - read once, then only in the way. */}
+      <header className="flex min-w-0 items-center gap-1">
+        <h3 className="min-w-0 text-lg font-bold text-ink">{title}</h3>
+        <InfoHint text={description} label={`Erklärung: ${title}`} />
       </header>
       {children}
     </section>
   )
 }
 
-/** A labelled setting inside a group. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/** A labelled setting inside a group; `info` is its explanation behind ⓘ (docs/15 D12). */
+function Section({ title, info, children }: { title: string; info?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-3 first-of-type:border-t-0 first-of-type:pt-0">
-      <p className="text-sm font-semibold uppercase tracking-wide text-ink-soft">{title}</p>
+      <div className="flex min-w-0 items-center gap-1">
+        <p className="min-w-0 text-sm font-semibold uppercase tracking-wide text-ink-soft">{title}</p>
+        {info && <InfoHint text={info} label={`Erklärung: ${title}`} />}
+      </div>
       {children}
     </div>
   )
@@ -58,9 +63,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Page({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <div className="flex max-w-3xl flex-col gap-4 p-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-ink">{title}</h1>
-        <p className="text-sm text-ink-muted">{description}</p>
+      <header className="flex min-w-0 items-center gap-1">
+        <h1 className="min-w-0 text-2xl font-bold text-ink">{title}</h1>
+        <InfoHint text={description} label={`Erklärung: ${title}`} />
       </header>
       {children}
     </div>
@@ -92,7 +97,7 @@ export function DeviceSettings() {
         <Section title="Darstellung">
           <ThemeSwitcher />
         </Section>
-        <Section title="Textgröße">
+        <Section title="Textgröße" info={'Gilt für Prompter, Live-Queue, Show-Notizen und System-Status - pro Widget im „⋯“-Menü überschreibbar.'}>
           <TextSizeSettings />
         </Section>
         <Section title="Statusleiste">
@@ -101,7 +106,10 @@ export function DeviceSettings() {
       </Group>
 
       <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur: Show, Abschnitte, Wiedergabe, Prompter und Gerätebefehle - tastend, rastend oder zeitgesteuert.">
-        <Section title="Zuordnung">
+        <Section
+          title="Zuordnung"
+          info="Bluetooth-Pedal (z. B. AirTurn, PageFlip) wie eine Tastatur koppeln, dann hier Zuordnungen anlegen. Wirkt auf den Dashboards. Show und Abschnitte steuert nur, wer die Show steuern darf (der Master); Gerätebefehle und Prompter blättern gehen auf jedem Gerät."
+        >
           <KeybindingSettings />
         </Section>
       </Group>

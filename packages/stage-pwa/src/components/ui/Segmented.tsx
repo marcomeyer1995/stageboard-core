@@ -1,5 +1,6 @@
 import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize, HOVER } from './styles'
 import { useControlSize } from './PrepTier'
+import { InfoHint } from './InfoHint'
 
 export interface SegmentedOption<T extends string> {
   value: T
@@ -20,6 +21,8 @@ export interface SegmentedProps<T extends string> {
   /** Tapping the chosen option again (otherwise nothing happens) - e.g. to reverse a sort. */
   onSelectedTap?: () => void
   hint?: string
+  /** An explanation behind ⓘ beside the label (docs/15 D12) - shows the label row even without showLabel. */
+  info?: string
   /** Less padding per segment - for a narrow place, e.g. a column of the ☰ menu on a phone in landscape. */
   compact?: boolean
   /** Lay the options out in rows of this many - for more options than fit side by side on a phone. */
@@ -30,7 +33,7 @@ export interface SegmentedProps<T extends string> {
  * Pick exactly one (D7): one joined bar, the chosen segment filled. Tapping the chosen segment
  * again changes nothing - the bar always has an answer.
  */
-export function Segmented<T extends string>({ options, value, onChange, label, size: sizeProp, showLabel = false, hint, onSelectedTap, compact = false, columns }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, label, size: sizeProp, showLabel = false, hint, info, onSelectedTap, compact = false, columns }: SegmentedProps<T>) {
   const size = useControlSize(sizeProp)
   const bar = (
     <div
@@ -60,11 +63,16 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
       })}
     </div>
   )
-  if (!showLabel && !hint) return bar
+  if (!showLabel && !hint && !info) return bar
   // In a settings form: the question above the bar, like a field's label (docs/15 §4).
   return (
     <div className="flex flex-col gap-1">
-      {showLabel && <p className="text-sm font-semibold text-ink-soft">{label}</p>}
+      {(showLabel || info) && (
+        <div className="flex min-w-0 items-center gap-1">
+          {showLabel && <p className="min-w-0 text-sm font-semibold text-ink-soft">{label}</p>}
+          {info && <InfoHint text={info} label={`Erklärung: ${label}`} />}
+        </div>
+      )}
       {bar}
       {hint && <p className="text-sm text-ink-faint">{hint}</p>}
     </div>

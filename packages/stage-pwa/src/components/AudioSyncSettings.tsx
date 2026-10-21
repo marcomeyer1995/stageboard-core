@@ -79,7 +79,7 @@ export function AudioSyncSettings() {
       <Segmented
         label="Stems"
         showLabel
-        hint={stemMode === 'none' ? 'Keine: nur die Stems, die gerade geübt werden - vom Stage-Server geladen.' : 'Selektiv: Stems der aktiven Setlist und angehefteter Songs. Komplett: alle.'}
+        info="Keine: nur die Stems, die gerade geübt werden - vom Stage-Server geladen. Selektiv: Stems der aktiven Setlist und angehefteter Songs. Komplett: alle."
         value={stemMode}
         onChange={(candidate) => setStemMode(workspaceId, candidate)}
         options={(['none', 'selective', 'full'] as const).map((candidate) => ({

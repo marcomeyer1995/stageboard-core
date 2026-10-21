@@ -2,7 +2,7 @@ import { DEFAULT_COMMENT_TEMPLATES } from 'shared-types'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
-import { AddRow, IconButton } from './ui'
+import { AddRow, IconButton, InfoHint } from './ui'
 
 /** The band's comment templates (#608), or the defaults while the band has none of its own. */
 export function useCommentTemplates(): readonly string[] {
@@ -24,10 +24,12 @@ export function CommentTemplatesSettings() {
 
   return (
     <section aria-label="Kommentar-Vorlagen" className="space-y-2">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Kommentar-Vorlagen</h2>
-      <p className="text-sm text-ink-faint">
-        {isAdmin ? 'Im Song-Editor bei „+ Kommentar“ zum Antippen - für alle Geräte der Band.' : 'Nur der Band-Admin kann die Vorlagen ändern.'}
-      </p>
+      <div className="flex items-center gap-1">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Kommentar-Vorlagen</h2>
+        <InfoHint label="Erklärung: Kommentar-Vorlagen" text="Im Song-Editor bei „+ Kommentar“ zum Antippen - für alle Geräte der Band." />
+      </div>
+      {/* Who may change it is a consequence, not an explanation - stays visible. */}
+      {!isAdmin && <p className="text-sm text-ink-faint">Nur der Band-Admin kann die Vorlagen ändern.</p>}
       <ul className="flex flex-col gap-1">
         {templates.map((template) => (
           <li key={template} className="flex min-h-form items-center gap-2 rounded-control bg-control pl-4 pr-1 text-base text-ink">

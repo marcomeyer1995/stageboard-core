@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Select, Switch } from './ui'
+import { Button, Select, Switch, InfoHint } from './ui'
 import { getDeviceId } from '../lib/deviceId'
 import { getSyncTestStatus, startSyncTest, stopSyncTest } from '../lib/syncTest'
 import { useAudioOutputLatencyMs } from '../lib/latencyCompensation'
@@ -41,11 +41,13 @@ export function SyncTestPanel() {
 
   return (
     <section className="flex flex-col gap-3 rounded-container border border-line bg-surface p-4" aria-label="Synchron-Test">
-      <h3 className="text-base font-bold text-ink">Synchron-Test</h3>
-      <p className="text-sm text-ink-muted">
-        Markiert {DURATION_S} s lang jede volle Sekunde der Server-Zeit - mit einer MIDI-Note und/oder dem echten Klick. Auf allen Geräten gleichzeitig starten; ein
-        Laptop am Stage-Server misst den Versatz.
-      </p>
+      <div className="flex items-center gap-1">
+        <h3 className="text-base font-bold text-ink">Synchron-Test</h3>
+        <InfoHint
+          label="Erklärung: Synchron-Test"
+          text={`Markiert ${DURATION_S} s lang jede volle Sekunde der Server-Zeit - mit einer MIDI-Note und/oder dem echten Klick. Auf allen Geräten gleichzeitig starten; ein Laptop am Stage-Server misst den Versatz.`}
+        />
+      </div>
       <Select
         label="MIDI-Ausgang"
         value={outputId}

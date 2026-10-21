@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { InfoHint } from './InfoHint'
 import { CONTAINER, CONTROL, FOCUS, HOVER } from './styles'
 
 /** A separate object on the page; shadow only when it floats (`raised`). */
@@ -7,10 +8,14 @@ export function Card({ children, raised = false, className = '' }: { children: R
 }
 
 /** Uppercase label over a group, optional hint below - as in the burger menu. */
-export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+/** `hint` stays visible below the content; `info` is an explanation behind ⓘ beside the title (docs/15 D12). */
+export function Section({ title, hint, info, children }: { title: string; hint?: string; info?: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</h3>
+      <div className="flex min-w-0 items-center gap-1">
+        <h3 className="min-w-0 text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</h3>
+        {info && <InfoHint text={info} label={`Erklärung: ${title}`} />}
+      </div>
       {children}
       {hint && <p className="text-sm text-ink-faint">{hint}</p>}
     </section>

@@ -4,7 +4,7 @@ import { useStageServerStore } from '../store/useStageServerStore'
 import { isNativeApp } from '../lib/native'
 import { NetworkServerList } from './NetworkServerList'
 import { INPUT_FREE } from './ui/styles'
-import { Button } from './ui'
+import { Button, InfoHint } from './ui'
 
 /**
  * Which Stage-Server this device talks to. Normally nothing to set up: a tablet that opened the
@@ -78,10 +78,13 @@ export function StageServerSettings() {
       <details className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
         <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">Erweitert: andere Adresse verwenden</summary>
         <div className="mt-2 flex flex-col gap-2">
-          <p className="text-ink-faint">
-            Nur nötig, wenn dieses Gerät die App nicht vom Stage-Server geladen hat. Leer lassen oder die
-            automatische Adresse eintragen = automatisch.
-          </p>
+          <div className="flex items-center gap-1">
+            <span className="text-ink-soft">Adresse des Stage-Servers</span>
+            <InfoHint
+              label="Erklärung: Adresse des Stage-Servers"
+              text="Nur nötig, wenn dieses Gerät die App nicht vom Stage-Server geladen hat. Leer lassen oder die automatische Adresse eintragen = automatisch."
+            />
+          </div>
           <div className="flex items-center gap-2">
             <input
               value={draft}

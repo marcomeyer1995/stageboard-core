@@ -21,11 +21,6 @@ export function KeybindingSettings() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-ink-muted">
-        Bluetooth-Pedal (z. B. AirTurn, PageFlip) wie eine Tastatur koppeln, dann hier Zuordnungen anlegen. Wirkt auf den
-        Dashboards. Show und Abschnitte steuert nur, wer die Show steuern darf (der Master); Gerätebefehle und Prompter blättern
-        gehen auf jedem Gerät.
-      </p>
       {bindings.length === 0 ? (
         <p className="text-base text-ink-soft">Noch keine Zuordnung.</p>
       ) : (
