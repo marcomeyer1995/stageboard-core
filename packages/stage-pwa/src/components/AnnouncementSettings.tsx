@@ -13,7 +13,7 @@ export function AnnouncementSettings() {
   return (
     <Switch
       label="Ansagen der Songteile"
-      description="„Chorus“, „Bridge“ … einen Takt vor dem Teil, über denselben Ausgang wie der Klick - nur auf dem Gerät, das den Klick spielt."
+      info="„Chorus“, „Bridge“ … einen Takt vor dem Teil, über denselben Ausgang wie der Klick - nur auf dem Gerät, das den Klick spielt."
       checked={on}
       onChange={set}
     />

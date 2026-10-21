@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { InfoHint } from './InfoHint'
+import { Switch } from './Switch'
 
 describe('InfoHint (docs/15 D12, #625)', () => {
   it('ⓘ opens the bubble; ⓘ again, a tap outside or Esc closes it', () => {
@@ -36,5 +37,19 @@ describe('InfoHint (docs/15 D12, #625)', () => {
     const width = parseFloat(bubble.style.width)
     expect(left).toBeGreaterThanOrEqual(12)
     expect(left + width).toBeLessThanOrEqual(360 - 12)
+  })
+
+  it('a Switch puts its ⓘ beside the switch, not inside it - the switch still toggles', () => {
+    let on = false
+    render(<Switch label="Kompakt" description="Wirkt sofort." info="Knöpfe 48 px." checked={on} onChange={(next) => (on = next)} />)
+    const toggle = screen.getByRole('switch', { name: /Kompakt/ })
+    const info = screen.getByRole('button', { name: 'Erklärung: Kompakt' })
+    expect(toggle).not.toContainElement(info)
+    expect(toggle).toHaveTextContent('Wirkt sofort.')
+    fireEvent.click(info)
+    expect(screen.getByRole('note')).toHaveTextContent('Knöpfe 48 px.')
+    expect(on).toBe(false)
+    fireEvent.click(toggle)
+    expect(on).toBe(true)
   })
 })

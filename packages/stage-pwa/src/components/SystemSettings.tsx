@@ -22,12 +22,12 @@ import { FlashSettings } from './FlashSettings'
  */
 function Group({
   title,
-  description,
+  info,
   shared = false,
   children,
 }: {
   title: string
-  description: string
+  info: string
   shared?: boolean
   children: ReactNode
 }) {
@@ -39,7 +39,7 @@ function Group({
       {/* What the card is for sits behind ⓘ (docs/15 D12, #625) - read once, then only in the way. */}
       <header className="flex min-w-0 items-center gap-1">
         <h3 className="min-w-0 text-lg font-bold text-ink">{title}</h3>
-        <InfoHint text={description} label={`Erklärung: ${title}`} />
+        <InfoHint text={info} label={`Erklärung: ${title}`} />
       </header>
       {children}
     </section>
@@ -60,12 +60,12 @@ function Section({ title, info, children }: { title: string; info?: string; chil
 }
 
 /** One System tab's page: its title, one sentence of what it covers, its groups. */
-function Page({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function Page({ title, info, children }: { title: string; info: string; children: ReactNode }) {
   return (
     <div className="flex max-w-3xl flex-col gap-4 p-4">
       <header className="flex min-w-0 items-center gap-1">
         <h1 className="min-w-0 text-2xl font-bold text-ink">{title}</h1>
-        <InfoHint text={description} label={`Erklärung: ${title}`} />
+        <InfoHint text={info} label={`Erklärung: ${title}`} />
       </header>
       {children}
     </div>
@@ -82,8 +82,8 @@ function Page({ title, description, children }: { title: string; description: st
 /** System → Dieses Gerät: name, look, controls and storage of this tablet or phone only. */
 export function DeviceSettings() {
   return (
-    <Page title="Dieses Gerät" description="Gilt nur für dieses Tablet oder Handy.">
-      <Group title="Gerät" description="Wie dieses Gerät in der Band heißt und welche Sprache es spricht.">
+    <Page title="Dieses Gerät" info="Gilt nur für dieses Tablet oder Handy.">
+      <Group title="Gerät" info="Wie dieses Gerät in der Band heißt und welche Sprache es spricht.">
         <Section title="Gerätename">
           <DeviceNameSettings />
         </Section>
@@ -93,7 +93,7 @@ export function DeviceSettings() {
         </Section>
       </Group>
 
-      <Group title="Aussehen" description="Farben, Schrift und die Leiste oben.">
+      <Group title="Aussehen" info="Farben, Schrift und die Leiste oben.">
         <Section title="Darstellung">
           <ThemeSwitcher />
         </Section>
@@ -105,7 +105,7 @@ export function DeviceSettings() {
         </Section>
       </Group>
 
-      <Group title="Fußschalter & Tasten" description="Bluetooth-Pedal oder Tastatur: Show, Abschnitte, Wiedergabe, Prompter und Gerätebefehle - tastend, rastend oder zeitgesteuert.">
+      <Group title="Fußschalter & Tasten" info="Bluetooth-Pedal oder Tastatur: Show, Abschnitte, Wiedergabe, Prompter und Gerätebefehle - tastend, rastend oder zeitgesteuert.">
         <Section
           title="Zuordnung"
           info="Bluetooth-Pedal (z. B. AirTurn, PageFlip) wie eine Tastatur koppeln, dann hier Zuordnungen anlegen. Wirkt auf den Dashboards. Show und Abschnitte steuert nur, wer die Show steuern darf (der Master); Gerätebefehle und Prompter blättern gehen auf jedem Gerät."
@@ -114,20 +114,20 @@ export function DeviceSettings() {
         </Section>
       </Group>
 
-      <Group title="Blitzmeldungen" description="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
+      <Group title="Blitzmeldungen" info="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
         <Section title="Auf diesem Gerät">
           <FlashSettings />
         </Section>
       </Group>
 
-      <Group title="Speicher" description="Welche Audiodateien dieses Gerät für die Songs vorhält.">
+      <Group title="Speicher" info="Welche Audiodateien dieses Gerät für die Songs vorhält.">
         <Section title="Speicher & Sync">
           <AudioSyncSettings />
         </Section>
       </Group>
 
       {isNativeApp() && (
-        <Group title="App" description="Version der StageBoard-App und Updates vom Stage-Server.">
+        <Group title="App" info="Version der StageBoard-App und Updates vom Stage-Server.">
           <Section title="Version">
             <AppVersionSettings />
           </Section>
@@ -140,8 +140,8 @@ export function DeviceSettings() {
 /** System → Stage-Server: the connection, which band its hardware serves, and its backups. */
 export function StageServerPage() {
   return (
-    <Page title="Stage-Server" description="Die Verbindung dieses Geräts und was der Server für die ganze Band tut.">
-      <Group title="Verbindung" description="Mit welchem Stage-Server dieses Gerät spricht und ob die Band-Daten synchron sind.">
+    <Page title="Stage-Server" info="Die Verbindung dieses Geräts und was der Server für die ganze Band tut.">
+      <Group title="Verbindung" info="Mit welchem Stage-Server dieses Gerät spricht und ob die Band-Daten synchron sind.">
         <Section title="Stage-Server">
           <StageServerSettings />
         </Section>
@@ -150,14 +150,14 @@ export function StageServerPage() {
         </Section>
       </Group>
 
-      <Group title="Aktive Band - gilt für alle" description="Welche Band die Hardware des Stage-Servers gerade nutzt. Eine Änderung wirkt auf alle Geräte." shared>
+      <Group title="Aktive Band - gilt für alle" info="Welche Band die Hardware des Stage-Servers gerade nutzt. Eine Änderung wirkt auf alle Geräte." shared>
         <Section title="Aktive Band (Hardware)">
           <WorkspaceHardwareSettings />
         </Section>
       </Group>
 
       {/* A card like every other topic of the page (2026-10-20: it sat bare below the cards). */}
-      <Group title="Backup" description="Wie der Stage-Server die Band-Daten sichert, und Snapshots zum Mitnehmen.">
+      <Group title="Backup" info="Wie der Stage-Server die Band-Daten sichert, und Snapshots zum Mitnehmen.">
         <BackupManager />
       </Group>
     </Page>

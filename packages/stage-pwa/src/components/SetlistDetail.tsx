@@ -38,7 +38,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, Button, choiceRow } from './ui'
+import { AddRow, Badge, Dialog, Field, Button, InfoHint, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 
 interface SetlistDetailProps {
@@ -361,7 +361,13 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
           />
         </label>
         <label className="flex items-center justify-between gap-2">
-          Songlänge ohne Track (Sekunden)
+          <span className="flex min-w-0 items-center gap-1">
+            Songlänge ohne Track (Sekunden)
+            <InfoHint
+              label="Erklärung: Songlänge ohne Track"
+              text="Grundlage für die voraussichtliche Endzeit. Songs mit hinterlegtem Track zählen mit ihrer echten Länge."
+            />
+          </span>
           <input
             key={`song-${setlist.defaultSongDurationMs ?? ''}`}
             type="number"
@@ -372,9 +378,6 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
             className={inputClass}
           />
         </label>
-        <p className="text-xs text-ink-faint">
-          Grundlage für die voraussichtliche Endzeit. Songs mit hinterlegtem Track zählen mit ihrer echten Länge.
-        </p>
       </div>
     </details>
   )

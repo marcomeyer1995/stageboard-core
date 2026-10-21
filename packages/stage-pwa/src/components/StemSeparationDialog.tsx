@@ -51,7 +51,7 @@ export function StemSeparationDialog({
         {model === 'extended' && (
           <Switch
             label="Gitarre links/rechts aufteilen"
-            description="Für zwei Gitarren, die links und rechts im Stereobild liegen - liegen beide in der Mitte, hilft es nicht."
+            info="Für zwei Gitarren, die links und rechts im Stereobild liegen - liegen beide in der Mitte, hilft es nicht."
             checked={splitGuitar}
             onChange={setSplitGuitar}
           />

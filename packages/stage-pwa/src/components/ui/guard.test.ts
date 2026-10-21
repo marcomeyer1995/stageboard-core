@@ -77,6 +77,11 @@ describe('UI system guard (docs/15)', () => {
     expect(offending(palette, { withTs: true }).filter((hit) => !hit.includes('widgets/widgetColors.ts'))).toEqual([])
   })
 
+  it('explanations sit behind ⓘ (D12) - a long hint= or description= is an explanation, so it goes into info=', () => {
+    // Status, warnings and consequences stay visible and are short; 80 characters is about one phone line.
+    expect(offending(/(?<![\w-])(hint|description)=(\{?['"`])[^'"`]{81,}['"`]/)).toEqual([])
+  })
+
   it('layers by name: z-content … z-takeover (tailwind.config.js) - no raw z-index numbers', () => {
     expect(offending(/(?<![\w-])z-(\d+|\[\d+\])(?![\w-])/, { withTs: true })).toEqual([])
   })
