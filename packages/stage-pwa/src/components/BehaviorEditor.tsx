@@ -193,7 +193,7 @@ function OwnBehaviorEditor({ initial, onChange }: { initial: Behavior | null; on
               label={unit === 'bars' ? 'Auf den Takt' : 'Auf den Schlag'}
               checked={onGrid}
               onChange={setOnGrid}
-              description={
+              info={
                 onGrid
                   ? `Landet genau auf einem ${unit === 'bars' ? 'Taktanfang' : 'Schlag'} - gezählt ab dem, der dem Drücken am nächsten liegt, und vorausgeplant wie ein Cue. Läuft der Song nicht, zählt die Zeit nach dem Songtempo.`
                   : 'Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.'

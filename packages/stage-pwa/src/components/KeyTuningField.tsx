@@ -3,7 +3,7 @@ import type { OpenTuning, SongVariant, Tuning } from 'shared-types'
 import { parseChordPro } from '../lib/chordpro'
 import { isStandard, playTuning, signedSteps, soundingKey, tuningLabel, variantChordShift } from '../lib/pitch'
 import { transposeLines } from '../lib/transposeChord'
-import { Button, Dialog, IconButton } from './ui'
+import { Button, Dialog, IconButton, InfoHint } from './ui'
 import { INPUT } from './ui/styles'
 
 /** What this field reads and writes on the editor draft - the stored model stays Transponieren
@@ -92,23 +92,23 @@ export function KeyTuningField({ value, onChange }: { value: KeyTuningValue; onC
   )
 }
 
-function StepRow({ label, hint, valueLabel, canDown, canUp, onStep }: { label: string; hint: string; valueLabel: string; canDown: boolean; canUp: boolean; onStep: (delta: number) => void }) {
+function StepRow({ label, info, valueLabel, canDown, canUp, onStep }: { label: string; info: string; valueLabel: string; canDown: boolean; canUp: boolean; onStep: (delta: number) => void }) {
   const labelId = useId()
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-1">
         <span id={labelId} className="text-base font-semibold text-ink">
           {label}
         </span>
-        <div className="flex items-center gap-2" role="group" aria-labelledby={labelId}>
-          <IconButton icon="decrease" label={`${label} tiefer`} onClick={() => onStep(-1)} disabled={!canDown} />
-          <output className="min-w-[9rem] text-center text-base font-semibold text-ink" aria-live="polite">
-            {valueLabel}
-          </output>
-          <IconButton icon="increase" label={`${label} höher`} onClick={() => onStep(1)} disabled={!canUp} />
-        </div>
+        <InfoHint text={info} label={`Erklärung: ${label}`} />
       </div>
-      <span className="text-sm text-ink-faint">{hint}</span>
+      <div className="flex items-center gap-2" role="group" aria-labelledby={labelId}>
+        <IconButton icon="decrease" label={`${label} tiefer`} onClick={() => onStep(-1)} disabled={!canDown} />
+        <output className="min-w-[9rem] text-center text-base font-semibold text-ink" aria-live="polite">
+          {valueLabel}
+        </output>
+        <IconButton icon="increase" label={`${label} höher`} onClick={() => onStep(1)} disabled={!canUp} />
+      </div>
     </div>
   )
 }
@@ -150,7 +150,7 @@ function KeyTuningDialog({ value, onChange, onClose }: { value: KeyTuningValue; 
 
         <StepRow
           label="Umstimmen"
-          hint="Gitarre tiefer/höher stimmen: die Akkorde auf dem Blatt bleiben, der Song klingt tiefer/höher."
+          info="Gitarre tiefer/höher stimmen: die Akkorde auf dem Blatt bleiben, der Song klingt tiefer/höher."
           valueLabel={tuningLabel(withLayout(tuning.semitones, 'normal'))}
           canDown={tuning.semitones > TUNE_MIN && canTranspose(-1)}
           canUp={tuning.semitones < TUNE_MAX && canTranspose(1)}
@@ -159,7 +159,7 @@ function KeyTuningDialog({ value, onChange, onClose }: { value: KeyTuningValue; 
 
         <StepRow
           label="Akkorde verschieben"
-          hint="Andere Griffe, gleiche Stimmung: die Akkorde auf dem Blatt ändern sich, der Song klingt tiefer/höher."
+          info="Andere Griffe, gleiche Stimmung: die Akkorde auf dem Blatt ändern sich, der Song klingt tiefer/höher."
           valueLabel={shift === 0 ? 'wie notiert' : `${signedSteps(shift)} Halbtöne`}
           canDown={canTranspose(-1)}
           canUp={canTranspose(1)}

@@ -15,7 +15,7 @@ export function PracticeWindowSettings() {
     <Segmented
       label="Geübt zählt die letzten"
       showLabel
-      hint="Sortierung „Geübt“ in der Bibliothek: wie oft du einen Song in Solo Üben gespielt hast."
+      info="Sortierung „Geübt“ in der Bibliothek: wie oft du einen Song in Solo Üben gespielt hast."
       value={String(days)}
       onChange={(value) => setDays(Number(value))}
       options={PRACTICE_WINDOW_DAYS.map((d) => ({ value: String(d), label: `${d} Tage` }))}
@@ -36,11 +36,8 @@ export function RehearsalWindowSettings() {
       <Segmented
         label="Geprobt zählt nach"
         showLabel
-        hint={
-          isAdmin
-            ? 'Sortierung „Geprobt“: wie oft die Band einen Song im Gig-Modus gespielt hat - Proben und Auftritte.'
-            : 'Nur Band-Admins können das ändern.'
-        }
+        info="Sortierung „Geprobt“: wie oft die Band einen Song im Gig-Modus gespielt hat - Proben und Auftritte."
+        hint={isAdmin ? undefined : 'Nur Band-Admins können das ändern.'}
         value={window.kind}
         onChange={(kind) => set(kind === 'days' ? { kind: 'days', days: 90 } : { kind: 'shows', shows: 5 })}
         options={[

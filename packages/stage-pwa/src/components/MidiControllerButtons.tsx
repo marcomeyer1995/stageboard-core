@@ -155,7 +155,7 @@ function MidiButtonDialog({
                 label="Nur bei einem Wert"
                 checked={trigger.value !== undefined}
                 onChange={(on) => setTrigger(on ? { ...trigger, value: 127 } : { message: 'cc', channel: trigger.channel, number: trigger.number })}
-                description="Für Controller, die mehrere Knöpfe über denselben CC mit verschiedenen Werten senden. Aus: jeder Wert über 0 drückt, 0 lässt los."
+                info="Für Controller, die mehrere Knöpfe über denselben CC mit verschiedenen Werten senden. Aus: jeder Wert über 0 drückt, 0 lässt los."
               />
               {trigger.value !== undefined && (
                 <Stepper label="Wert" unit="" value={trigger.value} min={0} max={127} step={1} onChange={(value) => setTrigger({ ...trigger, value })} />

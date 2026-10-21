@@ -18,7 +18,8 @@ export function LatencyCompensationSettings() {
   return (
     <Switch
       label="Ton-Latenz ausgleichen"
-      description={`Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen. Jetzt: ${status}.`}
+      description={`Jetzt: ${status}.`}
+      info="Klick und Backing-Track starten um die gemessene Latenz dieses Ausgabewegs früher, damit sie auf dem Schlag klingen."
       checked={on}
       onChange={set}
     />

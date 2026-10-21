@@ -1,18 +1,22 @@
 import { useId } from 'react'
+import { InfoHint } from './InfoHint'
 import { CONTROL, DISABLED, FOCUS, HOVER } from './styles'
 
 export interface SwitchProps {
   label: string
   checked: boolean
   onChange: (next: boolean) => void
+  /** Visible under the label: status or a consequence ("Wirkt beim nächsten Song"). */
   description?: string
+  /** An explanation behind ⓘ beside the switch (docs/15 D12) - not inside it, a button can't hold one. */
+  info?: string
   disabled?: boolean
   /** 'row': the whole row is the target (settings lists, 52+ px); 'inline': label + knob in a toolbar. */
   layout?: 'row' | 'inline'
 }
 
 /** One setting on or off (D5): a knob on a track, yellow and right = on. */
-export function Switch({ label, checked, onChange, description, disabled, layout = 'row' }: SwitchProps) {
+export function Switch({ label, checked, onChange, description, info, disabled, layout = 'row' }: SwitchProps) {
   const descriptionId = useId()
   const knob = (
     <span
@@ -22,7 +26,7 @@ export function Switch({ label, checked, onChange, description, disabled, layout
       <span className={`absolute top-1 h-6 w-6 rounded-sb-pill transition-[left] ${checked ? 'left-7 bg-accent-ink' : 'left-1 bg-ink-soft'}`} />
     </span>
   )
-  return (
+  const control = (
     <button
       type="button"
       role="switch"
@@ -31,7 +35,7 @@ export function Switch({ label, checked, onChange, description, disabled, layout
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`flex items-center gap-3 text-left text-base text-ink-soft ${FOCUS} ${DISABLED} ${CONTROL} ${
-        layout === 'row' ? `min-h-form w-full justify-between bg-control px-4 py-2 ${HOVER}` : `min-h-form bg-control px-3 ${HOVER}`
+        layout === 'row' ? `min-h-form ${info ? 'min-w-0 flex-1' : 'w-full'} justify-between bg-control px-4 py-2 ${HOVER}` : `min-h-form bg-control px-3 ${HOVER}`
       }`}
     >
       <span className="flex min-w-0 flex-col">
@@ -44,5 +48,12 @@ export function Switch({ label, checked, onChange, description, disabled, layout
       </span>
       {knob}
     </button>
+  )
+  if (!info) return control
+  return (
+    <div className={`flex items-center gap-1 ${layout === 'row' ? 'w-full' : ''}`}>
+      {control}
+      <InfoHint text={info} label={`Erklärung: ${label}`} />
+    </div>
   )
 }

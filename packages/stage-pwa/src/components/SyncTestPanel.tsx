@@ -64,7 +64,7 @@ export function SyncTestPanel() {
       {click && (
         <Switch
           label={`Mit Latenz-Ausgleich (${latencyMs} ms)`}
-          description="Aus: misst die rohe Latenz (zum Eintragen). An: prüft den Ausgleich - der Klick sollte dann auf der Sekunde landen."
+          info="Aus: misst die rohe Latenz (zum Eintragen). An: prüft den Ausgleich - der Klick sollte dann auf der Sekunde landen."
           checked={compensate}
           onChange={setCompensate}
         />

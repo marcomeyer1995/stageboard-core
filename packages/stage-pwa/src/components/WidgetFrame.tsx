@@ -154,7 +154,7 @@ export function WidgetFrame({
           {onToggleCompact && (
             <Switch
               label="Kompakt"
-              description="Knöpfe 48 px statt 56 / 72 - für Widgets, die mitten im Song nicht bedient werden."
+              info="Knöpfe 48 px statt 56 / 72 - für Widgets, die mitten im Song nicht bedient werden."
               checked={compact}
               onChange={onToggleCompact}
             />

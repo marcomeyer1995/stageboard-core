@@ -51,20 +51,20 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
         <Section title="Auf diesem Gerät">
           <AnnouncementsOnHere />
         </Section>
-        <Section title="Vor jedem Teil" hint="Was in den Takten vor einem Teil gesagt wird, ein Feld pro Schlag. Antippen zum Ändern.">
+        <Section title="Vor jedem Teil" info="Was in den Takten vor einem Teil gesagt wird, ein Feld pro Schlag. Antippen zum Ändern.">
           <CuePatternEditor label="Muster" pattern={settings.partCue} presets={PART_CUE_PRESETS} onChange={(partCue) => save({ partCue })} />
         </Section>
 
         <Section
           title="Einzählen"
-          hint="Was in den Einzähltakten vor Takt 1 gesagt wird; „Name“ ist hier der Teil auf Takt 1 (Intro). Hat ein Song weniger Einzähltakte, gilt der hintere Teil."
+          info="Was in den Einzähltakten vor Takt 1 gesagt wird; „Name“ ist hier der Teil auf Takt 1 (Intro). Hat ein Song weniger Einzähltakte, gilt der hintere Teil."
         >
           <CuePatternEditor label="Muster" pattern={settings.countInCue} presets={COUNT_IN_CUE_PRESETS} onChange={(countInCue) => save({ countInCue })} />
         </Section>
 
         <Section
           title="Zahlwörter"
-          hint="Was für die Zahl eines Schlags gesagt wird. Leer = die Ziffer, die jede Stimme in ihrer Sprache liest. Für Dialekt so schreiben, wie es klingen soll („zwaa“)."
+          info="Was für die Zahl eines Schlags gesagt wird. Leer = die Ziffer, die jede Stimme in ihrer Sprache liest. Für Dialekt so schreiben, wie es klingen soll („zwaa“)."
         >
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {Array.from({ length: wordCount }, (_, i) => (
@@ -85,7 +85,7 @@ export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
 
         <PreviewSection names={names} settings={settings} voice={voice} />
 
-        <Section title="Texte je Teil" hint="Was für einen Songteil gesagt wird, für alle Songs der Band. Leer = der Name, wie er im Song steht.">
+        <Section title="Texte je Teil" info="Was für einen Songteil gesagt wird, für alle Songs der Band. Leer = der Name, wie er im Song steht.">
           {names.length === 0 && (
             <p className="text-base text-ink-faint">
               Die Songs haben noch keine Teile ({'{part: Chorus}'}, {'{start_of_chorus}'}).
@@ -118,7 +118,7 @@ function PreviewSection({ names, settings, voice }: { names: string[]; settings:
     setState(ok ? 'idle' : 'failed')
   }
   return (
-    <Section title="Probehören" hint="Spielt auf diesem Gerät mit Klick: zwei Takte Einzählen, das Intro und den gewählten Teil auf Takt 5.">
+    <Section title="Probehören" info="Spielt auf diesem Gerät mit Klick: zwei Takte Einzählen, das Intro und den gewählten Teil auf Takt 5.">
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-0 flex-1">
           <Select label="Teil" value={part} onChange={(e) => setPart(e.target.value)} options={(names.length ? names : ['Chorus']).map((n) => ({ value: n, label: n }))} />

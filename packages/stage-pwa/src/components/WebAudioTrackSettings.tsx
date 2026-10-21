@@ -10,7 +10,8 @@ export function WebAudioTrackSettings() {
     <div className="flex flex-col gap-3">
     <Switch
       label="Backing-Track über Web Audio"
-      description="Gig: Track und Klick auf derselben Audio-Uhr, Start auf die Probe genau, klingt wie beim Üben. Aus: über den Audio-Player des Systems (auf manchen Geräten mit Klangeffekten wie Dolby). Wirkt beim nächsten Song."
+      description="Wirkt beim nächsten Song."
+      info="Gig: Track und Klick auf derselben Audio-Uhr, Start auf die Probe genau, klingt wie beim Üben. Aus: über den Audio-Player des Systems (auf manchen Geräten mit Klangeffekten wie Dolby)."
       checked={on}
       onChange={(next) => {
         setWebAudioTrackEnabled(next)

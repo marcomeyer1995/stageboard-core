@@ -13,6 +13,7 @@ export function JumpCrossfadeSetting() {
     <div className="flex flex-col gap-1">
       <Stepper
         label="Übergang beim Springen"
+        info={`Überblendung des Backing-Tracks an der Sprung- oder Wiederholungsstelle, auf diesem Gerät. Länger klingt weicher, kürzer knackiger. Standard ${DEFAULT_JUMP_CROSSFADE_MS} ms.`}
         value={ms}
         unit="ms"
         min={JUMP_CROSSFADE_RANGE_MS.min}
@@ -23,9 +24,7 @@ export function JumpCrossfadeSetting() {
           setMs(next)
         }}
       />
-      <p className="text-sm text-ink-faint">
-        Überblendung des Backing-Tracks an der Sprung- oder Wiederholungsstelle, auf diesem Gerät. Länger klingt weicher, kürzer knackiger. Standard {DEFAULT_JUMP_CROSSFADE_MS} ms - wirkt beim nächsten Sprung.
-      </p>
+      <p className="text-sm text-ink-faint">Wirkt beim nächsten Sprung.</p>
     </div>
   )
 }
