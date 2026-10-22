@@ -24,7 +24,7 @@ const show = vi.hoisted(() => ({
 const state = vi.hoisted(() => ({ isMaster: true, state: { playbackJump: null as null | { at: number; toMs: number; label?: string }, playbackLoop: null, trackOverride: null, liveTempoAdjustPercent: 0 } }))
 const actions = vi.hoisted(() => ({ queueSectionJump: vi.fn(async () => 'queued'), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 
-vi.mock('../lib/showMode', () => ({ useShowMode: () => show }))
+vi.mock('../lib/showMode', () => ({ useShowMode: () => show, useShowModeCore: () => ({ ...show, elapsedNow: () => show.elapsedMs ?? null }), useShowModeOnDemand: () => show }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: (select: (s: typeof state) => unknown) => select(state) }))
 vi.mock('../lib/sectionJump', () => actions)
 vi.mock('../lib/entryDuration', () => ({ songDurationMs: () => ({ ms: 30000, source: 'manual' }) }))

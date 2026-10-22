@@ -1,5 +1,5 @@
 import { isSongEntry, isTransitionEntry } from 'shared-types'
-import { computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
+import { cachedQueue, computeQueue, resolveTrackForEntry, type Queue } from './computeQueue'
 import { PLAY_LEAD_MS, type PlayOptions } from './playbackTransport'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs } from './metronome'
@@ -34,7 +34,7 @@ export function usePracticeQueue(): Queue {
   const setlists = useSetlistsStore((state) => state.setlists)
   const variants = useSongVariantsStore((state) => state.variants)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
-  return computeQueue(songs, setlists, practiceState, variants, practiceState.variantOverride)
+  return cachedQueue('practice', songs, setlists, practiceState.activeSetlistId, practiceState.activeEntryId, variants, practiceState.variantOverride)
 }
 
 function activeWorkspaceId(): string {

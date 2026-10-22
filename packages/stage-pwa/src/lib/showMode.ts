@@ -106,15 +106,37 @@ export function useShowModeSong(): { mode: SessionMode; queue: Queue; playbackSt
  * so none of them need their own Gig-vs-Practice branching. Both underlying hooks are always
  * called (rules of hooks), and the inactive one's result is simply discarded; that's cheap
  * compared to the alternative of every widget re-implementing this same branch.
+ *
+ * Re-renders its caller on every animation frame while playing (`elapsedMs`). A component that
+ * shows the clock only coarsely uses useShowModeCore() plus useFrameValue (#457).
  */
 export function useShowMode(): ShowModeApi {
+  const core = useShowModeCore()
+  const gigElapsedMs = usePlaybackElapsedMs()
+  const practiceElapsedMs = usePracticeElapsedMs()
+  return { ...core, elapsedMs: core.mode === 'practice' ? practiceElapsedMs : gigElapsedMs }
+}
+
+/**
+ * useShowMode() for code that needs the clock only when something happens - a pedal press, a MIDI
+ * button, a planned action: `elapsedMs` is read at the moment it is read, so the caller doesn't
+ * re-render on every frame while a song plays (#457).
+ */
+export function useShowModeOnDemand(): ShowModeApi {
+  const core = useShowModeCore()
+  const api: Record<string, unknown> = { ...core }
+  Object.defineProperty(api, 'elapsedMs', { get: core.elapsedNow, enumerable: true })
+  return api as unknown as ShowModeApi
+}
+
+/** Everything of useShowMode() but the per-frame `elapsedMs` - `elapsedNow()` reads it when asked,
+ * so the caller re-renders on song and state changes only (#457). */
+export function useShowModeCore(): Omit<ShowModeApi, 'elapsedMs'> & { elapsedNow: () => number | null } {
   const mode = useAppModeStore((state) => state.mode)
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
 
   const gigQueue = useQueue()
   const practiceQueue = usePracticeQueue()
-  const gigElapsedMs = usePlaybackElapsedMs()
-  const practiceElapsedMs = usePracticeElapsedMs()
   const gigPlaybackStatus = useShowStateStore((state) => state.state.playbackStatus)
   const gigDrives = useShowStateStore(drivesAutomation)
   const gigTrackOverride = useShowStateStore((state) => state.state.trackOverride)
@@ -128,7 +150,7 @@ export function useShowMode(): ShowModeApi {
     return {
       mode,
       queue: practiceQueue,
-      elapsedMs: practiceElapsedMs,
+      elapsedNow: () => practiceElapsedMsNow(workspaceId),
       playbackStatus: practiceState.playbackStatus,
       trackOverride: practiceState.trackOverride,
       liveTempoAdjustPercent: 0,
@@ -156,7 +178,7 @@ export function useShowMode(): ShowModeApi {
   return {
     mode,
     queue: gigQueue,
-    elapsedMs: gigElapsedMs,
+    elapsedNow: gigElapsedMsNow,
     playbackStatus: gigPlaybackStatus,
     trackOverride: gigTrackOverride,
     liveTempoAdjustPercent: gigLiveTempoAdjustPercent,
