@@ -57,7 +57,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // clock is ShowState-synced (every tablet scrolls off the same value), Practice mode's is
   // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
-  const { queue, elapsedMs, playbackStatus } = useShowMode()
+  const { queue, elapsedMs, playbackStatus, mode } = useShowMode()
+  // Chord shapes on a long press (#609) - never while a Gig runs (also paused mid-show): an
+  // accidental press must not cover the lyrics on stage.
+  const chordInfo = !(mode === 'gig' && playbackStatus !== 'stopped')
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
@@ -241,6 +244,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               fontSize={fontSize}
               chordFontSize={chordFontSize}
               commentFontSize={commentFontSize}
+              chordInfo={chordInfo}
             />
           </div>
         </>
@@ -252,6 +256,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             fontSize={fontSize}
             chordFontSize={chordFontSize}
             commentFontSize={commentFontSize}
+            chordInfo={chordInfo}
           />
         </div>
       )}

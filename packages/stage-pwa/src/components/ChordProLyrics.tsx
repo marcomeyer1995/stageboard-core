@@ -1,6 +1,14 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { useCallback, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 import { stageFontSize } from '../lib/stageSize'
+import { ChordPopover } from './ChordPopover'
+
+/** How long a finger rests on a chord before its shape opens (#609) - a plain tap stays a tap. */
+const LONG_PRESS_MS = 500
+/** A finger moving further than this is scrolling, not pressing. */
+const LONG_PRESS_SLOP_PX = 10
+/** Marks a tappable chord: no text selection or callout from the long press. */
+const CHORD_TAPPABLE = 'cursor-pointer select-none [-webkit-touch-callout:none]'
 
 /** Chords and comments default to 0.7em of the lyric size, but never below the stage text
  * floor (lib/stageSize.ts) - at the default 18px lyric size 0.7em was 12.6px. As classes, not
@@ -55,6 +63,9 @@ interface ChordProLyricsProps {
    * the tapped word or chord - so the song editor can put its cursor there (#607). Unset: the
    * lines are not tappable. */
   onSourceTap?: (sourceLine: number, column: number) => void
+  /** Chords open their guitar shape and piano keys (#609): a click with the mouse, a long press on
+   * touch. Unset: chords are plain text - the Prompter leaves it off during a running Gig. */
+  chordInfo?: boolean
 }
 
 /** Column of a tap in the source line: the tapped segment's start, plus the character tapped
@@ -80,7 +91,36 @@ export function ChordProLyrics({
   commentFontSize,
   headerContent,
   onSourceTap,
+  chordInfo = false,
 }: ChordProLyricsProps) {
+  const [popover, setPopover] = useState<{ symbol: string; anchor: DOMRect } | null>(null)
+  const closePopover = useCallback(() => setPopover(null), [])
+  const press = useRef<{ timer: number; x: number; y: number } | null>(null)
+  const pointerType = useRef('mouse')
+  // The click that follows a long press must not also move the editor's cursor.
+  const swallowClick = useRef(false)
+  const chordAt = (target: EventTarget) => (chordInfo ? (target as HTMLElement).closest<HTMLElement>('[data-chord]') : null)
+  const open = (chord: HTMLElement) => setPopover({ symbol: chord.dataset.chord ?? '', anchor: chord.getBoundingClientRect() })
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer)
+    press.current = null
+  }
+  const onPointerDown = (event: PointerEvent) => {
+    pointerType.current = event.pointerType
+    const chord = chordAt(event.target)
+    if (!chord || event.pointerType === 'mouse') return
+    cancelPress()
+    const timer = window.setTimeout(() => {
+      press.current = null
+      swallowClick.current = true
+      open(chord)
+    }, LONG_PRESS_MS)
+    press.current = { timer, x: event.clientX, y: event.clientY }
+  }
+  const onPointerMove = (event: PointerEvent) => {
+    if (press.current && Math.hypot(event.clientX - press.current.x, event.clientY - press.current.y) > LONG_PRESS_SLOP_PX) cancelPress()
+  }
+
   if (lines.length === 0) {
     return <p className="text-ink-faint">Kein Text.</p>
   }
@@ -89,14 +129,24 @@ export function ChordProLyrics({
     <div
       className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : ''}`}
       style={{ fontSize }}
-      onClick={
-        onSourceTap &&
-        ((event) => {
-          const lineElement = (event.target as HTMLElement).closest<HTMLElement>('[data-source-line]')
-          if (lineElement) onSourceTap(Number(lineElement.dataset.sourceLine), tappedColumn(event, lineElement))
-        })
-      }
+      onPointerDown={chordInfo ? onPointerDown : undefined}
+      onPointerMove={chordInfo ? onPointerMove : undefined}
+      onPointerUp={chordInfo ? cancelPress : undefined}
+      onPointerCancel={chordInfo ? cancelPress : undefined}
+      onContextMenu={chordInfo ? (event) => chordAt(event.target) && event.preventDefault() : undefined}
+      onClick={(event) => {
+        if (swallowClick.current) {
+          swallowClick.current = false
+          return
+        }
+        const chord = pointerType.current === 'mouse' ? chordAt(event.target) : null
+        if (chord) return open(chord)
+        if (!onSourceTap) return
+        const lineElement = (event.target as HTMLElement).closest<HTMLElement>('[data-source-line]')
+        if (lineElement) onSourceTap(Number(lineElement.dataset.sourceLine), tappedColumn(event, lineElement))
+      }}
     >
+      {popover && <ChordPopover symbol={popover.symbol} anchor={popover.anchor} onClose={closePopover} />}
       {headerContent}
       {lines.map((line, offset) => {
         const lineIndex = startIndex + offset
@@ -144,7 +194,11 @@ export function ChordProLyrics({
               >
                 {line.segments.map((segment, segmentIndex) => (
                   <span key={segmentIndex} data-source-offset={segment.sourceOffset}>
-                    {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
+                    {segment.chord && (
+                      <span data-chord={segment.chord} className={`font-bold text-accent ${chordInfo ? CHORD_TAPPABLE : ''}`}>
+                        {segment.chord}
+                      </span>
+                    )}
                     <span className="text-ink-faint">{segment.text}</span>
                   </span>
                 ))}
@@ -170,6 +224,7 @@ export function ChordProLyrics({
                 active={lineIndex === activeIndex}
                 startsPart={!hidePartLabels && startsPart}
                 chordFontSize={chordFontSize}
+                chordInfo={chordInfo}
               />
             )}
           </div>
@@ -194,12 +249,14 @@ function LyricLine({
   active,
   startsPart,
   chordFontSize,
+  chordInfo,
 }: {
   line: ChordProLine
   lineIndex: number
   active: boolean
   startsPart: boolean
   chordFontSize: number | undefined
+  chordInfo: boolean
 }) {
   const hasChords = line.segments.some((segment) => segment.chord !== null)
   const chordStyle = chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }
@@ -233,7 +290,11 @@ function LyricLine({
           className={`${segmentRoomClass} relative inline-block`}
         >
           {segment.chord && (
-            <span style={{ ...chordStyle, lineHeight: 1.15 }} className={`${chordSizeClass} absolute left-0 top-0 font-bold text-accent`}>
+            <span
+              data-chord={segment.chord}
+              style={{ ...chordStyle, lineHeight: 1.15 }}
+              className={`${chordSizeClass} absolute left-0 top-0 font-bold text-accent ${chordInfo ? CHORD_TAPPABLE : ''}`}
+            >
               {segment.chord}
             </span>
           )}
