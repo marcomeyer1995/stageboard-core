@@ -5,6 +5,7 @@ import { Button } from './Button'
 import { PrepTier } from './PrepTier'
 import { CONTAINER } from './styles'
 import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
+import { useTranslation } from 'react-i18next'
 
 const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
@@ -34,7 +35,9 @@ export interface DialogProps {
  * only names the dialog. Back gesture and a tap beside the dialog close it (unless `closeOnBackdrop`
  * is false).
  */
-export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig', size = 'm', closeOnBackdrop = true, seeThroughWhileSliding = false }: DialogProps) {
+export function Dialog({ title, onClose, children, actions, closeLabel: closeLabelProp, size = 'm', closeOnBackdrop = true, seeThroughWhileSliding = false }: DialogProps) {
+  const { t } = useTranslation('common')
+  const closeLabel = closeLabelProp ?? t('actions.done')
   useBackHandler(onClose)
   // Only a tap that also started on the backdrop closes: a press in a field that ends beside the
   // dialog - or one the dialog moved away from when the keyboard went down - is not "beside it".

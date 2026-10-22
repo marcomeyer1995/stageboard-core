@@ -9,6 +9,7 @@ import { useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Button, Dialog, choiceRow } from './ui'
 import { INPUT_FREE } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 /**
  * "Ich bin …" from the ☰ drawer (Marco, 2026-10-16): who uses this device, within the same band -
@@ -26,6 +27,7 @@ export function SwitchProfileDialog({ onClose }: { onClose: () => void }) {
   const isMaster = useShowStateStore((state) => state.isMaster)
   const sessionMode = useAppModeStore((state) => state.mode)
   const confirm = useDialogStore((state) => state.confirm)
+  const { t } = useTranslation(['menu', 'common'])
   const [askingPinFor, setAskingPinFor] = useState<Profile | null>(null)
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
@@ -43,9 +45,9 @@ export function SwitchProfileDialog({ onClose }: { onClose: () => void }) {
     if (profile.id === me?.id) return onClose()
     // "Master pro Person": master belongs to the person, so this device stops controlling the show.
     if (sessionMode === 'gig' && isMaster && workspace?.masterMode === 'account') {
-      const ok = await confirm(`Du bist gerade Master - nach dem Wechsel zu ${profile.name} steuert dieses Gerät die Show nicht mehr.`, {
-        title: 'Master',
-        confirmLabel: 'Trotzdem wechseln',
+      const ok = await confirm(t('menu:profile.masterConfirm', { name: profile.name }), {
+        title: t('menu:profile.masterConfirmTitle'),
+        confirmLabel: t('menu:profile.switchAnyway'),
       })
       if (!ok) return
     }
@@ -59,7 +61,7 @@ export function SwitchProfileDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Ich bin …" size="s" closeLabel="Abbrechen" onClose={onClose}>
+    <Dialog title={t('menu:profile.title')} size="s" closeLabel={t('common:actions.cancel')} onClose={onClose}>
       {askingPinFor ? (
         <form
           onSubmit={(e) => {
@@ -68,25 +70,25 @@ export function SwitchProfileDialog({ onClose }: { onClose: () => void }) {
           }}
           className="flex flex-col gap-3"
         >
-          <p className="text-base text-ink-soft">PIN von {askingPinFor.name}</p>
+          <p className="text-base text-ink-soft">{t('menu:profile.pinOf', { name: askingPinFor.name })}</p>
           <div className="flex gap-2">
             <input
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="4-stelliger Code"
+              placeholder={t('menu:profile.pinPlaceholder')}
               inputMode="numeric"
-              aria-label={`PIN von ${askingPinFor.name}`}
+              aria-label={t('menu:profile.pinOf', { name: askingPinFor.name })}
               autoFocus
               className={`h-form flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
             />
             <Button variant="primary" type="submit" disabled={busy || pin.length !== 4}>
-              {busy ? '…' : 'Wechseln'}
+              {busy ? '…' : t('menu:profile.switch')}
             </Button>
           </div>
-          <Button onClick={() => setAskingPinFor(null)}>Zurück</Button>
+          <Button onClick={() => setAskingPinFor(null)}>{t('common:actions.back')}</Button>
         </form>
       ) : (
-        <div className="flex flex-col gap-2" role="group" aria-label="Mitglieder">
+        <div className="flex flex-col gap-2" role="group" aria-label={t('menu:profile.members')}>
           {profiles.map((profile) => (
             <button
               key={profile.id}

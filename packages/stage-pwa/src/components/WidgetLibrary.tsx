@@ -17,6 +17,7 @@ import { WidgetPreviewErrorBoundary } from './WidgetPreviewErrorBoundary'
 import { useBackHandler } from '../lib/backNavigation'
 import { INPUT } from './ui/styles'
 import { Button, Dialog } from './ui'
+import { useWidgetText } from '../lib/widgetText'
 
 const CATEGORY_LABEL: Record<WidgetCategory, string> = {
   performance: 'Performance',
@@ -108,9 +109,16 @@ export function WidgetLibrary({
   const [noRoom, setNoRoom] = useState<WidgetDefinition | null>(null)
   useBackHandler(noRoom ? () => setNoRoom(null) : null)
 
+  // Names and descriptions in this device's language (#456) - search, cards and dialogs alike.
+  const widgetText = useWidgetText()
   const available = useMemo(
-    () => availableWidgets(ALL_WIDGETS, capabilities, activeRoles),
-    [capabilities, activeRoles],
+    () =>
+      availableWidgets(ALL_WIDGETS, capabilities, activeRoles).map((definition) => ({
+        ...definition,
+        title: widgetText.title(definition),
+        description: widgetText.description(definition),
+      })),
+    [capabilities, activeRoles, widgetText],
   )
 
   const term = search.trim().toLowerCase()

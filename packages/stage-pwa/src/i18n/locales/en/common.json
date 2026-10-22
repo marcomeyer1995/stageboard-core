@@ -11,5 +11,23 @@
   "session": {
     "gig": "Gig",
     "practice": "Solo"
+  },
+  "actions": {
+    "done": "Done",
+    "cancel": "Cancel",
+    "back": "Back",
+    "smaller": "Smaller",
+    "larger": "Larger"
+  },
+  "ui": {
+    "active": "Active",
+    "explanation": "Explanation",
+    "several": "Pick several",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "error": "Error",
+      "off": "Off"
+    }
   }
 }
