@@ -6,9 +6,9 @@ import { useShowMode } from '../lib/showMode'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 
 vi.mock('../lib/showMode', () => {
-  const useShowMode = vi.fn()
+  const show = vi.fn()
   // The bar reads the core and the clock per frame (#457) - the same mocked show.
-  return { useShowMode, useShowModeCore: () => ({ ...useShowMode(), elapsedNow: () => useShowMode().elapsedMs }) }
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show().elapsedMs }) }
 })
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p', name: 'Marco' }) }))
 vi.mock('../lib/useNow', () => ({ useNow: () => new Date('2026-09-27T21:07:00').getTime() }))

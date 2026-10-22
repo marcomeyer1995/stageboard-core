@@ -7,10 +7,9 @@ import { useShowMode } from '../lib/showMode'
 // Same reasoning as ShowTransportWidget.test.tsx: mock useShowMode directly rather than the
 // stores it composes, several of which transitively construct a real PouchDB at import time.
 vi.mock('../lib/showMode', () => {
-  const useShowMode = vi.fn()
+  const show = vi.fn()
   // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
-  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
-  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
 })
 
 function song(bpm: number, timeSignature: string): Song {

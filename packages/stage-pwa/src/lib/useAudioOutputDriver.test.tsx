@@ -29,9 +29,9 @@ vi.mock('../components/MasterTakeoverButton', () => {
   return { MasterTakeoverButton: () => null }
 })
 vi.mock('./showMode', () => {
-  const useShowMode = vi.fn()
+  const show = vi.fn()
   // ShowTransportWidget reads the clock only for its time (#457) - the same mocked show.
-  return { useShowMode, useShowModeCore: () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null }) }
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }) }
 })
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/usePluginsStore', () => ({ usePluginsStore: vi.fn() }))

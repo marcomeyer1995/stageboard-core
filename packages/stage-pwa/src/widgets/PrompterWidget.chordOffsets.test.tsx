@@ -10,10 +10,9 @@ import type { PrompterConfig } from './prompterConfig'
 
 // Same mocking reasoning as PrompterWidget.test.tsx.
 vi.mock('../lib/showMode', () => {
-  const useShowMode = vi.fn()
+  const show = vi.fn()
   // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
-  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
-  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
 })
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: vi.fn() }))
 vi.mock('../store/useProfilesStore', () => ({ useProfilesStore: vi.fn() }))
