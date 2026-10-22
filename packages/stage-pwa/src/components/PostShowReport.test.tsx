@@ -63,7 +63,7 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
       events: [{ id: 'start', showId: 'show', type: 'show-started', at: t0 }, song(1, 'Highway to Hell'), cue(1, true), cue(2, false, 'kein MIDI-Ausgang'), cue(3, true)],
     } as never)
     render(<Shows />)
-    fireEvent.click(screen.getByText('1 Cues fehlgeschlagen'))
+    fireEvent.click(screen.getByText('1 Cue fehlgeschlagen'))
     expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
     expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
     expect(screen.getByText('Cues (3, 1 fehlgeschlagen)').closest('details')).not.toHaveAttribute('open')
