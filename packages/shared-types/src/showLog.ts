@@ -43,6 +43,13 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
      * song sat paused (stage banter, retuning), unlike the wider `endedAt - at` span. This is
      * the duration the Nachbericht should display. */
     activeMs: z.number().int().nonnegative(),
+    /** The song's planned length when it was played - track or variant length (#64: planned vs.
+     * actual). Absent when unknown, and on events from before 2026-10-22. */
+    plannedMs: z.number().int().nonnegative().optional(),
+    /** The pause the setlist planned after this song until the next one starts - its pause between
+     * songs, a transition item's length, 0 for "seamless" (#64; festivalClock's rules). Absent
+     * without a next entry, and on older events. */
+    plannedPauseAfterMs: z.number().int().nonnegative().optional(),
   }),
   z.object({
     id: z.string().min(1),

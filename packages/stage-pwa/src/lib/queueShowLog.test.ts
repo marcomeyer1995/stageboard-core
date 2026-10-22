@@ -38,4 +38,21 @@ describe('song-played in the Nachbericht (#409 review)', () => {
     const ids = (append.mock.calls as unknown as Array<[{ id: string; type: string }]>).filter(([event]) => event.type === 'song-played').map(([event]) => event.id)
     expect(ids).toEqual(['song-played-show-1-1000', 'song-played-show-1-1000'])
   })
+
+  it('logs the planned pause after the song - the setlist pause between songs (#64)', async () => {
+    const setlist: Setlist = { id: 'sl', name: 'Gig', createdAt: 0, defaultTransitionMs: 25_000, entries: [{ id: 'e1', songId: 'a', variantId: null, trackId: null }, { id: 'e2', songId: 'b', variantId: null, trackId: null }] }
+    useSongsStore.setState({ songs: [song('a'), song('b')] })
+    useSetlistsStore.setState({ setlists: [setlist] })
+    const append = vi.fn(async () => {})
+    useShowLogStore.setState({ append })
+    const base = useShowStateStore.getState().state
+    useShowStateStore.setState({
+      isMaster: true,
+      applyPatch: vi.fn(async () => {}),
+      state: { ...base, activeSetlistId: 'sl', activeEntryId: 'e1', activeEntryStartedAt: 1000, currentShowId: 'show-1', playbackStatus: 'paused', playbackStartedAt: null, playbackAccumulatedMs: 60_000 },
+    })
+    await advanceToNextSong()
+    const played = (append.mock.calls as unknown as Array<[{ type: string; plannedPauseAfterMs?: number }]>).find(([event]) => event.type === 'song-played')?.[0]
+    expect(played?.plannedPauseAfterMs).toBe(25_000)
+  })
 })

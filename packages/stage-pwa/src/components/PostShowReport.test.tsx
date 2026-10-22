@@ -12,6 +12,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const { ShowDetail, ShowList, useShows } = await import('./PostShowReport')
+const { pauseBefore } = await import('../lib/showPauses')
 
 /** List and detail as the Bibliothek's "Shows" tab puts them together. */
 function Shows() {
@@ -86,5 +87,37 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     expect(screen.getByText('Highway to Hell')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Bibliothek' }))
     expect(screen.getByText('Ohne gespielte Songs (1)')).toBeInTheDocument()
+  })
+})
+
+describe('Nachbericht - planned vs. actual (#64)', () => {
+  const played = (id: string, at: number, endedAt: number, activeMs: number, extra: Record<string, number> = {}) =>
+    ({ id, showId: 'show', type: 'song-played', songId: id, songTitle: id, at, endedAt, activeMs, ...extra }) as Extract<ShowLogEvent, { type: 'song-played' }>
+
+  it('a pause counts from the end of the song before until this one played, waiting for Play included', () => {
+    const a = played('a', t0, t0 + 200_000, 200_000, { plannedPauseAfterMs: 30_000 })
+    // b activated 10 s after a ended, then 20 s until Play: 30 s of dead air - as planned.
+    const b = played('b', t0 + 210_000, t0 + 410_000, 180_000)
+    expect(pauseBefore(a, b)).toEqual({ ms: 30_000, plannedMs: 30_000, tooLong: false })
+    // 46 s: more than the planned 30 s + 15 s.
+    const late = played('c', t0 + 216_000, t0 + 426_000, 180_000)
+    expect(pauseBefore(a, late).tooLong).toBe(true)
+  })
+
+  it('shows each song against its planned length and marks the pause that ran too long', () => {
+    useProfilesStore.setState({ profiles: [] })
+    useShowLogStore.setState({
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        played('Tush', t0, t0 + 200_000, 200_000, { plannedMs: 192_000, plannedPauseAfterMs: 30_000 }),
+        played('Mexiko', t0 + 260_000, t0 + 440_000, 180_000, { plannedMs: 185_000 }),
+      ],
+    } as never)
+    render(<Shows />)
+    fireEvent.click(screen.getByText(/2 Songs · 6:20 gespielt/))
+    expect(screen.getByText(/3:20 \(\+0:08\)/)).toBeInTheDocument()
+    expect(screen.getByText(/3:00 \(-0:05\)/)).toBeInTheDocument()
+    expect(screen.getByText('Pause 1:00 · geplant 0:30 (+0:30)')).toBeInTheDocument()
+    expect(screen.getByText(/1 Pause zu lang/)).toBeInTheDocument()
   })
 })
