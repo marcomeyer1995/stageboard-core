@@ -63,6 +63,7 @@ export function useCueScheduler(): void {
 
   const cues: readonly ShowCue[] | undefined = queue.currentVariant?.cues
   const song = queue.currentSong
+  const variantId = queue.currentVariant?.id
 
   useEffect(() => {
     if (mode !== 'gig' || status !== 'playing' || !cues || cues.length === 0) return
@@ -140,6 +141,7 @@ export function useCueScheduler(): void {
             songId: song.id,
             songTitle: song.title,
             cueId: cue.id,
+            ...(variantId ? { variantId } : {}),
             cueType: cue.type,
             target: outcome.target,
             ok: outcome.ok,
@@ -151,7 +153,7 @@ export function useCueScheduler(): void {
     tick()
     const timer = setInterval(tick, CUE_TICK_MS)
     return () => clearInterval(timer)
-  }, [mode, status, startedAt, accumulatedMs, jump, cues, song, activeEntryStartedAt, logicalDevices, installed, latencyProfiles, deviceId, isMaster])
+  }, [mode, status, startedAt, accumulatedMs, jump, cues, song, variantId, activeEntryStartedAt, logicalDevices, installed, latencyProfiles, deviceId, isMaster])
 
   // When song time 0 lies, in server time - what really changes the moment of a cue. Folding a
   // passed section jump into the anchor (#479) keeps it, so cues sent for the target stay.
