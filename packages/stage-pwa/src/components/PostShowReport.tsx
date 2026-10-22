@@ -1,9 +1,13 @@
-import { useMemo } from 'react'
-import type { ShowLogEvent } from 'shared-types'
+import { useMemo, useState, type ReactNode } from 'react'
+import type { ShowLogEvent, SongVariant } from 'shared-types'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
+import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { Icon } from './Icon'
+import { CueDialog, type CueContent } from './timeline/CueDialog'
+import { ActionMenu } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 function fmtTime(ms: number): string {
@@ -48,6 +52,54 @@ type SongPlayed = Extract<ShowLogEvent, { type: 'song-played' }>
 type CapabilityChanged = Extract<ShowLogEvent, { type: 'capability-changed' }>
 type Note = Extract<ShowLogEvent, { type: 'note' }>
 type CueFired = Extract<ShowLogEvent, { type: 'cue-fired' }>
+
+/** The variant a logged cue belongs to: the one it names, else (older events) the song's variant
+ * that still holds it. Null when the cue is gone from the song. */
+function variantOfCue(event: CueFired, variants: readonly SongVariant[]): SongVariant | null {
+  const holds = (variant: SongVariant) => variant.songId === event.songId && variant.cues.some((cue) => cue.id === event.cueId)
+  return variants.find((variant) => variant.id === event.variantId && holds(variant)) ?? variants.find(holds) ?? null
+}
+
+/**
+ * A fired cue with its ⋯ "Cue anpassen" (#8): the timeline's cue dialog plus the song time
+ * (typed or − / +), saved straight into the variant's cue list - after a show, "the patch change
+ * came a bit late" is fixed where it was noticed.
+ */
+function CueRow({ event, className, children }: { event: CueFired; className: string; children: ReactNode }) {
+  const variants = useSongVariantsStore((state) => state.variants)
+  const saveVariant = useSongVariantsStore((state) => state.saveVariant)
+  const devices = useLogicalDevicesStore((state) => state.devices)
+  const [editing, setEditing] = useState(false)
+  const variant = variantOfCue(event, variants)
+  const cue = variant?.cues.find((candidate) => candidate.id === event.cueId)
+
+  const save = (content: CueContent, timeMs?: number) => {
+    setEditing(false)
+    if (!variant || !cue) return
+    const cues = variant.cues.map((c) => (c.id === cue.id ? { ...content, id: cue.id, timeMs: timeMs ?? cue.timeMs } : c)).sort((a, b) => a.timeMs - b.timeMs)
+    void saveVariant({ ...variant, cues })
+  }
+
+  return (
+    <div className={`flex items-center gap-2 ${className}`}>
+      <span className="min-w-0 flex-1">{children}</span>
+      <ActionMenu
+        title={`Cue ${event.cueType}`}
+        actions={[{ label: cue ? 'Cue anpassen' : 'Cue anpassen (nicht mehr im Song)', disabled: !cue, onClick: () => setEditing(true) }]}
+      />
+      {editing && cue && variant && (
+        <CueDialog
+          title={`Cue in ${event.songTitle}${variant.isDefault ? '' : ` (${variant.label})`}`}
+          devices={devices}
+          initial={cue}
+          initialTimeMs={cue.timeMs}
+          onSubmit={save}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+    </div>
+  )
+}
 
 /**
  * One show: what was played first, then the notes, and the technical events folded into a single
@@ -100,11 +152,11 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
         <div className="mt-4 space-y-1">
           <h3 className="text-xs font-bold uppercase tracking-widest text-danger">Cues fehlgeschlagen ({failedCues.length})</h3>
           {failedCues.map((event) => (
-            <p key={event.id} className="text-sm text-danger">
+            <CueRow key={event.id} event={event} className="text-sm text-danger">
               <Icon name="warning" className="mr-1" />
               {cueLine(event)}
               {event.message ? ` - ${event.message}` : ''}
-            </p>
+            </CueRow>
           ))}
         </div>
       )}
@@ -115,9 +167,9 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
           </summary>
           <div className="space-y-1 text-sm text-ink-soft">
             {cues.map((event) => (
-              <div key={event.id} className={event.ok ? '' : 'text-danger'}>
+              <CueRow key={event.id} event={event} className={event.ok ? '' : 'text-danger'}>
                 {event.ok ? '✓' : '✗'} {cueLine(event)}
-              </div>
+              </CueRow>
             ))}
           </div>
         </details>
