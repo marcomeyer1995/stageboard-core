@@ -127,6 +127,8 @@ function mockShowMode(overrides: {
     setTrackOverride: vi.fn(),
     variantOverride: null,
     setVariantOverride: null,
+    transport: { status: overrides.playbackStatus ?? 'stopped', startedAt: null, accumulatedMs: 0, jump: null },
+    sectionLoop: null,
   })
 }
 
