@@ -117,6 +117,18 @@ export function useShowMode(): ShowModeApi {
   return { ...core, elapsedMs: core.mode === 'practice' ? practiceElapsedMs : gigElapsedMs }
 }
 
+/**
+ * useShowMode() for code that needs the clock only when something happens - a pedal press, a MIDI
+ * button, a planned action: `elapsedMs` is read at the moment it is read, so the caller doesn't
+ * re-render on every frame while a song plays (#457).
+ */
+export function useShowModeOnDemand(): ShowModeApi {
+  const core = useShowModeCore()
+  const api: Record<string, unknown> = { ...core }
+  Object.defineProperty(api, 'elapsedMs', { get: core.elapsedNow, enumerable: true })
+  return api as unknown as ShowModeApi
+}
+
 /** Everything of useShowMode() but the per-frame `elapsedMs` - `elapsedNow()` reads it when asked,
  * so the caller re-renders on song and state changes only (#457). */
 export function useShowModeCore(): Omit<ShowModeApi, 'elapsedMs'> & { elapsedNow: () => number | null } {

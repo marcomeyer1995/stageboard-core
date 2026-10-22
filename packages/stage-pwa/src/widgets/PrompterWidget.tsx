@@ -12,7 +12,8 @@ import { isStandard, stageTuning, soundingKey, tuningLabel, unrecognisedTuningTe
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useChordOffsets } from '../lib/useChordOffsets'
 import { useContentFontSize } from '../lib/useContentFontSize'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
+import { useFrameValue } from '../lib/useFrameValue'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { ContentFontSizeConfigPanel } from './ContentFontSizeConfigPanel'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -57,7 +58,10 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // clock is ShowState-synced (every tablet scrolls off the same value), Practice mode's is
   // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
-  const { queue, elapsedMs, playbackStatus } = useShowMode()
+  // The clock is read per frame below, but the widget re-renders only when the active line or a
+  // countdown second changes; the smooth scroll runs on its own frame loop (#457).
+  const { queue, elapsedNow, playbackStatus } = useShowModeCore()
+  const playing = playbackStatus === 'playing'
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
@@ -112,7 +116,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     !isStandard(tuning) && `Stimmung ${tuningLabel(tuning)}`,
     unrecognisedTuningText(currentVariant),
   ].filter((chip): chip is string => Boolean(chip))
-  const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
+  const activeIndex = useFrameValue(() => currentLineIndex(lines, elapsedNow() ?? 0), playing)
   const pages = useMemo(() => buildPages(lines), [lines])
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]
@@ -131,21 +135,34 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
 
   useEffect(() => {
     if (config.viewMode !== 'scroll') return
-    const container = containerRef.current
-    const activeEl = container?.querySelector<HTMLElement>(`[data-line-index="${activeIndex}"]`)
-    if (!container || !activeEl) return
+    const step = () => {
+      const container = containerRef.current
+      const activeEl = container?.querySelector<HTMLElement>(`[data-line-index="${activeIndex}"]`)
+      if (!container || !activeEl) return
 
-    const containerRect = container.getBoundingClientRect()
-    const activeRect = activeEl.getBoundingClientRect()
-    const target =
-      container.scrollTop +
-      (activeRect.top - containerRect.top) -
-      container.clientHeight / 2 +
-      activeRect.height / 2
+      const containerRect = container.getBoundingClientRect()
+      const activeRect = activeEl.getBoundingClientRect()
+      const target =
+        container.scrollTop +
+        (activeRect.top - containerRect.top) -
+        container.clientHeight / 2 +
+        activeRect.height / 2
 
-    // Smooth Scroll: ease continuously toward the active line every tick.
-    container.scrollTop += (target - container.scrollTop) * 0.08
-  }, [activeIndex, elapsedMs, config.viewMode])
+      // Smooth Scroll: ease continuously toward the active line every tick.
+      container.scrollTop += (target - container.scrollTop) * 0.08
+    }
+    step()
+    if (!playing) return
+    let frame = requestAnimationFrame(function tick() {
+      step()
+      frame = requestAnimationFrame(tick)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeIndex, playing, config.viewMode])
+  const transitionSeconds = useFrameValue(() => {
+    const entry = queue.currentEntry
+    return entry && isTransitionEntry(entry) && entry.estimatedDurationMs !== undefined ? remainingSeconds(entry.estimatedDurationMs, elapsedNow()) : null
+  }, playing)
 
   const currentTransition = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
   if (currentTransition) {
@@ -164,7 +181,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
           <p style={{ fontSize: artistFontSize }} className="text-ink-muted">
             {playbackStatus === 'stopped'
               ? `ca. ${formatItemSeconds(currentTransition.estimatedDurationMs)}`
-              : `noch ${remainingSeconds(currentTransition.estimatedDurationMs, elapsedMs)} s`}
+              : `noch ${transitionSeconds} s`}
           </p>
         ) : null}
         {currentTransition.notes ? (

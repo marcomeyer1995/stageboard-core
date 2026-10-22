@@ -4,7 +4,12 @@ import type { Setlist } from 'shared-types'
 import { ActiveSetlistWidget } from './ActiveSetlistWidget'
 import { useShowMode } from '../lib/showMode'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const useShowMode = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
+  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+})
 
 function mockQueue(activeSetlist: Setlist | null) {
   vi.mocked(useShowMode).mockReturnValue({ queue: { activeSetlist } } as unknown as ReturnType<typeof useShowMode>)

@@ -1,7 +1,7 @@
 import { useShowPart } from '../lib/widgetParts'
 import { CAPABILITIES } from 'shared-types'
 import { MixFaders } from '../components/MixFaders'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { stageFontSize } from '../lib/stageSize'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
 import { useElementSize } from '../lib/useElementSize'
@@ -21,7 +21,7 @@ const VERTICAL_MIN_W = 330
 export function AudioMixWidget({ config }: { config: AudioMixConfig }) {
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showHint = useShowPart('hint')
-  const { mode } = useShowMode()
+  const { mode } = useShowModeCore()
   const click = useCapabilityRouting(CAPABILITIES.clickTrack, mode).engine
   const track = useCapabilityRouting(CAPABILITIES.audioPlayback, mode).engine
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)

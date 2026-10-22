@@ -14,7 +14,7 @@ const show = vi.hoisted(() => ({
   pause: vi.fn(async () => {}),
   stop: vi.fn(async () => {}),
 }))
-vi.mock('./showMode', () => ({ useShowMode: () => show }))
+vi.mock('./showMode', () => ({ useShowMode: () => show, useShowModeOnDemand: () => show }))
 // The executor's other paths (devices, section jumps) and the action picker's device list use
 // stores backed by PouchDB - not needed for the keys here.
 const device = vi.hoisted(() => ({ fireDeviceAction: vi.fn(async () => null) }))

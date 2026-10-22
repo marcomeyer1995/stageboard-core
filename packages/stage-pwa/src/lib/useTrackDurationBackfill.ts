@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { resolveTrackForEntry } from './computeQueue'
 import { measureAudioDurationMs } from './measureAudioDuration'
-import { useShowMode } from './showMode'
+import { useShowModeCore } from './showMode'
 import { getTrack } from './songVariantsDb'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 
@@ -18,7 +18,7 @@ const RETRY_AFTER_MS = 5 * 60 * 1000
  * measurement is retried after a cool-down (and logged), not given up on until a reload.
  */
 export function useTrackDurationBackfill(): void {
-  const { queue, drivesAutomation: canControl, playbackStatus } = useShowMode()
+  const { queue, drivesAutomation: canControl, playbackStatus } = useShowModeCore()
   const items = queue.orderedItems
   const failedAtRef = useRef(new Map<string, number>())
   const busyRef = useRef(false)

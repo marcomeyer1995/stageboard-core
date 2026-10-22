@@ -6,7 +6,12 @@ import { useShowMode } from '../lib/showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
 // Same mocking reasoning as PrompterWidget.test.tsx; the audio start/stop itself is the engine's job.
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const useShowMode = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
+  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+})
 vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn() }))
 vi.mock('../store/usePracticeStateStore', () => ({
   DEFAULT_PRACTICE_STATE: { trackOverride: null },

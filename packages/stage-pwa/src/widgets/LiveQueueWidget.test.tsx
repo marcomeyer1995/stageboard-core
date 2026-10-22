@@ -5,7 +5,12 @@ import { LiveQueueWidget } from './LiveQueueWidget'
 import { useShowMode } from '../lib/showMode'
 import { LONG_PRESS_MS } from '../lib/useLongPress'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const useShowMode = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
+  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+})
 vi.mock('../lib/useContentFontSize', () => ({ useContentFontSize: () => 16 }))
 vi.mock('../components/MasterTakeoverButton', () => ({ MasterTakeoverButton: () => <button type="button">Übernehmen</button> }))
 const saveSetlist = vi.hoisted(() => vi.fn())

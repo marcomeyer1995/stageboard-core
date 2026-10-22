@@ -5,7 +5,12 @@ import { StemsWidget } from './StemsWidget'
 import { useShowMode } from '../lib/showMode'
 import { __resetStemMixForTests, useStemMixStore } from '../lib/stemMix'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const useShowMode = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  const withClock = () => ({ ...useShowMode(), elapsedNow: () => useShowMode()?.elapsedMs ?? null })
+  return { useShowMode, useShowModeCore: withClock, useShowModeOnDemand: () => useShowMode() }
+})
 
 const track = (id: string, label: string, extra: Partial<TrackMeta> = {}): TrackMeta => ({
   id,

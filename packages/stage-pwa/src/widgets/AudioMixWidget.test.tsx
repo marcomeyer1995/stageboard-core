@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: () => ({ mode: 'gig' }) }))
+vi.mock('../lib/showMode', () => ({ useShowMode: () => ({ mode: 'gig' }), useShowModeCore: () => ({ mode: 'gig' }) }))
 vi.mock('../lib/useCapabilityRouting', () => ({ useCapabilityRouting: () => ({ engine: 'remote' }) }))
 vi.mock('../components/MixFaders', () => ({ MixFaders: () => <div data-testid="faders" /> }))
 
