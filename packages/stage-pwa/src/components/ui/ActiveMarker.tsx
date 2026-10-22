@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Badge } from './Badge'
 import { CONTROL } from './styles'
+import { useTranslation } from 'react-i18next'
 
 /**
  * "Active / that's you" (D4): a yellow ring around the row plus a badge at its end - never a
@@ -9,13 +10,14 @@ import { CONTROL } from './styles'
  * frame with a larger corner was cut by the row's corners and left a black strip by the badge
  * (seen on the phone, 2026-10-07).
  */
-export function ActiveMarker({ active, badge = 'Aktiv', children }: { active: boolean; badge?: string; children: ReactNode }) {
+export function ActiveMarker({ active, badge, children }: { active: boolean; badge?: string; children: ReactNode }) {
+  const { t } = useTranslation('common')
   if (!active) return <>{children}</>
   return (
     <div className={`flex items-center overflow-hidden bg-control ring-2 ring-accent ${CONTROL}`}>
       <div className="min-w-0 flex-1">{children}</div>
       <span className="flex-shrink-0 pr-3">
-        <Badge tone="accent">{badge}</Badge>
+        <Badge tone="accent">{badge ?? t('ui.active')}</Badge>
       </span>
     </div>
   )
