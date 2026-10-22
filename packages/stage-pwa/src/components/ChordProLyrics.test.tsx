@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { parseChordPro, type ChordProLine } from '../lib/chordpro'
 import { ChordProLyrics } from './ChordProLyrics'
 
@@ -208,3 +208,54 @@ describe('chord sizes (Marco 2026-10-17)', () => {
   })
 })
 
+
+describe('ChordProLyrics - chord shapes on a chord (#609)', () => {
+  const chord = (name: string) => screen.getAllByText(name).find((el) => el.hasAttribute('data-chord')) as HTMLElement
+
+  it('a mouse click on a chord opens its shape and keys; Esc closes it', () => {
+    render(<ChordProLyrics lines={lines} chordInfo />)
+    fireEvent.pointerDown(chord('Am'), { pointerType: 'mouse' })
+    fireEvent.click(chord('Am'))
+    const popover = screen.getByRole('dialog', { name: 'Akkord Am' })
+    expect(popover).toHaveTextContent('A C E')
+    expect(screen.getByRole('img', { name: 'Griffbild' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('on touch only a long press opens it - and its click does not also move the editor cursor', () => {
+    vi.useFakeTimers()
+    const onSourceTap = vi.fn()
+    // Parsed lines carry their source position - only those report a tap.
+    render(<ChordProLyrics lines={parseChordPro('[G]Hello [C]world')} chordInfo onSourceTap={onSourceTap} />)
+    fireEvent.pointerDown(chord('G'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(chord('G'))
+    fireEvent.click(chord('G'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onSourceTap).toHaveBeenCalledTimes(1)
+
+    fireEvent.pointerDown(chord('G'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(chord('G'))
+    expect(screen.getByRole('dialog', { name: 'Akkord G' })).toBeInTheDocument()
+    expect(onSourceTap).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('a finger that moves is scrolling, not pressing', () => {
+    vi.useFakeTimers()
+    render(<ChordProLyrics lines={lines} chordInfo />)
+    fireEvent.pointerDown(chord('C'), { pointerType: 'touch', clientX: 10, clientY: 10 })
+    fireEvent.pointerMove(chord('C'), { pointerType: 'touch', clientX: 10, clientY: 40 })
+    act(() => vi.advanceTimersByTime(600))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('without chordInfo a chord is plain text', () => {
+    render(<ChordProLyrics lines={lines} />)
+    fireEvent.pointerDown(chord('Am'), { pointerType: 'mouse' })
+    fireEvent.click(chord('Am'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
