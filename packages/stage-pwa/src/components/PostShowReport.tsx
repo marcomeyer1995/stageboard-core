@@ -1,9 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
+import { useActiveProfile } from '../lib/useActiveProfile'
+import { useDialogStore } from '../store/useDialogStore'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
+import { ActionMenu, Button, InfoHint } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 function fmtTime(ms: number): string {
@@ -175,47 +178,130 @@ export function countShowsWithContent(shows: ShowGroup[]): number {
   return shows.filter((show) => !isEmpty(summarize(show))).length
 }
 
-/** One show in the list: a full-width row that opens it; the open one yellow (docs/15 D7). */
-function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolean; onOpen: () => void }) {
+/** One show in the list: a full-width row that opens it; the open one yellow (docs/15 D7). A
+ * protected show carries a lock; in "Bearbeiten" the row gets its ⋯ (#610). */
+function ShowRow({
+  show,
+  selected,
+  locked,
+  actions,
+  onOpen,
+}: {
+  show: ShowGroup
+  selected: boolean
+  locked: boolean
+  actions: { label: string; danger?: boolean; disabled?: boolean; onClick: () => void }[] | null
+  onOpen: () => void
+}) {
   const summary = summarize(show)
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-current={selected ? 'true' : undefined}
-      className={`flex min-h-touch w-full items-center gap-3 px-4 py-2 text-left ${CONTROL} ${FOCUS} ${selected ? SELECTED : `bg-control ${HOVER}`}`}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold">{fmtTime(show.startedAt)}</span>
-        <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
-          {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
-          {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-current={selected ? 'true' : undefined}
+        className={`flex min-h-touch min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${CONTROL} ${FOCUS} ${selected ? SELECTED : `bg-control ${HOVER}`}`}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2 font-semibold">
+            {fmtTime(show.startedAt)}
+            {locked && <Icon name="locked" label="Geschützt" className={selected ? '' : 'text-ink-soft'} />}
+          </span>
+          <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
+            {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
+            {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
+          </span>
+          {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
+          {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} {summary.failedCues === 1 ? 'Cue' : 'Cues'} fehlgeschlagen</span>}
         </span>
-        {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
-        {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} Cues fehlgeschlagen</span>}
-      </span>
-      <Icon name="next" className={selected ? '' : 'text-ink-faint'} />
-    </button>
+        <Icon name="next" className={selected ? '' : 'text-ink-faint'} />
+      </button>
+      {actions && <ActionMenu title={`Show ${fmtTime(show.startedAt)}`} actions={actions} />}
+    </div>
   )
 }
+
+const showCount = (n: number) => `${n} ${n === 1 ? 'Show' : 'Shows'}`
 
 /**
  * The shows in the Bibliothek's "Shows" tab (the former System → Nachbericht, moved 2026-10-16:
  * what the band played belongs beside the setlists). Opened one at a time - all of them open at
  * once were 23 screens after a month of rehearsals. Starts with nothing in them fold away.
+ *
+ * Deleting and protecting only after "Bearbeiten" (#610, Marco 2026-10-22: the Bibliothek has no
+ * edit lock of its own, so the tab gets one) - a stray tap on stage never removes a show.
  */
 export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; selectedId: string | null; onOpen: (showId: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const protectedIds = useShowLogStore((state) => state.protectedShowIds)
+  const setProtected = useShowLogStore((state) => state.setProtected)
+  const deleteShows = useShowLogStore((state) => state.deleteShows)
+  const confirm = useDialogStore((state) => state.confirm)
+  const profile = useActiveProfile()
+  const isProtected = (show: ShowGroup) => protectedIds.includes(show.showId)
   const withContent = shows.filter((show) => !isEmpty(summarize(show)))
   const empty = shows.filter((show) => isEmpty(summarize(show)))
-  const row = (show: ShowGroup) => <ShowRow key={show.showId} show={show} selected={show.showId === selectedId} onOpen={() => onOpen(show.showId)} />
+  const unprotected = shows.filter((show) => !isProtected(show))
+
+  const remove = async (targets: ShowGroup[], title: string) => {
+    if (targets.length === 0) return
+    const ok = await confirm(`${showCount(targets.length)} mit allen Songs, Notizen und Cues löschen - auf allen Geräten der Band. Das lässt sich nicht rückgängig machen.`, {
+      title,
+      confirmLabel: 'Löschen',
+      danger: true,
+    })
+    if (ok) await deleteShows(targets.map((show) => show.showId))
+  }
+  const actionsFor = (show: ShowGroup) =>
+    editing
+      ? [
+          isProtected(show)
+            ? { label: 'Schutz aufheben', onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
+            : { label: 'Schützen', onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
+          { label: isProtected(show) ? 'Löschen (geschützt)' : 'Löschen', danger: true, disabled: isProtected(show), onClick: () => void remove([show], 'Show löschen?') },
+        ]
+      : null
+  const row = (show: ShowGroup) => (
+    <ShowRow
+      key={show.showId}
+      show={show}
+      selected={show.showId === selectedId}
+      locked={isProtected(show)}
+      actions={actionsFor(show)}
+      onOpen={() => onOpen(show.showId)}
+    />
+  )
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-ink-muted">Automatisch erfasst: wann eine Show begann, welche Songs wirklich gespielt wurden (mindestens 20 Sekunden aktiv), technische Ereignisse und Notizen von Band und Crew.</p>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-1 text-sm text-ink-muted">
+          Automatisch erfasst
+          <InfoHint
+            label="Erklärung: Shows"
+            text="Wann eine Show begann, welche Songs wirklich gespielt wurden (mindestens 20 Sekunden aktiv), technische Ereignisse und Notizen von Band und Crew."
+          />
+        </span>
+        {shows.length > 0 && <Button onClick={() => setEditing(!editing)}>{editing ? 'Fertig' : 'Bearbeiten'}</Button>}
+        {editing && (
+          <ActionMenu
+            scope="page"
+            title="Shows"
+            actions={[
+              {
+                label: `Alle ungeschützten löschen (${unprotected.length})`,
+                danger: true,
+                disabled: unprotected.length === 0,
+                onClick: () => void remove(unprotected, 'Alle ungeschützten Shows löschen?'),
+              },
+            ]}
+          />
+        )}
+      </div>
       {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
       {withContent.map(row)}
       {empty.length > 0 && (
-        <details>
+        <details open={editing || undefined}>
           <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">Ohne gespielte Songs ({empty.length})</summary>
           <div className="flex flex-col gap-2">{empty.map(row)}</div>
         </details>

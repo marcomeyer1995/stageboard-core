@@ -88,3 +88,60 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
     expect(screen.getByText('Ohne gespielte Songs (1)')).toBeInTheDocument()
   })
 })
+
+const { useDialogStore } = await import('../store/useDialogStore')
+
+describe('Shows tab - delete and protect (#610)', () => {
+  const start = (showId: string, at: number): ShowLogEvent => ({ id: `start-${showId}`, showId, type: 'show-started', at })
+  const played = (showId: string, at: number): ShowLogEvent =>
+    ({ id: `p-${showId}`, showId, type: 'song-played', at: at + 1000, endedAt: at + 100_000, songId: 'x', songTitle: 'Tush', activeMs: 60_000 }) as ShowLogEvent
+
+  function setup(protectedShowIds: string[]) {
+    useProfilesStore.setState({ profiles: [] })
+    const setProtected = vi.fn(async () => undefined)
+    const deleteShows = vi.fn(async (ids: readonly string[]) => ids.length)
+    useShowLogStore.setState({
+      events: [start('a', t0), played('a', t0), start('b', t0 + 1e7), played('b', t0 + 1e7), start('c', t0 + 2e7), played('c', t0 + 2e7)],
+      protectedShowIds,
+      setProtected,
+      deleteShows,
+    } as never)
+    const confirm = vi.fn(async () => true)
+    useDialogStore.setState({ confirm } as never)
+    render(<Shows />)
+    return { setProtected, deleteShows, confirm }
+  }
+
+  it('offers nothing to delete or protect until "Bearbeiten"; a protected show shows its lock anyway', () => {
+    setup(['b'])
+    expect(screen.queryByRole('button', { name: /^Menü: Show \d/ })).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText('Geschützt')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    expect(screen.getAllByRole('button', { name: /^Menü: Show \d/ })).toHaveLength(3)
+  })
+
+  it('deletes one show after the in-app confirm; a protected one cannot be deleted, only unprotected', async () => {
+    const { deleteShows, setProtected, confirm } = setup(['b'])
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    const menus = screen.getAllByRole('button', { name: /^Menü: Show \d/ })
+    // Newest first: c, b, a.
+    fireEvent.click(menus[1])
+    expect(screen.getByRole('button', { name: 'Löschen (geschützt)' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Schutz aufheben' }))
+    expect(setProtected).toHaveBeenCalledWith('b', false, null)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Menü: Show \d/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['c']))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 Show'), expect.objectContaining({ danger: true }))
+  })
+
+  it('"Alle ungeschützten löschen" leaves the protected show out and names the count', async () => {
+    const { deleteShows, confirm } = setup(['b'])
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Shows' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Alle ungeschützten löschen (2)' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['c', 'a']))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2 Shows'), expect.anything())
+  })
+})
