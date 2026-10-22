@@ -1,10 +1,12 @@
 {
   "openMenu": "Open menu",
   "openDashboards": "Dashboards",
+  "loopStop": "Stop loop",
   "state": {
     "ready": "Ready",
     "countIn": "Count-in",
     "playing": "Playing",
+    "loop": "Loop",
     "paused": "Paused",
     "finished": "Finished",
     "audioError": "Audio error",
