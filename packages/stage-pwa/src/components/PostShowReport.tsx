@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import type { ShowLogEvent } from 'shared-types'
+import { pauseBefore } from '../lib/showPauses'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
+import { InfoHint } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 
 function fmtTime(ms: number): string {
@@ -45,6 +47,12 @@ function groupByShow(events: ShowLogEvent[]): ShowGroup[] {
 }
 
 type SongPlayed = Extract<ShowLogEvent, { type: 'song-played' }>
+
+/** "+0:08" / "-0:12" - how far the actual ran from the plan. */
+function fmtDiff(ms: number): string {
+  return `${ms < 0 ? '-' : '+'}${fmtDuration(Math.abs(ms))}`
+}
+
 type CapabilityChanged = Extract<ShowLogEvent, { type: 'capability-changed' }>
 type Note = Extract<ShowLogEvent, { type: 'note' }>
 type CueFired = Extract<ShowLogEvent, { type: 'cue-fired' }>
@@ -63,25 +71,45 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
   const failedCues = cues.filter((event) => !event.ok)
   const cueLine = (event: CueFired) => `${fmtClock(event.at)} · ${event.songTitle} · ${event.cueType} → ${event.target}`
   const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
+  const longPauses = songs.slice(1).filter((song, i) => pauseBefore(songs[i], song).tooLong).length
 
   return (
     <>
       <h2 className="text-xl font-bold">{fmtTime(show.startedAt)}</h2>
-      <p className="mb-3 text-sm text-ink-muted">
+      <p className="mb-3 flex flex-wrap items-center gap-x-1 text-sm text-ink-muted">
         {songs.length} {songs.length === 1 ? 'Song' : 'Songs'} · {fmtDuration(playedMs)} gespielt
+        {longPauses > 0 && <span className="font-semibold text-warn"> · {longPauses} {longPauses === 1 ? 'Pause' : 'Pausen'} zu lang</span>}
+        <InfoHint
+          label="Erklärung: geplant und gespielt"
+          text="Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant."
+        />
       </p>
       <div className="space-y-1 text-base">
-        {songs.map((event, index) => (
-          <div key={event.id} className="flex items-center justify-between gap-2">
-            <span>
-              <span className="mr-2 text-ink-faint">{index + 1}.</span>
-              {event.songTitle}
-            </span>
-            <span className="whitespace-nowrap text-sm text-ink-faint">
-              {new Date(event.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {fmtDuration(event.activeMs)}
-            </span>
-          </div>
-        ))}
+        {songs.map((event, index) => {
+          const pause = index > 0 ? pauseBefore(songs[index - 1], event) : null
+          return (
+            <div key={event.id}>
+              {/* Planned vs. actual (#64): the pause before, marked when it ran too long. */}
+              {pause && (
+                <p className={`pl-6 text-sm ${pause.tooLong ? 'font-semibold text-warn' : 'text-ink-faint'}`}>
+                  Pause {fmtDuration(pause.ms)}
+                  {pause.plannedMs !== null && ` · geplant ${fmtDuration(pause.plannedMs)}`}
+                  {pause.tooLong && pause.plannedMs !== null && ` (${fmtDiff(pause.ms - pause.plannedMs)})`}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  <span className="mr-2 text-ink-faint">{index + 1}.</span>
+                  {event.songTitle}
+                </span>
+                <span className="whitespace-nowrap text-sm text-ink-faint">
+                  {new Date(event.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {fmtDuration(event.activeMs)}
+                  {event.plannedMs !== undefined && ` (${fmtDiff(event.activeMs - event.plannedMs)})`}
+                </span>
+              </div>
+            </div>
+          )
+        })}
         {songs.length === 0 && <p className="text-sm text-ink-faint">Kein Song lange genug gespielt.</p>}
       </div>
       {notes.length > 0 && (
