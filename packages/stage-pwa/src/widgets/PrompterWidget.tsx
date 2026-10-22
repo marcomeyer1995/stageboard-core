@@ -1,6 +1,6 @@
 import { Segmented } from '../components/ui'
 import { useShowPart } from '../lib/widgetParts'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds, remainingSeconds } from '../lib/formatItemDuration'
 import { ChordOffsetControls } from '../components/ChordOffsetControls'
@@ -68,7 +68,8 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // device's active profile, and the whole roster (so a typo'd/stale target name still fails
   // open instead of silently vanishing forever, see commentVisibleTo's own doc comment).
   const activeProfile = useActiveProfile()
-  const rosterNames = useProfilesStore((state) => state.profiles).map((profile) => profile.name)
+  const profiles = useProfilesStore((state) => state.profiles)
+  const rosterNames = useMemo(() => profiles.map((profile) => profile.name), [profiles])
 
   // The setlist may have picked a non-default variant for this song (different lyrics/BPM),
   // so the actual content to render comes from the variant, not the Song mirror - see
@@ -86,13 +87,21 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // The variant's band-wide transpose, played and chart tuning (lib/pitch.ts), plus this device's own
   // transpose/capo shift (#59) - applied to the chords only (line count and indices stay
   // identical, so pagination and scrolling are unaffected).
-  const lines = currentSong
-    ? transposeLines(
-        parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, activeProfile?.name, rosterNames)),
-        variantChordShift(currentVariant) + offsets.chordShift,
-        baseKey,
-      )
-    : []
+  // Parsed once per song, variant and shift - not on every frame the clock re-renders this (#457).
+  const hasSong = currentSong !== null
+  const shift = variantChordShift(currentVariant) + offsets.chordShift
+  const profileName = activeProfile?.name
+  const lines = useMemo(
+    () =>
+      hasSong
+        ? transposeLines(
+            parseChordPro(chordProContent).filter((line) => commentVisibleTo(line.commentTargets, profileName, rosterNames)),
+            shift,
+            baseKey,
+          )
+        : [],
+    [hasSong, chordProContent, profileName, rosterNames, shift, baseKey],
+  )
 
   // Key/Tuning/Capo (#410, Marco): no line of their own any more. The key is on the "Tonart"
   // button; capo and a tuning that isn't standard are small chips next to it in the header -
@@ -104,7 +113,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
     unrecognisedTuningText(currentVariant),
   ].filter((chip): chip is string => Boolean(chip))
   const activeIndex = currentLineIndex(lines, elapsedMs ?? 0)
-  const pages = buildPages(lines)
+  const pages = useMemo(() => buildPages(lines), [lines])
   const pageIndex = currentPageIndex(pages, activeIndex)
   const page = pages[pageIndex]
 

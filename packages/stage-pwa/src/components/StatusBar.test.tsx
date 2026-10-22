@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { StatusBar } from './StatusBar'
 import { useShowMode } from '../lib/showMode'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const useShowMode = vi.fn()
+  // The bar reads the core and the clock per frame (#457) - the same mocked show.
+  return { useShowMode, useShowModeCore: () => ({ ...useShowMode(), elapsedNow: () => useShowMode().elapsedMs }) }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p', name: 'Marco' }) }))
 vi.mock('../lib/useNow', () => ({ useNow: () => new Date('2026-09-27T21:07:00').getTime() }))
 const stores = vi.hoisted(() => ({ masterHolderId: 'tablet' as string | null, audioError: null as string | null }))
@@ -95,7 +99,8 @@ describe('StatusBar (PR F2)', () => {
   })
 
   it('keeps the bar calm blue and flashes only the count block on each count-in beat', () => {
-    // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms.
+    // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms. The bar reads the clock per frame (#457).
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
     mockShow('playing', -1_450)
     const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('count-in')
@@ -107,10 +112,12 @@ describe('StatusBar (PR F2)', () => {
 
     mockShow('playing', -1_200)
     rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    act(() => vi.advanceTimersToNextFrame())
     expect(bar().className).toContain('bg-state-count-in')
     expect(screen.getByRole('status').dataset.flash).toBe('false')
     // Time counts down cleanly, never "-0:00".
     expect(bar().textContent).toContain('-0:02 / 3:00')
+    vi.useRealTimers()
   })
 
   it('turns "Beendet" (magenta) when the shared state says the track ran out - not after a plain Stop', () => {
