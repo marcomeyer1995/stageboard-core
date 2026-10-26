@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import { CAPABILITIES } from 'shared-types'
 import { entryTransitionType } from './trackEndTransition'
@@ -16,6 +16,7 @@ import { triggerShowControl } from './showControlClient'
 import {
   loadWebAudioTrack,
   preloadWebAudioTrack,
+  setWebAudioTrackLevelCurve,
   syncWebAudioTrack,
   type TrackJump,
   unloadWebAudioTrack,
@@ -27,6 +28,8 @@ import { useShowMode } from './showMode'
 import { getServerTime } from './clockSync'
 import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
+import { clickTimeline } from './beatGrid'
+import { trackLevelCurve } from './playbackCues'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -51,6 +54,19 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function useAudioOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowMode()
   const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
+
+  // Track level, fades and mute by cue (#485): the curve over the song, played by the Web Audio
+  // engine. Fades in beats and bars follow the song's own grid (the track's tempo - a live tempo
+  // nudge changes only the click).
+  const songBpm = queue.currentArrangement?.bpm
+  const songMeter = queue.currentArrangement?.timeSignature
+  const levelCues = currentVariant?.cues
+  const levelGrid = currentVariant?.beatGrid
+  const levelCurve = useMemo(
+    () => trackLevelCurve(levelCues ?? [], songBpm && songMeter ? clickTimeline({ beatGrid: levelGrid, bpm: songBpm, timeSignature: songMeter }) : null),
+    [levelCues, levelGrid, songBpm, songMeter],
+  )
+  useEffect(() => setWebAudioTrackLevelCurve(levelCurve), [levelCurve])
 
   // Kept fresh every render without being a dependency of the load/play effects below (same
   // reasoning as useClickOutputDriver.ts's stateRef) - those must fire only on a genuine
