@@ -14,6 +14,7 @@ import { putSetlist } from './setlistsDb'
 import { showSections } from './showSections'
 import { deleteTrackFile } from './audioClient'
 import { putTrack, putVariant } from './songVariantsDb'
+import { runAnalysisCheck } from './rigCheckAnalysis'
 import {
   buildRigCheckSong,
   encodeWav,
@@ -226,6 +227,7 @@ export async function cancelRigCheck(): Promise<void> {
 async function finishRun(run: RigCheckRun, state: ShowState): Promise<void> {
   const completed = state.activeSetlistId === RIG_CHECK_SETLIST_ID && state.trackEnded === true
   await saveRun({ ...run, endedAt: Math.round(getServerTime()), ...(completed ? {} : { cancelled: true }) })
+  if (completed && run.kind === 'full') void attachAnalysis(run.showId)
   // Somebody already switched to a real setlist or song - leave that alone.
   if (state.activeSetlistId !== RIG_CHECK_SETLIST_ID) return
   const previous = run.previous
@@ -238,6 +240,19 @@ async function finishRun(run: RigCheckRun, state: ShowState): Promise<void> {
     currentShowId: previous?.currentShowId ?? null,
     lastActivityAt: previous?.lastActivityAt ?? null,
   })
+}
+
+/** A completed full run gets the analysis check (docs/24 §6), computed in a worker on the device
+ * that ran it and stored with the run - the Nachbericht shows it beside the devices. */
+async function attachAnalysis(runId: string): Promise<void> {
+  if (typeof Worker === 'undefined') return
+  try {
+    const analysis = await runAnalysisCheck('full')
+    const run = useShowLogStore.getState().events.find((e): e is RigCheckRun => isRun(e) && e.showId === runId)
+    if (run) await saveRun({ ...run, analysis })
+  } catch (err) {
+    console.error('Rig-Check: analysis check failed', err)
+  }
 }
 
 /** The variant's sections and the jump target, from the generated song (the ground truth). */

@@ -1,5 +1,6 @@
 import type { ShowLogEvent } from 'shared-types'
 import { rigCheckLabel, runReports, type RigCheckRun } from '../lib/rigCheck'
+import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { RigCheckDeviceRow } from './RigCheckView'
 
 /**
@@ -24,6 +25,12 @@ export function RigCheckReport({ events }: { events: readonly ShowLogEvent[] }) 
             <RigCheckDeviceRow key={report.id} report={report} showVerdict />
           ))}
         </ul>
+      )}
+      {run.analysis && (
+        <>
+          <h4 className="text-base font-bold text-ink">Analyse-Prüfung</h4>
+          <RigCheckAnalysis check={run.analysis} />
+        </>
       )}
     </section>
   )

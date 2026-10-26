@@ -142,3 +142,23 @@ describe('RigCheckVerdict', () => {
     expect(screen.queryByText('Rig-Check: alles in Ordnung?')).toBeNull()
   })
 })
+
+describe('RigCheckAnalysis', async () => {
+  const { RigCheckAnalysis } = await import('./RigCheckAnalysis')
+  const section = (name: string, overrides: object = {}) => ({ name, label: name, beats: 32, hitRate: 1, meanAbsMs: 4, maxAbsMs: 9, slipRate: 0, knownLimit: null, ...overrides })
+
+  it('shows per section how close the click is, and where the bars slipped', () => {
+    render(
+      <RigCheckAnalysis
+        check={{
+          refine: { bpm: 120, gridPoints: 8, sections: [section('Gleichmäßig 120'), section('Sprung auf 140', { hitRate: 0, meanAbsMs: 78, maxAbsMs: 135, slipRate: 1 }), section('Pause', { beats: 0, knownLimit: 'silent' })] },
+          detect: null,
+        }}
+      />,
+    )
+    expect(screen.getByText('100 % ≤ 15 ms')).toBeInTheDocument()
+    expect(screen.getByText('Takt verschoben (100 %)')).toBeInTheDocument()
+    expect(screen.getByText('Nichts erkannt.')).toBeInTheDocument()
+    expect(screen.getAllByText('Pause')).toHaveLength(2)
+  })
+})

@@ -7,6 +7,25 @@ import { z } from 'zod'
  */
 const CapabilityStatusValueSchema = z.enum(['available', 'degraded', 'missing'])
 
+/** One editor analysis path scored against the Rig-Check's ground truth (#464, docs/24 §6). */
+export const RigCheckPathScoreSchema = z.object({
+  bpm: z.number().nullable(),
+  gridPoints: z.number().int().nonnegative(),
+  sections: z.array(
+    z.object({
+      name: z.string(),
+      label: z.string(),
+      beats: z.number().int().nonnegative(),
+      hitRate: z.number(),
+      meanAbsMs: z.number(),
+      maxAbsMs: z.number(),
+      slipRate: z.number(),
+      knownLimit: z.enum(['change-in-bar', 'silent']).nullable(),
+    }),
+  ),
+})
+export type RigCheckPathScore = z.infer<typeof RigCheckPathScoreSchema>
+
 /**
  * One event in a show's history. A "show" is simply every event sharing one `showId` -
  * there is no separate summary document, so there's nothing to keep in sync.
@@ -86,6 +105,14 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     endedAt: z.number().int().nonnegative().optional(),
     /** Ended with Abbrechen before or while it played. */
     cancelled: z.boolean().optional(),
+    /** The analysis check of a full run (docs/24 §6, rigCheckAnalysis.ts), per editor path. */
+    analysis: z
+      .object({
+        sampleRate: z.number().int().positive(),
+        detect: RigCheckPathScoreSchema.nullable(),
+        refine: RigCheckPathScoreSchema.nullable(),
+      })
+      .optional(),
     previous: z
       .object({
         activeSetlistId: z.string().nullable(),
