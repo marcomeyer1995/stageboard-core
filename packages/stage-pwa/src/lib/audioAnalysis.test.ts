@@ -108,14 +108,15 @@ describe('detectFirstOnset', () => {
 })
 
 describe('detectTempo', () => {
-  // Quantization from the 15ms hop means the recovered bpm is never exact for an arbitrary
-  // tempo - a few bpm of tolerance is expected and fine, the result is always shown to the
-  // user in an editable field afterward.
+  // Between two frames since 2026-10-27 (parabolic peak): a whole-frame lag gave 121.2 for 120 and
+  // 111.1 for 109.8 (15 ms hop) - a grid 160 ms off after 8 bars. Within 1 BPM now on 20 s of clicks.
   const cases: Array<[nominalBpm: number, toleranceBpm: number]> = [
-    [120, 3],
+    [120, 1],
     [80, 1],
-    [140, 3],
+    [140, 1],
     [174, 1],
+    [101.2, 1],
+    [109.8, 1],
   ]
   for (const [bpm, tolerance] of cases) {
     it(`recovers close to ${bpm} BPM from a regular click train at that tempo`, () => {
