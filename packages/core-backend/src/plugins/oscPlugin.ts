@@ -1,5 +1,5 @@
 import { createSocket, type Socket } from 'node:dgram'
-import { DeviceTransportConfigSchema, type IShowControlPlugin, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
+import { DeviceTransportConfigSchema, type IShowControlPlugin, type OscInMessage, type PluginContext, type ShowControlEvent, type ShowControlResult } from 'shared-types'
 
 /**
  * Generic OSC sender (#484): cues to lighting and video software (QLC+, Resolume, ProPresenter,
@@ -121,5 +121,59 @@ export function createOscPlugin(): IShowControlPlugin {
         return { status: 'error', message: `OSC an ${target.host}:${target.port} fehlgeschlagen: ${message}` }
       }
     },
+  }
+}
+
+/** Reads an OSC string at `offset`: its text and where the next field starts (4-byte aligned). */
+function readOscString(buf: Buffer, offset: number): { value: string; next: number } {
+  const end = buf.indexOf(0, offset)
+  if (end < 0) throw new Error('unterminated OSC string')
+  return { value: buf.toString('utf8', offset, end), next: offset + Math.ceil((end - offset + 1) / 4) * 4 }
+}
+
+/**
+ * The messages in a received OSC packet (#484, OSC in): one message, or a `#bundle` of them
+ * (nested bundles too). Arguments int, float, string, true/false; other types end the message's
+ * arguments (rare from controllers, and a trigger only needs the first). A broken packet: none.
+ */
+export function decodeOscPacket(buf: Buffer): Omit<OscInMessage, 'at'>[] {
+  try {
+    if (buf.toString('ascii', 0, 8) === '#bundle\0') {
+      const out: Omit<OscInMessage, 'at'>[] = []
+      let offset = 16 // "#bundle\0" + 8-byte time tag
+      while (offset + 4 <= buf.length) {
+        const size = buf.readInt32BE(offset)
+        offset += 4
+        if (size <= 0 || offset + size > buf.length) break
+        out.push(...decodeOscPacket(buf.subarray(offset, offset + size)))
+        offset += size
+      }
+      return out
+    }
+    const address = readOscString(buf, 0)
+    if (!address.value.startsWith('/')) return []
+    if (address.next >= buf.length) return [{ address: address.value, args: [] }]
+    const tags = readOscString(buf, address.next)
+    if (!tags.value.startsWith(',')) return [{ address: address.value, args: [] }]
+    const args: (number | string | boolean)[] = []
+    let offset = tags.next
+    for (const tag of tags.value.slice(1)) {
+      if (tag === 'i') {
+        args.push(buf.readInt32BE(offset))
+        offset += 4
+      } else if (tag === 'f') {
+        args.push(Math.round(buf.readFloatBE(offset) * 1e6) / 1e6)
+        offset += 4
+      } else if (tag === 's') {
+        const s = readOscString(buf, offset)
+        args.push(s.value)
+        offset = s.next
+      } else if (tag === 'T') args.push(true)
+      else if (tag === 'F') args.push(false)
+      else break
+    }
+    return [{ address: address.value, args }]
+  } catch {
+    return []
   }
 }

@@ -415,6 +415,19 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     hardwareIds: [],
   },
   {
+    id: 'osc-input',
+    name: 'OSC-Eingang (Trigger)',
+    version: '0.1.0',
+    // OSC as a trigger (#484, docs/23 §4): a controller (TouchOSC, a lighting desk, a Stream Deck)
+    // sends to the Stage-Server's OSC port (8000); its buttons fire actions like a pedal or a MIDI
+    // controller - "Knöpfe belegen" in Bühnentechnik. A transport without fields: the server's port
+    // is fixed (STAGEBOARD_OSC_IN_PORT) - it makes this a driver, offered as a device type.
+    runtime: 'server',
+    capabilities: ['osc-input'],
+    transports: [{ id: 'network-osc-in', label: 'Netzwerk (OSC an den Stage-Server)', fields: [] }],
+    hardwareIds: [],
+  },
+  {
     id: 'stem-separation',
     name: 'Spuren trennen (Stems)',
     version: '0.0.1',

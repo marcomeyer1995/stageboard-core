@@ -61,6 +61,12 @@ export function trackLatestShow(show: Show): void {
 }
 const current = (show: Show): Show => latestShow ?? show
 
+/** The show as the pedal hook last saw it - for a trigger that arrives from outside React (OSC,
+ * #484) without re-rendering on every frame itself. Null before the first render. */
+export function latestTrackedShow(): Show | null {
+  return latestShow
+}
+
 /**
  * Runs an action at a server-time moment: a device command handed over ahead with its moment and
  * its output's latency, like a cue (docs/21 §3); anything else by a timer. Returns how to call

@@ -2,7 +2,7 @@ import { createSocket } from 'node:dgram'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PluginContext } from 'shared-types'
-import { createOscPlugin, encodeOscMessage, isOscAddress, oscTargetFromConfig, parseOscArgs, setOscTargetResolver } from './oscPlugin.js'
+import { createOscPlugin, decodeOscPacket, encodeOscMessage, isOscAddress, oscTargetFromConfig, parseOscArgs, setOscTargetResolver } from './oscPlugin.js'
 
 const context = (): PluginContext => ({ log: { info: vi.fn(), error: vi.fn() } })
 
@@ -89,5 +89,34 @@ describe('OSC target from the device\'s transport config', () => {
     expect(oscTargetFromConfig(config({ host: 'qlc.local' }))).toBeNull()
     expect(oscTargetFromConfig(config({ host: 'qlc.local', port: '70000' }))).toBeNull()
     expect(oscTargetFromConfig(config({ host: '', port: '7700' }))).toBeNull()
+  })
+})
+
+describe('OSC in: decoding what a controller sends (#484)', () => {
+  it('reads back what the sender encodes - address and typed values', () => {
+    const packet = encodeOscMessage('/1/push1', [{ type: 'f', value: 1 }, { type: 'i', value: -2 }, { type: 's', value: 'Chorus' }, { type: 'T' }, { type: 'F' }])
+    expect(decodeOscPacket(packet)).toEqual([{ address: '/1/push1', args: [1, -2, 'Chorus', true, false] }])
+  })
+
+  it('a message without arguments, with an empty type tag, and garbage', () => {
+    expect(decodeOscPacket(Buffer.from([...Buffer.from('/go'), 0]))).toEqual([{ address: '/go', args: [] }])
+    expect(decodeOscPacket(encodeOscMessage('/go', []))).toEqual([{ address: '/go', args: [] }])
+    expect(decodeOscPacket(Buffer.from('hello world'))).toEqual([])
+    expect(decodeOscPacket(Buffer.from([0x2f, 0x61]))).toEqual([]) // unterminated
+  })
+
+  it('unpacks a bundle (TouchOSC sends some that way)', () => {
+    const a = encodeOscMessage('/a', [{ type: 'i', value: 1 }])
+    const b = encodeOscMessage('/b', [{ type: 'f', value: 0 }])
+    const size = (m: Buffer) => {
+      const s = Buffer.alloc(4)
+      s.writeInt32BE(m.length)
+      return s
+    }
+    const bundle = Buffer.concat([Buffer.from('#bundle\0'), Buffer.alloc(8), size(a), a, size(b), b])
+    expect(decodeOscPacket(bundle)).toEqual([
+      { address: '/a', args: [1] },
+      { address: '/b', args: [0] },
+    ])
   })
 })

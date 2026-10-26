@@ -8,6 +8,7 @@ import { useCueScheduler } from '../lib/useCueScheduler'
 import { useFootswitch } from '../lib/useFootswitch'
 import { useMidiClock } from '../lib/useMidiClock'
 import { useMidiControllers } from '../lib/useMidiControllers'
+import { useOscInput } from '../lib/useOscInput'
 import { useSwitchSync } from '../lib/switchSync'
 import { useMasterSelfCheck } from '../lib/useMasterSelfCheck'
 import { useSongAlerts } from '../lib/useSongAlerts'
@@ -32,6 +33,7 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useFootswitch(footswitchActive)
   // Buttons of MIDI controllers plugged in here (#547): the same actions as pedal keys.
   useMidiControllers()
+  useOscInput()
   // Switch states band-wide (docs/23 §11.5): a held blinder lights its button on every tablet.
   useSwitchSync()
   // Song alerts `{alert: ...}` flash on this device when the song passes them (#26).
