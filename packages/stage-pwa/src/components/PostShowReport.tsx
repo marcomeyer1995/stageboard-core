@@ -5,6 +5,8 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
+import { RigCheckReport } from './RigCheckReport'
+import { rigCheckLabel } from '../lib/rigCheck'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -38,6 +40,8 @@ function groupByShow(events: ShowLogEvent[]): ShowGroup[] {
   }
   const groups: ShowGroup[] = []
   for (const [showId, showEvents] of byShow) {
+    // A Rig-Check that was only prepared, never played (#464) is no show.
+    if (showEvents.some((event) => event.type === 'rig-check-run' && event.startedAt === undefined)) continue
     const start = showEvents.find((event) => event.type === 'show-started')
     groups.push({ showId, startedAt: start?.at ?? showEvents[0].at, events: showEvents })
   }
@@ -178,6 +182,7 @@ export function countShowsWithContent(shows: ShowGroup[]): number {
 /** One show in the list: a full-width row that opens it; the open one yellow (docs/15 D7). */
 function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolean; onOpen: () => void }) {
   const summary = summarize(show)
+  const rigCheck = rigCheckLabel(show.events)
   return (
     <button
       type="button"
@@ -186,7 +191,10 @@ function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolea
       className={`flex min-h-touch w-full items-center gap-3 px-4 py-2 text-left ${CONTROL} ${FOCUS} ${selected ? SELECTED : `bg-control ${HOVER}`}`}
     >
       <span className="min-w-0 flex-1">
-        <span className="block font-semibold">{fmtTime(show.startedAt)}</span>
+        <span className="block font-semibold">
+          {fmtTime(show.startedAt)}
+          {rigCheck && ` · ${rigCheck}`}
+        </span>
         <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
           {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
           {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
@@ -238,6 +246,7 @@ export function ShowDetail({ showId }: { showId: string }) {
   if (!show) return <p className="text-ink-faint">Show wurde entfernt.</p>
   return (
     <div className="text-ink">
+      <RigCheckReport events={show.events} />
       <ShowSections show={show} authorName={authorName} />
     </div>
   )

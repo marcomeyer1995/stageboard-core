@@ -20,7 +20,7 @@ import { FlashSettings } from './FlashSettings'
  * hard to find the right clusters"). A card with a real heading and one sentence of purpose;
  * `shared` marks the group whose settings affect every device of the band, set apart in colour.
  */
-function Group({
+export function Group({
   title,
   info,
   shared = false,
@@ -60,7 +60,7 @@ function Section({ title, info, children }: { title: string; info?: string; chil
 }
 
 /** One System tab's page: its title, one sentence of what it covers, its groups. */
-function Page({ title, info, children }: { title: string; info: string; children: ReactNode }) {
+export function Page({ title, info, children }: { title: string; info: string; children: ReactNode }) {
   return (
     <div className="flex max-w-3xl flex-col gap-4 p-4">
       <header className="flex min-w-0 items-center gap-1">

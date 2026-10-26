@@ -81,8 +81,10 @@ export function rehearsalStats(events: readonly ShowLogEvent[], window: Rehearsa
   if (window.kind === 'days') {
     inWindow = (event) => now - event.at <= window.days * DAY_MS
   } else {
+    // A Rig-Check (#464) is no show of the band - it must not push a real one out of the window.
+    const rigChecks = new Set(events.filter((event) => event.type === 'rig-check-run').map((event) => event.showId))
     const showEnd = new Map<string, number>()
-    for (const event of events) showEnd.set(event.showId, Math.max(showEnd.get(event.showId) ?? 0, event.at))
+    for (const event of events) if (!rigChecks.has(event.showId)) showEnd.set(event.showId, Math.max(showEnd.get(event.showId) ?? 0, event.at))
     const recent = new Set([...showEnd.entries()].sort((a, b) => b[1] - a[1]).slice(0, window.shows).map(([showId]) => showId))
     inWindow = (event) => recent.has(event.showId)
   }

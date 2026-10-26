@@ -6,10 +6,10 @@ import { previewSpeech, type ClipVoice } from '../lib/speechClips'
 import { ANNOUNCEMENTS_PLUGIN, bandAnnouncementSettings, bandSpeechVoice } from '../lib/speechVoices'
 import { usePluginsStore } from '../store/usePluginsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
-import { useSongsStore } from '../store/useSongsStore'
 import { AnnouncementSettings as AnnouncementsOnHere } from './AnnouncementSettings'
 import { COUNT_IN_CUE_PRESETS, CuePatternEditor, PART_CUE_PRESETS } from './CuePatternEditor'
 import { Button, Dialog, Field, Section, Select, Switch } from './ui'
+import { useVisibleSongs } from '../lib/visibleCatalog'
 
 const METERS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8']
 
@@ -21,7 +21,7 @@ const METERS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8']
 export function AnnouncementTextsDialog({ onClose }: { onClose: () => void }) {
   const installed = usePluginsStore((state) => state.installed)
   const updateSettings = usePluginsStore((state) => state.updateSettings)
-  const songs = useSongsStore((state) => state.songs)
+  const songs = useVisibleSongs()
   const variants = useSongVariantsStore((state) => state.variants)
   const settings = bandAnnouncementSettings(installed)
   const voice = bandSpeechVoice(installed)

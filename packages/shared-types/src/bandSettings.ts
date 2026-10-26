@@ -21,5 +21,10 @@ export const BandSettingsSchema = z.object({
   id: z.literal('band'),
   rehearsalWindow: RehearsalWindowSchema.optional(),
   commentTemplates: z.array(z.string().min(1)).optional(),
+  /** What each device gets at the Rig-Check's cue times (#464, docs/24 §3): one ready-made command
+   * per device; a device without one is left alone. */
+  rigCheckCues: z
+    .array(z.object({ targetLogicalDeviceId: z.string().min(1), type: z.string().min(1), payload: z.record(z.string(), z.unknown()) }))
+    .optional(),
 })
 export type BandSettings = z.infer<typeof BandSettingsSchema>

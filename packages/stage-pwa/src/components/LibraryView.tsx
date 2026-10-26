@@ -45,6 +45,7 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
 import { useLibraryPrefsStore } from '../store/useLibraryPrefsStore'
 import { useActiveProfile } from '../lib/useActiveProfile'
+import { useVisibleSetlists, useVisibleSongs } from '../lib/visibleCatalog'
 
 type Selection =
   | { type: 'setlist'; id: string }
@@ -302,11 +303,11 @@ function DraggableSongRow({
  * (Marco, explicit request: "as it is for the Setlists").
  */
 export function LibraryView() {
-  const songs = useSongsStore((state) => state.songs)
+  const songs = useVisibleSongs()
   const saveSong = useSongsStore((state) => state.saveSong)
   const duplicateSong = useSongsStore((state) => state.duplicateSong)
   const removeSong = useSongsStore((state) => state.remove)
-  const setlists = useSetlistsStore((state) => state.setlists)
+  const setlists = useVisibleSetlists()
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
   // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
