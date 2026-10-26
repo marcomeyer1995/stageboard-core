@@ -24,7 +24,7 @@ Vor einem Gig will die Band wissen: **alles in einer Linie, alles im Timing** (M
 
 **System → Rig-Check** (eigener Bereich, neben dem Synchron-Test):
 
-1. **Auswahl**: „Kurzcheck (~45 s)“ oder „Voller Lauf (~2½ min)“.
+1. **Auswahl**: „Kurzcheck (~30 s)“ oder „Voller Lauf (~2¼ min)“.
 2. **Geräte-Cues**: eine Zeile je eingerichtetem Gerät mit fertigen Befehlen (wie in der Aktionsauswahl, Bühnentechnik) - „nichts“ oder ein Befehl. Bandweit, nur Admins ändern.
 3. **Vorbereiten** (nur der Master): erzeugt den Track (einmal je Generator-Version, danach liegt er auf dem Server) und schreibt Song, Variante und Setliste.
 4. **Geräte-Liste live**: je Gerät der Band Name, online, Track da, Uhr-Versatz zum Server, Ausgabeweg (Lautsprecher/Kopfhörer/Bluetooth) und gespeicherte Latenz. Fehlt einem Gerät der Track, steht dort „lädt …“.
@@ -37,7 +37,7 @@ Vor einem Gig will die Band wissen: **alles in einer Linie, alles im Timing** (M
 
 Beide Läufe beginnen mit **2 s Stille** (ein Takt Einzählen bei 120 passt genau) und haben ein Raster mit Ausrichtungspunkten an jedem Abschnitt (docs/14 §5a) - das Klick-Raster der App muss also auf jedem erzeugten Schlag liegen.
 
-**Kurzcheck** (~45 s):
+**Kurzcheck** (~30 s gespielt - 36 s Track, davon 8 s übersprungen; länger wird er über die Taktzahlen in `QUICK_SECTIONS`):
 
 | Abschnitt | Takte | Tempo | Prüft |
 |---|---|---|---|
@@ -47,7 +47,7 @@ Beide Läufe beginnen mit **2 s Stille** (ein Takt Einzählen bei 120 passt gena
 | Sprung 140 | 4 | 140 | Sprung auf allen Geräten, Tempowechsel am Taktstrich |
 | Schluss | 1 | 140 | Auto-Stopp am Track-Ende |
 
-**Voller Lauf** (~2½ min) - die Abschnitte des Referenz-Songs vom 2026-10-09 plus Sprung:
+**Voller Lauf** (~2¼ min gespielt) - die Abschnitte des Referenz-Songs vom 2026-10-09 plus Sprung:
 
 | Abschnitt | Takte | Tempo | Prüft |
 |---|---|---|---|
