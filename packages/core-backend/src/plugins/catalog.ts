@@ -4,6 +4,7 @@ import { createMockClickPlugin } from './mockClickPlugin.js'
 import { createMockLightingPlugin } from './mockLightingPlugin.js'
 import { createMockMixerPlugin } from './mockMixerPlugin.js'
 import { createMockPlaybackPlugin } from './mockPlaybackPlugin.js'
+import { createOscPlugin, OSC_PLUGIN_ID } from './oscPlugin.js'
 import { createPiperSpeechPlugin, PIPER_SPEECH_PLUGIN_ID } from './piperSpeechPlugin.js'
 import { createStemSeparationPlugin, STEM_SEPARATION_PLUGIN_ID } from './stemSeparationPlugin.js'
 import { createUltimateGuitarImportPlugin, createYoutubeDownloadPlugin, SALE_BUILD, ULTIMATE_GUITAR_PLUGIN_ID, YOUTUBE_DOWNLOAD_PLUGIN_ID } from './importAddons.js'
@@ -22,6 +23,7 @@ export const PLUGIN_CATALOG: Record<string, () => IShowControlPlugin> = {
   'mock-click': createMockClickPlugin,
   [PIPER_SPEECH_PLUGIN_ID]: createPiperSpeechPlugin,
   [STEM_SEPARATION_PLUGIN_ID]: createStemSeparationPlugin,
+  [OSC_PLUGIN_ID]: createOscPlugin,
   // Legally risky add-ons (#546): not in a sale build.
   ...(SALE_BUILD ? {} : { [ULTIMATE_GUITAR_PLUGIN_ID]: createUltimateGuitarImportPlugin, [YOUTUBE_DOWNLOAD_PLUGIN_ID]: createYoutubeDownloadPlugin }),
 }

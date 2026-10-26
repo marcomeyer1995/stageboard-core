@@ -3,6 +3,7 @@ import { KEMPER_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY } from '../midiDev
 import { KEMPER_COMMANDS } from './kemper'
 import { MG30_COMMANDS, RC500_COMMANDS } from './midiPedals'
 import { CQ18T_COMMANDS, UI24R_COMMANDS } from './mixers'
+import { OSC_CAPABILITY, OSC_COMMANDS } from './osc'
 import type { CommandField, DeviceCommand } from './types'
 
 export type { CommandField, DeviceCommand } from './types'
@@ -27,6 +28,7 @@ const COMMANDS: Record<string, DeviceCommand[]> = {
   'cq18t-control': CQ18T_COMMANDS,
   'ui24r-control': UI24R_COMMANDS,
   [CAPABILITIES.clickTrack]: CLICK_COMMANDS,
+  [OSC_CAPABILITY]: OSC_COMMANDS,
 }
 
 /** The commands a device of this capability understands - empty when none are described (the
@@ -61,7 +63,14 @@ export function fieldOptions(field: CommandField): { value: string; label: strin
         { value: 'true', label: 'Ja' },
         { value: 'false', label: 'Nein' },
       ]
+    case 'text':
+      return []
   }
+}
+
+/** Whether a field still needs an answer before the cue can be saved. */
+export function fieldAnswered(field: CommandField, answer: string | undefined): boolean {
+  return (field.kind === 'text' && field.optional === true) || (answer ?? '').trim() !== ''
 }
 
 /**
@@ -95,6 +104,13 @@ export function payloadFromAnswers(fields: readonly CommandField[], answers: Rec
       case 'bool':
         payload[field.key] = raw === 'true'
         break
+      case 'text': {
+        if (!raw && !field.optional) return { error: `${field.label}: bitte ausfüllen.` }
+        const problem = raw ? (field.validate?.(raw) ?? null) : null
+        if (problem) return { error: `${field.label}: ${problem}` }
+        if (raw) payload[field.key] = raw
+        break
+      }
     }
   }
   return { payload }

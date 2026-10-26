@@ -391,6 +391,30 @@ export const PLUGIN_CATALOG: Array<Omit<PluginInstallation, 'installedAt' | 'ena
     hardwareIds: [],
   },
   {
+    id: 'osc',
+    name: 'OSC (Licht & Video)',
+    version: '0.1.0',
+    // Generic OSC (#484): lighting and video software - QLC+, Resolume, ProPresenter, grandMA onPC.
+    // Sent as UDP by the Stage-Server (core-backend oscPlugin.ts) - a browser can't send UDP - so the
+    // device runs on the Stage-Server; host and port are set in Bühnentechnik. Its own capability
+    // (like the MIDI-Clock, #478): one device per program that listens.
+    runtime: 'server',
+    capabilities: ['osc'],
+    // The server holds a cue until its moment (scheduledAt) and sends it then.
+    timing: [{ capability: 'osc', timingClass: 'realtime', honoursScheduledAt: true }],
+    transports: [
+      {
+        id: 'network-osc',
+        label: 'Netzwerk (OSC)',
+        fields: [
+          { key: 'host', label: 'Host (IP oder Name)', type: 'text' },
+          { key: 'port', label: 'Port', type: 'number' },
+        ],
+      },
+    ],
+    hardwareIds: [],
+  },
+  {
     id: 'stem-separation',
     name: 'Spuren trennen (Stems)',
     version: '0.0.1',

@@ -12,6 +12,7 @@ import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
   ActivateProfileRequestSchema,
+  SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
   CreateMemberRequestSchema,
   DeviceInfoReportSchema,
@@ -70,6 +71,7 @@ import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
 import { listDbs } from './couch.js'
+import { oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -931,6 +933,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // shutdown and every test's afterEach(() => app.close()).
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
+
+  // OSC devices (#484): host and port are the device's transport config for the Stage-Server
+  // (Bühnentechnik), in the band whose hardware this server serves.
+  setOscTargetResolver(async (logicalDeviceId) => {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId || !logicalDeviceId) return null
+    return oscTargetFromConfig(await getDoc<CouchDoc>(couch, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
+  })
 
   // Temporary lockout for guessing an admin PIN (only 10,000 possibilities) - shared by every route
   // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh

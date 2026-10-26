@@ -9,7 +9,7 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-const { commandsFor, describeCue, payloadFromAnswers } = await import('./index')
+const { commandsFor, describeCue, fieldAnswered, fieldOptions, payloadFromAnswers } = await import('./index')
 const { CQ18T_CAPABILITY } = await import('../cq18tTranslator')
 const { UI24R_CAPABILITY } = await import('../ui24rTranslator')
 const { KEMPER_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY } = await import('../midiDeviceProtocols')
@@ -74,5 +74,28 @@ describe('Kemper: switch off too (Marco, 2026-10-18)', () => {
     expect(describeCue({ type: 'kemper.stomp', payload: { stomp: 'DELAY' } }, 'kemper-control')).toBe('Stomp DELAY an')
     expect(describeCue({ type: 'kemper.stomp', payload: { stomp: 'DELAY', off: true } }, 'kemper-control')).toBe('Stomp DELAY aus')
     expect(describeCue({ type: 'kemper.tuner', payload: { off: true } }, 'kemper-control')).toBe('Tuner aus')
+  })
+})
+
+describe('OSC commands (#484)', () => {
+  const [send] = commandsFor('osc')
+
+  it('take an address and optional values as text', () => {
+    expect(send!.type).toBe('osc.send')
+    expect(payloadFromAnswers(send!.fields, { address: '/cue/12/go', args: ' 1 0.5 "Intro" ' })).toEqual({ payload: { address: '/cue/12/go', args: '1 0.5 "Intro"' } })
+    expect(payloadFromAnswers(send!.fields, { address: '/scene/3' })).toEqual({ payload: { address: '/scene/3' } })
+    expect(payloadFromAnswers(send!.fields, { address: 'cue 12' })).toEqual({ error: 'Adresse: beginnt mit „/“, ohne Leerzeichen.' })
+    expect(payloadFromAnswers(send!.fields, { address: '' })).toEqual({ error: 'Adresse: bitte ausfüllen.' })
+  })
+
+  it('a text field is answered when filled - or when it may stay empty', () => {
+    expect(fieldAnswered(send!.fields[0]!, '')).toBe(false)
+    expect(fieldAnswered(send!.fields[1]!, '')).toBe(true)
+    expect(fieldOptions(send!.fields[0]!)).toEqual([])
+  })
+
+  it('reads as address and values on the cue marker', () => {
+    expect(describeCue({ type: 'osc.send', payload: { address: '/cue/12/go', args: '1' } }, 'osc')).toBe('/cue/12/go 1')
+    expect(describeCue({ type: 'osc.send', payload: { address: '/blackout' } }, 'osc')).toBe('/blackout')
   })
 })
