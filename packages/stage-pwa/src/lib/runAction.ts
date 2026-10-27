@@ -208,7 +208,7 @@ async function runSection(action: Extract<Action, { kind: 'section' }>, show: Sh
   const index = sectionIndexAt(now.sections, elapsed)
   const current = now.sections[index]
   if (action.op === 'loop-on' || action.op === 'loop-toggle') {
-    if (action.op === 'loop-toggle' && useShowStateStore.getState().state.playbackLoop) {
+    if (action.op === 'loop-toggle' && show.sectionLoop) {
       await setSectionLoop(null)
       return null
     }

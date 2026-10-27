@@ -1,5 +1,4 @@
 import { jumpBoundaryMs } from './playbackTransport'
-import { useShowStateStore } from '../store/useShowStateStore'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { CAPABILITIES } from 'shared-types'
 import { startClick, stopClick, type ClickEngineState } from './clickEngine'
@@ -76,7 +75,7 @@ function loopClickState(loopActive: boolean): Pick<ClickEngineState, 'playbackRa
  * way to get true silence during the gap instead of occasional stray hits.
  */
 export function useClickOutputDriver(): void {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride } = useShowMode()
+  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, clickTrackOverride, transport } = useShowMode()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
   const loopActive = useLoopTrainerStore((state) => state.active)
   const isPageVisible = useSyncExternalStore(subscribeToVisibility, isPageVisibleSnapshot, () => true)
@@ -105,15 +104,16 @@ export function useClickOutputDriver(): void {
     const at = playbackLookup(cues ?? [])
     return (ms: number) => at(ms).click
   }, [cues])
-  // A queued section jump in the show (#479): the click schedules across it.
-  const playbackJump = useShowStateStore((state) => state.state.playbackJump)
-  const startedAt = useShowStateStore((state) => state.state.playbackStartedAt)
-  const accumulatedMs = useShowStateStore((state) => state.state.playbackAccumulatedMs)
+  // A queued section jump (#479) - the show's, or in Solo Üben this device's own: the click
+  // schedules across it.
+  const playbackJump = transport?.jump ?? null
+  const startedAt = transport?.startedAt ?? null
+  const accumulatedMs = transport?.accumulatedMs ?? 0
   const jump = useMemo(() => {
-    if (mode !== 'gig' || !playbackJump) return null
+    if (!playbackJump) return null
     const boundaryMs = jumpBoundaryMs({ status: 'playing', startedAt, accumulatedMs, jump: playbackJump })
     return boundaryMs === null ? null : { id: playbackJump.at, boundaryMs, toMs: playbackJump.toMs }
-  }, [mode, playbackJump, startedAt, accumulatedMs])
+  }, [playbackJump, startedAt, accumulatedMs])
   const stateRef = useRef<ClickEngineState>({ elapsedMs, timeline })
   useEffect(() => {
     stateRef.current = {

@@ -2,7 +2,17 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const show = vi.hoisted(() => ({
-  mode: 'gig',
+  mode: 'gig' as 'gig' | 'practice',
+  trackOverride: null,
+  liveTempoAdjustPercent: 0,
+  sectionLoop: null,
+  // What useShowMode gives: in Gig the master's right and the show's jump (state below).
+  get canControl() {
+    return this.mode === 'practice' || state.isMaster
+  },
+  get transport() {
+    return { status: 'playing', startedAt: 0, accumulatedMs: 0, jump: state.state.playbackJump }
+  },
   elapsedMs: 9000 as number | null,
   playbackStatus: 'playing',
   queue: {
@@ -25,7 +35,6 @@ const state = vi.hoisted(() => ({ isMaster: true, state: { playbackJump: null as
 const actions = vi.hoisted(() => ({ queueSectionJump: vi.fn(async () => 'queued'), cancelSectionJump: vi.fn(), setSectionLoop: vi.fn() }))
 
 vi.mock('../lib/showMode', () => ({ useShowMode: () => show }))
-vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: (select: (s: typeof state) => unknown) => select(state) }))
 vi.mock('../lib/sectionJump', () => actions)
 vi.mock('../lib/entryDuration', () => ({ songDurationMs: () => ({ ms: 30000, source: 'manual' }) }))
 vi.mock('../components/JumpCrossfadeSetting', () => ({ JumpCrossfadeSetting: () => null }))
@@ -36,6 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   state.isMaster = true
   state.state.playbackJump = null
+  show.mode = 'gig'
 })
 
 describe('SectionJumpWidget (#479)', () => {
@@ -59,5 +69,14 @@ describe('SectionJumpWidget (#479)', () => {
     render(<SectionJumpWidget />)
     expect(screen.getByRole('button', { name: 'Chorus' })).toBeDisabled()
     expect(screen.getByText('Springen kann der Master')).toBeInTheDocument()
+  })
+
+  it('in Solo Üben every musician jumps on their own - no master needed (2026-10-22)', () => {
+    show.mode = 'practice'
+    state.isMaster = false
+    render(<SectionJumpWidget />)
+    expect(screen.getByRole('button', { name: 'Chorus' })).toBeEnabled()
+    expect(screen.queryByText('Springen kann der Master')).not.toBeInTheDocument()
+    expect(screen.queryByText('Nur im Gig')).not.toBeInTheDocument()
   })
 })
