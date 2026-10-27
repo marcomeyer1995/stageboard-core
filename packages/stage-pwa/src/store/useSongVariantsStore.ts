@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { SongVariant } from 'shared-types'
@@ -58,7 +59,7 @@ export const useSongVariantsStore = create<SongVariantsState>((set) => ({
     set({ loaded: true })
 
     changesHandle = variantsChanges()
-    changesHandle.on('change', () => refreshVariants(set))
+    changesHandle.on('change', coalesced(() => refreshVariants(set)))
   },
   saveVariant: async (variant) => {
     await putVariant(variant)

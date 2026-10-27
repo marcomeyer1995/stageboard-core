@@ -22,6 +22,11 @@ describe('statusBarState', () => {
     expect(statusBarState({ ...base, finished: true })).toEqual({ kind: 'finished', label: 'finished' })
   })
 
+  it('a running loop shows as "loop" - a fault still comes first', () => {
+    expect(statusBarState({ ...base, mode: 'practice', playbackStatus: 'playing', loop: true })).toEqual({ kind: 'loop', label: 'loop' })
+    expect(statusBarState({ ...base, loop: true, audioError: 'kaputt' }).kind).toBe('fault')
+  })
+
   it('shows faults - and only faults - in red, ahead of the transport state', () => {
     expect(statusBarState({ ...base, playbackStatus: 'playing', audioError: 'kaputt' })).toEqual({ kind: 'fault', label: 'audioError' })
     expect(statusBarState({ ...base, syncStatus: 'error' }).label).toBe('syncError')

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PlaybackStatus } from 'shared-types'
+import type { SectionJump, TransportState } from '../lib/playbackTransport'
 
 /** Practice mode's local echo of the handful of ShowState fields the queue/transport actually
  * need - never the real, synced ShowState (useAppModeStore.ts explains why). Keyed by
@@ -34,6 +35,11 @@ export interface PracticeState {
   playbackStatus: PlaybackStatus
   playbackStartedAt: number | null
   playbackAccumulatedMs: number
+  /** A queued or just-passed section jump (#479) - Solo's twin of ShowState.playbackJump, `at` in
+   * this device's own clock (Date.now). */
+  playbackJump?: SectionJump | null
+  /** The section repeating until released (#479) - Solo's twin of ShowState.playbackLoop. */
+  playbackLoop?: { startMs: number; endMs: number; label?: string } | null
 }
 
 export const DEFAULT_PRACTICE_STATE: PracticeState = {
@@ -46,6 +52,13 @@ export const DEFAULT_PRACTICE_STATE: PracticeState = {
   playbackStatus: 'stopped',
   playbackStartedAt: null,
   playbackAccumulatedMs: 0,
+  playbackJump: null,
+  playbackLoop: null,
+}
+
+/** The transport slice of a practice state - Solo's twin of playbackTransport's `transportOf`. */
+export function practiceTransportOf(state: PracticeState): TransportState {
+  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null }
 }
 
 interface PracticeStateStore {

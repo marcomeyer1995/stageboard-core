@@ -1,6 +1,6 @@
 import type { PlaybackStatus } from 'shared-types'
 import type { Queue } from './computeQueue'
-import type { PlayOptions } from './playbackTransport'
+import type { PlayOptions, TransportState } from './playbackTransport'
 import {
   advanceToNextSong,
   advanceToPreviousSong,
@@ -31,7 +31,7 @@ import {
 import { gigElapsedMsNow, usePlaybackElapsedMs } from './usePlaybackElapsedMs'
 import { practiceElapsedMsNow, usePracticeElapsedMs } from './usePracticeElapsedMs'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
-import { DEFAULT_PRACTICE_STATE, usePracticeStateStore } from '../store/usePracticeStateStore'
+import { DEFAULT_PRACTICE_STATE, practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
@@ -81,6 +81,11 @@ export interface ShowModeApi {
    * Gig mode, which is also how TrackOverrideWidget decides whether to offer the picker. */
   variantOverride: string | null
   setVariantOverride: ((variantId: string | null) => void) | null
+  /** The transport behind `elapsedMs`, with a queued section jump (#479) - the show's in Gig, this
+   * device's own in Solo. */
+  transport: TransportState
+  /** The section repeating until released (#479), or null. */
+  sectionLoop: { startMs: number; endMs: number; label?: string } | null
 }
 
 /**
@@ -145,6 +150,10 @@ export function useShowModeCore(): Omit<ShowModeApi, 'elapsedMs'> & { elapsedNow
   const gigClickExtendMs = useShowStateStore((state) => state.state.clickExtendMs)
   const gigTrackEnded = useShowStateStore((state) => state.state.trackEnded === true)
   const practiceState = usePracticeStateStore((state) => state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE)
+  const gigStartedAt = useShowStateStore((state) => state.state.playbackStartedAt)
+  const gigAccumulatedMs = useShowStateStore((state) => state.state.playbackAccumulatedMs)
+  const gigJump = useShowStateStore((state) => state.state.playbackJump ?? null)
+  const gigLoop = useShowStateStore((state) => state.state.playbackLoop ?? null)
 
   if (mode === 'practice') {
     return {
@@ -172,6 +181,8 @@ export function useShowModeCore(): Omit<ShowModeApi, 'elapsedMs'> & { elapsedNow
       setTrackOverride: practiceSetTrackOverride,
       variantOverride: practiceState.variantOverride,
       setVariantOverride: practiceSetVariantOverride,
+      transport: practiceTransportOf(practiceState),
+      sectionLoop: practiceState.playbackLoop ?? null,
     }
   }
 
@@ -200,5 +211,7 @@ export function useShowModeCore(): Omit<ShowModeApi, 'elapsedMs'> & { elapsedNow
     setTrackOverride: (trackId) => void setTrackOverride(trackId),
     variantOverride: null,
     setVariantOverride: null,
+    transport: { status: gigPlaybackStatus, startedAt: gigStartedAt, accumulatedMs: gigAccumulatedMs, jump: gigJump },
+    sectionLoop: gigLoop,
   }
 }

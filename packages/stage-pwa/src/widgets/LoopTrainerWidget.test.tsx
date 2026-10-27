@@ -96,9 +96,11 @@ describe('LoopTrainerWidget (#61)', () => {
     expect(useLoopTrainerStore.getState().config).toMatchObject({ startMs: 10_000, endMs: 90_000 })
   })
 
-  it('shows the trainer settings only once the Speed Trainer is switched on', () => {
+  it('keeps tempo and Speed Trainer in a dialog - the widget itself never scrolls (2026-10-22)', () => {
     mockMode('practice')
     render(<LoopTrainerWidget config={{}} />)
+    expect(screen.queryByRole('switch', { name: 'Speed Trainer' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tempo 100 %' }))
     expect(screen.queryByText('Ziel')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Speed Trainer' }))
@@ -107,5 +109,6 @@ describe('LoopTrainerWidget (#61)', () => {
 
     fireEvent.click(screen.getByLabelText('Tempo verringern'))
     expect(useLoopTrainerStore.getState().config.startPercent).toBe(95)
+    expect(screen.getByRole('button', { name: 'Tempo 95 → 100 %' })).toBeInTheDocument()
   })
 })
