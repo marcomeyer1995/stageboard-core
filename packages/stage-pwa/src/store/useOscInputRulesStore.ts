@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import type { OscInputRulesDoc } from '../lib/oscInput'
@@ -29,7 +30,7 @@ export const useOscInputRulesStore = create<OscInputRulesState>((set) => ({
     set({ docs: [] })
     await refresh(set)
     changesHandle = oscInputRulesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (doc) => {
     await putOscInputRules(doc)
