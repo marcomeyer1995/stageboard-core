@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useShowPart } from '../lib/widgetParts'
-import { Button, Select, Switch } from '../components/ui'
+import { Button, Dialog, Select, Switch } from '../components/ui'
 import { parseChordPro } from '../lib/chordpro'
 import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
 import { formatLoopTime, loopSections } from '../lib/loopSections'
@@ -64,6 +65,10 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const trackOverride = usePracticeStateStore((state) => (state.byWorkspace[workspaceId] ?? DEFAULT_PRACTICE_STATE).trackOverride)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const stored = useLoopTrainerStore((state) => state)
+  // Loading the stretch engine and decoding the track takes seconds on the Fire - say so, or a
+  // second tap looks like the obvious thing to do.
+  const [starting, setStarting] = useState(false)
+  const [tempoOpen, setTempoOpen] = useState(false)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 
   if (mode !== 'practice') {
@@ -127,31 +132,54 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
         </div>
       )}
 
-      <Stepper label="Tempo" value={settings.startPercent} min={25} max={150} step={5} disabled={stored.active} onChange={(startPercent) => update({ startPercent })} />
-      <Switch label="Speed Trainer" disabled={stored.active} checked={settings.trainerEnabled} onChange={(trainerEnabled) => update({ trainerEnabled })} />
-      {settings.trainerEnabled && (
-        <>
-          <Stepper label="Ziel" value={settings.targetPercent} min={25} max={150} step={5} disabled={stored.active} onChange={(targetPercent) => update({ targetPercent })} />
-          <Stepper label="Pro Durchgang +" value={settings.stepPercent} min={1} max={20} step={1} disabled={stored.active} onChange={(stepPercent) => update({ stepPercent })} />
-        </>
-      )}
-
-      {stored.active ? (
-        <Button variant="primary" icon="stop" onClick={stopLoopTrainer}>
-          Loop stoppen
+      {/* Tempo and Speed Trainer behind a button (Marco, 2026-10-22): seven rows never fit the
+          widget, and a dashboard never scrolls. While the loop runs the button shows its progress. */}
+      <div className="mt-auto flex items-center gap-2">
+        <Button className="min-w-0 flex-1" disabled={stored.active} onClick={() => setTempoOpen(true)}>
+          <span style={{ fontSize }} className="truncate tabular-nums">
+            {playing
+              ? `Durchgang ${playing.pass + 1} · ${Math.round(playing.rate * 100)} %`
+              : settings.trainerEnabled
+                ? `Tempo ${settings.startPercent} → ${settings.targetPercent} %`
+                : `Tempo ${settings.startPercent} %`}
+          </span>
         </Button>
-      ) : (
-        <Button variant="primary" icon="play" disabled={!hasLoop} onClick={() => void startLoopTrainer()}>
-          Loop starten
-        </Button>
-      )}
+        {stored.active ? (
+          <Button className="min-w-0 flex-1" variant="primary" icon="stop" onClick={stopLoopTrainer}>
+            Loop stoppen
+          </Button>
+        ) : (
+          <Button
+            className="min-w-0 flex-1"
+            variant="primary"
+            icon="play"
+            disabled={!hasLoop || starting}
+            onClick={() => {
+              setStarting(true)
+              void startLoopTrainer().finally(() => setStarting(false))
+            }}
+          >
+            {starting ? 'Loop startet…' : 'Loop starten'}
+          </Button>
+        )}
+      </div>
 
-      {playing && (
-        <p style={{ fontSize }} className="text-center font-bold tabular-nums text-ink">
-          Durchgang {playing.pass + 1} · {Math.round(playing.rate * 100)} %
-        </p>
-      )}
       {stored.error && <p className="text-xs text-danger">{stored.error}</p>}
+
+      {tempoOpen && (
+        <Dialog title="Loop-Tempo" onClose={() => setTempoOpen(false)}>
+          <div className="flex flex-col gap-3">
+            <Stepper label="Tempo" value={settings.startPercent} min={25} max={150} step={5} onChange={(startPercent) => update({ startPercent })} />
+            <Switch label="Speed Trainer" checked={settings.trainerEnabled} onChange={(trainerEnabled) => update({ trainerEnabled })} />
+            {settings.trainerEnabled && (
+              <>
+                <Stepper label="Ziel" value={settings.targetPercent} min={25} max={150} step={5} onChange={(targetPercent) => update({ targetPercent })} />
+                <Stepper label="Pro Durchgang +" value={settings.stepPercent} min={1} max={20} step={1} onChange={(stepPercent) => update({ stepPercent })} />
+              </>
+            )}
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }

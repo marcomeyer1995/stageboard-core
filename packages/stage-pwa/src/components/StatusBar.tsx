@@ -28,6 +28,9 @@ import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyn
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
 import { stageVariantLabel } from '../lib/variantLabel'
+import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
+import { stopLoopTrainer } from '../lib/loopTrainer'
+import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
 /** Gap between the bar's items (gap-3) - part of each item's room. */
 const GAP_PX = 12
@@ -37,6 +40,7 @@ const STATE_ICON: Record<StatusBarKind, IconName> = {
   ready: 'stop',
   'count-in': 'play',
   playing: 'play',
+  loop: 'repeat',
   paused: 'pause',
   finished: 'check',
   fault: 'warning',
@@ -133,7 +137,11 @@ export function StatusBar({
   const countInBeat = beat !== null && beat.isCountIn ? beat : null
   const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
 
+  // Read each render - the bar re-renders with the song clock, so pass and tempo stay current.
+  const loopActive = useLoopTrainerStore((s) => s.active)
+  const loop = loopActive ? getLoopPlaybackState() : null
   const state = statusBarState({
+    loop: loop !== null,
     mode,
     playbackStatus,
     isCountIn,
@@ -161,7 +169,8 @@ export function StatusBar({
       ? stageVariantLabel(currentVariant.label)
       : null
   const sync = { icon: SYNC_ICON[syncStatus], label: t(`sync.${syncStatus}`) }
-  const stateLabel = t(`state.${state.label}`)
+  const stateLabel =
+    state.kind === 'loop' && loop ? `${t('state.loop')} · ${loop.pass + 1} · ${Math.round(loop.rate * 100)} %` : t(`state.${state.label}`)
 
   // Ranked items (lib/statusBarItems.ts, per device in Einstellungen): each one is measured -
   // also while it doesn't fit (then invisible and out of the flow) - and the bar keeps as many
@@ -250,6 +259,18 @@ export function StatusBar({
 
       {position ? (
         <CountBlock position={position} flash={flash} />
+      ) : state.kind === 'loop' ? (
+        // Stoppable from every dashboard, also one without the Loop-Trainer widget (Marco, 2026-10-22).
+        <button
+          type="button"
+          onClick={stopLoopTrainer}
+          aria-label={`${stateLabel} - ${t('loopStop')}`}
+          title={t('loopStop')}
+          className="flex h-touch flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-control px-2 text-lg font-black uppercase tracking-wide [@media(hover:hover)]:hover:bg-scrim/15"
+        >
+          <Icon name="repeat" size="1.5rem" />
+          <span {...item('stateText')}>{stateLabel}</span>
+        </button>
       ) : (
         // The state as an icon - always there; its word is a ranked item (a fault keeps it:
         // the icon alone wouldn't say what is wrong).

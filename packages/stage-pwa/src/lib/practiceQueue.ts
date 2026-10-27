@@ -11,7 +11,7 @@ import {
   type TransportState,
 } from './playbackTransport'
 import { pauseLocalTrack, playLocalTrack, stopLocalTrack } from './localAudioEngine'
-import { DEFAULT_PRACTICE_STATE, usePracticeStateStore, type PracticeState } from '../store/usePracticeStateStore'
+import { DEFAULT_PRACTICE_STATE, practiceTransportOf, usePracticeStateStore, type PracticeState } from '../store/usePracticeStateStore'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
@@ -90,11 +90,13 @@ function snapshot(): Queue {
 }
 
 function currentTransport(state: PracticeState): TransportState {
-  return { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs }
+  return practiceTransportOf(state)
 }
 
+/** Every transport change also sets the jump (play and pause drop one not reached); a stop, a new
+ * song or another variant also ends a loop (`ARMED_TRANSPORT` callers add `playbackLoop: null`). */
 function transportPatch(t: TransportState): Partial<PracticeState> {
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, trackEnded: false }
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, trackEnded: false }
 }
 
 /** Cancels a pending deferred audio start (see `practicePlaySong` below) - every action that can
@@ -185,13 +187,14 @@ export function practiceBeginLoop(startMs: number): void {
   clearScheduledAudioStart()
   jumpPosition(startMs)
   pauseLocalTrack()
-  patch(transportPatch(playTransport({ ...ARMED_TRANSPORT, accumulatedMs: startMs }, Date.now())))
+  // The Rehearsal Looper plays its own copy - a section loop (#479) ends with it.
+  patch({ ...transportPatch(playTransport({ ...ARMED_TRANSPORT, accumulatedMs: startMs }, Date.now())), playbackLoop: null })
 }
 
 /** Leaves a loop paused at `positionMs`, so the normal Play button resumes the song from there. */
 export function practiceEndLoop(positionMs: number): void {
   jumpPosition(positionMs)
-  patch(transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs }))
+  patch(transportPatch({ status: 'paused', startedAt: null, accumulatedMs: positionMs, jump: null }))
 }
 
 export async function practiceStopSong(): Promise<void> {
@@ -200,7 +203,7 @@ export async function practiceStopSong(): Promise<void> {
   const state = currentPracticeState()
   const ended = stoppedNearEnd(currentEntry && isSongEntry(currentEntry) ? currentEntry : null, currentVariant, state.trackOverride, computeActiveMs(currentTransport(state), Date.now()))
   logPracticeTake()
-  patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: ended })
+  patch({ ...transportPatch(ARMED_TRANSPORT), playbackLoop: null, trackEnded: ended })
   stopLocalTrack()
 }
 
@@ -208,14 +211,14 @@ export async function practiceStopSong(): Promise<void> {
 export async function practiceStopSongAtTrackEnd(): Promise<void> {
   clearScheduledAudioStart()
   logPracticeTake()
-  patch({ ...transportPatch(ARMED_TRANSPORT), trackEnded: true })
+  patch({ ...transportPatch(ARMED_TRANSPORT), playbackLoop: null, trackEnded: true })
   stopLocalTrack()
 }
 
 export async function practiceResetSong(): Promise<void> {
   clearScheduledAudioStart()
   logPracticeTake()
-  patch(transportPatch(ARMED_TRANSPORT))
+  patch({ ...transportPatch(ARMED_TRANSPORT), playbackLoop: null })
   stopLocalTrack()
 }
 
@@ -233,6 +236,7 @@ export function practiceSetActiveSetlist(setlistId: string | null): void {
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
+    playbackLoop: null,
   })
   stopLocalTrack()
 }
@@ -249,6 +253,7 @@ export async function practiceAdvanceNext(): Promise<void> {
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
+    playbackLoop: null,
   })
   stopLocalTrack()
 }
@@ -265,6 +270,7 @@ export async function practiceAdvancePrevious(): Promise<void> {
     clickTrackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
+    playbackLoop: null,
   })
   stopLocalTrack()
 }
@@ -287,6 +293,7 @@ export function practiceSetVariantOverride(variantId: string | null): void {
     trackOverride: null,
     clickExtendMs: 0,
     ...transportPatch(ARMED_TRANSPORT),
+    playbackLoop: null,
   })
   stopLocalTrack()
 }
