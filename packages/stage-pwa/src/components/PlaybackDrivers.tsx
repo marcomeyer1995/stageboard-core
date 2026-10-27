@@ -26,7 +26,7 @@ import { useTrackDurationBackfill } from '../lib/useTrackDurationBackfill'
  *
  * Mounted once by App on every screen, like before (they must keep running whichever tab is open -
  * see each hook's doc comment). Keep the order: useAutoStopDriver relies on useAudioOutputDriver's
- * load effect running first.
+ * load effect running first (FrameDrivers, a child, runs its effects first).
  */
 export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolean }) {
   // Bluetooth foot switch / keyboard (#27): only on the dashboards, not while arranging them.
@@ -43,10 +43,6 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useMidiClock()
   // Main-thread stalls while a song plays - sets the cue look-ahead (#477, Diagnose tab).
   useStallMonitor()
-  useAudioOutputDriver()
-  // Solo practice: the song's stems instead of its track, when switched on (docs/22 §3).
-  useStemPlaybackDriver()
-  useClickOutputDriver()
   // Spoken section announcements next to the click (#63).
   useAnnouncementDriver()
   useAutoStopDriver()
@@ -55,5 +51,19 @@ export function PlaybackDrivers({ footswitchActive }: { footswitchActive: boolea
   useLoopTrainerDriver()
   useTrackDurationBackfill()
   useMasterSelfCheck()
+  return <FrameDrivers />
+}
+
+/**
+ * The drivers that follow the song clock on every frame while a song plays - track, stems, click
+ * (#457). In a component of their own, so their 60 re-renders a second don't run every other hook
+ * above with them. A child's effects run before its parent's, so the track's load effect still
+ * comes before useAutoStopDriver's.
+ */
+function FrameDrivers() {
+  useAudioOutputDriver()
+  // Solo practice: the song's stems instead of its track, when switched on (docs/22 §3).
+  useStemPlaybackDriver()
+  useClickOutputDriver()
   return null
 }

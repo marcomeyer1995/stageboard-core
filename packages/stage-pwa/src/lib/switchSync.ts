@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { SwitchStateEventSchema, type SwitchStateEvent } from 'shared-types'
 import { getServerTime } from './clockSync'
 import { getDeviceId } from './deviceId'
-import { useShowMode } from './showMode'
+import { useShowModeOnDemand } from './showMode'
 import { getStageServerUrl } from './stageServer'
 import { applyRemoteSwitchEvent, expireRemoteHolders, resetTriggerState, setSwitchPublisher, switchesHeldHere } from './triggerPress'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
@@ -35,7 +35,8 @@ function send(workspaceId: string, event: SwitchStateEvent): void {
  * action. Without a Stage-Server, switches simply stay per tablet. Mounted once (PlaybackDrivers).
  */
 export function useSwitchSync(): void {
-  const show = useShowMode()
+  // The clock only at a press (#457) - not a re-render on every frame.
+  const show = useShowModeOnDemand()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const latest = useRef(show)
   latest.current = show

@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { AsyncJobSchema, type AsyncJob } from 'shared-types'
@@ -41,6 +42,6 @@ export const useAsyncJobsStore = create<AsyncJobsState>((set) => ({
     await refresh(set)
 
     changesHandle = asyncJobsChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
 }))
