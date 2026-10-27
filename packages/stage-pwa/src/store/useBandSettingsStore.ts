@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { BandSettings } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
@@ -27,7 +28,7 @@ export const useBandSettingsStore = create<BandSettingsState>((set) => ({
     set({ settings: EMPTY })
     await refresh(set)
     changesHandle = bandSettingsChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (settings) => {
     await putBandSettings(settings)
