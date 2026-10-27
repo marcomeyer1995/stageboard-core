@@ -280,7 +280,8 @@ function ConnectionStep({
       {resolvedTarget && (
         <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
           Verbunden mit {reporterLabel(resolvedTarget)}
-          {resolvedTarget !== getDeviceId() && (
+          {/* The Stage-Server has no screen to register from - nothing to wait for there. */}
+          {resolvedTarget !== getDeviceId() && resolvedTarget !== SERVER_EXECUTION_TARGET && (
             <span className="text-ink-faint"> · wartet darauf, dass sich dieses Gerät selbst einträgt</span>
           )}
         </p>

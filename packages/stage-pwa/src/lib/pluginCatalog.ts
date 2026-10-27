@@ -12,6 +12,9 @@ const CAPABILITY_LABEL: Record<string, string> = {
   [CAPABILITIES.backup]: 'Backup',
   [CAPABILITIES.audioAnalysis]: 'Track-Analyse',
   [CAPABILITIES.midiClock]: 'MIDI-Clock',
+  // OSC (#484): sending to lighting/video software, and a controller's buttons as triggers.
+  osc: 'OSC senden',
+  'osc-input': 'OSC-Trigger',
   [CAPABILITIES.midiController]: 'MIDI-Controller',
   [CAPABILITIES.speechSynthesis]: 'Sprachausgabe',
   [CAPABILITIES.stemSeparation]: 'Spuren trennen',
