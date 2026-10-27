@@ -94,18 +94,98 @@ const RAMP_S = 0.02
 const outputs = new Map<MixSource, { ctx: AudioContext; gain: GainNode }>()
 
 /**
+ * How this device's stereo output carries the sources (#481 step 1, docs/21 §9.2): all mixed (as
+ * always), or split - click and announcements on one side, the track summed to mono on the other -
+ * so a Y-cable or a stereo DI gives two signals: the click side to the in-ear mix, the track side to
+ * FOH. For a device without an audio interface; with one, each source gets its own channel (§9.2).
+ * Per device, like Mein Mix.
+ */
+export type OutputRouting = 'mixed' | 'click-left' | 'click-right'
+export const OUTPUT_ROUTINGS: readonly OutputRouting[] = ['mixed', 'click-left', 'click-right']
+const ROUTING_KEY = 'sb:audio:routing'
+
+function loadRouting(): OutputRouting {
+  try {
+    const raw = localStorage.getItem(ROUTING_KEY)
+    return OUTPUT_ROUTINGS.includes(raw as OutputRouting) ? (raw as OutputRouting) : 'mixed'
+  } catch {
+    return 'mixed'
+  }
+}
+
+interface OutputRoutingState {
+  routing: OutputRouting
+  setRouting: (routing: OutputRouting) => void
+}
+
+export const useOutputRoutingStore = create<OutputRoutingState>((set) => ({
+  routing: loadRouting(),
+  setRouting: (routing) => {
+    try {
+      localStorage.setItem(ROUTING_KEY, routing)
+    } catch {
+      // Blocked storage: applies until the app is reloaded.
+    }
+    set({ routing })
+  },
+}))
+
+/** Which side a source plays on when the output is split. */
+export function sideOf(source: MixSource, routing: OutputRouting): 'left' | 'right' | null {
+  if (routing === 'mixed') return null
+  const clickSide = routing === 'click-left' ? 'left' : 'right'
+  return source === 'track' ? (clickSide === 'left' ? 'right' : 'left') : clickSide
+}
+
+/** Per context: one mono bus per side into a two-channel merger - a stereo source (the track) is
+ * summed to mono on the way in (Web Audio's own down-mix: (L+R)/2). */
+const sides = new Map<AudioContext, Record<'left' | 'right', GainNode>>()
+
+function sideBus(ctx: AudioContext, side: 'left' | 'right'): GainNode {
+  let buses = sides.get(ctx)
+  if (!buses) {
+    const merger = ctx.createChannelMerger(2)
+    merger.connect(ctx.destination)
+    const bus = (channel: number) => {
+      const node = ctx.createGain()
+      node.channelCount = 1
+      node.channelCountMode = 'explicit'
+      node.channelInterpretation = 'speakers'
+      node.connect(merger, 0, channel)
+      return node
+    }
+    buses = { left: bus(0), right: bus(1) }
+    sides.set(ctx, buses)
+  }
+  return buses[side]
+}
+
+/** Connects a source's gain to the output as the routing says - again on every change (`rewire`:
+ * it is connected already and comes off first). */
+function route(source: MixSource, ctx: AudioContext, gain: GainNode, routing: OutputRouting, rewire = false): void {
+  if (rewire) gain.disconnect()
+  const side = sideOf(source, routing)
+  gain.connect(side ? sideBus(ctx, side) : ctx.destination)
+}
+
+/**
  * Where a source connects instead of `ctx.destination`: its own gain node on the shared
- * AudioContext, following the mix.
+ * AudioContext, following the mix - and the output routing.
  */
 export function sourceOutput(source: MixSource, ctx: AudioContext = getSharedAudioContext()): AudioNode {
   const existing = outputs.get(source)
   if (existing && existing.ctx === ctx) return existing.gain
   const gain = ctx.createGain()
   gain.gain.value = mixGain(source)
-  gain.connect(ctx.destination)
+  route(source, ctx, gain, useOutputRoutingStore.getState().routing)
   outputs.set(source, { ctx, gain })
   return gain
 }
+
+useOutputRoutingStore.subscribe((state, before) => {
+  if (state.routing === before.routing) return
+  for (const [source, { ctx, gain }] of outputs) route(source, ctx, gain, state.routing, true)
+})
 
 /** Volume for an `<audio>` element playing the track (0..1). */
 export function trackElementVolume(mix: Mix = useAudioMixStore.getState().mix): number {
@@ -119,5 +199,7 @@ useAudioMixStore.subscribe((state) => {
 /** Test-only. */
 export function __resetAudioMixForTests(): void {
   outputs.clear()
+  sides.clear()
+  useOutputRoutingStore.setState({ routing: 'mixed' })
   useAudioMixStore.setState({ mix: { ...DEFAULT_MIX } })
 }
