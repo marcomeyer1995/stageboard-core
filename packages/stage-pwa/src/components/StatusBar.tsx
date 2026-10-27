@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
@@ -9,7 +9,8 @@ import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm, beatAt, beatsPerBar } from '../lib/metronome'
 import type { Mode } from '../lib/modes'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
+import { useFrameValue } from '../lib/useFrameValue'
 import {
   COUNT_IN_FLASH_MS,
   countInPosition,
@@ -95,6 +96,21 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
   )
 }
 
+/** What the bar shows of the running clock - it re-renders only when one of these changes. */
+interface FrameClock {
+  time: string
+  isCountIn: boolean
+  flash: boolean
+  position: CountInPosition | null
+}
+
+function sameFrameClock(a: FrameClock, b: FrameClock): boolean {
+  const p = a.position
+  const q = b.position
+  const samePosition = p === q || (p !== null && q !== null && p.bar === q.bar && p.bars === q.bars && p.beat === q.beat && p.beatsPerBar === q.beatsPerBar)
+  return a.time === b.time && a.isCountIn === b.isCountIn && a.flash === b.flash && samePosition
+}
+
 export function StatusBar({
   screen,
   onOpenMenu,
@@ -109,7 +125,9 @@ export function StatusBar({
   menuOpen?: boolean
   dashboardsOpen?: boolean
 }) {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
+  // Not useShowMode(): that re-rendered the whole bar every frame for a time shown to the second.
+  // The clock is read per frame below and re-renders only what it changes (#457).
+  const { mode, queue, elapsedNow, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
@@ -130,12 +148,37 @@ export function StatusBar({
 
   const song = queue.currentArrangement
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
-  const timeline = song
-    ? clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
-    : null
-  const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
-  const countInBeat = beat !== null && beat.isCountIn ? beat : null
-  const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
+  // Once per song and tempo - not every frame the bar re-renders with the clock (#457).
+  const songBpm = song?.bpm
+  const songMeter = song?.timeSignature
+  const beatGrid = currentVariant?.beatGrid
+  const timeline = useMemo(
+    () => (songBpm !== undefined && songMeter !== undefined ? clickTimeline({ beatGrid, bpm: adjustedBpm(songBpm, liveTempoAdjustPercent), timeSignature: songMeter, countInBars }) : null),
+    [beatGrid, songBpm, songMeter, liveTempoAdjustPercent, countInBars],
+  )
+  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
+  const firstBeatMs = timeline?.bar1Ms ?? 0
+  const perBar = song ? beatsPerBar(song.timeSignature) : 4
+  const clock = useFrameValue(
+    (): FrameClock => {
+      const elapsedMs = elapsedNow()
+      const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
+      const countInBeat = beat !== null && beat.isCountIn ? beat : null
+      const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
+      return {
+        time: formatSongTime(elapsedMs ?? 0),
+        isCountIn,
+        flash: countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS,
+        position:
+          countInBeat && elapsedMs !== null
+            ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
+            : null,
+      }
+    },
+    playbackStatus === 'playing',
+    sameFrameClock,
+  )
+  const isCountIn = clock.isCountIn
 
   // Read each render - the bar re-renders with the song clock, so pass and tempo stay current.
   const loopActive = useLoopTrainerStore((s) => s.active)
@@ -151,14 +194,8 @@ export function StatusBar({
     audioError,
     variantIssue: queue.currentVariantIssue,
   })
-  const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
-  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
-  const firstBeatMs = timeline?.bar1Ms ?? 0
-  const perBar = song ? beatsPerBar(song.timeSignature) : 4
-  const position =
-    state.kind === 'count-in' && countInBeat && elapsedMs !== null
-      ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
-      : null
+  const flash = state.kind === 'count-in' && clock.flash
+  const position = state.kind === 'count-in' ? clock.position : null
   // An open editor names what it edits instead of the queue's song (#603) - always, also while
   // the queue plays; state, faults and sync stay as they are.
   const editing = useEditingTitleStore((s) => s.editing)
@@ -290,7 +327,7 @@ export function StatusBar({
 
       {title && !editing && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
-          {formatSongTime(elapsedMs ?? 0)}
+          {clock.time}
           {durationMs !== null && (
             <span {...item('duration')}>
               <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>

@@ -3,7 +3,7 @@ import { useTouchSizes } from '../components/ui/PrepTier'
 import { CAPABILITIES } from 'shared-types'
 import { effectiveClickEnabled } from '../lib/metronome'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ClickTrackConfig } from './clickTrackConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -42,7 +42,7 @@ export function ClickTrackWidget({ config }: { config: ClickTrackConfig }) {
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const showState = useShowPart('state')
-  const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowMode()
+  const { mode, queue, clickTrackOverride, setClickTrackOverride, canControl } = useShowModeCore()
   const { engine } = useCapabilityRouting(CAPABILITIES.clickTrack, mode)
 
   const song = queue.currentArrangement
