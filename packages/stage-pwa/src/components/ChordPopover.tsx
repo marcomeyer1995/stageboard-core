@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { parseChordSymbol } from '../lib/chordSymbol'
-import { guitarShapeFor } from '../lib/guitarShapes'
-import { GuitarChordDiagram } from './GuitarChordDiagram'
+import { guitarShapesFor } from '../lib/guitarShapes'
+import { GuitarShapePicker } from './GuitarShapePicker'
 import { PianoChordDiagram } from './PianoChordDiagram'
 
 /** Gap to the screen edge and to the chord. */
@@ -19,7 +19,7 @@ export function ChordPopover({ symbol, anchor, onClose }: { symbol: string; anch
   const bubble = useRef<HTMLDivElement>(null)
   const [place, setPlace] = useState<{ top: number; left: number; width: number } | null>(null)
   const info = parseChordSymbol(symbol)
-  const shape = info?.qualityId ? guitarShapeFor(info.rootPitchClass, info.qualityId) : null
+  const shapes = info?.qualityId ? guitarShapesFor(info.rootPitchClass, info.qualityId) : []
 
   useLayoutEffect(() => {
     const width = Math.min(MAX_WIDTH_PX, window.innerWidth - 2 * EDGE_PX)
@@ -65,10 +65,8 @@ export function ChordPopover({ symbol, anchor, onClose }: { symbol: string; anch
       </div>
       {info ? (
         <div className="flex flex-wrap items-start gap-4">
-          {shape ? (
-            <div className="w-36">
-              <GuitarChordDiagram shape={shape} />
-            </div>
+          {shapes.length > 0 ? (
+            <GuitarShapePicker shapes={shapes} />
           ) : (
             <span className="text-base text-ink-faint">Kein Griffbild</span>
           )}
