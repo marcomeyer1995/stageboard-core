@@ -1,7 +1,7 @@
 import { useShowPart } from '../lib/widgetParts'
 import { useLocale } from '../i18n'
 import { computeFestivalClock } from '../lib/festivalClock'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { festivalClockLayout } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { useNow } from '../lib/useNow'
@@ -33,8 +33,10 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
   const captionShown = useShowPart('caption')
   const targetShown = useShowPart('target')
   const estimateShown = useShowPart('estimate')
-  const { queue, elapsedMs, playbackStatus, clickExtendMs, trackOverride } = useShowMode()
+  // Re-rendered once a second by `now` - the song position is read then, not every frame (#457).
+  const { queue, elapsedNow, playbackStatus, clickExtendMs, trackOverride } = useShowModeCore()
   const now = useNow(1000)
+  const elapsedMs = elapsedNow()
   const locale = useLocale()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))

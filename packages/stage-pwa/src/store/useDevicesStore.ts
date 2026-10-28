@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { Device } from 'shared-types'
@@ -79,7 +80,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = devicesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   rename: async (id, name) => {
     if (id === getDeviceId()) rememberDeviceName(name)
