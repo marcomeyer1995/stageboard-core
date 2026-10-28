@@ -10,9 +10,10 @@ export interface FixTarget {
 
 /** A line changed in the saved variant, with every other variant that has the same old line. */
 export interface TextFixOffer {
-  /** The line before and after, without timing tags - what the dialog shows. */
+  /** The line before and after, without timing tags - what the dialog shows. `after` null: the
+   * line was removed (Marco, 2026-10-28). */
   before: string
-  after: string
+  after: string | null
   targets: FixTarget[]
 }
 
@@ -26,12 +27,13 @@ interface OtherVariant {
 const textOf = (line: string) => clearLineTimeTag(line).trimEnd()
 
 /**
- * The lines that were *changed* (not only moved, added or removed) between two versions: a line
- * diff on the text without timing tags, and within each block where lines were replaced, the
- * removed and added lines paired in order. A line whose only change is its timing tag is no fix.
+ * The lines that were changed or removed between two versions: a line diff on the text without
+ * timing tags, and within each block where lines were replaced, the removed and added lines paired
+ * in order - a removed line left over has `after: null`. Added lines are no fix (where they would
+ * go in another variant is a guess). A line whose only change is its timing tag is no fix either.
  * `oldIndex` is the line's place in the old text.
  */
-export function changedLines(before: string, after: string): { oldIndex: number; before: string; after: string }[] {
+export function changedLines(before: string, after: string): { oldIndex: number; before: string; after: string | null }[] {
   const a = before.split('\n').map(textOf)
   const b = after.split('\n').map(textOf)
   // Longest common subsequence table, from the end.
@@ -39,12 +41,13 @@ export function changedLines(before: string, after: string): { oldIndex: number;
   for (let i = a.length - 1; i >= 0; i--) {
     for (let j = b.length - 1; j >= 0; j--) lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
   }
-  const changes: { oldIndex: number; before: string; after: string }[] = []
+  const changes: { oldIndex: number; before: string; after: string | null }[] = []
   let removed: number[] = []
   let added: number[] = []
   const flush = () => {
-    for (let k = 0; k < Math.min(removed.length, added.length); k++) {
-      if (a[removed[k]] !== b[added[k]]) changes.push({ oldIndex: removed[k], before: a[removed[k]], after: b[added[k]] })
+    for (let k = 0; k < removed.length; k++) {
+      if (k >= added.length) changes.push({ oldIndex: removed[k], before: a[removed[k]], after: null })
+      else if (a[removed[k]] !== b[added[k]]) changes.push({ oldIndex: removed[k], before: a[removed[k]], after: b[added[k]] })
     }
     removed = []
     added = []
@@ -89,15 +92,15 @@ export function textFixOffers(before: string, after: string, others: readonly Ot
   return offers
 }
 
-/** Replaces the picked lines of one variant with the fixed text - each line keeps its own timing
- * tag, so a variant's timings never change. */
-export function applyTextFixes(content: string, fixes: readonly { lineIndex: number; after: string }[]): string {
-  const lines = content.split('\n')
+/** Replaces the picked lines of one variant with the fixed text, or removes them (`after` null) -
+ * each remaining line keeps its own timing tag, so a variant's timings never change. */
+export function applyTextFixes(content: string, fixes: readonly { lineIndex: number; after: string | null }[]): string {
+  const lines: (string | null)[] = content.split('\n')
   for (const fix of fixes) {
     const line = lines[fix.lineIndex]
-    if (line === undefined) continue
+    if (line === undefined || line === null) continue
     const tag = line.slice(0, line.length - clearLineTimeTag(line).length)
-    lines[fix.lineIndex] = tag + fix.after
+    lines[fix.lineIndex] = fix.after === null ? null : tag + fix.after
   }
-  return lines.join('\n')
+  return lines.filter((line): line is string => line !== null).join('\n')
 }

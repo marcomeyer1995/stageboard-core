@@ -35,4 +35,10 @@ describe('TextFixDialog (#600)', () => {
     render(<TextFixDialog offers={[{ ...offers[0]!, targets: offers[0]!.targets.slice(0, 1) }]} onSave={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.queryByText(/Alle auswählen/)).not.toBeInTheDocument()
   })
+
+  it('a removed line shows crossed out with "Zeile entfernen"', () => {
+    render(<TextFixDialog offers={[{ before: 'zwei', after: null, targets: [{ variantId: 'b', variantLabel: 'B', lineIndex: 1 }] }]} onSave={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByText('zwei')).toHaveClass('line-through')
+    expect(screen.getByText('Zeile entfernen')).toBeInTheDocument()
+  })
 })

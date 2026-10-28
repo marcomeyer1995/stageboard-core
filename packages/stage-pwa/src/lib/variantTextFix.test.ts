@@ -26,11 +26,27 @@ describe('variantTextFix (#600)', () => {
     expect(offers).toEqual([{ before: 'Chorus', after: 'Chorus!', targets: [{ variantId: 'b', variantLabel: 'B', lineIndex: 1 }] }])
   })
 
-  it('pairs replaced lines in order and ignores lines that were only added or removed', () => {
+  it('pairs replaced lines in order; a removed line is one too, an added line is not', () => {
     expect(changedLines('a\nb\nc\nd', 'a\nB\nC\nd\nneu')).toEqual([
       { oldIndex: 1, before: 'b', after: 'B' },
       { oldIndex: 2, before: 'c', after: 'C' },
     ])
-    expect(changedLines('a\nb\nc', 'a\nc')).toEqual([])
+    expect(changedLines('a\nb\nc', 'a\nc')).toEqual([{ oldIndex: 1, before: 'b', after: null }])
+    // Two lines replaced by one: the first is changed, the second removed.
+    expect(changedLines('a\nb\nc\nd', 'a\nB\nd')).toEqual([
+      { oldIndex: 1, before: 'b', after: 'B' },
+      { oldIndex: 2, before: 'c', after: null },
+    ])
+  })
+
+  it('offers a removed line to the variants that have it, and removes it there with the other timings kept (Marco, 2026-10-28)', () => {
+    const before = '[00:01.00] eins\n[00:05.00] zwei\n[00:09.00] drei'
+    const after = '[00:01.00] eins\n[00:09.00] drei'
+    const b = variant('b', '[00:02.00] eins\n[00:06.00] zwei\n[00:11.00] drei')
+    const offers = textFixOffers(before, after, [b])
+    expect(offers).toEqual([{ before: 'zwei', after: null, targets: [{ variantId: 'b', variantLabel: 'B', lineIndex: 1 }] }])
+    expect(applyTextFixes(b.chordProContent, [{ lineIndex: 1, after: null }])).toBe('[00:02.00] eins\n[00:11.00] drei')
+    // A removal and a fix below it in one go: the fix still lands on its own line.
+    expect(applyTextFixes(b.chordProContent, [{ lineIndex: 0, after: null }, { lineIndex: 2, after: 'DREI' }])).toBe('[00:06.00] zwei\n[00:11.00] DREI')
   })
 })

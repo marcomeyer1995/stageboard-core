@@ -54,7 +54,7 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
           <section key={o} className="flex flex-col gap-2">
             <div className="flex flex-col gap-1 rounded-control bg-control px-3 py-2 font-sb-mono text-base">
               <span className="text-ink-faint line-through">{offer.before}</span>
-              <span className="text-ink">{offer.after}</span>
+              {offer.after === null ? <span className="font-sans text-ink-soft">Zeile entfernen</span> : <span className="text-ink">{offer.after}</span>}
             </div>
             {offer.targets.map((target, t) => (
               <CheckRow key={target.variantId} checked={picked.has(key({ offer: o, target: t }))} onToggle={() => toggle({ offer: o, target: t })}>
