@@ -42,6 +42,8 @@ export const RESYNC_MS = 50
 const START_MOVED_MS = 40
 /** ...but the clock runs after this at the latest, moved or not. */
 const START_WAIT_MAX_MS = 1000
+/** Deviations below this are the reports' own unevenness (measured ±13 ms) - left alone. */
+const FOLLOW_DEADBAND_MS = 20
 /** Share of a small deviation the clock takes per position report (~4 a second). */
 const FOLLOW_SHARE = 0.1
 
@@ -53,7 +55,10 @@ const FOLLOW_SHARE = 0.1
  */
 export function followPosition(elapsedMs: number, reportedMs: number): number {
   const error = reportedMs - elapsedMs
-  return Math.abs(error) > RESYNC_MS ? reportedMs : elapsedMs + error * FOLLOW_SHARE
+  if (Math.abs(error) > RESYNC_MS) return reportedMs
+  // The reports' own unevenness: leave it, a correction would only cost a render.
+  if (Math.abs(error) < FOLLOW_DEADBAND_MS) return elapsedMs
+  return elapsedMs + error * FOLLOW_SHARE
 }
 
 export function useTrackClock(trackSrc: string | null): TrackClock {
@@ -150,10 +155,18 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
       useClockStore.getState().stop()
     },
     onTimeUpdate: (e) => {
-      setPosition(e.currentTarget.currentTime)
+      // Each report used to re-render the whole timeline twice - a late frame 4 times a second.
+      // The position shows whole seconds, and the clock only moves when it has to.
+      const currentTime = e.currentTarget.currentTime
+      setPosition((prev) => (Math.floor(prev) === Math.floor(currentTime) ? prev : currentTime))
       const clock = useClockStore.getState()
-      const reportedMs = e.currentTarget.currentTime * 1000
-      clock.seek(clock.isRunning ? followPosition(clock.getElapsedMs(), reportedMs) : reportedMs)
+      const reportedMs = currentTime * 1000
+      if (!clock.isRunning) clock.seek(reportedMs)
+      else {
+        const elapsedMs = clock.getElapsedMs()
+        const nextMs = followPosition(elapsedMs, reportedMs)
+        if (nextMs !== elapsedMs) clock.seek(nextMs)
+      }
     },
     onSeeked: (e) => useClockStore.getState().seek(e.currentTarget.currentTime * 1000),
   }

@@ -26,9 +26,11 @@ describe('useTrackClock - slowed playback for tapping (2026-10-15)', () => {
 })
 
 describe('useTrackClock - followPosition (playhead pulsed, Redmi 2026-10-28)', () => {
-  it('eases small deviations a tenth at a time and jumps on real ones', () => {
-    expect(followPosition(1000, 1013)).toBeCloseTo(1001.3)
-    expect(followPosition(1000, 990)).toBeCloseTo(999)
+  it('ignores the reports\' jitter, eases small deviations a tenth at a time, jumps on real ones', () => {
+    expect(followPosition(1000, 1013)).toBe(1000)
+    expect(followPosition(1000, 990)).toBe(1000)
+    expect(followPosition(1000, 1030)).toBeCloseTo(1003)
+    expect(followPosition(1000, 970)).toBeCloseTo(997)
     expect(followPosition(1000, 1000 + RESYNC_MS + 1)).toBe(1000 + RESYNC_MS + 1)
     expect(followPosition(5000, 2000)).toBe(2000)
   })
