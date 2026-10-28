@@ -1036,7 +1036,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const brackets = bracketProblems(settledText)
   // Little height with the keyboard up: the text alone (#617) - no variant row above it. Where
   // enough is left (a tablet in portrait: ~690 px), the variant row stays (Marco, 2026-10-28).
-  const typingOnPhone = textFocused && !isPanel && (visible?.height ?? 0) < ROOMY_FOR_VARIANT_ROW_PX
+  // The larger of the visible area and the page: while the keyboard comes up, the visible area
+  // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
+  const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
+  const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>

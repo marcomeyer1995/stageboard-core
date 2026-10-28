@@ -130,22 +130,29 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
 
   it('phone: while the text field has the focus, the variant row steps aside', async () => {
     stubViewport(phone)
+    // A phone with the keyboard up: ~400 px of page left.
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(400)
     const textarea = await renderLoaded()
     fireEvent.focus(textarea)
     expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
     fireEvent.blur(textarea)
     expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+    height.mockRestore()
   })
 
   it('tablet in portrait: with enough height above the keyboard the variant row stays (Marco, 2026-10-28)', async () => {
     stubViewport(phone)
-    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 686, offsetTop: 0 }) })
+    // The page as the Redmi has it with the keyboard up - and the visible area's brief ~300 px
+    // blip while it comes up, which must not hide the row.
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(652)
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 297, offsetTop: 0 }) })
     try {
       const textarea = await renderLoaded()
       fireEvent.focus(textarea)
       expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
     } finally {
       Reflect.deleteProperty(window, 'visualViewport')
+      height.mockRestore()
     }
   })
 
