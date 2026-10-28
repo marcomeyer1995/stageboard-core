@@ -2,7 +2,7 @@ import { useTouchSizes } from '../components/ui/PrepTier'
 import { INPUT } from '../components/ui/styles'
 import { isSongEntry } from 'shared-types'
 import { resolveTrackForEntry, resolveVariantForEntry } from '../lib/computeQueue'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { trackOverrideLayout } from '../lib/stageWidgetLayout'
 import { useElementSize } from '../lib/useElementSize'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -36,7 +36,7 @@ import { playableTracks } from '../lib/stems'
  * carries a "Variante:" / "Track:" prefix instead (stageWidgetLayout.ts).
  */
 export function TrackOverrideWidget({ config }: { config: TrackOverrideConfig }) {
-  const { queue, trackOverride, canControl, setTrackOverride, variantOverride, setVariantOverride } = useShowMode()
+  const { queue, trackOverride, canControl, setTrackOverride, variantOverride, setVariantOverride } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant } = queue
   const variants = useSongVariantsStore((state) => state.variants)
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)

@@ -15,7 +15,7 @@ const access = Object.assign(new EventTarget(), { inputs: new Map([['in-1', inpu
 vi.mock('./webMidiOutput', () => ({ getMidiAccess: async () => access }))
 const presses = vi.hoisted(() => ({ pressTrigger: vi.fn(async () => null), releaseTrigger: vi.fn(() => null) }))
 vi.mock('./triggerPress', () => presses)
-vi.mock('./showMode', () => ({ useShowMode: () => ({ canControl: true }) }))
+vi.mock('./showMode', () => ({ useShowMode: () => ({ canControl: true }), useShowModeOnDemand: () => ({ canControl: true }) }))
 
 const { getDeviceId } = await import('./deviceId')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')

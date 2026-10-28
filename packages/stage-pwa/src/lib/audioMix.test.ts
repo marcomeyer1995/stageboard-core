@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sourceOutput, trackElementVolume, useAudioMixStore } from './audioMix'
+import { __resetAudioMixForTests, DEFAULT_MIX, mixGain, parseMix, sideOf, sourceOutput, trackElementVolume, useAudioMixStore, useOutputRoutingStore } from './audioMix'
 
 class FakeGain {
   gain = {
@@ -10,12 +10,28 @@ class FakeGain {
     },
   }
   connectedTo: unknown = null
-  connect(node: unknown) {
+  input: number | null = null
+  channelCount = 2
+  channelCountMode = 'max'
+  channelInterpretation = 'speakers'
+  connect(node: unknown, ...[, input = null]: [number?, (number | null)?]) {
     this.connectedTo = node
+    this.input = input
     return node
   }
+  disconnect() {
+    this.connectedTo = null
+  }
 }
-const fakeCtx = () => ({ currentTime: 0, destination: { name: 'out' }, createGain: () => new FakeGain() }) as unknown as AudioContext
+class FakeMerger {
+  constructor(public inputs: number) {}
+  connectedTo: unknown = null
+  connect(node: unknown) {
+    this.connectedTo = node
+  }
+}
+const fakeCtx = () =>
+  ({ currentTime: 0, destination: { name: 'out' }, createGain: () => new FakeGain(), createChannelMerger: (n: number) => new FakeMerger(n) }) as unknown as AudioContext
 
 afterEach(() => {
   __resetAudioMixForTests()
@@ -56,5 +72,42 @@ describe('Mein Mix (docs/21 §9.3)', () => {
     expect(trackElementVolume()).toBe(1)
     useAudioMixStore.getState().setLevel('track', 0.3)
     expect(trackElementVolume()).toBeCloseTo(0.3)
+  })
+})
+
+describe('Klick und Track trennen (#481 step 1)', () => {
+  it('click and announcements on one side, the track on the other', () => {
+    expect(sideOf('click', 'click-left')).toBe('left')
+    expect(sideOf('voice', 'click-left')).toBe('left')
+    expect(sideOf('track', 'click-left')).toBe('right')
+    expect(sideOf('track', 'click-right')).toBe('left')
+    expect(sideOf('track', 'mixed')).toBeNull()
+  })
+
+  it('split: each source into a mono bus on its merger input; back to mixed: straight to the output', () => {
+    const ctx = fakeCtx()
+    const click = sourceOutput('click', ctx) as unknown as FakeGain
+    const track = sourceOutput('track', ctx) as unknown as FakeGain
+    useOutputRoutingStore.getState().setRouting('click-left')
+    const left = click.connectedTo as FakeGain
+    const right = track.connectedTo as FakeGain
+    expect(left.input).toBe(0)
+    expect(right.input).toBe(1)
+    // Mono buses: the stereo track is summed down on its way in.
+    expect([right.channelCount, right.channelCountMode, right.channelInterpretation]).toEqual([1, 'explicit', 'speakers'])
+    const merger = left.connectedTo as FakeMerger
+    expect(right.connectedTo).toBe(merger)
+    expect(merger.connectedTo).toBe(ctx.destination)
+    // A source created later follows the routing too.
+    const voice = sourceOutput('voice', ctx) as unknown as FakeGain
+    expect(voice.connectedTo).toBe(left)
+    useOutputRoutingStore.getState().setRouting('mixed')
+    expect(click.connectedTo).toBe(ctx.destination)
+    expect(track.connectedTo).toBe(ctx.destination)
+  })
+
+  it('is kept per device', () => {
+    useOutputRoutingStore.getState().setRouting('click-right')
+    expect(localStorage.getItem('sb:audio:routing')).toBe('click-right')
   })
 })

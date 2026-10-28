@@ -3,7 +3,7 @@ import { useId, useState } from 'react'
 import { BehaviorEditor } from '../components/BehaviorEditor'
 import { needsShowControl, type Behavior } from '../lib/actions'
 import { resolveHardwareBindingById } from '../lib/hardwareRouting'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeOnDemand } from '../lib/showMode'
 import { isLatched, pressTrigger, releaseTrigger } from '../lib/triggerPress'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
@@ -23,7 +23,8 @@ const INACTIVE_CLASS = 'bg-control-strong text-ink [@media(hover:hover)]:hover:b
  * anyone. A button set up before is read as the device command it always sent.
  */
 export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig }) {
-  const show = useShowMode()
+  // The clock only at a press (#457).
+  const show = useShowModeOnDemand()
   const devices = useLogicalDevicesStore((s) => s.devices)
   const id = `widget:${useId()}`
   const [on, setOn] = useState(() => isLatched(id))

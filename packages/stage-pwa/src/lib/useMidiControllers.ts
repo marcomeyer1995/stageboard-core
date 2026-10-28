@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { CAPABILITIES, type DeviceTransportConfig, type LogicalDevice } from 'shared-types'
 import { getDeviceId } from './deviceId'
 import { decodeMidiButton, matchMidiRule, type MidiButtonEvent, type MidiControllerRulesDoc } from './midiControllerRules'
-import { useShowMode } from './showMode'
+import { useShowModeOnDemand } from './showMode'
 import { pressTrigger, releaseTrigger } from './triggerPress'
 import { claimedMidiInputs } from './webMidi'
 import { getMidiAccess } from './webMidiOutput'
@@ -38,7 +38,8 @@ function resolveInput(access: MIDIAccess, logicalDeviceId: string, configs: read
  * port is plugged in again.
  */
 export function useMidiControllers(): void {
-  const show = useShowMode()
+  // The clock only at a press (#457) - not a re-render on every frame.
+  const show = useShowModeOnDemand()
   const latest = useRef(show)
   latest.current = show
   const devices = useLogicalDevicesStore((state) => state.devices)

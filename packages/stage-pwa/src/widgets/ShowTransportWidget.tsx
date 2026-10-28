@@ -6,7 +6,8 @@ import { CAPABILITIES, isTransitionEntry, type ShowControlEvent } from 'shared-t
 import { resolveTrackForEntry } from '../lib/computeQueue'
 import { triggerShowControl } from '../lib/showControlClient'
 import { useCapabilityRouting } from '../lib/useCapabilityRouting'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
+import { useFrameValue } from '../lib/useFrameValue'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import {
@@ -61,8 +62,10 @@ function formatClock(ms: number): string {
  * all share one size).
  */
 export function ShowTransportWidget({ config }: { config: ShowTransportConfig }) {
-  const { mode, queue, elapsedMs, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
-    useShowMode()
+  const { mode, queue, elapsedNow, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
+    useShowModeCore()
+  // The clock shows tenths at most - read every frame, re-rendered only when the text changes (#457).
+  const clockText = useFrameValue(() => formatClock(elapsedNow() ?? 0), playbackStatus === 'playing')
   const { currentSong, currentVariant } = queue
   const driverError = useLocalAudioOutputStore((state) => state.error)
 
@@ -141,7 +144,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           )}
         </span>
         <span style={{ fontSize: infoClockFontSize }} className={`flex-none whitespace-nowrap font-sb-mono font-bold tabular-nums text-ink ${timeShown ? '' : 'hidden'}`}>
-          {formatClock(elapsedMs ?? 0)}
+          {clockText}
           {transitionItem?.estimatedDurationMs ? (
             <span className="ml-1 font-normal text-ink-faint">/ {formatClock(transitionItem.estimatedDurationMs)}</span>
           ) : null}
