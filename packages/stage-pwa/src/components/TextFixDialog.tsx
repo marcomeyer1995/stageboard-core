@@ -21,7 +21,9 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
       if (!next.delete(key(pick))) next.add(key(pick))
       return next
     })
-  const picks = offers.flatMap((offer, o) => offer.targets.map((_, t) => ({ offer: o, target: t }))).filter((pick) => picked.has(key(pick)))
+  const all = offers.flatMap((offer, o) => offer.targets.map((_, t) => ({ offer: o, target: t })))
+  const picks = all.filter((pick) => picked.has(key(pick)))
+  const allPicked = all.length > 0 && picks.length === all.length
 
   return (
     <Dialog
@@ -38,6 +40,12 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
       }
     >
       <div className="flex flex-col gap-4">
+        {all.length > 1 && (
+          // All at once (Marco, 2026-10-28) - still nothing ticked until asked for.
+          <CheckRow checked={allPicked} onToggle={() => setPicked(allPicked ? new Set() : new Set(all.map(key)))}>
+            Alle auswählen
+          </CheckRow>
+        )}
         {offers.map((offer, o) => (
           <section key={o} className="flex flex-col gap-2">
             <div className="flex flex-col gap-1 rounded-control bg-control px-3 py-2 font-sb-mono text-base">
