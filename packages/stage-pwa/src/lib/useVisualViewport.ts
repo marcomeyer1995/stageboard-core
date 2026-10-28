@@ -54,3 +54,9 @@ export function useSettledVisualViewport(): VisualViewportBox | null {
   }, [height, offsetTop])
   return settled
 }
+
+/** The style that pins a `fixed` overlay to the visible area (top and height), or nothing where the
+ * browser has no visualViewport. */
+export function visibleArea(box: VisualViewportBox | null): { top: number; height: number } | undefined {
+  return box ? { top: box.offsetTop, height: box.height } : undefined
+}
