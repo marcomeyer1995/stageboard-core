@@ -58,9 +58,9 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // this device's own local one (usePracticeElapsedMs.ts). Either way, elapsedMs is null
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
   const { queue, elapsedMs, playbackStatus, mode } = useShowMode()
-  // Chord shapes on a long press (#609) - never while a Gig runs (also paused mid-show): an
-  // accidental press must not cover the lyrics on stage.
-  const chordInfo = !(mode === 'gig' && playbackStatus !== 'stopped')
+  // Chord shapes on a long press (#609) - never while a Gig song plays: an accidental press must
+  // not cover the lyrics on stage. Paused is fine - a moment to look a chord up (Marco, 2026-10-28).
+  const chordInfo = !(mode === 'gig' && playbackStatus === 'playing')
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
