@@ -4,6 +4,8 @@ import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
 import { sourceOutput } from './audioMix'
+import type { LevelPoint } from './playbackCues'
+import { scheduleTrackLevel } from './trackLevel'
 
 /**
  * Backing track on the click's own audio clock (#468; the default since 2026-10-15, per device switchable off).
@@ -184,6 +186,30 @@ let voice: Voice | null = null
 let lastSyncAt = -Infinity
 let suspect = 0
 const clock = createAudioClock()
+
+/** The track's level over the song from its playback cues (#485, playbackCues.ts) - empty: as
+ * uploaded. Applied on its own gain node after the voices, so crossfades and level never fight. */
+let levelCurve: readonly LevelPoint[] = []
+let levelNode: { ctx: AudioContext; node: GainNode } | null = null
+
+/** Sets the level curve of the song playing (or about to) - called by the audio output driver. */
+export function setWebAudioTrackLevelCurve(curve: readonly LevelPoint[]): void {
+  levelCurve = curve
+}
+
+/** Where the voices play into: the level node, which plays into the track's mix gain (audioMix). */
+function trackInput(ctx: AudioContext): GainNode {
+  if (levelNode?.ctx !== ctx) {
+    const node = ctx.createGain()
+    node.connect(sourceOutput('track', ctx))
+    levelNode = { ctx, node }
+  }
+  return levelNode.node
+}
+
+function applyLevel(ctx: AudioContext, now: number, songNow: number): void {
+  scheduleTrackLevel(trackInput(ctx).gain, ctx, now, songNow, levelCurve)
+}
 
 /** What the prototype did, for measuring over USB (window.__sbWebAudioTrack). `trace` holds the
  * raw clock values of the first 4 s after each start. */
@@ -458,7 +484,7 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
     gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
     if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
   }
-  gain.connect(sourceOutput('track', ctx))
+  gain.connect(trackInput(ctx))
   const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null, jump: null }
   voice = v
   stats.starts++
@@ -510,6 +536,7 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     return { blocked: false }
   }
   const songNow = elapsedMs / 1000
+  applyLevel(ctx, now, songNow)
   if (voice && voice.key !== wanted.key) stopVoice()
 
   if (!voice) {
@@ -629,6 +656,8 @@ export function __resetWebAudioTrackForTests(): void {
   voice = null
   lastSyncAt = -Infinity
   suspect = 0
+  levelCurve = []
+  levelNode = null
   clock.reset()
   stats.prepares.length = 0
   stats.reschedules.length = 0
