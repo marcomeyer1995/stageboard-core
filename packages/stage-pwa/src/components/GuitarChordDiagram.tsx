@@ -2,7 +2,8 @@ import type { GuitarShape } from '../lib/guitarShapes'
 
 const STRINGS = 6
 const FRETS_SHOWN = 5
-const LEFT = 22
+// Room left of the strings for a two-digit position ("13fr") clear of a barre's rounded end.
+const LEFT = 36
 const STRING_GAP = 15.2
 const TOP = 34
 const FRET_GAP = 20
@@ -31,7 +32,7 @@ export function GuitarChordDiagram({ shape }: { shape: GuitarShape }) {
         <line key={`string-${string}`} x1={stringX(string)} x2={stringX(string)} y1={TOP} y2={TOP + FRET_GAP * FRETS_SHOWN} className="stroke-ink-faint" strokeWidth={1} />
       ))}
       {shape.baseFret > 1 && (
-        <text x={2} y={TOP + FRET_GAP * 0.65} className="fill-ink" fontSize={11} fontWeight={700}>
+        <text x={LEFT - 9} y={TOP + FRET_GAP * 0.65} textAnchor="end" className="fill-ink" fontSize={11} fontWeight={700}>
           {shape.baseFret}fr
         </text>
       )}
