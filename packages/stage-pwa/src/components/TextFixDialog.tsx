@@ -42,8 +42,9 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
       <div className="flex flex-col gap-4">
         {all.length > 1 && (
           // All at once (Marco, 2026-10-28) - still nothing ticked until asked for. Set apart by a
-          // line, so it reads as an option over the list, not one more line of it.
-          <div className="border-b border-line pb-4">
+          // line, so it reads as an option over the list, not one more line of it, and stays at the
+          // top while the lines scroll under it (over the dialog body's padding too).
+          <div className="sticky -top-4 z-10 -mt-4 border-b border-line bg-surface pb-4 pt-4">
             <CheckRow checked={allPicked} onToggle={() => setPicked(allPicked ? new Set() : new Set(all.map(key)))}>
               <span className="font-semibold">Alle auswählen ({all.length})</span>
             </CheckRow>
