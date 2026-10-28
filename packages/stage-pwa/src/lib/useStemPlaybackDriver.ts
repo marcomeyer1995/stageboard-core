@@ -4,7 +4,8 @@ import { resolveTrackForEntry } from './computeQueue'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
 import { setLocalTrackSilenced } from './localAudioEngine'
 import { useShowMode } from './showMode'
-import { loadStems, setStemGains, syncStems, unloadStems } from './stemEngine'
+import { loadStems, setStemGains, setStemLevelCurve, syncStems, unloadStems } from './stemEngine'
+import { useTrackLevelCurve } from './trackLevel'
 import { stemGains, stemMixFor, useStemMixStore } from './stemMix'
 import { pickStemSet, stemSetsOf } from './stems'
 import { practiceElapsedMsNow } from './usePracticeElapsedMs'
@@ -68,6 +69,10 @@ export function useStemPlaybackDriver(): void {
   useEffect(() => {
     setStemGains(useStems ? stemGains(settings, stemIds) : new Map(stemIds.map((id) => [id, 1])))
   }, [useStems, settings, stemIds])
+
+  // Track level, fades and mute by cue (#485) - in Solo as in the Gig, on the stems' sum.
+  const levelCurve = useTrackLevelCurve(queue)
+  useEffect(() => setStemLevelCurve(levelCurve), [levelCurve])
 
   // Every frame while playing (`elapsedMs` re-renders this). The engine reads the song time itself,
   // right when it reads the audio clock, shifted like the click and the Gig's Web Audio track so it

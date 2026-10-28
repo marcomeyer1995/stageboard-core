@@ -4,7 +4,8 @@ import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
 import { sourceOutput } from './audioMix'
-import { levelAt, type LevelPoint } from './playbackCues'
+import type { LevelPoint } from './playbackCues'
+import { scheduleTrackLevel } from './trackLevel'
 
 /**
  * Backing track on the click's own audio clock (#468; the default since 2026-10-15, per device switchable off).
@@ -190,8 +191,6 @@ const clock = createAudioClock()
  * uploaded. Applied on its own gain node after the voices, so crossfades and level never fight. */
 let levelCurve: readonly LevelPoint[] = []
 let levelNode: { ctx: AudioContext; node: GainNode } | null = null
-/** How far ahead the level is scheduled on every sync - longer than any stall between two. */
-const LEVEL_AHEAD_S = 1
 
 /** Sets the level curve of the song playing (or about to) - called by the audio output driver. */
 export function setWebAudioTrackLevelCurve(curve: readonly LevelPoint[]): void {
@@ -208,24 +207,8 @@ function trackInput(ctx: AudioContext): GainNode {
   return levelNode.node
 }
 
-/**
- * Schedules the level from the song time `songNow` (heard at audio time `now`) LEVEL_AHEAD_S ahead:
- * the value now, then a linear ramp to every point of the curve in that window - the curve is
- * linear between its points, so this is exact. Replaces what was scheduled before; a seek or jump
- * just continues from the new song time.
- */
 function applyLevel(ctx: AudioContext, now: number, songNow: number): void {
-  const param = trackInput(ctx).gain
-  const t = Math.max(now, ctx.currentTime)
-  const songT = songNow + (t - now)
-  param.cancelScheduledValues(t)
-  param.setValueAtTime(levelAt(levelCurve, songT * 1000), t)
-  if (levelCurve.length === 0) return
-  for (const point of levelCurve) {
-    const at = point.timeMs / 1000
-    if (at > songT && at < songT + LEVEL_AHEAD_S) param.linearRampToValueAtTime(point.gain, t + (at - songT))
-  }
-  param.linearRampToValueAtTime(levelAt(levelCurve, (songT + LEVEL_AHEAD_S) * 1000), t + LEVEL_AHEAD_S)
+  scheduleTrackLevel(trackInput(ctx).gain, ctx, now, songNow, levelCurve)
 }
 
 /** What the prototype did, for measuring over USB (window.__sbWebAudioTrack). `trace` holds the

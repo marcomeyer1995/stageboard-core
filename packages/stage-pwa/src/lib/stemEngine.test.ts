@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
-import { __resetStemsForTests, __stemStatsForTests, loadStems, setStemGains, syncStems } from './stemEngine'
+import { __resetStemsForTests, setStemLevelCurve, __stemStatsForTests, loadStems, setStemGains, syncStems } from './stemEngine'
 
 vi.mock('./songVariantsDb', () => ({ getTrack: vi.fn() }))
 vi.mock('./trackStream', () => ({ openTrackStream: vi.fn() }))
@@ -45,7 +45,13 @@ interface FakeNode {
 }
 const nodes: FakeNode[] = []
 const gains: {
-  gain: { value: number; setTargetAtTime: ReturnType<typeof vi.fn> }
+  gain: {
+    value: number
+    setTargetAtTime: ReturnType<typeof vi.fn>
+    setValueAtTime: ReturnType<typeof vi.fn>
+    cancelScheduledValues: ReturnType<typeof vi.fn>
+    linearRampToValueAtTime: ReturnType<typeof vi.fn>
+  }
   connect: ReturnType<typeof vi.fn>
 }[] = []
 const ctx = {
@@ -59,7 +65,7 @@ const ctx = {
   createBuffer: (_channels: number, length: number) => fakeBuffer('joined', length / SR),
   createGain: () => {
     const gain = {
-      gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
+      gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), cancelScheduledValues: vi.fn(), linearRampToValueAtTime: vi.fn() },
       connect: vi.fn(),
       disconnect: vi.fn(),
     }
@@ -211,6 +217,22 @@ describe('stemEngine (docs/22 §3)', () => {
     // One gain node per stem (created in order), each moved to its new level.
     const stemGains = gains.slice(1, 4)
     expect(stemGains.map((g) => g.gain.setTargetAtTime.mock.calls[g.gain.setTargetAtTime.mock.calls.length - 1]?.[0])).toEqual([0.5, 0, 1])
+  })
+
+  it('plays the track level cues (#485) on the stems\' sum - muted inside, a fade ahead', async () => {
+    await loadStems('v', STEMS)
+    const bus = gains[0]!
+    setStemLevelCurve([
+      { timeMs: 0, gain: 1 },
+      { timeMs: 40_000, gain: 1 },
+      { timeMs: 42_000, gain: 0 },
+    ])
+    syncStems(() => 45_000, true)
+    expect(bus.gain.setValueAtTime).toHaveBeenLastCalledWith(0, expect.any(Number))
+    syncStems(() => 39_500, true)
+    wallMs += 100
+    syncStems(() => 39_600, true)
+    expect(bus.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, expect.any(Number))
   })
 
   it('restarts all stems at the new position after a jump', async () => {
