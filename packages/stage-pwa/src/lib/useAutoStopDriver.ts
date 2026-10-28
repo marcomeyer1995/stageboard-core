@@ -5,7 +5,8 @@ import { resolveTrackForEntry } from './computeQueue'
 import { resolveTrackEndAction, transitionItemEndMs } from './trackEndTransition'
 import { getLocalTrackDurationMs } from './localAudioEngine'
 import { getWebAudioTrackDurationMs, webAudioTrackEnabled } from './webAudioTrackEngine'
-import { useShowMode } from './showMode'
+import { useShowModeCore } from './showMode'
+import { useFrameValue } from './useFrameValue'
 
 /**
  * Ends the current entry once its length has elapsed (#231, #28), then acts on its
@@ -27,8 +28,25 @@ import { useShowMode } from './showMode'
  * end point this driver waits for, so it delays the handoff too.
  */
 export function useAutoStopDriver(): void {
-  const { elapsedMs, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowMode()
+  const { elapsedNow, playbackStatus, drivesAutomation: canControl, clickExtendMs, stopAtTrackEnd, next, play, queue, trackOverride } = useShowModeCore()
   const { currentEntry, currentVariant, nextEntry } = queue
+
+  // Whether the entry has run out - looked at every frame, but this re-renders only when it flips
+  // (#457: the whole driver host re-rendered 60 times a second for it).
+  // A song ends after its stored length (#28: the selected track's, else the hand-entered one -
+  // which also ends click-only songs); a track whose length isn't stored yet falls back to the
+  // audio actually loaded on this device. A song with no known length never stops by itself. A
+  // transition item or section heading (#29) ends after its own duration.
+  const pastEnd = useFrameValue(() => {
+    const elapsedMs = elapsedNow()
+    if (elapsedMs === null) return false
+    const durationMs =
+      currentEntry && isSongEntry(currentEntry)
+        ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
+          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? ((webAudioTrackEnabled() ? getWebAudioTrackDurationMs() : null) ?? getLocalTrackDurationMs()) : null))
+        : transitionItemEndMs(currentEntry)
+    return durationMs !== null && elapsedMs >= durationMs + clickExtendMs
+  }, playbackStatus === 'playing')
 
   // Guards against firing the end action more than once for the same play-through: `elapsedMs`
   // keeps ticking via requestAnimationFrame for a frame or two after it fires, before the
@@ -43,17 +61,7 @@ export function useAutoStopDriver(): void {
       handledForRunRef.current = false
       return
     }
-    if (!canControl || handledForRunRef.current || elapsedMs === null) return
-    // A song ends after its stored length (#28: the selected track's, else the hand-entered one -
-    // which also ends click-only songs); a track whose length isn't stored yet falls back to the
-    // audio actually loaded on this device. A song with no known length never stops by itself. A
-    // transition item or section heading (#29) ends after its own duration.
-    const durationMs =
-      currentEntry && isSongEntry(currentEntry)
-        ? (songDurationMs(currentEntry, currentVariant, trackOverride)?.ms ??
-          (resolveTrackForEntry(currentEntry, currentVariant, trackOverride) ? ((webAudioTrackEnabled() ? getWebAudioTrackDurationMs() : null) ?? getLocalTrackDurationMs()) : null))
-        : transitionItemEndMs(currentEntry)
-    if (durationMs === null || elapsedMs < durationMs + clickExtendMs) return
+    if (!canControl || handledForRunRef.current || !pastEnd) return
     handledForRunRef.current = true
     const action = resolveTrackEndAction(currentEntry, nextEntry)
     if (action.kind === 'stop') {
@@ -64,7 +72,7 @@ export function useAutoStopDriver(): void {
       pendingStartRef.current = { entryId: nextEntry.id, skipCountIn: action.skipCountIn, delayMs: action.delayMs }
     }
     void next()
-  }, [playbackStatus, canControl, elapsedMs, clickExtendMs, stopAtTrackEnd, next, currentEntry, currentVariant, trackOverride, nextEntry])
+  }, [playbackStatus, canControl, pastEnd, stopAtTrackEnd, next, currentEntry, nextEntry])
 
   const currentEntryId = currentEntry?.id ?? null
   useEffect(() => {

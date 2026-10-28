@@ -30,7 +30,7 @@ const LEAD_S = 0.15
 const STREAM_LEAD_S = 0.4
 /** A queued section jump (#479) is taken over this long before its boundary - after the moment
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
-const JUMP_COMMIT_S = 0.9
+export const JUMP_COMMIT_S = 0.9
 /** Length of the crossfade at a section jump - long enough for the old section's ring to fade
  * under the new one, short enough that the next downbeat of the old section stays in the shade.
  * Set per device (Marco, 2026-10-17: to try different lengths), read at every jump. 200 ms by
@@ -57,11 +57,11 @@ export function setJumpCrossfadeMs(ms: number): void {
   }
 }
 /** How far before the bar line the crossfade starts - ahead of the downbeats' attacks. */
-const JUMP_PREROLL_S = 0.015
+export const JUMP_PREROLL_S = 0.015
 const CURVE_POINTS = 64
 
 /** Gain curve for an equal-power crossfade: sin up, cos down - the two powers always add to 1. */
-function equalPowerCurve(up: boolean): Float32Array {
+export function equalPowerCurve(up: boolean): Float32Array {
   const curve = new Float32Array(CURVE_POINTS)
   for (let i = 0; i < CURVE_POINTS; i++) {
     const x = (i / (CURVE_POINTS - 1)) * (Math.PI / 2)

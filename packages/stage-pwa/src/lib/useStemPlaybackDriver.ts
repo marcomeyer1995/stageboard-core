@@ -8,7 +8,9 @@ import { loadStems, setStemGains, setStemLevelCurve, syncStems, unloadStems } fr
 import { useTrackLevelCurve } from './trackLevel'
 import { stemGains, stemMixFor, useStemMixStore } from './stemMix'
 import { pickStemSet, stemSetsOf } from './stems'
-import { practiceElapsedMsNow } from './usePracticeElapsedMs'
+import { computeActiveMs, jumpBoundaryMs } from './playbackTransport'
+import type { TrackJump } from './webAudioTrackEngine'
+import { practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 import { useStemPlaybackStore } from '../store/useStemPlaybackStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -26,6 +28,23 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
  * follows it stay as they are - and is heard whenever the engine isn't ready (still loading,
  * failed). Not during a Rehearsal Loop (#61): the loop plays its own copy of the track.
  */
+/** The song time as heard `latencyMs` from now - across a queued section jump (#479) the same way
+ * the Gig's track does (useAudioOutputDriver): past the boundary in that played-ahead time, the
+ * target's time. Null while stopped. */
+function playedAheadNow(workspaceId: string, latencyMs: number): number | null {
+  const transport = practiceTransportOf(usePracticeStateStore.getState().get(workspaceId))
+  if (transport.status === 'stopped') return null
+  const played = computeActiveMs({ ...transport, jump: null }, Date.now()) + latencyMs
+  const boundary = jumpBoundaryMs(transport)
+  return transport.jump && boundary !== null && played >= boundary ? transport.jump.toMs + (played - boundary) : played
+}
+
+function queuedJump(workspaceId: string): TrackJump | null {
+  const transport = practiceTransportOf(usePracticeStateStore.getState().get(workspaceId))
+  const boundary = jumpBoundaryMs(transport)
+  return transport.jump && boundary !== null ? { id: transport.jump.at, boundaryMs: boundary, toMs: transport.jump.toMs } : null
+}
+
 export function useStemPlaybackDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride } = useShowMode()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
@@ -80,10 +99,11 @@ export function useStemPlaybackDriver(): void {
   const latencyMs = useAudioOutputLatencyMs()
   useEffect(() => {
     if (status !== 'ready') return
-    syncStems(() => {
-      const now = practiceElapsedMsNow(workspaceId)
-      return now === null ? null : now + latencyMs
-    }, playbackStatus === 'playing')
+    syncStems(
+      () => playedAheadNow(workspaceId, latencyMs),
+      playbackStatus === 'playing',
+      () => queuedJump(workspaceId),
+    )
   }, [status, elapsedMs, latencyMs, playbackStatus, workspaceId])
 
   useEffect(
