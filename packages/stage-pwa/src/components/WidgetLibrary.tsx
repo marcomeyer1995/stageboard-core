@@ -245,14 +245,14 @@ export function WidgetLibrary({
                     </WidgetPreviewErrorBoundary>
                   </div>
                   <div className="flex flex-col gap-1 px-3 py-2">
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="font-semibold">{definition.title}</span>
-                      {TIER_BADGE[definition.stageTier] && (
-                        <span className="whitespace-nowrap rounded-control bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
-                          {tc(`tiers.${TIER_BADGE[definition.stageTier]!}`)}
-                        </span>
-                      )}
-                    </span>
+                    <span className="font-semibold">{definition.title}</span>
+                    {TIER_BADGE[definition.stageTier] && (
+                      // Below the title, not beside it: "Zwischen Songs" / "Between songs" squeezed
+                      // the title on a narrow card (Marco, 2026-10-28).
+                      <span className="self-start whitespace-nowrap rounded-control bg-control-strong px-1.5 text-xs font-bold uppercase tracking-wide text-ink-soft">
+                        {tc(`tiers.${TIER_BADGE[definition.stageTier]!}`)}
+                      </span>
+                    )}
                     <span className="block text-sm text-ink-muted">{definition.description}</span>
                     {definition.stageTier === 'rehearsal' && offeredInGig && (
                       <span className="block text-sm text-accent">
