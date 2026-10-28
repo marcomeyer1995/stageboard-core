@@ -137,6 +137,18 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
     expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
   })
 
+  it('tablet in portrait: with enough height above the keyboard the variant row stays (Marco, 2026-10-28)', async () => {
+    stubViewport(phone)
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 686, offsetTop: 0 }) })
+    try {
+      const textarea = await renderLoaded()
+      fireEvent.focus(textarea)
+      expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(window, 'visualViewport')
+    }
+  })
+
   it('wide screen: text and preview side by side, no Vorschau tab', async () => {
     stubViewport(desktop)
     await renderLoaded()
