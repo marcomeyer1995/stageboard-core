@@ -50,7 +50,18 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   // typing shrinks nothing (the keyboard laid over the page unannounced) the 38 % cap stays.
   const visible = useVisualViewport()
   const keyboardShown = useTouchKeyboardOpen()
-  const capForKeyboard = typing.active && !keyboardShown
+  // Decided only once the keyboard had time to come up: capping at once and growing again when the
+  // area shrank drew the dialog twice - small at the top, then full (Redmi app, 2026-10-28).
+  const [keyboardSettled, setKeyboardSettled] = useState(false)
+  useEffect(() => {
+    if (!typing.active) {
+      setKeyboardSettled(false)
+      return
+    }
+    const id = setTimeout(() => setKeyboardSettled(true), KEYBOARD_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [typing.active])
+  const capForKeyboard = typing.active && keyboardSettled && !keyboardShown
   const [sliding, setSliding] = useState(false)
   useEffect(() => {
     if (!sliding) return
@@ -115,6 +126,9 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
     document.body,
   )
 }
+
+/** How long the on-screen keyboard gets to shrink the visible area before the dialog caps itself. */
+export const KEYBOARD_SETTLE_MS = 600
 
 const TEXT_INPUT = /^(text|search|email|url|tel|password|number|time|date|datetime-local)$/
 
