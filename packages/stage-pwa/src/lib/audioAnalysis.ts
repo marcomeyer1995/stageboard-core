@@ -112,7 +112,10 @@ export function computeSpectralFlux(samples: Float32Array, sampleRate: number, f
     }
     flux[i] = sumFlux
   }
-  return { flux, hopMs }
+  // The hop actually used: rounded to whole samples it is 15.011 ms at 44.1 kHz, not 15 - with
+  // the nominal value every frame time ran 0.075 % early, 90 ms after two minutes (found with the
+  // Rig-Check's ground truth, #464). Exact at 48 kHz, which is why tablets rarely showed it.
+  return { flux, hopMs: (hopSize / sampleRate) * 1000 }
 }
 
 export interface OnsetDetectionResult {
