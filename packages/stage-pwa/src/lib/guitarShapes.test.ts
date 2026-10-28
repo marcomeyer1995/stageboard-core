@@ -60,12 +60,11 @@ describe('guitarShapeFor - fingering details', () => {
 })
 
 describe('guitarShapesFor - every place on the neck (Marco, 2026-10-28)', () => {
-  it('F: the barre at fret 1, then the A-form at fret 8, then up an octave - low to high', () => {
+  it('F: the barre at fret 1, then the A-form at fret 8 - no octave repeats from fret 12 up', () => {
     const shapes = guitarShapesFor(5, 'maj')
     expect(shapes.map((s) => s.frets)).toEqual([
       [1, 3, 3, 2, 1, 1],
       [null, 8, 10, 10, 10, 8],
-      [13, 15, 15, 14, 13, 13],
     ])
     expect(shapes[0]!.barre).toEqual({ fret: 1, fromString: 0, toString: 5 })
     expect(shapes[1]!.barre).toEqual({ fret: 8, fromString: 1, toString: 5 })

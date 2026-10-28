@@ -87,8 +87,8 @@ function place(form: Frets, rootFret: number): GuitarShape {
 /**
  * Every shape this table knows for `qualityId` on `pitchClass` (0 = C), in standard tuning, from
  * low on the neck to high (#609: a chord is played in several places - swipe through them): the
- * familiar open shape where there is one, then the E-form and A-form barre chords at every
- * position that fits the neck (an octave up too). Empty only if nothing fits.
+ * familiar open shape where there is one, then the E-form and A-form barre chords below fret 12
+ * (higher up they only repeat these an octave up). Empty only if nothing fits.
  */
 export function guitarShapesFor(pitchClass: number, qualityId: ChordQualityId): GuitarShape[] {
   const root = ((pitchClass % 12) + 12) % 12
@@ -96,10 +96,9 @@ export function guitarShapesFor(pitchClass: number, qualityId: ChordQualityId): 
   const movable: GuitarShape[] = []
   const eForm = E_FORM[qualityId]
   const aForm = A_FORM[qualityId]
-  for (const octave of [0, 12]) {
-    if (eForm) movable.push(place(eForm, ((root - E_ROOT_PITCH_CLASS + 12) % 12) + octave))
-    if (aForm) movable.push(place(aForm, ((root - A_ROOT_PITCH_CLASS + 12) % 12) + octave))
-  }
+  // One octave of positions: from fret 12 on, every shape repeats one from below (Marco, 2026-10-28).
+  if (eForm) movable.push(place(eForm, (root - E_ROOT_PITCH_CLASS + 12) % 12))
+  if (aForm) movable.push(place(aForm, (root - A_ROOT_PITCH_CLASS + 12) % 12))
   const seen = new Set<string>()
   const shapes = [...(open ? [withWindow(open)] : []), ...movable.filter((shape) => shape.frets.every((fret) => fret === null || (fret >= 0 && fret <= HIGHEST_FRET))).sort((a, b) => rootFretOf(a.frets) - rootFretOf(b.frets))]
   return shapes.filter((shape) => {
