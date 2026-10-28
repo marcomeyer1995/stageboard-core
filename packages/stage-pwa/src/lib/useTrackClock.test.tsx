@@ -1,7 +1,7 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useClockStore } from '../store/useClockStore'
-import { useTrackClock, type TrackClock } from './useTrackClock'
+import { SILENT_VOLUME, useTrackClock, type TrackClock } from './useTrackClock'
 
 let clock: TrackClock
 function Player() {
@@ -39,7 +39,7 @@ describe('useTrackClock - track level cues in the timeline (#485)', () => {
     act(() => {
       audio.dispatchEvent(new Event('seeked'))
     })
-    expect(audio.volume).toBe(0)
+    expect(audio.volume).toBe(SILENT_VOLUME)
     const frames: FrameRequestCallback[] = []
     const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb))
     try {

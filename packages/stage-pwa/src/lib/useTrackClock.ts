@@ -35,6 +35,13 @@ export interface TrackClock {
  * hand-started stopwatch - callers that need the real recording should require a track before
  * rendering this.
  */
+/**
+ * The quietest volume the element gets: -80 dB, not 0. On Android (Redmi, 2026-10-28) an element
+ * set to exactly 0 jumps ~150 ms ahead, and back when it comes up again - the end of a mute fade
+ * stuttered audibly. 0.0001 is inaudible and keeps the position steady.
+ */
+export const SILENT_VOLUME = 0.0001
+
 export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((ms: number) => number) | null>): TrackClock {
   const elapsedMs = useElapsedMs()
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -80,7 +87,7 @@ export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((
     const audio = audioRef.current
     if (!audio) return
     const level = trackLevel?.current ? trackLevel.current(audio.currentTime * 1000) : 1
-    audio.volume = Math.min(1, Math.max(0, trackVolume * level))
+    audio.volume = Math.min(1, Math.max(SILENT_VOLUME, trackVolume * level))
   }
   useEffect(() => applyVolume.current(), [trackVolume, trackSrc])
   useEffect(() => {
