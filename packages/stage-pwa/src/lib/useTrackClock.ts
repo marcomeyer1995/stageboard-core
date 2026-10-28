@@ -37,8 +37,9 @@ export interface TrackClock {
  */
 /** Beyond this the clock jumps to the element's position (a seek, a stall) instead of easing. */
 export const RESYNC_MS = 50
-/** How far the element must have moved after play before the clock runs. */
-const START_MOVED_MS = 15
+/** How far the element must have moved after play before the clock runs. Not less: Android
+ * reports a first step of ~17 ms right at play and then sits another ~250 ms (Redmi, 2026-10-28). */
+const START_MOVED_MS = 40
 /** ...but the clock runs after this at the latest, moved or not. */
 const START_WAIT_MAX_MS = 1000
 /** Share of a small deviation the clock takes per position report (~4 a second). */

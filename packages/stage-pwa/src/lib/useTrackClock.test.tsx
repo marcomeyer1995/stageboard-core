@@ -49,6 +49,10 @@ describe('useTrackClock - the clock starts when the element moves (playhead jump
       act(() => frames.splice(0).forEach((cb) => cb(0)))
       expect(useClockStore.getState().isRunning).toBe(false)
       expect(useClockStore.getState().getElapsedMs()).toBe(22000)
+      // Android's first little step right at play is not the start yet.
+      audio.currentTime = 22.017
+      act(() => frames.splice(0).forEach((cb) => cb(0)))
+      expect(useClockStore.getState().isRunning).toBe(false)
       audio.currentTime = 22.08
       act(() => frames.splice(0).forEach((cb) => cb(0)))
       expect(useClockStore.getState().isRunning).toBe(true)
