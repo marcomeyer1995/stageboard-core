@@ -5,6 +5,8 @@ import { ChordPopover } from './ChordPopover'
 
 /** How long a finger rests on a chord before its shape opens (#609) - a plain tap stays a tap. */
 const LONG_PRESS_MS = 500
+/** How far beside a chord name a press still counts as on it, CSS px - about half a fingertip. */
+export const CHORD_REACH_PX = 24
 /** A finger moving further than this is scrolling, not pressing. */
 const LONG_PRESS_SLOP_PX = 10
 /** Marks a tappable chord: no text selection or callout from the long press. */
@@ -100,15 +102,21 @@ export function ChordProLyrics({
   // The click that follows a long press must not also move the editor's cursor.
   const swallowClick = useRef(false)
   const chordAt = (target: EventTarget) => (chordInfo ? (target as HTMLElement).closest<HTMLElement>('[data-chord]') : null)
+  // A finger is wider than a chord name (~20 px): a press beside it - on the lyric just below,
+  // between two letters - takes the nearest chord within reach (Redmi, 2026-10-28: a long press a
+  // few px off selected the lyric for copy/paste instead).
+  const chordNear = (container: HTMLElement, target: EventTarget, x: number, y: number) =>
+    chordAt(target) ?? (chordInfo ? nearestChord(container, x, y) : null)
   const open = (chord: HTMLElement) => setPopover({ symbol: chord.dataset.chord ?? '', anchor: chord.getBoundingClientRect() })
   const cancelPress = () => {
     if (press.current) window.clearTimeout(press.current.timer)
     press.current = null
   }
-  const onPointerDown = (event: PointerEvent) => {
+  const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     pointerType.current = event.pointerType
-    const chord = chordAt(event.target)
-    if (!chord || event.pointerType === 'mouse') return
+    if (event.pointerType === 'mouse') return
+    const chord = chordNear(event.currentTarget, event.target, event.clientX, event.clientY)
+    if (!chord) return
     cancelPress()
     const timer = window.setTimeout(() => {
       press.current = null
@@ -127,13 +135,15 @@ export function ChordProLyrics({
 
   return (
     <div
-      className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : ''}`}
+      // No text selection where chords open their shape: a long press is for the chord, never the
+      // copy/cut bar.
+      className={`space-y-3 pt-4 font-sb-mono leading-loose text-ink ${onSourceTap ? 'cursor-text' : ''} ${chordInfo ? 'select-none [-webkit-touch-callout:none]' : ''}`}
       style={{ fontSize }}
       onPointerDown={chordInfo ? onPointerDown : undefined}
       onPointerMove={chordInfo ? onPointerMove : undefined}
       onPointerUp={chordInfo ? cancelPress : undefined}
       onPointerCancel={chordInfo ? cancelPress : undefined}
-      onContextMenu={chordInfo ? (event) => chordAt(event.target) && event.preventDefault() : undefined}
+      onContextMenu={chordInfo ? (event) => chordNear(event.currentTarget, event.target, event.clientX, event.clientY) && event.preventDefault() : undefined}
       onClick={(event) => {
         if (swallowClick.current) {
           swallowClick.current = false
@@ -322,4 +332,17 @@ function LyricLine({
       ))}
     </p>
   )
+}
+
+/** The chord name in `container` nearest to the point, if one lies within CHORD_REACH_PX of it. */
+export function nearestChord(container: HTMLElement, x: number, y: number): HTMLElement | null {
+  let best: { chord: HTMLElement; distance: number } | null = null
+  for (const chord of container.querySelectorAll<HTMLElement>('[data-chord]')) {
+    const r = chord.getBoundingClientRect()
+    const dx = Math.max(r.left - x, 0, x - r.right)
+    const dy = Math.max(r.top - y, 0, y - r.bottom)
+    const distance = Math.hypot(dx, dy)
+    if (distance <= CHORD_REACH_PX && (!best || distance < best.distance)) best = { chord, distance }
+  }
+  return best?.chord ?? null
 }
