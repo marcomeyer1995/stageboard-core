@@ -1,5 +1,5 @@
 import { act, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useClockStore } from '../store/useClockStore'
 import { followPosition, RESYNC_MS, useTrackClock, type TrackClock } from './useTrackClock'
 
@@ -31,5 +31,31 @@ describe('useTrackClock - followPosition (playhead pulsed, Redmi 2026-10-28)', (
     expect(followPosition(1000, 990)).toBeCloseTo(999)
     expect(followPosition(1000, 1000 + RESYNC_MS + 1)).toBe(1000 + RESYNC_MS + 1)
     expect(followPosition(5000, 2000)).toBe(2000)
+  })
+})
+
+describe('useTrackClock - the clock starts when the element moves (playhead jumped back, Redmi 2026-10-28)', () => {
+  it('stays at the start position until the element has moved, then runs from there', () => {
+    const frames: FrameRequestCallback[] = []
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb))
+    try {
+      const { container } = render(<Player />)
+      const audio = container.querySelector('audio')!
+      audio.currentTime = 22
+      act(() => {
+        audio.dispatchEvent(new Event('seeked'))
+        audio.dispatchEvent(new Event('play'))
+      })
+      act(() => frames.splice(0).forEach((cb) => cb(0)))
+      expect(useClockStore.getState().isRunning).toBe(false)
+      expect(useClockStore.getState().getElapsedMs()).toBe(22000)
+      audio.currentTime = 22.08
+      act(() => frames.splice(0).forEach((cb) => cb(0)))
+      expect(useClockStore.getState().isRunning).toBe(true)
+      expect(useClockStore.getState().getElapsedMs()).toBeGreaterThanOrEqual(22080)
+    } finally {
+      raf.mockRestore()
+      useClockStore.getState().stop()
+    }
   })
 })

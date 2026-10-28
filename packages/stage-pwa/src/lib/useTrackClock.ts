@@ -37,6 +37,10 @@ export interface TrackClock {
  */
 /** Beyond this the clock jumps to the element's position (a seek, a stall) instead of easing. */
 export const RESYNC_MS = 50
+/** How far the element must have moved after play before the clock runs. */
+const START_MOVED_MS = 15
+/** ...but the clock runs after this at the latest, moved or not. */
+const START_WAIT_MAX_MS = 1000
 /** Share of a small deviation the clock takes per position report (~4 a second). */
 const FOLLOW_SHARE = 0.1
 
@@ -92,6 +96,13 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
     if (audioRef.current) audioRef.current.volume = trackVolume
   }, [trackVolume, trackSrc])
 
+  const startWait = useRef<number | null>(null)
+  function cancelStartWait() {
+    if (startWait.current !== null) cancelAnimationFrame(startWait.current)
+    startWait.current = null
+  }
+  useEffect(() => cancelStartWait, [])
+
   function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
@@ -105,15 +116,35 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
     ref: audioRef,
     src: trackSrc ?? undefined,
     onLoadedMetadata: (e) => setDuration(e.currentTarget.duration),
-    onPlay: () => {
+    onPlay: (e) => {
       setIsPlaying(true)
-      useClockStore.getState().start()
+      // The clock starts once the element really moves - Android's player sits ~200 ms on its
+      // position after play, and a clock running from the tap was then snapped back by the first
+      // position report: the playhead started, jumped back, started again (Redmi, 2026-10-28).
+      const audio = e.currentTarget
+      const fromMs = audio.currentTime * 1000
+      const since = performance.now()
+      cancelStartWait()
+      const check = () => {
+        const nowMs = audio.currentTime * 1000
+        if (nowMs - fromMs < START_MOVED_MS && performance.now() - since < START_WAIT_MAX_MS) {
+          startWait.current = requestAnimationFrame(check)
+          return
+        }
+        startWait.current = null
+        const clock = useClockStore.getState()
+        clock.start()
+        clock.seek(nowMs)
+      }
+      startWait.current = requestAnimationFrame(check)
     },
     onPause: () => {
+      cancelStartWait()
       setIsPlaying(false)
       useClockStore.getState().stop()
     },
     onEnded: () => {
+      cancelStartWait()
       setIsPlaying(false)
       useClockStore.getState().stop()
     },
