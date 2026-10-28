@@ -28,7 +28,7 @@ vi.mock('pouchdb-browser', () => ({
 }))
 
 const show = vi.hoisted(() => ({ canControl: true, playbackStatus: 'stopped', elapsedMs: null, queue: {}, next: vi.fn(async () => {}) }))
-vi.mock('../lib/showMode', () => ({ useShowMode: () => show }))
+vi.mock('../lib/showMode', () => ({ useShowMode: () => show, useShowModeCore: () => ({ ...show, elapsedNow: () => show.elapsedMs ?? null }), useShowModeOnDemand: () => show }))
 
 const { usePluginsStore } = await import('../store/usePluginsStore')
 const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')

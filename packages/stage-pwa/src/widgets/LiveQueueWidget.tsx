@@ -8,7 +8,7 @@ import { isHeadingEntry, isTransitionEntry } from 'shared-types'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { queueItemTitle, reorderToPlayNext } from '../lib/computeQueue'
 import type { QueueItem } from '../lib/computeQueue'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { useDashboardHasWidget } from '../lib/dashboardWidgets'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useLongPress } from '../lib/useLongPress'
@@ -175,7 +175,7 @@ export function LiveQueueWidget({ config }: { config: ContentFontSizeConfig }) {
     canControl,
     playbackStatus,
     queue: { activeSetlist, orderedItems, currentEntry },
-  } = useShowMode()
+  } = useShowModeCore()
   // One takeover per dashboard - in the transport, when there is one (2026-10-16).
   const takeoverElsewhere = useDashboardHasWidget('show-transport')
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)

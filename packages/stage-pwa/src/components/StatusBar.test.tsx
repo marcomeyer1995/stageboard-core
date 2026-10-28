@@ -1,11 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import { StatusBar } from './StatusBar'
 import { useShowMode } from '../lib/showMode'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // The bar reads the core and the clock per frame (#457) - the same mocked show.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show().elapsedMs }) }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: () => ({ id: 'p', name: 'Marco' }) }))
 vi.mock('../lib/useNow', () => ({ useNow: () => new Date('2026-09-27T21:07:00').getTime() }))
 const stores = vi.hoisted(() => ({ masterHolderId: 'tablet' as string | null, audioError: null as string | null }))
@@ -15,6 +19,12 @@ vi.mock('../store/useShowStateStore', () => ({
 }))
 vi.mock('../store/useLocalAudioOutputStore', () => ({
   useLocalAudioOutputStore: (select: (s: { error: string | null }) => unknown) => select({ error: stores.audioError }),
+}))
+const loop = vi.hoisted(() => ({ state: null as { pass: number; rate: number } | null, stop: vi.fn() }))
+vi.mock('../lib/loopTrainerEngine', () => ({ getLoopPlaybackState: () => loop.state }))
+vi.mock('../lib/loopTrainer', () => ({ stopLoopTrainer: loop.stop }))
+vi.mock('../store/useLoopTrainerStore', () => ({
+  useLoopTrainerStore: (select: (s: { active: boolean }) => unknown) => select({ active: loop.state !== null }),
 }))
 vi.mock('../store/useSyncStore', () => ({
   useSyncStore: (select: (s: { streams: object; browserOffline: boolean }) => unknown) => select({ streams: {}, browserOffline: false }),
@@ -55,6 +65,8 @@ const bar = () => screen.getByRole('banner')
 beforeEach(() => {
   stores.masterHolderId = 'tablet'
   stores.audioError = null
+  loop.state = null
+  loop.stop.mockClear()
   useEditingTitleStore.setState({ editing: null })
 })
 
@@ -95,7 +107,8 @@ describe('StatusBar (PR F2)', () => {
   })
 
   it('keeps the bar calm blue and flashes only the count block on each count-in beat', () => {
-    // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms.
+    // 2 s count-in: beat 1 at -2000, beat 2 at -1500 ms. The bar reads the clock per frame (#457).
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
     mockShow('playing', -1_450)
     const { rerender } = render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
     expect(bar().dataset.status).toBe('count-in')
@@ -107,10 +120,12 @@ describe('StatusBar (PR F2)', () => {
 
     mockShow('playing', -1_200)
     rerender(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    act(() => vi.advanceTimersToNextFrame())
     expect(bar().className).toContain('bg-state-count-in')
     expect(screen.getByRole('status').dataset.flash).toBe('false')
     // Time counts down cleanly, never "-0:00".
     expect(bar().textContent).toContain('-0:02 / 3:00')
+    vi.useRealTimers()
   })
 
   it('turns "Beendet" (magenta) when the shared state says the track ran out - not after a plain Stop', () => {
@@ -131,6 +146,16 @@ describe('StatusBar (PR F2)', () => {
     expect(bar().className).toContain('bg-state-fault')
     expect(bar().textContent).toContain('Kein Master')
     expect(screen.queryByLabelText('Master')).not.toBeInTheDocument()
+  })
+
+  it('shows a running loop with pass and tempo, and stops it on a tap - from any dashboard (2026-10-22)', () => {
+    mockShow('playing', 12_000)
+    loop.state = { pass: 2, rate: 0.85 }
+    render(<StatusBar screen="boards" onOpenMenu={vi.fn()} />)
+    expect(bar()).toHaveAttribute('data-status', 'loop')
+    const stop = screen.getByRole('button', { name: /Loop · 3 · 85 %.*Loop stoppen/ })
+    fireEvent.click(stop)
+    expect(loop.stop).toHaveBeenCalled()
   })
 
   it('opens the menu from its ☰ button', () => {

@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { LogicalDevice } from 'shared-types'
@@ -43,7 +44,7 @@ export const useLogicalDevicesStore = create<LogicalDevicesState>((set) => ({
     set({ loaded: true })
 
     changesHandle = logicalDevicesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (device) => {
     await putLogicalDevice(device)

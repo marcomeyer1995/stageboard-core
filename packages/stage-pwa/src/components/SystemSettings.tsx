@@ -14,6 +14,7 @@ import { BackupManager } from './BackupManager'
 import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
+import { OutputRoutingSettings } from './OutputRoutingSettings'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -117,6 +118,15 @@ export function DeviceSettings() {
       <Group title="Blitzmeldungen" info="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
         <Section title="Auf diesem Gerät">
           <FlashSettings />
+        </Section>
+      </Group>
+
+      <Group title="Ton" info="Wie dieses Gerät Track, Klick und Ansagen ausgibt.">
+        <Section
+          title="Ausgang"
+          info="Getrennt kommt der Klick nur auf eine Seite des Kopfhörer- oder Line-Ausgangs, der Track (in Mono) auf die andere. Mit einem Y-Kabel oder einer Stereo-DI geht die Klick-Seite in den In-Ear-Mix, die Track-Seite zur PA - das Publikum hört keinen Klick. Gilt für Klick und Ansagen überall und für den Track im Gig. In Solo Üben und im Timeline-Editor spielt der Track noch über ein Audio-Element und bleibt auf beiden Seiten."
+        >
+          <OutputRoutingSettings />
         </Section>
       </Group>
 
