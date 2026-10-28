@@ -5,6 +5,8 @@ import { Button } from './Button'
 import { PrepTier } from './PrepTier'
 import { CONTAINER } from './styles'
 import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
+import { useTouchKeyboardOpen } from '../../lib/useTouchKeyboardOpen'
+import { useVisualViewport } from '../../lib/useVisualViewport'
 
 const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
@@ -43,6 +45,12 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   // Phone in landscape (under 300 px of height in the browser): no title row - the dialog keeps
   // its name for screen readers - and slimmer rows, so the content gets the height.
   const low = useMediaQuery(LOW_SCREEN)
+  // The area the user can see (like DialogHost): where the browser or the app's WebView shrinks it
+  // for the keyboard, the dialog fits into what is left and needs no cap of its own. Only where
+  // typing shrinks nothing (the keyboard laid over the page unannounced) the 38 % cap stays.
+  const visible = useVisualViewport()
+  const keyboardShown = useTouchKeyboardOpen()
+  const capForKeyboard = typing.active && !keyboardShown
   const [sliding, setSliding] = useState(false)
   useEffect(() => {
     if (!sliding) return
@@ -61,6 +69,7 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
         with max-h-full below, the bottom row with "Fertig" could end up behind it (#432 review). */}
       <div
         className={`fixed inset-x-0 top-0 h-dvh z-dialog flex justify-center transition-colors sb-pad-safe ${sliding ? 'bg-transparent' : 'bg-scrim/60'} ${typing.active ? 'items-start' : 'items-center'}`}
+        style={visible ? { top: visible.offsetTop, height: visible.height } : undefined}
         onPointerDown={(e) => (pressedBackdrop.current = e.target === e.currentTarget)}
         onClick={(e) => {
           if (closeOnBackdrop && pressedBackdrop.current && e.target === e.currentTarget) onClose()
@@ -80,12 +89,14 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
           data-see-through={sliding || undefined}
           onFocus={typing.onFocus}
           onBlur={typing.onBlur}
-          // While typing on a touchscreen the dialog moves up and takes at most 38 % of the screen,
-          // so its bottom row stays above the on-screen keyboard: the tablet browser lays the
-          // keyboard over the page without telling it (Fire Silk, measured 2026-10-07: 333 of 686 px stay visible in landscape).
+          // While typing on a touchscreen the dialog moves up. Where the visible area shrank for the
+          // keyboard, it takes all of what is left (the app on the Redmi, 2026-10-28: 686 of 1006 px -
+          // the old fixed 38 % cap on top squeezed the cue dialog to a third of that). Where nothing
+          // shrank, the browser laid the keyboard over the page without telling it (Fire Silk,
+          // measured 2026-10-07: 333 of 686 px stay visible in landscape) - then at most 38 %.
           // Otherwise all the height the backdrop's safe padding leaves (max-h-full) - the Xiaomi in
           // landscape Chrome has only 513 px, and 90 % of it made the ☰ menu scroll.
-          className={`flex ${typing.active ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb transition-opacity ${sliding ? 'opacity-25' : ''} ${CONTAINER}`}
+          className={`flex ${capForKeyboard ? 'max-h-[38vh]' : 'max-h-full'} w-full ${WIDTH[size]} flex-col overflow-hidden border border-line bg-surface shadow-sb transition-opacity ${sliding ? 'opacity-25' : ''} ${CONTAINER}`}
         >
           <div className={low ? 'sr-only' : 'flex flex-shrink-0 items-center border-b border-line px-4 py-3'}>
             <h2 className="min-w-0 truncate text-lg font-bold text-ink">{title}</h2>

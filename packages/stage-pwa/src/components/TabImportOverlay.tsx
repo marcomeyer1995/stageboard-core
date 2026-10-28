@@ -1,3 +1,4 @@
+import { useVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
@@ -50,6 +51,8 @@ interface TabImportOverlayProps {
  * editor - the user never has to leave the app to find a chord sheet. */
 export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportOverlayProps) {
   useBackHandler(onClose)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useVisualViewport()
   const PROVIDERS = useProviders()
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
   const [query, setQuery] = useState(initialQuery?.trim() ?? '')
@@ -129,6 +132,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
   return (
     <div
       className="fixed inset-0 z-dialog flex items-center justify-center bg-scrim/60 sb-pad-safe [--sb-pad:0.75rem]"
+      style={visibleArea(visible)}
       onClick={onClose}
     >
       {/* Own shell (the two panes need a fixed height), but the shared dialog's rules (docs/15
@@ -136,7 +140,7 @@ export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportO
       <div
         role="dialog"
         aria-label="Song importieren"
-        className="flex h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
+        className="flex h-[85vh] max-h-full w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="border-b border-line pb-3 text-lg font-bold text-ink">Song importieren</h2>

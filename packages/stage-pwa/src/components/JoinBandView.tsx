@@ -1,3 +1,4 @@
+import { useVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
@@ -77,6 +78,8 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
  */
 export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   useBackHandler(onClose ?? null)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useVisualViewport()
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
@@ -311,7 +314,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 3: pick who you are.
   if (roster) {
     return (
-      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">Wer bist du?</h1>
@@ -382,7 +385,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   // Step 2: code entry, scoped to the band picked in step 1.
   if (selectedWorkspace) {
     return (
-      <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+      <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
         <div className="w-full max-w-sm space-y-4 py-4">
           <div>
             <h1 className="text-2xl font-bold">{selectedWorkspace.workspaceName}</h1>
@@ -419,7 +422,7 @@ export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
 
   // Step 1: pick a band, or scan a QR to skip straight to step 3.
   return (
-    <div className="fixed inset-0 z-bars flex flex-col items-center justify-center gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink">
+    <div className="fixed inset-0 z-bars flex flex-col items-center [justify-content:safe_center] gap-6 overflow-y-auto sb-app-bg sb-pad-safe text-ink" style={visibleArea(visible)}>
       <div className="w-full max-w-sm space-y-4 py-4">
         {!onClose && <BackToWorkingBandLink />}
 

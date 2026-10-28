@@ -145,6 +145,31 @@ describe('UI system (docs/15)', () => {
     matchMedia.mockRestore()
   })
 
+  it('Dialog: where the visible area already shrank for the keyboard, it fills what is left instead of a 38 % cap (Redmi app, 2026-10-28)', () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({ matches: query === '(pointer: coarse)' }) as MediaQueryList)
+    const screenHeight = vi.spyOn(window.screen, 'height', 'get').mockReturnValue(1006)
+    const viewport = Object.assign(new EventTarget(), { height: 686, offsetTop: 0 })
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+    try {
+      render(
+        <Dialog title="Cue bei 0:54.0" onClose={vi.fn()} actions={<Button variant="primary">Übernehmen</Button>}>
+          <Field label="Übergang" />
+        </Dialog>,
+      )
+      const dialog = screen.getByRole('dialog', { name: 'Cue bei 0:54.0' })
+      expect(dialog.parentElement).toHaveStyle({ height: '686px', top: '0px' })
+      fireEvent.pointerDown(screen.getByLabelText('Übergang'))
+      fireEvent.focus(screen.getByLabelText('Übergang'))
+      expect(dialog).toHaveAttribute('data-typing', 'true')
+      expect(dialog).toHaveClass('max-h-full')
+      expect(dialog).not.toHaveClass('max-h-[38vh]')
+    } finally {
+      Reflect.deleteProperty(window, 'visualViewport')
+      screenHeight.mockRestore()
+      matchMedia.mockRestore()
+    }
+  })
+
   it('Dialog (D6) with something to confirm: only the bottom row - one way out', () => {
     const onClose = vi.fn()
     render(
