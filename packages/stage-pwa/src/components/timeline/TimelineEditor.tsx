@@ -24,6 +24,7 @@ import {
   type TimelineView,
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
+import { settleCueAnchors } from '../../lib/cueAnchors'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
@@ -529,7 +530,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setTempoPreview(null)
     setUndoStack((stack) => [...stack.slice(-49), current])
     setRedoStack([])
-    onChange(next)
+    // Cues on the grid (#483): a cue moved onto a beat is anchored there, an anchored one follows
+    // the grid when a bar or the tempo changes.
+    const nextTimeline = clickTimeline({ beatGrid: next.beatGrid, bpm: next.bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })
+    onChange({ ...next, cues: settleCueAnchors(cues, next.cues, nextTimeline) })
   }
   /** A new grid, with the song's bpm following its first stretch once there are two points. */
   function commitGrid(grid: BeatGrid | undefined, nextBpm = bpm) {
@@ -2083,6 +2087,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             {cueTitle(selectedCue)} · {formatTimelineTime(selectedCue.timeMs)}
+            {selectedCue.anchor && ` · Takt ${selectedCue.anchor.bar}, Schlag ${selectedCue.anchor.beat}`}
           </span>
           <Button onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
             −50 ms
