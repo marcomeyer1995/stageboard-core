@@ -35,6 +35,22 @@ export interface TrackClock {
  * hand-started stopwatch - callers that need the real recording should require a track before
  * rendering this.
  */
+/** Beyond this the clock jumps to the element's position (a seek, a stall) instead of easing. */
+export const RESYNC_MS = 50
+/** Share of a small deviation the clock takes per position report (~4 a second). */
+const FOLLOW_SHARE = 0.1
+
+/**
+ * Where the running clock goes on an element's position report. The reports come ~4 times a
+ * second and a little uneven on Android: snapping to each made the timeline's playhead jump 3 px
+ * and crawl 0.5 px four times a second - it pulsed (Redmi, 2026-10-28). Small deviations are now
+ * taken a tenth at a time (sub-pixel steps), real jumps at once.
+ */
+export function followPosition(elapsedMs: number, reportedMs: number): number {
+  const error = reportedMs - elapsedMs
+  return Math.abs(error) > RESYNC_MS ? reportedMs : elapsedMs + error * FOLLOW_SHARE
+}
+
 export function useTrackClock(trackSrc: string | null): TrackClock {
   const elapsedMs = useElapsedMs()
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -103,7 +119,9 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
     },
     onTimeUpdate: (e) => {
       setPosition(e.currentTarget.currentTime)
-      useClockStore.getState().seek(e.currentTarget.currentTime * 1000)
+      const clock = useClockStore.getState()
+      const reportedMs = e.currentTarget.currentTime * 1000
+      clock.seek(clock.isRunning ? followPosition(clock.getElapsedMs(), reportedMs) : reportedMs)
     },
     onSeeked: (e) => useClockStore.getState().seek(e.currentTarget.currentTime * 1000),
   }

@@ -1,7 +1,7 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useClockStore } from '../store/useClockStore'
-import { useTrackClock, type TrackClock } from './useTrackClock'
+import { followPosition, RESYNC_MS, useTrackClock, type TrackClock } from './useTrackClock'
 
 let clock: TrackClock
 function Player() {
@@ -22,5 +22,14 @@ describe('useTrackClock - slowed playback for tapping (2026-10-15)', () => {
     expect(clock.rate).toBe(0.5)
     unmount()
     expect(useClockStore.getState().rate).toBe(1)
+  })
+})
+
+describe('useTrackClock - followPosition (playhead pulsed, Redmi 2026-10-28)', () => {
+  it('eases small deviations a tenth at a time and jumps on real ones', () => {
+    expect(followPosition(1000, 1013)).toBeCloseTo(1001.3)
+    expect(followPosition(1000, 990)).toBeCloseTo(999)
+    expect(followPosition(1000, 1000 + RESYNC_MS + 1)).toBe(1000 + RESYNC_MS + 1)
+    expect(followPosition(5000, 2000)).toBe(2000)
   })
 })
