@@ -1,4 +1,4 @@
-import { useVisualViewport, visibleArea } from '../lib/useVisualViewport'
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkspaceRoster, WorkspaceSummary } from 'shared-types'
 import { decodeQrFrame, parseJoinPayload, type JoinPayload } from '../lib/qrCode'
@@ -79,7 +79,7 @@ type CameraStatus = 'idle' | 'requesting' | 'scanning' | 'denied' | 'insecure-co
 export function JoinBandView({ onClose }: { onClose?: () => void } = {}) {
   useBackHandler(onClose ?? null)
   // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
-  const visible = useVisualViewport()
+  const visible = useSettledVisualViewport()
   const addWorkspace = useWorkspaceStore((state) => state.addWorkspace)
   const listWorkspaces = useWorkspaceStore((state) => state.listWorkspaces)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)

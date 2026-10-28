@@ -1,4 +1,4 @@
-import { useVisualViewport, visibleArea } from '../lib/useVisualViewport'
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useRef, useState } from 'react'
 import type { LookupResult } from 'shared-types'
 import { fetchLookupDetail, searchLookup } from '../lib/lookupClient'
@@ -52,7 +52,7 @@ interface TabImportOverlayProps {
 export function TabImportOverlay({ onImport, onClose, initialQuery }: TabImportOverlayProps) {
   useBackHandler(onClose)
   // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
-  const visible = useVisualViewport()
+  const visible = useSettledVisualViewport()
   const PROVIDERS = useProviders()
   const [provider, setProvider] = useState<string>(PROVIDERS[0].id)
   const [query, setQuery] = useState(initialQuery?.trim() ?? '')

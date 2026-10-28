@@ -32,8 +32,8 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
-import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
-import { useVisualViewport } from '../lib/useVisualViewport'
+import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
@@ -217,8 +217,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The cursor's line, scrolled into the preview's view (#617) - inside the preview's own scroll
   // box, never the page. Marked there through `activeIndex`.
   const previewRef = useRef<HTMLDivElement>(null)
-  const keyboardOpen = useTouchKeyboardOpen()
-  const visible = useVisualViewport()
+  const keyboardOpen = useSettledTouchKeyboardOpen()
+  const visible = useSettledVisualViewport()
   const content = draft?.chordProContent ?? ''
   useEffect(() => {
     const timer = setTimeout(() => setSettledText(content), 800)

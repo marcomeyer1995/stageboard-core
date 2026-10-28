@@ -5,8 +5,8 @@ import { Button } from './Button'
 import { PrepTier } from './PrepTier'
 import { CONTAINER } from './styles'
 import { LOW_SCREEN, useMediaQuery } from '../../lib/useMediaQuery'
-import { useTouchKeyboardOpen } from '../../lib/useTouchKeyboardOpen'
-import { useVisualViewport } from '../../lib/useVisualViewport'
+import { useSettledTouchKeyboardOpen } from '../../lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from '../../lib/useVisualViewport'
 
 const WIDTH = { s: 'max-w-sm', m: 'max-w-md', l: 'max-w-3xl', xl: 'max-w-6xl' } as const
 
@@ -48,8 +48,8 @@ export function Dialog({ title, onClose, children, actions, closeLabel = 'Fertig
   // The area the user can see (like DialogHost): where the browser or the app's WebView shrinks it
   // for the keyboard, the dialog fits into what is left and needs no cap of its own. Only where
   // typing shrinks nothing (the keyboard laid over the page unannounced) the 38 % cap stays.
-  const visible = useVisualViewport()
-  const keyboardShown = useTouchKeyboardOpen()
+  const visible = useSettledVisualViewport()
+  const keyboardShown = useSettledTouchKeyboardOpen()
   // Decided only once the keyboard had time to come up: capping at once and growing again when the
   // area shrank drew the dialog twice - small at the top, then full (Redmi app, 2026-10-28).
   const [keyboardSettled, setKeyboardSettled] = useState(false)

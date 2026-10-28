@@ -1,4 +1,4 @@
-import { useVisualViewport, visibleArea } from '../lib/useVisualViewport'
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
 import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
@@ -527,7 +527,7 @@ export function DeviceSetupWizard({
 }) {
   useBackHandler(onClose)
   // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
-  const visible = useVisualViewport()
+  const visible = useSettledVisualViewport()
   const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : initialDraft ? 2 : 1))
   const [draft, setDraft] = useState<Draft>(() => draftFrom(device, initialDraft))
   const saveDevice = useLogicalDevicesStore((state) => state.save)
