@@ -19,11 +19,11 @@ describe('TextFixDialog (#600)', () => {
     const onSave = vi.fn()
     render(<TextFixDialog offers={offers} onSave={onSave} onCancel={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Alle auswählen'))
+    fireEvent.click(screen.getByText('Alle auswählen (2)'))
     expect(screen.getByRole('button', { name: 'Speichern + 2 Änderungen' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Alle auswählen'))
+    fireEvent.click(screen.getByText('Alle auswählen (2)'))
     expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Alle auswählen'))
+    fireEvent.click(screen.getByText('Alle auswählen (2)'))
     fireEvent.click(screen.getByRole('button', { name: 'Speichern + 2 Änderungen' }))
     expect(onSave).toHaveBeenCalledWith([
       { offer: 0, target: 0 },
@@ -33,6 +33,6 @@ describe('TextFixDialog (#600)', () => {
 
   it('no "Alle auswählen" for a single variant', () => {
     render(<TextFixDialog offers={[{ ...offers[0]!, targets: offers[0]!.targets.slice(0, 1) }]} onSave={vi.fn()} onCancel={vi.fn()} />)
-    expect(screen.queryByText('Alle auswählen')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Alle auswählen/)).not.toBeInTheDocument()
   })
 })

@@ -41,10 +41,13 @@ export function TextFixDialog({ offers, onSave, onCancel }: { offers: TextFixOff
     >
       <div className="flex flex-col gap-4">
         {all.length > 1 && (
-          // All at once (Marco, 2026-10-28) - still nothing ticked until asked for.
-          <CheckRow checked={allPicked} onToggle={() => setPicked(allPicked ? new Set() : new Set(all.map(key)))}>
-            Alle auswählen
-          </CheckRow>
+          // All at once (Marco, 2026-10-28) - still nothing ticked until asked for. Set apart by a
+          // line, so it reads as an option over the list, not one more line of it.
+          <div className="border-b border-line pb-4">
+            <CheckRow checked={allPicked} onToggle={() => setPicked(allPicked ? new Set() : new Set(all.map(key)))}>
+              <span className="font-semibold">Alle auswählen ({all.length})</span>
+            </CheckRow>
+          </div>
         )}
         {offers.map((offer, o) => (
           <section key={o} className="flex flex-col gap-2">
