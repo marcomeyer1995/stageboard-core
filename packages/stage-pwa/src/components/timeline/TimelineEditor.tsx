@@ -24,6 +24,7 @@ import {
   type TimelineView,
 } from '../../lib/timeline'
 import { addCue, mergeCues, moveCue, removeCue, updateCue } from '../../lib/timelineCues'
+import { settleCueAnchors } from '../../lib/cueAnchors'
 import { insertComment, lineAtTime, moveNote, removeNote, setNoteTargets, setNoteText, timelineNotes } from '../../lib/timelineNotes'
 import { lineTimeBounds, partBlocks, setLineTime, stampLines, tapStartLine, timelineLines } from '../../lib/timelineText'
 import { parseShiftSeconds, rippleShift } from '../../lib/rippleShift'
@@ -58,7 +59,7 @@ import { Icon } from '../Icon'
 import { Button, Dialog, IconButton, Stepper, ToggleChip } from '../ui'
 import { partSectionStarts } from '../../lib/showSections'
 import { setPartStartBar } from '../../lib/partStart'
-import { isPlaybackCue, playbackCueLabel, playbackLookup } from '../../lib/playbackCues'
+import { isPlaybackCue, levelAt, playbackCueLabel, playbackLookup, trackLevelCurve } from '../../lib/playbackCues'
 
 /** Below this timeline width (CSS px) the tools don't fit one row (measured 1595 px on the Fire,
  * 2026-10-05) and open as a floating panel behind "Werkzeuge" instead - so opening them never
@@ -229,7 +230,9 @@ function writeStemsOpen(open: boolean): void {
  */
 export function TimelineEditor(props: TimelineEditorProps) {
   const { variantId, trackId, trackSrc, beatGrid, bpm, timeSignature, countInEnabled, countInBars, content, cues, onChange, onDetectGrid, fill = false, startLineTapping = false, onLineTappingStarted } = props
-  const clock = useTrackClock(trackSrc)
+  // The track level of the playback cues (#485), set below once the click timeline is known.
+  const trackLevel = useRef<((ms: number) => number) | null>(null)
+  const clock = useTrackClock(trackSrc, trackLevel)
   const [sizeRef, box] = useElementSize()
   const [lanesEl, setLanesEl] = useState<HTMLDivElement | null>(null)
   const boxRef = useCallback(
@@ -529,7 +532,10 @@ export function TimelineEditor(props: TimelineEditorProps) {
     setTempoPreview(null)
     setUndoStack((stack) => [...stack.slice(-49), current])
     setRedoStack([])
-    onChange(next)
+    // Cues on the grid (#483): a cue moved onto a beat is anchored there, an anchored one follows
+    // the grid when a bar or the tempo changes.
+    const nextTimeline = clickTimeline({ beatGrid: next.beatGrid, bpm: next.bpm, timeSignature, countInBars: countInEnabled ? countInBars : 0 })
+    onChange({ ...next, cues: settleCueAnchors(cues, next.cues, nextTimeline) })
   }
   /** A new grid, with the song's bpm following its first stretch once there are two points. */
   function commitGrid(grid: BeatGrid | undefined, nextBpm = bpm) {
@@ -560,6 +566,8 @@ export function TimelineEditor(props: TimelineEditorProps) {
   // Click preview while the editor plays (clickEngine, the same one the show uses).
   // "Klick aus / Ansagen aus" cues (#485), heard here as in the show.
   const playbackAt = useMemo(() => playbackLookup(cues), [cues])
+  const levelCurve = useMemo(() => trackLevelCurve(cues, baseTimeline), [cues, baseTimeline])
+  trackLevel.current = levelCurve.length > 0 ? (ms: number) => levelAt(levelCurve, ms) : null
   const clickState = useRef({ timeline, playing: false, rate: 1, playbackAt })
   clickState.current = { timeline, playing: clock.isPlaying, rate: clock.rate, playbackAt }
   useEffect(() => {
@@ -2083,6 +2091,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         <div className="flex flex-wrap items-center gap-2 rounded-control bg-control p-2">
           <span className="font-semibold">
             {cueTitle(selectedCue)} · {formatTimelineTime(selectedCue.timeMs)}
+            {selectedCue.anchor && ` · Takt ${selectedCue.anchor.bar}, Schlag ${selectedCue.anchor.beat}`}
           </span>
           <Button onClick={() => commitCues(moveCue(cues, selectedCue.id, selectedCue.timeMs - 50))}>
             −50 ms

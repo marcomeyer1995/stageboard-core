@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { memo, type MouseEvent, type ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 import { stageFontSize } from '../lib/stageSize'
 
@@ -102,82 +102,116 @@ export function ChordProLyrics({
         const lineIndex = startIndex + offset
         const previous = offset > 0 ? lines[offset - 1] : null
         const startsPart = line.partLabel !== null && line.partIndex !== previous?.partIndex
-
         return (
-          <div key={lineIndex}>
-            {!hidePartLabels && startsPart && (
-              // Song part label from docs/04 - the visual bracket that groups a block of lines.
-              <p className="mb-1 mt-4 border-l-2 border-accent pl-2 font-sans text-xs font-bold uppercase tracking-widest text-accent first:mt-0">
-                {line.partLabel}
-              </p>
-            )}
-            {line.tab !== null ? (
-              // Guitar tab block: verbatim, monospace, never wrapped - a wrapped staff line
-              // breaks the column alignment between the strings, so a too-wide riff scrolls
-              // sideways instead. Tighter leading than lyrics: the strings belong together.
-              <div
-                data-line-index={lineIndex}
-                data-source-line={line.sourceLine}
-                data-active-line={lineIndex === activeIndex || undefined}
-                className={`-mx-2 overflow-x-auto rounded-control px-2 transition-colors duration-300 ${
-                  !hidePartLabels && startsPart ? 'mt-6' : ''
-                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
-              >
-                {line.tab.label && <p className="font-sans text-xs italic text-ink-faint">{line.tab.label}</p>}
-                <pre className="font-sb-mono leading-snug text-ink-soft" style={{ fontSize: 'max(var(--sb-text-min), 0.8em)' }}>
-                  {line.tab.lines.join('\n')}
-                </pre>
-              </div>
-            ) : isChordOnlyLine(line) ? (
-              // Instrumental chord row: chords inline, in the accent colour - they are the content of
-              // this row, not an annotation above it. The whole row at the chord size, bars and spaces
-              // too (Marco, 2026-10-17: lyric-size chords next to chord-size ones, then small bars next
-              // to big chords, both looked odd).
-              <p
-                data-line-index={lineIndex}
-                data-source-line={line.sourceLine}
-                data-active-line={lineIndex === activeIndex || undefined}
-                style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }}
-                className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
-                  !hidePartLabels && startsPart ? 'mt-6' : ''
-                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
-              >
-                {line.segments.map((segment, segmentIndex) => (
-                  <span key={segmentIndex} data-source-offset={segment.sourceOffset}>
-                    {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
-                    <span className="text-ink-faint">{segment.text}</span>
-                  </span>
-                ))}
-              </p>
-            ) : line.comment !== null ? (
-              // Musician-facing note (issue #215), not part of the lyric - font-sans italic
-              // sets it apart from the lyric's own font-sb-mono, same way a part label does.
-              <p
-                data-line-index={lineIndex}
-                data-source-line={line.sourceLine}
-                data-active-line={lineIndex === activeIndex || undefined}
-                style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
-                className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-control px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
-                  !hidePartLabels && startsPart ? 'mt-6' : ''
-                } ${lineIndex === activeIndex ? 'bg-accent-2/20' : ''}`}
-              >
-                {line.comment}
-              </p>
-            ) : (
-              <LyricLine
-                line={line}
-                lineIndex={lineIndex}
-                active={lineIndex === activeIndex}
-                startsPart={!hidePartLabels && startsPart}
-                chordFontSize={chordFontSize}
-              />
-            )}
-          </div>
+          <ProLine
+            key={lineIndex}
+            line={line}
+            lineIndex={lineIndex}
+            active={lineIndex === activeIndex}
+            startsPart={startsPart}
+            hidePartLabels={hidePartLabels}
+            chordFontSize={chordFontSize}
+            commentFontSize={commentFontSize}
+          />
         )
       })}
     </div>
   )
 }
+
+/**
+ * One line of the song - memoized (#457): while a song plays the Prompter re-renders with the
+ * clock every frame, but a line only changes when it becomes or stops being the active one.
+ */
+const ProLine = memo(function ProLine({
+  line,
+  lineIndex,
+  active,
+  startsPart,
+  hidePartLabels,
+  chordFontSize,
+  commentFontSize,
+}: {
+  line: ChordProLine
+  lineIndex: number
+  active: boolean
+  startsPart: boolean
+  hidePartLabels: boolean
+  chordFontSize: number | undefined
+  commentFontSize: number | undefined
+}) {
+  return (
+    <div>
+      {!hidePartLabels && startsPart && (
+        // Song part label from docs/04 - the visual bracket that groups a block of lines.
+        <p className="mb-1 mt-4 border-l-2 border-accent pl-2 font-sans text-xs font-bold uppercase tracking-widest text-accent first:mt-0">
+          {line.partLabel}
+        </p>
+      )}
+      {line.tab !== null ? (
+        // Guitar tab block: verbatim, monospace, never wrapped - a wrapped staff line
+        // breaks the column alignment between the strings, so a too-wide riff scrolls
+        // sideways instead. Tighter leading than lyrics: the strings belong together.
+        <div
+          data-line-index={lineIndex}
+          data-source-line={line.sourceLine}
+          data-active-line={active || undefined}
+          className={`-mx-2 overflow-x-auto rounded-control px-2 transition-colors duration-300 ${
+            !hidePartLabels && startsPart ? 'mt-6' : ''
+          } ${active ? 'bg-accent-2/20' : ''}`}
+        >
+          {line.tab.label && <p className="font-sans text-xs italic text-ink-faint">{line.tab.label}</p>}
+          <pre className="font-sb-mono leading-snug text-ink-soft" style={{ fontSize: 'max(var(--sb-text-min), 0.8em)' }}>
+            {line.tab.lines.join('\n')}
+          </pre>
+        </div>
+      ) : isChordOnlyLine(line) ? (
+        // Instrumental chord row: chords inline, in the accent colour - they are the content of
+        // this row, not an annotation above it. The whole row at the chord size, bars and spaces
+        // too (Marco, 2026-10-17: lyric-size chords next to chord-size ones, then small bars next
+        // to big chords, both looked odd).
+        <p
+          data-line-index={lineIndex}
+          data-source-line={line.sourceLine}
+          data-active-line={active || undefined}
+          style={chordFontSize === undefined ? undefined : { fontSize: stageFontSize(chordFontSize) }}
+          className={`-mx-2 whitespace-pre-wrap break-words rounded-control px-2 transition-colors duration-300 ${
+            !hidePartLabels && startsPart ? 'mt-6' : ''
+          } ${active ? 'bg-accent-2/20' : ''}`}
+        >
+          {line.segments.map((segment, segmentIndex) => (
+            <span key={segmentIndex} data-source-offset={segment.sourceOffset}>
+              {segment.chord && <span className="font-bold text-accent">{segment.chord}</span>}
+              <span className="text-ink-faint">{segment.text}</span>
+            </span>
+          ))}
+        </p>
+      ) : line.comment !== null ? (
+        // Musician-facing note (issue #215), not part of the lyric - font-sans italic
+        // sets it apart from the lyric's own font-sb-mono, same way a part label does.
+        <p
+          data-line-index={lineIndex}
+          data-source-line={line.sourceLine}
+          data-active-line={active || undefined}
+          style={commentFontSize === undefined ? undefined : { fontSize: stageFontSize(commentFontSize) }}
+          className={`${commentFontSize === undefined ? STAGE_SMALL_TEXT : ''} -mx-2 rounded-control px-2 font-sans italic text-ink-faint transition-colors duration-300 ${
+            !hidePartLabels && startsPart ? 'mt-6' : ''
+          } ${active ? 'bg-accent-2/20' : ''}`}
+        >
+          {line.comment}
+        </p>
+      ) : (
+        <LyricLine
+          line={line}
+          lineIndex={lineIndex}
+          active={active}
+          startsPart={!hidePartLabels && startsPart}
+          chordFontSize={chordFontSize}
+        />
+      )}
+    </div>
+  )
+})
 
 /**
  * A lyric line with its chords *inside* the line's own box: the line reserves room on top

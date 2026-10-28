@@ -19,6 +19,7 @@ import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
 import { randomId } from '../lib/id'
+import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
 import { TuningSelect } from './TuningSelect'
@@ -407,7 +408,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       clickTrackEnabled: draft.clickTrackEnabled,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
-      cues: draft.cues,
+      // Anchored cues at their bar and beat, also after a tempo change in the details (#483).
+      cues: applyCueAnchors(draft.cues, clickTimeline({ beatGrid: draft.beatGrid, bpm: draft.bpm, timeSignature: draft.timeSignature })),
       ...(draft.beatGrid ? { beatGrid: draft.beatGrid } : {}),
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,

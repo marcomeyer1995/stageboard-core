@@ -9,7 +9,6 @@ import { cancelSectionJump, queueSectionJump, setSectionLoop } from '../lib/sect
 import { useShowMode } from '../lib/showMode'
 import { sectionIndexAt, showSections, type JumpWhen, type ShowSection } from '../lib/showSections'
 import { useShowPart } from '../lib/widgetParts'
-import { useShowStateStore } from '../store/useShowStateStore'
 import { JumpCrossfadeSetting } from '../components/JumpCrossfadeSetting'
 
 const WHEN_KEY = 'sb:section-jump-when'
@@ -28,15 +27,12 @@ const BUTTON = 'min-h-touch rounded-control px-4 font-bold transition-colors dis
  * Abschnitte (#479): the song's sections from its timeline parts. The master taps one - the band
  * jumps there at the end of the bar or of the section playing (chosen here, remembered on this
  * device), tapped again it is called off. "Wiederholen" repeats the section playing until released.
- * Everyone sees which section plays, which comes next, and a loop. Gig only for now.
+ * Everyone sees which section plays, which comes next, and a loop. In Solo Üben the same for this
+ * device alone - no master needed (#479, Marco 2026-10-22).
  */
 export function SectionJumpWidget() {
-  const { mode, queue, elapsedMs, playbackStatus } = useShowMode()
-  const isMaster = useShowStateStore((state) => state.isMaster)
-  const jump = useShowStateStore((state) => state.state.playbackJump ?? null)
-  const loop = useShowStateStore((state) => state.state.playbackLoop ?? null)
-  const trackOverride = useShowStateStore((state) => state.state.trackOverride)
-  const liveTempoAdjustPercent = useShowStateStore((state) => state.state.liveTempoAdjustPercent)
+  const { mode, queue, elapsedMs, playbackStatus, canControl: isMaster, transport, sectionLoop: loop, trackOverride, liveTempoAdjustPercent } = useShowMode()
+  const jump = transport.jump ?? null
   const [when, setWhen] = useState<JumpWhen>(storedWhen)
   const showWhen = useShowPart('when')
   const showLoop = useShowPart('loop')
@@ -60,7 +56,6 @@ export function SectionJumpWidget() {
   const content = song?.chordProContent ?? ''
   const sections = useMemo(() => (timeline ? showSections(content, timeline, durationMs) : []), [content, timeline, durationMs])
 
-  if (mode !== 'gig') return <p className="flex h-full items-center justify-center text-center text-ink-faint">Nur im Gig</p>
   if (!currentSong || sections.length === 0) {
     return <p className="flex h-full items-center justify-center text-center text-ink-faint">Keine Abschnitte mit Zeit in der Timeline</p>
   }
@@ -94,7 +89,7 @@ export function SectionJumpWidget() {
     ? `Nächster Abschnitt: ${jump.label ?? 'Sprung'}`
     : loop
       ? `Wiederholt: ${loop.label ?? 'Abschnitt'}`
-      : !isMaster
+      : !isMaster && mode === 'gig'
         ? 'Springen kann der Master'
         : !playing
           ? 'Springen, während der Song läuft'

@@ -17,8 +17,9 @@ export function practiceElapsedMsNow(workspaceId: string): number | null {
     const loop = getLoopPlaybackState()
     if (loop) return loop.positionMs
   }
+  // A section jump (#479) continues the clock at its target.
   return computeActiveMs(
-    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs },
+    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null },
     Date.now(),
   )
 }
@@ -47,8 +48,9 @@ export function usePracticeElapsedMs(): number | null {
     const loop = getLoopPlaybackState()
     if (loop) return loop.positionMs
   }
+  // A section jump (#479) continues the clock at its target.
   return computeActiveMs(
-    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs },
+    { status: state.playbackStatus, startedAt: state.playbackStartedAt, accumulatedMs: state.playbackAccumulatedMs, jump: state.playbackJump ?? null },
     Date.now(),
   )
 }

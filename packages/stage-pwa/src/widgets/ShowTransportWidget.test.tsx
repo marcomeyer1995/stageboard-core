@@ -13,7 +13,11 @@ import { useShowStateStore } from '../store/useShowStateStore'
 
 // Same explicit-factory reasoning as useAudioOutputDriver.test.ts (which now owns the reactive
 // local-engine-driving behavior this widget used to run itself - see its own doc comment).
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
+})
 // The widget's measured box; 0 x 0 (unmeasured) gives the roomy layout the older tests expect.
 const mockSize = vi.hoisted(() => ({ width: 0, height: 0 }))
 vi.mock('../lib/useElementSize', () => ({ useElementSize: () => [() => {}, mockSize] }))
