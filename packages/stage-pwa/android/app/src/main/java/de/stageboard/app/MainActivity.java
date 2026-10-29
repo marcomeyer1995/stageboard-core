@@ -19,6 +19,9 @@ import com.getcapacitor.BridgeActivity;
  * app is in front - a tablet on a music stand must never dim or lock mid-song.
  */
 public class MainActivity extends BridgeActivity {
+    /** How often the page's height is checked again while the keyboard is up (Android before 11). */
+    private static final long KEYBOARD_RECHECK_MS = 300;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ServerTrustPlugin.class);
@@ -69,7 +72,8 @@ public class MainActivity extends BridgeActivity {
         View decor = getWindow().getDecorView();
         Rect visible = new Rect();
         int[] onScreen = new int[2];
-        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+        Runnable[] measure = new Runnable[1];
+        measure[0] = () -> {
             decor.getWindowVisibleDisplayFrame(visible);
             View webView = bridge.getWebView();
             View parent = (View) webView.getParent();
@@ -84,7 +88,13 @@ public class MainActivity extends BridgeActivity {
                 params.bottomMargin = keyboard;
                 webView.setLayoutParams(params);
             }
-        });
+            // The keyboard going away lays nothing out on the Fire, so no layout pass reports it -
+            // the page stayed short with a grey band below it until the app restarted (Fire,
+            // 2026-10-29). While a keyboard is counted, look again a little later.
+            decor.removeCallbacks(measure[0]);
+            if (keyboard > 0) decor.postDelayed(measure[0], KEYBOARD_RECHECK_MS);
+        };
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> measure[0].run());
     }
 
     /** Immersive: status and navigation bar hidden; a swipe from the edge shows them briefly. */
