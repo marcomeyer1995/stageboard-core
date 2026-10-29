@@ -1,0 +1,115 @@
+{
+  "untitled": "(ohne Titel)",
+  "loading": "Lade…",
+  "newVariant": "Neue Variante",
+  "delVar": {
+    "ask": "Variante „{{name}}“ mit ihren Audio-Spuren löschen?",
+    "default": "Sie ist die Standard-Variante: danach hat der Song keine, bis du eine andere als Standard festlegst. Setlist-Einträge ohne eigene Variante spielen bis dahin nichts.",
+    "used": "Gewählt in {{setlists}} - dort steht dann „Variante gelöscht“, es spielt keine andere.",
+    "title": "Variante löschen"
+  },
+  "delete": "Löschen",
+  "setDefault": "Als Standard festlegen",
+  "invalid": "Ungültige Eingabe",
+  "grid": {
+    "replace": "Vorhandenes Klick-Raster durch die automatische Erkennung ersetzen?",
+    "replaceButton": "Ersetzen",
+    "noBeats": "Keine Schläge erkannt - bitte in der Timeline setzen.",
+    "failed": "Analyse fehlgeschlagen.",
+    "clearAsk": "Klick-Raster löschen? Der Klick läuft danach ab 0:00 im eingetragenen Tempo. Erst „Speichern“ übernimmt es.",
+    "points_one": "{{count}} Ausrichtungspunkt",
+    "points_other": "{{count}} Ausrichtungspunkte",
+    "summary": "{{points}}, Takt 1 bei {{time}} · {{bpm}}",
+    "none": "Kein Raster: der Klick läuft ab 0:00 im eingetragenen Tempo.",
+    "title": "Klick-Raster",
+    "inTimeline": "In der Timeline bearbeiten",
+    "analyzing": "Analysiere…",
+    "analyze": "Track analysieren",
+    "clear": "Raster löschen"
+  },
+  "bpm": "BPM",
+  "meter": "Takt",
+  "clickDefault": "Klick standardmäßig an",
+  "clickDefaultHint": "Per Show überstimmbar.",
+  "countIn": "Count-in",
+  "bars": "Takte",
+  "duration": "Dauer",
+  "measuring": "wird gemessen…",
+  "seconds": "{{s}} s",
+  "trackLength": "Länge des Tracks - wird automatisch gemessen und kann nicht geändert werden.",
+  "durationSeconds": "Dauer (Sekunden)",
+  "durationHint": "Ohne Track: die Länge für Festival-Uhr und automatisches Stoppen (auch bei reinem Klick). Leer = geschätzt (Standard 4 min), kein automatisches Stoppen.",
+  "viewLabel": "Ansicht",
+  "view": {
+    "text": "Text",
+    "preview": "Vorschau",
+    "timeline": "Timeline",
+    "details": "Details"
+  },
+  "scope": {
+    "all": "der ganze Text",
+    "lines": "die markierten Zeilen ({{count}})"
+  },
+  "nothing": "{{label}}: nichts zu ändern.",
+  "transpose": {
+    "title": "Text transponieren",
+    "steps": "Halbtöne (z. B. 2 oder -3)",
+    "button": "Transponieren"
+  },
+  "transposed": "Transponiert {{steps}}",
+  "tool": {
+    "transpose": "Transponieren …",
+    "merge": "Akkordzeilen integrieren",
+    "merged": "Akkordzeilen integriert",
+    "cleanup": "Aufräumen …",
+    "cleaned": "Aufgeräumt",
+    "find": "Suchen & Ersetzen …"
+  },
+  "insert": {
+    "comment": "+ Kommentar",
+    "tab": "+ Tab"
+  },
+  "page": {
+    "insert": "Einfügen …",
+    "tools": "Textwerkzeuge …",
+    "hideInvisibles": "Unsichtbare Zeichen ausblenden",
+    "showInvisibles": "Unsichtbare Zeichen einblenden (¶)",
+    "import": "Song importieren",
+    "tapSync": "Tap-to-Sync starten"
+  },
+  "meta": {
+    "key": "Key {{key}}",
+    "capo": "Capo {{capo}}",
+    "bpm": "{{bpm}} BPM"
+  },
+  "variantName": "Varianten-Name",
+  "title": "Titel",
+  "band": "Band",
+  "key": "Key",
+  "capo": "Capo",
+  "chartTuning": "Akkorde notiert für",
+  "shifted": "Auf der Bühne stehen die Akkorde verschoben (siehe Tonart & Stimmung) - hier im Text bleiben sie wie geschrieben.",
+  "sec": {
+    "meta": "Song-Angaben",
+    "tempo": "Tempo & Klick",
+    "audio": "Audio",
+    "comments": "Kommentare"
+  },
+  "unknownTuning": "Unbekannte Stimmung „{{tuning}}“ (alter Freitext) - bitte unter „Akkorde notiert für“ wählen.",
+  "variant": "Variante",
+  "variantNew": "{{name}} (neu)",
+  "variantDefault": "{{name}} (Standard)",
+  "variantMenu": "Variante „{{name}}“",
+  "noDefault": "Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du eine Variante als Standard festlegst (⋯ neben der Variante).",
+  "undo": "Rückgängig",
+  "portrait": "Im Hochformat ist mehr Platz zum Schreiben.",
+  "textAria": "ChordPro-Text",
+  "unclosed": "Zeile {{line}}: „{{bracket}}“ nicht geschlossen",
+  "library": "Bibliothek",
+  "saved": "Gespeichert.",
+  "menu": "Menü: Song-Editor",
+  "save": "Speichern",
+  "menuTitle": "Song-Editor",
+  "toolsTitle": "Textwerkzeuge",
+  "insertTitle": "Einfügen"
+}

@@ -1,0 +1,115 @@
+{
+  "untitled": "(untitled)",
+  "loading": "Loading…",
+  "newVariant": "New variant",
+  "delVar": {
+    "ask": "Delete variant “{{name}}” with its audio tracks?",
+    "default": "It is the default variant: afterwards the song has none until you set another one as default. Setlist entries without their own variant play nothing until then.",
+    "used": "Chosen in {{setlists}} - there it then says “Variant deleted”, no other one plays.",
+    "title": "Delete variant"
+  },
+  "delete": "Delete",
+  "setDefault": "Set as default",
+  "invalid": "Invalid input",
+  "grid": {
+    "replace": "Replace the existing click grid with the automatic detection?",
+    "replaceButton": "Replace",
+    "noBeats": "No beats detected - please set them in the timeline.",
+    "failed": "Analysis failed.",
+    "clearAsk": "Delete the click grid? The click then runs from 0:00 at the entered tempo. Only “Save” applies it.",
+    "points_one": "{{count}} alignment point",
+    "points_other": "{{count}} alignment points",
+    "summary": "{{points}}, bar 1 at {{time}} · {{bpm}}",
+    "none": "No grid: the click runs from 0:00 at the entered tempo.",
+    "title": "Click grid",
+    "inTimeline": "Edit in the timeline",
+    "analyzing": "Analysing…",
+    "analyze": "Analyse track",
+    "clear": "Delete grid"
+  },
+  "bpm": "BPM",
+  "meter": "Time signature",
+  "clickDefault": "Click on by default",
+  "clickDefaultHint": "Can be overridden per show.",
+  "countIn": "Count-in",
+  "bars": "Bars",
+  "duration": "Duration",
+  "measuring": "being measured…",
+  "seconds": "{{s}} s",
+  "trackLength": "Length of the track - measured automatically and cannot be changed.",
+  "durationSeconds": "Duration (seconds)",
+  "durationHint": "Without a track: the length for the festival clock and automatic stop (also with click only). Empty = estimated (default 4 min), no automatic stop.",
+  "viewLabel": "View",
+  "view": {
+    "text": "Text",
+    "preview": "Preview",
+    "timeline": "Timeline",
+    "details": "Details"
+  },
+  "scope": {
+    "all": "the whole text",
+    "lines": "the selected lines ({{count}})"
+  },
+  "nothing": "{{label}}: nothing to change.",
+  "transpose": {
+    "title": "Transpose text",
+    "steps": "Semitones (e.g. 2 or -3)",
+    "button": "Transpose"
+  },
+  "transposed": "Transposed {{steps}}",
+  "tool": {
+    "transpose": "Transpose …",
+    "merge": "Merge chord lines",
+    "merged": "Chord lines merged",
+    "cleanup": "Clean up …",
+    "cleaned": "Cleaned up",
+    "find": "Find & replace …"
+  },
+  "insert": {
+    "comment": "+ Comment",
+    "tab": "+ Tab"
+  },
+  "page": {
+    "insert": "Insert …",
+    "tools": "Text tools …",
+    "hideInvisibles": "Hide invisible characters",
+    "showInvisibles": "Show invisible characters (¶)",
+    "import": "Import song",
+    "tapSync": "Start tap-to-sync"
+  },
+  "meta": {
+    "key": "Key {{key}}",
+    "capo": "Capo {{capo}}",
+    "bpm": "{{bpm}} BPM"
+  },
+  "variantName": "Variant name",
+  "title": "Title",
+  "band": "Band",
+  "key": "Key",
+  "capo": "Capo",
+  "chartTuning": "Chords written for",
+  "shifted": "On stage the chords appear shifted (see key & tuning) - here in the text they stay as written.",
+  "sec": {
+    "meta": "Song details",
+    "tempo": "Tempo & click",
+    "audio": "Audio",
+    "comments": "Comments"
+  },
+  "unknownTuning": "Unknown tuning “{{tuning}}” (old free text) - please choose under “Chords written for”.",
+  "variant": "Variant",
+  "variantNew": "{{name}} (new)",
+  "variantDefault": "{{name}} (default)",
+  "variantMenu": "Variant “{{name}}”",
+  "noDefault": "This song has no default variant. Setlist entries without their own variant play nothing until you set a variant as default (⋯ next to the variant).",
+  "undo": "Undo",
+  "portrait": "Portrait gives more room for writing.",
+  "textAria": "ChordPro text",
+  "unclosed": "Line {{line}}: “{{bracket}}” not closed",
+  "library": "Library",
+  "saved": "Saved.",
+  "menu": "Menu: song editor",
+  "save": "Save",
+  "menuTitle": "Song editor",
+  "toolsTitle": "Text tools",
+  "insertTitle": "Insert"
+}

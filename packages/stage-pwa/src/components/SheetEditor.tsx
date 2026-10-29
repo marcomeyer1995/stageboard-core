@@ -52,6 +52,7 @@ import { Icon } from './Icon'
 import { ActionMenu, AddRow, ActionMenuDialog, IconButton, menuIcon, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
+import { useTranslation } from 'react-i18next'
 
 /** An old/imported tuning text as draft fields: read into chartTuning, or kept as text when it can't be. */
 function tuningFromText(text: string): Pick<EditorDraft, 'chartTuning' | 'tuning'> {
@@ -164,6 +165,7 @@ export const ROOMY_FOR_FULL_SEARCH_PX = 760
 const INVISIBLES_KEY = 'sb:editor-invisibles'
 
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
+  const { t } = useTranslation('editor')
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
   const variants = useSongVariantsStore((state) => state.variants)
@@ -318,7 +320,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   // The status bar names the song being edited while this page is open (#603).
   const setEditingTitle = useEditingTitleStore((state) => state.setEditing)
-  const editingTitle = draft ? draft.title.trim() || '(ohne Titel)' : null
+  const editingTitle = draft ? draft.title.trim() || t('untitled') : null
   const editingVariant = draft?.variantLabel ?? ''
   useEffect(() => {
     setEditingTitle(editingTitle === null ? null : { title: editingTitle, variantLabel: editingVariant })
@@ -390,7 +392,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   }, [songs, draft?.songId])
 
   if (!draft) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">{t('loading')}</div>
   }
 
   const selectVariant = (variantId: string) => {
@@ -427,7 +429,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     setDraft({
       ...draft,
       variantId: randomId(),
-      variantLabel: 'Neue Variante',
+      variantLabel: t('newVariant'),
       isDefaultVariant: false,
     })
     setError(null)
@@ -440,10 +442,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const handleDeleteVariant = async () => {
     const usedIn = setlists.filter((setlist) => setlist.entries.some((entry) => isSongEntry(entry) && entry.variantId === draft.variantId))
-    const lines = [`Variante „${draft.variantLabel}“ mit ihren Audio-Spuren löschen?`]
-    if (draft.isDefaultVariant) lines.push('Sie ist die Standard-Variante: danach hat der Song keine, bis du eine andere als Standard festlegst. Setlist-Einträge ohne eigene Variante spielen bis dahin nichts.')
-    if (usedIn.length > 0) lines.push(`Gewählt in ${usedIn.map((setlist) => `„${setlist.name}“`).join(', ')} - dort steht dann „Variante gelöscht“, es spielt keine andere.`)
-    if (!(await confirm(lines.join('\n\n'), { title: 'Variante löschen', confirmLabel: 'Löschen', danger: true }))) return
+    const lines = [t('delVar.ask', { name: draft.variantLabel })]
+    if (draft.isDefaultVariant) lines.push(t('delVar.default'))
+    if (usedIn.length > 0) lines.push(t('delVar.used', { setlists: usedIn.map((setlist) => `„${setlist.name}“`).join(', ') }))
+    if (!(await confirm(lines.join('\n\n'), { title: t('delVar.title'), confirmLabel: t('delete'), danger: true }))) return
     try {
       await deleteVariant(draft.variantId)
     } catch (err) {
@@ -466,10 +468,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const variantActions: MenuAction[] = variantSaved
     ? [
-        ...(draft.isDefaultVariant ? [] : [{ label: 'Als Standard festlegen', onClick: () => void handleSetDefault() }]),
+        ...(draft.isDefaultVariant ? [] : [{ label: t('setDefault'), onClick: () => void handleSetDefault() }]),
         // The last one can't go: without any variant the song would play its old default's
         // content again (the Song mirror) - delete the song instead (Bibliothek ⋯).
-        ...(variantsForSong.length > 1 ? [{ label: 'Variante löschen', danger: true, onClick: () => void handleDeleteVariant() }] : []),
+        ...(variantsForSong.length > 1 ? [{ label: t('delVar.title'), danger: true, onClick: () => void handleDeleteVariant() }] : []),
       ]
     : []
 
@@ -501,7 +503,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     }
     const variantResult = SongVariantSchema.safeParse(variant)
     if (!variantResult.success) {
-      setError(variantResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
+      setError(variantResult.error.issues[0]?.message ?? t('invalid'))
       return false
     }
 
@@ -521,7 +523,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     }
     const songResult = SongSchema.safeParse(song)
     if (!songResult.success) {
-      setError(songResult.error.issues[0]?.message ?? 'Ungültige Eingabe')
+      setError(songResult.error.issues[0]?.message ?? t('invalid'))
       return false
     }
 
@@ -666,18 +668,18 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     // Same question as the Timeline's "Track analysieren": with stems, mix or which stem.
     const source = await askAnalysisSource(promptFields, stemsForTrack(currentTracks, tapTrack.id))
     if (source === undefined) return
-    if (draft.beatGrid && !(await confirm('Vorhandenes Klick-Raster durch die automatische Erkennung ersetzen?', { confirmLabel: 'Ersetzen' }))) return
+    if (draft.beatGrid && !(await confirm(t('grid.replace'), { confirmLabel: t('grid.replaceButton') }))) return
     setIsAnalyzing(true)
     setAnalyzeError(null)
     try {
       const result = await detectGrid(source ?? undefined)
       if (!result) {
-        setAnalyzeError('Keine Schläge erkannt - bitte in der Timeline setzen.')
+        setAnalyzeError(t('grid.noBeats'))
         return
       }
       setDraft((d) => (d ? { ...d, bpm: result.bpm, beatGrid: result.beatGrid } : d))
     } catch {
-      setAnalyzeError('Analyse fehlgeschlagen.')
+      setAnalyzeError(t('grid.failed'))
     } finally {
       setIsAnalyzing(false)
     }
@@ -686,7 +688,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   /** "Raster löschen" - back to bar 1 at 0:00 at the entered bpm. Only the draft; "Speichern"
    * makes it stick. */
   const handleClearGrid = async () => {
-    if (await confirm('Klick-Raster löschen? Der Klick läuft danach ab 0:00 im eingetragenen Tempo. Erst „Speichern“ übernimmt es.', { confirmLabel: 'Löschen', danger: true })) {
+    if (await confirm(t('grid.clearAsk'), { confirmLabel: t('delete'), danger: true })) {
       setDraft((d) => (d ? { ...d, beatGrid: undefined } : d))
     }
   }
@@ -708,17 +710,20 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // Identical content on every layout; only the framing (tab, sheet, section) differs.
   const stretches = draft.beatGrid ? gridStretches(draft.beatGrid, draft.bpm, draft.timeSignature) : []
   const gridSummary = draft.beatGrid
-    ? `${draft.beatGrid.points.length} ${draft.beatGrid.points.length === 1 ? 'Ausrichtungspunkt' : 'Ausrichtungspunkte'}, Takt 1 bei ${formatTimelineTime(clickTimeline(draft).bar1Ms)} · ${
-        stretches.length > 1
-          ? `${Math.min(...stretches.map((s) => s.bpm)).toFixed(1)}-${Math.max(...stretches.map((s) => s.bpm)).toFixed(1)} BPM`
-          : `${stretches[0]!.bpm.toFixed(1)} BPM`
-      }`
-    : 'Kein Raster: der Klick läuft ab 0:00 im eingetragenen Tempo.'
+    ? t('grid.summary', {
+        points: t('grid.points', { count: draft.beatGrid.points.length }),
+        time: formatTimelineTime(clickTimeline(draft).bar1Ms),
+        bpm:
+          stretches.length > 1
+            ? `${Math.min(...stretches.map((s) => s.bpm)).toFixed(1)}-${Math.max(...stretches.map((s) => s.bpm)).toFixed(1)} BPM`
+            : `${stretches[0]!.bpm.toFixed(1)} BPM`,
+      })
+    : t('grid.none')
   const tempoContent = (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          BPM
+          {t('bpm')}
           <input
             type="number"
             className={`min-h-form px-3 ${INPUT}`}
@@ -727,7 +732,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Takt
+          {t('meter')}
           <input
             className={`min-h-form px-3 ${INPUT}`}
             placeholder="4/4"
@@ -737,17 +742,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </label>
       </div>
       <Switch
-        label="Klick standardmäßig an"
-        description="Per Show überstimmbar."
+        label={t('clickDefault')}
+        description={t('clickDefaultHint')}
         checked={draft.clickTrackEnabled}
         onChange={(clickTrackEnabled) => setDraft({ ...draft, clickTrackEnabled })}
       />
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <Switch label="Count-in" checked={draft.countInEnabled} onChange={(countInEnabled) => setDraft({ ...draft, countInEnabled })} />
+          <Switch label={t('countIn')} checked={draft.countInEnabled} onChange={(countInEnabled) => setDraft({ ...draft, countInEnabled })} />
         </div>
         <label className="flex items-center gap-1 text-sm text-ink-muted">
-          Takte
+          {t('bars')}
           <input
             type="number"
             min={1}
@@ -760,16 +765,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       </div>
 
       <div className="flex flex-col gap-2 border-t border-line pt-3">
-        <span className="text-sm text-ink-muted">Klick-Raster</span>
+        <span className="text-sm text-ink-muted">{t('grid.title')}</span>
         <p className="text-sm text-ink-soft">{gridSummary}</p>
         {/* The main way into the grid, the rest behind ⋯ (#604) - one row on the phone. */}
         <div className="flex items-center gap-2">
-          <Button onClick={() => setEditorView('timeline')}>In der Timeline bearbeiten</Button>
+          <Button onClick={() => setEditorView('timeline')}>{t('grid.inTimeline')}</Button>
           <ActionMenu
-            title="Klick-Raster"
+            title={t('grid.title')}
             actions={[
-              { label: isAnalyzing ? 'Analysiere…' : 'Track analysieren', disabled: !tapTrack || isAnalyzing, onClick: () => void handleAnalyzeTrack() },
-              { label: 'Raster löschen', danger: true, disabled: !draft.beatGrid, onClick: () => void handleClearGrid() },
+              { label: isAnalyzing ? t('grid.analyzing') : t('grid.analyze'), disabled: !tapTrack || isAnalyzing, onClick: () => void handleAnalyzeTrack() },
+              { label: t('grid.clear'), danger: true, disabled: !draft.beatGrid, onClick: () => void handleClearGrid() },
             ]}
           />
         </div>
@@ -787,19 +792,19 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     <div className="flex flex-col gap-3">
       {playingTrack ? (
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
-          Dauer
+          {t('duration')}
           <span className="flex h-form w-40 items-center rounded-control bg-control px-3 text-ink">
             {playingTrack.durationMs === undefined
-              ? 'wird gemessen…'
-              : `${Math.round(playingTrack.durationMs / 1000)} s`}
+              ? t('measuring')
+              : t('seconds', { s: Math.round(playingTrack.durationMs / 1000) })}
           </span>
           <span className="text-xs text-ink-faint">
-            Länge des Tracks - wird automatisch gemessen und kann nicht geändert werden.
+            {t('trackLength')}
           </span>
         </div>
       ) : (
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Dauer (Sekunden)
+          {t('durationSeconds')}
           <input
             type="number"
             min={1}
@@ -811,8 +816,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
             className={`h-form w-40 px-3 ${INPUT_FREE}`}
           />
           <span className="text-xs text-ink-faint">
-            Ohne Track: die Länge für Festival-Uhr und automatisches Stoppen (auch bei reinem Klick). Leer = geschätzt
-            (Standard 4 min), kein automatisches Stoppen.
+            {t('durationHint')}
           </span>
         </label>
       )}
@@ -862,14 +866,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // where it has no column of its own.
   const viewSwitch = (
     <Tabs
-      label="Ansicht"
+      label={t('viewLabel')}
       value={view}
       onChange={setEditorView}
       tabs={[
-        { value: 'text' as const, label: 'Text', icon: 'text' as const },
-        ...(isPanel ? [] : [{ value: 'preview' as const, label: 'Vorschau', icon: 'eye' as const }]),
-        { value: 'timeline' as const, label: 'Timeline', icon: 'timeline' as const },
-        { value: 'details' as const, label: 'Details', icon: 'details' as const },
+        { value: 'text' as const, label: t('view.text'), icon: 'text' as const },
+        ...(isPanel ? [] : [{ value: 'preview' as const, label: t('view.preview'), icon: 'eye' as const }]),
+        { value: 'timeline' as const, label: t('view.timeline'), icon: 'timeline' as const },
+        { value: 'details' as const, label: t('view.details'), icon: 'details' as const },
       ]}
     />
   )
@@ -880,13 +884,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const before = draft.chordProContent
     let start = textarea?.selectionStart ?? 0
     let end = textarea?.selectionEnd ?? 0
-    if (start === end) return { start: 0, end: before.length, scope: 'der ganze Text' }
+    if (start === end) return { start: 0, end: before.length, scope: t('scope.all') }
     // Whole lines: a chord line and its lyric belong together.
     start = before.lastIndexOf('\n', start - 1) + 1
     const lineEnd = before.indexOf('\n', end)
     end = lineEnd === -1 ? before.length : lineEnd
     const lines = before.slice(start, end).split('\n').length
-    return { start, end, scope: `die markierten Zeilen (${lines})` }
+    return { start, end, scope: t('scope.lines', { count: lines }) }
   }
 
   /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
@@ -896,7 +900,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const after = before.slice(0, start) + tool(before.slice(start, end)) + before.slice(end)
     if (after === before) {
       setToolUndo(null)
-      setError(`${label}: nichts zu ändern.`)
+      setError(t('nothing', { label }))
       return
     }
     setError(null)
@@ -905,20 +909,20 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   }
 
   const askTranspose = async () => {
-    const result = await promptFields('Text transponieren', [{ key: 'steps', label: 'Halbtöne (z. B. 2 oder -3)', defaultValue: '2' }], 'Transponieren')
+    const result = await promptFields(t('transpose.title'), [{ key: 'steps', label: t('transpose.steps'), defaultValue: '2' }], t('transpose.button'))
     const steps = Number(result?.steps?.replace(',', '.').trim())
     if (!result || !Number.isInteger(steps) || steps === 0 || Math.abs(steps) > 11) return
-    applyTextTool(`Transponiert ${signedSteps(steps)}`, (text) => transposeText(text, steps, draft.key))
+    applyTextTool(t('transposed', { steps: signedSteps(steps) }), (text) => transposeText(text, steps, draft.key))
   }
 
   // In the text itself (#605) - for imported or pasted charts; the variant's own transpose stays
   // in Song-Angaben.
   const toolActions: MenuAction[] = [
-    { label: 'Transponieren …', onClick: () => void askTranspose() },
-    { label: 'Akkordzeilen integrieren', onClick: () => applyTextTool('Akkordzeilen integriert', mergeChordLines) },
-    { label: 'Aufräumen …', onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
+    { label: t('tool.transpose'), onClick: () => void askTranspose() },
+    { label: t('tool.merge'), onClick: () => applyTextTool(t('tool.merged'), mergeChordLines) },
+    { label: t('tool.cleanup'), onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
     {
-      label: 'Suchen & Ersetzen …',
+      label: t('tool.find'),
       onClick: () => {
         const range = toolRange()
         setFindBar({ range: range.start === 0 && range.end === draft.chordProContent.length ? null : { start: range.start, end: range.end } })
@@ -928,17 +932,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const insertActions: MenuAction[] = [
     ...PART_LABELS.map((label) => ({ label: `+ ${label}`, onClick: () => insertPart(label) })),
-    { label: '+ Kommentar', onClick: () => setNoteDialog('comment') },
-    { label: '+ Tab', onClick: () => setNoteDialog('tab') },
+    { label: t('insert.comment'), onClick: () => setNoteDialog('comment') },
+    { label: t('insert.tab'), onClick: () => setNoteDialog('tab') },
   ]
   // The page's own actions behind ⋮ (docs/15 D9, #617) - out of the way of the text.
   const pageActions: MenuAction[] = [
-    { label: 'Einfügen …', onClick: () => setInsertMenuOpen(true) },
-    { label: 'Textwerkzeuge …', onClick: () => setToolsMenuOpen(true) },
-    { label: showInvisibles ? 'Unsichtbare Zeichen ausblenden' : 'Unsichtbare Zeichen einblenden (¶)', onClick: toggleInvisibles },
-    { label: 'Song importieren', onClick: () => setIsImporting(true) },
+    { label: t('page.insert'), onClick: () => setInsertMenuOpen(true) },
+    { label: t('page.tools'), onClick: () => setToolsMenuOpen(true) },
+    { label: showInvisibles ? t('page.hideInvisibles') : t('page.showInvisibles'), onClick: toggleInvisibles },
+    { label: t('page.import'), onClick: () => setIsImporting(true) },
     {
-      label: 'Tap-to-Sync starten',
+      label: t('page.tapSync'),
       disabled: !draft.chordProContent.trim(),
       onClick: () => {
         setTapLinesOnOpen(true)
@@ -950,13 +954,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const isStandardTuning = isStandard(stageTuning(draft))
   const showMeta = metaOpen ?? !draft.title.trim()
   const metaSummary = [
-    draft.title.trim() || '(ohne Titel)',
+    draft.title.trim() || t('untitled'),
     draft.artist,
-    draft.key && `Key ${soundingKey(draft)}`,
-    (draft.transpose ?? 0) !== 0 && `Transponiert ${signedSteps(draft.transpose ?? 0)}`,
+    draft.key && t('meta.key', { key: soundingKey(draft) }),
+    (draft.transpose ?? 0) !== 0 && t('transposed', { steps: signedSteps(draft.transpose ?? 0) }),
     !isStandardTuning && tuningLabel(stageTuning(draft)),
-    draft.capo !== undefined && `Capo ${draft.capo}`,
-    `${draft.bpm} BPM`,
+    draft.capo !== undefined && t('meta.capo', { capo: draft.capo }),
+    t('meta.bpm', { bpm: draft.bpm }),
   ]
     .filter((part): part is string => Boolean(part))
     .join(' · ')
@@ -966,7 +970,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     <div className="flex flex-col gap-3">
       {!draft.isDefaultVariant && (
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Varianten-Name
+          {t('variantName')}
           <input
             className={`min-h-form px-3 ${INPUT}`}
             value={draft.variantLabel}
@@ -976,11 +980,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       )}
       <div className="flex gap-2 max-[599px]:flex-col">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
-          Titel
+          {t('title')}
           <input className={`min-h-form px-3 ${INPUT}`} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
         </label>
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-ink-muted">
-          Band
+          {t('band')}
           <input
             className={`min-h-form px-3 ${INPUT}`}
             value={draft.artist ?? ''}
@@ -990,7 +994,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       </div>
       <div className="grid grid-cols-2 gap-2 [&>label]:min-w-0">
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Key
+          {t('key')}
           <input
             className={`min-h-form px-3 ${INPUT}`}
             value={draft.key ?? ''}
@@ -998,7 +1002,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Capo
+          {t('capo')}
           <input
             type="number"
             min={0}
@@ -1014,14 +1018,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       <div className="grid grid-cols-[2fr_1fr] gap-2 max-[599px]:grid-cols-1 [&>*]:min-w-0">
         <KeyTuningField value={draft} onChange={(next) => setDraft({ ...draft, ...next })} />
         <TuningSelect
-          label="Akkorde notiert für"
+          label={t('chartTuning')}
           value={draft.chartTuning}
           onChange={(chartTuning) => setDraft({ ...draft, chartTuning, tuning: undefined })}
         />
       </div>
       {variantChordShift(draft) !== 0 && (
         <p className="text-sm text-ink-faint">
-          Auf der Bühne stehen die Akkorde verschoben (siehe Tonart &amp; Stimmung) - hier im Text bleiben sie wie geschrieben.
+          {t('shifted')}
         </p>
       )}
     </div>
@@ -1030,7 +1034,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const detailSections = [
     {
       key: 'meta' as const,
-      label: 'Song-Angaben',
+      label: t('sec.meta'),
       // Closed it still says which song and how it is played.
       summary: metaSummary,
       content: metaContent,
@@ -1039,7 +1043,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     },
     {
       key: 'tempo' as const,
-      label: 'Tempo & Klick',
+      label: t('sec.tempo'),
       summary: null,
       content: tempoContent,
       expanded: tempoExpanded,
@@ -1047,7 +1051,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     },
     {
       key: 'audio' as const,
-      label: 'Audio',
+      label: t('sec.audio'),
       summary: null,
       content: audioContent,
       expanded: audioExpanded,
@@ -1055,7 +1059,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     },
     {
       key: 'comments' as const,
-      label: 'Kommentare',
+      label: t('sec.comments'),
       summary: null,
       content: commentsContent,
       expanded: commentsExpanded,
@@ -1067,7 +1071,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 rounded-container border border-line bg-surface p-4 shadow-sb">
       {draft.tuning && !draft.chartTuning && (
         <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
-          Unbekannte Stimmung „{draft.tuning}“ (alter Freitext) - bitte unter „Akkorde notiert für“ wählen.
+          {t('unknownTuning', { tuning: draft.tuning })}
         </p>
       )}
       {detailSections.map((section, index) => (
@@ -1098,27 +1102,26 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       <div className="flex min-w-0 items-center gap-2">
         {/* min-w-0: a long variant name made the select push the form past the right edge (#373). */}
         <select
-          aria-label="Variante"
+          aria-label={t('variant')}
           className={`min-h-form flex-1 min-w-0 px-3 text-base ${INPUT}`}
           value={draft.variantId}
           onChange={(e) => selectVariant(e.target.value)}
         >
-          {!variantsForSong.some((v) => v.id === draft.variantId) && <option value={draft.variantId}>{draft.variantLabel} (neu)</option>}
+          {!variantsForSong.some((v) => v.id === draft.variantId) && <option value={draft.variantId}>{t('variantNew', { name: draft.variantLabel })}</option>}
           {variantsForSong.map((variant) => (
             <option key={variant.id} value={variant.id}>
-              {variant.isDefault ? `${variant.label} (Standard)` : variant.label}
+              {variant.isDefault ? t('variantDefault', { name: variant.label }) : variant.label}
             </option>
           ))}
         </select>
-        {variantActions.length > 0 && <ActionMenu title={`Variante „${draft.variantLabel}“`} actions={variantActions} />}
+        {variantActions.length > 0 && <ActionMenu title={t('variantMenu', { name: draft.variantLabel })} actions={variantActions} />}
       </div>
       {/* Adding a variant looks like adding anywhere else (docs/15 AddRow), not hidden in the ⋯
           (Marco, 2026-10-20). */}
-      <AddRow label="Neue Variante" onClick={addVariant} />
+      <AddRow label={t('newVariant')} onClick={addVariant} />
       {!hasDefault && variantsForSong.length > 0 && (
         <p role="alert" className="rounded-control border border-warn/60 bg-warn/20 px-3 py-2 text-base text-ink">
-          Dieser Song hat keine Standard-Variante. Setlist-Einträge ohne eigene Variante spielen nichts, bis du eine Variante als
-          Standard festlegst (⋯ neben der Variante).
+          {t('noDefault')}
         </p>
       )}
     </div>
@@ -1171,7 +1174,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
               setToolUndo(null)
             }}
           >
-            Rückgängig
+            {t('undo')}
           </Button>
         </div>
       )}
@@ -1198,13 +1201,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       <div className="relative flex min-h-0 min-w-0 flex-1">
       {portraitHint && (
         <p role="status" className="pointer-events-none absolute inset-x-2 top-2 z-content rounded-control bg-surface px-3 py-2 text-base text-ink shadow-sb">
-          Im Hochformat ist mehr Platz zum Schreiben.
+          {t('portrait')}
         </p>
       )}
       {(showInvisibles || findMarks.marks.length > 0) && <EditorBackdrop text={draft.chordProContent} textarea={textareaRef} showInvisibles={showInvisibles} marks={findMarks.marks} />}
       <textarea
         ref={textareaRef}
-        aria-label="ChordPro-Text"
+        aria-label={t('textAria')}
         className={`relative min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE} ${showInvisibles || findMarks.marks.length > 0 ? '!bg-transparent' : ''}`}
         value={draft.chordProContent}
         onChange={(e) => {
@@ -1232,7 +1235,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <p role="status" className="text-sm text-warn">
           {brackets
             .slice(0, 3)
-            .map((problem) => `Zeile ${problem.line}: „${problem.bracket}“ nicht geschlossen`)
+            .map((problem) => t('unclosed', { line: problem.line, bracket: problem.bracket }))
             .join(' · ')}
           {brackets.length > 3 && ` · +${brackets.length - 3}`}
         </p>
@@ -1254,16 +1257,16 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const pageHeader = (
     <div className="flex items-center gap-1 min-[600px]:gap-2">
       {/* Phone: icons instead of words (#603). From 600 px the words come back. */}
-      <Button aria-label="Bibliothek" title="Bibliothek" className="max-[599px]:px-3" onClick={() => void leave()}>
+      <Button aria-label={t('library')} title={t('library')} className="max-[599px]:px-3" onClick={() => void leave()}>
         <Icon name="back" />
-        <span className="max-[599px]:hidden">Bibliothek</span>
+        <span className="max-[599px]:hidden">{t('library')}</span>
       </Button>
       <div className="min-w-0 flex-1">{viewSwitch}</div>
-      {savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">Gespeichert.</span>}
-      <IconButton icon={menuIcon('page')} label="Menü: Song-Editor" onClick={() => setPageMenuOpen(true)} />
-      <Button variant="primary" aria-label="Speichern" title="Speichern" className="max-[599px]:px-3" onClick={() => void handleSave()}>
+      {savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">{t('saved')}</span>}
+      <IconButton icon={menuIcon('page')} label={t('menu')} onClick={() => setPageMenuOpen(true)} />
+      <Button variant="primary" aria-label={t('save')} title={t('save')} className="max-[599px]:px-3" onClick={() => void handleSave()}>
         <Icon name="save" size="1.4em" className="min-[600px]:hidden" />
-        <span className="max-[599px]:hidden">Speichern</span>
+        <span className="max-[599px]:hidden">{t('save')}</span>
       </Button>
     </div>
   )
@@ -1291,20 +1294,20 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           textPane
         )}
       </div>
-      {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
-      {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
+      {pageMenuOpen && <ActionMenuDialog title={t('menuTitle')} actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
+      {toolsMenuOpen && <ActionMenuDialog title={t('toolsTitle')} actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {toolDialog?.kind === 'cleanup' && (
         <CleanupDialog
           text={draft.chordProContent.slice(toolDialog.start, toolDialog.end)}
           scope={toolDialog.scope}
           onCancel={() => setToolDialog(null)}
           onApply={(after) => {
-            applyTextTool('Aufgeräumt', () => after, toolDialog)
+            applyTextTool(t('tool.cleaned'), () => after, toolDialog)
             setToolDialog(null)
           }}
         />
       )}
-      {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
+      {insertMenuOpen && <ActionMenuDialog title={t('insertTitle')} actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
       {textFix && <TextFixDialog offers={textFix.offers} onSave={textFix.resolve} onCancel={() => textFix.resolve(null)} />}
       {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {noteDialog === 'tab' && <InsertTabDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}

@@ -1,4 +1,5 @@
 import 'i18next'
+import type editor from './locales/de/editor.json'
 import type library from './locales/de/library.json'
 import type addons from './locales/de/addons.json'
 import type devices from './locales/de/devices.json'
@@ -22,6 +23,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      editor: typeof editor
       library: typeof library
       addons: typeof addons
       devices: typeof devices
