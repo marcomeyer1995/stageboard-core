@@ -127,4 +127,22 @@ describe('Nachbericht - "Cue anpassen" saves into the variant (#8)', () => {
     fireEvent.click(menus[menus.length - 1])
     expect(screen.getByRole('button', { name: 'Cue anpassen (nicht mehr im Song)' })).toBeDisabled()
   })
+
+  it("a Rig-Check's cue is changed where it comes from, not in the generated song", () => {
+    useProfilesStore.setState({ profiles: [] })
+    useLogicalDevicesStore.setState({ devices: [] } as never)
+    useSongVariantsStore.setState({ variants: [{ id: 'rig-check-quick', songId: 'rig-check', label: 'Kurz', isDefault: true, cues: [{ id: 'rc', timeMs: 10_000, targetLogicalDeviceId: 'k', type: 'kemper.selectRig', payload: {} }] }] } as never)
+    useShowLogStore.setState({
+      protectedShowIds: [],
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        song(1, 'Rig-Check'),
+        { id: 'f1', showId: 'show', type: 'cue-fired', at: t0 + 300_000, songId: 'rig-check', songTitle: 'Rig-Check', cueId: 'rc', variantId: 'rig-check-quick', cueType: 'kemper.selectRig', target: 'Kemper', ok: true },
+      ],
+    } as never)
+    render(<Shows />)
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Cue kemper.selectRig' }))
+    expect(screen.getByRole('button', { name: 'Cue anpassen (unter System → Rig-Check)' })).toBeDisabled()
+  })
 })

@@ -61,6 +61,11 @@ function variantOfCue(event: CueFired, variants: readonly SongVariant[]): SongVa
   return variants.find((variant) => variant.id === event.variantId && holds(variant)) ?? variants.find(holds) ?? null
 }
 
+/** The Rig-Check's generated test song (#464, lib/rigCheckSong.ts): its cues are the run's device
+ * cues, set under System → Rig-Check - a change saved into the song was gone at the next
+ * "Vorbereiten" (2026-10-29). */
+const RIG_CHECK_SONG_ID = 'rig-check'
+
 /** A section that folds away: its line, with an arrow that turns when it opens - `flex` on a
  * <summary> drops the browser's own triangle, and "Cues (7)" read like plain text (2026-10-29). */
 const FOLD = 'flex min-h-form cursor-pointer items-center gap-1 text-sm font-semibold'
@@ -98,7 +103,11 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
       </span>
       <ActionMenu
         title={`Cue ${what}`}
-        actions={[{ label: cue ? 'Cue anpassen' : 'Cue anpassen (nicht mehr im Song)', disabled: !cue, onClick: () => setEditing(true) }]}
+        actions={[
+          event.songId === RIG_CHECK_SONG_ID
+            ? { label: 'Cue anpassen (unter System → Rig-Check)', disabled: true, onClick: () => undefined }
+            : { label: cue ? 'Cue anpassen' : 'Cue anpassen (nicht mehr im Song)', disabled: !cue, onClick: () => setEditing(true) },
+        ]}
       />
       {editing && cue && variant && (
         <CueDialog
