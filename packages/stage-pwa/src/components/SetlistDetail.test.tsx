@@ -308,7 +308,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
 describe('SetlistDetail - preview ⋮ menu (#181, docs/15 D9)', () => {
   /** The page menu: ⋮ top right beside the setlist's name. */
   function headerMenuButton() {
-    const button = within(screen.getByRole('heading', { level: 2 }).parentElement!.parentElement!).getByTitle('Menü öffnen')
+    const button = screen.getByRole('button', { name: 'Menü: Herbst-Tour 2026' })
     expect(button.querySelector('svg.lucide-ellipsis-vertical')).not.toBeNull()
     return button
   }

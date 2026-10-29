@@ -830,19 +830,7 @@ export function LibraryView() {
               onBack={isPanel ? undefined : () => setSelection(null)}
             />
           ) : selection?.type === 'show' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                {t('title')}
-              </button>
-              <ShowDetail key={selection.id} showId={selection.id} />
-            </>
+            <ShowDetail key={selection.id} showId={selection.id} onBack={isPanel ? undefined : () => setSelection(null)} />
           ) : selection?.type === 'song' ? (
             <>
               <SongPreview

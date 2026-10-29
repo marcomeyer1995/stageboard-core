@@ -51,5 +51,6 @@
   "none": "No show recorded yet.",
   "withoutSongs": "Without played songs ({{count}})",
   "unknownAuthor": "Unknown",
-  "removed": "Show was removed."
+  "removed": "Show was removed.",
+  "back": "Library"
 }

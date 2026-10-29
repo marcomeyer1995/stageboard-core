@@ -38,7 +38,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, Button, IconButton, InfoHint, choiceRow } from './ui'
+import { AddRow, Badge, Dialog, Field, InfoHint, PageHeader, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 import { useVisibleSongs } from '../lib/visibleCatalog'
 import { useTranslation } from 'react-i18next'
@@ -776,15 +776,13 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
     // not just this list) - flex-1 instead claims only what's left after the button.
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
-      <div className="flex items-center justify-end gap-2">
-        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} className="mr-auto" />}
-        <Button onClick={() => void leaveEditing()}>
-          {t('cancel')}
-        </Button>
-        <Button variant="primary" onClick={() => void handleSave()} disabled={!setlist.name.trim()}>
-          {t('save')}
-        </Button>
-      </div>
+      <PageHeader
+        back={onBack && { label: t('title'), onClick: onBack }}
+        actions={[
+          { icon: 'close', label: t('cancel'), onClick: () => void leaveEditing() },
+          { icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() },
+        ]}
+      />
       <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
       <div className="max-w-56">

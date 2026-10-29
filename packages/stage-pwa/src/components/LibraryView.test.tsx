@@ -571,7 +571,7 @@ describe('LibraryView - pointer-lane context menu & keyboard nav (#178)', () => 
     fireEvent.keyDown(window, { key: 'ArrowUp' }) // back to Newer Gig
     fireEvent.keyDown(window, { key: 'Enter' })
 
-    expect(screen.getByRole('button', { name: /Newer Gig/ })).toHaveClass('bg-accent')
+    expect(screen.getByRole('button', { name: /^Newer Gig/ })).toHaveClass('bg-accent')
   })
 
   it('keyboard navigation does nothing in the touch lane', () => {

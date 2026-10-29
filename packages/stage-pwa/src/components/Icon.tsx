@@ -1,5 +1,7 @@
 import {
   ArrowLeft,
+  Power,
+  PowerOff,
   Repeat,
   ArrowRight,
   ArrowUpDown,
@@ -104,6 +106,9 @@ const ICONS = {
   decrease: Minus,
   increase: Plus,
   edit: Pencil,
+  /** Make a setlist the active one / stop it being active. */
+  activate: Power,
+  deactivate: PowerOff,
   delete: Trash2,
   // Spuren trennen (#9): one track forking into several (Marco, 2026-10-20).
   split: Split,

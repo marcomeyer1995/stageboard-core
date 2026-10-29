@@ -7,7 +7,7 @@ import { variantToOpen } from '../lib/songVariantsDb'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
-import { Button, IconButton, Select } from './ui'
+import { PageHeader, Select } from './ui'
 import { playableTracks } from '../lib/stems'
 import { useTranslation } from 'react-i18next'
 
@@ -66,7 +66,7 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
   if (!song || !variant) {
     return (
       <div className="flex h-full flex-col">
-        {onBack && <IconButton icon="back" label={t('library')} onClick={onBack} />}
+        <PageHeader back={onBack && { label: t('library'), onClick: onBack }} />
         <div className="flex flex-1 items-center justify-center text-ink-faint">{t('loading')}</div>
       </div>
     )
@@ -76,6 +76,15 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
   const lines = transposeLines(parseChordPro(variant.chordProContent), variantChordShift(variant), soundingKey(variant))
   const tuning = stageTuning(variant)
   const unknownTuning = unrecognisedTuningText(variant)
+  const facts = [
+    song.artist,
+    variant.key && t('sp.key', { key: soundingKey(variant) }),
+    (variant.transpose ?? 0) !== 0 && t('sp.transposed', { steps: signedSteps(variant.transpose ?? 0) }),
+    !isStandard(tuning) && t('sp.tuning', { tuning: tuningLabel(tuning) }),
+    unknownTuning && t('sp.rawTuning', { tuning: unknownTuning }),
+    variant.capo !== undefined && t('sp.capo', { capo: variant.capo }),
+    `${variant.bpm} BPM · ${variant.timeSignature}`,
+  ].filter((fact): fact is string => !!fact)
   const contentBadges = [
     { label: t('sp.cues'), count: variant.cues.length },
     { label: t('sp.audio'), count: playableTracks(variant.tracks).length },
@@ -88,18 +97,14 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
     // of that shared space and overflow by the button's own height whenever it's visible,
     // same "whole page scrolls" bug SetlistDetail had (Marco, explicit report there).
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
-      {/* Phone: the title wraps instead of "All the small thi…", and the button keeps clear of
-          the scrollbar (2026-10-16). */}
-      <div className="flex items-start gap-2 max-[599px]:pr-2">
-        {onBack && <IconButton icon="back" label={t('library')} onClick={onBack} />}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || t('untitled')}</h2>
-          {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
-        </div>
-        <Button variant="primary" className="flex-shrink-0" onClick={() => onEdit(variant.id)}>
-          {t('edit')}
-        </Button>
-      </div>
+      {/* The page header every page has (docs/15 D12); the song's facts as one grey line under the
+          artist, like the setlist's (Marco, 2026-10-30: save space). */}
+      <PageHeader
+        back={onBack && { label: t('library'), onClick: onBack }}
+        actions={[{ icon: 'edit', label: t('edit'), variant: 'primary', onClick: () => onEdit(variant.id) }]}
+        title={song.title || t('untitled')}
+        subtitle={facts.join(' · ')}
+      />
 
       {variantsOfSong.length > 1 && (
         <Select
@@ -114,7 +119,6 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
       {/* At-a-glance overview of what this song actually has attached, present or not (Marco,
           explicit request) - shown even at zero, muted, rather than only appearing once
           something exists, since "nothing here yet" is itself part of the overview. */}
-      {/* Content and facts in one wrapping row (Marco, 2026-10-29: save space). */}
       <div className="flex flex-wrap gap-2 text-sm">
         {contentBadges.map(({ label, count }) => (
           <span
@@ -127,18 +131,6 @@ export function SongPreview({ songId, variantId, onEdit, onBack }: SongPreviewPr
             {count > 0 ? ` (${count})` : ''}
           </span>
         ))}
-        {variant.key && <span className="rounded-control bg-control px-2 py-1">{t('sp.key', { key: soundingKey(variant) })}</span>}
-        {(variant.transpose ?? 0) !== 0 && (
-          <span className="rounded-control bg-control px-2 py-1">{t('sp.transposed', { steps: signedSteps(variant.transpose ?? 0) })}</span>
-        )}
-        {!isStandard(tuning) && <span className="rounded-control bg-control px-2 py-1">{t('sp.tuning', { tuning: tuningLabel(tuning) })}</span>}
-        {unknownTuning && <span className="rounded-control bg-control px-2 py-1">{t('sp.rawTuning', { tuning: unknownTuning })}</span>}
-        {variant.capo !== undefined && (
-          <span className="rounded-control bg-control px-2 py-1">{t('sp.capo', { capo: variant.capo })}</span>
-        )}
-        <span className="rounded-control bg-control px-2 py-1">
-          {variant.bpm} BPM · {variant.timeSignature}
-        </span>
       </div>
 
       <ChordProLyrics lines={lines} chordInfo />

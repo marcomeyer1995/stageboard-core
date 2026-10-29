@@ -49,7 +49,7 @@ import { TimelineEditor } from './timeline/TimelineEditor'
 import { useBackHandler } from '../lib/backNavigation'
 import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { Icon } from './Icon'
-import { ActionMenu, AddRow, ActionMenuDialog, IconButton, menuIcon, Switch, Tabs, Button, type MenuAction } from './ui'
+import { ActionMenu, AddRow, ActionMenuDialog, PageHeader, Switch, Tabs, Button, type MenuAction } from './ui'
 import { INPUT, INPUT_FREE } from './ui/styles'
 import { askAnalysisSource, playableTracks, stemsForTrack } from '../lib/stems'
 import { useTranslation } from 'react-i18next'
@@ -220,7 +220,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [tempoExpanded, setTempoExpanded] = useState(false)
   const [audioExpanded, setAudioExpanded] = useState(false)
   const [commentsExpanded, setCommentsExpanded] = useState(false)
-  const [pageMenuOpen, setPageMenuOpen] = useState(false)
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
   // Aufräumen / Suchen & Ersetzen open on the range they were started on (#605, 2026-10-29).
   const [toolDialog, setToolDialog] = useState<{ kind: 'cleanup'; start: number; end: number; scope: string } | null>(null)
@@ -1254,21 +1253,15 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // Speichern lives in the page header, top right, and never scrolls away (#603, docs/15 D11) -
   // the same row in every view. Leaving goes through ← / Back, which asks about unsaved changes
   // (lib/unsavedChanges).
+  // The page header every page has (docs/15 D12): ← · the views · Speichern · ⋮, all one size.
   const pageHeader = (
-    <div className="flex items-center gap-1 min-[600px]:gap-2">
-      {/* Phone: icons instead of words (#603). From 600 px the words come back. */}
-      <Button aria-label={t('library')} title={t('library')} className="max-[599px]:px-3" onClick={() => void leave()}>
-        <Icon name="back" />
-        <span className="max-[599px]:hidden">{t('library')}</span>
-      </Button>
-      <div className="min-w-0 flex-1">{viewSwitch}</div>
-      {savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">{t('saved')}</span>}
-      <IconButton icon={menuIcon('page')} label={t('menu')} onClick={() => setPageMenuOpen(true)} />
-      <Button variant="primary" aria-label={t('save')} title={t('save')} className="max-[599px]:px-3" onClick={() => void handleSave()}>
-        <Icon name="save" size="1.4em" className="min-[600px]:hidden" />
-        <span className="max-[599px]:hidden">{t('save')}</span>
-      </Button>
-    </div>
+    <PageHeader
+      back={{ label: t('library'), onClick: () => void leave() }}
+      middle={<div className="min-w-0 flex-1">{viewSwitch}</div>}
+      status={savedAt && <span className="text-sm text-ink-faint max-[599px]:hidden">{t('saved')}</span>}
+      actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave() }]}
+      menu={{ title: t('menuTitle'), actions: pageActions }}
+    />
   )
 
   return (
@@ -1294,7 +1287,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           textPane
         )}
       </div>
-      {pageMenuOpen && <ActionMenuDialog title={t('menuTitle')} actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title={t('toolsTitle')} actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {toolDialog?.kind === 'cleanup' && (
         <CleanupDialog
