@@ -106,5 +106,16 @@
     "listen": "▶ Probehören",
     "isBand": "Stimme der Band",
     "useBand": "Für die Band verwenden"
+  },
+  "names": {
+    "music-tempo-beat-detection": "Music-Tempo Beat-Erkennung",
+    "midi-clock": "MIDI-Clock",
+    "midi-controller": "MIDI-Controller",
+    "piper-speech": "Sprachausgabe (Piper)",
+    "osc": "OSC (Licht & Video)",
+    "osc-input": "OSC-Eingang (Trigger)",
+    "stem-separation": "Spuren trennen (Stems)",
+    "youtube-download": "YouTube-Download",
+    "section-announcements": "Ansagen der Songteile"
   }
 }

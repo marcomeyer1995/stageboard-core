@@ -1,3 +1,4 @@
+import { pluginName } from '../lib/pluginCatalog'
 import { useState, type ComponentType } from 'react'
 import { HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { usePluginsStore } from '../store/usePluginsStore'
@@ -64,7 +65,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">
-                  {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
+                  {pluginName(plugin)} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
                   {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
                   {isTestPlugin(plugin.id) && <Badge tone="warning">{t('testBadge')}</Badge>}
                 </p>
@@ -75,13 +76,13 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
               {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
                   buttons on one page (System cleanup, 2026-10-16). */}
               <ActionMenu
-                title={plugin.name}
+                title={pluginName(plugin)}
                 actions={[
                   {
                     label: t('remove'),
                     danger: true,
                     onClick: async () => {
-                      if (await confirm(t('removeConfirm', { name: plugin.name }), { confirmLabel: t('remove'), danger: true })) void uninstall(plugin.id)
+                      if (await confirm(t('removeConfirm', { name: pluginName(plugin) }), { confirmLabel: t('remove'), danger: true })) void uninstall(plugin.id)
                     },
                   },
                 ]}
@@ -106,7 +107,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
             className="flex items-center gap-3 rounded-container border border-line bg-surface px-4 py-3 shadow-sb"
           >
             <div className="min-w-0 flex-1">
-              <p className="font-semibold">{candidate.name}</p>
+              <p className="font-semibold">{pluginName(candidate)}</p>
               <p className="text-sm text-ink-muted">{capabilitiesLabel(candidate.capabilities)}</p>
             </div>
             <Button onClick={() =>

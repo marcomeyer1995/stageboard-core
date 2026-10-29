@@ -106,5 +106,16 @@
     "listen": "▶ Listen",
     "isBand": "The band's voice",
     "useBand": "Use for the band"
+  },
+  "names": {
+    "music-tempo-beat-detection": "Music-Tempo beat detection",
+    "midi-clock": "MIDI clock",
+    "midi-controller": "MIDI controller",
+    "piper-speech": "Speech output (Piper)",
+    "osc": "OSC (light & video)",
+    "osc-input": "OSC input (trigger)",
+    "stem-separation": "Stem separation",
+    "youtube-download": "YouTube download",
+    "section-announcements": "Song part announcements"
   }
 }

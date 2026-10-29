@@ -1,3 +1,4 @@
+import { pluginName } from '../lib/pluginCatalog'
 import { useRef, useState } from 'react'
 import { CAPABILITIES, HEALTH_TIMEOUT_MS, type PluginInstallation } from 'shared-types'
 import { useDialogStore } from '../store/useDialogStore'
@@ -92,7 +93,7 @@ export function BackupManager() {
           >
             <div className="flex-1">
               <p className="font-semibold">
-                {plugin.name}{' '}
+                {pluginName(plugin)}{' '}
                 <span className="text-xs font-normal text-ink-faint">v{plugin.version}</span>
               </p>
               <p className="text-xs text-ink-muted">{healthLabel(plugin)}</p>

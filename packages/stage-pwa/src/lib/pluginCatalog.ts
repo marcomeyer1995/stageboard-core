@@ -27,6 +27,14 @@ const CAPABILITY_LABEL: Record<string, string> = {
 /** A plugin's capabilities as one readable line. A device's own capability ("kemper-control",
  * one per device - see the catalog below) reads "Gerätesteuerung"; any other unknown id (a newer
  * plugin) shows as it is. */
+/** Ids whose catalog name is translated (#456) - device names like "Kemper Profiler" stay as they are. */
+const TRANSLATED_NAMES = new Set(['music-tempo-beat-detection', 'midi-clock', 'midi-controller', 'piper-speech', 'osc', 'osc-input', 'stem-separation', 'youtube-download', 'section-announcements'])
+
+/** A plug-in's name in this device's language - the stored name for the rest. */
+export function pluginName(plugin: { id: string; name: string }): string {
+  return TRANSLATED_NAMES.has(plugin.id) ? i18n.t(`addons:names.${plugin.id}` as 'addons:names.osc', { defaultValue: plugin.name }) : plugin.name
+}
+
 export function capabilitiesLabel(capabilities: readonly string[]): string {
   return capabilities
     .map((capability) =>

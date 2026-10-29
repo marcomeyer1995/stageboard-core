@@ -16,7 +16,7 @@ import { DeviceSetupWizard } from './DeviceSetupWizard'
 import { MidiControllerButtonsDialog } from './MidiControllerButtons'
 import { OscInputButtonsDialog } from './OscInputButtons'
 import { OSC_INPUT_CAPABILITY } from '../lib/oscInput'
-import { pluginKind } from '../lib/pluginCatalog'
+import { pluginKind, pluginName } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow, InfoHint } from './ui'
 import { useTranslation } from 'react-i18next'
 
@@ -45,7 +45,8 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
   const [buttonsFor, setButtonsFor] = useState<LogicalDevice | null>(null)
 
   function pluginNameOf(pluginId: string | null): string | null {
-    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || null
+    const plugin = pluginId ? installed.find((p) => p.id === pluginId) : undefined
+    return plugin ? pluginName(plugin) : null
   }
 
   function targetLabel(executionTarget: string | null): string | null {

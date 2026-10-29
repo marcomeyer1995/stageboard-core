@@ -8,7 +8,7 @@ import { assignDiscoveryCandidate, startDiscovery, stopDiscovery } from '../lib/
 import { getTranslator, hasClientTranslator } from '../lib/clientTranslator'
 import { randomId } from '../lib/id'
 import { findLogicalDeviceUsage } from '../lib/logicalDeviceUsage'
-import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind } from '../lib/pluginCatalog'
+import { capabilitiesLabel, installableCatalog, PLUGIN_CATALOG, pluginKind, pluginName } from '../lib/pluginCatalog'
 import { listenToPortByHardwareKey } from '../lib/webMidi'
 import { listMidiInputs, listMidiOutputs, sendCcSequence } from '../lib/webMidiOutput'
 import { useDevicesStore } from '../store/useDevicesStore'
@@ -61,7 +61,8 @@ function NameStep({ draft, onChange, onNext, onCancel }: { draft: Draft; onChang
   const installed = usePluginsStore((state) => state.installed)
 
   function pluginNameOf(pluginId: string | null): string {
-    return (pluginId && installed.find((p) => p.id === pluginId)?.name) || pluginId || t('wiz.noType')
+    const plugin = pluginId ? installed.find((p) => p.id === pluginId) : undefined
+    return (plugin && pluginName(plugin)) || pluginId || t('wiz.noType')
   }
 
   return (
@@ -149,7 +150,7 @@ function TypeStep({
               }`}
             >
               <span>
-                {candidate.name}
+                {pluginName(candidate)}
                 <span className="ml-2 text-xs text-ink-faint">{capabilitiesLabel(candidate.capabilities)}</span>
               </span>
               {!alreadyInstalled && <span className="shrink-0 text-xs text-ink-faint">{t('wiz.willInstall')}</span>}
