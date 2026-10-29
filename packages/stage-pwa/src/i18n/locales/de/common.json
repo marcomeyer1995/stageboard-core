@@ -28,7 +28,14 @@
       "warning": "Warnung",
       "error": "Fehler",
       "off": "Aus"
-    }
+    },
+    "explain": "Erklärung: {{label}}",
+    "menu": "Menü: {{title}}",
+    "tapToClose": "Tippen zum Schließen",
+    "noShape": "Kein Griffbild",
+    "cancel": "Abbrechen",
+    "openMenu": "Menü öffnen",
+    "noText": "Kein Text."
   },
   "tiers": {
     "gig": "Im Song",
@@ -111,5 +118,11 @@
     "title": "Wiedergabe unterbrochen",
     "text": "Der Browser hat die automatische Fortsetzung des Backing-Tracks blockiert. Zum Weiterspielen antippen.",
     "tap": "Antippen zum Fortsetzen"
+  },
+  "sync": {
+    "idle": "Synchronisiert",
+    "syncing": "Synchronisiere…",
+    "offline": "Offline",
+    "error": "Fehler"
   }
 }

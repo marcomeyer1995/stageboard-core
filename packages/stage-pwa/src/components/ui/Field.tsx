@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { useControlSize } from './PrepTier'
 import { FOCUS, INPUT, SIZE, type ControlSize } from './styles'
@@ -13,7 +14,7 @@ function Wrap({ id, label, hint, info, error, children }: { id: string; label?: 
           <label htmlFor={id} className="min-w-0 text-sm font-semibold text-ink-soft">
             {label}
           </label>
-          {info && <InfoHint text={info} label={`Erklärung: ${label}`} />}
+          {info && <InfoHint text={info} label={i18n.t('common:ui.explain', { label: label })} />}
         </div>
       )}
       {children}

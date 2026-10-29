@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { parseChordSymbol } from '../lib/chordSymbol'
@@ -68,7 +69,7 @@ export function ChordPopover({ symbol, anchor, onClose }: { symbol: string; anch
           {shapes.length > 0 ? (
             <GuitarShapePicker shapes={shapes} />
           ) : (
-            <span className="text-base text-ink-faint">Kein Griffbild</span>
+            <span className="text-base text-ink-faint">{i18n.t('common:ui.noShape')}</span>
           )}
           <div className="w-56 max-w-full">
             <PianoChordDiagram rootPitchClass={info.rootPitchClass} semitones={info.semitones} />

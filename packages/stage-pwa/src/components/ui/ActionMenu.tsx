@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useState } from 'react'
 import { useControlSize } from './PrepTier'
 import { Dialog } from './Dialog'
@@ -67,7 +68,7 @@ export function ActionMenu({ title, actions, size: sizeProp, scope = 'entry' }: 
   const [open, setOpen] = useState(false)
   return (
     <>
-      <IconButton icon={menuIcon(scope)} label={`Menü: ${title}`} size={size} onClick={() => setOpen(true)} className="!w-16" />
+      <IconButton icon={menuIcon(scope)} label={i18n.t('common:ui.menu', { title })} size={size} onClick={() => setOpen(true)} className="!w-16" />
       {open && <ActionMenuDialog title={title} actions={actions} onClose={() => setOpen(false)} />}
     </>
   )

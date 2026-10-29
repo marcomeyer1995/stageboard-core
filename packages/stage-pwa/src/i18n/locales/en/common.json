@@ -28,7 +28,14 @@
       "warning": "Warning",
       "error": "Error",
       "off": "Off"
-    }
+    },
+    "explain": "Explanation: {{label}}",
+    "menu": "Menu: {{title}}",
+    "tapToClose": "Tap to close",
+    "noShape": "No chord shape",
+    "cancel": "Cancel",
+    "openMenu": "Open menu",
+    "noText": "No text."
   },
   "tiers": {
     "gig": "During song",
@@ -111,5 +118,11 @@
     "title": "Playback interrupted",
     "text": "The browser blocked the automatic resume of the backing track. Tap to keep playing.",
     "tap": "Tap to resume"
+  },
+  "sync": {
+    "idle": "Synchronised",
+    "syncing": "Synchronising…",
+    "offline": "Offline",
+    "error": "Error"
   }
 }

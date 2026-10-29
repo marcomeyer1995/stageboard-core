@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Dialog, IconButton, MENU_ROW, menuIcon } from './ui'
 
@@ -21,7 +22,7 @@ export function RowMenuButton({ label, onClick }: { label: string; onClick: () =
  * an action already closes it. */
 export function RowActionsMenu({ title, onClose, children }: { title: string; onClose: () => void; children?: ReactNode }) {
   return (
-    <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={onClose}>
+    <Dialog title={title} size="s" closeLabel={i18n.t('common:ui.cancel')} onClose={onClose}>
       <div className="flex flex-col gap-2">{children}</div>
     </Dialog>
   )

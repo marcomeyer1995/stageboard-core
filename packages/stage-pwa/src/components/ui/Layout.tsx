@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import type { ReactNode } from 'react'
 import { InfoHint } from './InfoHint'
 import { CONTAINER, CONTROL, FOCUS, HOVER } from './styles'
@@ -14,7 +15,7 @@ export function Section({ title, hint, info, children }: { title: string; hint?:
     <section className="flex flex-col gap-2">
       <div className="flex min-w-0 items-center gap-1">
         <h3 className="min-w-0 text-xs font-bold uppercase tracking-widest text-ink-faint">{title}</h3>
-        {info && <InfoHint text={info} label={`Erklärung: ${title}`} />}
+        {info && <InfoHint text={info} label={i18n.t('common:ui.explain', { label: title })} />}
       </div>
       {children}
       {hint && <p className="text-sm text-ink-faint">{hint}</p>}

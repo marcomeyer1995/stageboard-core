@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useId } from 'react'
 import { InfoHint } from './InfoHint'
 import { CONTROL, DISABLED, FOCUS, HOVER } from './styles'
@@ -53,7 +54,7 @@ export function Switch({ label, checked, onChange, description, info, disabled, 
   return (
     <div className={`flex items-center gap-1 ${layout === 'row' ? 'w-full' : ''}`}>
       {control}
-      <InfoHint text={info} label={`Erklärung: ${label}`} />
+      <InfoHint text={info} label={i18n.t('common:ui.explain', { label: label })} />
     </div>
   )
 }

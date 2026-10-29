@@ -1,3 +1,4 @@
+import i18n from './i18n'
 import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from './lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from './lib/useVisualViewport'
 import { useTranslation } from 'react-i18next'
@@ -354,7 +355,7 @@ function App() {
               />
               {/* Discreet at-a-glance sync status (see #33) - a dot, since this button is always on screen. */}
               <span
-                title={{ idle: 'Synchronisiert', syncing: 'Synchronisiere…', offline: 'Offline', error: 'Fehler' }[syncStatus]}
+                title={i18n.t(`common:sync.${syncStatus}`)}
                 className={`pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full ${
                   {
                     idle: 'bg-ok',
