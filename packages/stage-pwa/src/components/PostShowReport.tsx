@@ -4,6 +4,7 @@ import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useLogicalDevicesStore } from '../store/useLogicalDevicesStore'
+import { describeCue } from '../lib/deviceCommands'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { Icon } from './Icon'
 import { CueDialog, type CueContent } from './timeline/CueDialog'
@@ -60,18 +61,26 @@ function variantOfCue(event: CueFired, variants: readonly SongVariant[]): SongVa
   return variants.find((variant) => variant.id === event.variantId && holds(variant)) ?? variants.find(holds) ?? null
 }
 
+/** A section that folds away: its line, with an arrow that turns when it opens - `flex` on a
+ * <summary> drops the browser's own triangle, and "Cues (7)" read like plain text (2026-10-29). */
+const FOLD = 'flex min-h-form cursor-pointer items-center gap-1 text-sm font-semibold'
+const FoldArrow = () => <Icon name="next" className="transition-transform group-open:rotate-90" />
+
 /**
  * A fired cue with its ⋯ "Cue anpassen" (#8): the timeline's cue dialog plus the song time
  * (typed or − / +), saved straight into the variant's cue list - after a show, "the patch change
  * came a bit late" is fixed where it was noticed.
  */
-function CueRow({ event, className, children }: { event: CueFired; className: string; children: ReactNode }) {
+function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; className: string; prefix: ReactNode; suffix?: string }) {
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const devices = useLogicalDevicesStore((state) => state.devices)
   const [editing, setEditing] = useState(false)
   const variant = variantOfCue(event, variants)
   const cue = variant?.cues.find((candidate) => candidate.id === event.cueId)
+  // In words where the cue is still known ("Patch 02B"), else its raw type ("mg30.selectPatch").
+  const device = cue ? devices.find((d) => d.id === cue.targetLogicalDeviceId) : undefined
+  const what = cue && device ? describeCue(cue, device.capability) : event.cueType
 
   const save = (content: CueContent, timeMs?: number) => {
     setEditing(false)
@@ -82,9 +91,13 @@ function CueRow({ event, className, children }: { event: CueFired; className: st
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <span className="min-w-0 flex-1">{children}</span>
+      <span className="min-w-0 flex-1">
+        {prefix}
+        {fmtClock(event.at)} · {event.songTitle} · {what} → {event.target}
+        {suffix}
+      </span>
       <ActionMenu
-        title={`Cue ${event.cueType}`}
+        title={`Cue ${what}`}
         actions={[{ label: cue ? 'Cue anpassen' : 'Cue anpassen (nicht mehr im Song)', disabled: !cue, onClick: () => setEditing(true) }]}
       />
       {editing && cue && variant && (
@@ -113,7 +126,6 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
   const technical = byTime.filter((event): event is CapabilityChanged => event.type === 'capability-changed')
   const cues = byTime.filter((event): event is CueFired => event.type === 'cue-fired')
   const failedCues = cues.filter((event) => !event.ok)
-  const cueLine = (event: CueFired) => `${fmtClock(event.at)} · ${event.songTitle} · ${event.cueType} → ${event.target}`
   const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
 
   return (
@@ -152,31 +164,27 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
         <div className="mt-4 space-y-1">
           <h3 className="text-xs font-bold uppercase tracking-widest text-danger">Cues fehlgeschlagen ({failedCues.length})</h3>
           {failedCues.map((event) => (
-            <CueRow key={event.id} event={event} className="text-sm text-danger">
-              <Icon name="warning" className="mr-1" />
-              {cueLine(event)}
-              {event.message ? ` - ${event.message}` : ''}
-            </CueRow>
+            <CueRow key={event.id} event={event} className="text-sm text-danger" prefix={<Icon name="warning" className="mr-1" />} suffix={event.message ? ` - ${event.message}` : ''} />
           ))}
         </div>
       )}
       {cues.length > 0 && (
-        <details className="mt-4">
-          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">
+        <details className="group mt-4">
+          <summary className={`${FOLD} text-ink-soft`}>
+            <FoldArrow />
             Cues ({cues.length}{failedCues.length > 0 ? `, ${failedCues.length} fehlgeschlagen` : ''})
           </summary>
           <div className="space-y-1 text-sm text-ink-soft">
             {cues.map((event) => (
-              <CueRow key={event.id} event={event} className={event.ok ? '' : 'text-danger'}>
-                {event.ok ? '✓' : '✗'} {cueLine(event)}
-              </CueRow>
+              <CueRow key={event.id} event={event} className={event.ok ? '' : 'text-danger'} prefix={event.ok ? '✓ ' : '✗ '} />
             ))}
           </div>
         </details>
       )}
       {technical.length > 0 && (
-        <details className="mt-4">
-          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-warn">
+        <details className="group mt-4">
+          <summary className={`${FOLD} text-warn`}>
+            <FoldArrow />
             Technik ({technical.length})
           </summary>
           <div className="space-y-1 text-sm text-warn">
@@ -267,8 +275,11 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
       {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
       {withContent.map(row)}
       {empty.length > 0 && (
-        <details>
-          <summary className="flex min-h-form cursor-pointer items-center text-sm font-semibold text-ink-soft">Ohne gespielte Songs ({empty.length})</summary>
+        <details className="group">
+          <summary className={`${FOLD} text-ink-soft`}>
+            <FoldArrow />
+            Ohne gespielte Songs ({empty.length})
+          </summary>
           <div className="flex flex-col gap-2">{empty.map(row)}</div>
         </details>
       )}

@@ -113,15 +113,16 @@ describe('Nachbericht - "Cue anpassen" saves into the variant (#8)', () => {
     render(<Shows />)
     fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
 
-    // The failed one in sight: its ⋯ → Cue anpassen.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Menü: Cue mg30.selectPatch' })[0])
+    // The failed one in sight, in words while the song still has it: its ⋯ → Cue anpassen.
+    expect(screen.getAllByText(/Tush · Patch 02B → NUX MG-30 - kein Ausgang/)).toHaveLength(1)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Menü: Cue Patch 02B' })[0])
     fireEvent.click(screen.getByRole('button', { name: 'Cue anpassen' }))
     expect(screen.getByRole('dialog', { name: /Cue in Tush \(Live\)/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '0,1 s früher' }))
     fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
     expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ id: 'v1', cues: [other, { ...cue, timeMs: 83_300 }] }))
 
-    // A cue since removed from the song can't be opened.
+    // A cue since removed from the song can't be opened - and only its raw type is left to show.
     const menus = screen.getAllByRole('button', { name: 'Menü: Cue mg30.selectPatch' })
     fireEvent.click(menus[menus.length - 1])
     expect(screen.getByRole('button', { name: 'Cue anpassen (nicht mehr im Song)' })).toBeDisabled()
