@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { LatencyProfileDoc } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
@@ -35,7 +36,7 @@ export const useLatencyProfilesStore = create<LatencyProfilesState>((set) => ({
     await refresh(set)
     set({ loaded: true })
     changesHandle = latencyProfileChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (profile) => {
     await putLatencyProfile(profile)

@@ -68,4 +68,26 @@ describe('CueDialog (docs/14 §7)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
     expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { click: 'off' } })
   })
+
+  it('the own playback can fade the track (#485): "Stumm über 2 Takte"', () => {
+    const onSubmit = vi.fn()
+    render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    fireEvent.change(select('Gerät'), { target: { value: 'stageboard:playback' } })
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Track' })).getByRole('radio', { name: 'Stumm' }))
+    fireEvent.change(screen.getByLabelText('Übergang'), { target: { value: '2' } })
+    fireEvent.click(screen.getByText('Übernehmen'))
+    expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { track: { db: null, fade: { amount: 2, unit: 'bars' } } } })
+  })
+
+  it('a level in dB must be a sensible number; 0 = at once', () => {
+    const onSubmit = vi.fn()
+    render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    fireEvent.change(select('Gerät'), { target: { value: 'stageboard:playback' } })
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Track' })).getByRole('radio', { name: 'dB' }))
+    fireEvent.change(screen.getByLabelText('Lautstärke in dB (0 = wie hochgeladen)'), { target: { value: '-90' } })
+    expect(screen.getByText('Übernehmen')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Lautstärke in dB (0 = wie hochgeladen)'), { target: { value: '-4,5' } })
+    fireEvent.click(screen.getByText('Übernehmen'))
+    expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { track: { db: -4.5 } } })
+  })
 })
