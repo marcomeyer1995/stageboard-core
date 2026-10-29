@@ -176,7 +176,7 @@ export function RigCheckView() {
         </Section>
       </Group>
 
-      <Group title="Ablauf" info="Vorbereiten erzeugt den Track (nur beim ersten Mal oder nach einem Update) und lädt ihn auf den Stage-Server; die anderen Geräte laden ihn dann. Start schaltet den Master auf den Test-Song und drückt Play; danach kommt die vorige Setliste zurück.">
+      <Group title="Ablauf" info="Vorbereiten erzeugt den Track (nur beim ersten Mal oder nach einem Update) und lädt ihn auf den Stage-Server; die anderen Geräte laden ihn dann. Start schaltet den Master auf den Test-Song (aus Solo Üben auf Gig) und drückt Play; danach kommt die vorige Setliste zurück.">
         {!isMaster && <p className="text-base text-ink-soft">Nur der Master bereitet vor und startet. Dieses Gerät folgt im Gig-Modus.</p>}
         {isMaster && state !== 'prepared' && state !== 'running' && (
           <Button variant="primary" disabled={busy} onClick={() => void prepare()}>
@@ -184,9 +184,9 @@ export function RigCheckView() {
           </Button>
         )}
         {state === 'prepared' && open && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             {isMaster && (
-              <Button variant="primary" disabled={busy || playbackStatus !== 'stopped' || !runIsPlayable(open)} onClick={() => void start()}>
+              <Button variant="primary" className="flex-1" disabled={busy || playbackStatus !== 'stopped' || !runIsPlayable(open)} onClick={() => void start()}>
                 Start
               </Button>
             )}
