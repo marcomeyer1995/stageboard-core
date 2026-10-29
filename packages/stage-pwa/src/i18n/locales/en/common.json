@@ -11,5 +11,49 @@
   "session": {
     "gig": "Gig",
     "practice": "Solo"
+  },
+  "actions": {
+    "done": "Done",
+    "cancel": "Cancel",
+    "back": "Back",
+    "smaller": "Smaller",
+    "larger": "Larger"
+  },
+  "ui": {
+    "active": "Active",
+    "explanation": "Explanation",
+    "several": "Pick several",
+    "status": {
+      "ok": "OK",
+      "warning": "Warning",
+      "error": "Error",
+      "off": "Off"
+    }
+  },
+  "tiers": {
+    "gig": "During song",
+    "glance": "Between songs",
+    "rehearsal": "Rehearsal",
+    "explain": "What a widget is meant for - it sets its sizes. During song: used mid-song, the largest buttons. Between songs: on stage, but only read or used between songs. Rehearsal: for rehearsal and preparation only, may be denser."
+  },
+  "widgetLibrary": {
+    "title": "Add widget",
+    "search": "Search widgets…",
+    "noneFound": "No widget found.",
+    "noPreview": "No preview",
+    "rehearsalInGig": "Meant for rehearsal - this dashboard is also offered in Gig mode.",
+    "noRoomTitle": "No room for “{{title}}”",
+    "noRoomText": "At full size ({{w}} × {{h}}) there is no room on this dashboard - it would be shrunk and might not show everything. Pick another dashboard or make room first.",
+    "addHereAnyway": "Add here anyway",
+    "newDashboard": "New dashboard with this widget",
+    "categories": {
+      "performance": "Performance",
+      "monitoring": "Monitoring",
+      "show-control": "Show control",
+      "system-crew": "System & crew",
+      "utility": "Utility",
+      "reference": "Reference",
+      "post-show": "After the show"
+    }
   }
 }

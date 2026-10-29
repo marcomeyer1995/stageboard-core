@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth, type PluginInstallation } from 'shared-types'
@@ -66,7 +67,7 @@ export const usePluginsStore = create<PluginsState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = pluginsChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
 
     unsubscribeHealth = subscribeToPluginHealth(workspaceId, (health) => set({ health }))
   },

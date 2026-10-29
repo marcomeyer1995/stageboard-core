@@ -23,7 +23,7 @@ vi.mock('pouchdb-browser', () => ({
   },
 }))
 
-const { fireCue } = await import('./cueFiring')
+const { fireCue, TABLET_ONLY_MESSAGE } = await import('./cueFiring')
 
 // 'mixer', not 'midi-input': clientTranslator.ts's static Translator registry (#98) only
 // backs mixer/lighting today, so these are the two capabilities where 'local-mine' is actually
@@ -140,6 +140,14 @@ describe('fireCue', () => {
     vi.mocked(triggerShowControl).mockResolvedValueOnce({ status: 'error', message: 'Pult antwortet nicht' })
     expect(await fireCue(cue({ targetLogicalDeviceId: mixer1.id }), { deviceId: 'me', logicalDevices: [mixer1], installed: [plugin()], sendsServerCues: true })).toEqual({ target: 'Pult', ok: false, message: 'Pult antwortet nicht' })
     expect(await fireCue(cue({ targetLogicalDeviceId: 'gone' }), { deviceId: 'me', logicalDevices: [mixer1], installed: [], sendsServerCues: true })).toMatchObject({ ok: false, message: expect.stringContaining('nicht gefunden') })
+  })
+
+  it('a tablet-only add-on with no tablet chosen is missed in words - never sent to the Stage-Server', async () => {
+    const kemper: LogicalDevice = { id: 'kemper', name: 'Kemper', capability: 'kemper-control', pluginId: 'kemper-profiler', executionTarget: null }
+    const installed = [plugin({ id: 'kemper-profiler', name: 'Kemper Profiler', runtime: 'client', capabilities: ['kemper-control'] })]
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: true })).toEqual({ target: 'Kemper', ok: false, message: TABLET_ONLY_MESSAGE })
+    expect(await fireCue(cue({ targetLogicalDeviceId: 'kemper' }), { deviceId: 'me', logicalDevices: [kemper], installed, sendsServerCues: false })).toBeNull()
+    expect(triggerShowControl).not.toHaveBeenCalled()
   })
 
   describe('ahead-of-time dispatch (#477)', () => {

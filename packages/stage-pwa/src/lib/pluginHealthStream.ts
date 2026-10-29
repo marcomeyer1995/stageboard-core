@@ -1,3 +1,4 @@
+import { deliverInBackground, dropFromInbox } from './inbox'
 import { DEFAULT_PLUGIN_HEALTH, type PluginHealth } from 'shared-types'
 import { getStageServerUrl } from './stageServer'
 
@@ -23,13 +24,18 @@ export function subscribeToPluginHealth(
   }
 
   const source = new EventSource(`${base}/plugin-health/${encodeURIComponent(workspaceId)}/stream`)
+  // A status, not a cue: applied in free time, the newest wins (docs/26 §3.1).
+  const channel = `plugin-health:${workspaceId}`
   source.onmessage = (event) => {
     try {
-      onHealth(JSON.parse(event.data) as PluginHealth)
+      deliverInBackground(channel, JSON.parse(event.data) as PluginHealth, onHealth)
     } catch {
       // A malformed payload shouldn't crash the tablet - just skip this update.
     }
   }
 
-  return () => source.close()
+  return () => {
+    dropFromInbox(channel)
+    source.close()
+  }
 }

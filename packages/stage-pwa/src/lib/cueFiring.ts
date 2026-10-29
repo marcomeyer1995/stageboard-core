@@ -41,6 +41,9 @@ export interface CueOutcome {
  * workspaceDb.ts's top-level `new PouchDB(...)` - same reasoning hardwareRouting.ts's own doc
  * comment already gives.
  */
+/** A tablet add-on's device that no tablet was chosen for in Bühnentechnik. */
+export const TABLET_ONLY_MESSAGE = 'Hängt an keinem Gerät - in Bühnentechnik ein Tablet wählen'
+
 export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcome | null> {
   // Click/announcement cues (#485) are played by the audio drivers, not sent to hardware.
   if (isPlaybackCue(cue)) return null
@@ -73,6 +76,10 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
     }
     if (engine === 'plugin' && pluginId) {
       if (!ctx.sendsServerCues) return null
+      // An add-on that only runs on a tablet (the Kemper's USB-MIDI) has nothing on the
+      // Stage-Server to send it - the cue came back as "Unknown plugin: kemper-profiler"
+      // (Rig-Check, 2026-10-29). Missed, and why, in words.
+      if (ctx.installed.find((p) => p.id === pluginId)?.runtime === 'client') return { target, ok: false, message: TABLET_ONLY_MESSAGE }
       // The Stage-Server's gateway holds it until scheduledAt (core-backend index.ts) - server time
       // is what scheduledAt is in, so no conversion.
       return outcome(await triggerShowControl(pluginId, scheduledAt === undefined ? event : { ...event, scheduledAt }))

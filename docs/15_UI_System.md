@@ -73,6 +73,16 @@ Bibliothek: kein Filter „Alle / Setlists / Songs“ mehr - seit #430 zwei Tabs
 
 Neuer Eintrag: immer `AddRow` - gestrichelter Umriss, gelbes „+ Text“, am Ende der Liste, zu der er hinzufügt (volle Breite); neben einer Überschrift (Bibliothek) gleiches Aussehen, nur textbreit. Ausnahmen: „+ Widget“ (Hauptaktion der Edit-Leiste) und Einfüge-Werkzeuge im Editor („+ Kommentar“, „+ Tab“). Festgelegt 2026-10-07, abgesichert im Guard-Test.
 
+## 4a. Bildschirmtastatur und sichtbare Fläche (2026-10-28)
+
+Beim Aufgehen der Tastatur meldet die App (WebView auf dem Redmi) für einen Moment eine **falsche, viel zu kleine** sichtbare Höhe (~300 statt ~650 px), erst danach die richtige. Alles, was sich direkt nach dieser Höhe richtet, zeichnet sich dadurch **zweimal**: Dialoge erst klein oben, dann groß; die ChordPro-Tastenleiste springt hoch und wieder runter; die Varianten-Zeile im Song-Editor verschwindet kurz.
+
+**Regel:** Wer sich nach der sichtbaren Fläche oder einer offenen Tastatur richtet, nimmt den **beruhigten** Wert - `useSettledVisualViewport()` / `useSettledTouchKeyboardOpen()` (`lib/useVisualViewport.ts`, `lib/useTouchKeyboardOpen.ts`): erst wenn die Fläche 150 ms still hielt. Nie `useVisualViewport()` direkt in einer Komponente. Abgesichert im Guard-Test.
+
+- Höhen-Schwellen (z. B. „genug Platz für die Varianten-Zeile“) nehmen zusätzlich das **Größere** aus sichtbarer Fläche und Seitenhöhe (`window.innerHeight`) - die Seitenhöhe springt nicht.
+- Eine feste Obergrenze „für die Tastatur“ (z. B. Dialog max. 38 %) erst **nach** der Beruhigung entscheiden, sonst wieder zweimal gezeichnet.
+- Schon richtig und so lassen: Dashboards halten ihre Höhe beim Tippen (`useKeyboardSteadyHeight`), Widget-Größen sind gedämpft (`useElementSize`), Popover und ⓘ-Blasen schließen bei jeder Größenänderung.
+
 ## 5. Tokens (Phase 1)
 
 Neue semantische Tokens in `src/index.css`, in allen fünf Themes definiert, in `tailwind.config.js` verdrahtet:
