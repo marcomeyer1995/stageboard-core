@@ -89,6 +89,64 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
   })
 })
 
+const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
+const { useLogicalDevicesStore } = await import('../store/useLogicalDevicesStore')
+
+describe('Nachbericht - "Cue anpassen" saves into the variant (#8)', () => {
+
+  it('opens the cue with its time, and a moved time is saved into the variant the event names', async () => {
+    useProfilesStore.setState({ profiles: [] })
+    useLogicalDevicesStore.setState({ devices: [{ id: 'mg30', name: 'NUX MG-30', capability: 'mg30-control', pluginId: null, executionTarget: null }] } as never)
+    const saveVariant = vi.fn(async () => {})
+    const cue = { id: 'cue1', timeMs: 83_400, targetLogicalDeviceId: 'mg30', type: 'mg30.selectPatch', payload: { program: 5 } }
+    const other = { id: 'cue2', timeMs: 10_000, targetLogicalDeviceId: 'mg30', type: 'mg30.selectPatch', payload: { program: 1 } }
+    useSongVariantsStore.setState({ saveVariant, variants: [{ id: 'v1', songId: 'song1', label: 'Live', isDefault: false, cues: [other, cue] }] } as never)
+    useShowLogStore.setState({
+      protectedShowIds: [],
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        song(1, 'Tush'),
+        { id: 'f1', showId: 'show', type: 'cue-fired', at: t0 + 300_000, songId: 'song1', songTitle: 'Tush', cueId: 'cue1', variantId: 'v1', cueType: 'mg30.selectPatch', target: 'NUX MG-30', ok: false, message: 'kein Ausgang' },
+        { id: 'f2', showId: 'show', type: 'cue-fired', at: t0 + 310_000, songId: 'song1', songTitle: 'Tush', cueId: 'weg', cueType: 'mg30.selectPatch', target: 'NUX MG-30', ok: true },
+      ],
+    } as never)
+    render(<Shows />)
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+
+    // The failed one in sight, in words while the song still has it: its ⋯ → Cue anpassen.
+    expect(screen.getAllByText(/Tush · Patch 02B → NUX MG-30 - kein Ausgang/)).toHaveLength(1)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Menü: Cue Patch 02B' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Cue anpassen' }))
+    expect(screen.getByRole('dialog', { name: /Cue in Tush \(Live\)/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '0,1 s früher' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ id: 'v1', cues: [other, { ...cue, timeMs: 83_300 }] }))
+
+    // A cue since removed from the song can't be opened - and only its raw type is left to show.
+    const menus = screen.getAllByRole('button', { name: 'Menü: Cue mg30.selectPatch' })
+    fireEvent.click(menus[menus.length - 1])
+    expect(screen.getByRole('button', { name: 'Cue anpassen (nicht mehr im Song)' })).toBeDisabled()
+  })
+
+  it("a Rig-Check's cue is changed where it comes from, not in the generated song", () => {
+    useProfilesStore.setState({ profiles: [] })
+    useLogicalDevicesStore.setState({ devices: [] } as never)
+    useSongVariantsStore.setState({ variants: [{ id: 'rig-check-quick', songId: 'rig-check', label: 'Kurz', isDefault: true, cues: [{ id: 'rc', timeMs: 10_000, targetLogicalDeviceId: 'k', type: 'kemper.selectRig', payload: {} }] }] } as never)
+    useShowLogStore.setState({
+      protectedShowIds: [],
+      events: [
+        { id: 'start', showId: 'show', type: 'show-started', at: t0 },
+        song(1, 'Rig-Check'),
+        { id: 'f1', showId: 'show', type: 'cue-fired', at: t0 + 300_000, songId: 'rig-check', songTitle: 'Rig-Check', cueId: 'rc', variantId: 'rig-check-quick', cueType: 'kemper.selectRig', target: 'Kemper', ok: true },
+      ],
+    } as never)
+    render(<Shows />)
+    fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Cue kemper.selectRig' }))
+    expect(screen.getByRole('button', { name: 'Cue anpassen (unter System → Rig-Check)' })).toBeDisabled()
+  })
+})
+
 const { useDialogStore } = await import('../store/useDialogStore')
 
 describe('Shows tab - delete and protect (#610)', () => {
