@@ -1,6 +1,7 @@
 import { useQueue } from '../lib/queue'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { SetlistPickRow } from './SetlistPickRow'
+import { useTranslation } from 'react-i18next'
 import { useVisibleSetlists } from '../lib/visibleCatalog'
 
 /**
@@ -13,15 +14,16 @@ export function GigSetlistPicker() {
   const setlists = useVisibleSetlists()
   const playing = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
+  const { t } = useTranslation('menu')
   return (
     <SetlistPickRow
       setlists={setlists}
       activeId={activeSetlist?.id ?? null}
-      noneLabel="Keine Setlist"
+      noneLabel={t('setlist.noneGig')}
       onPick={(id) => void setActiveSetlist(id)}
       readOnly={!isMaster}
       locked={playing}
-      lockedHint="Während ein Song läuft, bleibt die Setlist."
+      lockedHint={t('setlist.locked')}
     />
   )
 }

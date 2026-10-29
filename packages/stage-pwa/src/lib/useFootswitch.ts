@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { bindingForKey, isTypingTarget } from './keybindings'
 import { trackLatestShow, type Show } from './runAction'
 import { pressTrigger, releaseTrigger } from './triggerPress'
-import { useShowMode } from './showMode'
+import { useShowModeOnDemand } from './showMode'
 import { useKeybindingsStore } from '../store/useKeybindingsStore'
 
 export { currentSongState, isCountingIn } from './runAction'
@@ -42,7 +42,8 @@ export function releaseKey(key: string, show: Show): boolean {
  * at the moment of the press.
  */
 export function useFootswitch(active: boolean): void {
-  const show = useShowMode()
+  // The clock only at a press (#457) - not a re-render on every frame.
+  const show = useShowModeOnDemand()
   const latest = useRef(show)
   latest.current = show
   trackLatestShow(show)

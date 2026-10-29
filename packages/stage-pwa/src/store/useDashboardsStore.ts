@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
@@ -118,7 +119,7 @@ export const useDashboardsStore = create<DashboardsState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = dashboardsChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (dashboard) => {
     await putDashboard(dashboard)

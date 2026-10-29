@@ -11,7 +11,11 @@ import type { PrompterConfig } from './prompterConfig'
 // Same reasoning as VisualMetronomeWidget.test.tsx/ShowTransportWidget.test.tsx: mock the
 // composed hooks directly rather than the stores underneath them, several of which
 // transitively construct a real PouchDB at import time (unavailable under happy-dom).
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: vi.fn() }))
 vi.mock('../store/useProfilesStore', () => ({ useProfilesStore: vi.fn() }))
 
@@ -152,5 +156,26 @@ describe('PrompterWidget - header (Marco 2026-10-17)', () => {
     )
     expect(screen.queryByText('Test Song')).toBeNull()
     expect(screen.getByText('Lyric line')).toBeInTheDocument()
+  })
+})
+
+describe('PrompterWidget - chord shapes in the Gig (#609, Marco 2026-10-28)', () => {
+  const chordTappable = (status: 'playing' | 'paused' | 'stopped') => {
+    mockShowMode(song('[F]Hello'))
+    const mocked = vi.mocked(useShowMode)
+    const base = mocked()
+    mocked.mockReturnValue({ ...(base as object), mode: 'gig', playbackStatus: status } as never)
+    mockRoster([])
+    vi.mocked(useActiveProfile).mockReturnValue(null as never)
+    const { container, unmount } = render(<PrompterWidget config={config} />)
+    const tappable = container.querySelector('[data-chord="F"]')?.classList.contains('cursor-pointer') ?? false
+    unmount()
+    return tappable
+  }
+
+  it('blocked only while a song plays - paused and stopped open them', () => {
+    expect(chordTappable('playing')).toBe(false)
+    expect(chordTappable('paused')).toBe(true)
+    expect(chordTappable('stopped')).toBe(true)
   })
 })

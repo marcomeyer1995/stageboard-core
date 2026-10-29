@@ -29,6 +29,8 @@ export async function startLoopTrainer(): Promise<void> {
   if (!blob) return setActive(false, 'Kein Track gefunden')
 
   const result = await startLoopEngine({ blob, startMs: config.startMs, endMs: config.endMs, speed: speedFromConfig(config) })
+  // Overtaken by a stop or a newer start while loading - that one owns the state now.
+  if (result.status === 'cancelled') return
   if (result.status === 'error') return setActive(false, result.message ?? 'Fehler')
   practiceBeginLoop(config.startMs)
   setActive(true)

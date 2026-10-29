@@ -1,5 +1,6 @@
 import { practiceSetActiveSetlist, usePracticeQueue } from '../lib/practiceQueue'
 import { SetlistPickRow } from './SetlistPickRow'
+import { useTranslation } from 'react-i18next'
 import { useVisibleSetlists } from '../lib/visibleCatalog'
 
 /** Which setlist Solo Üben works through (#234) - purely local, never the Gig show's setlist. The
@@ -7,5 +8,6 @@ import { useVisibleSetlists } from '../lib/visibleCatalog'
 export function PracticeSetlistPicker() {
   const setlists = useVisibleSetlists()
   const { activeSetlist } = usePracticeQueue()
-  return <SetlistPickRow setlists={setlists} activeId={activeSetlist?.id ?? null} noneLabel="Keine Setlist (ganzer Katalog)" onPick={practiceSetActiveSetlist} />
+  const { t } = useTranslation('menu')
+  return <SetlistPickRow setlists={setlists} activeId={activeSetlist?.id ?? null} noneLabel={t('setlist.nonePractice')} onPick={practiceSetActiveSetlist} />
 }

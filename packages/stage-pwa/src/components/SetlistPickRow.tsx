@@ -1,5 +1,6 @@
 import type { Setlist } from 'shared-types'
 import { PickRow } from './PickRow'
+import { useTranslation } from 'react-i18next'
 
 /** Newest gig first, undated ones by name after them - like the Bibliothek's default. */
 function sortSetlists(setlists: readonly Setlist[]): Setlist[] {
@@ -26,9 +27,10 @@ export function SetlistPickRow({
   locked?: boolean
   lockedHint?: string
 }) {
+  const { t } = useTranslation('menu')
   return (
     <PickRow
-      title="Setlist"
+      title={t('setlist.title')}
       items={[{ id: null, name: noneLabel }, ...sortSetlists(setlists)]}
       activeId={setlists.some((setlist) => setlist.id === activeId) ? activeId : null}
       onPick={onPick}

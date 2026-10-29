@@ -37,7 +37,7 @@ import { INPUT } from './ui/styles'
 import { NewSetlistDialog } from './NewSetlistDialog'
 import { NewSongWizard } from './NewSongWizard'
 import { putVariant } from '../lib/songVariantsDb'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { practiceStats, rehearsalStats, sortLabel, type PlayCount, SETLIST_SORT_LABEL, SONG_SORT_LABEL, sortSetlists, sortSongs, type SetlistSort, type SongSort } from '../lib/librarySort'
 import { usePracticeLogStore } from '../store/usePracticeLogStore'
@@ -311,7 +311,7 @@ export function LibraryView() {
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
   const { activeSetlist } = useQueue()
   // The song loaded in the show right now (Gig: the shared queue, Solo: this device's own).
-  const currentSongId = useShowMode().queue.currentSong?.id ?? null
+  const currentSongId = useShowModeCore().queue.currentSong?.id ?? null
   const setlistSongIds = useMemo(() => new Set(activeSetlist?.entries.filter(isSongEntry).map((entry) => entry.songId) ?? []), [activeSetlist])
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const pinnedSongIds = useAudioPinsStore((state) => state.pinsFor(workspaceId))

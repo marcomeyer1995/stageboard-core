@@ -19,6 +19,7 @@ import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
 import { randomId } from '../lib/id'
+import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
 import { TuningSelect } from './TuningSelect'
@@ -32,9 +33,12 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
-import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
+import { TextFixDialog, type TextFixPick } from './TextFixDialog'
+import { applyTextFixes, textFixOffers, type TextFixOffer } from '../lib/variantTextFix'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
@@ -139,6 +143,9 @@ interface SheetEditorProps {
   onBack: () => void
 }
 
+/** Visible height (keyboard up) from which the variant row stays above the text while typing. */
+export const ROOMY_FOR_VARIANT_ROW_PX = 560
+
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
@@ -185,6 +192,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
   // "+ Kommentar" / "+ Tab" dialogs (#608).
   const [noteDialog, setNoteDialog] = useState<'comment' | 'tab' | null>(null)
+  // On save: the changed lines other variants still have (#600) - answered with the picks, or null for "Abbrechen".
+  const [textFix, setTextFix] = useState<{ offers: TextFixOffer[]; resolve: (picks: TextFixPick[] | null) => void } | null>(null)
   // The text as it was a moment ago - the bracket hint follows it, not every keystroke (#605:
   // must not slow typing on a phone, and a "[Am" being typed is not a mistake yet).
   const [settledText, setSettledText] = useState('')
@@ -213,7 +222,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The cursor's line, scrolled into the preview's view (#617) - inside the preview's own scroll
   // box, never the page. Marked there through `activeIndex`.
   const previewRef = useRef<HTMLDivElement>(null)
-  const keyboardOpen = useTouchKeyboardOpen()
+  const keyboardOpen = useSettledTouchKeyboardOpen()
+  const visible = useSettledVisualViewport()
   const content = draft?.chordProContent ?? ''
   useEffect(() => {
     const timer = setTimeout(() => setSettledText(content), 800)
@@ -403,7 +413,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       clickTrackEnabled: draft.clickTrackEnabled,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
-      cues: draft.cues,
+      // Anchored cues at their bar and beat, also after a tempo change in the details (#483).
+      cues: applyCueAnchors(draft.cues, clickTimeline({ beatGrid: draft.beatGrid, bpm: draft.bpm, timeSignature: draft.timeSignature })),
       ...(draft.beatGrid ? { beatGrid: draft.beatGrid } : {}),
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,
@@ -443,9 +454,39 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       return false
     }
 
+    // The same text fix for the other variants (#600): offered line by line, each variant's own
+    // timing tags stay. "Abbrechen" there means nothing is saved.
+    const others = variantsForSong.filter((v) => v.id !== variant.id)
+    const stored = variantsForSong.find((v) => v.id === variant.id)
+    const offers = stored ? textFixOffers(stored.chordProContent, variant.chordProContent, others) : []
+    let fixed: SongVariant[] = []
+    if (offers.length > 0) {
+      const picks = await new Promise<TextFixPick[] | null>((resolve) =>
+        setTextFix({
+          offers,
+          resolve: (answer) => {
+            setTextFix(null)
+            resolve(answer)
+          },
+        }),
+      )
+      if (picks === null) return false
+      fixed = others.flatMap((other) => {
+        const fixes = picks.flatMap(({ offer, target }) => {
+          const place = offers[offer].targets[target]
+          return place.variantId === other.id ? [{ lineIndex: place.lineIndex, after: offers[offer].after }] : []
+        })
+        return fixes.length > 0 ? [{ ...other, chordProContent: applyTextFixes(other.chordProContent, fixes) }] : []
+      })
+    }
+    // A fixed default variant carries its new text into the Song mirror too.
+    const fixedDefault = fixed.find((v) => v.isDefault)
+    const songToSave = fixedDefault ? { ...songResult.data, chordProContent: fixedDefault.chordProContent } : songResult.data
+
     setError(null)
-    await saveSong(songResult.data)
+    await saveSong(songToSave)
     await saveVariant(variantResult.data)
+    for (const other of fixed) await saveVariant(other)
     savedDraft.current = JSON.stringify(draft)
     setSavedAt(Date.now())
     return true
@@ -1022,15 +1063,19 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const previewPane = (
     <div ref={previewRef} className="min-h-0 flex-1 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb min-[600px]:p-6">
-      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} />
+      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} chordInfo />
     </div>
   )
 
   const trackCaret = (e: { currentTarget: HTMLTextAreaElement }) => setCaret(e.currentTarget.selectionStart)
   // Unclosed [ or { (#605) - a hint naming the line, never fixed by itself.
   const brackets = bracketProblems(settledText)
-  // Phone with the keyboard up: the text alone (#617) - no variant row above it.
-  const typingOnPhone = textFocused && !isPanel
+  // Little height with the keyboard up: the text alone (#617) - no variant row above it. Where
+  // enough is left (a tablet in portrait: ~690 px), the variant row stays (Marco, 2026-10-28).
+  // The larger of the visible area and the page: while the keyboard comes up, the visible area
+  // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
+  const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
+  const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
@@ -1137,6 +1182,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
+      {textFix && <TextFixDialog offers={textFix.offers} onSave={textFix.resolve} onCancel={() => textFix.resolve(null)} />}
       {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {noteDialog === 'tab' && <InsertTabDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {isImporting && (

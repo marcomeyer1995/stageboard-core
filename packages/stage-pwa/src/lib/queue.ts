@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { isSongEntry, isTransitionEntry, type ShowState } from 'shared-types'
-import { computeQueue, type Queue } from './computeQueue'
+import { cachedQueue, computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
@@ -7,6 +8,7 @@ import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metro
 import { ARMED_TRANSPORT, computeActiveMs, transportOf, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
 import { songDurationMs, stoppedNearEnd } from './entryDuration'
+import { plannedPauseAfterMs } from './festivalClock'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -17,11 +19,14 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 export function useQueue(): Queue & { isMaster: boolean } {
   const songs = useSongsStore((state) => state.songs)
   const setlists = useSetlistsStore((state) => state.setlists)
-  const showState = useShowStateStore((state) => state.state)
+  // Only what the queue is made of - not the whole show state, which changes with every patch.
+  const activeSetlistId = useShowStateStore((state) => state.state.activeSetlistId)
+  const activeEntryId = useShowStateStore((state) => state.state.activeEntryId)
   const isMaster = useShowStateStore((state) => state.isMaster)
   const variants = useSongVariantsStore((state) => state.variants)
 
-  return { ...computeQueue(songs, setlists, showState, variants), isMaster }
+  const queue = cachedQueue('gig', songs, setlists, activeSetlistId, activeEntryId, variants)
+  return useMemo(() => ({ ...queue, isMaster }), [queue, isMaster])
 }
 
 /** Non-reactive equivalent for imperative callers (e.g. the MIDI trigger handler). */
@@ -53,7 +58,7 @@ const REARM_PATCH: Partial<ShowState> = { ...transportPatch(ARMED_TRANSPORT), ac
  * queue, or an explicit Stop (#13). A no-op if the current entry was never actually activated
  * (activeEntryStartedAt null - e.g. Stop pressed with nothing ever having played). */
 function finalizeCurrentSong(state: ShowState, now: number): void {
-  const { currentEntry, currentSong, currentVariant } = getQueueSnapshot()
+  const { currentEntry, currentSong, currentVariant, orderedItems, activeSetlist } = getQueueSnapshot()
   if (currentEntry === null || currentSong === null || state.activeEntryStartedAt === null) return
 
   const activeMs = computeActiveMs(currentTransport(state), now)
@@ -65,7 +70,15 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
   // The same play-through always gets the same id: in 'Pro Person' master mode (#85) every
   // device of the master finalizes it - with a random id each, the Nachbericht (and "Geprobt")
   // counted the song twice; with one id the copies are one document (#409 review).
-  if (result) void useShowLogStore.getState().append({ id: `song-played-${showId}-${state.activeEntryStartedAt}`, type: 'song-played', ...result })
+  // What was planned, for the Nachbericht's comparison (#64): the song's length and the setlist's
+  // pause after it.
+  const index = orderedItems.findIndex((item) => item.entry.id === currentEntry.id)
+  const pauseAfter = index >= 0 ? plannedPauseAfterMs(orderedItems, index, activeSetlist) : null
+  const planned = {
+    ...(length !== undefined ? { plannedMs: Math.round(length) } : {}),
+    ...(pauseAfter !== null ? { plannedPauseAfterMs: Math.round(pauseAfter) } : {}),
+  }
+  if (result) void useShowLogStore.getState().append({ id: `song-played-${showId}-${state.activeEntryStartedAt}`, type: 'song-played', ...result, ...planned })
 }
 
 /** Starts a fresh `show` in ShowLog if enough idle time passed since the last activity,

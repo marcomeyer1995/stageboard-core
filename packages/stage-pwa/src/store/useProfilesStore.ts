@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
@@ -84,7 +85,7 @@ export const useProfilesStore = create<ProfilesState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = profilesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   // Per-person-accounts follow-up: the very first profile a band ever gets reuses the
   // already-provisioned founder account (`Workspace.ownProfileId`/`addWorkspace`) - it's a
