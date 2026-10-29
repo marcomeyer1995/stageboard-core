@@ -1,7 +1,7 @@
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { isHeadingEntry, isSongEntry, type SetlistEntry } from 'shared-types'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type NextSongConfig } from './nextSongConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -20,7 +20,7 @@ function itemLabel(entry: SetlistEntry): string {
 
 /** Sized as a ratio of the device-wide default, not auto-fit to the tile (Marco, 2026-09-14). */
 export function NextSongWidget({ config }: { config: NextSongConfig }) {
-  const { queue, canControl, next, previous } = useShowMode()
+  const { queue, canControl, next, previous } = useShowModeCore()
   // The takeover lives in the transport when the dashboard has one (2026-10-16): here it squeezed
   // the info to "Aktuel… / Next…" on the phone - without control this stays the flat bar (docs/07).
   const takeoverElsewhere = useDashboardHasWidget('show-transport')

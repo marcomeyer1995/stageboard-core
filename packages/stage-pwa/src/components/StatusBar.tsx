@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollOnceText } from './ScrollOnceText'
 import { fitStatusBarItems, STATUS_BAR_ITEMS, type StatusBarItem } from '../lib/statusBarItems'
@@ -9,7 +9,8 @@ import { queueItemTitle } from '../lib/computeQueue'
 import { songDurationMs } from '../lib/entryDuration'
 import { adjustedBpm, beatAt, beatsPerBar } from '../lib/metronome'
 import type { Mode } from '../lib/modes'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
+import { useFrameValue } from '../lib/useFrameValue'
 import {
   COUNT_IN_FLASH_MS,
   countInPosition,
@@ -28,15 +29,22 @@ import { deriveSyncStatus, useSyncStore, type SyncStatus } from '../store/useSyn
 import { clickTimeline } from '../lib/beatGrid'
 import { Icon, type IconName } from './Icon'
 import { stageVariantLabel } from '../lib/variantLabel'
+import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
+import { stopLoopTrainer } from '../lib/loopTrainer'
+import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
-/** Gap between the bar's items (gap-3) - part of each item's room. */
+/** Gap between the bar's items (gap-3) when the browser can't tell - part of each item's room. */
 const GAP_PX = 12
+
+/** How often the fitted set may change while nothing else does (see the layout effect). */
+const MAX_REFITS = 4
 
 /** The state as an icon (Marco, 2026-10-07: a word took the song title's room on narrow screens). */
 const STATE_ICON: Record<StatusBarKind, IconName> = {
   ready: 'stop',
   'count-in': 'play',
   playing: 'play',
+  loop: 'repeat',
   paused: 'pause',
   finished: 'check',
   fault: 'warning',
@@ -91,6 +99,21 @@ function CountBlock({ position, flash }: { position: CountInPosition; flash: boo
   )
 }
 
+/** What the bar shows of the running clock - it re-renders only when one of these changes. */
+interface FrameClock {
+  time: string
+  isCountIn: boolean
+  flash: boolean
+  position: CountInPosition | null
+}
+
+function sameFrameClock(a: FrameClock, b: FrameClock): boolean {
+  const p = a.position
+  const q = b.position
+  const samePosition = p === q || (p !== null && q !== null && p.bar === q.bar && p.bars === q.bars && p.beat === q.beat && p.beatsPerBar === q.beatsPerBar)
+  return a.time === b.time && a.isCountIn === b.isCountIn && a.flash === b.flash && samePosition
+}
+
 export function StatusBar({
   screen,
   onOpenMenu,
@@ -105,7 +128,9 @@ export function StatusBar({
   menuOpen?: boolean
   dashboardsOpen?: boolean
 }) {
-  const { mode, queue, elapsedMs, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowMode()
+  // Not useShowMode(): that re-rendered the whole bar every frame for a time shown to the second.
+  // The clock is read per frame below and re-renders only what it changes (#457).
+  const { mode, queue, elapsedNow, playbackStatus, liveTempoAdjustPercent, trackOverride, canControl, trackEnded } = useShowModeCore()
   const { currentEntry, currentSong, currentVariant } = queue
   const noMaster = useShowStateStore((state) => state.state.masterHolderId === null)
   const syncStatus = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
@@ -126,14 +151,43 @@ export function StatusBar({
 
   const song = queue.currentArrangement
   const countInBars = currentVariant?.countInEnabled ? (currentVariant.countInBars ?? 0) : 0
-  const timeline = song
-    ? clickTimeline({ beatGrid: currentVariant?.beatGrid, bpm: adjustedBpm(song.bpm, liveTempoAdjustPercent), timeSignature: song.timeSignature, countInBars })
-    : null
-  const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
-  const countInBeat = beat !== null && beat.isCountIn ? beat : null
-  const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
+  // Once per song and tempo - not every frame the bar re-renders with the clock (#457).
+  const songBpm = song?.bpm
+  const songMeter = song?.timeSignature
+  const beatGrid = currentVariant?.beatGrid
+  const timeline = useMemo(
+    () => (songBpm !== undefined && songMeter !== undefined ? clickTimeline({ beatGrid, bpm: adjustedBpm(songBpm, liveTempoAdjustPercent), timeSignature: songMeter, countInBars }) : null),
+    [beatGrid, songBpm, songMeter, liveTempoAdjustPercent, countInBars],
+  )
+  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
+  const firstBeatMs = timeline?.bar1Ms ?? 0
+  const perBar = song ? beatsPerBar(song.timeSignature) : 4
+  const clock = useFrameValue(
+    (): FrameClock => {
+      const elapsedMs = elapsedNow()
+      const beat = playbackStatus === 'playing' && elapsedMs !== null && timeline ? beatAt(elapsedMs, timeline) : null
+      const countInBeat = beat !== null && beat.isCountIn ? beat : null
+      const isCountIn = playbackStatus === 'playing' && (countInBeat !== null || (elapsedMs !== null && elapsedMs < 0))
+      return {
+        time: formatSongTime(elapsedMs ?? 0),
+        isCountIn,
+        flash: countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS,
+        position:
+          countInBeat && elapsedMs !== null
+            ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
+            : null,
+      }
+    },
+    playbackStatus === 'playing',
+    sameFrameClock,
+  )
+  const isCountIn = clock.isCountIn
 
+  // Read each render - the bar re-renders with the song clock, so pass and tempo stay current.
+  const loopActive = useLoopTrainerStore((s) => s.active)
+  const loop = loopActive ? getLoopPlaybackState() : null
   const state = statusBarState({
+    loop: loop !== null,
     mode,
     playbackStatus,
     isCountIn,
@@ -143,14 +197,8 @@ export function StatusBar({
     audioError,
     variantIssue: queue.currentVariantIssue,
   })
-  const flash = state.kind === 'count-in' && countInBeat !== null && countInBeat.msIntoBeat < COUNT_IN_FLASH_MS
-  // Where bar 1 starts (song time 0 without a grid - the count-in leads with negative time then).
-  const firstBeatMs = timeline?.bar1Ms ?? 0
-  const perBar = song ? beatsPerBar(song.timeSignature) : 4
-  const position =
-    state.kind === 'count-in' && countInBeat && elapsedMs !== null
-      ? countInPosition(elapsedMs, countInBeat.msIntoBeat, countInBeat.effectiveBpm, firstBeatMs, countInBars, countInBeat.beatInBar, perBar)
-      : null
+  const flash = state.kind === 'count-in' && clock.flash
+  const position = state.kind === 'count-in' ? clock.position : null
   // An open editor names what it edits instead of the queue's song (#603) - always, also while
   // the queue plays; state, faults and sync stay as they are.
   const editing = useEditingTitleStore((s) => s.editing)
@@ -161,7 +209,8 @@ export function StatusBar({
       ? stageVariantLabel(currentVariant.label)
       : null
   const sync = { icon: SYNC_ICON[syncStatus], label: t(`sync.${syncStatus}`) }
-  const stateLabel = t(`state.${state.label}`)
+  const stateLabel =
+    state.kind === 'loop' && loop ? `${t('state.loop')} · ${loop.pass + 1} · ${Math.round(loop.rate * 100)} %` : t(`state.${state.label}`)
 
   // Ranked items (lib/statusBarItems.ts, per device in Einstellungen): each one is measured -
   // also while it doesn't fit (then invisible and out of the flow) - and the bar keeps as many
@@ -190,26 +239,38 @@ export function StatusBar({
   // every animation frame the playing song re-renders this bar with (#429 review). Size changes
   // come through the ResizeObserver below.
   const measuredFor = useRef('')
+  const refitsFor = useRef('')
+  const refits = useRef(0)
   const [resizes, setResizes] = useState(0)
   useLayoutEffect(() => {
     const header = headerRef.current
     const title = titleRef.current
     if (!header || !title) return
-    const signature = `${resizes}|${shownKey}|${wanted.join(',')}|${fault}|${faultWordHidden}|${syncProblem}|${header.textContent}`
+    const unchanged = `${resizes}|${wanted.join(',')}|${fault}|${faultWordHidden}|${syncProblem}|${header.textContent}`
+    const signature = `${unchanged}|${shownKey}`
     if (signature === measuredFor.current) return
     measuredFor.current = signature
+    // Never flip back and forth: nothing but the fitted set changed four times in a row - keep it.
+    // A bar that is a few pixels off is a nuisance; one that loops takes the whole app down.
+    refits.current = unchanged === refitsFor.current ? refits.current + 1 : 0
+    refitsFor.current = unchanged
+    if (refits.current > MAX_REFITS) return
     const widths: Partial<Record<StatusBarItem, number>> = {}
     let used = 0
+    // Exact widths and the real gap (gap-3 grows with the text size): with whole pixels and a fixed
+    // 12 px, showing "Gig" left 1 px less room than hiding it - it was hidden, shown, hidden … until
+    // React gave up and the app stayed black (Redmi, 2026-10-29).
+    const gap = parseFloat(getComputedStyle(header).columnGap) || GAP_PX
     for (const el of header.querySelectorAll<HTMLElement>('[data-sbitem]')) {
       const id = el.dataset.sbitem as StatusBarItem
-      const width = el.offsetWidth + GAP_PX
+      const width = el.getBoundingClientRect().width + gap
       widths[id] = width
       if (isShown(id)) used += width
     }
     // Always-shown items (a fault's word, a sync problem) take their room off the top - also when
     // hidden in Einstellungen, they are shown anyway (#429 review).
     const pinned = STATUS_BAR_ITEMS.filter((id) => (id === 'stateText' && fault && !faultWordHidden) || (id === 'sync' && syncProblem))
-    const room = title.clientWidth + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
+    const room = title.getBoundingClientRect().width + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
     const fitted = wanted.filter((id) => !(pinned as readonly StatusBarItem[]).includes(id) && !(id === 'stateText' && faultWordHidden))
     const next = [...fitStatusBarItems(fitted, widths, room)].join(',')
     if (next !== shownKey) setShownKey(next)
@@ -250,6 +311,18 @@ export function StatusBar({
 
       {position ? (
         <CountBlock position={position} flash={flash} />
+      ) : state.kind === 'loop' ? (
+        // Stoppable from every dashboard, also one without the Loop-Trainer widget (Marco, 2026-10-22).
+        <button
+          type="button"
+          onClick={stopLoopTrainer}
+          aria-label={`${stateLabel} - ${t('loopStop')}`}
+          title={t('loopStop')}
+          className="flex h-touch flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-control px-2 text-lg font-black uppercase tracking-wide [@media(hover:hover)]:hover:bg-scrim/15"
+        >
+          <Icon name="repeat" size="1.5rem" />
+          <span {...item('stateText')}>{stateLabel}</span>
+        </button>
       ) : (
         // The state as an icon - always there; its word is a ranked item (a fault keeps it:
         // the icon alone wouldn't say what is wrong).
@@ -269,7 +342,7 @@ export function StatusBar({
 
       {title && !editing && (
         <span className="flex-shrink-0 whitespace-nowrap text-lg font-bold tabular-nums">
-          {formatSongTime(elapsedMs ?? 0)}
+          {clock.time}
           {durationMs !== null && (
             <span {...item('duration')}>
               <span className="font-normal opacity-80"> / {formatSongTime(durationMs)}</span>

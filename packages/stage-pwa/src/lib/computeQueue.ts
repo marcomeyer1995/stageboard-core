@@ -97,6 +97,31 @@ export function resolveTrackForEntry(
   return requested ?? tracks.find((t) => t.kind === 'band-mix') ?? tracks[0]!
 }
 
+/**
+ * The queue, computed once per change of what it is made of (#457): every widget and driver asks
+ * for it on every animation frame while a song plays - computed each time, it was 10 % of the
+ * Fire's CPU. One cached result per mode (Gig and Solo are both asked every frame), compared by
+ * identity: the stores hand out the same arrays until something really changes.
+ */
+const queueCache: Record<'gig' | 'practice', { args: readonly unknown[]; result: Queue } | null> = { gig: null, practice: null }
+
+export function cachedQueue(
+  slot: 'gig' | 'practice',
+  songs: Song[],
+  setlists: Setlist[],
+  activeSetlistId: string | null,
+  activeEntryId: string | null,
+  variants: SongVariant[],
+  currentVariantOverride: string | null = null,
+): Queue {
+  const args = [songs, setlists, activeSetlistId, activeEntryId, variants, currentVariantOverride] as const
+  const hit = queueCache[slot]
+  if (hit && hit.args.every((value, i) => value === args[i])) return hit.result
+  const result = computeQueue(songs, setlists, { activeSetlistId, activeEntryId }, variants, currentVariantOverride)
+  queueCache[slot] = { args, result }
+  return result
+}
+
 /** Pure playback-queue logic: song order (catalog or active setlist) + current/next position. */
 export function computeQueue(
   songs: Song[],

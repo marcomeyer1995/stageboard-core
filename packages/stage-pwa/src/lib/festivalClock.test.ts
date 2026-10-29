@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SetlistEntry, Song, SongVariant } from 'shared-types'
 import type { QueueItem } from './computeQueue'
-import { computeFestivalClock, resolveTargetEnd } from './festivalClock'
+import { computeFestivalClock, plannedPauseAfterMs, resolveTargetEnd } from './festivalClock'
 
 const MIN = 60_000
 
@@ -193,3 +193,18 @@ describe('computeFestivalClock - count-in', () => {
   })
 })
 
+
+describe('plannedPauseAfterMs (#64)', () => {
+  const setlist = { defaultTransitionMs: 20_000 }
+  it('the setlist pause after a song, none when seamless, nothing after the last', () => {
+    const items = [songItem('a', 3 * MIN), songItem('b', 3 * MIN, { transitionType: 'seamless' }), songItem('c', 3 * MIN)]
+    expect(plannedPauseAfterMs(items, 0, setlist)).toBe(20_000)
+    expect(plannedPauseAfterMs(items, 1, setlist)).toBe(0)
+    expect(plannedPauseAfterMs(items, 2, setlist)).toBeNull()
+  })
+
+  it('a transition item before the next song is the planned pause', () => {
+    const items = [songItem('a', 3 * MIN), itemEntry('Umbau', { estimatedDurationMs: 90_000 }), songItem('b', 3 * MIN)]
+    expect(plannedPauseAfterMs(items, 0, setlist)).toBe(90_000)
+  })
+})

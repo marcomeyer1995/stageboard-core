@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import type { MidiControllerRulesDoc } from '../lib/midiControllerRules'
@@ -32,7 +33,7 @@ export const useMidiControllerRulesStore = create<MidiControllerRulesState>((set
     set({ docs: [] })
     await refresh(set)
     changesHandle = midiControllerRulesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (doc) => {
     await putMidiControllerRules(doc)

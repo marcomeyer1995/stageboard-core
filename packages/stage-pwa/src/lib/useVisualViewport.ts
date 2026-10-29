@@ -34,3 +34,29 @@ export function useVisualViewport(): VisualViewportBox | null {
   }, [])
   return box
 }
+
+/** How long the visible area must hold still before useSettledVisualViewport takes it. */
+export const VIEWPORT_SETTLE_MS = 150
+
+/**
+ * The visible area once it held still for VIEWPORT_SETTLE_MS - for what sits on the keyboard's
+ * edge. While the keyboard comes up, the app's WebView reads ~300 px for a moment before the real
+ * ~650 (Redmi, 2026-10-28): the ChordPro key bar jumped up there and back down.
+ */
+export function useSettledVisualViewport(): VisualViewportBox | null {
+  const live = useVisualViewport()
+  const [settled, setSettled] = useState(live)
+  const height = live?.height
+  const offsetTop = live?.offsetTop
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(height === undefined || offsetTop === undefined ? null : { height, offsetTop }), VIEWPORT_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [height, offsetTop])
+  return settled
+}
+
+/** The style that pins a `fixed` overlay to the visible area (top and height), or nothing where the
+ * browser has no visualViewport. */
+export function visibleArea(box: VisualViewportBox | null): { top: number; height: number } | undefined {
+  return box ? { top: box.offsetTop, height: box.height } : undefined
+}

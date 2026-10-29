@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
@@ -69,7 +70,7 @@ export const useSetlistsStore = create<SetlistsState>((set) => ({
     set({ loaded: true })
 
     changesHandle = setlistsChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   saveSetlist: async (setlist) => {
     await putSetlist(setlist)

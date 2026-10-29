@@ -1,0 +1,74 @@
+{
+  "title": "Menü",
+  "group": {
+    "view": "Ansicht",
+    "mode": "Modus",
+    "master": "Master",
+    "setlist": "Setlist",
+    "band": "Band",
+    "display": "Anzeige"
+  },
+  "iAm": "Ich bin:",
+  "noProfile": "kein Profil",
+  "fullscreen": "Vollbild",
+  "none": "keine",
+  "session": {
+    "label": "Modus",
+    "gig": "Gig",
+    "practice": "Solo Üben",
+    "gigHint": "Master-Token, geteilte Show-Uhr, Backing-Track-Plugin",
+    "practiceHint": "Rein lokal, Wiedergabe über dieses Gerät",
+    "blocked": "Wechsel zu Solo Üben erst möglich, wenn gerade kein Song läuft"
+  },
+  "setlist": {
+    "title": "Setlist",
+    "noneGig": "Keine Setlist",
+    "nonePractice": "Keine Setlist (ganzer Katalog)",
+    "locked": "Während ein Song läuft, bleibt die Setlist."
+  },
+  "band": {
+    "title": "Band",
+    "locked": "Während ein Song läuft, bleibt die Band."
+  },
+  "profile": {
+    "title": "Ich bin …",
+    "members": "Mitglieder",
+    "pinOf": "PIN von {{name}}",
+    "pinPlaceholder": "4-stelliger Code",
+    "switch": "Wechseln",
+    "masterConfirm": "Du bist gerade Master - nach dem Wechsel zu {{name}} steuert dieses Gerät die Show nicht mehr.",
+    "masterConfirmTitle": "Master",
+    "switchAnyway": "Trotzdem wechseln"
+  },
+  "master": {
+    "label": "Master",
+    "release": "Master abgeben",
+    "releaseConfirm": "Der Song läuft gerade. Master trotzdem abgeben?",
+    "releaseButton": "Abgeben",
+    "someone": "Jemand",
+    "allDevicesOf": "{{name}} (alle Geräte)",
+    "youAll": "Du bist Master – alle deine Geräte.",
+    "youThis": "Du bist Master – nur dieses Gerät.",
+    "other": "{{name}} ist Master.",
+    "otherStale": "{{name}} ist Master – antwortet aber nicht.",
+    "anotherDevice": "Ein anderes Gerät",
+    "onlyAdmins": "Übernehmen dürfen nur Admin/Showmaster.",
+    "holdForces": "Halten erzwingt die Übernahme.",
+    "nobody": "Niemand ist Master.",
+    "shortAll": "alle deine Geräte",
+    "shortThis": "nur dieses Gerät",
+    "shortOther": "anderes Gerät",
+    "shortStale": "{{name}} antwortet nicht",
+    "shortNobody": "niemand",
+    "holdToRelease": "Zum Abgeben gedrückt halten",
+    "holdToTake": "Zum Übernehmen gedrückt halten",
+    "selfCheck": {
+      "sync-error": "Sync-Fehler: Dieses Gerät steuert die Show gerade nicht - die anderen sähen es nicht, und vielleicht hat schon ein anderes Gerät übernommen. Unter System → Stage-Server → Synchronisation „Reparieren“.",
+      "offline": "Keine Verbindung zum Stage-Server: Dieses Gerät steuert die Show erst wieder, wenn die Verbindung zurück ist.",
+      "unconfirmed": "Der Stage-Server bestätigt dieses Gerät nicht als Master - vermutlich hat ein anderes Gerät übernommen. Dieses Gerät steuert die Show gerade nicht."
+    }
+  },
+  "dashboards": {
+    "title": "Dashboards"
+  }
+}

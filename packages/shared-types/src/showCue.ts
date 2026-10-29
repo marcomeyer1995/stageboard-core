@@ -22,6 +22,10 @@ export const ShowCueSchema = ShowControlEventSchema.omit({ scheduledAt: true }).
   timeMs: z.number().int().nonnegative(),
   /** WHO receives this cue, not WHAT it does - #10's whole point. */
   targetLogicalDeviceId: z.string().min(1),
+  /** Anchored on the grid (#483): the cue sits on beat `beat` (1-based) of bar `bar`, and
+   * `timeMs` follows that place whenever the grid changes - a re-aligned bar moves its cues with
+   * the music. Absent: a free cue at its `timeMs` (also every cue before bar 1). */
+  anchor: z.object({ bar: z.number().int().min(1), beat: z.number().int().min(1) }).optional(),
 })
 export type ShowCue = z.infer<typeof ShowCueSchema>
 
