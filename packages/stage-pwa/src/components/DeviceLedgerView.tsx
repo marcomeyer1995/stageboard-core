@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_INFO_TIMEOUT_MS, SERVER_EXECUTION_TARGET, type Device, type LogicalDevice } from 'shared-types'
 import { getServerTime } from '../lib/clockSync'
@@ -13,22 +14,23 @@ import { ActionMenu, Badge, Button, InfoHint } from './ui'
 import { BackupStatusLine } from './BackupStatusLine'
 import { BUILT_IN_OUTPUTS, builtInRoles } from './BuiltInOutputs'
 import { LatencyProfileDialog, LatencySummary } from './LatencyProfiles'
+import { useTranslation } from 'react-i18next'
 
 /** How long the Stage-Server has to collect reports before a missing one means "inactive". */
 const COLLECT_MS = 5 * 60 * 1000
 /** Fallback for an older server (no `collectingSince`): seen this recently = not inactive. */
 const RECENT_MS = 24 * 60 * 60 * 1000
 
-const ENVIRONMENT_LABEL: Record<string, string> = { browser: 'Browser', pwa: 'PWA', native: 'Nativ' }
-const SYNC_STATUS_LABEL: Record<string, string> = { idle: 'Synchronisiert', syncing: 'Synchronisiert…', offline: 'Offline', error: 'Fehler' }
+const ENVIRONMENTS = ['browser', 'pwa', 'native'] as const
+const SYNC_STATES = ['idle', 'syncing', 'offline', 'error'] as const
 
 /** `ms` can be missing on a doc written before `firstSeenAt` existed (Device Ledger,
  * 2026-09-08) - that device backfills it on its own next launch (useDevicesStore.ts's `init()`),
  * but until then (or for a device that never launches again) this reads "unbekannt" rather than
  * "Invalid Date". */
 function formatDateTime(ms: number | undefined): string {
-  if (!ms) return 'unbekannt'
-  return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
+  if (!ms) return i18n.t('devices:unknown')
+  return new Date(ms).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function StatusDot({ on, title }: { on: boolean | null; title: string }) {
@@ -56,6 +58,7 @@ function StatusDot({ on, title }: { on: boolean | null; title: string }) {
  * as the backstop for the rare case those two disagree (e.g. this device was just demoted).
  */
 export function DeviceLedgerView() {
+  const { t } = useTranslation('devices')
   const devices = useDevicesStore((state) => state.devices)
   const revoke = useDevicesStore((state) => state.revoke)
   const forget = useDevicesStore((state) => state.forget)
@@ -82,14 +85,14 @@ export function DeviceLedgerView() {
   async function toggleRevoked(device: Device) {
     const nextRevoked = !device.revoked
     if (nextRevoked) {
-      const confirmed = await confirm(`"${device.name}" blockieren? Das Gerät wird beim nächsten Kontakt gesperrt und kommt nicht mehr in die Band.`, {
-        confirmLabel: 'Blockieren',
+      const confirmed = await confirm(t('blockConfirm', { name: device.name }), {
+        confirmLabel: t('block'),
         danger: true,
       })
       if (!confirmed) return
     }
     const ok = await revoke(activeWorkspaceId, device.id, nextRevoked)
-    if (!ok) void alert('Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.')
+    if (!ok) void alert(t('notPossible'))
   }
 
   const sorted = [...devices].sort((a, b) => b.lastSeenAt - a.lastSeenAt)
@@ -128,31 +131,31 @@ export function DeviceLedgerView() {
   inactiveNow.current = inactive
 
   async function forgetOne(device: Device) {
-    if (!(await confirm(`„${device.name}“ aus der Liste entfernen? Kein Blockieren: startet das Gerät die App wieder, erscheint es erneut.`, { confirmLabel: 'Entfernen' }))) return
+    if (!(await confirm(t('forgetConfirm', { name: device.name }), { confirmLabel: t('remove') }))) return
     const result = await forget(activeWorkspaceId, device.id)
-    if (result === 'in-use') void alert(`„${device.name}“ wird noch in der Bühnentechnik verwendet - erst dort ein anderes Gerät wählen.`)
-    else if (result === 'blocked') void alert(`„${device.name}“ wurde inzwischen blockiert - ein blockiertes Gerät bleibt in der Liste.`)
-    else if (result === 'failed') void alert('Aktion nicht möglich - keine Admin-Rechte oder Stage-Server nicht erreichbar.')
+    if (result === 'in-use') void alert(t('inUse', { name: device.name }))
+    else if (result === 'blocked') void alert(t('blocked', { name: device.name }))
+    else if (result === 'failed') void alert(t('notPossible'))
   }
 
   async function forgetInactive() {
-    const note = skippedInUse.length ? ` ${skippedInUse.length} weitere bleiben, weil Hardware sie verwendet.` : ''
-    if (!(await confirm(`${inactive.length} inaktive Geräte aus der Liste entfernen? Blockierte Geräte und dieses Gerät bleiben.${note}`, { confirmLabel: 'Entfernen' }))) return
+    const note = skippedInUse.length ? t('skipNote', { count: skippedInUse.length }) : ''
+    if (!(await confirm(t('forgetInactiveConfirm', { count: inactive.length, note }), { confirmLabel: t('remove') }))) return
     // Only devices that were confirmed AND are still inactive - one that came back online or was
     // blocked while the question was open stays (#426 review).
     const confirmed = new Set(inactive.map((device) => device.id))
     let failed = 0
     for (const device of inactiveNow.current.filter((d) => confirmed.has(d.id))) if ((await forget(activeWorkspaceId, device.id)) !== 'removed') failed++
-    if (failed) void alert(`${failed} Geräte konnten nicht entfernt werden (Stage-Server nicht erreichbar oder inzwischen in Verwendung).`)
+    if (failed) void alert(t('forgetFailed', { count: failed }))
   }
 
   return (
     <div className="h-full overflow-y-auto sb-app-bg p-4 text-ink">
       <div className="mb-4 flex items-center gap-1">
-        <h1 className="text-2xl font-bold">Tablets & Handys</h1>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
         <InfoHint
-          label="Erklärung: Tablets & Handys"
-          text="Jedes Gerät, das dieser Band jemals beigetreten ist. „App offen“ und „Netzwerk erreichbar“ sind zwei unabhängige Signale - ein Gerät kann im Netzwerk erreichbar sein, ohne dass die App gerade läuft, oder umgekehrt gerade das Netzwerk gewechselt haben."
+          label={t('explainLabel')}
+          text={t('explain')}
         />
       </div>
 
@@ -162,54 +165,54 @@ export function DeviceLedgerView() {
       <div className="mb-2 rounded-container border border-line bg-surface px-4 py-3 shadow-sb">
         <div className="flex items-center gap-3">
           <div className="flex-1">
-            <p className="font-semibold">Stage-Server</p>
+            <p className="font-semibold">{t('server')}</p>
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">
-            <StatusDot on={stageServer.status === 'loading' ? null : stageServer.status === 'reachable'} title="Netzwerk erreichbar" />
-            Netzwerk erreichbar
+            <StatusDot on={stageServer.status === 'loading' ? null : stageServer.status === 'reachable'} title={t('reachable')} />
+            {t('reachable')}
           </span>
           {stageServer.status === 'reachable' ? (
             <>
               <span>
-                IP {stageServer.lanIp}
+                {t('ip', { ip: stageServer.lanIp })}
                 {stageServer.hostname && <span className="text-ink-faint"> ({stageServer.hostname})</span>}
               </span>
-              <span>Stage-Server</span>
-              <span>Aktive Band: {stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? 'keine'}</span>
+              <span>{t('server')}</span>
+              <span>{t('activeBand', { band: stageServer.activeWorkspaceName ?? stageServer.activeWorkspaceId ?? t('none') })}</span>
               <BackupStatusLine />
             </>
           ) : (
             <span className="text-ink-faint">
-              {stageServer.status === 'loading' ? (stageServer.slow ? 'Stage-Server antwortet langsam…' : 'Lade…') : 'Keine Verbindung zum Stage-Server.'}
+              {stageServer.status === 'loading' ? (stageServer.slow ? t('slow') : t('loading')) : t('noConnection')}
             </span>
           )}
         </div>
         <LatencySummary deviceId={SERVER_EXECUTION_TARGET} />
         {isAdmin && (
-          <Button className="mt-2" onClick={() => setLatencyFor({ id: SERVER_EXECUTION_TARGET, name: 'Stage-Server' })}>
-            Latenz…
+          <Button className="mt-2" onClick={() => setLatencyFor({ id: SERVER_EXECUTION_TARGET, name: t('server') })}>
+            {t('latency')}
           </Button>
         )}
       </div>
 
-      {sorted.length === 0 && <p className="text-sm text-ink-faint">Noch keine Geräte registriert.</p>}
+      {sorted.length === 0 && <p className="text-sm text-ink-faint">{t('noDevices')}</p>}
 
       {isAdmin && sorted.length > 0 && (
         <div className="mb-3 flex flex-col gap-1">
           <div className="flex items-center gap-1">
             <Button disabled={inactive.length === 0} onClick={() => void forgetInactive()}>
-              Inaktive entfernen ({inactive.length})
+              {t('forgetInactive', { count: inactive.length })}
             </Button>
             <InfoHint
-              label="Erklärung: Inaktive entfernen"
-              text="Entfernt Geräte ohne offene App und ohne Netzwerk aus der Liste - kein Blockieren, sie erscheinen beim nächsten Start wieder."
+              label={t('forgetInactiveLabel')}
+              text={t('forgetInactiveInfo')}
             />
           </div>
           <p className="text-sm text-ink-faint empty:hidden">
-            {skippedInUse.length > 0 && ` ${skippedInUse.length} inaktive bleiben, weil Hardware sie verwendet.`}
-            {deviceInfo.collectingSince !== undefined && !collectedLongEnough && ' Der Stage-Server wurde gerade gestartet - die Geräte melden sich noch, erst danach zählen sie als inaktiv.'}
+            {skippedInUse.length > 0 && t('keptInUse', { count: skippedInUse.length })}
+            {deviceInfo.collectingSince !== undefined && !collectedLongEnough && t('justStarted')}
           </p>
         </div>
       )}
@@ -228,33 +231,33 @@ export function DeviceLedgerView() {
                     {device.name}
                     {device.revoked && (
                       <span className="ml-2">
-                        <Badge tone="danger">blockiert</Badge>
+                        <Badge tone="danger">{t('blockedBadge')}</Badge>
                       </span>
                     )}
                     {device.id === myId && (
                       <span className="ml-2">
-                        <Badge tone="accent">Dieses Gerät</Badge>
+                        <Badge tone="accent">{t('thisDevice')}</Badge>
                       </span>
                     )}
                   </p>
                   <p className="text-xs text-ink-faint">
-                    Zuerst gesehen {formatDateTime(device.firstSeenAt)} · Zuletzt {formatDateTime(device.lastSeenAt)}
+                    {t('seen', { first: formatDateTime(device.firstSeenAt), last: formatDateTime(device.lastSeenAt) })}
                   </p>
                 </div>
                 {(isAdmin || device.id === myId) && (
                   <ActionMenu
                     title={device.name}
                     actions={[
-                      { label: 'Latenz…', onClick: () => setLatencyFor({ id: device.id, name: device.name }) },
+                      { label: t('latency'), onClick: () => setLatencyFor({ id: device.id, name: device.name }) },
                       ...(!isAdmin ? [] : !device.revoked && device.id !== myId
-                        ? [{ label: 'Aus Liste entfernen', disabled: used.length > 0, onClick: () => void forgetOne(device) }]
+                        ? [{ label: t('forget'), disabled: used.length > 0, onClick: () => void forgetOne(device) }]
                         : []),
                       ...(!isAdmin
                         ? []
                         : [
                             device.revoked
-                              ? { label: 'Wieder zulassen', onClick: () => void toggleRevoked(device) }
-                              : { label: 'Blockieren', danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
+                              ? { label: t('allow'), onClick: () => void toggleRevoked(device) }
+                              : { label: t('block'), danger: true, disabled: device.id === myId, onClick: () => void toggleRevoked(device) },
                           ]),
                     ]}
                   />
@@ -263,31 +266,31 @@ export function DeviceLedgerView() {
 
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-soft">
                 <span className="flex items-center gap-1.5">
-                  <StatusDot on={info ? appOpen : null} title={appOpen ? 'App offen' : 'App geschlossen / nicht gemeldet'} />
-                  App offen
+                  <StatusDot on={info ? appOpen : null} title={appOpen ? t('appOpen') : t('appClosed')} />
+                  {t('appOpen')}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <StatusDot on={info?.networkReachable ?? null} title="Netzwerk erreichbar" />
-                  Netzwerk erreichbar
+                  <StatusDot on={info?.networkReachable ?? null} title={t('reachable')} />
+                  {t('reachable')}
                 </span>
                 {info ? (
                   <>
                     <span>
-                      IP {info.ip}
+                      {t('ip', { ip: info.ip })}
                       {info.hostname && <span className="text-ink-faint"> ({info.hostname})</span>}
                     </span>
                     <span>{info.os}</span>
-                    <span>{ENVIRONMENT_LABEL[info.environment] ?? info.environment}</span>
-                    <span>{SYNC_STATUS_LABEL[info.syncStatus] ?? info.syncStatus}</span>
+                    <span>{(ENVIRONMENTS as readonly string[]).includes(info.environment) ? t(`env.${info.environment as (typeof ENVIRONMENTS)[number]}`) : info.environment}</span>
+                    <span>{(SYNC_STATES as readonly string[]).includes(info.syncStatus) ? t(`sync.${info.syncStatus as (typeof SYNC_STATES)[number]}`) : info.syncStatus}</span>
                   </>
                 ) : (
-                  <span className="text-ink-faint">Noch keine Diagnosedaten von diesem Gerät.</span>
+                  <span className="text-ink-faint">{t('noData')}</span>
                 )}
               </div>
               <LatencySummary deviceId={device.id} />
               {used.length > 0 && (
                 <p className="mt-2 text-sm text-warn">
-                  In Verwendung: {used.join(', ')} - im Tab Bühnentechnik ein anderes Gerät wählen, dann lässt es sich entfernen.
+                  {t('inUseBy', { list: used.join(', ') })}
                 </p>
               )}
             </div>
