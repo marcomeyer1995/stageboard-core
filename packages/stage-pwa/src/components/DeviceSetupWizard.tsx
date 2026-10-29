@@ -1,3 +1,4 @@
+import { useSettledVisualViewport, visibleArea } from '../lib/useVisualViewport'
 import { useEffect, useState } from 'react'
 import type { HardwareId, LogicalDevice, PluginInstallation } from 'shared-types'
 import { SERVER_EXECUTION_TARGET, CAPABILITIES } from 'shared-types'
@@ -525,6 +526,8 @@ export function DeviceSetupWizard({
   onClose: () => void
 }) {
   useBackHandler(onClose)
+  // Pinned to the visible area, so the on-screen keyboard never hides the fields or the bottom row.
+  const visible = useSettledVisualViewport()
   const [step, setStep] = useState(() => (device ? (device.pluginId ? 3 : 2) : initialDraft ? 2 : 1))
   const [draft, setDraft] = useState<Draft>(() => draftFrom(device, initialDraft))
   const saveDevice = useLogicalDevicesStore((state) => state.save)
@@ -547,8 +550,8 @@ export function DeviceSetupWizard({
   return (
     // A wizard is set-up (docs/15 D10): the Vorbereitung tier.
     <PrepTier>
-    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center overflow-y-auto bg-scrim/60 sb-pad-safe" style={visibleArea(visible)} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+      <div className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-container border border-line bg-surface shadow-sb">
         {/* One way out per step, in its bottom row (docs/15 D6) - the × that sat here is gone. */}
         <div className="border-b border-line px-4 py-3">
           <h2 className="text-lg font-bold text-ink">Gerät einrichten</h2>

@@ -102,4 +102,13 @@ describe('UI system guard (docs/15)', () => {
   it('⋯ for one entry, ⋮ for the page (D9): menus pick their symbol through menuIcon / scope, never by name', () => {
     expect(offending(/(icon|name)=["'{]+more(Vertical)?["'}]|["']moreVertical["']/)).toEqual([])
   })
+
+  it('the visible area and the keyboard only settled (docs/15 §4a): no useVisualViewport() / useTouchKeyboardOpen() in a component', () => {
+    // While the keyboard comes up the WebView reads a wrong, far too small height for a moment -
+    // anything placed on the live value draws twice (Redmi, 2026-10-28).
+    const live = offending(/\buse(VisualViewport|TouchKeyboardOpen)\(\)/, { withTs: true }).filter(
+      (hit) => !hit.startsWith('src/lib/useVisualViewport.ts') && !hit.startsWith('src/lib/useTouchKeyboardOpen.ts'),
+    )
+    expect(live).toEqual([])
+  })
 })

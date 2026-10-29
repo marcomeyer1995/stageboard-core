@@ -140,8 +140,8 @@ describe('WidgetLibrary', () => {
 
     it('badges every widget with its tier (layout-only widgets get none)', () => {
       render(<WidgetLibrary dashboard={dashboard()} breakpoint="md" capabilities={new Map()} onAddToNewDashboard={vi.fn()} onAdd={vi.fn()} onClose={vi.fn()} />)
-      expect(card('Prompter').textContent).toContain('Gig')
-      expect(card('Show-Notizen').textContent).toContain('Gig-Blick')
+      expect(card('Prompter').textContent).toContain('Im Song')
+      expect(card('Show-Notizen').textContent).toContain('Zwischen Songs')
       expect(card('Quintenzirkel').textContent).toContain('Probe')
     })
 

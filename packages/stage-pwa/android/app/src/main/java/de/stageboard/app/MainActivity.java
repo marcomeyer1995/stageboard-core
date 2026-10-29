@@ -19,6 +19,9 @@ import com.getcapacitor.BridgeActivity;
  * app is in front - a tablet on a music stand must never dim or lock mid-song.
  */
 public class MainActivity extends BridgeActivity {
+    /** How often the page's height is checked again while the keyboard is up (Android before 11). */
+    private static final long KEYBOARD_RECHECK_MS = 300;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ServerTrustPlugin.class);
@@ -63,28 +66,41 @@ public class MainActivity extends BridgeActivity {
      * 28) sends none while the system bars are hidden, so the keyboard covered the lower part of the
      * page - text fields, dialog buttons, the ChordPro keys. There the WebView gets shorter by the
      * part of the window the keyboard hides; the page sees it as a smaller viewport, like a browser.
+     *
+     * Where SystemBars does pad the window for the keyboard on older Android, it never takes the
+     * padding back: the keyboard closing sends no new insets there, and the page stayed short with a
+     * grey band below it until the app restarted (Fire, 2026-10-29). While the window is padded or
+     * the WebView shortened, this looks again every 300 ms and undoes it once the keyboard is gone.
      */
     private void followKeyboard() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return;
         View decor = getWindow().getDecorView();
         Rect visible = new Rect();
         int[] onScreen = new int[2];
-        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+        Runnable[] check = new Runnable[1];
+        check[0] = () -> {
             decor.getWindowVisibleDisplayFrame(visible);
+            // A sliver (a navigation bar showing briefly) is not a keyboard.
+            int sliver = Math.round(decor.getHeight() * 0.15f);
+            if (decor.getPaddingBottom() > 0 && decor.getHeight() - visible.bottom <= sliver) {
+                decor.setPadding(decor.getPaddingLeft(), decor.getPaddingTop(), decor.getPaddingRight(), 0);
+            }
             View webView = bridge.getWebView();
             View parent = (View) webView.getParent();
             // Measured against where the WebView's container really ends - not the screen height:
             // when Android itself shortens the container too, the keyboard must not count twice.
             parent.getLocationOnScreen(onScreen);
             int covered = Math.max(0, onScreen[1] + parent.getHeight() - visible.bottom);
-            // A sliver (a navigation bar showing briefly) is not a keyboard.
-            int keyboard = covered > decor.getHeight() * 0.15 ? covered : 0;
+            int keyboard = covered > sliver ? covered : 0;
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
             if (params.bottomMargin != keyboard) {
                 params.bottomMargin = keyboard;
                 webView.setLayoutParams(params);
             }
-        });
+            decor.removeCallbacks(check[0]);
+            if (keyboard > 0 || decor.getPaddingBottom() > 0) decor.postDelayed(check[0], KEYBOARD_RECHECK_MS);
+        };
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> check[0].run());
     }
 
     /** Immersive: status and navigation bar hidden; a swipe from the edge shows them briefly. */

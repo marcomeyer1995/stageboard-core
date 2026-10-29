@@ -1,7 +1,7 @@
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented, Switch, ToggleChip } from '../components/ui'
 import { resolveTrackForEntry } from '../lib/computeQueue'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { stageFontSize } from '../lib/stageSize'
 import { channelOf, STEM_MAX_LEVEL, stemMixFor, useStemMixStore } from '../lib/stemMix'
 import { pickStemSet, STEM_ROLE_LABELS, stemSetsOf } from '../lib/stems'
@@ -28,7 +28,7 @@ const STATUS_TEXT: Record<StemPlaybackStatus, string | null> = {
 export function StemsWidget({ config }: { config: StemsConfig }) {
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showValues = useShowPart('values')
-  const { mode, queue, trackOverride } = useShowMode()
+  const { mode, queue, trackOverride } = useShowModeCore()
   const { currentEntry, currentVariant } = queue
   const byVariant = useStemMixStore((state) => state.byVariant)
   const setOn = useStemMixStore((state) => state.setOn)

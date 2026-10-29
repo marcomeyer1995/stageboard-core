@@ -69,6 +69,9 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     songId: z.string().min(1),
     songTitle: z.string().min(1),
     cueId: z.string().min(1),
+    /** The variant the cue belongs to (#8: "Cue anpassen" in the Nachbericht edits it there).
+     * Absent on events from before 2026-10-22 - then the song's variant holding `cueId`. */
+    variantId: z.string().min(1).optional(),
     /** The cue's command, e.g. `kemper.selectRig`. */
     cueType: z.string().min(1),
     /** Who it went to - the Logical Device's name (or its id when it no longer exists). */

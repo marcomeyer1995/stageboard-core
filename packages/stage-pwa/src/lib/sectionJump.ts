@@ -1,15 +1,18 @@
 import { useEffect } from 'react'
 import { getServerTime } from './clockSync'
-import { computeActiveMs, foldJump, transportOf } from './playbackTransport'
+import { computeActiveMs, foldJump, transportOf, type SectionJump, type TransportState } from './playbackTransport'
 import { jumpBoundary, type JumpWhen, type ShowSection } from './showSections'
 import type { ClickTimeline } from './beatGrid'
+import { useAppModeStore } from '../store/useAppModeStore'
+import { practiceTransportOf, usePracticeStateStore } from '../store/usePracticeStateStore'
 import { drivesAutomation, useShowStateStore } from '../store/useShowStateStore'
+import { useWorkspaceStore } from '../store/useWorkspaceStore'
 
 /**
  * Section jump and loop in the show (#479, docs/20 §4). The master queues a jump; it happens on a
  * bar or section boundary at least JUMP_NOTICE_MS ahead, so every device learns of it in time and
- * click, track and cues continue at the target exactly on the beat. Gig only for now - Solo Üben
- * follows once its track runs on Web Audio too (Marco, 2026-10-17).
+ * click, track and cues continue at the target exactly on the beat. In Solo Üben the same on this
+ * device's own practice state (Marco, 2026-10-22) - its track plays on Web Audio (stemEngine.ts).
  */
 
 /** How far ahead a jump is announced - Wi-Fi to every device, and the track's target decoded. */
@@ -24,72 +27,131 @@ const DRIVER_TICK_MS = 100
 
 export type JumpResult = 'queued' | 'not-master' | 'not-playing' | 'no-boundary'
 
+type Loop = { startMs: number; endMs: number; label?: string }
+
+/** Where a jump lives: the band's show state (Gig, the master acts, server time) or this device's
+ * practice state (Solo, always allowed, its own clock). */
+interface JumpHost {
+  allowed: boolean
+  now: () => number
+  transport: TransportState
+  loop: Loop | null
+  write: (patch: { startedAt?: number | null; accumulatedMs?: number; jump?: SectionJump | null; loop?: Loop | null }) => Promise<void>
+}
+
+function gigHost(): JumpHost {
+  const { isMaster, state, applyPatch } = useShowStateStore.getState()
+  return {
+    allowed: isMaster,
+    now: getServerTime,
+    transport: transportOf(state),
+    loop: state.playbackLoop ?? null,
+    write: async (patch) => {
+      await applyPatch({
+        ...(patch.startedAt !== undefined ? { playbackStartedAt: patch.startedAt } : {}),
+        ...(patch.accumulatedMs !== undefined ? { playbackAccumulatedMs: patch.accumulatedMs } : {}),
+        ...(patch.jump !== undefined ? { playbackJump: patch.jump } : {}),
+        ...(patch.loop !== undefined ? { playbackLoop: patch.loop } : {}),
+      })
+    },
+  }
+}
+
+function practiceHost(): JumpHost {
+  const workspaceId = useWorkspaceStore.getState().activeWorkspaceId
+  const store = usePracticeStateStore.getState()
+  const state = store.get(workspaceId)
+  return {
+    allowed: true,
+    now: Date.now,
+    transport: practiceTransportOf(state),
+    loop: state.playbackLoop ?? null,
+    write: async (patch) => {
+      store.patch(workspaceId, {
+        ...(patch.startedAt !== undefined ? { playbackStartedAt: patch.startedAt } : {}),
+        ...(patch.accumulatedMs !== undefined ? { playbackAccumulatedMs: patch.accumulatedMs } : {}),
+        ...(patch.jump !== undefined ? { playbackJump: patch.jump } : {}),
+        ...(patch.loop !== undefined ? { playbackLoop: patch.loop } : {}),
+      })
+    },
+  }
+}
+
+/** The host of the mode this device is in. */
+function host(): JumpHost {
+  return useAppModeStore.getState().mode === 'practice' ? practiceHost() : gigHost()
+}
+
 /** Queues a jump to `target` at the next bar line or the end of the section playing. Replaces a
  * jump queued before and ends a loop. */
 export async function queueSectionJump(target: ShowSection, when: JumpWhen, sections: readonly ShowSection[], timeline: ClickTimeline): Promise<JumpResult> {
-  const { isMaster, state, applyPatch } = useShowStateStore.getState()
-  if (!isMaster) return 'not-master'
-  if (state.playbackStatus !== 'playing' || state.playbackStartedAt === null) return 'not-playing'
-  const now = getServerTime()
-  const transport = foldJump(transportOf(state), now)
+  const h = host()
+  if (!h.allowed) return 'not-master'
+  if (h.transport.status !== 'playing' || h.transport.startedAt === null) return 'not-playing'
+  const now = h.now()
+  const transport = foldJump(h.transport, now)
   if (transport.startedAt === null) return 'not-playing'
   const boundary = jumpBoundary(when, computeActiveMs(transport, now) + JUMP_NOTICE_MS, sections, timeline)
   if (boundary === null) return 'no-boundary'
-  await applyPatch({
-    playbackStartedAt: transport.startedAt,
-    playbackAccumulatedMs: transport.accumulatedMs,
-    playbackJump: { at: transport.startedAt + (boundary - transport.accumulatedMs), toMs: target.startMs, label: target.label },
-    playbackLoop: null,
+  await h.write({
+    startedAt: transport.startedAt,
+    accumulatedMs: transport.accumulatedMs,
+    jump: { at: transport.startedAt + (boundary - transport.accumulatedMs), toMs: target.startMs, label: target.label },
+    loop: null,
   })
   return 'queued'
 }
 
 /** Calls off a queued jump - unless it is too close to undo. */
 export async function cancelSectionJump(): Promise<void> {
-  const { isMaster, state, applyPatch } = useShowStateStore.getState()
-  const jump = state.playbackJump
-  if (!isMaster || !jump || jump.at - getServerTime() < CANCEL_MIN_MS) return
-  await applyPatch({ playbackJump: null })
+  const h = host()
+  const jump = h.transport.jump
+  if (!h.allowed || !jump || jump.at - h.now() < CANCEL_MIN_MS) return
+  await h.write({ jump: null })
 }
 
 /** Repeats `section` until released (null). Released, the song runs on past the section end; a
  * way back already queued stays only when it is too close to undo. */
 export async function setSectionLoop(section: ShowSection | null): Promise<void> {
-  const { isMaster, state, applyPatch } = useShowStateStore.getState()
-  if (!isMaster) return
+  const h = host()
+  if (!h.allowed) return
   if (section) {
     if (section.endMs === null) return
-    await applyPatch({ playbackLoop: { startMs: section.startMs, endMs: section.endMs, label: section.label } })
+    await h.write({ loop: { startMs: section.startMs, endMs: section.endMs, label: section.label } })
     return
   }
-  const jump = state.playbackJump
-  const loop = state.playbackLoop
-  const dropJump = jump && loop && jump.toMs === loop.startMs && jump.at - getServerTime() >= CANCEL_MIN_MS
-  await applyPatch(dropJump ? { playbackLoop: null, playbackJump: null } : { playbackLoop: null })
+  const jump = h.transport.jump
+  const loop = h.loop
+  const dropJump = jump && loop && jump.toMs === loop.startMs && jump.at - h.now() >= CANCEL_MIN_MS
+  await h.write(dropJump ? { loop: null, jump: null } : { loop: null })
+}
+
+/** One look at jump and loop: folds a passed jump into the clock's anchor, and while a section
+ * loops, queues the way back before the pass ends. */
+function driveJump(h: JumpHost): void {
+  const { transport, loop } = h
+  if (transport.status !== 'playing' || transport.startedAt === null) return
+  const now = h.now()
+  if (transport.jump && now >= transport.jump.at) {
+    const folded = foldJump(transport, now)
+    void h.write({ startedAt: folded.startedAt, accumulatedMs: folded.accumulatedMs, jump: null })
+    return
+  }
+  if (!loop || transport.jump) return
+  const untilEnd = loop.endMs - computeActiveMs(transport, now)
+  if (untilEnd <= 0 || untilEnd > LOOP_NOTICE_MS) return
+  void h.write({ jump: { at: transport.startedAt + (loop.endMs - transport.accumulatedMs), toMs: loop.startMs, label: loop.label } })
 }
 
 /**
- * On the device that drives the automatic steps (drivesAutomation): folds a passed jump into the
- * song clock's anchor, and while a section loops, queues the way back before every pass ends.
+ * Gig: on the device that drives the automatic steps (drivesAutomation). Solo: always, on this
+ * device's own practice state.
  */
 export function useSectionJumpDriver(): void {
   useEffect(() => {
     const timer = setInterval(() => {
-      const store = useShowStateStore.getState()
-      const { state, applyPatch } = store
-      if (!drivesAutomation(store) || state.playbackStatus !== 'playing' || state.playbackStartedAt === null) return
-      const now = getServerTime()
-      const transport = transportOf(state)
-      if (state.playbackJump && now >= state.playbackJump.at) {
-        const folded = foldJump(transport, now)
-        void applyPatch({ playbackStartedAt: folded.startedAt, playbackAccumulatedMs: folded.accumulatedMs, playbackJump: null })
-        return
-      }
-      const loop = state.playbackLoop
-      if (!loop || state.playbackJump) return
-      const untilEnd = loop.endMs - computeActiveMs(transport, now)
-      if (untilEnd <= 0 || untilEnd > LOOP_NOTICE_MS) return
-      void applyPatch({ playbackJump: { at: state.playbackStartedAt + (loop.endMs - state.playbackAccumulatedMs), toMs: loop.startMs, label: loop.label } })
+      if (drivesAutomation(useShowStateStore.getState())) driveJump(gigHost())
+      if (useAppModeStore.getState().mode === 'practice') driveJump(practiceHost())
     }, DRIVER_TICK_MS)
     return () => clearInterval(timer)
   }, [])

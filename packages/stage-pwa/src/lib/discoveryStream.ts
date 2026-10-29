@@ -1,3 +1,4 @@
+import { deliverInBackground, dropFromInbox } from './inbox'
 import { EMPTY_DISCOVERY_SESSION, type DiscoverySession } from 'shared-types'
 import { getStageServerUrl } from './stageServer'
 
@@ -17,13 +18,18 @@ export function subscribeToDiscovery(workspaceId: string, onSession: (session: D
   }
 
   const source = new EventSource(`${base}/workspaces/${encodeURIComponent(workspaceId)}/discovery/stream`)
+  // A status, not a cue: applied in free time, the newest wins (docs/26 §3.1).
+  const channel = `discovery:${workspaceId}`
   source.onmessage = (event) => {
     try {
-      onSession(JSON.parse(event.data) as DiscoverySession)
+      deliverInBackground(channel, JSON.parse(event.data) as DiscoverySession, onSession)
     } catch {
       // A malformed payload shouldn't crash the tablet - just skip this update.
     }
   }
 
-  return () => source.close()
+  return () => {
+    dropFromInbox(channel)
+    source.close()
+  }
 }

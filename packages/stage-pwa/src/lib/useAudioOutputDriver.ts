@@ -16,6 +16,7 @@ import { triggerShowControl } from './showControlClient'
 import {
   loadWebAudioTrack,
   preloadWebAudioTrack,
+  setWebAudioTrackLevelCurve,
   syncWebAudioTrack,
   type TrackJump,
   unloadWebAudioTrack,
@@ -27,6 +28,7 @@ import { useShowMode } from './showMode'
 import { getServerTime } from './clockSync'
 import { computeActiveMs, jumpBoundaryMs, transportOf } from './playbackTransport'
 import { useAudioOutputLatencyMs } from './latencyCompensation'
+import { useTrackLevelCurve } from './trackLevel'
 import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 
@@ -51,6 +53,10 @@ import { useShowStateStore } from '../store/useShowStateStore'
 export function useAudioOutputDriver(): void {
   const { mode, queue, elapsedMs, playbackStatus, trackOverride, drivesAutomation: canControl } = useShowMode()
   const { currentEntry, currentSong, currentVariant, nextEntry, nextVariant } = queue
+
+  // Track level, fades and mute by cue (#485), played by the Web Audio engine.
+  const levelCurve = useTrackLevelCurve(queue)
+  useEffect(() => setWebAudioTrackLevelCurve(levelCurve), [levelCurve])
 
   // Kept fresh every render without being a dependency of the load/play effects below (same
   // reasoning as useClickOutputDriver.ts's stateRef) - those must fire only on a genuine

@@ -146,11 +146,14 @@ describe('song parts', () => {
     expect(lines[0].partIndex).toBe(0)
   })
 
-  it('treats unknown directives as ordinary text', () => {
-    const lines = parseChordPro('{title: Sweet Home}')
+  // Changed 2026-10-27: metadata like {title:} was shown as a lyric line and started a part of its
+  // own, so every {x_bar} section start landed one part late (the timeline, the part announcements
+  // and {x_bar} already skipped such lines). Now the prompter skips them too.
+  it('skips metadata directives - not shown, no part of their own', () => {
+    expect(parseChordPro('{title: Sweet Home}\n{artist: Lynyrd Skynyrd}\n[00:02.00] {key: D}')).toEqual([])
+    const lines = parseChordPro('{title: Sweet Home}\n{part: Verse}\nBig wheels keep on turning')
     expect(lines).toHaveLength(1)
-    expect(lines[0].partLabel).toBeNull()
-    expect(lines[0].segments).toMatchObject([{ chord: null, text: '{title: Sweet Home}' }])
+    expect(lines[0]).toMatchObject({ partIndex: 0, partLabel: 'Verse' })
   })
 
   it('keeps timecodes and chords working inside a part', () => {
@@ -187,8 +190,7 @@ describe('musician comments (#215)', () => {
   })
 
   it('does not treat other directives as comments', () => {
-    const [line] = parseChordPro('{title: Sweet Home}')
-    expect(line.comment).toBeNull()
+    expect(parseChordPro('{title: Sweet Home}').some((line) => line.comment !== null)).toBe(false)
   })
 
   it('targets a plain {comment:}/{c:} comment at everyone', () => {

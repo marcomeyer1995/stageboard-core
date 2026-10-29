@@ -10,10 +10,10 @@ import type { SyncStatus } from '../store/useSyncStore'
  * make a real fault easy to miss. Always shown as colour *and* word; stage lighting shifts
  * colours and not every musician tells red from green.
  */
-export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'paused' | 'finished' | 'fault'
+export type StatusBarKind = 'ready' | 'count-in' | 'playing' | 'loop' | 'paused' | 'finished' | 'fault'
 
 /** The word for the state - a key into the `statusbar` texts (state.*), translated where shown (#456). */
-export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
+export type StatusBarLabel = 'ready' | 'countIn' | 'playing' | 'loop' | 'paused' | 'finished' | 'audioError' | 'syncError' | 'offline' | 'noMaster' | 'variantDeleted' | 'noDefaultVariant'
 
 export interface StatusBarState {
   kind: StatusBarKind
@@ -35,6 +35,9 @@ export interface StatusBarInput {
   /** The current song's variant is missing (Queue.currentVariantIssue) - nothing plays, and no
    * other variant in its place (Marco, 2026-10-18), so the band must see why. */
   variantIssue?: VariantIssue | null
+  /** A Loop-Trainer loop is sounding (Solo Üben) - visible on every dashboard, not only in the
+   * widget that started it (Marco, 2026-10-22: a loop played on with nothing saying so). */
+  loop?: boolean
 }
 
 /** Faults first (they matter most, whatever the transport does), then the transport state.
@@ -46,6 +49,7 @@ export function statusBarState(input: StatusBarInput): StatusBarState {
   if (input.mode === 'gig' && input.noMaster) return { kind: 'fault', label: 'noMaster' }
   if (input.variantIssue === 'deleted') return { kind: 'fault', label: 'variantDeleted' }
   if (input.variantIssue === 'no-default') return { kind: 'fault', label: 'noDefaultVariant' }
+  if (input.loop) return { kind: 'loop', label: 'loop' }
   if (input.playbackStatus === 'playing') {
     return input.isCountIn ? { kind: 'count-in', label: 'countIn' } : { kind: 'playing', label: 'playing' }
   }
@@ -58,6 +62,8 @@ export const STATUS_BAR_CLASS: Record<StatusBarKind, string> = {
   ready: 'bg-surface text-ink',
   'count-in': 'bg-state-count-in text-state-count-in-ink',
   playing: 'bg-state-playing text-state-playing-ink',
+  // A loop is playing too - same colour, its own icon and word.
+  loop: 'bg-state-playing text-state-playing-ink',
   paused: 'bg-state-paused text-state-paused-ink',
   finished: 'bg-state-finished text-state-finished-ink',
   fault: 'bg-state-fault text-state-fault-ink',

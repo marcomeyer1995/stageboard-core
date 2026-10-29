@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { DeviceTransportConfig } from 'shared-types'
@@ -43,7 +44,7 @@ export const useDeviceTransportConfigStore = create<DeviceTransportConfigState>(
     set({ loaded: true })
 
     changesHandle = deviceTransportConfigChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (config) => {
     await putDeviceTransportConfig(config)
