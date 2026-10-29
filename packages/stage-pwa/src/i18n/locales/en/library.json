@@ -188,5 +188,6 @@
     "key": "Key",
     "keyPlaceholder": "e.g. Am",
     "bpmError": "Enter a BPM between 20 and 400."
-  }
+  },
+  "backToView": "Back to the view"
 }

@@ -53,13 +53,17 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
       <PageHeader
         back={onBack && { label: t('title'), onClick: onBack }}
-        actions={[
-          { icon: 'edit', label: t('edit'), variant: 'primary', onClick: onEdit },
-          active
-            ? { icon: 'deactivate', label: t('pv.deactivate'), onClick: onDeactivate, disabled: !canActivate }
-            : { icon: 'activate', label: t('pv.activate'), onClick: onActivate, disabled: !canActivate },
-        ]}
-        menu={{ title: setlist.name, actions: menu }}
+        actions={[{ icon: 'edit', label: t('edit'), variant: 'primary', onClick: onEdit }]}
+        // (De)activating is not needed that often - in ⋮, first (Marco, 2026-10-30).
+        menu={{
+          title: setlist.name,
+          actions: [
+            active
+              ? { label: t('pv.deactivate'), onClick: onDeactivate, disabled: !canActivate }
+              : { label: t('pv.activate'), onClick: onActivate, disabled: !canActivate },
+            ...menu,
+          ],
+        }}
         title={setlist.name}
         titleExtra={active && <Badge tone="accent">{t('active')}</Badge>}
         subtitle={facts.join(' · ')}

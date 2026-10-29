@@ -777,11 +777,10 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
       <PageHeader
-        back={onBack && { label: t('title'), onClick: onBack }}
-        actions={[
-          { icon: 'close', label: t('cancel'), onClick: () => void leaveEditing() },
-          { icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() },
-        ]}
+        // ← leaves the editor to the preview, asking first when something changed - no "Abbrechen"
+        // of its own (Marco, 2026-10-30). Also beside the list: it is the only way out.
+        back={{ label: t('backToView'), onClick: () => void leaveEditing() }}
+        actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() }]}
       />
       <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}

@@ -211,6 +211,9 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     // One grey line under the title (2026-10-29: no chip row of its own).
     expect(screen.getByText(/^Auftritt .*24\.12\.2026 · 2 Songs · Ende 23:00$/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+    // (De)activating sits in ⋮ (2026-10-30) - one main action beside it.
+    expect(screen.queryByRole('button', { name: 'Aktivieren' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Herbst-Tour 2026' }))
     expect(screen.getByRole('button', { name: 'Aktivieren' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Songs durchsuchen…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Speichern' })).not.toBeInTheDocument()
@@ -229,7 +232,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
   })
 
-  it('"Abbrechen" with changes asks - "Verwerfen" throws them away', async () => {
+  it('← with changes asks - "Verwerfen" throws them away', async () => {
     const saveSetlist = vi.fn(async () => {})
     const askUnsaved = vi.fn(async () => 'discard' as const)
     useDialogStore.setState({ askUnsaved })
@@ -237,7 +240,7 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     renderEditing()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Verworfen' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
 
     await waitFor(() => expect(askUnsaved).toHaveBeenCalled())
     expect(await screen.findByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
@@ -252,12 +255,12 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     renderEditing()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Winter-Tour' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     await waitFor(() => expect(askUnsaved).toHaveBeenCalledTimes(1))
     expect(screen.getByLabelText('Name')).toHaveValue('Winter-Tour')
 
     askUnsaved.mockResolvedValue('save')
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ name: 'Winter-Tour' })))
   })
 
@@ -295,11 +298,11 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     )
   })
 
-  it('"Abbrechen" without changes goes straight back, no question', async () => {
+  it('← without changes goes straight back to the preview, no question (2026-10-30: no "Abbrechen" of its own)', async () => {
     const askUnsaved = vi.fn(async () => 'discard' as const)
     useDialogStore.setState({ askUnsaved })
     renderEditing()
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück zur Ansicht' }))
     expect(await screen.findByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument()
     expect(askUnsaved).not.toHaveBeenCalled()
   })
