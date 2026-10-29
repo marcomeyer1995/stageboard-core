@@ -193,6 +193,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The text field has the focus - shows the ChordPro keys above the phone keyboard (#606) and,
   // on the phone, leaves the screen to the text alone (#617).
   const [textFocused, setTextFocused] = useState(false)
+  // From where the focus really is: a field that is rebuilt while focused never sends its blur, and
+  // the ChordPro key bar then stayed for the search field (Redmi, landscape, 2026-10-29).
+  useEffect(() => {
+    const follow = (e: FocusEvent) => setTextFocused(e.target === textareaRef.current)
+    document.addEventListener('focusin', follow)
+    return () => document.removeEventListener('focusin', follow)
+  }, [])
   // Where the cursor is in the text: the preview follows it (#617).
   const [caret, setCaret] = useState(0)
   // Every section starts collapsed (Marco, explicit request).
@@ -1247,11 +1254,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <div className="min-h-0 flex-1 overflow-y-auto">{detailsView}</div>
         ) : view === 'preview' ? (
           previewPane
-        ) : isPanel && !headerAside ? (
-          // Wide screens: text and preview side by side, each scrolling on its own (#617).
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 [&>*]:min-h-0">
+        ) : isPanel ? (
+          // Wide screens: text and preview side by side, each scrolling on its own (#617). With
+          // very little room (keyboard up in landscape) the preview column hides - by CSS, never by
+          // a different tree: rebuilding the text field took its focus and closed the keyboard again.
+          <div className={`grid min-h-0 flex-1 gap-3 [&>*]:min-h-0 ${headerAside ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {textPane}
-            <div className="flex min-h-0 flex-col">{previewPane}</div>
+            <div className={`flex min-h-0 flex-col ${headerAside ? 'hidden' : ''}`}>{previewPane}</div>
           </div>
         ) : (
           textPane
