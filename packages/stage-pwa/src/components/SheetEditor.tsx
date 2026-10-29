@@ -1138,7 +1138,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           range={findBar.range}
           memory={findMemory}
           onMarks={onFindMarks}
-          onClose={() => setFindBar(null)}
+          onClose={() => {
+            // The search left its last match selected - that is no marking of lines for the next tool.
+            const textarea = textareaRef.current
+            if (textarea) textarea.setSelectionRange(textarea.selectionEnd, textarea.selectionEnd)
+            setFindBar(null)
+          }}
           onReplace={(after, label) => {
             const before = draft.chordProContent
             setDraft({ ...draft, chordProContent: after })

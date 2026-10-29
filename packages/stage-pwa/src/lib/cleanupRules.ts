@@ -132,7 +132,7 @@ export const CLEANUP_RULES: readonly CleanupRule[] = [
   },
   {
     id: 'chordBracketSpaces',
-    label: 'Leerzeichen in Akkord-Klammern entfernen',
+    label: 'Leerzeichen in Akkorden entfernen',
     hint: '„[ Am ]“ wird „[Am]“.',
     defaultOn: true,
     run: (text) => mapChords(text, (chord) => chord.trim()),
@@ -159,7 +159,7 @@ export const CLEANUP_RULES: readonly CleanupRule[] = [
   },
   {
     id: 'quotes',
-    label: 'Anführungszeichen und Apostrophe vereinheitlichen',
+    label: 'Anführungszeichen vereinheitlichen',
     hint: 'Typografische Zeichen (’ ‘ “ ” „) werden einfache (\' und ") - so findet die Suche sie auch.',
     defaultOn: false,
     run: (text) => mapLines(text, (line) => line.replace(/[’‘‛]/g, "'").replace(/[“”„]/g, '"')),
@@ -173,21 +173,21 @@ export const CLEANUP_RULES: readonly CleanupRule[] = [
   },
   {
     id: 'innerSpaces',
-    label: 'Mehrere Leerzeichen in einer Zeile → eines',
+    label: 'Mehrfache Leerzeichen → eines',
     hint: 'Nur in Zeilen mit Text und Akkorden in Klammern. Akkord-Zeilen über dem Text behalten ihre Abstände - die bestimmen, wo ein Akkord steht.',
     defaultOn: false,
     run: (text) => mapLines(text, (line) => (isDirective(line) || isPlainChordLine(line) ? line : line.replace(/(\S) {2,}(?=\S)/g, '$1 '))),
   },
   {
     id: 'noGapAfterHeader',
-    label: 'Keine Leerzeile nach einer Abschnitts-Überschrift',
+    label: 'Keine Leerzeile nach Überschrift',
     hint: 'Zwischen „{part: Chorus}“ und der ersten Zeile darunter steht nichts.',
     defaultOn: true,
     run: noGapAfterHeader,
   },
   {
     id: 'gapBeforeHeader',
-    label: 'Eine Leerzeile vor jeder Abschnitts-Überschrift',
+    label: 'Leerzeile vor jeder Überschrift',
     hint: 'Jeder Abschnitt („{part: …}“) wird durch eine Leerzeile vom vorigen getrennt.',
     defaultOn: true,
     run: gapBeforeHeader,
@@ -205,7 +205,7 @@ export const CLEANUP_RULES: readonly CleanupRule[] = [
   },
   {
     id: 'trimEdges',
-    label: 'Leerzeilen am Anfang und Ende entfernen',
+    label: 'Leerzeilen am Anfang/Ende entfernen',
     hint: 'Der Text beginnt mit seiner ersten Zeile und endet mit seiner letzten.',
     defaultOn: true,
     run: (text) => {

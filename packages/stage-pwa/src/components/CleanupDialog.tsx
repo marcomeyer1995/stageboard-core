@@ -16,6 +16,7 @@ export function CleanupDialog({ text, scope, onApply, onCancel }: { text: string
   return (
     <Dialog
       title="Aufräumen"
+      size="l"
       onClose={onCancel}
       actions={
         <>
@@ -39,12 +40,13 @@ export function CleanupDialog({ text, scope, onApply, onCancel }: { text: string
           <div key={rule.id} className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               <CheckRow checked={enabled.includes(rule.id)} onToggle={() => toggle(rule.id)}>
-                <span className="flex w-full items-baseline justify-between gap-2">
-                  <span>{rule.label}</span>
-                  <span className={`text-sm tabular-nums ${counts[rule.id] > 0 ? 'text-ink-soft' : 'text-ink-faint'}`}>{counts[rule.id]}</span>
-                </span>
+                {rule.label}
               </CheckRow>
             </div>
+            {/* Beside the row, never cut off with a long name: how many places. */}
+            <span aria-label={`${counts[rule.id]} Stellen`} className={`w-8 flex-shrink-0 text-right text-base tabular-nums ${counts[rule.id] > 0 ? 'text-ink' : 'text-ink-faint'}`}>
+              {counts[rule.id]}
+            </span>
             <InfoHint text={rule.hint} />
           </div>
         ))}
