@@ -375,7 +375,7 @@ export function TrackManagerField({ variantId, tracks, disabled, searchQuery = '
                       className={`min-h-form flex-1 min-w-0 px-3 text-base placeholder:text-ink-faint ${INPUT}`}
                     />
                     <Button type="submit" disabled={searching || !query.trim()}>
-                      {searching ? 'Suche…' : 'Suchen'}
+                      {searching ? t('tm.searching') : t('tm.search')}
                     </Button>
                   </div>
                 </form>

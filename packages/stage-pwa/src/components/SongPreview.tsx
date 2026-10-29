@@ -9,6 +9,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { Button, Select } from './ui'
 import { playableTracks } from '../lib/stems'
+import { useTranslation } from 'react-i18next'
 
 interface SongPreviewProps {
   songId: string
@@ -28,6 +29,7 @@ interface SongPreviewProps {
  * ShowState, queue or default; it only decides which variant "Bearbeiten" opens.
  */
 export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
+  const { t } = useTranslation('editor')
   const songs = useSongsStore((state) => state.songs)
   const allVariants = useSongVariantsStore((state) => state.variants)
   const [variant, setVariant] = useState<SongVariant | null>(null)
@@ -60,7 +62,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   }, [songId, variantId, pickedId, !!song])
 
   if (!song || !variant) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Lade…</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">{t('loading')}</div>
   }
 
   // The grips as on stage: transpose, played and chart tuning (lib/pitch.ts).
@@ -68,9 +70,9 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
   const tuning = stageTuning(variant)
   const unknownTuning = unrecognisedTuningText(variant)
   const contentBadges = [
-    { label: 'Cues', count: variant.cues.length },
-    { label: 'Audio', count: playableTracks(variant.tracks).length },
-    { label: 'Klick-Punkte', count: variant.beatGrid?.points.length ?? 0 },
+    { label: t('sp.cues'), count: variant.cues.length },
+    { label: t('sp.audio'), count: playableTracks(variant.tracks).length },
+    { label: t('sp.points'), count: variant.beatGrid?.points.length ?? 0 },
   ]
 
   return (
@@ -83,21 +85,21 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
           the scrollbar (2026-10-16). */}
       <div className="flex items-start justify-between gap-3 max-[599px]:pr-2">
         <div className="min-w-0">
-          <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || '(ohne Titel)'}</h2>
+          <h2 className="truncate text-2xl font-bold text-ink max-[599px]:whitespace-normal max-[599px]:break-words">{song.title || t('untitled')}</h2>
           {song.artist && <p className="truncate text-ink-faint">{song.artist}</p>}
         </div>
         <Button variant="primary" className="flex-shrink-0" onClick={() => onEdit(variant.id)}>
-          Bearbeiten
+          {t('edit')}
         </Button>
       </div>
 
       {variantsOfSong.length > 1 && (
         <Select
-          aria-label="Variante"
+          aria-label={t('variant')}
           className="min-w-0"
           value={variant.id}
           onChange={(e) => setPickedId(e.target.value)}
-          options={variantsOfSong.map((v) => ({ value: v.id, label: v.isDefault ? `${v.label} (Standard)` : v.label }))}
+          options={variantsOfSong.map((v) => ({ value: v.id, label: v.isDefault ? t('variantDefault', { name: v.label }) : v.label }))}
         />
       )}
 
@@ -119,14 +121,14 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {variant.key && <span className="rounded-control bg-control px-2 py-1">Key: {soundingKey(variant)}</span>}
+        {variant.key && <span className="rounded-control bg-control px-2 py-1">{t('sp.key', { key: soundingKey(variant) })}</span>}
         {(variant.transpose ?? 0) !== 0 && (
-          <span className="rounded-control bg-control px-2 py-1">Transponiert: {signedSteps(variant.transpose ?? 0)}</span>
+          <span className="rounded-control bg-control px-2 py-1">{t('sp.transposed', { steps: signedSteps(variant.transpose ?? 0) })}</span>
         )}
-        {!isStandard(tuning) && <span className="rounded-control bg-control px-2 py-1">Stimmung: {tuningLabel(tuning)}</span>}
-        {unknownTuning && <span className="rounded-control bg-control px-2 py-1">Tuning: {unknownTuning}</span>}
+        {!isStandard(tuning) && <span className="rounded-control bg-control px-2 py-1">{t('sp.tuning', { tuning: tuningLabel(tuning) })}</span>}
+        {unknownTuning && <span className="rounded-control bg-control px-2 py-1">{t('sp.rawTuning', { tuning: unknownTuning })}</span>}
         {variant.capo !== undefined && (
-          <span className="rounded-control bg-control px-2 py-1">Capo: {variant.capo}</span>
+          <span className="rounded-control bg-control px-2 py-1">{t('sp.capo', { capo: variant.capo })}</span>
         )}
         <span className="rounded-control bg-control px-2 py-1">
           {variant.bpm} BPM · {variant.timeSignature}

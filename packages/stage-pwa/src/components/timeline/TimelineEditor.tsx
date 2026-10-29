@@ -1538,7 +1538,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   const selectedNote = selectedNoteStart !== null ? notes.find((note) => note.start === selectedNoteStart) : undefined
   const selectedPart = selectedPartIndex !== null ? blocks.find((b) => b.partIndex === selectedPartIndex) : undefined
   const selectedPartCue = selectedPart ? (partCues.get(selectedPart.partIndex) ?? null) : null
-  const selectedPartName = (selectedPart && spokenTexts(announcementSettings.texts)(selectedPart.label)) ?? selectedPart?.label ?? 'Teil'
+  const selectedPartName = (selectedPart && spokenTexts(announcementSettings.texts)(selectedPart.label)) ?? selectedPart?.label ?? t('tl.part')
   const selectedPartOnBar1 = selectedPart ? nearestBar(timeline, selectedPart.startMs) <= 1 : false
   const selectedSection = selectedPart ? sectionStarts.find((start) => start.partIndex === selectedPart.partIndex) : undefined
   const lastBar = timeline.barOf(timeline.beatAtOrBefore(durationMs))

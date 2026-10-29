@@ -89,10 +89,10 @@ export const UPLOADED_SET = 'upload'
 export function stemSetsOf(tracks: readonly TrackMeta[]): StemSet[] {
   const sets: StemSet[] = []
   const uploaded = uploadedStems(tracks)
-  if (uploaded.length) sets.push({ key: UPLOADED_SET, label: 'Hochgeladen', stems: uploaded })
+  if (uploaded.length) sets.push({ key: UPLOADED_SET, label: i18n.t('editor:stem.uploaded'), stems: uploaded })
   for (const track of playableTracks(tracks)) {
     const stems = stemsOf(tracks, track.id)
-    if (stems.length) sets.push({ key: track.id, label: `Aus ${track.label}`, stems })
+    if (stems.length) sets.push({ key: track.id, label: i18n.t('editor:stem.from', { name: track.label }), stems })
   }
   return sets
 }

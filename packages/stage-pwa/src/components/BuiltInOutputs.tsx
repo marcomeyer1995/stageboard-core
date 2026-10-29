@@ -92,7 +92,7 @@ export function BuiltInOutputs() {
             <div className="min-w-[12rem] flex-1">
               <Select
                 id={`output-${capability}`}
-                aria-label={`${label} - spielt auf`}
+                aria-label={t('builtIn.playsOn', { label })}
                 value={target}
                 options={options}
                 onChange={(e) => {

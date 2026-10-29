@@ -353,7 +353,9 @@
       "choir": "Chor",
       "click": "Klick",
       "other": "Sonstiges"
-    }
+    },
+    "uploaded": "Hochgeladen",
+    "from": "Aus {{name}}"
   },
   "tm": {
     "job": {
@@ -399,7 +401,9 @@
       "reference": "Referenz",
       "bandMix": "Band-Playback",
       "stem": "Stem"
-    }
+    },
+    "searching": "Suche…",
+    "search": "Suchen"
   },
   "sep": {
     "title": "Spuren trennen: {{name}}",
@@ -605,7 +609,10 @@
     "cueAt": "Cue bei {{time}}",
     "overview": "Übersicht",
     "allStems": "Wieder alle Spuren hören",
-    "onlyStem": "Nur {{name}} hören"
+    "onlyStem": "Nur {{name}} hören",
+    "stems": "Stems ({{count}})",
+    "onlySolo": " · nur {{name}}",
+    "hitsFrom": " · Treffer aus {{name}}"
   },
   "apply": "Übernehmen",
   "pc": {
@@ -670,5 +677,16 @@
     "snapHint": "Einrasten verschiebt Cues auf den nächsten erkannten Anschlag - ohne Zusage, dass jeder Abschnittswechsel einen hat.",
     "apply": "Übernehmen",
     "applyN": "Übernehmen ({{count}} Cues)"
-  }
+  },
+  "sp": {
+    "cues": "Cues",
+    "audio": "Audio",
+    "points": "Klick-Punkte",
+    "key": "Key: {{key}}",
+    "transposed": "Transponiert: {{steps}}",
+    "tuning": "Stimmung: {{tuning}}",
+    "rawTuning": "Tuning: {{tuning}}",
+    "capo": "Capo: {{capo}}"
+  },
+  "edit": "Bearbeiten"
 }

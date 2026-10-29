@@ -353,7 +353,9 @@
       "choir": "Choir",
       "click": "Click",
       "other": "Other"
-    }
+    },
+    "uploaded": "Uploaded",
+    "from": "From {{name}}"
   },
   "tm": {
     "job": {
@@ -399,7 +401,9 @@
       "reference": "Reference",
       "bandMix": "Band playback",
       "stem": "Stem"
-    }
+    },
+    "searching": "Searching…",
+    "search": "Search"
   },
   "sep": {
     "title": "Separate stems: {{name}}",
@@ -605,7 +609,10 @@
     "cueAt": "Cue at {{time}}",
     "overview": "Overview",
     "allStems": "Hear all tracks again",
-    "onlyStem": "Hear only {{name}}"
+    "onlyStem": "Hear only {{name}}",
+    "stems": "Stems ({{count}})",
+    "onlySolo": " · only {{name}}",
+    "hitsFrom": " · hits from {{name}}"
   },
   "apply": "Apply",
   "pc": {
@@ -670,5 +677,16 @@
     "snapHint": "Snapping moves cues onto the next detected attack - with no promise that every section change has one.",
     "apply": "Apply",
     "applyN": "Apply ({{count}} cues)"
-  }
+  },
+  "sp": {
+    "cues": "Cues",
+    "audio": "Audio",
+    "points": "Click points",
+    "key": "Key: {{key}}",
+    "transposed": "Transposed: {{steps}}",
+    "tuning": "Tuning: {{tuning}}",
+    "rawTuning": "Tuning: {{tuning}}",
+    "capo": "Capo: {{capo}}"
+  },
+  "edit": "Edit"
 }

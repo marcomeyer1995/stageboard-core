@@ -50,8 +50,9 @@ export function StemsToggle({ count, open, top, onToggle, soloLabel, analysisSou
       style={{ top }}
     >
       <Icon name={open ? 'collapse' : 'expand'} />
-      Stems ({count}){soloLabel ? ` · nur ${soloLabel}` : ''}
-      {analysisSourceLabel ? ` · Treffer aus ${analysisSourceLabel}` : ''}
+      {i18n.t('editor:tl.stems', { count })}
+      {soloLabel ? i18n.t('editor:tl.onlySolo', { name: soloLabel }) : ''}
+      {analysisSourceLabel ? i18n.t('editor:tl.hitsFrom', { name: analysisSourceLabel }) : ''}
     </button>
   )
 }
