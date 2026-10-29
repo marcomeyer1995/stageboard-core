@@ -1,6 +1,6 @@
 import { useShowPart } from '../lib/widgetParts'
 import { isSongEntry } from 'shared-types'
-import { useShowMode } from '../lib/showMode'
+import { useShowModeCore } from '../lib/showMode'
 import { useContentFontSizeStore } from '../store/useContentFontSizeStore'
 import { DEFAULT_SIZE_RATIO, type ActiveSetlistConfig } from './activeSetlistConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -19,7 +19,7 @@ export function ActiveSetlistWidget({ config }: { config: ActiveSetlistConfig })
   // Mode-aware (#247): Gig = shared ShowState setlist, Solo Üben = the practice setlist.
   const {
     queue: { activeSetlist },
-  } = useShowMode()
+  } = useShowModeCore()
   const baseFontSize = useContentFontSizeStore((state) => state.baseFontSize)
   const fontSize = stageFontSize(baseFontSize * (config.sizeRatio ?? DEFAULT_SIZE_RATIO))
 

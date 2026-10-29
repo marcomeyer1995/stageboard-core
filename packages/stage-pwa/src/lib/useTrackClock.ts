@@ -35,7 +35,14 @@ export interface TrackClock {
  * hand-started stopwatch - callers that need the real recording should require a track before
  * rendering this.
  */
-export function useTrackClock(trackSrc: string | null): TrackClock {
+/**
+ * The quietest volume the element gets: -80 dB, not 0. On Android (Redmi, 2026-10-28) an element
+ * set to exactly 0 jumps ~150 ms ahead, and back when it comes up again - the end of a mute fade
+ * stuttered audibly. 0.0001 is inaudible and keeps the position steady.
+ */
+export const SILENT_VOLUME = 0.0001
+
+export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((ms: number) => number) | null>): TrackClock {
   const elapsedMs = useElapsedMs()
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -72,9 +79,25 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
 
   // "Mein Mix" (docs/21 §9.3): the track's slider sets this element's volume, also mid-song.
   const trackVolume = useAudioMixStore((state) => trackElementVolume(state.mix))
+  // Track level cues (#485: "Track stumm über 2 Takte"), heard here as in the show: the element's
+  // volume follows the level curve at its own position - every frame while it plays, once on a
+  // seek. An element can't go above 1, so a cue that raises the track plays at full volume here.
+  const applyVolume = useRef(() => {})
+  applyVolume.current = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    const level = trackLevel?.current ? trackLevel.current(audio.currentTime * 1000) : 1
+    audio.volume = Math.min(1, Math.max(SILENT_VOLUME, trackVolume * level))
+  }
+  useEffect(() => applyVolume.current(), [trackVolume, trackSrc])
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = trackVolume
-  }, [trackVolume, trackSrc])
+    if (!isPlaying || !trackLevel) return
+    let frame = requestAnimationFrame(function tick() {
+      applyVolume.current()
+      frame = requestAnimationFrame(tick)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [isPlaying, trackLevel])
 
   function togglePlay() {
     const audio = audioRef.current
@@ -105,7 +128,10 @@ export function useTrackClock(trackSrc: string | null): TrackClock {
       setPosition(e.currentTarget.currentTime)
       useClockStore.getState().seek(e.currentTarget.currentTime * 1000)
     },
-    onSeeked: (e) => useClockStore.getState().seek(e.currentTarget.currentTime * 1000),
+    onSeeked: (e) => {
+      useClockStore.getState().seek(e.currentTarget.currentTime * 1000)
+      applyVolume.current()
+    },
   }
 
   return { elapsedMs, isPlaying, duration, position, togglePlay, rate, setRate, audioProps }

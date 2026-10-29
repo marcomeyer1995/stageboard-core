@@ -1,8 +1,11 @@
 import { createAudioClock } from './audioClock'
 import { sourceOutput } from './audioMix'
+import type { LevelPoint } from './playbackCues'
+import { scheduleTrackLevel } from './trackLevel'
 import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
+import { equalPowerCurve, JUMP_COMMIT_S, JUMP_PREROLL_S, jumpCrossfadeMs, type TrackJump } from './webAudioTrackEngine'
 
 /**
  * Stems played together, live mixed on this device (docs/22 §3, Solo practice). Every stem is
@@ -65,12 +68,17 @@ interface Run {
   anchorPos: number
   fades: GainNode[]
   layers: Layer[]
+  /** Set when this run is a section jump's target (#479): it comes in at the boundary, crossfaded. */
+  jump: { id: number; startsAt: number; crossfadeS: number } | null
 }
 
 let loaded: Loaded | null = null
 let loading: { key: string; cancelled: boolean } | null = null
 let run: Run | null = null
 let gainsWanted = new Map<string, number>()
+/** The track's level over the song from its playback cues (#485) - on the bus, after the stems'
+ * own gains, so Stumm/Solo and the cues never fight. Empty: as uploaded. */
+let levelCurve: readonly LevelPoint[] = []
 let lastSyncAt = -Infinity
 let suspect = 0
 const clock = createAudioClock()
@@ -82,6 +90,8 @@ const stats = {
   starts: 0,
   late: 0,
   reschedules: 0,
+  /** Section jumps (#479) taken over seamlessly. */
+  jumps: 0,
   lastErrorMs: 0,
 }
 if (typeof window !== 'undefined') (window as unknown as { __sbStems: typeof stats }).__sbStems = stats
@@ -167,6 +177,11 @@ export function unloadStems(): void {
 }
 
 /** Each stem's gain (level, 0 when muted or another stem is soloed) - applied at once, also mid-song. */
+/** Sets the level curve of the song playing (or about to) - called by the Solo driver. */
+export function setStemLevelCurve(curve: readonly LevelPoint[]): void {
+  levelCurve = curve
+}
+
 export function setStemGains(gains: ReadonlyMap<string, number>): void {
   gainsWanted = new Map(gains)
   if (!loaded) return
@@ -174,17 +189,23 @@ export function setStemGains(gains: ReadonlyMap<string, number>): void {
   for (const [trackId, gain] of loaded.gains) gain.gain.setTargetAtTime(gainsWanted.get(trackId) ?? 1, ctx.currentTime, FADE_S)
 }
 
-function stopRun(at?: number): void {
+/** Ends the run at `at` - with `crossfadeS` down the equal-power curve under a jump's target. */
+function stopRun(at?: number, crossfadeS?: number): void {
   if (!run) return
   const ctx = getSharedAudioContext()
   const t = Math.max(at ?? 0, ctx.currentTime)
-  for (const fade of run.fades) fade.gain.setTargetAtTime(0, t, FADE_S / 3)
+  const length = crossfadeS ?? FADE_S
+  for (const fade of run.fades) {
+    if (crossfadeS) fade.gain.setValueCurveAtTime(equalPowerCurve(false), t, crossfadeS)
+    else fade.gain.setTargetAtTime(0, t, FADE_S / 3)
+  }
   for (const layer of run.layers) {
+    // Already scheduled seconds ahead (AHEAD_S) - enough for any crossfade.
     layer.feeder.cancelled = true
-    for (const node of layer.nodes) node.stop(t + FADE_S)
+    for (const node of layer.nodes) node.stop(t + length)
   }
   const fades = run.fades
-  setTimeout(() => fades.forEach((fade) => fade.disconnect()), (t - ctx.currentTime + FADE_S * 4) * 1000 + 50)
+  setTimeout(() => fades.forEach((fade) => fade.disconnect()), (t - ctx.currentTime + length * 4) * 1000 + 50)
   run = null
 }
 
@@ -274,19 +295,25 @@ async function feed(ctx: AudioContext, r: Run, layer: Layer, out: AudioNode, str
   }
 }
 
-/** Starts every stem so that song position `pos` plays at audio time `when`. */
-function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number): void {
+/** Starts every stem so that song position `pos` plays at audio time `when` - with `crossfadeS` up
+ * the equal-power curve while the run before goes down it (a section jump, #479). */
+function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number, crossfadeS?: number): void {
   const anchorPos = Math.max(0, pos)
   const anchorTime = when + Math.max(0, -pos)
   if (anchorPos >= l.durationS) return
-  const r: Run = { key: l.key, anchorTime, anchorPos, fades: [], layers: [] }
+  const r: Run = { key: l.key, anchorTime, anchorPos, fades: [], layers: [], jump: null }
   run = r
   stats.starts++
   for (const [trackId, source] of l.stems) {
     const fade = ctx.createGain()
-    // Fade in only when entering mid-song - a start at 0 begins with the song's own lead-in.
-    fade.gain.setValueAtTime(anchorPos > 0 ? 0 : 1, anchorTime)
-    if (anchorPos > 0) fade.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
+    if (crossfadeS) {
+      fade.gain.setValueAtTime(0, anchorTime)
+      fade.gain.setValueCurveAtTime(equalPowerCurve(true), anchorTime, crossfadeS)
+    } else {
+      // Fade in only when entering mid-song - a start at 0 begins with the song's own lead-in.
+      fade.gain.setValueAtTime(anchorPos > 0 ? 0 : 1, anchorTime)
+      if (anchorPos > 0) fade.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
+    }
     fade.connect(l.gains.get(trackId)!)
     r.fades.push(fade)
     const layer: Layer = {
@@ -306,10 +333,10 @@ function startRun(ctx: AudioContext, l: Loaded, when: number, pos: number): void
 }
 
 /**
- * Called every frame while stems should play. `elapsedNow` reads the song time (null = stopped).
- * Returns whether the browser still blocks audio (needs a tap).
+ * Called every frame while stems should play. `elapsedNow` reads the song time (null = stopped),
+ * `jumpNow` a queued section jump (#479). Returns whether the browser still blocks audio (needs a tap).
  */
-export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean): { blocked: boolean } {
+export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean, jumpNow: () => TrackJump | null = () => null): { blocked: boolean } {
   const ctx = getSharedAudioContext()
   if (!shouldPlay || !loaded) {
     stopRun()
@@ -332,6 +359,7 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean):
     return { blocked: false }
   }
   const songNow = elapsedMs / 1000
+  scheduleTrackLevel(loaded.bus.gain, ctx, now, songNow, levelCurve)
   if (run && run.key !== loaded.key) stopRun()
   if (!run) {
     if (songNow < -LEAD_S * 4) return { blocked: false }
@@ -339,6 +367,31 @@ export function syncStems(elapsedNow: () => number | null, shouldPlay: boolean):
     else startRun(ctx, loaded, now + LEAD_S, songNow + LEAD_S)
     return { blocked: false }
   }
+  // A section jump (#479), as in the Gig's track engine: the target comes in at the boundary, the
+  // running stems fade out under it - taken over once it can't be called off any more, early enough
+  // for the target to be decoded.
+  const jump = jumpNow()
+  if (run.jump && now < run.jump.startsAt && (!jump || jump.id !== run.jump.id)) {
+    // Called off before it happened: back to the song as it runs (a short restart).
+    stopRun()
+    return { blocked: false }
+  }
+  if (jump && run.jump?.id !== jump.id && (run.jump === null || now >= run.jump.startsAt)) {
+    const boundaryAt = run.anchorTime + (jump.boundaryMs / 1000 - run.anchorPos)
+    if (boundaryAt - now > LEAD_S && boundaryAt - now <= JUMP_COMMIT_S) {
+      const fadeAt = boundaryAt - JUMP_PREROLL_S
+      const crossfadeS = jumpCrossfadeMs() / 1000
+      stopRun(fadeAt, crossfadeS)
+      startRun(ctx, loaded, fadeAt, jump.toMs / 1000 - JUMP_PREROLL_S, crossfadeS)
+      const started = run as Run | null
+      if (started) started.jump = { id: jump.id, startsAt: fadeAt, crossfadeS }
+      stats.jumps++
+      return { blocked: false }
+    }
+  }
+  // Until a jump's target has come in and the song clock reads the target too, the two disagree.
+  if (run.jump && now < run.jump.startsAt + JUMP_PREROLL_S + run.jump.crossfadeS) return { blocked: false }
+
   const errorS = now < run.anchorTime ? run.anchorPos - (songNow + (run.anchorTime - now)) : run.anchorPos + (now - run.anchorTime) - songNow
   stats.lastErrorMs = Math.round(errorS * 1000)
   suspect = Math.abs(errorS) > RESCHEDULE_ERROR_S ? suspect + 1 : 0
@@ -359,6 +412,7 @@ export function __stemStatsForTests(): typeof stats {
 
 /** Test-only: forget all state. */
 export function __resetStemsForTests(): void {
+  levelCurve = []
   unloadStems()
   gainsWanted = new Map()
   lastSyncAt = -Infinity

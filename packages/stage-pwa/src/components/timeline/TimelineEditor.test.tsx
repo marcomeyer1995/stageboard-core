@@ -290,7 +290,8 @@ describe('cues on the timeline (docs/14 §7)', () => {
   it('dragging a cue moves it, landing on a beat nearby', () => {
     const { onChange } = setup({ cues: [cue] })
     pointer(12000, 15040)
-    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 15000 }])
+    // On a beat now - anchored to its bar and beat, it moves with the grid (#483).
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 15000, anchor: { bar: 8, beat: 3 } }])
   })
 
   it('tapping a cue selects it; "Entfernen" removes it', () => {
@@ -448,7 +449,7 @@ describe('playhead quick actions (#326)', () => {
     const { onChange } = setup({ cues: [cue] })
     tapAt(12000, 342 + 22)
     fireEvent.click(screen.getByText('Zum Abspielkopf'))
-    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 16500 }])
+    expect((onChange.mock.calls[0]![0] as { cues: ShowCue[] }).cues).toEqual([{ ...cue, timeMs: 16500, anchor: { bar: 9, beat: 2 } }])
   })
 
   it('moves a selected lyric line there - only between its neighbours, else it says why', () => {

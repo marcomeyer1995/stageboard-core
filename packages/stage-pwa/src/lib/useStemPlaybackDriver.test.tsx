@@ -15,7 +15,7 @@ vi.mock('pouchdb-browser', () => ({
     }
   },
 }))
-vi.mock('./stemEngine', () => ({ loadStems: vi.fn(async () => true), setStemGains: vi.fn(), syncStems: vi.fn(), unloadStems: vi.fn() }))
+vi.mock('./stemEngine', () => ({ loadStems: vi.fn(async () => true), setStemGains: vi.fn(), setStemLevelCurve: vi.fn(), syncStems: vi.fn(), unloadStems: vi.fn() }))
 vi.mock('./localAudioEngine', () => ({ setLocalTrackSilenced: vi.fn() }))
 vi.mock('./latencyCompensation', () => ({ useAudioOutputLatencyMs: () => 0 }))
 vi.mock('./usePracticeElapsedMs', () => ({ practiceElapsedMsNow: () => null }))

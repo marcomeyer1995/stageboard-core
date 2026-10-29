@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import type { Switch, SwitchState } from '../lib/switches'
@@ -30,7 +31,7 @@ export const useSwitchesStore = create<SwitchesState>((set) => ({
     set({ switches: [], states: {} })
     await refresh(set)
     changesHandle = switchesChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   save: async (sw) => {
     await putSwitch(sw)

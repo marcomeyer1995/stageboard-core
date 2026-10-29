@@ -11,7 +11,11 @@ import type { PrompterConfig } from './prompterConfig'
 // Same reasoning as VisualMetronomeWidget.test.tsx/ShowTransportWidget.test.tsx: mock the
 // composed hooks directly rather than the stores underneath them, several of which
 // transitively construct a real PouchDB at import time (unavailable under happy-dom).
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
+})
 vi.mock('../lib/useActiveProfile', () => ({ useActiveProfile: vi.fn() }))
 vi.mock('../store/useProfilesStore', () => ({ useProfilesStore: vi.fn() }))
 
