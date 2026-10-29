@@ -111,5 +111,76 @@
   "save": "Speichern",
   "menuTitle": "Song-Editor",
   "toolsTitle": "Textwerkzeuge",
-  "insertTitle": "Einfügen"
+  "insertTitle": "Einfügen",
+  "cleanup": {
+    "rule": {
+      "tabsToSpaces": "Tabulatoren → Leerzeichen",
+      "chordBracketSpaces": "Leerzeichen in Akkorden entfernen",
+      "chordRootCaps": "Akkord-Grundton groß",
+      "chordSpelling": "Akkord-Schreibweise vereinheitlichen",
+      "quotes": "Anführungszeichen vereinheitlichen",
+      "trailingSpaces": "Leerzeichen am Zeilenende entfernen",
+      "innerSpaces": "Mehrfache Leerzeichen → eines",
+      "noGapAfterHeader": "Keine Leerzeile nach Überschrift",
+      "gapBeforeHeader": "Leerzeile vor jeder Überschrift",
+      "collapseEmpty": "Mehrere Leerzeilen → eine",
+      "trimEdges": "Leerzeilen am Anfang/Ende entfernen"
+    },
+    "hint": {
+      "tabsToSpaces": "Ein Tabulator-Zeichen wird ein Leerzeichen - es sieht sonst auf jedem Gerät anders breit aus.",
+      "chordBracketSpaces": "„[ Am ]“ wird „[Am]“.",
+      "chordRootCaps": "„[am]“ wird „[Am]“, „[c#m]“ wird „[C#m]“. Der Liedtext bleibt, wie er ist.",
+      "chordSpelling": "Deutsches H wird B („[H7]“ → „[B7]“), „[Amin]“ wird „[Am]“, „[CM7]“ wird „[Cmaj7]“.",
+      "quotes": "Typografische Zeichen (’ ‘ “ ” „) werden einfache (' und \") - so findet die Suche sie auch.",
+      "trailingSpaces": "Unsichtbare Leerzeichen hinter dem letzten Wort einer Zeile.",
+      "innerSpaces": "Nur in Zeilen mit Text und Akkorden in Klammern. Akkord-Zeilen über dem Text behalten ihre Abstände - die bestimmen, wo ein Akkord steht.",
+      "noGapAfterHeader": "Zwischen „{part: Chorus}“ und der ersten Zeile darunter steht nichts.",
+      "gapBeforeHeader": "Jeder Abschnitt („{part: …}“) wird durch eine Leerzeile vom vorigen getrennt.",
+      "collapseEmpty": "Zwei oder mehr Leerzeilen hintereinander werden eine.",
+      "trimEdges": "Der Text beginnt mit seiner ersten Zeile und endet mit seiner letzten."
+    },
+    "title": "Aufräumen",
+    "nothing": "Nichts zu ändern",
+    "apply_one": "Aufräumen ({{count}} Stelle)",
+    "apply_other": "Aufräumen ({{count}} Stellen)",
+    "scope": "Gilt für: {{scope}}. Die Auswahl wird auf diesem Gerät gemerkt.",
+    "places": "{{count}} Stellen"
+  },
+  "cancel": "Abbrechen",
+  "cm": {
+    "comments": "Kommentare",
+    "none": "Noch keine Kommentare - „+ Kommentar“ im ChordPro-Text fügt einen an der Cursorposition ein.",
+    "tabs": "Tab-Blöcke",
+    "noTabs": "Noch keine Tab-Blöcke - „+ Tab“ im ChordPro-Text fügt einen an der Cursorposition ein (Import aus Ultimate Guitar legt sie automatisch an).",
+    "tabN": "Tab {{n}}",
+    "lines": "({{count}} Zeilen)",
+    "visible": "Sichtbar für:",
+    "allNoMembers": "alle (keine Bandmitglieder angelegt)",
+    "allNone": "(alle, da niemand ausgewählt)"
+  },
+  "remove": "Entfernen",
+  "ins": {
+    "comment": "Kommentar einfügen",
+    "insert": "Einfügen",
+    "text": "Text",
+    "templates": "Vorlagen",
+    "tab": "Tab einfügen"
+  },
+  "fix": {
+    "title": "Auch in anderen Varianten ändern?",
+    "save_one": "Speichern + {{count}} Änderung",
+    "save_other": "Speichern + {{count}} Änderungen",
+    "all": "Alle auswählen ({{count}})",
+    "removeLine": "Zeile entfernen",
+    "target": "{{variant}} · Zeile {{line}}"
+  },
+  "keys": {
+    "aria": "ChordPro-Tasten",
+    "chord": "[{{chord}}] einfügen",
+    "insert": "Einfügen"
+  },
+  "shape": {
+    "lower": "Tieferer Griff",
+    "higher": "Höherer Griff"
+  }
 }

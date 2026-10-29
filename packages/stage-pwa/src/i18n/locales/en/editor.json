@@ -111,5 +111,76 @@
   "save": "Save",
   "menuTitle": "Song editor",
   "toolsTitle": "Text tools",
-  "insertTitle": "Insert"
+  "insertTitle": "Insert",
+  "cleanup": {
+    "rule": {
+      "tabsToSpaces": "Tabs → spaces",
+      "chordBracketSpaces": "Remove spaces inside chords",
+      "chordRootCaps": "Chord root in capitals",
+      "chordSpelling": "Unify chord spelling",
+      "quotes": "Unify quotation marks",
+      "trailingSpaces": "Remove spaces at line ends",
+      "innerSpaces": "Multiple spaces → one",
+      "noGapAfterHeader": "No empty line after a heading",
+      "gapBeforeHeader": "Empty line before every heading",
+      "collapseEmpty": "Several empty lines → one",
+      "trimEdges": "Remove empty lines at start/end"
+    },
+    "hint": {
+      "tabsToSpaces": "A tab character becomes a space - otherwise it looks a different width on every device.",
+      "chordBracketSpaces": "“[ Am ]” becomes “[Am]”.",
+      "chordRootCaps": "“[am]” becomes “[Am]”, “[c#m]” becomes “[C#m]”. The lyrics stay as they are.",
+      "chordSpelling": "German H becomes B (“[H7]” → “[B7]”), “[Amin]” becomes “[Am]”, “[CM7]” becomes “[Cmaj7]”.",
+      "quotes": "Typographic marks (’ ‘ “ ” „) become plain ones (' and \") - so the search finds them too.",
+      "trailingSpaces": "Invisible spaces after the last word of a line.",
+      "innerSpaces": "Only in lines with lyrics and chords in brackets. Chord lines above the lyrics keep their spacing - it decides where a chord sits.",
+      "noGapAfterHeader": "Nothing stands between “{part: Chorus}” and the first line below it.",
+      "gapBeforeHeader": "Every section (“{part: …}”) is separated from the previous one by an empty line.",
+      "collapseEmpty": "Two or more empty lines in a row become one.",
+      "trimEdges": "The text starts with its first line and ends with its last."
+    },
+    "title": "Clean up",
+    "nothing": "Nothing to change",
+    "apply_one": "Clean up ({{count}} place)",
+    "apply_other": "Clean up ({{count}} places)",
+    "scope": "Applies to: {{scope}}. The choice is remembered on this device.",
+    "places": "{{count}} places"
+  },
+  "cancel": "Cancel",
+  "cm": {
+    "comments": "Comments",
+    "none": "No comments yet - “+ Comment” in the ChordPro text inserts one at the cursor.",
+    "tabs": "Tab blocks",
+    "noTabs": "No tab blocks yet - “+ Tab” in the ChordPro text inserts one at the cursor (import from Ultimate Guitar creates them automatically).",
+    "tabN": "Tab {{n}}",
+    "lines": "({{count}} lines)",
+    "visible": "Visible to:",
+    "allNoMembers": "everyone (no band members set up)",
+    "allNone": "(everyone, since nobody is chosen)"
+  },
+  "remove": "Remove",
+  "ins": {
+    "comment": "Insert comment",
+    "insert": "Insert",
+    "text": "Text",
+    "templates": "Templates",
+    "tab": "Insert tab"
+  },
+  "fix": {
+    "title": "Change in other variants too?",
+    "save_one": "Save + {{count}} change",
+    "save_other": "Save + {{count}} changes",
+    "all": "Select all ({{count}})",
+    "removeLine": "Remove line",
+    "target": "{{variant}} · line {{line}}"
+  },
+  "keys": {
+    "aria": "ChordPro keys",
+    "chord": "Insert [{{chord}}]",
+    "insert": "Insert"
+  },
+  "shape": {
+    "lower": "Lower shape",
+    "higher": "Higher shape"
+  }
 }

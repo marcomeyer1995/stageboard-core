@@ -2,6 +2,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import type { GuitarShape } from '../lib/guitarShapes'
 import { GuitarChordDiagram } from './GuitarChordDiagram'
 import { IconButton } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** How far a finger must move sideways to switch to the next shape, CSS px. */
 const SWIPE_PX = 40
@@ -11,6 +12,7 @@ const SWIPE_PX = 40
  * several places on the neck): swipe sideways or tap ‹ › to move through them, low to high.
  */
 export function GuitarShapePicker({ shapes }: { shapes: readonly GuitarShape[] }) {
+  const { t } = useTranslation('editor')
   const [index, setIndex] = useState(0)
   const start = useRef<{ x: number; y: number } | null>(null)
   const shape = shapes[Math.min(index, shapes.length - 1)]
@@ -34,11 +36,11 @@ export function GuitarShapePicker({ shapes }: { shapes: readonly GuitarShape[] }
       </div>
       {many && (
         <div className="flex items-center gap-1">
-          <IconButton icon="previous" label="Tieferer Griff" variant="quiet" disabled={index === 0} onClick={() => step(-1)} />
+          <IconButton icon="previous" label={t('shape.lower')} variant="quiet" disabled={index === 0} onClick={() => step(-1)} />
           <span className="min-w-16 text-center text-base tabular-nums text-ink-soft">
             {index + 1}/{shapes.length}
           </span>
-          <IconButton icon="next" label="Höherer Griff" variant="quiet" disabled={index === shapes.length - 1} onClick={() => step(1)} />
+          <IconButton icon="next" label={t('shape.higher')} variant="quiet" disabled={index === shapes.length - 1} onClick={() => step(1)} />
         </div>
       )}
     </div>

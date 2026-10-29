@@ -4,6 +4,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { TargetPicker } from './CommentListEditor'
 import { useCommentTemplates } from './CommentTemplatesSettings'
 import { Button, Dialog, Field, Section } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** Six strings, high to low, with room for a riff - what a hand-typed tab always started with. */
 export const TAB_SKELETON = ['e', 'B', 'G', 'D', 'A', 'E'].map((string) => `${string}|----------------|`).join('\n')
@@ -21,6 +22,7 @@ const tokens = (names: string[] | null) => names?.map((name) => name.trim().toLo
  * as exactly the `{cc4marco,jamie: …}` syntax lib/chordpro.ts parses, instead of typed from memory.
  */
 export function InsertCommentDialog({ onInsert, onClose }: { onInsert: (line: string) => void; onClose: () => void }) {
+  const { t } = useTranslation('editor')
   const profiles = useProfilesStore((state) => state.profiles)
   const templates = useCommentTemplates()
   const [text, setText] = useState('')
@@ -32,19 +34,19 @@ export function InsertCommentDialog({ onInsert, onClose }: { onInsert: (line: st
   }
   return (
     <Dialog
-      title="Kommentar einfügen"
+      title={t('ins.comment')}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" disabled={!text.trim()} onClick={insert}>
-            Einfügen
+            {t('ins.insert')}
           </Button>
         </>
       }
     >
       <Field
-        label="Text"
+        label={t('ins.text')}
         value={text}
         autoFocus
         onChange={(e) => setText(e.target.value)}
@@ -53,7 +55,7 @@ export function InsertCommentDialog({ onInsert, onClose }: { onInsert: (line: st
         }}
       />
       {templates.length > 0 && (
-        <Section title="Vorlagen">
+        <Section title={t('ins.templates')}>
           <div className="flex flex-wrap gap-2">
             {/* Tapping one fills in the text (an action, not a ✓-choice - docs/15). */}
             {templates.map((template) => (
@@ -71,15 +73,16 @@ export function InsertCommentDialog({ onInsert, onClose }: { onInsert: (line: st
 
 /** "+ Tab" (#608): a six-string skeleton inside `{start_of_tab}` … `{end_of_tab}`, for everyone or a few. */
 export function InsertTabDialog({ onInsert, onClose }: { onInsert: (lines: string) => void; onClose: () => void }) {
+  const { t } = useTranslation('editor')
   const profiles = useProfilesStore((state) => state.profiles)
   const [targets, setTargets] = useState<string[] | null>(null)
   return (
     <Dialog
-      title="Tab einfügen"
+      title={t('ins.tab')}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button
             variant="primary"
             onClick={() => {
@@ -87,7 +90,7 @@ export function InsertTabDialog({ onInsert, onClose }: { onInsert: (lines: strin
               onClose()
             }}
           >
-            Einfügen
+            {t('ins.insert')}
           </Button>
         </>
       }
