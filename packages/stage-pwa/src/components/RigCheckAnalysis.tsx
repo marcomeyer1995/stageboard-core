@@ -24,20 +24,24 @@ function PathResult({ title, score }: { title: string; score: RigCheckPathScore 
           </p>
           <ul className="flex flex-col">
             {score.sections.map((s) => (
-              <li key={s.name} className="flex flex-wrap items-baseline gap-x-2 border-b border-line py-1 text-sm last:border-b-0">
-                <span className="min-w-0 flex-1 text-ink">{s.label}</span>
-                {s.knownLimit === 'silent' ? (
-                  <span className="text-ink-faint">{LIMIT_LABEL.silent}</span>
-                ) : (
-                  <>
-                    <span className={s.hitRate >= 0.9 ? 'text-ink' : 'text-warn'}>{pct(s.hitRate)} ≤ 15 ms</span>
-                    <span className="text-ink-soft">
-                      Ø {Math.round(s.meanAbsMs)} ms, max {Math.round(s.maxAbsMs)} ms
-                    </span>
-                    {s.slipRate > 0.1 && <span className="font-semibold text-danger">Takt verschoben ({pct(s.slipRate)})</span>}
-                    {s.knownLimit === 'change-in-bar' && <span className="text-ink-faint">{LIMIT_LABEL['change-in-bar']}</span>}
-                  </>
-                )}
+              // The section's name on its own line where the row is narrow - beside the figures it
+              // broke mid-name ("Gleichmäßig / 90") on a phone (2026-10-29); in one row from sm up.
+              <li key={s.name} className="flex flex-col gap-x-3 border-b border-line py-1.5 text-sm last:border-b-0 sm:flex-row sm:items-baseline">
+                <span className="text-ink sm:w-48 sm:shrink-0">{s.label}</span>
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
+                  {s.knownLimit === 'silent' ? (
+                    <span className="text-ink-faint">{LIMIT_LABEL.silent}</span>
+                  ) : (
+                    <>
+                      <span className={s.hitRate >= 0.9 ? 'text-ink' : 'text-warn'}>{pct(s.hitRate)} ≤ 15 ms</span>
+                      <span className="text-ink-soft">
+                        Ø {Math.round(s.meanAbsMs)} ms, max {Math.round(s.maxAbsMs)} ms
+                      </span>
+                      {s.slipRate > 0.1 && <span className="font-semibold text-danger">Takt verschoben ({pct(s.slipRate)})</span>}
+                      {s.knownLimit === 'change-in-bar' && <span className="text-ink-faint">{LIMIT_LABEL['change-in-bar']}</span>}
+                    </>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
