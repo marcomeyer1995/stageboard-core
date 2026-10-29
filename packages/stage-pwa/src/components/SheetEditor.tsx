@@ -33,7 +33,8 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
-import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
 import { TextFixDialog, type TextFixPick } from './TextFixDialog'
@@ -142,6 +143,9 @@ interface SheetEditorProps {
   onBack: () => void
 }
 
+/** Visible height (keyboard up) from which the variant row stays above the text while typing. */
+export const ROOMY_FOR_VARIANT_ROW_PX = 560
+
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
@@ -218,7 +222,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The cursor's line, scrolled into the preview's view (#617) - inside the preview's own scroll
   // box, never the page. Marked there through `activeIndex`.
   const previewRef = useRef<HTMLDivElement>(null)
-  const keyboardOpen = useTouchKeyboardOpen()
+  const keyboardOpen = useSettledTouchKeyboardOpen()
+  const visible = useSettledVisualViewport()
   const content = draft?.chordProContent ?? ''
   useEffect(() => {
     const timer = setTimeout(() => setSettledText(content), 800)
@@ -1065,8 +1070,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const trackCaret = (e: { currentTarget: HTMLTextAreaElement }) => setCaret(e.currentTarget.selectionStart)
   // Unclosed [ or { (#605) - a hint naming the line, never fixed by itself.
   const brackets = bracketProblems(settledText)
-  // Phone with the keyboard up: the text alone (#617) - no variant row above it.
-  const typingOnPhone = textFocused && !isPanel
+  // Little height with the keyboard up: the text alone (#617) - no variant row above it. Where
+  // enough is left (a tablet in portrait: ~690 px), the variant row stays (Marco, 2026-10-28).
+  // The larger of the visible area and the page: while the keyboard comes up, the visible area
+  // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
+  const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
+  const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
