@@ -81,8 +81,8 @@ function readSort(): LibrarySortChoice {
 /** The tab this device last had open (a convenience - Setlists when storage fails). */
 /** "2026-12-24" → "24.12.2026". */
 function formatGigDate(date: string): string {
-  const [y, m, d] = date.split('-')
-  return `${d}.${m}.${y}`
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(i18n.language, { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /** "heute / gestern / vor 12 Tagen". */

@@ -6,8 +6,9 @@ import { randomId } from '../lib/id'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { INPUT } from './ui/styles'
 import { Button, Dialog } from './ui'
+import { useTranslation } from 'react-i18next'
 
-const STEP_TITLE = { 1: 'Name', 2: 'Inhalt', 3: 'Grundeinstellungen' } as const
+const STEP_TITLE = { 1: 'nw.step1', 2: 'nw.step2', 3: 'nw.step3' } as const
 type Step = keyof typeof STEP_TITLE
 const TIME_SIGNATURES = ['4/4', '3/4', '6/8', '2/4', '12/8']
 
@@ -33,6 +34,7 @@ function importedTuning(text: string | undefined): Pick<SongVariant, 'chartTunin
  * the song opens in the normal editor, indistinguishable from any other song.
  */
 export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
+  const { t } = useTranslation('library')
   const [step, setStep] = useState<Step>(1)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
@@ -95,20 +97,20 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
   // "Weiter"/"Song anlegen" right; the × that sat in the title row is gone.
   return (
     <Dialog
-      title="Neuer Song"
+      title={t('nw.title')}
       closeOnBackdrop={false}
       onClose={() => !importing && onCancel()}
       actions={
         <>
-          <Button onClick={step === 1 ? onCancel : () => setStep((step - 1) as Step)}>{step === 1 ? 'Abbrechen' : 'Zurück'}</Button>
+          <Button onClick={step === 1 ? onCancel : () => setStep((step - 1) as Step)}>{step === 1 ? t('cancel') : t('nw.back')}</Button>
           {step === 1 && (
             <Button type="submit" form="new-song-step" variant="primary" disabled={!title.trim()}>
-              Weiter
+              {t('nw.next')}
             </Button>
           )}
           {step === 3 && (
             <Button type="submit" form="new-song-step" variant="primary" disabled={!title.trim() || !bpmValid}>
-              Song anlegen
+              {t('nw.create')}
             </Button>
           )}
         </>
@@ -116,7 +118,7 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
     >
         <div className="flex flex-col gap-4" onKeyDown={(e) => e.key === 'Escape' && !importing && onCancel()}>
           <p className="text-sm font-semibold text-ink-soft">
-            Schritt {step}/3 · {STEP_TITLE[step]}
+            {t('nw.step', { step, title: t(STEP_TITLE[step]) })}
           </p>
           {step === 1 && (
             <form
@@ -128,11 +130,11 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
               className="flex flex-col gap-3"
             >
               <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-                Titel
+                {t('nw.songTitle')}
                 <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
               </label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-                Band / Interpret (optional)
+                {t('nw.artist')}
                 <input value={artist} onChange={(e) => setArtist(e.target.value)} className={field} />
               </label>
             </form>
@@ -140,10 +142,10 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
 
           {step === 2 && (
             <div className="flex flex-col gap-3">
-              <p className="text-base text-ink-soft">Woher kommt der Text?</p>
+              <p className="text-base text-ink-soft">{t('nw.source')}</p>
               <button type="button" onClick={() => setImporting(true)} className="flex min-h-16 flex-col items-start justify-center rounded-control bg-control-strong px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-strong-hover">
-                <span className="text-base font-bold text-ink">Von Ultimate Guitar importieren</span>
-                <span className="text-sm text-ink-muted">Suchen, Vorschau ansehen, übernehmen - Akkorde, Text, Key und Tempo.</span>
+                <span className="text-base font-bold text-ink">{t('nw.ug')}</span>
+                <span className="text-sm text-ink-muted">{t('nw.ugHint')}</span>
               </button>
               <button
                 type="button"
@@ -153,8 +155,8 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                 }}
                 className="flex min-h-16 flex-col items-start justify-center rounded-control bg-control-strong px-4 py-3 text-left [@media(hover:hover)]:hover:bg-control-strong-hover"
               >
-                <span className="text-base font-bold text-ink">Leer beginnen</span>
-                <span className="text-sm text-ink-muted">Text später im Editor schreiben oder einfügen.</span>
+                <span className="text-base font-bold text-ink">{t('nw.empty')}</span>
+                <span className="text-sm text-ink-muted">{t('nw.emptyHint')}</span>
               </button>
             </div>
           )}
@@ -170,17 +172,20 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
             >
               <p className="text-sm text-ink-muted">
                 {imported
-                  ? `Importiert: ${imported.chordProContent.split('\n').filter((l) => l.trim()).length} Zeilen${imported.key ? `, Key ${imported.key}` : ''}${imported.bpm ? `, ${imported.bpm} BPM` : ''}.`
-                  : 'Leerer Song.'}{' '}
-                Alles lässt sich später im Editor ändern.
+                  ? t('nw.imported', { count: imported.chordProContent.split('\n').filter((l) => l.trim()).length }) +
+                    (imported.key ? t('nw.importedKey', { key: imported.key }) : '') +
+                    (imported.bpm ? t('nw.importedBpm', { bpm: imported.bpm }) : '') +
+                    '.'
+                  : t('nw.emptySong')}{' '}
+                {t('nw.later')}
               </p>
               <div className="grid grid-cols-3 gap-2 [&>label]:min-w-0">
                 <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-                  BPM
+                  {t('nw.bpm')}
                   <input inputMode="decimal" value={bpm} onChange={(e) => setBpm(e.target.value)} className={field} aria-invalid={!bpmValid} />
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-                  Takt
+                  {t('nw.meter')}
                   <select value={timeSignature} onChange={(e) => setTimeSignature(e.target.value)} className={field}>
                     {TIME_SIGNATURES.map((ts) => (
                       <option key={ts} value={ts}>
@@ -190,11 +195,11 @@ export function NewSongWizard({ onCancel, onFinish }: NewSongWizardProps) {
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-                  Key
-                  <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="z. B. Am" className={field} />
+                  {t('nw.key')}
+                  <input value={key} onChange={(e) => setKey(e.target.value)} placeholder={t('nw.keyPlaceholder')} className={field} />
                 </label>
               </div>
-              {!bpmValid && <p className="text-sm text-warn">BPM zwischen 20 und 400 eingeben.</p>}
+              {!bpmValid && <p className="text-sm text-warn">{t('nw.bpmError')}</p>}
             </form>
           )}
         </div>
