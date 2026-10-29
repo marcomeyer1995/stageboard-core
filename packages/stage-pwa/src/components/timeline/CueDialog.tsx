@@ -6,6 +6,7 @@ import { playbackCueContent, playbackSwitches, type FadeUnit, type Switch, type 
 import { INPUT } from '../ui/styles'
 import { formatTimelineTime, parseTimelineTime } from '../../lib/timeline'
 import { Button, Dialog, Field, IconButton, Segmented } from '../ui'
+import { useTranslation } from 'react-i18next'
 
 export type CueContent = Omit<ShowCue, 'id' | 'timeMs'>
 
@@ -38,6 +39,7 @@ export function CueDialog({
    * click has its own group "Wiedergabe" - one place for it, not two (Marco, 2026-10-18). */
   withPlayback?: boolean
 }) {
+  const { t } = useTranslation('actions')
   // One device and nothing else to pick (the Rig-Check's device cue): it is chosen already - the
   // dialog said "Gerät wählen…" under the title "Rig-Check: Kemper" (2026-10-29).
   const onlyDevice = !withPlayback && devices.length === 1 ? devices[0]!.id : ''
@@ -122,9 +124,9 @@ export function CueDialog({
       onClose={onCancel}
       actions={
         <>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button onClick={onCancel}>{t('cancel')}</Button>
           <Button variant="primary" disabled={!complete} onClick={submit}>
-            Übernehmen
+            {t('apply')}
           </Button>
         </>
       }
@@ -139,7 +141,7 @@ export function CueDialog({
       >
 
         <label className={label}>
-          <span className="mb-1 block">Gerät</span>
+          <span className="mb-1 block">{t('cueDlg.device')}</span>
           <select
             className={select}
             value={deviceId}
@@ -151,9 +153,9 @@ export function CueDialog({
             }}
           >
             <option value="" disabled>
-              Gerät wählen…
+              {t('cueDlg.chooseDevice')}
             </option>
-            {withPlayback && <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick, Ansagen & Track</option>}
+            {withPlayback && <option value={PLAYBACK_CUE_TARGET}>{t('cueDlg.playback')}</option>}
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -166,8 +168,8 @@ export function CueDialog({
           <>
             {(
               [
-                ['Klick', clickSwitch, setClickSwitch],
-                ['Ansagen', voiceSwitch, setVoiceSwitch],
+                [t('cueDlg.click'), clickSwitch, setClickSwitch],
+                [t('cueDlg.voice'), voiceSwitch, setVoiceSwitch],
               ] as const
             ).map(([name, value, set]) => (
               <Segmented
@@ -177,63 +179,63 @@ export function CueDialog({
                 value={value === '' ? 'same' : value}
                 onChange={(v) => set(v === 'same' ? '' : v)}
                 options={[
-                  { value: 'same', label: 'Unverändert' },
-                  { value: 'off', label: 'Aus' },
-                  { value: 'on', label: 'An' },
+                  { value: 'same', label: t('cueDlg.same') },
+                  { value: 'off', label: t('cueDlg.off') },
+                  { value: 'on', label: t('cueDlg.on') },
                 ]}
               />
             ))}
             <Segmented
-              label="Track"
+              label={t('cueDlg.track')}
               showLabel
               value={trackMode}
               onChange={setTrackMode}
               options={[
-                { value: 'same', label: 'Unverändert' },
-                { value: 'level', label: 'dB' },
-                { value: 'mute', label: 'Stumm' },
-                { value: 'normal', label: 'Normal' },
+                { value: 'same', label: t('cueDlg.same') },
+                { value: 'level', label: t('cueDlg.db') },
+                { value: 'mute', label: t('cueDlg.mute') },
+                { value: 'normal', label: t('cueDlg.normal') },
               ]}
             />
             {trackMode === 'level' && (
-              <Field label="Lautstärke in dB (0 = wie hochgeladen)" inputMode="decimal" value={trackDb} onChange={(e) => setTrackDb(e.target.value)} error={trackValid ? undefined : 'Zwischen −60 und +12 dB.'} />
+              <Field label={t('cueDlg.level')} inputMode="decimal" value={trackDb} onChange={(e) => setTrackDb(e.target.value)} error={trackValid ? undefined : t('cueDlg.levelError')} />
             )}
             {trackMode !== 'same' && (
               <div className="flex items-end gap-2">
                 <div className="w-28">
-                  <Field label="Übergang" inputMode="decimal" value={fadeAmount} onChange={(e) => setFadeAmount(e.target.value)} error={fadeValid ? undefined : 'Eine Zahl, 0 = sofort.'} />
+                  <Field label={t('cueDlg.fade')} inputMode="decimal" value={fadeAmount} onChange={(e) => setFadeAmount(e.target.value)} error={fadeValid ? undefined : t('cueDlg.fadeError')} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <Segmented
-                    label="Einheit"
+                    label={t('cueDlg.unit')}
                     value={fadeUnit}
                     onChange={setFadeUnit}
                     options={[
-                      { value: 'bars', label: 'Takte' },
-                      { value: 'beats', label: 'Schläge' },
-                      { value: 'ms', label: 'ms' },
+                      { value: 'bars', label: t('cueDlg.bars') },
+                      { value: 'beats', label: t('cueDlg.beats') },
+                      { value: 'ms', label: t('cueDlg.ms') },
                     ]}
                   />
                 </div>
               </div>
             )}
-            <p className="text-sm text-ink-muted">Gilt ab dieser Stelle bis zum nächsten solchen Cue. Der Klick setzt danach genau im Raster wieder ein; der Track blendet über den Übergang (0 = sofort).</p>
+            <p className="text-sm text-ink-muted">{t('cueDlg.until')}</p>
           </>
         ) : free ? (
           <>
             <label className={label}>
-              <span className="mb-1 block">Befehl (Typ)</span>
+              <span className="mb-1 block">{t('cueDlg.commandType')}</span>
               <input className={select} value={freeType} onChange={(e) => setFreeType(e.target.value)} />
             </label>
             <label className={label}>
-              <span className="mb-1 block">Payload (JSON, optional)</span>
+              <span className="mb-1 block">{t('cueDlg.payload')}</span>
               <textarea rows={3} className={`px-3 py-2 ${INPUT}`} value={freePayload} onChange={(e) => setFreePayload(e.target.value)} />
             </label>
           </>
         ) : (
           <>
             <label className={label}>
-              <span className="mb-1 block">Befehl</span>
+              <span className="mb-1 block">{t('cueDlg.command')}</span>
               <select
                 className={select}
                 value={commandType}
@@ -245,7 +247,7 @@ export function CueDialog({
                 }}
               >
                 <option value="" disabled>
-                  {device ? 'Befehl wählen…' : 'Erst ein Gerät wählen'}
+                  {device ? t('cueDlg.chooseCommand') : t('cueDlg.deviceFirst')}
                 </option>
                 {commands.map((c) => (
                   <option key={c.type} value={c.type}>
@@ -254,7 +256,7 @@ export function CueDialog({
                 ))}
               </select>
             </label>
-            {(command?.fields ?? [{ key: '__placeholder', label: 'Wert', kind: 'bool' as const }]).map((field, i, fields) => {
+            {(command?.fields ?? [{ key: '__placeholder', label: t('cueDlg.value'), kind: 'bool' as const }]).map((field, i, fields) => {
               // Each value opens once the command and every value before it are chosen.
               const enabled = command !== undefined && fields.slice(0, i).every((f) => fieldAnswered(f, answers[f.key]))
               if (field.kind === 'text')
@@ -286,7 +288,7 @@ export function CueDialog({
                     }}
                   >
                     <option value="" disabled>
-                      {!command ? 'Erst einen Befehl wählen' : enabled ? `${field.label} wählen…` : 'Erst den Wert davor wählen'}
+                      {!command ? t('cueDlg.commandFirst') : enabled ? t('cueDlg.chooseField', { field: field.label }) : t('cueDlg.previousFirst')}
                     </option>
                     {command &&
                       fieldOptions(field).map((o) => (
@@ -303,19 +305,19 @@ export function CueDialog({
 
         {initialTimeMs !== undefined && (
           <div>
-            <span className={`${label} mb-1`}>Zeit im Song</span>
-            <div className="flex items-center gap-2" role="group" aria-label="Zeit im Song">
-              <IconButton icon="decrease" label="0,1 s früher" onClick={() => stepTime(-100)} />
+            <span className={`${label} mb-1`}>{t('cueDlg.time')}</span>
+            <div className="flex items-center gap-2" role="group" aria-label={t('cueDlg.time')}>
+              <IconButton icon="decrease" label={t('cueDlg.earlier')} onClick={() => stepTime(-100)} />
               <input
-                aria-label="Zeit"
+                aria-label={t('cueDlg.timeAria')}
                 inputMode="decimal"
                 className={`min-w-0 flex-1 text-center tabular-nums ${select}`}
                 value={timeText}
                 onChange={(e) => setTimeText(e.target.value)}
               />
-              <IconButton icon="increase" label="0,1 s später" onClick={() => stepTime(100)} />
+              <IconButton icon="increase" label={t('cueDlg.later')} onClick={() => stepTime(100)} />
             </div>
-            {timeMs === null && <p className="mt-1 text-sm text-warn">Zeit als 1:23.4 eingeben.</p>}
+            {timeMs === null && <p className="mt-1 text-sm text-warn">{t('cueDlg.timeError')}</p>}
           </div>
         )}
 
