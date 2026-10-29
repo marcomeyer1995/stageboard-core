@@ -1,0 +1,66 @@
+{
+  "title": "Library",
+  "untitled": "(untitled)",
+  "ago": {
+    "today": "today",
+    "yesterday": "yesterday",
+    "days": "{{count}} days ago"
+  },
+  "window": {
+    "days": "{{count}} days",
+    "shows": "the last {{count}} shows"
+  },
+  "never": {
+    "practiced": "never practised",
+    "rehearsed": "never rehearsed"
+  },
+  "playNote": "{{count}}× in {{period}} · last {{ago}}",
+  "sort": {
+    "name": "Name",
+    "performance": "Gig",
+    "title": "Title",
+    "artist": "Artist",
+    "setlist": "Setlist",
+    "practiced": "Practised",
+    "rehearsed": "Rehearsed"
+  },
+  "row": {
+    "addActive": "Add to the active setlist",
+    "removeActive": "Remove from the active setlist",
+    "duplicate": "Duplicate",
+    "unpin": "Remove offline pin",
+    "pin": "Pin offline",
+    "delete": "Delete",
+    "swipeRemove": "− From the active setlist",
+    "swipeAdd": "+ To the active setlist",
+    "current": "Current",
+    "inActive": "In the active setlist",
+    "noActive": "No active setlist"
+  },
+  "deleteSong": "Really delete “{{title}}”?",
+  "delete": "Delete",
+  "duplicateSong": "Duplicate song",
+  "copyTitle": "Title of the copy",
+  "copyName": "{{name}} (copy)",
+  "added": "Added to “{{name}}”",
+  "removed": "Removed from “{{name}}”",
+  "notSaved": " - not saved yet",
+  "loadedNow": "Loaded right now - move on first",
+  "tab": {
+    "setlists": "Setlists ({{count}})",
+    "songs": "Songs ({{count}})",
+    "shows": "Shows ({{count}})"
+  },
+  "searchSetlists": "Search setlists…",
+  "searchSongs": "Search songs…",
+  "search": "Search",
+  "hitsSongs": "{{count}} hits in songs",
+  "hitsSetlists": "{{count}} hits in setlists",
+  "sortSetlists": "Sort setlists",
+  "sortSongs": "Sort songs",
+  "active": "Active",
+  "newSetlist": "New setlist",
+  "newSong": "New song",
+  "pickShow": "Pick a show on the left.",
+  "pickItem": "Pick a setlist or a song on the left."
+}

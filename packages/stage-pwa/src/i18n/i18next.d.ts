@@ -1,4 +1,5 @@
 import 'i18next'
+import type library from './locales/de/library.json'
 import type addons from './locales/de/addons.json'
 import type devices from './locales/de/devices.json'
 import type hardware from './locales/de/hardware.json'
@@ -21,6 +22,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      library: typeof library
       addons: typeof addons
       devices: typeof devices
       hardware: typeof hardware

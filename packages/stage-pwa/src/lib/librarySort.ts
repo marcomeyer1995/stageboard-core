@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { isSongEntry, type PracticeLogEntry, type RehearsalWindow, type Setlist, type ShowLogEvent, type Song } from 'shared-types'
 
 /** How the Bibliothek orders its lists (Marco, 2026-10-07) - chosen per tab, remembered per device. */
@@ -7,15 +8,32 @@ export type SongSort = 'title' | 'artist' | 'setlist' | 'practiced' | 'rehearsed
 
 /** Option names; bar order A–Z left, Auftritt right (Marco, 2026-10-07). */
 // "Name"/"Titel", not "A–Z" - that could mean the artist too (Marco, 2026-10-07).
-export const SETLIST_SORT_LABEL: Record<SetlistSort, string> = { name: 'Name', performance: 'Auftritt' }
+export const SETLIST_SORT_LABEL: Record<SetlistSort, string> = {
+  get name() {
+    return i18n.t('library:sort.name')
+  },
+  get performance() {
+    return i18n.t('library:sort.performance')
+  },
+}
 export const SONG_SORT_LABEL: Record<SongSort, string> = {
-  title: 'Titel',
-  artist: 'Interpret',
-  setlist: 'Setlist',
+  get title() {
+    return i18n.t('library:sort.title')
+  },
+  get artist() {
+    return i18n.t('library:sort.artist')
+  },
+  get setlist() {
+    return i18n.t('library:sort.setlist')
+  },
   // Own Solo-Üben takes in the device's period (Bibliothek, beside the sort).
-  practiced: 'Geübt',
+  get practiced() {
+    return i18n.t('library:sort.practiced')
+  },
   // The band's Gig-mode plays in the band's period - days or last shows (Bibliothek, beside the sort; admins).
-  rehearsed: 'Geprobt',
+  get rehearsed() {
+    return i18n.t('library:sort.rehearsed')
+  },
 }
 
 /** Per song: how often in the chosen period, and when last (any time; 0 = never). */

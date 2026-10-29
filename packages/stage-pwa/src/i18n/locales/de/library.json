@@ -1,0 +1,66 @@
+{
+  "title": "Bibliothek",
+  "untitled": "(ohne Titel)",
+  "ago": {
+    "today": "heute",
+    "yesterday": "gestern",
+    "days": "vor {{count}} Tagen"
+  },
+  "window": {
+    "days": "{{count}} Tagen",
+    "shows": "den letzten {{count}} Shows"
+  },
+  "never": {
+    "practiced": "nie geübt",
+    "rehearsed": "nie geprobt"
+  },
+  "playNote": "{{count}}× in {{period}} · zuletzt {{ago}}",
+  "sort": {
+    "name": "Name",
+    "performance": "Auftritt",
+    "title": "Titel",
+    "artist": "Interpret",
+    "setlist": "Setlist",
+    "practiced": "Geübt",
+    "rehearsed": "Geprobt"
+  },
+  "row": {
+    "addActive": "Zur aktiven Setlist hinzufügen",
+    "removeActive": "Aus aktiver Setlist entfernen",
+    "duplicate": "Duplizieren",
+    "unpin": "Offline-Pin entfernen",
+    "pin": "Offline anheften",
+    "delete": "Löschen",
+    "swipeRemove": "− Aus aktiver Setlist",
+    "swipeAdd": "+ Zur aktiven Setlist",
+    "current": "Aktuell",
+    "inActive": "In der aktiven Setlist",
+    "noActive": "Keine aktive Setlist"
+  },
+  "deleteSong": "„{{title}}“ wirklich löschen?",
+  "delete": "Löschen",
+  "duplicateSong": "Song duplizieren",
+  "copyTitle": "Titel der Kopie",
+  "copyName": "{{name}} (Kopie)",
+  "added": "Zu „{{name}}“ hinzugefügt",
+  "removed": "Aus „{{name}}“ entfernt",
+  "notSaved": " - noch nicht gespeichert",
+  "loadedNow": "Gerade geladen - erst weiterschalten",
+  "tab": {
+    "setlists": "Setlists ({{count}})",
+    "songs": "Songs ({{count}})",
+    "shows": "Shows ({{count}})"
+  },
+  "searchSetlists": "Setlists durchsuchen…",
+  "searchSongs": "Songs durchsuchen…",
+  "search": "Suche",
+  "hitsSongs": "{{count}} Treffer unter Songs",
+  "hitsSetlists": "{{count}} Treffer unter Setlists",
+  "sortSetlists": "Setlists sortieren",
+  "sortSongs": "Songs sortieren",
+  "active": "Aktiv",
+  "newSetlist": "Neue Setlist",
+  "newSong": "Neuer Song",
+  "pickShow": "Wähle links eine Show aus.",
+  "pickItem": "Wähle links eine Setlist oder einen Song aus."
+}
