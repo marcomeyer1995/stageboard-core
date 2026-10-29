@@ -4,6 +4,7 @@ import type { SetlistEntry, SongVariant, TrackMeta } from 'shared-types'
 import { useAudioSyncReconciler } from './useAudioSyncReconciler'
 import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { useQueue } from './queue'
+import { useRigCheckTrackKey } from './rigCheck'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -15,6 +16,7 @@ vi.mock('../store/useAudioPinsStore', () => ({ useAudioPinsStore: vi.fn() }))
 vi.mock('../store/useAudioSyncStore', () => ({ useAudioSyncStore: vi.fn() }))
 vi.mock('../store/useShowStateStore', () => ({ useShowStateStore: vi.fn(), drivesAutomation: (s: { isMaster?: boolean }) => s.isMaster === true }))
 vi.mock('../store/useSongVariantsStore', () => ({ useSongVariantsStore: vi.fn() }))
+vi.mock('./rigCheck', () => ({ useRigCheckTrackKey: vi.fn(() => null) }))
 
 function track(id: string): TrackMeta {
   return { id, kind: 'band-mix', label: 'Band', source: 'upload', parentTrackId: null, mimeType: 'audio/mpeg', addedAt: 0 }
@@ -71,6 +73,7 @@ beforeEach(() => {
   vi.mocked(useAudioPinsStore).mockImplementation((selector) => selector({ pinsFor: () => [] } as never))
   vi.mocked(useSongVariantsStore).mockImplementation((selector) => selector({ variants: [] } as never))
   vi.mocked(useShowStateStore).mockImplementation((selector) => selector({ state: { trackOverride: null } } as never))
+  vi.mocked(useRigCheckTrackKey).mockReturnValue(null)
   mockQueue({})
 })
 
@@ -96,5 +99,11 @@ describe('useAudioSyncReconciler', () => {
     })
     render(<DriverHost workspaceId="ws-1" />)
     expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(), 'none')
+  })
+
+  it('keeps (and so fetches) the Rig-Check track while a run is open - before Start, in any mode (#464)', () => {
+    vi.mocked(useRigCheckTrackKey).mockReturnValue('rig-check-quick:rig-check-v1')
+    render(<DriverHost workspaceId="ws-1" />)
+    expect(scheduleReconcileAudioCache).toHaveBeenCalledWith('none', [], null, [], new Set(['rig-check-quick:rig-check-v1']), 'none')
   })
 })

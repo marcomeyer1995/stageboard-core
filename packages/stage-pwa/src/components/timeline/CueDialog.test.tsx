@@ -41,6 +41,12 @@ describe('CueDialog (docs/14 §7)', () => {
     expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'mg30', type: 'mg30.selectPatch', payload: { program: 5 } })
   })
 
+  it('one device and no playback to offer (the Rig-Check): it is chosen already', () => {
+    render(<CueDialog title="Rig-Check: NUX MG-30" devices={[devices[0]!]} withPlayback={false} onSubmit={vi.fn()} onCancel={vi.fn()} />)
+    expect(select('Gerät').value).toBe('mg30')
+    expect(select('Befehl').disabled).toBe(false)
+  })
+
   it('a device without described commands gets the free command and payload fields', () => {
     const onSubmit = vi.fn()
     render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={vi.fn()} />)
@@ -89,5 +95,32 @@ describe('CueDialog (docs/14 §7)', () => {
     fireEvent.change(screen.getByLabelText('Lautstärke in dB (0 = wie hochgeladen)'), { target: { value: '-4,5' } })
     fireEvent.click(screen.getByText('Übernehmen'))
     expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { track: { db: -4.5 } } })
+  })
+})
+
+describe('CueDialog - with the song time (#8, Nachbericht)', () => {
+  const initial = { targetLogicalDeviceId: 'mg30', type: 'mg30.selectPatch', payload: { program: 5 } }
+
+  it('moves the cue in tenths with − / +, or to a typed time, and hands the time back', () => {
+    const onSubmit = vi.fn()
+    render(<CueDialog title="Cue" devices={devices} initial={initial} initialTimeMs={83_400} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    const time = screen.getByLabelText('Zeit') as HTMLInputElement
+    expect(time.value).toBe('1:23.4')
+    fireEvent.click(screen.getByRole('button', { name: '0,1 s früher' }))
+    fireEvent.click(screen.getByRole('button', { name: '0,1 s früher' }))
+    expect(time.value).toBe('1:23.2')
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    expect(onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'mg30.selectPatch' }), 83_200)
+
+    fireEvent.change(time, { target: { value: '1:30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
+    expect(onSubmit).toHaveBeenLastCalledWith(expect.anything(), 90_000)
+  })
+
+  it('a time it cannot read blocks Übernehmen and says how to write it', () => {
+    render(<CueDialog title="Cue" devices={devices} initial={initial} initialTimeMs={1000} onSubmit={vi.fn()} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Zeit'), { target: { value: 'gleich' } })
+    expect(screen.getByRole('button', { name: 'Übernehmen' })).toBeDisabled()
+    expect(screen.getByText('Zeit als 1:23.4 eingeben.')).toBeInTheDocument()
   })
 })

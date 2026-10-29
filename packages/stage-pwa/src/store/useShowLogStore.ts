@@ -4,10 +4,16 @@ import { create } from 'zustand'
 import { randomId } from '../lib/id'
 import { ShowLogEventSchema, type ShowLogEvent } from 'shared-types'
 import {
+  deleteShowEvents,
   getAllShowLogEvents,
+  getAllShowProtections,
   putShowLogEvent,
+  putShowProtection,
+  removeShowProtection,
   showLogChanges,
+  showProtectionChanges,
   switchShowLogWorkspace,
+  switchShowProtectionWorkspace,
   type ShowLogEventDoc,
 } from '../lib/showLogDb'
 
@@ -67,9 +73,21 @@ interface ShowLogState {
   addNote: (text: string, authorProfileId: string | null) => Promise<void>
   /** For the master-gated tracker (useShowLogTracker.ts) to append derived events. */
   append: (event: ShowLogEvent) => Promise<void>
+  /** Shows kept from deletion, band-wide (#610). */
+  protectedShowIds: string[]
+  setProtected: (showId: string, on: boolean, byProfileId: string | null) => Promise<void>
+  /** Deletes these shows with all their events - protected ones are skipped. Returns how many
+   * shows were deleted. */
+  deleteShows: (showIds: readonly string[]) => Promise<number>
 }
 
 let changesHandle: LocalChangesHandle<ShowLogEvent> | null = null
+let protectionHandle: { cancel: () => void } | null = null
+
+async function refreshProtections(set: (partial: Partial<ShowLogState>) => void) {
+  const docs = await getAllShowProtections()
+  set({ protectedShowIds: docs.map((doc) => doc.id) })
+}
 
 async function refresh(set: (partial: Partial<ShowLogState>) => void) {
   const docs = await getAllShowLogEvents()
@@ -83,17 +101,35 @@ async function refresh(set: (partial: Partial<ShowLogState>) => void) {
 export const useShowLogStore = create<ShowLogState>((set, get) => ({
   events: [],
   loaded: false,
+  protectedShowIds: [],
   init: async (workspaceId) => {
     changesHandle?.cancel()
     changesHandle = null
+    protectionHandle?.cancel()
+    protectionHandle = null
     switchShowLogWorkspace(workspaceId)
-    set({ events: [], loaded: false })
+    switchShowProtectionWorkspace(workspaceId)
+    set({ events: [], loaded: false, protectedShowIds: [] })
 
-    await refresh(set)
+    await Promise.all([refresh(set), refreshProtections(set)])
     set({ loaded: true })
 
     changesHandle = showLogChanges()
     changesHandle.on('change', coalesced(() => refresh(set)))
+    const protections = showProtectionChanges()
+    protections.on('change', coalesced(() => refreshProtections(set)))
+    protectionHandle = protections
+  },
+  setProtected: async (showId, on, byProfileId) => {
+    if (on) await putShowProtection({ id: showId, protectedAt: Date.now(), byProfileId })
+    else await removeShowProtection(showId)
+  },
+  deleteShows: async (showIds) => {
+    const protectedIds = new Set(get().protectedShowIds)
+    const deletable = showIds.filter((showId) => !protectedIds.has(showId))
+    if (deletable.length === 0) return 0
+    await deleteShowEvents(deletable)
+    return deletable.length
   },
   addNote: async (text, authorProfileId) => {
     const showId = latestShowId(get().events)

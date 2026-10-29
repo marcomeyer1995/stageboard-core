@@ -3,6 +3,7 @@ import { BandManagementView } from './BandManagementView'
 import { DeviceLedgerView } from './DeviceLedgerView'
 import { HardwareSetupManager } from './HardwareSetupManager'
 import { PluginManager } from './PluginManager'
+import { RigCheckView } from './RigCheckView'
 import { DeviceSettings, StageServerPage } from './SystemSettings'
 import { WebAudioTrackSettings } from './WebAudioTrackSettings'
 import { useInputCapability } from '../lib/useInputCapability'
@@ -19,6 +20,7 @@ const TAB_LABEL: Record<SystemTab, string> = {
   band: 'Band',
   hardware: 'Bühnentechnik',
   devices: 'Tablets & Handys',
+  rigcheck: 'Rig-Check',
   server: 'Stage-Server',
   plugins: 'Add-ons',
   debug: 'Diagnose',
@@ -63,7 +65,8 @@ export function SystemView() {
   const roles = useActiveProfile()?.stageRoles ?? []
   const showDebug = roles.includes('admin') || roles.includes('crew')
   // Nachbericht moved to the Bibliothek as "Shows" (2026-10-16).
-  const baseTabs: SystemTab[] = ['device', 'band', 'hardware', 'devices', 'server', 'plugins']
+  // Rig-Check (#464) checks the whole rig - after the devices it runs on.
+  const baseTabs: SystemTab[] = ['device', 'band', 'hardware', 'devices', 'rigcheck', 'server', 'plugins']
   const tabs: SystemTab[] = showDebug ? [...baseTabs, 'debug'] : baseTabs
   const [tab, setTab] = useState<SystemTab>('device')
   const activeTab = tabs.includes(tab) ? tab : 'device'
@@ -88,6 +91,7 @@ export function SystemView() {
       {activeTab === 'band' && <BandManagementView />}
       {activeTab === 'hardware' && <HardwareSetupManager />}
       {activeTab === 'devices' && <DeviceLedgerView />}
+      {activeTab === 'rigcheck' && <RigCheckView />}
       {activeTab === 'server' && <StageServerPage />}
       {activeTab === 'plugins' && <PluginManager />}
       {activeTab === 'debug' && (

@@ -8,6 +8,7 @@ import { AppMenu } from './components/AppMenu'
 import { DashboardMenu } from './components/DashboardMenu'
 import { AudioResumeOverlay } from './components/AudioResumeOverlay'
 import { ReadyCheckOverlay } from './components/ReadyCheckOverlay'
+import { RigCheckVerdict } from './components/RigCheckVerdict'
 import { Dashboard } from './components/Dashboard'
 import { DeviceRevokedScreen } from './components/DeviceRevokedScreen'
 import { DialogHost } from './components/DialogHost'
@@ -38,6 +39,7 @@ import { useReadyCheckResponder } from './lib/useReadyCheckResponder'
 import { useMasterHeartbeatReporter } from './lib/useMasterHeartbeatReporter'
 import { usePresenceReporter } from './lib/usePresenceReporter'
 import { useShowLogTracker } from './lib/useShowLogTracker'
+import { useRigCheckDriver, useRigCheckReporter } from './lib/rigCheck'
 import { useWakeLock } from './lib/useWakeLock'
 import { useWorkspaceResource } from './lib/useWorkspaceResource'
 import { startWorkspaceSync } from './lib/workspaceDb'
@@ -148,6 +150,8 @@ function App() {
   const typingCramped = typingKeyboardUp && (typingVisible?.height ?? Infinity) < CRAMPED_TYPING_PX
   useBrowserOnlineStatus()
   useShowLogTracker()
+  useRigCheckDriver()
+  useRigCheckReporter()
 
   // The one and only live CouchDB sync for the whole app (see workspaceDb.ts) - every store
   // below still runs its own init (loading + a local, filtered change listener for just its
@@ -386,6 +390,7 @@ function App() {
       {isNativeApp() && <AppUpdateBanner />}
       <AudioResumeOverlay />
       <ReadyCheckOverlay />
+      <RigCheckVerdict />
     </div>
   )
 }

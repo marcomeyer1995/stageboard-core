@@ -32,7 +32,6 @@ import { confirmLeave, useUnsavedChangesGuard } from '../lib/unsavedChanges'
 import { registerSetlistDraft } from '../lib/setlistDrafts'
 import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
-import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
@@ -40,6 +39,7 @@ import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
 import { AddRow, Badge, Dialog, Field, Button, InfoHint, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
+import { useVisibleSongs } from '../lib/visibleCatalog'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -543,7 +543,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
  * component lives in LibraryView now.
  */
 export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
-  const songs = useSongsStore((state) => state.songs)
+  const songs = useVisibleSongs()
   const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
   const saveSetlist = useSetlistsStore((state) => state.saveSetlist)
