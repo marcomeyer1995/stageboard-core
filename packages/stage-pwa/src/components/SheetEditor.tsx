@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   SongSchema,
   SongVariantSchema,
@@ -17,7 +17,11 @@ import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
-import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
+import { bracketProblems, transposeText } from '../lib/textTools'
+import { CleanupDialog } from './CleanupDialog'
+import { EditorBackdrop, type BackdropMark } from './EditorBackdrop'
+import { FindReplaceBar, type FindMemory } from './FindReplaceBar'
+import type { TextMatch } from '../lib/textReplace'
 import { randomId } from '../lib/id'
 import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
@@ -33,7 +37,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
-import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
@@ -144,7 +148,20 @@ interface SheetEditorProps {
 }
 
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
-export const ROOMY_FOR_VARIANT_ROW_PX = 560
+export const ROOMY_FOR_VARIANT_ROW_PX = 600
+
+
+/** How long the "Im Hochformat ist mehr Platz" hint stays. */
+const PORTRAIT_HINT_MS = 4000
+
+/** Visible height below which the editor's page header steps aside while the keyboard is up. */
+export const ROOMY_FOR_HEADER_PX = 400
+
+/** Visible height from which the search bar shows all its rows (a tablet in portrait without the keyboard). */
+export const ROOMY_FOR_FULL_SEARCH_PX = 760
+
+/** Whether the song text shows its invisible characters (· → ¶) - per device. */
+const INVISIBLES_KEY = 'sb:editor-invisibles'
 
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
@@ -180,6 +197,21 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // The text field has the focus - shows the ChordPro keys above the phone keyboard (#606) and,
   // on the phone, leaves the screen to the text alone (#617).
   const [textFocused, setTextFocused] = useState(false)
+  // From where the focus really is: a field that is rebuilt while focused never sends its blur, and
+  // the ChordPro key bar then stayed for the search field (Redmi, landscape, 2026-10-29).
+  // "Im Hochformat ist mehr Platz" - once per editor session, for a few seconds (see crampedOnPhone).
+  const [portraitHint, setPortraitHint] = useState(false)
+  const portraitHintShown = useRef(false)
+  useEffect(() => {
+    if (!portraitHint) return
+    const id = setTimeout(() => setPortraitHint(false), PORTRAIT_HINT_MS)
+    return () => clearTimeout(id)
+  }, [portraitHint])
+  useEffect(() => {
+    const follow = (e: FocusEvent) => setTextFocused(e.target === textareaRef.current)
+    document.addEventListener('focusin', follow)
+    return () => document.removeEventListener('focusin', follow)
+  }, [])
   // Where the cursor is in the text: the preview follows it (#617).
   const [caret, setCaret] = useState(0)
   // Every section starts collapsed (Marco, explicit request).
@@ -188,6 +220,45 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [pageMenuOpen, setPageMenuOpen] = useState(false)
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  // Aufräumen / Suchen & Ersetzen open on the range they were started on (#605, 2026-10-29).
+  const [toolDialog, setToolDialog] = useState<{ kind: 'cleanup'; start: number; end: number; scope: string } | null>(null)
+  // Suchen & Ersetzen as a bar over the text, like Notepad++ (2026-10-29): open with the lines
+  // marked at that moment (or none), its matches drawn on the layer behind the text.
+  const [findBar, setFindBar] = useState<{ range: { start: number; end: number } | null } | null>(null)
+  const findMemory = useRef<FindMemory>({})
+  const [findMarks, setFindMarks] = useState<{ marks: BackdropMark[]; current: TextMatch | null }>({ marks: [], current: null })
+  const onFindMarks = useCallback((marks: BackdropMark[], current: TextMatch | null) => setFindMarks({ marks, current }), [])
+  // The current search match in view: scrolled to a third of the field's height, the text cursor
+  // set on it (without focusing - no keyboard pops up).
+  useEffect(() => {
+    const match = findMarks.current
+    const textarea = textareaRef.current
+    if (!match || !textarea) return
+    const mark = textarea.parentElement?.querySelector<HTMLElement>('[data-testid="editor-backdrop"] [data-current]')
+    if (mark) {
+      textarea.scrollTop = Math.max(0, mark.offsetTop - textarea.clientHeight / 3)
+      const layer = mark.closest<HTMLElement>('[data-testid="editor-backdrop"]')
+      if (layer) layer.scrollTop = textarea.scrollTop
+    }
+    textarea.setSelectionRange(match.start, match.end)
+  }, [findMarks])
+  // Invisible characters (· → ¶) on the layer behind the text - remembered on this device.
+  const [showInvisibles, setShowInvisibles] = useState(() => {
+    try {
+      return localStorage.getItem(INVISIBLES_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleInvisibles = () =>
+    setShowInvisibles((on) => {
+      try {
+        localStorage.setItem(INVISIBLES_KEY, on ? '0' : '1')
+      } catch {
+        // blocked storage: only for this session
+      }
+      return !on
+    })
   // The text before the last text tool ran (#605) - "Rückgängig" until the next edit by hand.
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
   // "+ Kommentar" / "+ Tab" dialogs (#608).
@@ -803,21 +874,25 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     />
   )
 
-  /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
-  const applyTextTool = (label: string, tool: (text: string) => string) => {
+  /** What a text tool works on (#605): the selected lines, or the whole text without a selection. */
+  const toolRange = () => {
     const textarea = textareaRef.current
     const before = draft.chordProContent
     let start = textarea?.selectionStart ?? 0
     let end = textarea?.selectionEnd ?? 0
-    if (start === end) {
-      start = 0
-      end = before.length
-    } else {
-      // Whole lines: a chord line and its lyric belong together.
-      start = before.lastIndexOf('\n', start - 1) + 1
-      const lineEnd = before.indexOf('\n', end)
-      end = lineEnd === -1 ? before.length : lineEnd
-    }
+    if (start === end) return { start: 0, end: before.length, scope: 'der ganze Text' }
+    // Whole lines: a chord line and its lyric belong together.
+    start = before.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = before.indexOf('\n', end)
+    end = lineEnd === -1 ? before.length : lineEnd
+    const lines = before.slice(start, end).split('\n').length
+    return { start, end, scope: `die markierten Zeilen (${lines})` }
+  }
+
+  /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
+  const applyTextTool = (label: string, tool: (text: string) => string, range = toolRange()) => {
+    const before = draft.chordProContent
+    const { start, end } = range
     const after = before.slice(0, start) + tool(before.slice(start, end)) + before.slice(end)
     if (after === before) {
       setToolUndo(null)
@@ -836,32 +911,19 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     applyTextTool(`Transponiert ${signedSteps(steps)}`, (text) => transposeText(text, steps, draft.key))
   }
 
-  const askReplace = async () => {
-    const result = await promptFields(
-      'Suchen & Ersetzen',
-      [
-        { key: 'find', label: 'Suchen' },
-        { key: 'replace', label: 'Ersetzen durch' },
-      ],
-      'Alle ersetzen',
-    )
-    if (!result?.find) return
-    let count = 0
-    applyTextTool('Ersetzt', (text) => {
-      const replaced = replaceAllText(text, result.find, result.replace ?? '')
-      count = replaced.count
-      return replaced.content
-    })
-    if (count > 0) setToolUndo((undo) => (undo ? { ...undo, label: `${count}× ersetzt` } : undo))
-  }
-
   // In the text itself (#605) - for imported or pasted charts; the variant's own transpose stays
   // in Song-Angaben.
   const toolActions: MenuAction[] = [
     { label: 'Transponieren …', onClick: () => void askTranspose() },
-    { label: 'Akkordzeilen zusammenführen', onClick: () => applyTextTool('Akkordzeilen zusammengeführt', mergeChordLines) },
-    { label: 'Aufräumen', onClick: () => applyTextTool('Aufgeräumt', cleanupText) },
-    { label: 'Suchen & Ersetzen …', onClick: () => void askReplace() },
+    { label: 'Akkordzeilen integrieren', onClick: () => applyTextTool('Akkordzeilen integriert', mergeChordLines) },
+    { label: 'Aufräumen …', onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
+    {
+      label: 'Suchen & Ersetzen …',
+      onClick: () => {
+        const range = toolRange()
+        setFindBar({ range: range.start === 0 && range.end === draft.chordProContent.length ? null : { start: range.start, end: range.end } })
+      },
+    },
   ]
 
   const insertActions: MenuAction[] = [
@@ -873,6 +935,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const pageActions: MenuAction[] = [
     { label: 'Einfügen …', onClick: () => setInsertMenuOpen(true) },
     { label: 'Textwerkzeuge …', onClick: () => setToolsMenuOpen(true) },
+    { label: showInvisibles ? 'Unsichtbare Zeichen ausblenden' : 'Unsichtbare Zeichen einblenden (¶)', onClick: toggleInvisibles },
     { label: 'Song importieren', onClick: () => setIsImporting(true) },
     {
       label: 'Tap-to-Sync starten',
@@ -1072,14 +1135,32 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const brackets = bracketProblems(settledText)
   // Little height with the keyboard up: the text alone (#617) - no variant row above it. Where
   // enough is left (a tablet in portrait: ~690 px), the variant row stays (Marco, 2026-10-28).
-  // The larger of the visible area and the page: while the keyboard comes up, the visible area
-  // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
-  const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
-  const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
-  // The key bar lies over the bottom of the page - the text field ends above it.
+  // The settled visible area (its blip while the keyboard comes up is filtered there). Not the page
+  // height: in landscape the app's WebView keeps its full height and the keyboard just covers it
+  // (Redmi, 2026-10-29) - the page said "room enough" with the text behind the keyboard.
+  const roomPx = visible?.height ?? (typeof window === 'undefined' ? 0 : window.innerHeight)
+  // What the keyboard covers of the page (landscape) - the text pane ends above it.
+  const keyboardCover = keyboardOpen && visible && typeof window !== 'undefined' ? Math.max(0, window.innerHeight - (visible.offsetTop + visible.height)) : 0
+  // Two columns too: in landscape with the keyboard up only ~250 px are left (Redmi, 2026-10-29).
+  const typingOnPhone = textFocused && roomPx < ROOMY_FOR_VARIANT_ROW_PX
+  // Even less (landscape, keyboard up): the page header steps aside as well while typing - it is
+  // back the moment the keyboard goes down.
+  const headerAside = keyboardOpen && roomPx < ROOMY_FOR_HEADER_PX
+  // A phone in landscape with the keyboard up: a hint, not a forced turn (Marco, 2026-10-29).
+  const crampedOnPhone = textFocused && keyboardOpen && roomPx < CRAMPED_TYPING_PX && typeof window !== 'undefined' && Math.min(window.screen.width, window.screen.height) < 600
+  if (crampedOnPhone && !portraitHintShown.current) {
+    portraitHintShown.current = true
+    queueMicrotask(() => setPortraitHint(true))
+  }
+  // The search bar with little room (keyboard up, landscape, a phone): one row, and the variant
+  // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
+  const compactSearch = roomPx < ROOMY_FOR_FULL_SEARCH_PX || (typeof window !== 'undefined' && window.innerWidth < 600)
+  const hideVariantRow = typingOnPhone || (findBar !== null && compactSearch)
+  // The key bar lies over the bottom of the page - the text field ends above it (no room kept for it
+  // where it steps aside).
   const textPane = (
-    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
-      {!typingOnPhone && variantRow}
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen && roomPx >= CRAMPED_TYPING_PX ? 'pb-form' : ''}`} style={keyboardCover > 0 ? { marginBottom: keyboardCover } : undefined}>
+      {!hideVariantRow && variantRow}
       {toolUndo && (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 text-base text-ink">
           <span className="min-w-0 flex-1 truncate">{toolUndo.label}</span>
@@ -1094,10 +1175,37 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           </Button>
         </div>
       )}
+      {findBar && (
+        <FindReplaceBar
+          content={draft.chordProContent}
+          range={findBar.range}
+          memory={findMemory}
+          compact={compactSearch}
+          onMarks={onFindMarks}
+          onClose={() => {
+            // The search left its last match selected - that is no marking of lines for the next tool.
+            const textarea = textareaRef.current
+            if (textarea) textarea.setSelectionRange(textarea.selectionEnd, textarea.selectionEnd)
+            setFindBar(null)
+          }}
+          onReplace={(after, label) => {
+            const before = draft.chordProContent
+            setDraft({ ...draft, chordProContent: after })
+            setToolUndo({ before, label })
+          }}
+        />
+      )}
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+      {portraitHint && (
+        <p role="status" className="pointer-events-none absolute inset-x-2 top-2 z-content rounded-control bg-surface px-3 py-2 text-base text-ink shadow-sb">
+          Im Hochformat ist mehr Platz zum Schreiben.
+        </p>
+      )}
+      {(showInvisibles || findMarks.marks.length > 0) && <EditorBackdrop text={draft.chordProContent} textarea={textareaRef} showInvisibles={showInvisibles} marks={findMarks.marks} />}
       <textarea
         ref={textareaRef}
         aria-label="ChordPro-Text"
-        className={`min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
+        className={`relative min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE} ${showInvisibles || findMarks.marks.length > 0 ? '!bg-transparent' : ''}`}
         value={draft.chordProContent}
         onChange={(e) => {
           setDraft({ ...draft, chordProContent: e.target.value })
@@ -1119,6 +1227,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         }}
         placeholder="[00:00.00] Come on baby [G] don't you wanna go"
       />
+      </div>
       {brackets.length > 0 && (
         <p role="status" className="text-sm text-warn">
           {brackets
@@ -1129,7 +1238,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </p>
       )}
       <ChordProKeyBar
-        active={textFocused}
+        // A phone in landscape with the keyboard up has ~140 px left - the text lines first.
+        active={textFocused && roomPx >= CRAMPED_TYPING_PX}
         chords={songChords(preview)}
         onKey={typeChordProKey}
         onChord={(chord) => typeAtCaret(`[${chord}]`)}
@@ -1160,7 +1270,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   return (
     <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink max-[599px]:p-2">
-      {pageHeader}
+      {!headerAside && pageHeader}
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex min-h-0 flex-1 flex-col">
         {view === 'timeline' ? (
@@ -1170,10 +1280,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         ) : view === 'preview' ? (
           previewPane
         ) : isPanel ? (
-          // Wide screens: text and preview side by side, each scrolling on its own (#617).
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 [&>*]:min-h-0">
+          // Wide screens: text and preview side by side, each scrolling on its own (#617). With
+          // very little room (keyboard up in landscape) the preview column hides - by CSS, never by
+          // a different tree: rebuilding the text field took its focus and closed the keyboard again.
+          <div className={`grid min-h-0 flex-1 gap-3 [&>*]:min-h-0 ${headerAside ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {textPane}
-            <div className="flex min-h-0 flex-col">{previewPane}</div>
+            <div className={`flex min-h-0 flex-col ${headerAside ? 'hidden' : ''}`}>{previewPane}</div>
           </div>
         ) : (
           textPane
@@ -1181,6 +1293,17 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       </div>
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
+      {toolDialog?.kind === 'cleanup' && (
+        <CleanupDialog
+          text={draft.chordProContent.slice(toolDialog.start, toolDialog.end)}
+          scope={toolDialog.scope}
+          onCancel={() => setToolDialog(null)}
+          onApply={(after) => {
+            applyTextTool('Aufgeräumt', () => after, toolDialog)
+            setToolDialog(null)
+          }}
+        />
+      )}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
       {textFix && <TextFixDialog offers={textFix.offers} onSave={textFix.resolve} onCancel={() => textFix.resolve(null)} />}
       {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}

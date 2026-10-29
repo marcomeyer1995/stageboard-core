@@ -1,3 +1,5 @@
+import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from './lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from './lib/useVisualViewport'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
 import { useMasterIdentity } from './lib/useMasterIdentity'
@@ -142,6 +144,11 @@ function App() {
   const { active: activeDashboard } = useModeDashboards()
   useFullscreenOnLaunch()
   useWakeLock()
+  // Typing with almost no room left (a phone in landscape, keyboard up: ~140 px): the status bar
+  // steps aside for the text lines - back the moment the keyboard goes down (Marco, 2026-10-29).
+  const typingVisible = useSettledVisualViewport()
+  const typingKeyboardUp = useSettledTouchKeyboardOpen()
+  const typingCramped = typingKeyboardUp && (typingVisible?.height ?? Infinity) < CRAMPED_TYPING_PX
   useBrowserOnlineStatus()
   useShowLogTracker()
   useRigCheckDriver()
@@ -263,7 +270,7 @@ function App() {
   const inOnboarding = needsJoin || needsRosterSetup || needsProfile
   // The status bar is on every screen except onboarding, unless the dashboard shown in Live
   // switched it off (Dashboard.statusBar === false).
-  const showStatusBar = !inOnboarding && !(mode === 'boards' && activeDashboard?.statusBar === false)
+  const showStatusBar = !inOnboarding && !typingCramped && !(mode === 'boards' && activeDashboard?.statusBar === false)
 
   // The Device Ledger's admin "kick" (DeviceLedgerView.tsx, Marco's explicit request) - takes
   // priority over even needsJoin/needsRosterSetup/needsProfile above, since a revoked device
@@ -333,7 +340,7 @@ function App() {
             stay in the two top corners, so nobody is ever locked out (docs/15 D8, Marco
             2026-10-16 - before, one floating menu button bottom right). They sit exactly where they
             are in the status bar, in its empty place (Dashboard keeps it free, 2026-10-17). */}
-        {!showStatusBar && !isEditingDashboard && !inOnboarding && (
+        {!showStatusBar && !isEditingDashboard && !inOnboarding && !typingCramped && (
           <>
             {/* Above the drawers, so the same button closes them again (Marco, 2026-10-16). */}
             <div className="absolute left-2 top-0 z-dialog">

@@ -142,10 +142,10 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
 
   it('tablet in portrait: with enough height above the keyboard the variant row stays (Marco, 2026-10-28)', async () => {
     stubViewport(phone)
-    // The page as the Redmi has it with the keyboard up - and the visible area's brief ~300 px
-    // blip while it comes up, which must not hide the row.
+    // The visible area as the Redmi has it with the keyboard up (its brief ~300 px blip on the way
+    // is filtered by the settled viewport - useSettledVisualViewport.test).
     const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(652)
-    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 297, offsetTop: 0 }) })
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 652, offsetTop: 0 }) })
     try {
       const textarea = await renderLoaded()
       fireEvent.focus(textarea)
@@ -345,15 +345,34 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
 })
 
 describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
-  /** The on-screen keyboard is up: the visible area is a small part of the screen. */
+  /** The on-screen keyboard is up: the visible area is a small part of the screen (a phone in portrait). */
   const keyboardUp = () =>
-    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 100, addEventListener: () => {}, removeEventListener: () => {} })
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 400, addEventListener: () => {}, removeEventListener: () => {} })
 
   async function focusText(content = '[Am]Hello [C]world [Am]again') {
     const textarea = await renderLoaded(song, content)
     fireEvent.focus(textarea)
     return textarea
   }
+
+  it('a phone in landscape with the keyboard up: no key bar, a hint to turn it - once (Marco, 2026-10-29)', async () => {
+    stubViewport({ ...phone, coarse: true })
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 140, addEventListener: () => {}, removeEventListener: () => {} })
+    const w = vi.spyOn(window.screen, 'width', 'get').mockReturnValue(873)
+    const h = vi.spyOn(window.screen, 'height', 'get').mockReturnValue(393)
+    try {
+      const textarea = await focusText()
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
+      expect(screen.getByText('Im Hochformat ist mehr Platz zum Schreiben.')).toBeInTheDocument()
+      fireEvent.blur(textarea)
+    } finally {
+      w.mockRestore()
+      h.mockRestore()
+    }
+  })
 
   it('touchscreen + keyboard up: [ ] / | and the song\'s chords, most used first; a key types at the caret', async () => {
     stubViewport({ ...phone, coarse: true })
@@ -404,7 +423,10 @@ describe('SheetEditor - text tools (#605)', () => {
   it('Aufräumen on the whole text, then Rückgängig brings the text back', async () => {
     stubViewport(phone)
     const textarea = await renderLoaded(song, '[am]Hello  \n\n\n\nWorld')
-    await runTool('Aufräumen')
+    await runTool('Aufräumen …')
+    // The rules dialog (2026-10-29): the defaults, how many places, then apply.
+    expect(screen.getByRole('dialog', { name: 'Aufräumen' })).toHaveTextContent('der ganze Text')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Aufräumen \(\d+ Stellen\)$/ })))
     expect(textarea.value).toBe('[Am]Hello\n\nWorld')
     fireEvent.click(screen.getByRole('button', { name: 'Rückgängig' }))
     expect(textarea.value).toBe('[am]Hello  \n\n\n\nWorld')
@@ -416,8 +438,56 @@ describe('SheetEditor - text tools (#605)', () => {
     const textarea = await renderLoaded(song, text)
     textarea.setSelectionRange(0, 3)
     // The chord line alone is selected - its lyric line below is not, so it stays a chord line.
-    await runTool('Akkordzeilen zusammenführen')
+    await runTool('Akkordzeilen integrieren')
     expect(textarea.value).toBe('[G]     [D]\nHello World\nC     F\nSecond line')
+  })
+
+  it('Suchen & Ersetzen is a bar over the text (like Notepad++): regex with a group, marked in the text, only the marked lines, Ersetzen one by one', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded(song, '[Am]  la\n[G]   lu\n[C]  li')
+    textarea.setSelectionRange(0, 12)
+    await runTool('Suchen & Ersetzen …')
+    const bar = screen.getByRole('region', { name: 'Suchen & Ersetzen' })
+    fireEvent.click(within(bar).getByRole('radio', { name: 'Regex' }))
+    fireEvent.change(within(bar).getByRole('textbox', { name: 'Suchen' }), { target: { value: '^\\[(\\w+)\\]\\s+' } })
+    fireEvent.change(within(bar).getByRole('textbox', { name: 'Ersetzen durch' }), { target: { value: '[$1]' } })
+    // Only the two marked lines count; the matches are drawn on the layer behind the text.
+    expect(within(bar).getByText('1/2')).toBeInTheDocument()
+    expect(screen.getByTestId('editor-backdrop').querySelectorAll('mark')).toHaveLength(2)
+    await act(async () => fireEvent.click(within(bar).getByRole('button', { name: 'Ersetzen' })))
+    expect(textarea.value).toBe('[Am]la\n[G]   lu\n[C]  li')
+    await act(async () => fireEvent.click(within(bar).getByRole('button', { name: 'Alle ersetzen (1)' })))
+    expect(textarea.value).toBe('[Am]la\n[G]lu\n[C]  li')
+  })
+
+  it('little room (keyboard up, a phone): the search is one row - ⇄ shows the replacement, ⚙ the options - and the variant row steps aside (2026-10-29)', async () => {
+    stubViewport(phone)
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(420)
+    try {
+      await renderLoaded(song, '[Am]la\n[G]lu')
+      await runTool('Suchen & Ersetzen …')
+      const bar = screen.getByRole('region', { name: 'Suchen & Ersetzen' })
+      expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
+      expect(within(bar).queryByRole('textbox', { name: 'Ersetzen durch' })).not.toBeInTheDocument()
+      expect(within(bar).queryByRole('radiogroup', { name: 'Suchmodus' })).not.toBeInTheDocument()
+      fireEvent.click(within(bar).getByRole('button', { name: 'Ersetzen anzeigen' }))
+      expect(within(bar).getByRole('textbox', { name: 'Ersetzen durch' })).toBeInTheDocument()
+      fireEvent.click(within(bar).getByRole('button', { name: 'Suchoptionen' }))
+      expect(screen.getByRole('dialog', { name: 'Suchoptionen' })).toContainElement(screen.getByRole('radiogroup', { name: 'Suchmodus' }))
+    } finally {
+      height.mockRestore()
+    }
+  })
+
+  it('shows invisible characters on the layer behind the text - · → ¶ - from the page menu', async () => {
+    stubViewport(phone)
+    await renderLoaded(song, 'a b\tc\nd')
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /Unsichtbare Zeichen einblenden/ })))
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('·')
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('→')
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('¶')
+    localStorage.clear()
   })
 
   it('names an unclosed bracket with its line once typing has paused', async () => {
