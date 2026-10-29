@@ -345,9 +345,9 @@ describe('SheetEditor - song not in the store yet when the editor opens', () => 
 })
 
 describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
-  /** The on-screen keyboard is up: the visible area is a small part of the screen. */
+  /** The on-screen keyboard is up: the visible area is a small part of the screen (a phone in portrait). */
   const keyboardUp = () =>
-    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 100, addEventListener: () => {}, removeEventListener: () => {} })
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 400, addEventListener: () => {}, removeEventListener: () => {} })
 
   async function focusText(content = '[Am]Hello [C]world [Am]again') {
     const textarea = await renderLoaded(song, content)
