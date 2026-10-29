@@ -1247,7 +1247,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           <div className="min-h-0 flex-1 overflow-y-auto">{detailsView}</div>
         ) : view === 'preview' ? (
           previewPane
-        ) : isPanel ? (
+        ) : isPanel && !headerAside ? (
           // Wide screens: text and preview side by side, each scrolling on its own (#617).
           <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 [&>*]:min-h-0">
             {textPane}

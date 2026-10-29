@@ -191,6 +191,7 @@ export function FindReplaceBar({
           />
           </div>
           <InfoHint text={MODE_INFO} />
+        {compact && <InfoHint text={REPLACE_INFO} label="Erklärung: Ersetzen durch" />}
         </div>
         <div className="flex flex-wrap gap-2">
           <ToggleChip label="Groß/klein beachten" selected={caseSensitive} onToggle={setCaseSensitive} />
@@ -247,7 +248,9 @@ export function FindReplaceBar({
 
   return (
     <section aria-label="Suchen & Ersetzen" className={`flex flex-shrink-0 flex-col gap-2 rounded-container border border-line bg-surface ${compact ? 'p-1' : 'max-h-[60%] overflow-y-auto p-2'}`}>
-      <div className="flex items-center gap-2">
+      {/* Side by side where wide enough, else one under the other. */}
+      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-[18rem] flex-1 items-center gap-2">
         <input
           aria-label="Suchen"
           value={find}
@@ -288,35 +291,34 @@ export function FindReplaceBar({
         )}
         <IconButton icon="close" label="Suche schließen" variant="quiet" onClick={onClose} />
       </div>
+      {(!compact || showReplace) && (
+        <div className={`flex items-center gap-2 ${compact ? 'min-w-[18rem] flex-1' : 'w-full flex-wrap'}`}>
+          <input
+            aria-label="Ersetzen durch"
+            value={replacement}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            placeholder="Ersetzen durch"
+            className={field}
+            onChange={(e) => {
+              setReplacement(e.target.value)
+              setReplaceCaret(caretOf(e))
+            }}
+            onSelect={(e) => setReplaceCaret(caretOf(e))}
+          />
+          {!compact && <InfoHint text={REPLACE_INFO} />}
+          <Button disabled={index < 0} onClick={replaceCurrent}>
+            Ersetzen
+          </Button>
+          <Button variant="primary" disabled={matches.length === 0} onClick={replaceAll}>
+            {compact ? `Alle${matches.length > 0 ? ` (${matches.length})` : ''}` : matches.length > 0 ? `Alle ersetzen (${matches.length})` : 'Alle ersetzen'}
+          </Button>
+        </div>
+      )}
+      </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {notice && <p className="text-sm text-ink-soft">{notice}</p>}
-      {(!compact || showReplace) && (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              aria-label="Ersetzen durch"
-              value={replacement}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              placeholder="Ersetzen durch"
-              className={field}
-              onChange={(e) => {
-                setReplacement(e.target.value)
-                setReplaceCaret(caretOf(e))
-              }}
-              onSelect={(e) => setReplaceCaret(caretOf(e))}
-            />
-            <InfoHint text={REPLACE_INFO} />
-            <Button disabled={index < 0} onClick={replaceCurrent}>
-              Ersetzen
-            </Button>
-            <Button variant="primary" disabled={matches.length === 0} onClick={replaceAll}>
-              {matches.length > 0 ? `Alle ersetzen (${matches.length})` : 'Alle ersetzen'}
-            </Button>
-          </div>
-        </>
-      )}
       {!compact && optionsPanel}
       {compact && optionsOpen && (
         <Dialog title="Suchoptionen" size="l" onClose={() => setOptionsOpen(false)}>
