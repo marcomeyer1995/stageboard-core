@@ -4,6 +4,7 @@ import { describeCue, commandsFor } from '../lib/deviceCommands'
 import { getServerTime } from '../lib/clockSync'
 import { ROUTE_LABEL } from '../lib/latencyProfiles'
 import { cancelRigCheck, latestRun, openRun, prepareRigCheck, runIsPlayable, runReports, startRigCheck, type RigCheckDeviceReport, type RigCheckRun, type StartResult } from '../lib/rigCheck'
+import { runAnalysisCheck, type AnalysisCheck } from '../lib/rigCheckAnalysis'
 import { buildRigCheckSong, type RigCheckDeviceCue, type RigCheckKind } from '../lib/rigCheckSong'
 import { useNow } from '../lib/useNow'
 import { useBandSettingsStore } from '../store/useBandSettingsStore'
@@ -13,6 +14,7 @@ import { useShowLogStore } from '../store/useShowLogStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
+import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { Group, Page } from './SystemSettings'
 import { CueDialog } from './timeline/CueDialog'
 import { Badge, Button, Section, Segmented } from './ui'
@@ -114,6 +116,38 @@ function DeviceCues({ editable }: { editable: boolean }) {
   )
 }
 
+/** "Analyse prüfen" (docs/24 §6): the timeline's analysis on the full run's track, on this device -
+ * no devices, no playing. A completed full run stores the same in the Nachbericht. */
+function AnalysisGroup() {
+  const events = useShowLogStore((state) => state.events)
+  const [check, setCheck] = useState<AnalysisCheck | null>(null)
+  const [state, setState] = useState<'idle' | 'running' | 'failed'>('idle')
+  const stored = [...events].reverse().find((e): e is RigCheckRun => e.type === 'rig-check-run' && !!e.analysis)?.analysis ?? null
+  const shown = check ?? stored
+  const run = async () => {
+    setState('running')
+    try {
+      setCheck(await runAnalysisCheck('full'))
+      setState('idle')
+    } catch (err) {
+      console.error('Rig-Check: analysis check failed', err)
+      setState('failed')
+    }
+  }
+  return (
+    <Group
+      title="Analyse-Prüfung"
+      info="Lässt die Analyse des Timeline-Editors („Track analysieren“) auf den Test-Song des vollen Laufs los und vergleicht mit dem, was die App weiß: liegt das Klick-Raster je Abschnitt auf dem Schlagzeug, und zählt es die Takte richtig? Läuft nur auf diesem Gerät, ohne Ton."
+    >
+      <Button disabled={state === 'running'} onClick={() => void run()}>
+        {state === 'running' ? 'Prüft …' : 'Analyse prüfen'}
+      </Button>
+      {state === 'failed' && <p className="text-sm text-danger">Die Prüfung ist fehlgeschlagen.</p>}
+      {shown && <RigCheckAnalysis check={shown} />}
+    </Group>
+  )
+}
+
 function runState(run: RigCheckRun | null, open: RigCheckRun | null): 'none' | 'prepared' | 'running' | 'ended' {
   if (open) return open.startedAt === undefined ? 'prepared' : 'running'
   return run && run.startedAt !== undefined && run.endedAt !== undefined ? 'ended' : 'none'
@@ -202,6 +236,8 @@ export function RigCheckView() {
         {isMaster && state === 'prepared' && playbackStatus !== 'stopped' && <p className="text-sm text-warn">Gerade läuft ein Song - erst stoppen.</p>}
         {message && <p className="text-sm text-ink-soft">{message}</p>}
       </Group>
+
+      <AnalysisGroup />
 
       {shown && (
         <Group
