@@ -15,6 +15,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon } from './Icon'
 import { ActionMenuDialog, AddRow, Button } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The dashboards in the main menu (Marco's dashboard editing redesign, replacing "Dashboards
@@ -27,6 +28,7 @@ import { CONTROL, DISABLED, FOCUS, HOVER, SELECTED } from './ui/styles'
  *   and its pen offers an own copy instead; "Neues Dashboard" appears below.
  */
 export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string) => void; onEdit: () => void }) {
+  const { t } = useTranslation('dashboard')
   const { candidates, listed, hidden, active } = useModeDashboards()
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setOrder = useDashboardMenuStore((state) => state.setOrder)
@@ -63,9 +65,9 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
     }
     // A template (#16): the musician's own copy instead.
     if (!profile) return void editOwnCopy(dashboard) // says why there is no copy
-    const ok = await confirm(`„${dashboard.name}“ ist eine Vorlage - nur Admins ändern sie. Eine eigene Kopie anlegen und bearbeiten?`, {
-      title: 'Vorlage',
-      confirmLabel: 'Eigene Kopie bearbeiten',
+    const ok = await confirm(t('templateAsk', { name: dashboard.name }), {
+      title: t('template'),
+      confirmLabel: t('editOwnCopy'),
     })
     if (ok) await editOwnCopy(dashboard)
   }
@@ -74,15 +76,15 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
   async function editOwnCopy(dashboard: Dashboard) {
     // Without a profile there is nobody to own the copy - say so instead of doing nothing (#422 review).
     if (!profile) {
-      void alert(`„${dashboard.name}“ ist eine Vorlage. Für eine eigene Kopie zuerst ein Profil wählen (Menü → Band).`)
+      void alert(t('templateNoProfile', { name: dashboard.name }))
       return
     }
-    const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`, profile.id)
+    const copy = await duplicate(dashboard.id, t('copyName', { name: dashboard.name }), profile.id)
     if (copy) openForEditing(copy.id)
   }
 
   async function createNew() {
-    const name = (await promptText('Neues Dashboard', { label: 'Name', submitLabel: 'Anlegen' }))?.trim()
+    const name = (await promptText(t('newDashboard'), { label: t('name'), submitLabel: t('create') }))?.trim()
     if (!name) return
     // Private to whoever creates it - shared later via ⋯ in the edit bar.
     const created = await create(name, profile ? { ownerProfileId: profile.id, visibility: 'private' } : undefined)
@@ -104,7 +106,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
       {arranging ? (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <SortableContext items={listed.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-            <ul className="flex flex-col gap-1" aria-label="Dashboards bearbeiten">
+            <ul className="flex flex-col gap-1" aria-label={t('editList')}>
               {listed.map((dashboard) => (
                 <ArrangeRow
                   key={dashboard.id}
@@ -136,19 +138,19 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
           normally the list only switches. "Bearbeiten beenden", not "Fertig" - "Fertig" is the
           menu's own way out (docs/15 D6). */}
       {arranging && (
-        <AddRow label="Neues Dashboard" onClick={() => void createNew()} />
+        <AddRow label={t('newDashboard')} onClick={() => void createNew()} />
       )}
       <Button size="stage" icon={arranging ? undefined : 'edit'} variant={arranging ? 'primary' : 'secondary'} aria-pressed={arranging} fullWidth onClick={() => setArranging(!arranging)} className="mt-1">
-        {arranging ? 'Bearbeiten beenden' : 'Bearbeiten'}
+        {arranging ? t('stopEditing') : t('edit')}
       </Button>
-      {arranging && <p className="text-sm text-ink-faint">Stift öffnet ein Dashboard zum Bearbeiten. Ziehen sortiert, das Auge blendet aus - beides nur auf diesem Gerät.</p>}
+      {arranging && <p className="text-sm text-ink-faint">{t('arrangeHint')}</p>}
       {templateChoice && (
         <ActionMenuDialog
-          title={`„${templateChoice.name}“ ist eine Vorlage`}
+          title={t('isTemplate', { name: templateChoice.name })}
           onClose={() => setTemplateChoice(null)}
           actions={[
-            { label: 'Vorlage für alle bearbeiten', onClick: () => openForEditing(templateChoice.id) },
-            { label: 'Eigene Kopie bearbeiten', onClick: () => void editOwnCopy(templateChoice) },
+            { label: t('editTemplate'), onClick: () => openForEditing(templateChoice.id) },
+            { label: t('editOwnCopy'), onClick: () => void editOwnCopy(templateChoice) },
           ]}
         />
       )}
@@ -158,6 +160,7 @@ export function DashboardMenuList({ onSelect, onEdit }: { onSelect: (id: string)
 
 /** One dashboard in the menu: a tap switches to it - editing sits behind "Bearbeiten". */
 function DashboardEntry({ dashboard, active, locked, onSelect }: { dashboard: Dashboard; active: boolean; locked: boolean; onSelect: () => void }) {
+  const { t } = useTranslation('dashboard')
   return (
     <button
       type="button"
@@ -166,7 +169,7 @@ function DashboardEntry({ dashboard, active, locked, onSelect }: { dashboard: Da
       className={`flex h-stage min-w-0 items-center gap-2 px-4 text-left text-lg ${CONTROL} ${FOCUS} ${active ? SELECTED : `bg-control text-ink-soft ${HOVER}`}`}
     >
       <span className="truncate">{dashboard.name}</span>
-      {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
+      {locked && <Icon name="locked" size="1.1rem" label={t('template')} />}
     </button>
   )
 }
@@ -190,6 +193,7 @@ function ArrangeRow({
   onToggleHidden: (hide: boolean) => void
   onEdit: () => void
 }) {
+  const { t } = useTranslation('dashboard')
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dashboard.id })
   return (
     <li
@@ -204,20 +208,20 @@ function ArrangeRow({
         {...attributes}
         style={{ touchAction: 'none' }}
         className={`flex h-stage w-stage flex-shrink-0 cursor-grab items-center justify-center active:cursor-grabbing ${active ? '' : 'text-ink-faint'}`}
-        aria-label={`„${dashboard.name}“ ziehen zum Sortieren`}
+        aria-label={t('drag', { name: dashboard.name })}
       >
         ⠿
       </button>
       <span className={`flex min-w-0 flex-1 items-center gap-2 ${hidden ? `line-through ${active ? '' : 'text-ink-faint'}` : active ? '' : 'text-ink-soft'}`}>
         <span className="truncate">{dashboard.name}</span>
-        {locked && <Icon name="locked" size="1.1rem" label="Vorlage" />}
+        {locked && <Icon name="locked" size="1.1rem" label={t('template')} />}
       </span>
       <button
         type="button"
         aria-pressed={!hidden}
         disabled={!hidden && !canHide}
         onClick={() => onToggleHidden(!hidden)}
-        aria-label={hidden ? `„${dashboard.name}“ einblenden` : `„${dashboard.name}“ ausblenden`}
+        aria-label={hidden ? t('show', { name: dashboard.name }) : t('hide', { name: dashboard.name })}
         className={`flex h-form w-form flex-shrink-0 items-center justify-center ${active ? '' : 'text-ink-soft'} ${CONTROL} ${FOCUS} ${HOVER} ${DISABLED}`}
       >
         <Icon name={hidden ? 'eyeOff' : 'eye'} size="1.3rem" />
@@ -225,7 +229,7 @@ function ArrangeRow({
       <button
         type="button"
         onClick={onEdit}
-        aria-label={`„${dashboard.name}“ bearbeiten`}
+        aria-label={t('editNamed', { name: dashboard.name })}
         className={`flex h-form w-form flex-shrink-0 items-center justify-center ${active ? '' : 'text-ink-soft'} ${CONTROL} ${FOCUS} ${HOVER}`}
       >
         <Icon name="edit" size="1.3rem" />

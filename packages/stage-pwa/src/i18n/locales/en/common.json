@@ -62,5 +62,15 @@
     "bluetooth": "Bluetooth",
     "usb": "USB audio",
     "unknown": "unknown (browser)"
+  },
+  "dialog": {
+    "cancel": "Cancel",
+    "ok": "OK",
+    "unsavedTitle": "Unsaved changes",
+    "unsaved": "You have changes that are not saved yet.",
+    "save": "Save",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "typeToConfirm": "Type “{{text}}” to confirm"
   }
 }

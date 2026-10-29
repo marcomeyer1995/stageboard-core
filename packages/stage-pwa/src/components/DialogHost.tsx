@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useId, useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
@@ -196,7 +197,7 @@ function PromptFields({
         ),
       )}
       <div className="flex justify-between gap-2 border-t border-line pt-3">
-        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button onClick={onCancel}>{i18n.t('common:dialog.cancel')}</Button>
         <Button type="submit" variant="primary">
           {submitLabel}
         </Button>
@@ -211,7 +212,7 @@ function AlertBody({ message, onAcknowledge }: { message?: string; onAcknowledge
       {message && <p className="whitespace-pre-line text-base text-ink-soft">{message}</p>}
       <div className="flex justify-end border-t border-line pt-3">
         <Button variant="primary" onClick={onAcknowledge}>
-          OK
+          {i18n.t('common:dialog.ok')}
         </Button>
       </div>
     </div>
@@ -235,7 +236,7 @@ function ConfirmBody({
     <div className="space-y-3">
       {message && <p className="whitespace-pre-line text-base text-ink-soft">{message}</p>}
       <div className="flex justify-between gap-2 border-t border-line pt-3">
-        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button onClick={onCancel}>{i18n.t('common:dialog.cancel')}</Button>
         <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
           {confirmLabel}
         </Button>
@@ -249,15 +250,15 @@ function ConfirmBody({
 function UnsavedBody({ onResolve, onCancel }: { onResolve: (value: 'save' | 'discard') => void; onCancel: () => void }) {
   return (
     <div className="space-y-3">
-      <p className="text-base text-ink-soft">Du hast Änderungen, die noch nicht gespeichert sind.</p>
+      <p className="text-base text-ink-soft">{i18n.t('common:dialog.unsaved')}</p>
       <Button variant="primary" fullWidth onClick={() => onResolve('save')}>
-        Speichern
+        {i18n.t('common:dialog.save')}
       </Button>
       <Button variant="danger" fullWidth onClick={() => onResolve('discard')}>
-        Verwerfen
+        {i18n.t('common:dialog.discard')}
       </Button>
       <div className="flex border-t border-line pt-3">
-        <Button onClick={onCancel}>Weiter bearbeiten</Button>
+        <Button onClick={onCancel}>{i18n.t('common:dialog.keepEditing')}</Button>
       </div>
     </div>
   )
@@ -291,17 +292,17 @@ function DestructiveBody({
         </Button>
       )}
       <label className="flex flex-col gap-1 text-sm font-semibold text-ink-soft">
-        Zum Bestätigen „{typeToConfirm}“ eingeben
+        {i18n.t('common:dialog.typeToConfirm', { text: typeToConfirm })}
         <input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"
           className={`h-form px-4 text-base font-normal ${INPUT}`}
-          aria-label={`Zum Bestätigen „${typeToConfirm}“ eingeben`}
+          aria-label={i18n.t('common:dialog.typeToConfirm', { text: typeToConfirm })}
         />
       </label>
       <div className="flex justify-between gap-2 border-t border-line pt-3">
-        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button onClick={onCancel}>{i18n.t('common:dialog.cancel')}</Button>
         <Button variant="danger" disabled={!matches} onClick={() => onResolve('confirm')}>
           {confirmLabel}
         </Button>

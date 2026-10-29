@@ -62,5 +62,15 @@
     "bluetooth": "Bluetooth",
     "usb": "USB-Audio",
     "unknown": "unbekannt (Browser)"
+  },
+  "dialog": {
+    "cancel": "Abbrechen",
+    "ok": "OK",
+    "unsavedTitle": "Ungespeicherte Änderungen",
+    "unsaved": "Du hast Änderungen, die noch nicht gespeichert sind.",
+    "save": "Speichern",
+    "discard": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten",
+    "typeToConfirm": "Zum Bestätigen „{{text}}“ eingeben"
   }
 }

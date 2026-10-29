@@ -7,6 +7,7 @@ import { useDialogStore } from '../store/useDialogStore'
 import { useEditModeStore } from '../store/useEditModeStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Button, ChipGroup, Dialog, Section, Segmented, Switch, ToggleChip } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The dashboard's settings behind ⋯ in the edit bar, built from the shared elements (docs/15):
@@ -14,6 +15,7 @@ import { Button, ChipGroup, Dialog, Section, Segmented, Switch, ToggleChip } fro
  * Vorlage = on/off (switch). Everything applies at once, so the way out is one "Fertig".
  */
 export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Dashboard; onClose: () => void }) {
+  const { t } = useTranslation('dashboard')
   const dashboards = useDashboardsStore((state) => state.dashboards)
   const save = useDashboardsStore((state) => state.save)
   const duplicate = useDashboardsStore((state) => state.duplicate)
@@ -29,7 +31,7 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
   const lastPublic = dashboard.visibility !== 'private' && dashboards.filter((d) => d.visibility !== 'private').length <= 1
   // Like the mode chips below: a mode keeps at least one dashboard - deleting must not take it (#422 review).
   const onlyIn = (['gig', 'practice'] as const).filter((mode) => isDashboardAvailableInMode(dashboard, mode) && !canRemoveMode(dashboards, dashboard, mode))
-  const lastOfMode = onlyIn.length > 0 ? onlyIn.map((mode) => (mode === 'gig' ? 'Gig' : 'Solo')).join(' und ') : null
+  const lastOfMode = onlyIn.length > 0 ? onlyIn.map((mode) => (mode === 'gig' ? t('gig') : t('solo'))).join(t('and')) : null
 
   const modeChip = (mode: 'gig' | 'practice', label: string) => {
     const on = isDashboardAvailableInMode(dashboard, mode)
@@ -40,24 +42,24 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
         label={label}
         selected={on}
         disabled={locked}
-        title={locked ? `Einziges Dashboard für ${label} - bleibt dort` : undefined}
+        title={locked ? t('onlyFor', { label }) : undefined}
         onToggle={() => void save({ ...dashboard, modes: toggleDashboardMode(dashboard, mode) })}
       />
     )
   }
 
   return (
-    <Dialog title={`Einstellungen: ${dashboard.name}`} onClose={onClose}>
-      <Section title="Anbieten in">
-        <ChipGroup label="Anbieten in" hint="In diesen Modi steht es im Menü. Mehrere möglich.">
-          {modeChip('gig', 'Gig')}
-          {modeChip('practice', 'Solo Üben')}
+    <Dialog title={t('settingsTitle', { name: dashboard.name })} onClose={onClose}>
+      <Section title={t('offerIn')}>
+        <ChipGroup label={t('offerIn')} hint={t('offerHint')}>
+          {modeChip('gig', t('gig'))}
+          {modeChip('practice', t('practice'))}
         </ChipGroup>
       </Section>
 
-      <Section title="Sichtbar für" hint={lastPublic ? 'Das einzige geteilte Dashboard bleibt geteilt.' : undefined}>
+      <Section title={t('visibleFor')} hint={lastPublic ? t('lastShared') : undefined}>
         <Segmented
-          label="Sichtbar für"
+          label={t('visibleFor')}
           value={dashboard.visibility === 'private' ? 'private' : 'public'}
           onChange={(value) =>
             void save(
@@ -67,48 +69,48 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
             )
           }
           options={[
-            { value: 'public', label: 'Ganze Band' },
-            { value: 'private', label: 'Nur ich', disabled: dashboard.visibility !== 'private' && (lastPublic || !profile) },
+            { value: 'public', label: t('wholeBand') },
+            { value: 'private', label: t('onlyMe'), disabled: dashboard.visibility !== 'private' && (lastPublic || !profile) },
           ]}
         />
       </Section>
 
-      <Section title="Anzeige">
-        <Switch label="Statusleiste anzeigen" checked={dashboard.statusBar !== false} onChange={(on) => void save({ ...dashboard, statusBar: on ? undefined : false })} />
+      <Section title={t('display')}>
+        <Switch label={t('showStatusBar')} checked={dashboard.statusBar !== false} onChange={(on) => void save({ ...dashboard, statusBar: on ? undefined : false })} />
         {isAdmin && (
           <Switch
-            label="Als Vorlage schützen"
-            description="Nur Admins ändern es, alle können es duplizieren."
+            label={t('protect')}
+            description={t('protectHint')}
             checked={dashboard.isReadOnly === true}
             onChange={(on) => void save({ ...dashboard, isReadOnly: on ? true : undefined })}
           />
         )}
       </Section>
 
-      <Section title="Aktionen">
+      <Section title={t('actions')}>
         <Button
           fullWidth
           onClick={async () => {
-            const copy = await duplicate(dashboard.id, `${dashboard.name} Kopie`)
+            const copy = await duplicate(dashboard.id, t('copyName', { name: dashboard.name }))
             if (copy) setActive(workspaceId, copy.id)
             onClose()
           }}
         >
-          Duplizieren
+          {t('duplicate')}
         </Button>
         <Button
           variant="danger"
           fullWidth
           disabled={lastPublic || lastOfMode !== null}
-          title={lastPublic ? 'Das einzige geteilte Dashboard bleibt bestehen' : lastOfMode ? `Einziges Dashboard für ${lastOfMode} - bleibt` : undefined}
+          title={lastPublic ? t('lastSharedStays') : lastOfMode ? t('onlyForShort', { label: lastOfMode }) : undefined}
           onClick={async () => {
-            if (!(await confirm(`„${dashboard.name}“ löschen?`, { confirmLabel: 'Löschen', danger: true }))) return
+            if (!(await confirm(t('deleteAsk', { name: dashboard.name }), { confirmLabel: t('delete'), danger: true }))) return
             await remove(dashboard.id)
             setEditing(false)
             onClose()
           }}
         >
-          Dashboard löschen
+          {t('deleteDashboard')}
         </Button>
         {/* Throws away the whole band's dashboards, templates included - band admins only
             (Marco, 2026-10-08). */}
@@ -120,15 +122,13 @@ export function DashboardSettingsDialog({ dashboard, onClose }: { dashboard: Das
               // Says exactly what goes (Marco, 2026-10-08): every dashboard of the band, also the
               // private ones of other members and the templates - for every device, no undo.
               const others = dashboards.filter((d) => d.visibility === 'private' && d.ownerProfileId !== profile?.id).length
-              const message =
-                `Löscht alle ${dashboards.length} Dashboards der Band${others > 0 ? `, auch ${others} private von anderen Mitgliedern` : ''}, ` +
-                'auf allen Geräten, und legt die zwei Standard-Dashboards „Prompter“ und „Monitoring“ neu an. Das lässt sich nicht rückgängig machen.'
-              if (!(await confirm(message, { title: 'Alle Dashboards zurücksetzen?', confirmLabel: 'Alle zurücksetzen', danger: true }))) return
+              const message = t('resetMsg', { count: dashboards.length, others: others > 0 ? t('resetOthers', { count: others }) : '' })
+              if (!(await confirm(message, { title: t('resetTitle'), confirmLabel: t('resetConfirm'), danger: true }))) return
               void resetToDefaults()
               onClose()
             }}
           >
-            Alle Dashboards zurücksetzen
+            {t('resetButton')}
           </Button>
         )}
       </Section>
