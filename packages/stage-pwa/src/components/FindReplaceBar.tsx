@@ -275,7 +275,15 @@ export function FindReplaceBar({
         {compact && (
           <>
             <IconButton icon="edit" label={showReplace ? 'Ersetzen ausblenden' : 'Ersetzen anzeigen'} variant={showReplace ? 'primary' : 'secondary'} onClick={() => setShowReplace((on) => !on)} />
-            <IconButton icon="details" label="Suchoptionen" onClick={() => setOptionsOpen(true)} />
+            <IconButton
+              icon="details"
+              label="Suchoptionen"
+              onClick={() => {
+                // The keyboard goes down first: the options get the whole height.
+                if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+                setOptionsOpen(true)
+              }}
+            />
           </>
         )}
         <IconButton icon="close" label="Suche schließen" variant="quiet" onClick={onClose} />

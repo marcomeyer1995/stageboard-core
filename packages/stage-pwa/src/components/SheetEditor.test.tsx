@@ -142,10 +142,10 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
 
   it('tablet in portrait: with enough height above the keyboard the variant row stays (Marco, 2026-10-28)', async () => {
     stubViewport(phone)
-    // The page as the Redmi has it with the keyboard up - and the visible area's brief ~300 px
-    // blip while it comes up, which must not hide the row.
+    // The visible area as the Redmi has it with the keyboard up (its brief ~300 px blip on the way
+    // is filtered by the settled viewport - useSettledVisualViewport.test).
     const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(652)
-    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 297, offsetTop: 0 }) })
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 652, offsetTop: 0 }) })
     try {
       const textarea = await renderLoaded()
       fireEvent.focus(textarea)

@@ -1113,9 +1113,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const brackets = bracketProblems(settledText)
   // Little height with the keyboard up: the text alone (#617) - no variant row above it. Where
   // enough is left (a tablet in portrait: ~690 px), the variant row stays (Marco, 2026-10-28).
-  // The larger of the visible area and the page: while the keyboard comes up, the visible area
-  // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
-  const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
+  // The settled visible area (its blip while the keyboard comes up is filtered there). Not the page
+  // height: in landscape the app's WebView keeps its full height and the keyboard just covers it
+  // (Redmi, 2026-10-29) - the page said "room enough" with the text behind the keyboard.
+  const roomPx = visible?.height ?? (typeof window === 'undefined' ? 0 : window.innerHeight)
+  // What the keyboard covers of the page (landscape) - the text pane ends above it.
+  const keyboardCover = keyboardOpen && visible && typeof window !== 'undefined' ? Math.max(0, window.innerHeight - (visible.offsetTop + visible.height)) : 0
   const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
   // The search bar with little room (keyboard up, landscape, a phone): one row, and the variant
   // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
@@ -1123,7 +1126,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const hideVariantRow = typingOnPhone || (findBar !== null && compactSearch)
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
-    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`} style={keyboardCover > 0 ? { marginBottom: keyboardCover } : undefined}>
       {!hideVariantRow && variantRow}
       {toolUndo && (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 text-base text-ink">
