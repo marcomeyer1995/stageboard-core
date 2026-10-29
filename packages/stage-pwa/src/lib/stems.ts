@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { StemRole, TrackMeta } from 'shared-types'
 import type { DialogField } from '../store/useDialogStore'
 
@@ -30,15 +31,11 @@ export function uploadedStems(tracks: readonly TrackMeta[]): TrackMeta[] {
   return tracks.filter((t) => isStem(t) && (t.parentTrackId === null || !ids.has(t.parentTrackId)))
 }
 
-export const STEM_ROLE_LABELS: Record<StemRole, string> = {
-  drums: 'Schlagzeug',
-  bass: 'Bass',
-  guitar: 'Gitarre',
-  keys: 'Keys',
-  vocals: 'Gesang',
-  choir: 'Chor',
-  click: 'Klick',
-  other: 'Sonstiges',
+export const STEM_ROLE_LABELS = Object.fromEntries(
+  (['drums', 'bass', 'guitar', 'keys', 'vocals', 'choir', 'click', 'other'] as const).map((role) => [role, role]),
+) as Record<StemRole, string>
+for (const role of Object.keys(STEM_ROLE_LABELS) as StemRole[]) {
+  Object.defineProperty(STEM_ROLE_LABELS, role, { get: () => i18n.t(`editor:stem.role.${role}`), enumerable: true })
 }
 
 /** Checked in this order - "Bassdrum" is drums, "Bass guitar" bass, "Backing vocals" choir. */
