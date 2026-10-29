@@ -69,15 +69,12 @@ public class MainActivity extends BridgeActivity {
      */
     private void followKeyboard() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return;
-        // Android must not shorten the window itself as well: on the Fire it never grew back once
-        // the keyboard closed - the page stayed short with a grey band below it until the app
-        // restarted (2026-10-29). The WebView's margin below is the only thing that gives way.
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         View decor = getWindow().getDecorView();
         Rect visible = new Rect();
         int[] onScreen = new int[2];
-        // A layout pass asks Android for the window's current keyboard area.
-        Runnable relayout = decor::requestLayout;
+        // Setting the window's attributes again makes Android hand over its current size - a mere
+        // layout pass doesn't ask the window manager.
+        Runnable relayout = () -> getWindow().setAttributes(getWindow().getAttributes());
         decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
             decor.getWindowVisibleDisplayFrame(visible);
             View webView = bridge.getWebView();
@@ -85,7 +82,8 @@ public class MainActivity extends BridgeActivity {
             // Measured against where the WebView's container really ends - not the screen height:
             // when Android itself shortens the container too, the keyboard must not count twice.
             parent.getLocationOnScreen(onScreen);
-            int covered = Math.max(0, onScreen[1] + parent.getHeight() - visible.bottom);
+            int bottom = onScreen[1] + parent.getHeight();
+            int covered = Math.max(0, bottom - visible.bottom);
             // A sliver (a navigation bar showing briefly) is not a keyboard.
             int keyboard = covered > decor.getHeight() * 0.15 ? covered : 0;
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
@@ -93,10 +91,12 @@ public class MainActivity extends BridgeActivity {
                 params.bottomMargin = keyboard;
                 webView.setLayoutParams(params);
             }
-            // The keyboard going away may lay nothing out: while one is counted, look again a
-            // little later.
+            // The Fire shortens the window for the keyboard itself, but never tells the app when
+            // the keyboard has gone: the page stayed short with a grey band below it until the app
+            // restarted (2026-10-29). While the page is short, ask again a little later.
+            boolean shortened = keyboard > 0 || bottom < decor.getHeight() * 0.85;
             decor.removeCallbacks(relayout);
-            if (keyboard > 0) decor.postDelayed(relayout, KEYBOARD_RECHECK_MS);
+            if (shortened) decor.postDelayed(relayout, KEYBOARD_RECHECK_MS);
         });
     }
 
