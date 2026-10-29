@@ -33,8 +33,11 @@ import { getLoopPlaybackState } from '../lib/loopTrainerEngine'
 import { stopLoopTrainer } from '../lib/loopTrainer'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
-/** Gap between the bar's items (gap-3) - part of each item's room. */
+/** Gap between the bar's items (gap-3) when the browser can't tell - part of each item's room. */
 const GAP_PX = 12
+
+/** How often the fitted set may change while nothing else does (see the layout effect). */
+const MAX_REFITS = 4
 
 /** The state as an icon (Marco, 2026-10-07: a word took the song title's room on narrow screens). */
 const STATE_ICON: Record<StatusBarKind, IconName> = {
@@ -236,26 +239,38 @@ export function StatusBar({
   // every animation frame the playing song re-renders this bar with (#429 review). Size changes
   // come through the ResizeObserver below.
   const measuredFor = useRef('')
+  const refitsFor = useRef('')
+  const refits = useRef(0)
   const [resizes, setResizes] = useState(0)
   useLayoutEffect(() => {
     const header = headerRef.current
     const title = titleRef.current
     if (!header || !title) return
-    const signature = `${resizes}|${shownKey}|${wanted.join(',')}|${fault}|${faultWordHidden}|${syncProblem}|${header.textContent}`
+    const unchanged = `${resizes}|${wanted.join(',')}|${fault}|${faultWordHidden}|${syncProblem}|${header.textContent}`
+    const signature = `${unchanged}|${shownKey}`
     if (signature === measuredFor.current) return
     measuredFor.current = signature
+    // Never flip back and forth: nothing but the fitted set changed four times in a row - keep it.
+    // A bar that is a few pixels off is a nuisance; one that loops takes the whole app down.
+    refits.current = unchanged === refitsFor.current ? refits.current + 1 : 0
+    refitsFor.current = unchanged
+    if (refits.current > MAX_REFITS) return
     const widths: Partial<Record<StatusBarItem, number>> = {}
     let used = 0
+    // Exact widths and the real gap (gap-3 grows with the text size): with whole pixels and a fixed
+    // 12 px, showing "Gig" left 1 px less room than hiding it - it was hidden, shown, hidden … until
+    // React gave up and the app stayed black (Redmi, 2026-10-29).
+    const gap = parseFloat(getComputedStyle(header).columnGap) || GAP_PX
     for (const el of header.querySelectorAll<HTMLElement>('[data-sbitem]')) {
       const id = el.dataset.sbitem as StatusBarItem
-      const width = el.offsetWidth + GAP_PX
+      const width = el.getBoundingClientRect().width + gap
       widths[id] = width
       if (isShown(id)) used += width
     }
     // Always-shown items (a fault's word, a sync problem) take their room off the top - also when
     // hidden in Einstellungen, they are shown anyway (#429 review).
     const pinned = STATUS_BAR_ITEMS.filter((id) => (id === 'stateText' && fault && !faultWordHidden) || (id === 'sync' && syncProblem))
-    const room = title.clientWidth + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
+    const room = title.getBoundingClientRect().width + used - pinned.reduce((sum, id) => sum + (widths[id] ?? 0), 0)
     const fitted = wanted.filter((id) => !(pinned as readonly StatusBarItem[]).includes(id) && !(id === 'stateText' && faultWordHidden))
     const next = [...fitStatusBarItems(fitted, widths, room)].join(',')
     if (next !== shownKey) setShownKey(next)
