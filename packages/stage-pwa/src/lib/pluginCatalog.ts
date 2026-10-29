@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { CAPABILITIES, type PluginInstallation } from 'shared-types'
 
 /** What each capability does, in the band's words - the ids themselves ("click-track") are for
@@ -27,7 +28,11 @@ const CAPABILITY_LABEL: Record<string, string> = {
  * one per device - see the catalog below) reads "Gerätesteuerung"; any other unknown id (a newer
  * plugin) shows as it is. */
 export function capabilitiesLabel(capabilities: readonly string[]): string {
-  return capabilities.map((capability) => CAPABILITY_LABEL[capability] ?? (capability.endsWith('-control') ? 'Gerätesteuerung' : capability)).join(', ')
+  return capabilities
+    .map((capability) =>
+      CAPABILITY_LABEL[capability] ? i18n.t(`hardware:cap.${capability}`, { defaultValue: CAPABILITY_LABEL[capability] }) : capability.endsWith('-control') ? i18n.t('hardware:cap.device-control') : capability,
+    )
+    .join(', ')
 }
 
 /**
