@@ -261,5 +261,75 @@
     "keep": "Sicherungen behalten",
     "keepHint": "Ältere werden gelöscht.",
     "enabled": "Aktiv"
+  },
+  "dbg": {
+    "all": "Alles",
+    "error": "Fehler",
+    "warn": "Warnungen",
+    "info": "Info",
+    "debug": "Details",
+    "levelCount": "{{label}} ({{count}})",
+    "copied": "{{count}} Einträge kopiert.",
+    "copyFailed": "Kopieren nicht erlaubt - Text unten markieren.",
+    "title": "Diagnose",
+    "explainLabel": "Erklärung: Diagnose",
+    "explain": "Was die App auf diesem Gerät protokolliert hat (die letzten 500 Einträge seit dem Laden) - ohne Kabel und Entwicklerwerkzeuge.",
+    "entries": "Einträge",
+    "search": "Suchen…",
+    "searchAria": "Log durchsuchen",
+    "copy": "Kopieren",
+    "clear": "Leeren",
+    "log": "Log",
+    "none": "Keine Einträge.",
+    "flags": "Detail-Protokolle",
+    "flagsLabel": "Erklärung: Detail-Protokolle",
+    "flagsInfo": "Schreiben zusätzlich ausführliche Einträge - nur zum Fehlersuchen einschalten.",
+    "flag": {
+      "grid": "Dashboard-Raster (Ziehen, Größe ändern)",
+      "config": "Speichern & Konflikte",
+      "clocksync": "Uhr-Synchronisation"
+    }
+  },
+  "wa": {
+    "label": "Backing-Track über Web Audio",
+    "next": "Wirkt beim nächsten Song.",
+    "info": "Gig: Track und Klick auf derselben Audio-Uhr, Start auf die Probe genau, klingt wie beim Üben. Aus: über den Audio-Player des Systems (auf manchen Geräten mit Klangeffekten wie Dolby)."
+  },
+  "xf": {
+    "label": "Übergang beim Springen",
+    "info": "Überblendung des Backing-Tracks an der Sprung- oder Wiederholungsstelle, auf diesem Gerät. Länger klingt weicher, kürzer knackiger. Standard {{ms}} ms.",
+    "next": "Wirkt beim nächsten Sprung."
+  },
+  "ct": {
+    "over": "über {{ms}} ms",
+    "aria": "Cue-Timing",
+    "title": "Cue-Timing auf diesem Gerät",
+    "explainLabel": "Erklärung: Cue-Timing",
+    "explain": "Gemessen nur, während ein Song läuft. Ein Cue kommt zu spät, wenn die App länger als {{critical}} ms stillsteht (Vorlauf {{lookahead}} ms minus ein Takt von {{tick}} ms). Pausen des Planers gibt es nur bei Songs mit Cues.",
+    "since": "Seit {{time}}",
+    "none": "Noch keine Messung - einen Song im Gig-Modus abspielen.",
+    "stalls": "Stillstände der App (ab 50 ms) während {{min}} min Wiedergabe: {{count}} · längster: ",
+    "stallList": "Stillstände",
+    "longestGap": "Längste Pause des Planers: ",
+    "handed": " · Cues übergeben: {{count}} · davon zu spät: ",
+    "upTo": " (bis {{ms}} ms)",
+    "gapList": "Pausen des Planers",
+    "reset": "Zurücksetzen"
+  },
+  "st": {
+    "aria": "Synchron-Test",
+    "title": "Synchron-Test",
+    "explainLabel": "Erklärung: Synchron-Test",
+    "explain": "Markiert {{s}} s lang jede volle Sekunde der Server-Zeit - mit einer MIDI-Note und/oder dem echten Klick. Auf allen Geräten gleichzeitig starten; ein Laptop am Stage-Server misst den Versatz.",
+    "output": "MIDI-Ausgang",
+    "none": "- keiner (nur Klick) -",
+    "channel": "MIDI-Kanal (je Gerät ein anderer)",
+    "click": "Klick hörbar (Lautstärke vorher prüfen)",
+    "compensate": "Mit Latenz-Ausgleich ({{ms}} ms)",
+    "compensateInfo": "Aus: misst die rohe Latenz (zum Eintragen). An: prüft den Ausgleich - der Klick sollte dann auf der Sekunde landen.",
+    "stop": "Stoppen",
+    "start": "Starten",
+    "running": "Läuft - {{n}} Sekunden markiert",
+    "done": "Fertig - {{n}} Sekunden markiert"
   }
 }

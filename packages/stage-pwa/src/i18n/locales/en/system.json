@@ -261,5 +261,75 @@
     "keep": "Keep backups",
     "keepHint": "Older ones are deleted.",
     "enabled": "Active"
+  },
+  "dbg": {
+    "all": "All",
+    "error": "Errors",
+    "warn": "Warnings",
+    "info": "Info",
+    "debug": "Details",
+    "levelCount": "{{label}} ({{count}})",
+    "copied": "{{count}} entries copied.",
+    "copyFailed": "Copying not allowed - select the text below.",
+    "title": "Diagnostics",
+    "explainLabel": "Explanation: diagnostics",
+    "explain": "What the app has logged on this device (the last 500 entries since loading) - without cables or developer tools.",
+    "entries": "Entries",
+    "search": "Search…",
+    "searchAria": "Search the log",
+    "copy": "Copy",
+    "clear": "Clear",
+    "log": "Log",
+    "none": "No entries.",
+    "flags": "Detail logs",
+    "flagsLabel": "Explanation: detail logs",
+    "flagsInfo": "Write extra detailed entries - switch on for troubleshooting only.",
+    "flag": {
+      "grid": "Dashboard grid (dragging, resizing)",
+      "config": "Saving & conflicts",
+      "clocksync": "Clock sync"
+    }
+  },
+  "wa": {
+    "label": "Backing track via Web Audio",
+    "next": "Takes effect with the next song.",
+    "info": "Gig: track and click on the same audio clock, start exact to the sample, sounds like in practice. Off: through the system's audio player (on some devices with sound effects like Dolby)."
+  },
+  "xf": {
+    "label": "Transition when jumping",
+    "info": "Cross-fade of the backing track at the jump or repeat point, on this device. Longer sounds softer, shorter punchier. Default {{ms}} ms.",
+    "next": "Takes effect with the next jump."
+  },
+  "ct": {
+    "over": "over {{ms}} ms",
+    "aria": "Cue timing",
+    "title": "Cue timing on this device",
+    "explainLabel": "Explanation: cue timing",
+    "explain": "Measured only while a song is playing. A cue comes late when the app stands still for longer than {{critical}} ms (lookahead {{lookahead}} ms minus one tick of {{tick}} ms). Scheduler pauses only exist for songs with cues.",
+    "since": "Since {{time}}",
+    "none": "No measurement yet - play a song in Gig mode.",
+    "stalls": "App stalls (from 50 ms) during {{min}} min of playback: {{count}} · longest: ",
+    "stallList": "Stalls",
+    "longestGap": "Longest scheduler pause: ",
+    "handed": " · cues handed over: {{count}} · of them late: ",
+    "upTo": " (up to {{ms}} ms)",
+    "gapList": "Scheduler pauses",
+    "reset": "Reset"
+  },
+  "st": {
+    "aria": "Sync test",
+    "title": "Sync test",
+    "explainLabel": "Explanation: sync test",
+    "explain": "Marks every full second of server time for {{s}} s - with a MIDI note and/or the real click. Start on every device at once; a laptop at the Stage server measures the offset.",
+    "output": "MIDI output",
+    "none": "- none (click only) -",
+    "channel": "MIDI channel (a different one per device)",
+    "click": "Click audible (check the volume first)",
+    "compensate": "With latency compensation ({{ms}} ms)",
+    "compensateInfo": "Off: measures the raw latency (to enter it). On: checks the compensation - the click should then land on the second.",
+    "stop": "Stop",
+    "start": "Start",
+    "running": "Running - {{n}} seconds marked",
+    "done": "Done - {{n}} seconds marked"
   }
 }

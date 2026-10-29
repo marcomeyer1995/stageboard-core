@@ -4,6 +4,7 @@ import { getDeviceId } from '../lib/deviceId'
 import { getSyncTestStatus, startSyncTest, stopSyncTest } from '../lib/syncTest'
 import { useAudioOutputLatencyMs } from '../lib/latencyCompensation'
 import { listMidiOutputs } from '../lib/webMidiOutput'
+import { useTranslation } from 'react-i18next'
 
 const DURATION_S = 60
 
@@ -20,6 +21,7 @@ function defaultChannel(): number {
  * (scripts/midi-timing-probe/sync-receiver.py).
  */
 export function SyncTestPanel() {
+  const { t } = useTranslation('system')
   const [outputs, setOutputs] = useState<{ id: string; name: string }[]>([])
   const [outputId, setOutputId] = useState('')
   const [channel, setChannel] = useState(defaultChannel)
@@ -40,49 +42,49 @@ export function SyncTestPanel() {
   const status = getSyncTestStatus()
 
   return (
-    <section className="flex flex-col gap-3 rounded-container border border-line bg-surface p-4" aria-label="Synchron-Test">
+    <section className="flex flex-col gap-3 rounded-container border border-line bg-surface p-4" aria-label={t('st.aria')}>
       <div className="flex items-center gap-1">
-        <h3 className="text-base font-bold text-ink">Synchron-Test</h3>
+        <h3 className="text-base font-bold text-ink">{t('st.title')}</h3>
         <InfoHint
-          label="Erklärung: Synchron-Test"
-          text={`Markiert ${DURATION_S} s lang jede volle Sekunde der Server-Zeit - mit einer MIDI-Note und/oder dem echten Klick. Auf allen Geräten gleichzeitig starten; ein Laptop am Stage-Server misst den Versatz.`}
+          label={t('st.explainLabel')}
+          text={t('st.explain', { s: DURATION_S })}
         />
       </div>
       <Select
-        label="MIDI-Ausgang"
+        label={t('st.output')}
         value={outputId}
         onChange={(e) => setOutputId(e.target.value)}
-        options={[{ value: '', label: '- keiner (nur Klick) -' }, ...outputs.map((o) => ({ value: o.id, label: o.name }))]}
+        options={[{ value: '', label: t('st.none') }, ...outputs.map((o) => ({ value: o.id, label: o.name }))]}
       />
       <Select
-        label="MIDI-Kanal (je Gerät ein anderer)"
+        label={t('st.channel')}
         value={String(channel)}
         onChange={(e) => setChannel(Number(e.target.value))}
         options={Array.from({ length: 16 }, (_, i) => ({ value: String(i), label: String(i + 1) }))}
       />
-      <Switch label="Klick hörbar (Lautstärke vorher prüfen)" checked={click} onChange={setClick} />
+      <Switch label={t('st.click')} checked={click} onChange={setClick} />
       {click && (
         <Switch
-          label={`Mit Latenz-Ausgleich (${latencyMs} ms)`}
-          info="Aus: misst die rohe Latenz (zum Eintragen). An: prüft den Ausgleich - der Klick sollte dann auf der Sekunde landen."
+          label={t('st.compensate', { ms: latencyMs })}
+          info={t('st.compensateInfo')}
           checked={compensate}
           onChange={setCompensate}
         />
       )}
       <div className="flex flex-wrap items-center gap-3">
         {status.running ? (
-          <Button onClick={() => { stopSyncTest(); rerender((n) => n + 1) }}>Stoppen</Button>
+          <Button onClick={() => { stopSyncTest(); rerender((n) => n + 1) }}>{t('st.stop')}</Button>
         ) : (
           <Button
             variant="primary"
             disabled={!outputId && !click}
             onClick={() => void startSyncTest({ outputId: outputId || null, channel, click, durationS: DURATION_S, clickLatencyMs: click && compensate ? latencyMs : 0 }).then(() => rerender((n) => n + 1))}
           >
-            Starten
+            {t('st.start')}
           </Button>
         )}
         <span role="status" className="text-base text-ink">
-          {status.running ? `Läuft - ${status.marked} Sekunden markiert` : status.marked > 0 ? `Fertig - ${status.marked} Sekunden markiert` : ''}
+          {status.running ? t('st.running', { n: status.marked }) : status.marked > 0 ? t('st.done', { n: status.marked }) : ''}
         </span>
       </div>
     </section>
