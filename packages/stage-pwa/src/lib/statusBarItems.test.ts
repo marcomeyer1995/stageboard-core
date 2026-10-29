@@ -19,6 +19,11 @@ describe('status bar ranking', () => {
     expect([...shown]).toEqual(['master', 'clock'])
   })
 
+  it('half a pixel of rounding still fits - an item at the very edge must not flip in and out', () => {
+    expect([...fitStatusBarItems(['mode'], { mode: 55.4 }, 160 + 55)]).toEqual(['mode'])
+    expect([...fitStatusBarItems(['mode'], { mode: 56 }, 160 + 55)]).toEqual([])
+  })
+
   it('brings a stored ranking up to date: unknown ids out, new items appended', () => {
     expect(normalizeStatusBarOrder(['clock', 'gone', 'duration'])).toEqual(['clock', 'duration', ...STATUS_BAR_ITEMS.filter((i) => i !== 'clock' && i !== 'duration')])
   })
