@@ -331,5 +331,12 @@
     "start": "Start",
     "running": "Running - {{n}} seconds marked",
     "done": "Done - {{n}} seconds marked"
+  },
+  "theme": {
+    "default": "Classic",
+    "design": "Design",
+    "lightDark": "Light or dark",
+    "dark": "Dark",
+    "light": "Light"
   }
 }

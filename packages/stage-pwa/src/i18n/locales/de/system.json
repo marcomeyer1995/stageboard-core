@@ -331,5 +331,12 @@
     "start": "Starten",
     "running": "Läuft - {{n}} Sekunden markiert",
     "done": "Fertig - {{n}} Sekunden markiert"
+  },
+  "theme": {
+    "default": "Klassisch",
+    "design": "Design",
+    "lightDark": "Hell oder dunkel",
+    "dark": "Dunkel",
+    "light": "Hell"
   }
 }
