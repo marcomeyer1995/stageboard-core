@@ -21,7 +21,8 @@ interface PageHeaderProps {
   middle?: ReactNode
   /** Before the actions, e.g. "Gespeichert." */
   status?: ReactNode
-  /** What this page can do (D8), the main one first: an icon on the phone, icon + word from 600 px. */
+  /** What this page can do (D8), the main one first: an icon on the phone, icon + word from 600 px
+   * (900 px when there is a `middle`). */
   actions?: PageAction[]
   /** ⋮ for the whole page (D9), always last. */
   menu?: { title: string; actions: MenuAction[] }
@@ -41,7 +42,9 @@ interface PageHeaderProps {
 export function PageHeader({ back, middle, status, actions = [], menu, title, titleExtra, subtitle }: PageHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   // One element per action, picked by width (the phone gets the icon, 600 px and up icon + word).
-  const wide = useMediaQuery('(min-width: 600px)')
+  // With views in the middle (song editor) words only from 900 px: at 601 px "Speichern" pushed
+  // "Details" onto a second row.
+  const wide = useMediaQuery(middle ? '(min-width: 900px)' : '(min-width: 600px)')
   return (
     <div className="flex flex-col gap-1">
       <div className="flex min-w-0 items-center gap-2">
