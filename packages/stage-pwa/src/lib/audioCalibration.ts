@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { CalibrationRunStart, CalibrationRunStatus } from 'shared-types'
 import { createAudioClock } from './audioClock'
 import { playClickAt } from './clickEngine'
@@ -20,7 +21,7 @@ export type AudioCalibrationOutcome = { ok: true; status: CalibrationRunStatus }
  */
 export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft: number) => void): Promise<AudioCalibrationOutcome> {
   const base = getStageServerUrl()
-  if (!base) return { ok: false, message: 'Kein Stage-Server verbunden.' }
+  if (!base) return { ok: false, message: i18n.t('messages:noServer') }
   let run: CalibrationRunStart
   try {
     const response = await fetch(`${base}/calibration/runs`, {
@@ -69,5 +70,5 @@ export async function runAudioCalibration(earlierByMs = 0, onProgress?: (msLeft:
     }
     await new Promise((r) => setTimeout(r, 300))
   }
-  return { ok: false, message: 'Der Stage-Server hat kein Ergebnis geliefert.' }
+  return { ok: false, message: i18n.t('messages:noResult') }
 }

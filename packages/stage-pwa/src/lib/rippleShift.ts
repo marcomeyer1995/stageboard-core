@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { BeatGrid, ShowCue } from 'shared-types'
 import { setLineTimeTag } from './chordpro'
 import { randomId } from './id'
@@ -55,18 +56,18 @@ export function rippleShift(
   const firstMoving = Math.min(...movingPoints.map((p) => p.timeMs), ...movingLines.map((l) => l.timeMs), ...movingCues.map((c) => c.timeMs))
   if (!Number.isFinite(firstMoving)) return { ok: false, message: 'Ab hier gibt es nichts zu verschieben.' }
   if (firstMoving + delta < 0) {
-    return { ok: false, message: `Das würde vor 0:00 rutschen (frühestens um −${formatTimelineTime(firstMoving)} möglich).` }
+    return { ok: false, message: i18n.t('messages:beforeZero', { time: formatTimelineTime(firstMoving) }) }
   }
   if (delta < 0) {
     const lastStayingPoint = Math.max(...stayingPoints.map((p) => p.timeMs))
     const firstMovingPoint = Math.min(...movingPoints.map((p) => p.timeMs))
     if (Number.isFinite(lastStayingPoint) && Number.isFinite(firstMovingPoint) && firstMovingPoint + delta <= lastStayingPoint) {
-      return { ok: false, message: 'Das würde einen früheren Ausrichtungspunkt überholen.' }
+      return { ok: false, message: i18n.t('messages:overtakePoint') }
     }
     const lastStayingLine = Math.max(...stayingLines.map((l) => l.timeMs))
     const firstMovingLine = Math.min(...movingLines.map((l) => l.timeMs))
     if (Number.isFinite(lastStayingLine) && Number.isFinite(firstMovingLine) && firstMovingLine + delta < lastStayingLine) {
-      return { ok: false, message: 'Das würde eine frühere Liedzeile überholen.' }
+      return { ok: false, message: i18n.t('messages:overtakeLine') }
     }
   }
 

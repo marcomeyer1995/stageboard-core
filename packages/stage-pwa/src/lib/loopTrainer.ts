@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect } from 'react'
 import { clampRate, type LoopSpeedConfig } from './loopSchedule'
 import { getLoopPlaybackState, startLoopEngine, stopLoopEngine } from './loopTrainerEngine'
@@ -21,17 +22,17 @@ export function speedFromConfig(config: LoopTrainerConfig): LoopSpeedConfig {
 export async function startLoopTrainer(): Promise<void> {
   const setActive = useLoopTrainerStore.getState().setActive
   const context = practiceLoopContext()
-  if (!context) return setActive(false, 'Kein Track für diesen Song')
+  if (!context) return setActive(false, i18n.t('messages:noTrackForSong'))
   const config = loopConfigFor(context.entryId)
-  if (config.startMs === null || config.endMs === null) return setActive(false, 'Bitte Loop-Anfang und -Ende setzen')
+  if (config.startMs === null || config.endMs === null) return setActive(false, i18n.t('messages:setLoop'))
 
   const blob = await getTrack(context.variantId, context.trackId)
-  if (!blob) return setActive(false, 'Kein Track gefunden')
+  if (!blob) return setActive(false, i18n.t('messages:noTrackFound'))
 
   const result = await startLoopEngine({ blob, startMs: config.startMs, endMs: config.endMs, speed: speedFromConfig(config) })
   // Overtaken by a stop or a newer start while loading - that one owns the state now.
   if (result.status === 'cancelled') return
-  if (result.status === 'error') return setActive(false, result.message ?? 'Fehler')
+  if (result.status === 'error') return setActive(false, result.message ?? i18n.t('messages:error'))
   practiceBeginLoop(config.startMs)
   setActive(true)
 }

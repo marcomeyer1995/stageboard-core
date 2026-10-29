@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { isNativeApp } from './native'
 
@@ -50,6 +51,6 @@ export function overrideForTypedUrl(typed: string): string | null {
 
 /** What a feature that needs the Stage-Server says when this device has none set up (instead of
  * the technical "VITE_STAGE_SERVER_URL is not configured"). */
-export const NO_STAGE_SERVER_MESSAGE = 'Das geht nur mit Verbindung zum Stage-Server - dieses Gerät ist mit keinem verbunden.'
+export const NO_STAGE_SERVER_MESSAGE = i18n.t('messages:needServer')
 /** …and when one is set up but doesn't answer (offline, other network). */
-export const STAGE_SERVER_UNREACHABLE_MESSAGE = 'Stage-Server nicht erreichbar - WLAN und Server prüfen.'
+export const STAGE_SERVER_UNREACHABLE_MESSAGE = i18n.t('messages:serverOffline')

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowCue } from 'shared-types'
 import { randomId } from './id'
 
@@ -40,6 +41,6 @@ export function parseCuePayload(text: string): { payload: Record<string, unknown
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return { error: 'Payload muss ein JSON-Objekt sein, z.B. {"slot": 3}' }
     return { payload: value as Record<string, unknown> }
   } catch {
-    return { error: 'Ungültiges JSON' }
+    return { error: i18n.t('messages:invalidJson') }
   }
 }

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { BeatGrid, GridPoint } from 'shared-types'
 import { beatsPerBar } from './metronome'
 import { randomId } from './id'
@@ -448,11 +449,11 @@ export function applySectionTempo(grid: BeatGrid, bpm: number, timeSignature: st
   const perBar = timeline.barStartBeat(startBar + 1) - timeline.barStartBeat(startBar)
   let endBar = startBar + Math.max(1, Math.ceil((taps[taps.length - 1]! - startMs) / beatMs / perBar))
   if (next && endBar >= next.bar) endBar = next.bar - 1
-  if (endBar <= startBar) return { kind: 'refused', reason: `Zwischen Takt ${startBar} und dem nächsten Ausrichtungspunkt (Takt ${next?.bar}) ist kein Platz für ein eigenes Tempo.` }
+  if (endBar <= startBar) return { kind: 'refused', reason: i18n.t('messages:noRoomForTempo', { bar: startBar, next: next?.bar }) }
   const endMs = startMs + (timeline.barStartBeat(endBar) - timeline.barStartBeat(startBar)) * beatMs
 
   const pinned = setPoint(grid, startBar, startMs, timeSignature)
   const withTempo = pinned && setPoint(pinned, endBar, endMs, timeSignature)
-  if (!withTempo) return { kind: 'refused', reason: `${tempo.toFixed(1)} BPM ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}) - dort zuerst die Ausrichtung prüfen.` }
+  if (!withTempo) return { kind: 'refused', reason: i18n.t('messages:tempoMismatch', { bpm: tempo.toFixed(1), bar: startBar, next: next?.bar }) }
   return { kind: 'grid', grid: withTempo, startBar, endBar, nextBar: next?.bar ?? null }
 }
