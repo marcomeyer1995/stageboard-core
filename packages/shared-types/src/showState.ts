@@ -44,6 +44,11 @@ export const ShowStateSchema = z.object({
    * device once it has passed. `label`: the target section, for the screens. Optional: older
    * devices leave it out. */
   playbackJump: z.object({ at: z.number(), toMs: z.number(), label: z.string().optional() }).nullable().optional(),
+  /** Song time leapt over by the passed section jumps of this play-through (#479): a jump forward
+   * adds what it skipped, a loop's way back subtracts what it repeats. Song time minus this is the
+   * time really played - the Nachbericht's "gespielt" (Marco 2026-10-29: a skipped part counted,
+   * a repeated chorus didn't). Optional: older devices leave it out (= 0). */
+  playbackSkippedMs: z.number().optional(),
   /** A section repeated until released (#479): the driving device queues a jump back to `startMs`
    * before every `endMs`. Released, the song simply runs on past `endMs`. Optional, like above. */
   playbackLoop: z.object({ startMs: z.number(), endMs: z.number(), label: z.string().optional() }).nullable().optional(),

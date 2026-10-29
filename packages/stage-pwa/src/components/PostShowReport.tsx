@@ -159,7 +159,7 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
         {longPauses > 0 && <span className="font-semibold text-warn"> · {longPauses} {longPauses === 1 ? 'Pause' : 'Pausen'} zu lang</span>}
         <InfoHint
           label="Erklärung: geplant und gespielt"
-          text="Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant."
+          text="Gespielt = die Zeit, die wirklich lief: übersprungene Teile zählen nicht, eine Schleife zählt jedes Mal. Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant."
         />
       </p>
       {/* A Rig-Check's result (#464) under the show's own heading, above its songs. */}
