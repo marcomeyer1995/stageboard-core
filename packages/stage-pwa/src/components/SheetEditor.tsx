@@ -1156,9 +1156,10 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
   const compactSearch = roomPx < ROOMY_FOR_FULL_SEARCH_PX || (typeof window !== 'undefined' && window.innerWidth < 600)
   const hideVariantRow = typingOnPhone || (findBar !== null && compactSearch)
-  // The key bar lies over the bottom of the page - the text field ends above it.
+  // The key bar lies over the bottom of the page - the text field ends above it (no room kept for it
+  // where it steps aside).
   const textPane = (
-    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`} style={keyboardCover > 0 ? { marginBottom: keyboardCover } : undefined}>
+    <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen && roomPx >= CRAMPED_TYPING_PX ? 'pb-form' : ''}`} style={keyboardCover > 0 ? { marginBottom: keyboardCover } : undefined}>
       {!hideVariantRow && variantRow}
       {toolUndo && (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 text-base text-ink">
