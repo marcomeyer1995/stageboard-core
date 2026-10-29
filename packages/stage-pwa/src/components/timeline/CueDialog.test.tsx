@@ -41,6 +41,12 @@ describe('CueDialog (docs/14 §7)', () => {
     expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'mg30', type: 'mg30.selectPatch', payload: { program: 5 } })
   })
 
+  it('one device and no playback to offer (the Rig-Check): it is chosen already', () => {
+    render(<CueDialog title="Rig-Check: NUX MG-30" devices={[devices[0]!]} withPlayback={false} onSubmit={vi.fn()} onCancel={vi.fn()} />)
+    expect(select('Gerät').value).toBe('mg30')
+    expect(select('Befehl').disabled).toBe(false)
+  })
+
   it('a device without described commands gets the free command and payload fields', () => {
     const onSubmit = vi.fn()
     render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={vi.fn()} />)

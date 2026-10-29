@@ -80,6 +80,53 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     /** Why it failed (device gone, no output, the device's own error). */
     message: z.string().max(300).optional(),
   }),
+  /** A Rig-Check run (#464, docs/24 §5) - written by the master at Vorbereiten and updated at
+   * Start and at the end. Its `showId` is the run's own show, which marks that show as a
+   * Rig-Check in the Nachbericht. `previous`: what the show was on before, restored at the end. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('rig-check-run'),
+    /** When it was prepared. */
+    at: z.number().int().nonnegative(),
+    kind: z.enum(['quick', 'full']),
+    /** Generator version (rigCheckSong.ts) - results of different versions aren't comparable. */
+    version: z.number().int().positive(),
+    startedAt: z.number().int().nonnegative().optional(),
+    endedAt: z.number().int().nonnegative().optional(),
+    /** Ended with Abbrechen before or while it played. */
+    cancelled: z.boolean().optional(),
+    previous: z
+      .object({
+        activeSetlistId: z.string().nullable(),
+        activeEntryId: z.string().nullable(),
+        currentShowId: z.string().nullable(),
+        lastActivityAt: z.number().nullable(),
+      })
+      .optional(),
+  }),
+  /** One device's part of a Rig-Check run (#464): written by that device, one id per run and
+   * device - its state while the run is open, then the band's eye-and-ear verdict. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('rig-check-device'),
+    /** When this device last updated it. */
+    at: z.number().int().nonnegative(),
+    deviceId: z.string().min(1),
+    deviceName: z.string().min(1).max(120),
+    /** 'practice': in Solo Üben - it does not follow the run. */
+    mode: z.enum(['gig', 'practice']),
+    trackReady: z.boolean(),
+    /** This device's clock against the Stage-Server's, and how much it varies (clockSync.ts). */
+    clockOffsetMs: z.number().nullable(),
+    clockJitterMs: z.number().nullable(),
+    /** Speaker, headphones, Bluetooth … (useAudioRouteStore) and the stored output latency for it. */
+    audioRoute: z.string().max(40),
+    outputLatencyMs: z.number().nullable(),
+    verdict: z.enum(['ok', 'problem']).nullable(),
+    note: z.string().max(300).optional(),
+  }),
   z.object({
     id: z.string().min(1),
     showId: z.string().min(1),

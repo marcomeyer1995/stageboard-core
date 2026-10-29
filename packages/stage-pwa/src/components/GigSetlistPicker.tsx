@@ -1,8 +1,8 @@
 import { useQueue } from '../lib/queue'
-import { useSetlistsStore } from '../store/useSetlistsStore'
 import { useShowStateStore } from '../store/useShowStateStore'
 import { SetlistPickRow } from './SetlistPickRow'
 import { useTranslation } from 'react-i18next'
+import { useVisibleSetlists } from '../lib/visibleCatalog'
 
 /**
  * The Gig's active setlist in the ☰ drawer (Marco, 2026-10-16): the master picks it there - no
@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
  */
 export function GigSetlistPicker() {
   const { isMaster, activeSetlist } = useQueue()
-  const setlists = useSetlistsStore((state) => state.setlists)
+  const setlists = useVisibleSetlists()
   const playing = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const setActiveSetlist = useShowStateStore((state) => state.setActiveSetlist)
   const { t } = useTranslation('menu')

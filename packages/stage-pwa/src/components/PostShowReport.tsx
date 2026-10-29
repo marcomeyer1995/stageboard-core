@@ -13,6 +13,8 @@ import { Icon } from './Icon'
 import { CueDialog, type CueContent } from './timeline/CueDialog'
 import { ActionMenu, Button, InfoHint } from './ui'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
+import { RigCheckReport } from './RigCheckReport'
+import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -46,6 +48,8 @@ function groupByShow(events: ShowLogEvent[]): ShowGroup[] {
   }
   const groups: ShowGroup[] = []
   for (const [showId, showEvents] of byShow) {
+    // A Rig-Check that was only prepared, never played (#464) is no show.
+    if (showEvents.some((event) => event.type === 'rig-check-run' && event.startedAt === undefined)) continue
     const start = showEvents.find((event) => event.type === 'show-started')
     groups.push({ showId, startedAt: start?.at ?? showEvents[0].at, events: showEvents })
   }
@@ -137,7 +141,7 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
  * "Technik (n)" line - they used to sit between the songs, dozens of "click-track: degraded →
  * available" lines burying the setlist that was actually played (GUI audit 2026-09-26).
  */
-function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: string | null) => string }) {
+function ShowSections({ show, authorName, children }: { show: ShowGroup; authorName: (id: string | null) => string; children?: ReactNode }) {
   const byTime = [...show.events].sort((a, b) => a.at - b.at)
   const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
   const notes = byTime.filter((event): event is Note => event.type === 'note')
@@ -158,6 +162,8 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
           text="Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant."
         />
       </p>
+      {/* A Rig-Check's result (#464) under the show's own heading, above its songs. */}
+      {children}
       <div className="space-y-1 text-base">
         {songs.map((event, index) => {
           const pause = index > 0 ? pauseBefore(songs[index - 1], event) : null
@@ -289,6 +295,8 @@ function ShowRow({
   onOpen: () => void
 }) {
   const summary = summarize(show)
+  const rigCheck = rigCheckLabel(show.events)
+  const verdicts = rigCheckVerdicts(show.events)
   return (
     <div className="flex items-center gap-2">
       <button
@@ -300,12 +308,19 @@ function ShowRow({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 font-semibold">
             {fmtTime(show.startedAt)}
+            {rigCheck && ` · ${rigCheck}`}
             {locked && <Icon name="locked" label="Geschützt" className={selected ? '' : 'text-ink-soft'} />}
           </span>
           <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
             {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
             {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
+            {verdicts && verdicts.problems === 0 && verdicts.ok > 0 && ` · ${verdicts.ok} ${verdicts.ok === 1 ? 'Gerät' : 'Geräte'} OK`}
           </span>
+          {verdicts && verdicts.problems > 0 && (
+            <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>
+              Rig-Check: {verdicts.problems} {verdicts.problems === 1 ? 'Gerät' : 'Geräte'} mit Problem
+            </span>
+          )}
           {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
           {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} {summary.failedCues === 1 ? 'Cue' : 'Cues'} fehlgeschlagen</span>}
         </span>
@@ -431,7 +446,9 @@ export function ShowDetail({ showId }: { showId: string }) {
   if (!show) return <p className="text-ink-faint">Show wurde entfernt.</p>
   return (
     <div className="text-ink">
-      <ShowSections show={show} authorName={authorName} />
+      <ShowSections show={show} authorName={authorName}>
+        <RigCheckReport events={show.events} />
+      </ShowSections>
     </div>
   )
 }

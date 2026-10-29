@@ -38,7 +38,10 @@ export function CueDialog({
    * click has its own group "Wiedergabe" - one place for it, not two (Marco, 2026-10-18). */
   withPlayback?: boolean
 }) {
-  const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? '')
+  // One device and nothing else to pick (the Rig-Check's device cue): it is chosen already - the
+  // dialog said "Gerät wählen…" under the title "Rig-Check: Kemper" (2026-10-29).
+  const onlyDevice = !withPlayback && devices.length === 1 ? devices[0]!.id : ''
+  const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? onlyDevice)
   const device = devices.find((d) => d.id === deviceId)
   const commands = device ? commandsFor(device.capability) : []
   const [commandType, setCommandType] = useState(initial && commands.some((c) => c.type === initial.type) ? initial.type : '')
