@@ -7,6 +7,7 @@ import { useNow } from '../lib/useNow'
 import { AnnouncementTextsDialog } from './AnnouncementTextsDialog'
 import { SpeechVoiceDialog } from './SpeechVoiceDialog'
 import { ActionMenu, Badge, Button, Switch, InfoHint } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /** Plugins with band-wide settings of their own - opened with "Einstellungen" on their card. */
 const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
@@ -14,23 +15,6 @@ const SETTINGS: Record<string, ComponentType<{ onClose: () => void }>> = {
   'section-announcements': AnnouncementTextsDialog,
 }
 
-const HEADER: Record<PluginKind, { title: string; text: string; empty: string }> = {
-  extensions: {
-    title: 'Add-ons',
-    text: 'Software ohne eigenes Gerät für die ganze Band, z. B. Sprachausgabe, Ansagen oder Spuren trennen - Geräte stehen unter Bühnentechnik. Installierte Add-ons gelten auf allen Tablets und dem Stage-Server; deaktivierte verschwinden aus der Widget-Bibliothek.',
-    empty: 'Noch kein Add-on installiert.',
-  },
-  drivers: {
-    title: 'Treiber',
-    text: 'Damit StageBoard ein Gerät steuern kann (Amp, Mischpult, Looper, MIDI). Normalerweise unsichtbar: „Neues Gerät“ in der Bühnentechnik installiert den passenden mit, beim Entfernen des letzten Geräts wird er zum Entfernen angeboten. Hier nur zur Fehlersuche.',
-    empty: 'Noch kein Treiber installiert.',
-  },
-  test: {
-    title: 'Test-Plugins',
-    text: 'Platzhalter, die nur protokollieren, was sie bekommen - ein Mischpult, Licht oder Backup, das es nicht gibt. Nur zum Ausprobieren; installieren lassen sie sich nur in der Dev-App.',
-    empty: 'Kein Test-Plugin installiert.',
-  },
-}
 
 /**
  * Plugins of one kind (System split, 2026-10-16): Add-ons get their own tab, gear drivers
@@ -38,6 +22,7 @@ const HEADER: Record<PluginKind, { title: string; text: string; empty: string }>
  * Add-ons is a page of its own; the other two are a part of their page.
  */
 export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
+  const { t } = useTranslation('addons')
   const installed = usePluginsStore((state) => state.installed)
   const health = usePluginsStore((state) => state.health)
   const install = usePluginsStore((state) => state.install)
@@ -49,15 +34,15 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
   const Settings = settingsOf ? SETTINGS[settingsOf] : undefined
 
   function healthLabel(plugin: PluginInstallation): string {
-    if (plugin.runtime === 'client') return 'läuft auf dem Tablet'
+    if (plugin.runtime === 'client') return t('onTablet')
     const entry = health.plugins[plugin.id]
-    if (!entry) return 'kein Heartbeat — Stage-Server offline?'
+    if (!entry) return t('noHeartbeat')
     if (entry.status !== 'online') return entry.message ?? entry.status
-    if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return 'Heartbeat veraltet'
+    if (now - entry.lastSeenAt > HEALTH_TIMEOUT_MS) return t('staleHeartbeat')
     return 'online'
   }
 
-  const header = HEADER[kind]
+  const header = { title: t(`${kind}.title`), text: t(`${kind}.text`), empty: t(`${kind}.empty`) }
   const mine = installed.filter((plugin) => pluginKind(plugin) === kind)
   const notInstalled = installableCatalog().filter((candidate) => pluginKind(candidate) === kind && !installed.some((plugin) => plugin.id === candidate.id))
   const page = kind === 'extensions'
@@ -66,7 +51,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
     <section aria-label={header.title} className={page ? 'h-full overflow-y-auto sb-app-bg p-4 text-ink' : 'text-ink'}>
       <div className="mb-4 flex items-center gap-1">
         {page ? <h1 className="text-2xl font-bold">{header.title}</h1> : <h2 className="text-lg font-bold">{header.title}</h2>}
-        <InfoHint text={header.text} label={`Erklärung: ${header.title}`} />
+        <InfoHint text={header.text} label={t('explain', { title: header.title })} />
       </div>
 
       <div className="mb-6 space-y-2">
@@ -81,10 +66,10 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
                 <p className="font-semibold">
                   {plugin.name} <span className="text-sm font-normal text-ink-faint">v{plugin.version}</span>{' '}
                   {/* A stand-in that only logs (lib/pluginCatalog.ts TEST_PLUGIN_IDS) - never mistaken for the real thing. */}
-                  {isTestPlugin(plugin.id) && <Badge tone="warning">Test</Badge>}
+                  {isTestPlugin(plugin.id) && <Badge tone="warning">{t('testBadge')}</Badge>}
                 </p>
                 <p className="text-sm text-ink-muted">
-                  {capabilitiesLabel(plugin.capabilities) || 'keine Funktionen'} · {healthLabel(plugin)}
+                  {capabilitiesLabel(plugin.capabilities) || t('noFunctions')} · {healthLabel(plugin)}
                 </p>
               </div>
               {/* Entfernen behind ⋯ like every list row - a red button on every card was nine red
@@ -93,10 +78,10 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
                 title={plugin.name}
                 actions={[
                   {
-                    label: 'Entfernen',
+                    label: t('remove'),
                     danger: true,
                     onClick: async () => {
-                      if (await confirm(`"${plugin.name}" entfernen?`, { confirmLabel: 'Entfernen', danger: true })) void uninstall(plugin.id)
+                      if (await confirm(t('removeConfirm', { name: plugin.name }), { confirmLabel: t('remove'), danger: true })) void uninstall(plugin.id)
                     },
                   },
                 ]}
@@ -104,8 +89,8 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {/* On/off = a switch (docs/15 D5), never a button whose text flips. */}
-              <Switch layout="inline" label="Aktiv" checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
-              {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>Einstellungen</Button>}
+              <Switch layout="inline" label={t('active')} checked={plugin.enabled} onChange={(on) => void setEnabled(plugin.id, on)} />
+              {SETTINGS[plugin.id] && <Button onClick={() => setSettingsOf(plugin.id)}>{t('settings')}</Button>}
             </div>
           </div>
         ))}
@@ -113,7 +98,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
 
       {Settings && <Settings onClose={() => setSettingsOf(null)} />}
 
-      {notInstalled.length > 0 && <h3 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">Verfügbar</h3>}
+      {notInstalled.length > 0 && <h3 className="mb-2 text-sm font-bold uppercase tracking-widest text-ink-muted">{t('available')}</h3>}
       <div className="space-y-2">
         {notInstalled.map((candidate) => (
           <div
@@ -127,7 +112,7 @@ export function PluginManager({ kind = 'extensions' }: { kind?: PluginKind }) {
             <Button onClick={() =>
                 void install({ ...candidate, enabled: true, installedAt: Date.now() })
               }>
-              Installieren
+              {t('install')}
             </Button>
           </div>
         ))}
