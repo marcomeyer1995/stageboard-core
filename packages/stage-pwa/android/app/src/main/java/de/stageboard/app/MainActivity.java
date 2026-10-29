@@ -72,15 +72,17 @@ public class MainActivity extends BridgeActivity {
         View decor = getWindow().getDecorView();
         Rect visible = new Rect();
         int[] onScreen = new int[2];
-        Runnable[] measure = new Runnable[1];
-        measure[0] = () -> {
+        // A layout pass asks Android for the window's current keyboard area.
+        Runnable relayout = decor::requestLayout;
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
             decor.getWindowVisibleDisplayFrame(visible);
             View webView = bridge.getWebView();
             View parent = (View) webView.getParent();
             // Measured against where the WebView's container really ends - not the screen height:
             // when Android itself shortens the container too, the keyboard must not count twice.
             parent.getLocationOnScreen(onScreen);
-            int covered = Math.max(0, onScreen[1] + parent.getHeight() - visible.bottom);
+            int bottom = onScreen[1] + parent.getHeight();
+            int covered = Math.max(0, bottom - visible.bottom);
             // A sliver (a navigation bar showing briefly) is not a keyboard.
             int keyboard = covered > decor.getHeight() * 0.15 ? covered : 0;
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
@@ -88,13 +90,14 @@ public class MainActivity extends BridgeActivity {
                 params.bottomMargin = keyboard;
                 webView.setLayoutParams(params);
             }
-            // The keyboard going away lays nothing out on the Fire, so no layout pass reports it -
-            // the page stayed short with a grey band below it until the app restarted (Fire,
-            // 2026-10-29). While a keyboard is counted, look again a little later.
-            decor.removeCallbacks(measure[0]);
-            if (keyboard > 0) decor.postDelayed(measure[0], KEYBOARD_RECHECK_MS);
-        };
-        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> measure[0].run());
+            // The Fire shortens the window for the keyboard itself, but the keyboard going away
+            // lays nothing out there: the page stayed short with a grey band below it until the
+            // app restarted (2026-10-29). While the page is short for a keyboard, look again a
+            // little later.
+            boolean shortened = keyboard > 0 || bottom < decor.getHeight() * 0.85;
+            decor.removeCallbacks(relayout);
+            if (shortened) decor.postDelayed(relayout, KEYBOARD_RECHECK_MS);
+        });
     }
 
     /** Immersive: status and navigation bar hidden; a swipe from the edge shows them briefly. */
