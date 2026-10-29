@@ -20,7 +20,7 @@ import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { bracketProblems, transposeText } from '../lib/textTools'
 import { CleanupDialog } from './CleanupDialog'
 import { EditorBackdrop, type BackdropMark } from './EditorBackdrop'
-import { FindReplaceBar } from './FindReplaceBar'
+import { FindReplaceBar, type FindMemory } from './FindReplaceBar'
 import type { TextMatch } from '../lib/textReplace'
 import { randomId } from '../lib/id'
 import { applyCueAnchors } from '../lib/cueAnchors'
@@ -200,6 +200,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // Suchen & Ersetzen as a bar over the text, like Notepad++ (2026-10-29): open with the lines
   // marked at that moment (or none), its matches drawn on the layer behind the text.
   const [findBar, setFindBar] = useState<{ range: { start: number; end: number } | null } | null>(null)
+  const findMemory = useRef<FindMemory>({})
   const [findMarks, setFindMarks] = useState<{ marks: BackdropMark[]; current: TextMatch | null }>({ marks: [], current: null })
   const onFindMarks = useCallback((marks: BackdropMark[], current: TextMatch | null) => setFindMarks({ marks, current }), [])
   // The current search match in view: scrolled to a third of the field's height, the text cursor
@@ -209,7 +210,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     const textarea = textareaRef.current
     if (!match || !textarea) return
     const mark = textarea.parentElement?.querySelector<HTMLElement>('[data-testid="editor-backdrop"] [data-current]')
-    if (mark) textarea.scrollTop = Math.max(0, mark.offsetTop - textarea.clientHeight / 3)
+    if (mark) {
+      textarea.scrollTop = Math.max(0, mark.offsetTop - textarea.clientHeight / 3)
+      const layer = mark.closest<HTMLElement>('[data-testid="editor-backdrop"]')
+      if (layer) layer.scrollTop = textarea.scrollTop
+    }
     textarea.setSelectionRange(match.start, match.end)
   }, [findMarks])
   // Invisible characters (· → ¶) on the layer behind the text - remembered on this device.
@@ -1131,6 +1136,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         <FindReplaceBar
           content={draft.chordProContent}
           range={findBar.range}
+          memory={findMemory}
           onMarks={onFindMarks}
           onClose={() => setFindBar(null)}
           onReplace={(after, label) => {

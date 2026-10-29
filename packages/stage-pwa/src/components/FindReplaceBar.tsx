@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useState, type MutableRefObject, type SyntheticEvent } from 'react'
 import { explainPattern, findMatches, REGEX_BLOCKS, REPLACEMENT_BLOCKS, replaceOne, replaceText, type RegexBlock, type ReplaceOptions, type SearchMode, type TextMatch } from '../lib/textReplace'
 import type { BackdropMark } from './EditorBackdrop'
 import { Button, IconButton, InfoHint, Segmented, ToggleChip } from './ui'
@@ -56,29 +56,42 @@ function PreviewRow({ content, line, matches, onPick, current }: { content: stri
  * the marked lines; in regex mode a builder and the pattern explained in words; a preview of every
  * line with its matches - a tap on one jumps there.
  */
+/** What the bar holds - kept by the editor, so switching to Vorschau and back keeps the search. */
+export interface FindMemory {
+  find?: string
+  replacement?: string
+  mode?: SearchMode
+  caseSensitive?: boolean
+  wholeWord?: boolean
+  wrap?: boolean
+  current?: number
+}
+
 export function FindReplaceBar({
   content,
   range,
+  memory,
   onReplace,
   onMarks,
   onClose,
 }: {
   content: string
+  memory: MutableRefObject<FindMemory>
   /** The lines marked when the bar opened, or null. */
   range: { start: number; end: number } | null
   onReplace: (after: string, label: string) => void
   onMarks: (marks: BackdropMark[], current: TextMatch | null) => void
   onClose: () => void
 }) {
-  const [find, setFind] = useState('')
-  const [replacement, setReplacement] = useState('')
-  const [mode, setMode] = useState<SearchMode>('normal')
-  const [caseSensitive, setCaseSensitive] = useState(false)
-  const [wholeWord, setWholeWord] = useState(false)
-  const [wrap, setWrap] = useState(true)
+  const [find, setFind] = useState(memory.current.find ?? '')
+  const [replacement, setReplacement] = useState(memory.current.replacement ?? '')
+  const [mode, setMode] = useState<SearchMode>(memory.current.mode ?? 'normal')
+  const [caseSensitive, setCaseSensitive] = useState(memory.current.caseSensitive ?? false)
+  const [wholeWord, setWholeWord] = useState(memory.current.wholeWord ?? false)
+  const [wrap, setWrap] = useState(memory.current.wrap ?? true)
   const [inSelection, setInSelection] = useState(range !== null)
   const [scope, setScope] = useState(range)
-  const [current, setCurrent] = useState(0)
+  const [current, setCurrent] = useState(memory.current.current ?? 0)
   const [notice, setNotice] = useState<string | null>(null)
   const [showBuilder, setShowBuilder] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -104,6 +117,9 @@ export function FindReplaceBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [found, index])
   useEffect(() => () => onMarks([], null), [onMarks])
+  useEffect(() => {
+    memory.current = { find, replacement, mode, caseSensitive, wholeWord, wrap, current }
+  }, [memory, find, replacement, mode, caseSensitive, wholeWord, wrap, current])
 
   const go = (by: 1 | -1) => {
     if (matches.length === 0) return

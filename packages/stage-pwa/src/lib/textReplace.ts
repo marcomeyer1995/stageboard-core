@@ -105,7 +105,7 @@ export const REGEX_BLOCKS: { group: string; blocks: RegexBlock[] }[] = [
       { label: 'Ziffer', insert: '\\d', meaning: 'eine Ziffer 0-9' },
       { label: 'Buchstabe/Ziffer', insert: '\\w', meaning: 'ein Buchstabe, eine Ziffer oder _' },
       { label: 'Leerzeichen', insert: '\\s', meaning: 'ein Leerzeichen oder Tabulator' },
-      { label: 'Akkord [..]', insert: '\\[[^\\]]+\\]', meaning: 'etwas in eckigen Klammern, z. B. ein Akkord' },
+      { label: 'Akkord', insert: '\\[[^\\]]+\\]', meaning: 'etwas in eckigen Klammern, z. B. ein Akkord' },
       { label: 'Zeitmarke', insert: '\\[\\d{2}:\\d{2}(?:\\.\\d+)?\\]', meaning: 'eine Zeitmarke wie [01:14.50]' },
     ],
   },
@@ -128,9 +128,9 @@ export const REGEX_BLOCKS: { group: string; blocks: RegexBlock[] }[] = [
   {
     group: 'Gruppen',
     blocks: [
-      { label: 'Gruppe ( )', insert: '()', wrap: ['(', ')'], meaning: 'eine Gruppe - im Ersetzen als $1, $2 … wieder einsetzbar' },
-      { label: 'Eins von [ ]', insert: '[]', wrap: ['[', ']'], meaning: 'eines der Zeichen in den Klammern' },
-      { label: 'Oder |', insert: '|', meaning: 'das links oder das rechts davon' },
+      { label: 'Gruppe', insert: '()', wrap: ['(', ')'], meaning: 'eine Gruppe - im Ersetzen als $1, $2 … wieder einsetzbar' },
+      { label: 'Eins von', insert: '[]', wrap: ['[', ']'], meaning: 'eines der Zeichen in den Klammern' },
+      { label: 'Oder', insert: '|', meaning: 'das links oder das rechts davon' },
     ],
   },
 ]

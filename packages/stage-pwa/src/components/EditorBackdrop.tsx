@@ -16,6 +16,18 @@ export interface BackdropMark {
 export function EditorBackdrop({ text, textarea, showInvisibles, marks }: { text: string; textarea: RefObject<HTMLTextAreaElement>; showInvisibles: boolean; marks: readonly BackdropMark[] }) {
   const layer = useRef<HTMLDivElement>(null)
 
+  // After every update too, not only on the field's scroll events: new marks replace the layer's
+  // content, and its scroll position got lost there - the song's first marks lay over its end
+  // (Redmi, 2026-10-29).
+  useLayoutEffect(() => {
+    const field = textarea.current
+    const back = layer.current
+    if (field && back) {
+      back.scrollTop = field.scrollTop
+      back.scrollLeft = field.scrollLeft
+    }
+  })
+
   useLayoutEffect(() => {
     const field = textarea.current
     const back = layer.current
