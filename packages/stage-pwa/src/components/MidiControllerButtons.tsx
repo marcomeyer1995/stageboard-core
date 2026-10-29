@@ -8,6 +8,7 @@ import { useMidiControllerRulesStore } from '../store/useMidiControllerRulesStor
 import { BehaviorEditor, useDescribeBehavior } from './BehaviorEditor'
 import { Icon } from './Icon'
 import { AddRow, Button, Dialog, Segmented, Stepper, Switch } from './ui'
+import { useTranslation } from 'react-i18next'
 
 function newRuleId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -19,6 +20,7 @@ function newRuleId(): string {
  * the controller is plugged into, or entered by hand anywhere.
  */
 export function MidiControllerButtonsDialog({ device, onClose }: { device: LogicalDevice; onClose: () => void }) {
+  const { t } = useTranslation('hardware')
   const docs = useMidiControllerRulesStore((state) => state.docs)
   const save = useMidiControllerRulesStore((state) => state.save)
   const describeBehavior = useDescribeBehavior()
@@ -29,16 +31,15 @@ export function MidiControllerButtonsDialog({ device, onClose }: { device: Logic
   const store = (next: MidiControllerRule[]) => save({ id: device.id, rules: next })
 
   return (
-    <Dialog title={`${device.name}: Knöpfe`} onClose={onClose}>
+    <Dialog title={t('midi.title', { device: device.name })} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-ink-muted">
-          Jeder Knopf löst eine Aktion aus - wie ein Pedal: tastend, rastend oder zeitgesteuert. Show und Abschnitte nur, wenn das Tablet, an
-          dem der Controller steckt, die Show steuern darf.
+          {t('midi.intro')}
         </p>
         {rules.length === 0 ? (
-          <p className="text-base text-ink-soft">Noch kein Knopf belegt.</p>
+          <p className="text-base text-ink-soft">{t('midi.none')}</p>
         ) : (
-          <ul className="flex flex-col gap-2" aria-label="Knöpfe">
+          <ul className="flex flex-col gap-2" aria-label={t('midi.list')}>
             {rules.map((rule) => (
               <li key={rule.id} className="flex items-center gap-2 rounded-control bg-control px-3 py-2">
                 <button
@@ -52,7 +53,7 @@ export function MidiControllerButtonsDialog({ device, onClose }: { device: Logic
                 <Button
                   className="w-12 flex-shrink-0"
                   onClick={() => void store(rules.filter((r) => r.id !== rule.id))}
-                  aria-label={`Knopf ${describeMidiTrigger(rule.trigger)} löschen`}
+                  aria-label={t('midi.delete', { trigger: describeMidiTrigger(rule.trigger) })}
                 >
                   <Icon name="close" />
                 </Button>
@@ -60,7 +61,7 @@ export function MidiControllerButtonsDialog({ device, onClose }: { device: Logic
             ))}
           </ul>
         )}
-        <AddRow label="Neuer Knopf" onClick={() => setEditing('new')} />
+        <AddRow label={t('midi.new')} onClick={() => setEditing('new')} />
       </div>
       {editing && (
         <MidiButtonDialog
@@ -102,6 +103,7 @@ function MidiButtonDialog({
   onSave: (rule: MidiControllerRule) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('hardware')
   const describeBehavior = useDescribeBehavior()
   const [trigger, setTrigger] = useState<MidiTrigger>(initial?.trigger ?? { message: 'note', channel: 1, number: 60 })
   const [listening, setListening] = useState(!initial && canLearn)
@@ -123,46 +125,46 @@ function MidiButtonDialog({
 
   return (
     <Dialog
-      title={initial ? 'Knopf ändern' : 'Neuer Knopf'}
+      title={initial ? t('midi.change') : t('midi.new')}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" disabled={listening || !behavior} onClick={() => behavior && onSave({ id: initial?.id ?? newRuleId(), trigger, behavior })}>
-            Speichern
+            {t('save')}
           </Button>
         </>
       }
     >
       {listening ? (
         <div className="flex flex-col items-center gap-3 rounded-container bg-control p-6 text-center">
-          <span className="text-2xl font-bold text-accent">Jetzt Knopf am Controller drücken …</span>
-          <Button onClick={() => setListening(false)}>Von Hand eintragen</Button>
+          <span className="text-2xl font-bold text-accent">{t('midi.press')}</span>
+          <Button onClick={() => setListening(false)}>{t('midi.byHand')}</Button>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-control bg-control-strong px-3 py-2 text-base font-bold text-ink">{describeMidiTrigger(trigger)}</span>
-            {canLearn && <Button onClick={() => setListening(true)}>Neu lernen</Button>}
+            {canLearn && <Button onClick={() => setListening(true)}>{t('midi.relearn')}</Button>}
           </div>
-          {!canLearn && <p className="text-sm text-ink-muted">Lernen geht nur am Tablet, an dem der Controller steckt - hier von Hand eintragen.</p>}
-          <Segmented label="Art" showLabel value={trigger.message} onChange={(message) => setTrigger({ message, channel: trigger.channel, number: trigger.number })} options={KINDS} />
-          <Stepper label="Kanal" unit="" value={trigger.channel} min={1} max={16} step={1} onChange={(channel) => setTrigger({ ...trigger, channel })} />
-          <Stepper label="Nummer" unit="" value={trigger.number} min={0} max={127} step={1} onChange={(number) => setTrigger({ ...trigger, number })} />
+          {!canLearn && <p className="text-sm text-ink-muted">{t('midi.learnHere')}</p>}
+          <Segmented label={t('midi.kind')} showLabel value={trigger.message} onChange={(message) => setTrigger({ message, channel: trigger.channel, number: trigger.number })} options={KINDS} />
+          <Stepper label={t('midi.channelLabel')} unit="" value={trigger.channel} min={1} max={16} step={1} onChange={(channel) => setTrigger({ ...trigger, channel })} />
+          <Stepper label={t('midi.number')} unit="" value={trigger.number} min={0} max={127} step={1} onChange={(number) => setTrigger({ ...trigger, number })} />
           {trigger.message === 'cc' && (
             <>
               <Switch
-                label="Nur bei einem Wert"
+                label={t('midi.onlyValue')}
                 checked={trigger.value !== undefined}
                 onChange={(on) => setTrigger(on ? { ...trigger, value: 127 } : { message: 'cc', channel: trigger.channel, number: trigger.number })}
-                info="Für Controller, die mehrere Knöpfe über denselben CC mit verschiedenen Werten senden. Aus: jeder Wert über 0 drückt, 0 lässt los."
+                info={t('midi.onlyValueInfo')}
               />
               {trigger.value !== undefined && (
-                <Stepper label="Wert" unit="" value={trigger.value} min={0} max={127} step={1} onChange={(value) => setTrigger({ ...trigger, value })} />
+                <Stepper label={t('midi.value')} unit="" value={trigger.value} min={0} max={127} step={1} onChange={(value) => setTrigger({ ...trigger, value })} />
               )}
             </>
           )}
-          {takenBy && <p className="text-sm text-warn">Dieser Knopf ist schon belegt („{describeBehavior(takenBy.behavior)}“) - beim Speichern wird das ersetzt.</p>}
+          {takenBy && <p className="text-sm text-warn">{t('midi.taken', { mapping: describeBehavior(takenBy.behavior) })}</p>}
           <BehaviorEditor initial={behavior} onChange={setBehavior} />
         </div>
       )}

@@ -8,6 +8,7 @@ import { useOscInputRulesStore } from '../store/useOscInputRulesStore'
 import { BehaviorEditor, useDescribeBehavior } from './BehaviorEditor'
 import { Icon } from './Icon'
 import { AddRow, Button, Dialog, Field, Stepper, Switch } from './ui'
+import { useTranslation } from 'react-i18next'
 
 function newRuleId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -37,6 +38,7 @@ function useOscInPort(): number | null {
  * arrives through the Stage-Server on any tablet), or its address is typed in.
  */
 export function OscInputButtonsDialog({ device, onClose }: { device: LogicalDevice; onClose: () => void }) {
+  const { t } = useTranslation('hardware')
   const docs = useOscInputRulesStore((state) => state.docs)
   const save = useOscInputRulesStore((state) => state.save)
   const describeBehavior = useDescribeBehavior()
@@ -47,23 +49,26 @@ export function OscInputButtonsDialog({ device, onClose }: { device: LogicalDevi
     try {
       return new URL(getStageServerUrl() ?? '').hostname
     } catch {
-      return 'Stage-Server'
+      return t('server')
     }
   })()
 
   const store = (next: OscInputRule[]) => save({ id: device.id, rules: next })
 
   return (
-    <Dialog title={`${device.name}: Knöpfe`} onClose={onClose}>
+    <Dialog title={t('midi.title', { device: device.name })} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <p className="text-base text-ink">
-          Den Controller senden lassen an <strong>{host}</strong>, Port <strong>{port ?? '…'}</strong>.
+          {t('osc.sendTo')}
+          <strong>{host}</strong>
+          {t('osc.port')}
+          <strong>{port ?? '…'}</strong>.
         </p>
-        <p className="text-sm text-ink-muted">Jeder Knopf löst eine Aktion aus - wie ein Pedal: tastend, rastend oder zeitgesteuert. Ausgeführt vom Gerät, das die Show steuert.</p>
+        <p className="text-sm text-ink-muted">{t('osc.intro')}</p>
         {rules.length === 0 ? (
-          <p className="text-base text-ink-soft">Noch kein Knopf belegt.</p>
+          <p className="text-base text-ink-soft">{t('midi.none')}</p>
         ) : (
-          <ul className="flex flex-col gap-2" aria-label="Knöpfe">
+          <ul className="flex flex-col gap-2" aria-label={t('midi.list')}>
             {rules.map((rule) => (
               <li key={rule.id} className="flex items-center gap-2 rounded-control bg-control px-3 py-2">
                 <button
@@ -74,14 +79,14 @@ export function OscInputButtonsDialog({ device, onClose }: { device: LogicalDevi
                   <span className="text-sm font-bold text-ink-soft">{describeOscTrigger(rule.trigger)}</span>
                   <span className="text-base text-ink">{describeBehavior(rule.behavior)}</span>
                 </button>
-                <Button className="w-12 flex-shrink-0" onClick={() => void store(rules.filter((r) => r.id !== rule.id))} aria-label={`Knopf ${describeOscTrigger(rule.trigger)} löschen`}>
+                <Button className="w-12 flex-shrink-0" onClick={() => void store(rules.filter((r) => r.id !== rule.id))} aria-label={t('midi.delete', { trigger: describeOscTrigger(rule.trigger) })}>
                   <Icon name="close" />
                 </Button>
               </li>
             ))}
           </ul>
         )}
-        <AddRow label="Neuer Knopf" onClick={() => setEditing('new')} />
+        <AddRow label={t('midi.new')} onClick={() => setEditing('new')} />
       </div>
       {editing && (
         <OscButtonDialog
@@ -111,6 +116,7 @@ function OscButtonDialog({
   onSave: (rule: OscInputRule) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('hardware')
   const describeBehavior = useDescribeBehavior()
   const setLearning = useOscInputRulesStore((state) => state.setLearning)
   const [trigger, setTrigger] = useState<OscTrigger>(initial?.trigger ?? { address: '' })
@@ -136,38 +142,38 @@ function OscButtonDialog({
 
   return (
     <Dialog
-      title={initial ? 'Knopf ändern' : 'Neuer Knopf'}
+      title={initial ? t('midi.change') : t('midi.new')}
       onClose={onClose}
       actions={
         <>
-          <Button onClick={onClose}>Abbrechen</Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
           <Button variant="primary" disabled={listening || !behavior || !valid} onClick={() => behavior && onSave({ id: initial?.id ?? newRuleId(), trigger, behavior })}>
-            Speichern
+            {t('save')}
           </Button>
         </>
       }
     >
       {listening ? (
         <div className="flex flex-col items-center gap-3 rounded-container bg-control p-6 text-center">
-          <span className="text-2xl font-bold text-accent">Jetzt Knopf am Controller drücken …</span>
-          <Button onClick={() => setListening(false)}>Von Hand eintragen</Button>
+          <span className="text-2xl font-bold text-accent">{t('midi.press')}</span>
+          <Button onClick={() => setListening(false)}>{t('midi.byHand')}</Button>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 flex-1">
-              <Field label="Adresse" value={trigger.address} placeholder="/1/push1" onChange={(e) => setTrigger({ ...trigger, address: e.target.value.trim() })} error={valid || !trigger.address ? undefined : 'Beginnt mit „/“, ohne Leerzeichen.'} />
+              <Field label={t('osc.address')} value={trigger.address} placeholder="/1/push1" onChange={(e) => setTrigger({ ...trigger, address: e.target.value.trim() })} error={valid || !trigger.address ? undefined : t('osc.addressError')} />
             </div>
-            <Button onClick={() => setListening(true)}>Neu lernen</Button>
+            <Button onClick={() => setListening(true)}>{t('midi.relearn')}</Button>
           </div>
           <Switch
-            label="Nur bei einem Wert"
+            label={t('midi.onlyValue')}
             checked={trigger.value !== undefined}
             onChange={(on) => setTrigger(on ? { ...trigger, value: 1 } : { address: trigger.address })}
-            info="Für Controller, die mehrere Knöpfe über dieselbe Adresse mit verschiedenen Werten senden (/szene 1, /szene 2). Aus: ein Wert über 0 drückt, 0 lässt los."
+            info={t('osc.onlyValueInfo')}
           />
-          {trigger.value !== undefined && <Stepper label="Wert" unit="" value={trigger.value} min={-1000} max={1000} step={1} onChange={(value) => setTrigger({ ...trigger, value })} />}
-          {takenBy && <p className="text-sm text-warn">Dieser Knopf ist schon belegt („{describeBehavior(takenBy.behavior)}“) - beim Speichern wird das ersetzt.</p>}
+          {trigger.value !== undefined && <Stepper label={t('midi.value')} unit="" value={trigger.value} min={-1000} max={1000} step={1} onChange={(value) => setTrigger({ ...trigger, value })} />}
+          {takenBy && <p className="text-sm text-warn">{t('midi.taken', { mapping: describeBehavior(takenBy.behavior) })}</p>}
           <BehaviorEditor initial={behavior} onChange={setBehavior} />
         </div>
       )}
