@@ -37,7 +37,7 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { useEditingTitleStore } from '../store/useEditingTitleStore'
 import { ChordProLyrics } from './ChordProLyrics'
 import { CHORDPRO_KEYS, ChordProKeyBar } from './ChordProKeyBar'
-import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { CRAMPED_TYPING_PX, useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
@@ -150,8 +150,9 @@ interface SheetEditorProps {
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
 export const ROOMY_FOR_VARIANT_ROW_PX = 600
 
-/** Visible height below which the ChordPro key bar steps aside while typing (a phone in landscape). */
-export const ROOMY_FOR_KEY_BAR_PX = 220
+
+/** How long the "Im Hochformat ist mehr Platz" hint stays. */
+const PORTRAIT_HINT_MS = 4000
 
 /** Visible height below which the editor's page header steps aside while the keyboard is up. */
 export const ROOMY_FOR_HEADER_PX = 400
@@ -198,6 +199,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [textFocused, setTextFocused] = useState(false)
   // From where the focus really is: a field that is rebuilt while focused never sends its blur, and
   // the ChordPro key bar then stayed for the search field (Redmi, landscape, 2026-10-29).
+  // "Im Hochformat ist mehr Platz" - once per editor session, for a few seconds (see crampedOnPhone).
+  const [portraitHint, setPortraitHint] = useState(false)
+  const portraitHintShown = useRef(false)
+  useEffect(() => {
+    if (!portraitHint) return
+    const id = setTimeout(() => setPortraitHint(false), PORTRAIT_HINT_MS)
+    return () => clearTimeout(id)
+  }, [portraitHint])
   useEffect(() => {
     const follow = (e: FocusEvent) => setTextFocused(e.target === textareaRef.current)
     document.addEventListener('focusin', follow)
@@ -1137,6 +1146,12 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // Even less (landscape, keyboard up): the page header steps aside as well while typing - it is
   // back the moment the keyboard goes down.
   const headerAside = keyboardOpen && roomPx < ROOMY_FOR_HEADER_PX
+  // A phone in landscape with the keyboard up: a hint, not a forced turn (Marco, 2026-10-29).
+  const crampedOnPhone = textFocused && keyboardOpen && roomPx < CRAMPED_TYPING_PX && typeof window !== 'undefined' && Math.min(window.screen.width, window.screen.height) < 600
+  if (crampedOnPhone && !portraitHintShown.current) {
+    portraitHintShown.current = true
+    queueMicrotask(() => setPortraitHint(true))
+  }
   // The search bar with little room (keyboard up, landscape, a phone): one row, and the variant
   // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
   const compactSearch = roomPx < ROOMY_FOR_FULL_SEARCH_PX || (typeof window !== 'undefined' && window.innerWidth < 600)
@@ -1180,6 +1195,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         />
       )}
       <div className="relative flex min-h-0 min-w-0 flex-1">
+      {portraitHint && (
+        <p role="status" className="pointer-events-none absolute inset-x-2 top-2 z-content rounded-control bg-surface px-3 py-2 text-base text-ink shadow-sb">
+          Im Hochformat ist mehr Platz zum Schreiben.
+        </p>
+      )}
       {(showInvisibles || findMarks.marks.length > 0) && <EditorBackdrop text={draft.chordProContent} textarea={textareaRef} showInvisibles={showInvisibles} marks={findMarks.marks} />}
       <textarea
         ref={textareaRef}
@@ -1218,7 +1238,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       )}
       <ChordProKeyBar
         // A phone in landscape with the keyboard up has ~140 px left - the text lines first.
-        active={textFocused && roomPx >= ROOMY_FOR_KEY_BAR_PX}
+        active={textFocused && roomPx >= CRAMPED_TYPING_PX}
         chords={songChords(preview)}
         onKey={typeChordProKey}
         onChord={(chord) => typeAtCaret(`[${chord}]`)}

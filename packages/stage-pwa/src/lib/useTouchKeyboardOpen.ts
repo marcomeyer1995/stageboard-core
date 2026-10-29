@@ -1,5 +1,9 @@
 import { useSettledVisualViewport, useVisualViewport, type VisualViewportBox } from './useVisualViewport'
 
+/** Visible height (keyboard up) below which typing is cramped: a phone in landscape - the app's
+ * status bar and the ChordPro key bar step aside for the text lines. */
+export const CRAMPED_TYPING_PX = 220
+
 /** Below this share of the screen height the visible area counts as squeezed by a keyboard. */
 const KEYBOARD_SHARE = 0.75
 

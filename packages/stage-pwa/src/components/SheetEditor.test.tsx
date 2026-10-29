@@ -355,6 +355,25 @@ describe('SheetEditor - ChordPro keys above the phone keyboard (#606)', () => {
     return textarea
   }
 
+  it('a phone in landscape with the keyboard up: no key bar, a hint to turn it - once (Marco, 2026-10-29)', async () => {
+    stubViewport({ ...phone, coarse: true })
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 140, addEventListener: () => {}, removeEventListener: () => {} })
+    const w = vi.spyOn(window.screen, 'width', 'get').mockReturnValue(873)
+    const h = vi.spyOn(window.screen, 'height', 'get').mockReturnValue(393)
+    try {
+      const textarea = await focusText()
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.queryByRole('toolbar', { name: 'ChordPro-Tasten' })).not.toBeInTheDocument()
+      expect(screen.getByText('Im Hochformat ist mehr Platz zum Schreiben.')).toBeInTheDocument()
+      fireEvent.blur(textarea)
+    } finally {
+      w.mockRestore()
+      h.mockRestore()
+    }
+  })
+
   it('touchscreen + keyboard up: [ ] / | and the song\'s chords, most used first; a key types at the caret', async () => {
     stubViewport({ ...phone, coarse: true })
     keyboardUp()
