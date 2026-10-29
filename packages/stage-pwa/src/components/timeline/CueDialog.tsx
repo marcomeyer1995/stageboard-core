@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { PLAYBACK_CUE_TARGET, type LogicalDevice, type ShowCue } from 'shared-types'
-import { commandsFor, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
+import { commandsFor, fieldAnswered, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
 import { parseCuePayload } from '../../lib/timelineCues'
 import { playbackCueContent, playbackSwitches, type FadeUnit, type Switch, type TrackLevel } from '../../lib/playbackCues'
 import { INPUT } from '../ui/styles'
@@ -84,7 +84,7 @@ export function CueDialog({
     ? (clickSwitch !== '' || voiceSwitch !== '' || trackMode !== 'same') && trackValid && (trackMode === 'same' || fadeValid)
     : free
       ? freeType.trim().length > 0
-      : command !== undefined && command.fields.every((f) => (answers[f.key] ?? '') !== '')
+      : command !== undefined && command.fields.every((f) => fieldAnswered(f, answers[f.key]))
 
   // The time goes along only where it was offered - the timeline's callers take one argument.
   const done = (content: CueContent) => (initialTimeMs === undefined ? onSubmit(content) : onSubmit(content, timeMs ?? initialTimeMs))
@@ -256,7 +256,23 @@ export function CueDialog({
             </label>
             {(command?.fields ?? [{ key: '__placeholder', label: 'Wert', kind: 'bool' as const }]).map((field, i, fields) => {
               // Each value opens once the command and every value before it are chosen.
-              const enabled = command !== undefined && fields.slice(0, i).every((f) => (answers[f.key] ?? '') !== '')
+              const enabled = command !== undefined && fields.slice(0, i).every((f) => fieldAnswered(f, answers[f.key]))
+              if (field.kind === 'text')
+                return (
+                  <label key={field.key} className={label}>
+                    <span className="mb-1 block">{field.label}</span>
+                    <input
+                      className={select}
+                      value={answers[field.key] ?? ''}
+                      placeholder={field.placeholder}
+                      disabled={!enabled}
+                      onChange={(e) => {
+                        setAnswers((prev) => ({ ...prev, [field.key]: e.target.value }))
+                        setError(null)
+                      }}
+                    />
+                  </label>
+                )
               return (
                 <label key={field.key} className={label}>
                   <span className="mb-1 block">{field.label}</span>

@@ -6,6 +6,7 @@ import { CueDialog } from './CueDialog'
 const devices: LogicalDevice[] = [
   { id: 'mg30', name: 'NUX MG-30', capability: 'mg30-control', pluginId: null, executionTarget: null },
   { id: 'mock', name: 'Mock Playback', capability: 'audio-playback', pluginId: null, executionTarget: null },
+  { id: 'qlc', name: 'QLC+', capability: 'osc', pluginId: 'osc', executionTarget: 'server' },
 ]
 const select = (label: string) => screen.getByLabelText(label) as HTMLSelectElement
 
@@ -73,6 +74,17 @@ describe('CueDialog (docs/14 §7)', () => {
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Klick' })).getByRole('radio', { name: 'Aus' }))
     fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }))
     expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'stageboard:playback', type: 'playback', payload: { click: 'off' } })
+  })
+
+  it('an OSC cue (#484): address typed in, values optional', () => {
+    const onSubmit = vi.fn()
+    render(<CueDialog title="Cue" devices={devices} onSubmit={onSubmit} onCancel={vi.fn()} />)
+    fireEvent.change(select('Gerät'), { target: { value: 'qlc' } })
+    fireEvent.change(select('Befehl'), { target: { value: 'osc.send' } })
+    expect(screen.getByText('Übernehmen')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Adresse'), { target: { value: '/cue/12/go' } })
+    fireEvent.click(screen.getByText('Übernehmen'))
+    expect(onSubmit).toHaveBeenCalledWith({ targetLogicalDeviceId: 'qlc', type: 'osc.send', payload: { address: '/cue/12/go' } })
   })
 
   it('the own playback can fade the track (#485): "Stumm über 2 Takte"', () => {

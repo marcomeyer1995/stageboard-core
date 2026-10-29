@@ -49,3 +49,12 @@ export type ShowControlResult = z.infer<typeof ShowControlResultSchema>
 export interface IShowControlPlugin extends IPlugin {
   trigger(event: ShowControlEvent): Promise<ShowControlResult> | ShowControlResult
 }
+
+/** An OSC message the Stage-Server received (#484, OSC as a trigger, docs/23 §4) - pushed to the
+ * devices of the band whose hardware it serves. `at`: server time of arrival. */
+export const OscInMessageSchema = z.object({
+  address: z.string().min(1),
+  args: z.array(z.union([z.number(), z.string(), z.boolean()])),
+  at: z.number(),
+})
+export type OscInMessage = z.infer<typeof OscInMessageSchema>
