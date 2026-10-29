@@ -6,7 +6,11 @@ import { useShowMode } from '../lib/showMode'
 import { useLoopTrainerStore } from '../store/useLoopTrainerStore'
 
 // Same mocking reasoning as PrompterWidget.test.tsx; the audio start/stop itself is the engine's job.
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
+})
 vi.mock('../lib/loopTrainer', () => ({ startLoopTrainer: vi.fn(), stopLoopTrainer: vi.fn() }))
 vi.mock('../store/usePracticeStateStore', () => ({
   DEFAULT_PRACTICE_STATE: { trackOverride: null },
@@ -92,9 +96,11 @@ describe('LoopTrainerWidget (#61)', () => {
     expect(useLoopTrainerStore.getState().config).toMatchObject({ startMs: 10_000, endMs: 90_000 })
   })
 
-  it('shows the trainer settings only once the Speed Trainer is switched on', () => {
+  it('keeps tempo and Speed Trainer in a dialog - the widget itself never scrolls (2026-10-22)', () => {
     mockMode('practice')
     render(<LoopTrainerWidget config={{}} />)
+    expect(screen.queryByRole('switch', { name: 'Speed Trainer' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tempo 100 %' }))
     expect(screen.queryByText('Ziel')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Speed Trainer' }))
@@ -103,5 +109,6 @@ describe('LoopTrainerWidget (#61)', () => {
 
     fireEvent.click(screen.getByLabelText('Tempo verringern'))
     expect(useLoopTrainerStore.getState().config.startPercent).toBe(95)
+    expect(screen.getByRole('button', { name: 'Tempo 95 → 100 %' })).toBeInTheDocument()
   })
 })

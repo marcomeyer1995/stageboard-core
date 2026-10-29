@@ -150,7 +150,7 @@ export function TimelineStems({ stems, analyses, top, height, width, view, playh
             </button>
           )
         })}
-        {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} />}
+        {playheadX >= 0 && playheadX <= width && <div className="pointer-events-none absolute left-0 top-0 h-full w-0.5 bg-danger will-change-transform" style={{ transform: `translateX(${playheadX}px)` }} />}
       </div>
     </div>
   )

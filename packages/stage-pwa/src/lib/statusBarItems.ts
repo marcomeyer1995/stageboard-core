@@ -37,7 +37,8 @@ export function fitStatusBarItems(order: readonly StatusBarItem[], widths: Parti
   let left = room - minTitle
   for (const item of order) {
     const width = widths[item] ?? 0
-    if (width > left) break
+    // Half a pixel of rounding is not "too wide" - else an item at the edge flips in and out.
+    if (width > left + 0.5) break
     left -= width
     shown.add(item)
   }

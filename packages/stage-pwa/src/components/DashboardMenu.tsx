@@ -2,6 +2,7 @@ import { DashboardMenuList } from './DashboardMenuList'
 import { useActiveDashboardStore } from '../store/useActiveDashboardStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Drawer } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The bento menu (nine dots, top right on dashboards - docs/15 D8, Marco 2026-10-16): pick the
@@ -11,9 +12,10 @@ import { Drawer } from './ui'
 export function DashboardMenu({ onClose, clearCornerButtons }: { onClose: () => void; clearCornerButtons?: boolean }) {
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const setActiveDashboard = useActiveDashboardStore((state) => state.setActive)
+  const { t } = useTranslation('menu')
 
   return (
-    <Drawer title="Dashboards" side="right" onClose={onClose} clearCornerButtons={clearCornerButtons}>
+    <Drawer title={t('dashboards.title')} side="right" onClose={onClose} clearCornerButtons={clearCornerButtons}>
       <DashboardMenuList
         onSelect={(dashboardId) => {
           setActiveDashboard(workspaceId, dashboardId)

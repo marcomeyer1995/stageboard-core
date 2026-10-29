@@ -420,6 +420,11 @@ export function parseChordPro(content: string): ChordProLine[] {
     }
 
     const { timeMs, rest } = parseTimeTag(raw)
+    // Any other directive on a line of its own is metadata - {title: …}, {artist: …}, {key: …}
+    // from a pasted or imported ChordPro file: never shown (the song has its own fields) and no
+    // line of the part, the same as the timeline, the part announcements and `{x_bar}` see it.
+    // Shown as text, it also started a part of its own, so every `{x_bar}` landed one part late.
+    if (/^\{[^}]*\}$/.test(rest.trim())) continue
     lines.push({
       timeMs,
       segments: parseChordSegments(rest, raw.length - rest.length),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { clickTimeline } from './beatGrid'
 import { setPartStartBar } from './partStart'
-import { jumpBoundary, nextBarStart, sectionIndexAt, showSections, snapToBar } from './showSections'
+import { jumpBoundary, nextBarStart, partSectionStarts, sectionIndexAt, showSections, snapToBar } from './showSections'
 
 // 120 bpm 4/4: 500 ms beats, a bar every 2000 ms.
 const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4' })
@@ -55,3 +55,14 @@ describe('section start with a pickup (Marco 2026-10-17: last quarter of a bar =
   })
 })
 
+
+describe('metadata directives before the first part (2026-10-27)', () => {
+  it('{title:}/{artist:} lines do not shift the {x_bar} section starts', () => {
+    const timeline = clickTimeline({ bpm: 120, timeSignature: '4/4' })
+    const content = ['{title: Free Bird}', '{artist: Lynyrd Skynyrd}', '{key: G}', '', '{part: Verse}', '{x_bar: 5}', '[00:10.00] If I leave here tomorrow', '', '{part: Chorus}', '{x_bar: 9}', '[00:20.00] Lord knows'].join('\n')
+    expect(partSectionStarts(content, timeline).map((p) => [p.label, p.bar])).toEqual([
+      ['Verse', 5],
+      ['Chorus', 9],
+    ])
+  })
+})

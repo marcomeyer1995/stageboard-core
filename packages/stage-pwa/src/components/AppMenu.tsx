@@ -62,18 +62,18 @@ interface AppMenuProps {
  * column; the dashboard list moved out to the bento menu top right (`DashboardMenu.tsx`).
  */
 export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: AppMenuProps) {
-  const { t } = useTranslation('common')
+  const { t } = useTranslation(['common', 'menu'])
   const fullscreen = useFullscreen()
   const sessionMode = useAppModeStore((state) => state.mode)
   const me = useActiveProfile()
   const [switchingProfile, setSwitchingProfile] = useState(false)
 
   return (
-    <Drawer title="Menü" side="left" onClose={onClose} clearCornerButtons={clearCornerButtons}>
+    <Drawer title={t('menu:title')} side="left" onClose={onClose} clearCornerButtons={clearCornerButtons}>
       {/* "Wohin?" = navigation (docs/15 §4): in a drawer one row per screen, below each other, the
           current one yellow (Marco, 2026-10-16) - not a pick-one bar. Choosing closes the menu. */}
-      <MenuGroup label="Ansicht" first>
-        <nav aria-label="Ansicht" className="flex flex-col gap-1">
+      <MenuGroup label={t('menu:group.view')} first>
+        <nav aria-label={t('menu:group.view')} className="flex flex-col gap-1">
           {MODES.map((candidate) => (
             <button
               key={candidate}
@@ -93,18 +93,18 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
       </MenuGroup>
       {/* No headings over Modus and Master - the bar and the row say it themselves; a thin line
           sets the groups apart instead, so ☰ fits one landscape screen (Marco, 2026-10-16). */}
-      <MenuGroup label="Modus">
+      <MenuGroup label={t('menu:group.mode')}>
         <SessionModeControl />
       </MenuGroup>
       {sessionMode === 'gig' && (
-        <MenuGroup label="Master">
+        <MenuGroup label={t('menu:group.master')}>
           <MasterControl />
         </MenuGroup>
       )}
       {/* One place for the setlist in both modes (Marco, 2026-10-16: under Modus in Solo and under
           Master in Gig made no sense) - the band's in Gig, this device's own in Solo Üben. */}
-      <MenuGroup label="Setlist">{sessionMode === 'gig' ? <GigSetlistPicker /> : <PracticeSetlistPicker />}</MenuGroup>
-      <MenuGroup label="Band">
+      <MenuGroup label={t('menu:group.setlist')}>{sessionMode === 'gig' ? <GigSetlistPicker /> : <PracticeSetlistPicker />}</MenuGroup>
+      <MenuGroup label={t('menu:group.band')}>
         {/* Who and which band at the bottom - rarely touched (Marco, 2026-10-16: what matters on stage
           first, so the views, Modus, Master and setlist fit the first screen in landscape). */}
         {/* Which band this device shows, switchable here (Marco, 2026-10-16). */}
@@ -116,8 +116,8 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
           className={`flex h-stage w-full items-center justify-between gap-3 bg-control px-4 text-left text-lg text-ink ${CONTROL} ${FOCUS} ${HOVER}`}
         >
           <span className="min-w-0 truncate">
-            <span className="text-ink-muted">Ich bin: </span>
-            {me?.name ?? 'kein Profil'}
+            <span className="text-ink-muted">{t('menu:iAm')} </span>
+            {me?.name ?? t('menu:noProfile')}
           </span>
           <Icon name="next" size="1.4rem" className="text-ink-faint" />
         </button>
@@ -125,8 +125,8 @@ export function AppMenu({ mode, onSelectMode, onClose, clearCornerButtons }: App
       </MenuGroup>
       {/* The native app always runs full screen (#412) - the switch is for the browser/PWA only. */}
       {fullscreen.supported && !isNativeApp() && (
-        <MenuGroup label="Anzeige">
-          <Switch label="Vollbild" checked={fullscreen.isFullscreen} onChange={() => void fullscreen.toggle()} />
+        <MenuGroup label={t('menu:group.display')}>
+          <Switch label={t('menu:fullscreen')} checked={fullscreen.isFullscreen} onChange={() => void fullscreen.toggle()} />
         </MenuGroup>
       )}
     </Drawer>

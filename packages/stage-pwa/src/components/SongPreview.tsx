@@ -133,7 +133,7 @@ export function SongPreview({ songId, variantId, onEdit }: SongPreviewProps) {
         </span>
       </div>
 
-      <ChordProLyrics lines={lines} />
+      <ChordProLyrics lines={lines} chordInfo />
     </div>
   )
 }

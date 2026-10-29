@@ -4,6 +4,8 @@ import { getSharedAudioContext } from './sharedAudioContext'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
 import { sourceOutput } from './audioMix'
+import type { LevelPoint } from './playbackCues'
+import { scheduleTrackLevel } from './trackLevel'
 
 /**
  * Backing track on the click's own audio clock (#468; the default since 2026-10-15, per device switchable off).
@@ -28,7 +30,7 @@ const LEAD_S = 0.15
 const STREAM_LEAD_S = 0.4
 /** A queued section jump (#479) is taken over this long before its boundary - after the moment
  * it can still be called off (1 s), with time to decode the target (STREAM_LEAD_S). */
-const JUMP_COMMIT_S = 0.9
+export const JUMP_COMMIT_S = 0.9
 /** Length of the crossfade at a section jump - long enough for the old section's ring to fade
  * under the new one, short enough that the next downbeat of the old section stays in the shade.
  * Set per device (Marco, 2026-10-17: to try different lengths), read at every jump. 200 ms by
@@ -55,11 +57,11 @@ export function setJumpCrossfadeMs(ms: number): void {
   }
 }
 /** How far before the bar line the crossfade starts - ahead of the downbeats' attacks. */
-const JUMP_PREROLL_S = 0.015
+export const JUMP_PREROLL_S = 0.015
 const CURVE_POINTS = 64
 
 /** Gain curve for an equal-power crossfade: sin up, cos down - the two powers always add to 1. */
-function equalPowerCurve(up: boolean): Float32Array {
+export function equalPowerCurve(up: boolean): Float32Array {
   const curve = new Float32Array(CURVE_POINTS)
   for (let i = 0; i < CURVE_POINTS; i++) {
     const x = (i / (CURVE_POINTS - 1)) * (Math.PI / 2)
@@ -184,6 +186,30 @@ let voice: Voice | null = null
 let lastSyncAt = -Infinity
 let suspect = 0
 const clock = createAudioClock()
+
+/** The track's level over the song from its playback cues (#485, playbackCues.ts) - empty: as
+ * uploaded. Applied on its own gain node after the voices, so crossfades and level never fight. */
+let levelCurve: readonly LevelPoint[] = []
+let levelNode: { ctx: AudioContext; node: GainNode } | null = null
+
+/** Sets the level curve of the song playing (or about to) - called by the audio output driver. */
+export function setWebAudioTrackLevelCurve(curve: readonly LevelPoint[]): void {
+  levelCurve = curve
+}
+
+/** Where the voices play into: the level node, which plays into the track's mix gain (audioMix). */
+function trackInput(ctx: AudioContext): GainNode {
+  if (levelNode?.ctx !== ctx) {
+    const node = ctx.createGain()
+    node.connect(sourceOutput('track', ctx))
+    levelNode = { ctx, node }
+  }
+  return levelNode.node
+}
+
+function applyLevel(ctx: AudioContext, now: number, songNow: number): void {
+  scheduleTrackLevel(trackInput(ctx).gain, ctx, now, songNow, levelCurve)
+}
 
 /** What the prototype did, for measuring over USB (window.__sbWebAudioTrack). `trace` holds the
  * raw clock values of the first 4 s after each start. */
@@ -458,7 +484,7 @@ function startVoice(ctx: AudioContext, prepared: Prepared, when: number, startPo
     gain.gain.setValueAtTime(pos > 0 ? 0 : 1, anchorTime)
     if (pos > 0) gain.gain.setTargetAtTime(1, anchorTime, FADE_S / 3)
   }
-  gain.connect(sourceOutput('track', ctx))
+  gain.connect(trackInput(ctx))
   const v: Voice = { key: prepared.key, kind: prepared.kind, gain, nodes: new Set(), seg: { anchorTime, anchorPos: pos, rate: 1 }, prev: null, scheduledUntil: pos, feeder: null, jump: null }
   voice = v
   stats.starts++
@@ -510,6 +536,7 @@ export function syncWebAudioTrack(elapsedNow: () => number | null, shouldPlay: b
     return { blocked: false }
   }
   const songNow = elapsedMs / 1000
+  applyLevel(ctx, now, songNow)
   if (voice && voice.key !== wanted.key) stopVoice()
 
   if (!voice) {
@@ -629,6 +656,8 @@ export function __resetWebAudioTrackForTests(): void {
   voice = null
   lastSyncAt = -Infinity
   suspect = 0
+  levelCurve = []
+  levelNode = null
   clock.reset()
   stats.prepares.length = 0
   stats.reschedules.length = 0

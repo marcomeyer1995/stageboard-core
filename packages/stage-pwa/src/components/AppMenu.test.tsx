@@ -124,3 +124,19 @@ describe('AppMenu closing', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+describe('AppMenu in English (#456)', () => {
+  it('names its groups, the mode and the profile row in the chosen language', async () => {
+    const { default: i18n } = await import('../i18n')
+    await i18n.changeLanguage('en')
+    try {
+      render(<AppMenu mode="boards" onSelectMode={vi.fn()} onClose={vi.fn()} />)
+      expect(screen.getByRole('navigation', { name: 'View' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Solo practice' })).toBeInTheDocument()
+      expect(screen.getByText('Library')).toBeInTheDocument()
+      expect(screen.getByText('I am:')).toBeInTheDocument()
+    } finally {
+      await i18n.changeLanguage('de')
+    }
+  })
+})

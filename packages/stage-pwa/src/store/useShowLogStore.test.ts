@@ -9,6 +9,10 @@ vi.mock('../lib/showLogDb', () => ({
   putShowLogEvent: (...args: unknown[]) => putShowLogEvent(...args),
   showLogChanges: (...args: unknown[]) => showLogChanges(...args),
   switchShowLogWorkspace: (...args: unknown[]) => switchShowLogWorkspace(...args),
+  // Show protection (#610) lives beside the log - empty here.
+  getAllShowProtections: async () => [],
+  showProtectionChanges: () => ({ on: vi.fn(), cancel: vi.fn() }),
+  switchShowProtectionWorkspace: vi.fn(),
 }))
 
 const { useShowLogStore } = await import('./useShowLogStore')
