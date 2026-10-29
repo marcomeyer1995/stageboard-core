@@ -13,7 +13,8 @@ import {
   type Tuning,
 } from 'shared-types'
 import { analyzeTrackBlob } from '../lib/analyzeTrack'
-import { clickTimeline, gridFromBeats, gridStretches, scaleGridTempo } from '../lib/beatGrid'
+import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
+import { scaleSongTempo } from '../lib/tempoScale'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
@@ -686,7 +687,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   /** Tempo ×2 / ÷2 (#654): the detection heard a fast song at half its tempo (~95 for ~190) - or
    * the other way. With a grid every bar becomes two (or two one); only the draft, like the rest. */
   const scaleTempo = (factor: 2 | 0.5) =>
-    setDraft((d) => (d ? { ...d, ...(d.beatGrid ? scaleGridTempo(d.beatGrid, d.bpm, factor) : { bpm: Math.round(d.bpm * factor * 10) / 10 }) } : d))
+    setDraft((d) => (d ? { ...d, ...scaleSongTempo(d, factor) } : d))
 
   /** "Raster löschen" - back to bar 1 at 0:00 at the entered bpm. Only the draft; "Speichern"
    * makes it stick. */

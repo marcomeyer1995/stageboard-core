@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
-import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, scaleGridTempo, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { scaleSongTempo } from '../../lib/tempoScale'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { refineGrid, type RefineResult } from '../../lib/gridRefine'
 import { startClick, stopClick } from '../../lib/clickEngine'
@@ -1415,11 +1416,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
   /** Tempo ×2 / ÷2 (#654): the detection heard a fast song at half its tempo - or the other way. */
   function scaleTempo(factor: 2 | 0.5) {
     setSelection(null)
-    if (!beatGrid) {
-      commit({ ...current, bpm: Math.round(bpm * factor * 10) / 10 })
-      return
-    }
-    commit({ ...current, ...scaleGridTempo(beatGrid, bpm, factor) })
+    commit({ ...current, ...scaleSongTempo({ bpm, beatGrid, timeSignature, cues, chordProContent: content }, factor) })
     setNotice(factor === 2 ? 'Doppeltes Tempo: aus jedem Takt werden zwei. (Rückgängig möglich)' : 'Halbes Tempo: aus zwei Takten wird einer. (Rückgängig möglich)')
   }
 
