@@ -22,7 +22,7 @@ function PathResult({ title, score }: { title: string; score: RigCheckPathScore 
               // The section's name on its own line where the row is narrow - beside the figures it
               // broke mid-name ("Gleichmäßig / 90") on a phone (2026-10-29); in one row from sm up.
               <li key={s.name} className="flex flex-col gap-x-3 border-b border-line py-1.5 text-sm last:border-b-0 sm:flex-row sm:items-baseline">
-                <span className="text-ink sm:w-48 sm:shrink-0">{s.label}</span>
+                <span className="text-ink sm:w-48 sm:shrink-0">{t(`analysis.sections.${s.name}`, { defaultValue: s.label })}</span>
                 <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
                   {s.knownLimit === 'silent' ? (
                     <span className="text-ink-faint">{t('analysis.rest')}</span>

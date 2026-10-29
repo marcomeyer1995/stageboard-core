@@ -55,5 +55,12 @@
       "reference": "Reference",
       "post-show": "After the show"
     }
+  },
+  "route": {
+    "speaker": "Speaker",
+    "wired": "Headphones (cable)",
+    "bluetooth": "Bluetooth",
+    "usb": "USB audio",
+    "unknown": "unknown (browser)"
   }
 }

@@ -76,7 +76,19 @@
     "distance": "Ø {{mean}} ms, max {{max}} ms",
     "slipped": "Takt verschoben ({{percent}})",
     "knownLimit": "bekannte Grenze",
-    "rest": "Pause"
+    "rest": "Pause",
+    "sections": {
+      "steady": "Gleichmäßig 120",
+      "ritardando": "Ritardando 120 → 90",
+      "slow": "Gleichmäßig 90",
+      "jump": "Sprung auf 140",
+      "change-in-bar": "Wechsel im Takt → 100",
+      "three-four": "Dreiviertel 100",
+      "skipped": "Übersprungen",
+      "rest": "Pause",
+      "reentry": "Wiedereinstieg 120",
+      "ending": "Schluss"
+    }
   },
   "verdict": {
     "title": "Rig-Check: alles in Ordnung?",

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { CAPABILITIES, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
+import { AudioRouteSchema, CAPABILITIES, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
 import { describeCue, commandsFor } from '../lib/deviceCommands'
 import { getServerTime } from '../lib/clockSync'
-import { ROUTE_LABEL } from '../lib/latencyProfiles'
+import { routeLabel } from '../lib/latencyProfiles'
 import { cancelRigCheck, latestRun, openRun, prepareRigCheck, runIsPlayable, runReports, startRigCheck, type RigCheckDeviceReport, type RigCheckRun, type StartResult } from '../lib/rigCheck'
 import { runAnalysisCheck, type AnalysisCheck } from '../lib/rigCheckAnalysis'
 import { buildRigCheckSong, type RigCheckDeviceCue, type RigCheckKind } from '../lib/rigCheckSong'
@@ -35,7 +35,8 @@ function formatLength(ms: number): string {
 /** One device's line in the live list and in the result. */
 export function RigCheckDeviceRow({ report, showVerdict }: { report: RigCheckDeviceReport; showVerdict: boolean }) {
   const { t } = useTranslation('rigcheck')
-  const route = ROUTE_LABEL[report.audioRoute as keyof typeof ROUTE_LABEL] ?? report.audioRoute
+  const parsedRoute = AudioRouteSchema.safeParse(report.audioRoute)
+  const route = parsedRoute.success ? routeLabel(parsedRoute.data) : report.audioRoute
   return (
     <li className="flex flex-col gap-1 border-b border-line py-2 last:border-b-0">
       <div className="flex flex-wrap items-center gap-2">

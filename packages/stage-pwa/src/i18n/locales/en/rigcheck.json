@@ -76,7 +76,19 @@
     "distance": "Ø {{mean}} ms, max {{max}} ms",
     "slipped": "Bar shifted ({{percent}})",
     "knownLimit": "known limit",
-    "rest": "Rest"
+    "rest": "Rest",
+    "sections": {
+      "steady": "Steady 120",
+      "ritardando": "Ritardando 120 → 90",
+      "slow": "Steady 90",
+      "jump": "Jump to 140",
+      "change-in-bar": "Change within the bar → 100",
+      "three-four": "Three-four 100",
+      "skipped": "Skipped",
+      "rest": "Rest",
+      "reentry": "Re-entry 120",
+      "ending": "Ending"
+    }
   },
   "verdict": {
     "title": "Rig check: all good?",
