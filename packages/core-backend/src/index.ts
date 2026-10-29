@@ -1,3 +1,4 @@
+import { createSocket } from 'node:dgram'
 import { existsSync, readFileSync } from 'node:fs'
 import { CalibrationRuns } from './calibration/calibrationRuns.js'
 import { PIPER_SPEECH_PLUGIN_ID, serverSpeech, serverVoices } from './plugins/piperSpeechPlugin.js'
@@ -12,6 +13,7 @@ import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import {
   ActivateProfileRequestSchema,
+  SERVER_EXECUTION_TARGET,
   ActivateWorkspaceHardwareRequestSchema,
   CreateMemberRequestSchema,
   DeviceInfoReportSchema,
@@ -70,6 +72,8 @@ import { PluginRegistry } from './plugins/registry.js'
 import { createPinThrottle } from './pinThrottle.js'
 import { isLoopback, readDeletedWorkspaces } from './provisioningAuth.js'
 import { listDbs } from './couch.js'
+import { decodeOscPacket, oscTargetFromConfig, setOscTargetResolver } from './plugins/oscPlugin.js'
+import * as oscInHub from './oscInHub.js'
 import { createWorkspaceHardwareController } from './workspaceHardwareController.js'
 import {
   deprovisionMember,
@@ -336,6 +340,9 @@ function beginSseStream(request: FastifyRequest, reply: FastifyReply): void {
  * tests can exercise real routes via `.inject()` without any of that I/O; `main()` is the
  * only caller that goes on to populate the registries and actually start the server.
  */
+/** The UDP port OSC triggers arrive on (#484) - TouchOSC and most controllers send to 8000 by default. */
+const OSC_IN_PORT = Number(process.env.STAGEBOARD_OSC_IN_PORT ?? 8000)
+
 export async function buildApp(options: { backupService?: BackupService } = {}) {
   // Same shared cert as Vite and CouchDB (see #34, scripts/generate-dev-certs.sh) - the
   // tablet's WebMIDI/getUserMedia calls need the *page* origin to be secure, not this
@@ -617,6 +624,19 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
 
   // Switch states (docs/23 §11.5): a held blinder lights its button on every tablet at once. Any
   // device of the band may - device commands need no show control (§5a).
+  // OSC as a trigger (#484): what the Stage-Server receives on its OSC port, to the devices that
+  // listen - the master running the rules and a device learning a button.
+  app.get('/workspaces/:workspaceId/osc-in/stream', (request, reply) => {
+    const { workspaceId } = request.params as { workspaceId: string }
+    beginSseStream(request, reply)
+    const unsubscribe = oscInHub.subscribe(workspaceId, (message) => {
+      reply.raw.write(`data: ${JSON.stringify(message)}\n\n`)
+    })
+    request.raw.on('close', unsubscribe)
+  })
+
+  app.get('/osc-in/info', async () => ({ port: OSC_IN_PORT }))
+
   app.get('/workspaces/:workspaceId/switch-state/stream', (request, reply) => {
     const { workspaceId } = request.params as { workspaceId: string }
     beginSseStream(request, reply)
@@ -931,6 +951,14 @@ export async function buildApp(options: { backupService?: BackupService } = {}) 
   // shutdown and every test's afterEach(() => app.close()).
   const workspaceHardware = createWorkspaceHardwareController({ couch, registry, log: pluginLog })
   app.addHook('onClose', async () => workspaceHardware.deactivate())
+
+  // OSC devices (#484): host and port are the device's transport config for the Stage-Server
+  // (Bühnentechnik), in the band whose hardware this server serves.
+  setOscTargetResolver(async (logicalDeviceId) => {
+    const workspaceId = workspaceHardware.getActiveWorkspaceId()
+    if (!workspaceId || !logicalDeviceId) return null
+    return oscTargetFromConfig(await getDoc<CouchDoc>(couch, workspaceDbName(workspaceId), `device-transport-config:${SERVER_EXECUTION_TARGET}:${logicalDeviceId}`))
+  })
 
   // Temporary lockout for guessing an admin PIN (only 10,000 possibilities) - shared by every route
   // that checks one, so verify-admin-pin and activate-hardware can't each be used to get a fresh
@@ -1827,6 +1855,24 @@ async function main() {
     // pluginSync/midiWatcher above it needs no configured STAGEBOARD_WORKSPACE and just runs
     // unconditionally for whichever workspaces happen to have reported devices.
     const pingLoop = startPingLoop()
+
+    // OSC in (#484): one UDP port for the whole box; what arrives goes to the band whose hardware
+    // it serves (like the MIDI watcher). 0 switches it off.
+    if (OSC_IN_PORT > 0) {
+      const oscIn = createSocket('udp4')
+      oscIn.on('message', (packet, remote) => {
+        const workspaceId = workspaceHardware.getActiveWorkspaceId()
+        const messages = decodeOscPacket(packet)
+        if (!workspaceId || messages.length === 0) return
+        for (const message of messages) {
+          const devices = oscInHub.broadcast(workspaceId, { ...message, at: Date.now() })
+          pluginLog.info('osc in', { address: message.address, args: message.args.length, from: remote.address, devices })
+        }
+      })
+      oscIn.on('error', (err) => pluginLog.error('osc in: port unavailable', { port: OSC_IN_PORT, error: err.message }))
+      oscIn.bind(OSC_IN_PORT)
+      app.addHook('onClose', async () => oscIn.close())
+    }
     app.addHook('onClose', async () => pingLoop.stop())
 
     // Lookup plugins aren't band-installed hardware - they're always-available read-only data

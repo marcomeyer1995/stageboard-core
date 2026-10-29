@@ -11,6 +11,8 @@ export type CommandField =
   | { key: string; label: string; kind: 'number'; min: number; max: number; step: number; unit?: string}
   | { key: string; label: string; kind: 'choice'; options: { value: string | number; label: string }[]}
   | { key: string; label: string; kind: 'bool'}
+  /** Free text - an OSC address and its values (#484). `optional`: may stay empty. */
+  | { key: string; label: string; kind: 'text'; placeholder?: string; optional?: boolean; validate?: (value: string) => string | null }
 
 export interface DeviceCommand {
   /** The event type the device's translator handles (`kemper.selectRig`). */

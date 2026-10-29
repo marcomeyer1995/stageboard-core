@@ -14,6 +14,8 @@ import { useSongsStore } from '../store/useSongsStore'
 import { BuiltInOutputs, builtInRoles } from './BuiltInOutputs'
 import { DeviceSetupWizard } from './DeviceSetupWizard'
 import { MidiControllerButtonsDialog } from './MidiControllerButtons'
+import { OscInputButtonsDialog } from './OscInputButtons'
+import { OSC_INPUT_CAPABILITY } from '../lib/oscInput'
 import { pluginKind } from '../lib/pluginCatalog'
 import { ActionMenu, AddRow, InfoHint } from './ui'
 
@@ -83,7 +85,7 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
               title={device.name}
               actions={[
                 { label: 'Einrichten', onClick: () => onEdit(device) },
-                ...(device.capability === CAPABILITIES.midiController ? [{ label: 'Knöpfe belegen', onClick: () => setButtonsFor(device) }] : []),
+                ...(device.capability === CAPABILITIES.midiController || device.capability === OSC_INPUT_CAPABILITY ? [{ label: 'Knöpfe belegen', onClick: () => setButtonsFor(device) }] : []),
                 {
                   label: 'Entfernen',
                   danger: true,
@@ -105,7 +107,12 @@ function DeviceList({ onEdit, onAdd }: { onEdit: (device: LogicalDevice) => void
       })}
 
       <AddRow label="Neues Gerät" onClick={onAdd} />
-      {buttonsFor && <MidiControllerButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />}
+      {buttonsFor &&
+        (buttonsFor.capability === OSC_INPUT_CAPABILITY ? (
+          <OscInputButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />
+        ) : (
+          <MidiControllerButtonsDialog device={buttonsFor} onClose={() => setButtonsFor(null)} />
+        ))}
     </div>
   )
 }

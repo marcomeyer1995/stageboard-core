@@ -198,8 +198,14 @@ function ConnectionStep({
   const [sendingKey, setSendingKey] = useState<string | null>(null)
   const [assigningKey, setAssigningKey] = useState<string | null>(null)
   const [manualTarget, setManualTarget] = useState(device?.executionTarget ?? '')
-  const [manualTransportId, setManualTransportId] = useState('')
-  const [manualValues, setManualValues] = useState<Record<string, string>>({})
+  // What this device (or, for a Stage-Server device, the server) already has - shown again when editing.
+  const configs = useDeviceTransportConfigStore((state) => state.configs)
+  const existingConfig = configs.find((c) => c.id === `${device?.executionTarget === SERVER_EXECUTION_TARGET ? SERVER_EXECUTION_TARGET : getDeviceId()}:${draft.id}`)
+  const [manualTransportId, setManualTransportId] = useState(existingConfig?.transportId ?? '')
+  const [manualValues, setManualValues] = useState<Record<string, string>>(existingConfig?.values ?? {})
+  // Transport fields are filled in where the device runs: on this tablet for itself, and - since the
+  // Stage-Server has no screen - from any tablet for a Stage-Server device (OSC host and port, #484).
+  const configTarget = manualTarget === getDeviceId() || manualTarget === SERVER_EXECUTION_TARGET ? manualTarget : null
 
   const plugin = installed.find((p) => p.id === draft.pluginId) ?? null
   const candidates = session.candidates.filter((c) => c.matchedPluginId === draft.pluginId)
@@ -256,10 +262,10 @@ function ConnectionStep({
 
   async function saveManual() {
     await saveDevice({ id: draft.id, name: draft.name, capability: draft.capability ?? 'midi-input', pluginId: draft.pluginId, executionTarget: manualTarget || null })
-    if (manualTarget === getDeviceId() && manualTransportId) {
+    if (configTarget && manualTransportId) {
       await saveTransportConfig({
-        id: `${getDeviceId()}:${draft.id}`,
-        deviceId: getDeviceId(),
+        id: `${configTarget}:${draft.id}`,
+        deviceId: configTarget,
         logicalDeviceId: draft.id,
         transportId: manualTransportId,
         values: manualValues,
@@ -275,7 +281,8 @@ function ConnectionStep({
       {resolvedTarget && (
         <p className="rounded-control bg-control-strong px-3 py-2 text-sm text-ink">
           Verbunden mit {reporterLabel(resolvedTarget)}
-          {resolvedTarget !== getDeviceId() && (
+          {/* The Stage-Server has no screen to register from - nothing to wait for there. */}
+          {resolvedTarget !== getDeviceId() && resolvedTarget !== SERVER_EXECUTION_TARGET && (
             <span className="text-ink-faint"> · wartet darauf, dass sich dieses Gerät selbst einträgt</span>
           )}
         </p>
@@ -342,7 +349,7 @@ function ConnectionStep({
             </option>
           ))}
         </select>
-        {manualTarget === getDeviceId() && plugin && plugin.transports.length > 0 && (
+        {configTarget && plugin && plugin.transports.length > 0 && (
           <>
             <select
               value={manualTransportId}
