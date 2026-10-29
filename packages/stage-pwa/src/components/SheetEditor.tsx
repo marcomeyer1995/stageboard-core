@@ -148,7 +148,10 @@ interface SheetEditorProps {
 }
 
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
-export const ROOMY_FOR_VARIANT_ROW_PX = 560
+export const ROOMY_FOR_VARIANT_ROW_PX = 600
+
+/** Visible height below which the ChordPro key bar steps aside while typing (a phone in landscape). */
+export const ROOMY_FOR_KEY_BAR_PX = 220
 
 /** Visible height below which the editor's page header steps aside while the keyboard is up. */
 export const ROOMY_FOR_HEADER_PX = 400
@@ -1214,7 +1217,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         </p>
       )}
       <ChordProKeyBar
-        active={textFocused}
+        // A phone in landscape with the keyboard up has ~140 px left - the text lines first.
+        active={textFocused && roomPx >= ROOMY_FOR_KEY_BAR_PX}
         chords={songChords(preview)}
         onKey={typeChordProKey}
         onChord={(chord) => typeAtCaret(`[${chord}]`)}

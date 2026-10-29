@@ -191,7 +191,12 @@ export function FindReplaceBar({
           />
           </div>
           <InfoHint text={MODE_INFO} />
-        {compact && <InfoHint text={REPLACE_INFO} label="Erklärung: Ersetzen durch" />}
+        {compact && (
+          <span className="flex items-center gap-1 text-sm text-ink-soft">
+            Ersetzen
+            <InfoHint text={REPLACE_INFO} label="Erklärung: Ersetzen durch" />
+          </span>
+        )}
         </div>
         <div className="flex flex-wrap gap-2">
           <ToggleChip label="Groß/klein beachten" selected={caseSensitive} onToggle={setCaseSensitive} />
@@ -250,7 +255,9 @@ export function FindReplaceBar({
     <section aria-label="Suchen & Ersetzen" className={`flex flex-shrink-0 flex-col gap-2 rounded-container border border-line bg-surface ${compact ? 'p-1' : 'max-h-[60%] overflow-y-auto p-2'}`}>
       {/* Side by side where wide enough, else one under the other. */}
       <div className="flex flex-wrap items-center gap-2">
-      <div className="flex min-w-[18rem] flex-1 items-center gap-2">
+      <div className="flex min-w-[18rem] flex-1 flex-wrap items-center gap-2">
+        {/* The field keeps a readable width; on a narrow phone the buttons wrap below it. */}
+        <div className="flex min-w-[12rem] flex-1 items-center gap-2">
         <input
           aria-label="Suchen"
           value={find}
@@ -273,6 +280,8 @@ export function FindReplaceBar({
         <span className="min-w-14 text-center text-base tabular-nums text-ink-soft" aria-live="polite">
           {find && !error ? (matches.length === 0 ? '0' : `${index + 1}/${matches.length}`) : ''}
         </span>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
         <IconButton icon="previous" label="Vorheriger Treffer" disabled={matches.length === 0} onClick={() => go(-1)} />
         <IconButton icon="next" label="Nächster Treffer" disabled={matches.length === 0} onClick={() => go(1)} />
         {compact && (
@@ -290,6 +299,7 @@ export function FindReplaceBar({
           </>
         )}
         <IconButton icon="close" label="Suche schließen" variant="quiet" onClick={onClose} />
+        </div>
       </div>
       {(!compact || showReplace) && (
         <div className={`flex items-center gap-2 ${compact ? 'min-w-[18rem] flex-1' : 'w-full flex-wrap'}`}>
