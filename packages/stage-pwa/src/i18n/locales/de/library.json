@@ -69,7 +69,8 @@
     "deleted": "Variante gelöscht",
     "noDefault": "Keine Standard-Variante",
     "followDefault": "Standard ({{name}})",
-    "isDefault": "{{name}} (Standard)"
+    "isDefault": "{{name}} (Standard)",
+    "isDefaultShort": "{{name}} (Std.)"
   },
   "cancel": "Abbrechen",
   "save": "Speichern",

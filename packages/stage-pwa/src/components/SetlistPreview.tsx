@@ -102,6 +102,9 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
             const variantText = issue
               ? VARIANT_ISSUE_LABEL[issue]
               : variant && (entry.variantId === null ? t('variant.isDefault', { name: variant.label }) : variant.label)
+            const variantBadge = issue
+              ? variantText
+              : variant && (entry.variantId === null ? t('variant.isDefaultShort', { name: variant.label }) : variant.label)
             return (
               <li key={entry.id}>
                 <button
@@ -110,11 +113,17 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
                   className="flex min-h-form w-full items-center gap-3 rounded-control bg-control px-4 py-2 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   <span className="w-6 flex-shrink-0 text-right tabular-nums text-ink-faint">{songNumber}</span>
-                  <span className="min-w-0 truncate">
+                  <span className="min-w-0 flex-1 truncate">
                     {song ? song.title || t('untitled') : <span className="text-ink-faint">{t('pv.songMissing')}</span>}
                     {song?.artist && <span className="text-ink-faint"> — {song.artist}</span>}
-                    {variantText && <span className={issue ? 'text-danger' : 'text-ink-faint'}> · {variantText}</span>}
                   </span>
+                  {/* The variant as a badge on the right edge (Marco, 2026-10-29): title and band take the
+                      rest of the row and are cut off first, the variant always stays readable. */}
+                  {variantBadge && (
+                    <span className="max-w-[45%] flex-shrink-0 overflow-hidden" title={variantText ?? undefined}>
+                      <Badge tone={issue ? 'danger' : 'neutral'}>{variantBadge}</Badge>
+                    </span>
+                  )}
                 </button>
               </li>
             )

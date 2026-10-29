@@ -69,7 +69,8 @@
     "deleted": "Variant deleted",
     "noDefault": "No default variant",
     "followDefault": "Default ({{name}})",
-    "isDefault": "{{name}} (default)"
+    "isDefault": "{{name}} (default)",
+    "isDefaultShort": "{{name}} (def.)"
   },
   "cancel": "Cancel",
   "save": "Save",
