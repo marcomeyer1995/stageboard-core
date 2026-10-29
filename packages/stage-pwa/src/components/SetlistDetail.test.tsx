@@ -208,9 +208,8 @@ describe('SetlistDetail - preview and editing (Marco, 2026-10-07: like a song)',
     render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
 
     expect(screen.getByRole('heading', { name: /Herbst-Tour 2026/ })).toBeInTheDocument()
-    expect(screen.getByText(/Auftritt .*24\.12\.2026/)).toBeInTheDocument()
-    expect(screen.getByText('Ende 23:00')).toBeInTheDocument()
-    expect(screen.getByText('2 Songs')).toBeInTheDocument()
+    // One grey line under the title (2026-10-29: no chip row of its own).
+    expect(screen.getByText(/^Auftritt .*24\.12\.2026 · 2 Songs · Ende 23:00$/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Aktivieren' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Songs durchsuchen…')).not.toBeInTheDocument()

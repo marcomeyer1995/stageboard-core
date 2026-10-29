@@ -27,8 +27,13 @@ vi.mock('pouchdb-browser', () => ({
 // stubbed out here rather than pulled in for real.
 vi.mock('./SheetEditor', () => ({ SheetEditor: () => <div>Song-Editor</div> }))
 vi.mock('./SongPreview', () => ({
-  SongPreview: ({ songId, onEdit }: { songId: string; onEdit: () => void }) => (
+  SongPreview: ({ songId, onEdit, onBack }: { songId: string; onEdit: () => void; onBack?: () => void }) => (
     <div>
+      {onBack && (
+        <button type="button" aria-label="Bibliothek" onClick={onBack}>
+          ←
+        </button>
+      )}
       Song-Preview-{songId}
       <button type="button" onClick={onEdit}>
         Bearbeiten
@@ -464,12 +469,12 @@ describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not 
     expect(screen.getByText(placeholder).parentElement).toHaveClass('flex')
   })
 
-  it('panel mode hides the mobile-only "← Bibliothek" back button once something is selected', () => {
+  it('panel mode has no "← Bibliothek" back button once something is selected - the list stays beside it', () => {
     stubMedia({ pointer: false, width1024: false, width768: true, landscape: true })
     render(<LibraryView />)
 
     fireEvent.click(screen.getByText('Alpha'))
-    expect(screen.getByRole('button', { name: 'Bibliothek' })).toHaveClass('hidden')
+    expect(screen.queryByRole('button', { name: 'Bibliothek' })).not.toBeInTheDocument()
   })
 
   it('narrow portrait still shows the "← Bibliothek" back button once something is selected', () => {
@@ -477,7 +482,8 @@ describe('LibraryView - two-pane breakpoint moved to landscape-tablet-wide, not 
     render(<LibraryView />)
 
     fireEvent.click(screen.getByText('Alpha'))
-    expect(screen.getByRole('button', { name: 'Bibliothek' })).not.toHaveClass('hidden')
+    // ← at the start of the title row (2026-10-29), not a row of its own.
+    expect(screen.getByRole('button', { name: 'Bibliothek' })).toBeInTheDocument()
   })
 })
 

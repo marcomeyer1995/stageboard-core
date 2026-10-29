@@ -38,7 +38,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu } from './OverflowMenu'
 import { SetlistPreview } from './SetlistPreview'
 import { Icon } from './Icon'
-import { AddRow, Badge, Dialog, Field, Button, InfoHint, choiceRow } from './ui'
+import { AddRow, Badge, Dialog, Field, Button, IconButton, InfoHint, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 import { useVisibleSongs } from '../lib/visibleCatalog'
 import { useTranslation } from 'react-i18next'
@@ -51,6 +51,8 @@ interface SetlistDetailProps {
   /** Called after the setlist is actually deleted, so LibraryView can clear a selection
    * that would otherwise point at a setlist that no longer exists. */
   onDeleted: () => void
+  /** Back to the list on narrow screens (LibraryView) - ← in the header row. */
+  onBack?: () => void
 }
 
 /** Same content, regardless of key order or fields set to undefined. */
@@ -555,7 +557,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
  * right-pane detail view for "click a setlist" - the list-of-all-setlists half of that
  * component lives in LibraryView now.
  */
-export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
+export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: SetlistDetailProps) {
   const { t } = useTranslation('library')
   const songs = useVisibleSongs()
   const variants = useSongVariantsStore((state) => state.variants)
@@ -761,6 +763,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           { label: t('delete'), danger: true, onClick: () => void handleDelete() },
         ]}
         onSelectSong={onSelectSong}
+        onBack={onBack}
       />
     )
   }
@@ -774,6 +777,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
       <div className="flex items-center justify-end gap-2">
+        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} className="mr-auto" />}
         <Button onClick={() => void leaveEditing()}>
           {t('cancel')}
         </Button>

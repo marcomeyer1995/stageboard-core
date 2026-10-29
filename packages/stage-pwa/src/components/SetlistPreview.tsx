@@ -6,7 +6,7 @@ import { formatItemSeconds } from '../lib/formatItemDuration'
 import { resolveVariantForEntry } from '../lib/computeQueue'
 import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
-import { Badge, Button } from './ui'
+import { Badge, Button, IconButton } from './ui'
 import { useTranslation } from 'react-i18next'
 
 interface SetlistPreviewProps {
@@ -19,6 +19,8 @@ interface SetlistPreviewProps {
   onEdit: () => void
   menu: OverflowMenuAction[]
   onSelectSong: (songId: string, variantId: string | null) => void
+  /** Back to the list - on narrow screens only, as ← at the start of the title row (no row of its own). */
+  onBack?: () => void
 }
 
 /** "Do., 24.12.2026" from "2026-12-24". */
@@ -32,12 +34,14 @@ function formatDate(iso: string): string {
  * date, schedule and the running order. Changing anything goes through "Bearbeiten"; only
  * (de)activating stays here, since that's what a show reaches for.
  */
-export function SetlistPreview({ setlist, active, canActivate, onActivate, onDeactivate, onEdit, menu, onSelectSong }: SetlistPreviewProps) {
+export function SetlistPreview({ setlist, active, canActivate, onActivate, onDeactivate, onEdit, menu, onSelectSong, onBack }: SetlistPreviewProps) {
   const { t } = useTranslation('library')
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const songCount = setlist.entries.filter(isSongEntry).length
+  // One grey line under the title instead of a row of chips (Marco, 2026-10-29: save space).
   const facts = [
+    setlist.performanceDate && t('pv.gig', { date: formatDate(setlist.performanceDate) }),
     t('pv.songs', { count: songCount }),
     setlist.targetEndTime && t('pv.end', { time: setlist.targetEndTime }),
     setlist.defaultTransitionMs !== undefined && t('pv.pause', { s: Math.round(setlist.defaultTransitionMs / 1000) }),
@@ -49,12 +53,13 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">
       {/* ⋮ top right: the menu for the whole setlist (docs/15 D9). */}
       <div className="flex items-start gap-2">
+        {onBack && <IconButton icon="back" label={t('title')} onClick={onBack} />}
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
             <span className="truncate">{setlist.name}</span>
             {active && <Badge tone="accent">{t('active')}</Badge>}
           </h2>
-          {setlist.performanceDate && <p className="text-ink-faint">{t('pv.gig', { date: formatDate(setlist.performanceDate) })}</p>}
+          <p className="text-ink-faint">{facts.join(' · ')}</p>
         </div>
         <OverflowMenu title={setlist.name} actions={menu} scope="page" />
       </div>
@@ -66,14 +71,6 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
         <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
           {active ? t('pv.deactivate') : t('pv.activate')}
         </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-sm text-ink-muted">
-        {facts.map((fact) => (
-          <span key={fact} className="rounded-control bg-control px-2 py-1">
-            {fact}
-          </span>
-        ))}
       </div>
 
       {setlist.entries.length === 0 ? (
@@ -110,7 +107,7 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
                 <button
                   type="button"
                   onClick={() => onSelectSong(entry.songId, entry.variantId)}
-                  className="flex min-h-form w-full items-center gap-3 rounded-control bg-control px-4 py-2 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
+                  className="flex min-h-form w-full items-center gap-2 rounded-control bg-control py-2 pl-2 pr-3 text-left text-base [@media(hover:hover)]:hover:bg-control-hover"
                 >
                   <span className="w-6 flex-shrink-0 text-right tabular-nums text-ink-faint">{songNumber}</span>
                   {/* The variant as a badge (Marco, 2026-10-29) that always stays readable. From 600 px on

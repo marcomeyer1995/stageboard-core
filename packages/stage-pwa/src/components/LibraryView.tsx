@@ -821,24 +821,14 @@ export function LibraryView() {
           }`}
         >
           {selection?.type === 'setlist' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                {t('title')}
-              </button>
-              <SetlistDetail
-                key={selection.id}
-                setlistId={selection.id}
-                onSelectSong={selectSong}
-                onDeleted={() => setSelectionNow(null)}
-              />
-            </>
+            // ← in the setlist's own header row on narrow screens, not a row of its own (Marco, 2026-10-29).
+            <SetlistDetail
+              key={selection.id}
+              setlistId={selection.id}
+              onSelectSong={selectSong}
+              onDeleted={() => setSelectionNow(null)}
+              onBack={isPanel ? undefined : () => setSelection(null)}
+            />
           ) : selection?.type === 'show' ? (
             <>
               <button
@@ -855,17 +845,8 @@ export function LibraryView() {
             </>
           ) : selection?.type === 'song' ? (
             <>
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className={`mb-3 flex min-h-form items-center gap-2 self-start rounded-control bg-control-strong px-4 text-base text-ink [@media(hover:hover)]:hover:bg-control-strong-hover ${
-                  isPanel ? 'hidden' : ''
-                }`}
-              >
-                <Icon name="back" />
-                {t('title')}
-              </button>
               <SongPreview
+                onBack={isPanel ? undefined : () => setSelection(null)}
                 songId={selection.songId}
                 variantId={selection.variantId}
                 onEdit={(variantId) =>
