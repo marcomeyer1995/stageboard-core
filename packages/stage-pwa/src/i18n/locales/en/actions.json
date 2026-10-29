@@ -156,5 +156,35 @@
   "offGridInfo": "Counts from the press at the tempo of that moment - not exactly on the beat.",
   "secondPress": "2nd press",
   "then": "Then",
-  "onRelease": "On release (optional)"
+  "onRelease": "On release (optional)",
+  "switchState": {
+    "pressed": "pressed",
+    "on": "on",
+    "off": "off"
+  },
+  "switchesTitle": "Switches",
+  "switchesExplainLabel": "Explanation: switches",
+  "switchesExplain": "Set up once, trigger anywhere: a switch like “Blinder” works by pedal, MIDI button and dashboard button - all show the same state.",
+  "noSwitch": "No switch yet.",
+  "triggeredBy": "Triggered by: {{list}}",
+  "notTriggered": "Not triggered by anything yet",
+  "usage": {
+    "key": "Key {{key}} (this device)",
+    "midi": "MIDI controller",
+    "button": "Button on “{{dashboard}}”"
+  },
+  "editSwitch": "Edit switch",
+  "deleteSwitch": "Delete switch “{{name}}”? Pedals, MIDI buttons and dashboard buttons that trigger it then do nothing.",
+  "delete": "Delete",
+  "switchBandWide": "Applies to the whole band. Every change affects all pedals, MIDI buttons and dashboard buttons that trigger it.",
+  "name": "Name",
+  "namePlaceholder": "e.g. Blinder",
+  "color": "Colour",
+  "colors": {
+    "neutral": "Neutral",
+    "accent": "Accent",
+    "green": "Green",
+    "amber": "Yellow",
+    "red": "Red"
+  }
 }

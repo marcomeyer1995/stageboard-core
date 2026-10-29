@@ -1,4 +1,5 @@
 import 'i18next'
+import type band from './locales/de/band.json'
 import type actions from './locales/de/actions.json'
 import type system from './locales/de/system.json'
 import type common from './locales/de/common.json'
@@ -17,6 +18,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      band: typeof band
       actions: typeof actions
       system: typeof system
       common: typeof common

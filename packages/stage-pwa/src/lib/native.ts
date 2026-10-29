@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { useStageServerStore } from '../store/useStageServerStore'
 import { getStageServerUrl } from './stageServer'
@@ -143,8 +144,8 @@ export function updateFailureReason(err: unknown): string {
 export function pairingConfirmation(name: string, host: string, fingerprint: string): { title: string; message: string } {
   const where = name && name !== host ? `${name}\n${host}` : host
   return {
-    title: 'Mit diesem Stage-Server verbinden?',
-    message: `${where}\n\nZertifikat: ${shortFingerprint(fingerprint)}\nZum Vergleich steht es auf dem Admin-Gerät unter „Einladen“.`,
+    title: i18n.t('band:pairing.title'),
+    message: i18n.t('band:pairing.message', { where, fingerprint: shortFingerprint(fingerprint) }),
   }
 }
 

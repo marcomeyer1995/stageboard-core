@@ -156,5 +156,35 @@
   "offGridInfo": "Zählt ab dem Drücken nach dem Tempo in dem Moment - nicht auf den Schlag genau.",
   "secondPress": "2. Druck",
   "then": "Danach",
-  "onRelease": "Beim Loslassen (optional)"
+  "onRelease": "Beim Loslassen (optional)",
+  "switchState": {
+    "pressed": "gedrückt",
+    "on": "an",
+    "off": "aus"
+  },
+  "switchesTitle": "Schalter",
+  "switchesExplainLabel": "Erklärung: Schalter",
+  "switchesExplain": "Einmal einrichten, überall auslösen: ein Schalter wie „Blinder“ geht per Pedal, MIDI-Knopf und Dashboard-Knopf - alle zeigen denselben Zustand.",
+  "noSwitch": "Noch kein Schalter.",
+  "triggeredBy": "Ausgelöst von: {{list}}",
+  "notTriggered": "Noch von nichts ausgelöst",
+  "usage": {
+    "key": "Taste {{key}} (dieses Gerät)",
+    "midi": "MIDI-Controller",
+    "button": "Knopf auf „{{dashboard}}“"
+  },
+  "editSwitch": "Schalter bearbeiten",
+  "deleteSwitch": "Schalter „{{name}}“ löschen? Pedale, MIDI-Knöpfe und Dashboard-Knöpfe, die ihn auslösen, tun dann nichts mehr.",
+  "delete": "Löschen",
+  "switchBandWide": "Gilt für die ganze Band. Jede Änderung wirkt auf alle Pedale, MIDI-Knöpfe und Dashboard-Knöpfe, die ihn auslösen.",
+  "name": "Name",
+  "namePlaceholder": "z. B. Blinder",
+  "color": "Farbe",
+  "colors": {
+    "neutral": "Neutral",
+    "accent": "Akzent",
+    "green": "Grün",
+    "amber": "Gelb",
+    "red": "Rot"
+  }
 }
