@@ -302,5 +302,45 @@
     "allShortN": "Alle ({{count}})",
     "all": "Alle ersetzen",
     "allN": "Alle ersetzen ({{count}})"
+  },
+  "tune": {
+    "half": "½ Ton",
+    "whole": "1 Ton",
+    "semis": "{{n}} Halbtöne",
+    "down": "{{amount}} tiefer",
+    "up": "{{amount}} höher",
+    "standard": "Standard"
+  },
+  "kt": {
+    "normal": "Normal",
+    "drop": "Drop (tiefste Saite einen Ton tiefer)",
+    "likeOriginalKey": "Klingt wie das Original ({{key}})",
+    "likeOriginal": "Klingt wie das Original",
+    "soundsIn": "Klingt in {{key}} ({{steps}})",
+    "sounds": "Klingt {{steps}}",
+    "tuning": "Stimmung {{tuning}}",
+    "asWritten": "Akkorde wie notiert",
+    "chords": "Akkorde {{steps}}",
+    "title": "Tonart & Stimmung",
+    "change": "Ändern…",
+    "explain": "Erklärung: {{label}}",
+    "lower": "{{label}} tiefer",
+    "higher": "{{label}} höher",
+    "reset": "Zurück zum Original",
+    "done": "Fertig",
+    "retune": "Umstimmen",
+    "retuneInfo": "Gitarre tiefer/höher stimmen: die Akkorde auf dem Blatt bleiben, der Song klingt tiefer/höher.",
+    "shift": "Akkorde verschieben",
+    "shiftInfo": "Andere Griffe, gleiche Stimmung: die Akkorde auf dem Blatt ändern sich, der Song klingt tiefer/höher.",
+    "notated": "wie notiert",
+    "semis": "{{steps}} Halbtöne",
+    "strings": "Saiten",
+    "dropHint": "Drop und offene Stimmungen ändern weder Akkorde noch Tonart.",
+    "sheetChords": "Akkorde auf dem Blatt"
+  },
+  "ts": {
+    "whole": "Ganzer Hals",
+    "drop": "Drop (tiefste Saite einen Ton tiefer)",
+    "open": "Offen (Akkorde wie geschrieben)"
   }
 }

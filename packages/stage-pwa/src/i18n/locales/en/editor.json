@@ -302,5 +302,45 @@
     "allShortN": "All ({{count}})",
     "all": "Replace all",
     "allN": "Replace all ({{count}})"
+  },
+  "tune": {
+    "half": "½ step",
+    "whole": "1 step",
+    "semis": "{{n}} semitones",
+    "down": "{{amount}} down",
+    "up": "{{amount}} up",
+    "standard": "Standard"
+  },
+  "kt": {
+    "normal": "Normal",
+    "drop": "Drop (lowest string one step lower)",
+    "likeOriginalKey": "Sounds like the original ({{key}})",
+    "likeOriginal": "Sounds like the original",
+    "soundsIn": "Sounds in {{key}} ({{steps}})",
+    "sounds": "Sounds {{steps}}",
+    "tuning": "Tuning {{tuning}}",
+    "asWritten": "Chords as written",
+    "chords": "Chords {{steps}}",
+    "title": "Key & tuning",
+    "change": "Change…",
+    "explain": "Explanation: {{label}}",
+    "lower": "{{label}} lower",
+    "higher": "{{label}} higher",
+    "reset": "Back to the original",
+    "done": "Done",
+    "retune": "Retune",
+    "retuneInfo": "Tune the guitar lower/higher: the chords on the sheet stay, the song sounds lower/higher.",
+    "shift": "Shift chords",
+    "shiftInfo": "Other shapes, same tuning: the chords on the sheet change, the song sounds lower/higher.",
+    "notated": "as written",
+    "semis": "{{steps}} semitones",
+    "strings": "Strings",
+    "dropHint": "Drop and open tunings change neither chords nor key.",
+    "sheetChords": "Chords on the sheet"
+  },
+  "ts": {
+    "whole": "Whole neck",
+    "drop": "Drop (lowest string one step lower)",
+    "open": "Open (chords as written)"
   }
 }
