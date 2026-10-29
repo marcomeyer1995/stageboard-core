@@ -67,7 +67,9 @@
     "choose": "Choose a variant",
     "title": "Variant",
     "deleted": "Variant deleted",
-    "noDefault": "No default variant"
+    "noDefault": "No default variant",
+    "followDefault": "Default ({{name}})",
+    "isDefault": "{{name}} (default)"
   },
   "cancel": "Cancel",
   "save": "Save",

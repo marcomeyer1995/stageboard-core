@@ -3,6 +3,8 @@ import { isSongEntry, isTransitionEntry, type Setlist } from 'shared-types'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
+import { resolveVariantForEntry } from '../lib/computeQueue'
+import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { Badge, Button } from './ui'
 import { useTranslation } from 'react-i18next'
@@ -94,7 +96,12 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
             }
             songNumber += 1
             const song = songs.find((s) => s.id === entry.songId)
-            const variant = entry.variantId ? variants.find((v) => v.id === entry.variantId) : undefined
+            // Always the variant that will play (Marco, 2026-10-29): "Abadschen (Standard)" when the
+            // entry follows the song's default, the missing one's label when it is gone.
+            const { variant, issue } = resolveVariantForEntry(entry, variants)
+            const variantText = issue
+              ? VARIANT_ISSUE_LABEL[issue]
+              : variant && (entry.variantId === null ? t('variant.isDefault', { name: variant.label }) : variant.label)
             return (
               <li key={entry.id}>
                 <button
@@ -106,7 +113,7 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
                   <span className="min-w-0 truncate">
                     {song ? song.title || t('untitled') : <span className="text-ink-faint">{t('pv.songMissing')}</span>}
                     {song?.artist && <span className="text-ink-faint"> — {song.artist}</span>}
-                    {variant && <span className="text-ink-faint"> · {variant.label}</span>}
+                    {variantText && <span className={issue ? 'text-danger' : 'text-ink-faint'}> · {variantText}</span>}
                   </span>
                 </button>
               </li>

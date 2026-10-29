@@ -122,11 +122,11 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
     })
   })
 
-  it('shows the selected variant\'s label on its trigger button, not a native <select>', () => {
+  it('shows "Standard (Original)" on its trigger button for an entry following the default, not a native <select>', () => {
     renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
-    expect(within(row).getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Standard (Original)' })).toBeInTheDocument()
     expect(row.querySelector('select')).not.toBeInTheDocument()
   })
 
@@ -136,9 +136,12 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
     renderEditing()
 
     const row = screen.getByText('1. Alpha').closest('li')!
-    fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
+    fireEvent.click(within(row).getByRole('button', { name: 'Standard (Original)' }))
 
+    // Three choices: follow the default, or fix one of the two variants (Marco, 2026-10-29).
     expect(await screen.findByRole('button', { name: 'Akustik' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Original' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Standard (Original)' })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Akustik' }))
     fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
 
@@ -147,6 +150,33 @@ describe('SetlistDetail - variant picker (portal, not a plain <select>)', () => 
         entries: [expect.objectContaining({ id: 'e1', variantId: 'v2' }), entry('e2', 'b')],
       }),
     ))
+  })
+})
+
+describe('SetlistDetail - following the default vs. a fixed variant (2026-10-29)', () => {
+  beforeEach(() => {
+    useSongVariantsStore.setState({ variants: [variant('v1', 'a', 'Original', true), variant('v2', 'a', 'Akustik', false)] })
+  })
+
+  it('the preview always names the variant that plays - "(Standard)" when the entry follows the default', () => {
+    useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [entry('e1', 'a'), { id: 'e2', songId: 'a', variantId: 'v2', trackId: null }] }] })
+    render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
+
+    expect(screen.getByText('· Original (Standard)', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('· Akustik', { exact: false })).toBeInTheDocument()
+  })
+
+  it('"Standard" turns a fixed variant back into following the default', async () => {
+    const saveSetlist = vi.fn(async () => {})
+    useSetlistsStore.setState({ saveSetlist, setlists: [{ ...setlist, entries: [{ id: 'e1', songId: 'a', variantId: 'v1', trackId: null }, entry('e2', 'b')] }] })
+    renderEditing()
+
+    const row = screen.getByText('1. Alpha').closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Original' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Standard (Original)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }))
+
+    await waitFor(() => expect(saveSetlist).toHaveBeenCalledWith(expect.objectContaining({ entries: [expect.objectContaining({ id: 'e1', variantId: null }), entry('e2', 'b')] })))
   })
 })
 

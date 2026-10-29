@@ -88,14 +88,26 @@ function VariantPicker({
   onSelect,
 }: {
   variants: SongVariant[]
-  selectedId: string
+  /** The entry's own variant; null = it follows the song's default variant. */
+  selectedId: string | null
   /** The entry's variant is missing - shown instead of a name, never another variant's. */
   issue: VariantIssue | null
-  onSelect: (variantId: string) => void
+  onSelect: (variantId: string | null) => void
 }) {
   const { t } = useTranslation('library')
   const [open, setOpen] = useState(false)
-  const selectedLabel = issue ? VARIANT_ISSUE_LABEL[issue] : (variants.find((v) => v.id === selectedId)?.label ?? '')
+  // "Standard (Abadschen)" is a choice of its own (Marco, 2026-10-29): the entry follows whatever
+  // the song's default variant is, also after the default changes - picking "Abadschen" fixes it.
+  const byDefault = variants.find((v) => v.isDefault)
+  const selectedLabel = issue
+    ? VARIANT_ISSUE_LABEL[issue]
+    : selectedId === null
+      ? t('variant.followDefault', { name: byDefault?.label ?? '' })
+      : (variants.find((v) => v.id === selectedId)?.label ?? '')
+  const choices: { id: string | null; label: string }[] = [
+    ...(byDefault ? [{ id: null, label: t('variant.followDefault', { name: byDefault.label }) }] : []),
+    ...variants.map((variant) => ({ id: variant.id, label: variant.label })),
+  ]
 
   return (
     <>
@@ -119,18 +131,18 @@ function VariantPicker({
         // Choosing one already closes it - so the way out is "Abbrechen" (docs/15 D6).
         <Dialog title={t('variant.title')} size="s" closeLabel={t('cancel')} onClose={() => setOpen(false)}>
           <div className="flex flex-col gap-2">
-            {variants.map((variant) => (
+            {choices.map((choice) => (
               <button
-                key={variant.id}
+                key={choice.id ?? 'default'}
                 type="button"
-                aria-current={variant.id === selectedId ? 'true' : undefined}
+                aria-current={choice.id === selectedId ? 'true' : undefined}
                 onClick={() => {
                   setOpen(false)
-                  onSelect(variant.id)
+                  onSelect(choice.id)
                 }}
-                className={choiceRow(variant.id === selectedId)}
+                className={choiceRow(choice.id === selectedId)}
               >
-                {variant.label}
+                {choice.label}
               </button>
             ))}
           </div>
@@ -236,7 +248,7 @@ interface EntryRowProps {
   song: Song | undefined
   songVariants: SongVariant[]
   onSelectSong: (songId: string, variantId: string | null) => void
-  onSetVariant: (entryId: string, variantId: string) => void
+  onSetVariant: (entryId: string, variantId: string | null) => void
   /** Omitted for the last entry - nothing follows it to transition into. */
   onSetTransition?: (entryId: string, type: TransitionType, delayMs: number) => void
   onRemove: (index: number) => void
@@ -265,8 +277,7 @@ function EntryRow({
   })
   // Same rule as the show (computeQueue): a deleted pick or a missing default is shown as such -
   // no other variant stands in for it (Marco, 2026-10-18).
-  const { variant: resolved, issue } = resolveVariantForEntry(entry, songVariants)
-  const selectedVariantId = resolved?.id ?? ''
+  const { issue } = resolveVariantForEntry(entry, songVariants)
   const title = song?.title ?? t('unknownSong')
 
   return (
@@ -298,7 +309,7 @@ function EntryRow({
         {(songVariants.length > 1 || issue) && (
           <VariantPicker
             variants={songVariants}
-            selectedId={selectedVariantId}
+            selectedId={entry.variantId}
             issue={issue}
             onSelect={(variantId) => onSetVariant(entry.id, variantId)}
           />
@@ -709,7 +720,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     update({ ...setlist, entries: setlist.entries.map((e) => (e.id === entry.id ? updated : e)) })
   }
 
-  function setVariant(entryId: string, variantId: string) {
+  function setVariant(entryId: string, variantId: string | null) {
     if (!setlist) return
     update({
       ...setlist,
