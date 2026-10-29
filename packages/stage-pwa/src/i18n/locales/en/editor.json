@@ -602,7 +602,45 @@
     "myMix": "My mix",
     "mixHint": "Applies on this device to practice too - the same faders as the “My mix” widget.",
     "editCue": "Edit cue",
-    "cueAt": "Cue at {{time}}"
+    "cueAt": "Cue at {{time}}",
+    "overview": "Overview",
+    "allStems": "Hear all tracks again",
+    "onlyStem": "Hear only {{name}}"
   },
-  "apply": "Apply"
+  "apply": "Apply",
+  "pc": {
+    "title": "Announcement: {{name}}",
+    "label": "Announcement",
+    "standard": "Standard",
+    "silent": "Silent",
+    "own": "Own pattern",
+    "likeAll": "As for every part: ",
+    "where": "Set under System → Add-ons → Song part announcements.",
+    "nothing": "Nothing is said before this part.",
+    "pattern": "Pattern",
+    "countIn": "This part starts on bar 1 - the pattern applies to the count-in bars.",
+    "onlyHere": "Applies only to this spot in the song, not to other parts with the same name."
+  },
+  "pb": {
+    "ms": "{{n}} ms",
+    "beats_one": "{{count}} beat",
+    "beats_other": "{{count}} beats",
+    "bars_one": "{{count}} bar",
+    "bars_other": "{{count}} bars",
+    "mute": "muted",
+    "normal": "normal",
+    "track": "Track {{what}}",
+    "fade": " over {{amount}}",
+    "clickOn": "Click on",
+    "clickOff": "Click off",
+    "voiceOn": "Announcements on",
+    "voiceOff": "Announcements off",
+    "playback": "Playback"
+  },
+  "src": {
+    "title": "Which track to analyse?",
+    "field": "Hits from - the mix is usually more reliable",
+    "mix": "Mix (whole track)",
+    "go": "Analyse"
+  }
 }

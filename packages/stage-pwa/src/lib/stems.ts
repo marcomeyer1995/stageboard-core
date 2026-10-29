@@ -121,17 +121,17 @@ export async function askAnalysisSource(
 ): Promise<string | null | undefined> {
   if (stems.length === 0) return null
   const result = await promptFields(
-    'Welche Spur analysieren?',
+    i18n.t('editor:src.title'),
     [
       {
         key: 'source',
-        label: 'Treffer aus - der Mix ist meist zuverlässiger',
+        label: i18n.t('editor:src.field'),
         type: 'radio',
         defaultValue: current ?? '',
-        options: [{ value: '', label: 'Mix (ganzer Track)' }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
+        options: [{ value: '', label: i18n.t('editor:src.mix') }, ...stems.map((s) => ({ value: s.id, label: s.label }))],
       },
     ],
-    'Analysieren',
+    i18n.t('editor:src.go'),
   )
   if (!result) return undefined
   return result.source || null

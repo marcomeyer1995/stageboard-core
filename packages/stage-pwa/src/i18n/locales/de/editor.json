@@ -602,7 +602,45 @@
     "myMix": "Mein Mix",
     "mixHint": "Gilt auf diesem Gerät auch fürs Üben - dieselben Regler wie das Widget „Mein Mix“.",
     "editCue": "Cue bearbeiten",
-    "cueAt": "Cue bei {{time}}"
+    "cueAt": "Cue bei {{time}}",
+    "overview": "Übersicht",
+    "allStems": "Wieder alle Spuren hören",
+    "onlyStem": "Nur {{name}} hören"
   },
-  "apply": "Übernehmen"
+  "apply": "Übernehmen",
+  "pc": {
+    "title": "Ansage: {{name}}",
+    "label": "Ansage",
+    "standard": "Standard",
+    "silent": "Stumm",
+    "own": "Eigenes Muster",
+    "likeAll": "Wie bei allen Teilen: ",
+    "where": "Einstellen unter System → Add-ons → Ansagen der Songteile.",
+    "nothing": "Vor diesem Teil wird nichts gesagt.",
+    "pattern": "Muster",
+    "countIn": "Dieser Teil beginnt auf Takt 1 - das Muster gilt für die Einzähltakte.",
+    "onlyHere": "Gilt nur für diese Stelle im Song, nicht für andere Teile mit demselben Namen."
+  },
+  "pb": {
+    "ms": "{{n}} ms",
+    "beats_one": "{{count}} Schlag",
+    "beats_other": "{{count}} Schlägen",
+    "bars_one": "{{count}} Takt",
+    "bars_other": "{{count}} Takten",
+    "mute": "stumm",
+    "normal": "normal",
+    "track": "Track {{what}}",
+    "fade": " in {{amount}}",
+    "clickOn": "Klick an",
+    "clickOff": "Klick aus",
+    "voiceOn": "Ansagen an",
+    "voiceOff": "Ansagen aus",
+    "playback": "Wiedergabe"
+  },
+  "src": {
+    "title": "Welche Spur analysieren?",
+    "field": "Treffer aus - der Mix ist meist zuverlässiger",
+    "mix": "Mix (ganzer Track)",
+    "go": "Analysieren"
+  }
 }
