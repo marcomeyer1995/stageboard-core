@@ -150,6 +150,9 @@ interface SheetEditorProps {
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
 export const ROOMY_FOR_VARIANT_ROW_PX = 560
 
+/** Visible height from which the search bar shows all its rows (a tablet in portrait without the keyboard). */
+export const ROOMY_FOR_FULL_SEARCH_PX = 760
+
 /** Whether the song text shows its invisible characters (· → ¶) - per device. */
 const INVISIBLES_KEY = 'sb:editor-invisibles'
 
@@ -1114,10 +1117,14 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   // reads ~300 px for a moment before the real ~650 (Redmi app) - the row blinked away and back.
   const roomPx = Math.max(visible?.height ?? 0, typeof window === 'undefined' ? 0 : window.innerHeight)
   const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
+  // The search bar with little room (keyboard up, landscape, a phone): one row, and the variant
+  // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
+  const compactSearch = roomPx < ROOMY_FOR_FULL_SEARCH_PX || (typeof window !== 'undefined' && window.innerWidth < 600)
+  const hideVariantRow = typingOnPhone || (findBar !== null && compactSearch)
   // The key bar lies over the bottom of the page - the text field ends above it.
   const textPane = (
     <div className={`flex min-h-0 flex-1 flex-col gap-2 ${textFocused && keyboardOpen ? 'pb-form' : ''}`}>
-      {!typingOnPhone && variantRow}
+      {!hideVariantRow && variantRow}
       {toolUndo && (
         <div className="flex items-center gap-2 rounded-control bg-control px-3 text-base text-ink">
           <span className="min-w-0 flex-1 truncate">{toolUndo.label}</span>
@@ -1137,6 +1144,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           content={draft.chordProContent}
           range={findBar.range}
           memory={findMemory}
+          compact={compactSearch}
           onMarks={onFindMarks}
           onClose={() => {
             // The search left its last match selected - that is no marking of lines for the next tool.

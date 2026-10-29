@@ -441,6 +441,25 @@ describe('SheetEditor - text tools (#605)', () => {
     expect(textarea.value).toBe('[Am]la\n[G]lu\n[C]  li')
   })
 
+  it('little room (keyboard up, a phone): the search is one row - ⇄ shows the replacement, ⚙ the options - and the variant row steps aside (2026-10-29)', async () => {
+    stubViewport(phone)
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(420)
+    try {
+      await renderLoaded(song, '[Am]la\n[G]lu')
+      await runTool('Suchen & Ersetzen …')
+      const bar = screen.getByRole('region', { name: 'Suchen & Ersetzen' })
+      expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
+      expect(within(bar).queryByRole('textbox', { name: 'Ersetzen durch' })).not.toBeInTheDocument()
+      expect(within(bar).queryByRole('radiogroup', { name: 'Suchmodus' })).not.toBeInTheDocument()
+      fireEvent.click(within(bar).getByRole('button', { name: 'Ersetzen anzeigen' }))
+      expect(within(bar).getByRole('textbox', { name: 'Ersetzen durch' })).toBeInTheDocument()
+      fireEvent.click(within(bar).getByRole('button', { name: 'Suchoptionen' }))
+      expect(screen.getByRole('dialog', { name: 'Suchoptionen' })).toContainElement(screen.getByRole('radiogroup', { name: 'Suchmodus' }))
+    } finally {
+      height.mockRestore()
+    }
+  })
+
   it('shows invisible characters on the layer behind the text - · → ¶ - from the page menu', async () => {
     stubViewport(phone)
     await renderLoaded(song, 'a b\tc\nd')

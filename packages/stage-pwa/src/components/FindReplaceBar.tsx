@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type MutableRefObject, type SyntheticEvent } from 'react'
 import { explainPattern, findMatches, REGEX_BLOCKS, REPLACEMENT_BLOCKS, replaceOne, replaceText, type RegexBlock, type ReplaceOptions, type SearchMode, type TextMatch } from '../lib/textReplace'
 import type { BackdropMark } from './EditorBackdrop'
-import { Button, IconButton, InfoHint, Segmented, ToggleChip } from './ui'
+import { Button, Dialog, IconButton, InfoHint, Segmented, ToggleChip } from './ui'
 import { INPUT } from './ui/styles'
 
 const MODE_INFO =
@@ -71,12 +71,15 @@ export function FindReplaceBar({
   content,
   range,
   memory,
+  compact = false,
   onReplace,
   onMarks,
   onClose,
 }: {
   content: string
   memory: MutableRefObject<FindMemory>
+  /** Little room (keyboard up, a phone): one row - ⇄ shows the replacement, ⚙ the options. */
+  compact?: boolean
   /** The lines marked when the bar opened, or null. */
   range: { start: number; end: number } | null
   onReplace: (after: string, label: string) => void
@@ -95,6 +98,9 @@ export function FindReplaceBar({
   const [notice, setNotice] = useState<string | null>(null)
   const [showBuilder, setShowBuilder] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  // Compact: the replacement row only when wanted, the options in their own window.
+  const [showReplace, setShowReplace] = useState(Boolean(memory.current.replacement))
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [findCaret, setFindCaret] = useState<Caret | null>(null)
   const [replaceCaret, setReplaceCaret] = useState<Caret | null>(null)
 
@@ -160,8 +166,87 @@ export function FindReplaceBar({
   for (const m of matches) byLine.set(m.line, [...(byLine.get(m.line) ?? []), m])
   const previewLines = [...byLine.entries()].slice(0, 40)
 
+  const optionsPanel = (
+    <>
+        {explanation.length > 0 && (
+          <p className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
+            <span className="font-semibold text-ink">Das Muster sucht: </span>
+            {explanation.join(' · ')}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1">
+          <Segmented
+            label="Suchmodus"
+            value={mode}
+            onChange={(v) => {
+              setMode(v as SearchMode)
+              setCurrent(0)
+            }}
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'extended', label: 'Erweitert' },
+              { value: 'regex', label: 'Regex' },
+            ]}
+          />
+          </div>
+          <InfoHint text={MODE_INFO} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ToggleChip label="Groß/klein beachten" selected={caseSensitive} onToggle={setCaseSensitive} />
+          <ToggleChip label="Nur ganze Wörter" selected={wholeWord} onToggle={setWholeWord} />
+          <ToggleChip label="Am Ende von vorn" selected={wrap} onToggle={setWrap} />
+          {scope && <ToggleChip label="Nur markierte Zeilen" selected={inSelection} onToggle={setInSelection} />}
+          {mode === 'regex' && <ToggleChip label="Baukasten" selected={showBuilder} onToggle={setShowBuilder} />}
+          <ToggleChip label="Vorschau" selected={showPreview} onToggle={setShowPreview} />
+        </div>
+
+        {mode === 'regex' && showBuilder && (
+          <div role="group" aria-label="Regex-Baukasten" className="flex flex-col gap-2">
+            <p className="flex items-center gap-2 text-sm text-ink-soft">
+              Tippen setzt den Baustein an der Cursor-Stelle ein; „Gruppe“ und „Eins von“ legen sich um markierten Text.
+            </p>
+            {REGEX_BLOCKS.map(({ group, blocks }) => (
+              <div key={group} className="flex flex-wrap items-center gap-2">
+                <span className="w-20 text-sm font-semibold text-ink-faint">{group}</span>
+                {blocks.map((block) => (
+                  <button key={block.label} type="button" className={chip} title={block.meaning} onClick={() => setFind((value) => insertAt(value, findCaret, block))}>
+                    {block.label} <span className="font-sb-mono text-ink-soft">{block.insert}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 text-sm font-semibold text-ink-faint">Ersetzen</span>
+              {REPLACEMENT_BLOCKS.map((block) => (
+                <button key={block.label} type="button" className={chip} title={block.meaning} onClick={() => setReplacement((value) => insertAt(value, replaceCaret, block))}>
+                  {block.label} <span className="font-sb-mono text-ink-soft">{block.insert}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showPreview && matches.length > 0 && (
+          <div role="region" aria-label="Vorschau" className="flex flex-col gap-1">
+            {previewLines.map(([line, inLine]) => (
+              <PreviewRow
+                key={line}
+                content={content}
+                line={line}
+                matches={inLine}
+                current={index >= 0 && matches[index]!.line === line}
+                onPick={() => setCurrent(matches.indexOf(inLine[0]!))}
+              />
+            ))}
+            {byLine.size > previewLines.length && <p className="text-sm text-ink-faint">… und {byLine.size - previewLines.length} weitere Zeilen.</p>}
+          </div>
+        )}
+    </>
+  )
+
   return (
-    <section aria-label="Suchen & Ersetzen" className="flex max-h-[60%] flex-shrink-0 flex-col gap-2 overflow-y-auto rounded-container border border-line bg-surface p-2">
+    <section aria-label="Suchen & Ersetzen" className={`flex flex-shrink-0 flex-col gap-2 rounded-container border border-line bg-surface ${compact ? 'p-1' : 'max-h-[60%] overflow-y-auto p-2'}`}>
       <div className="flex items-center gap-2">
         <input
           aria-label="Suchen"
@@ -187,106 +272,48 @@ export function FindReplaceBar({
         </span>
         <IconButton icon="previous" label="Vorheriger Treffer" disabled={matches.length === 0} onClick={() => go(-1)} />
         <IconButton icon="next" label="Nächster Treffer" disabled={matches.length === 0} onClick={() => go(1)} />
+        {compact && (
+          <>
+            <IconButton icon="edit" label={showReplace ? 'Ersetzen ausblenden' : 'Ersetzen anzeigen'} variant={showReplace ? 'primary' : 'secondary'} onClick={() => setShowReplace((on) => !on)} />
+            <IconButton icon="details" label="Suchoptionen" onClick={() => setOptionsOpen(true)} />
+          </>
+        )}
         <IconButton icon="close" label="Suche schließen" variant="quiet" onClick={onClose} />
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {notice && <p className="text-sm text-ink-soft">{notice}</p>}
-      {explanation.length > 0 && (
-        <p className="rounded-control bg-control px-3 py-2 text-sm text-ink-soft">
-          <span className="font-semibold text-ink">Das Muster sucht: </span>
-          {explanation.join(' · ')}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          aria-label="Ersetzen durch"
-          value={replacement}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          placeholder="Ersetzen durch"
-          className={field}
-          onChange={(e) => {
-            setReplacement(e.target.value)
-            setReplaceCaret(caretOf(e))
-          }}
-          onSelect={(e) => setReplaceCaret(caretOf(e))}
-        />
-        <InfoHint text={REPLACE_INFO} />
-        <Button disabled={index < 0} onClick={replaceCurrent}>
-          Ersetzen
-        </Button>
-        <Button variant="primary" disabled={matches.length === 0} onClick={replaceAll}>
-          {matches.length > 0 ? `Alle ersetzen (${matches.length})` : 'Alle ersetzen'}
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-0 flex-1">
-        <Segmented
-          label="Suchmodus"
-          value={mode}
-          onChange={(v) => {
-            setMode(v as SearchMode)
-            setCurrent(0)
-          }}
-          options={[
-            { value: 'normal', label: 'Normal' },
-            { value: 'extended', label: 'Erweitert' },
-            { value: 'regex', label: 'Regex' },
-          ]}
-        />
-        </div>
-        <InfoHint text={MODE_INFO} />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <ToggleChip label="Groß/klein beachten" selected={caseSensitive} onToggle={setCaseSensitive} />
-        <ToggleChip label="Nur ganze Wörter" selected={wholeWord} onToggle={setWholeWord} />
-        <ToggleChip label="Am Ende von vorn" selected={wrap} onToggle={setWrap} />
-        {scope && <ToggleChip label="Nur markierte Zeilen" selected={inSelection} onToggle={setInSelection} />}
-        {mode === 'regex' && <ToggleChip label="Baukasten" selected={showBuilder} onToggle={setShowBuilder} />}
-        <ToggleChip label="Vorschau" selected={showPreview} onToggle={setShowPreview} />
-      </div>
-
-      {mode === 'regex' && showBuilder && (
-        <div role="group" aria-label="Regex-Baukasten" className="flex flex-col gap-2">
-          <p className="flex items-center gap-2 text-sm text-ink-soft">
-            Tippen setzt den Baustein an der Cursor-Stelle ein; „Gruppe“ und „Eins von“ legen sich um markierten Text.
-          </p>
-          {REGEX_BLOCKS.map(({ group, blocks }) => (
-            <div key={group} className="flex flex-wrap items-center gap-2">
-              <span className="w-20 text-sm font-semibold text-ink-faint">{group}</span>
-              {blocks.map((block) => (
-                <button key={block.label} type="button" className={chip} title={block.meaning} onClick={() => setFind((value) => insertAt(value, findCaret, block))}>
-                  {block.label} <span className="font-sb-mono text-ink-soft">{block.insert}</span>
-                </button>
-              ))}
-            </div>
-          ))}
+      {(!compact || showReplace) && (
+        <>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-20 text-sm font-semibold text-ink-faint">Ersetzen</span>
-            {REPLACEMENT_BLOCKS.map((block) => (
-              <button key={block.label} type="button" className={chip} title={block.meaning} onClick={() => setReplacement((value) => insertAt(value, replaceCaret, block))}>
-                {block.label} <span className="font-sb-mono text-ink-soft">{block.insert}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showPreview && matches.length > 0 && (
-        <div role="region" aria-label="Vorschau" className="flex flex-col gap-1">
-          {previewLines.map(([line, inLine]) => (
-            <PreviewRow
-              key={line}
-              content={content}
-              line={line}
-              matches={inLine}
-              current={index >= 0 && matches[index]!.line === line}
-              onPick={() => setCurrent(matches.indexOf(inLine[0]!))}
+            <input
+              aria-label="Ersetzen durch"
+              value={replacement}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              placeholder="Ersetzen durch"
+              className={field}
+              onChange={(e) => {
+                setReplacement(e.target.value)
+                setReplaceCaret(caretOf(e))
+              }}
+              onSelect={(e) => setReplaceCaret(caretOf(e))}
             />
-          ))}
-          {byLine.size > previewLines.length && <p className="text-sm text-ink-faint">… und {byLine.size - previewLines.length} weitere Zeilen.</p>}
-        </div>
+            <InfoHint text={REPLACE_INFO} />
+            <Button disabled={index < 0} onClick={replaceCurrent}>
+              Ersetzen
+            </Button>
+            <Button variant="primary" disabled={matches.length === 0} onClick={replaceAll}>
+              {matches.length > 0 ? `Alle ersetzen (${matches.length})` : 'Alle ersetzen'}
+            </Button>
+          </div>
+        </>
+      )}
+      {!compact && optionsPanel}
+      {compact && optionsOpen && (
+        <Dialog title="Suchoptionen" size="l" onClose={() => setOptionsOpen(false)}>
+          {optionsPanel}
+        </Dialog>
       )}
     </section>
   )
