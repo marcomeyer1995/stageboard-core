@@ -1,0 +1,227 @@
+{
+  "prompter": {
+    "title": "Prompter",
+    "description": "Text und Akkorde, wahlweise Smooth Scroll oder Paginated View.",
+    "parts": {
+      "title": "Titel",
+      "artist": "Interpret",
+      "key": "Tonart"
+    }
+  },
+  "live-queue": {
+    "title": "Live-Queue",
+    "description": "Die nächsten Songs der Setlist, mit \"Als nächstes spielen\".",
+    "parts": {
+      "caption": "Überschrift",
+      "numbers": "Nummern",
+      "variant": "Variante",
+      "duration": "Dauer"
+    }
+  },
+  "next-song": {
+    "title": "Next Song",
+    "description": "Aktueller und nächster Song, Vor/Zurück.",
+    "parts": {
+      "current": "Aktuell",
+      "next": "Next"
+    }
+  },
+  "section-jump": {
+    "title": "Abschnitte",
+    "description": "Die Abschnitte des Songs aus der Timeline: der Master springt zum nächsten Ende eines Takts oder Abschnitts oder wiederholt einen Abschnitt - alle Geräte folgen.",
+    "parts": {
+      "when": "Sprung-Zeitpunkt",
+      "loop": "Wiederholen"
+    }
+  },
+  "ready-check": {
+    "title": "Ready-Check",
+    "description": "Der Master fragt, ob alle bereit sind, und sieht, wer noch fehlt; alle anderen bestätigen im Hinweis.",
+    "parts": {
+      "missing": "Wer fehlt"
+    }
+  },
+  "active-setlist": {
+    "title": "Aktive Setlist",
+    "description": "Zeigt, welche Setlist gerade aktiv ist - auch ohne Live-Queue/Next Song.",
+    "parts": {
+      "caption": "Überschrift",
+      "count": "Anzahl Songs"
+    }
+  },
+  "show-transport": {
+    "title": "Show-Transport",
+    "description": "Play/Pause/Stop/Reset für den aktuellen Song - Gig oder Solo Üben, mit oder ohne Backing-Track-Plugin.",
+    "parts": {
+      "title": "Songtitel",
+      "time": "Zeit",
+      "reset": "Reset"
+    }
+  },
+  "visual-metronome": {
+    "title": "Visueller Metronom",
+    "description": "Blitzt im Takt des aktiven Songs (BPM/Taktart), Downbeat farblich abgesetzt.",
+    "parts": {
+      "info": "Tempo & Takt"
+    }
+  },
+  "loop-trainer": {
+    "title": "Loop-Trainer",
+    "description": "Solo Üben: wiederholt einen Abschnitt des Backing-Tracks lückenlos, optional mit steigendem Tempo pro Durchgang (Tonhöhe bleibt).",
+    "parts": {
+      "caption": "Überschrift"
+    }
+  },
+  "tempo-nudge": {
+    "title": "Tempo-Korrektur",
+    "description": "Live +/- Anpassung des Klick-/Metronom-Tempos, ohne den Song-BPM zu ändern.",
+    "parts": {
+      "caption": "Überschrift"
+    }
+  },
+  "click-track": {
+    "title": "Klick",
+    "description": "Synthetisierter Klick/Metronom-Ton, an/aus - läuft auf dem als Klick-Ausgabe eingerichteten Gerät.",
+    "parts": {
+      "caption": "Überschrift",
+      "state": "An/Aus"
+    }
+  },
+  "audio-mix": {
+    "title": "Mein Mix",
+    "description": "Lautstärke von Track, Klick und Ansagen auf diesem Gerät - je ein Regler und Stumm.",
+    "parts": {
+      "hint": "Hinweis"
+    }
+  },
+  "stems": {
+    "title": "Stems",
+    "description": "Solo Üben: die Spuren eines Songs (Schlagzeug, Bass, Gitarre …) statt des Tracks - je ein Regler, Stumm und Solo.",
+    "parts": {
+      "values": "Werte"
+    }
+  },
+  "track-override": {
+    "title": "Variante & Track",
+    "description": "Wechselt kurzfristig den Backing-Track eines Songs (z.B. \"1 Gitarre\" statt \"keine Gitarre\"); in Solo Üben auch die Variante."
+  },
+  "midi-status": {
+    "title": "Fußtaster",
+    "description": "Status des MIDI-Fußtasters, Sprung zum nächsten Song-Part.",
+    "parts": {
+      "simulate": "Simulieren"
+    }
+  },
+  "dashboard-switcher": {
+    "title": "Dashboard-Umschalter",
+    "description": "Große Buttons, um zwischen den Dashboards zu wechseln."
+  },
+  "iem-more-me": {
+    "title": "More Me (IEM)",
+    "description": "Eigene Fader für den In-Ear-Mix.",
+    "parts": {
+      "names": "Kanalnamen",
+      "values": "Werte"
+    }
+  },
+  "quick-actions": {
+    "title": "Quick Actions",
+    "description": "Große Buttons für Ad-Hoc Show Cues."
+  },
+  "lighting-cues": {
+    "title": "Lighting Cues",
+    "description": "Große Buttons für Licht-Cues am DMX-Pult.",
+    "parts": {
+      "last": "Zuletzt"
+    }
+  },
+  "system-health": {
+    "title": "System-Status",
+    "description": "Ampel-Übersicht aller Plugin-Capabilities, für Setup/Soundcheck.",
+    "parts": {
+      "plugins": "Plugins",
+      "sync": "Uhrzeit-Sync"
+    }
+  },
+  "sync-check": {
+    "title": "Sync-Check",
+    "description": "Blitzt im Takt der Server-Uhr - zwei Geräte nebeneinander halten und prüfen, ob sie synchron blinken.",
+    "parts": {
+      "caption": "Überschrift",
+      "offset": "Offset & Drift"
+    }
+  },
+  "tuner": {
+    "title": "Stimmgerät",
+    "description": "Chromatisches Stimmgerät über das Mikrofon des Tablets.",
+    "parts": {
+      "octave": "Oktave",
+      "cents": "Cent & Hz"
+    }
+  },
+  "stage-messenger": {
+    "title": "Stage-Messenger",
+    "description": "Kurze Nachricht an alle oder einzelne Musiker blitzen: „Noch 5 Minuten“, „Gitarre stimmen“, eigene Schnellnachrichten."
+  },
+  "show-notes": {
+    "title": "Show-Notizen",
+    "description": "Live-Notizen von Band und Crew, zum Nachbericht sichtbar.",
+    "parts": {
+      "author": "Autor",
+      "input": "Eingabe"
+    }
+  },
+  "backup-status": {
+    "title": "Backup-Status",
+    "description": "Glanceable Indikator, ob das Backup-Plugin erreichbar ist."
+  },
+  "festival-clock": {
+    "title": "Festival-Uhr",
+    "description": "Voraussichtliches Ende der restlichen Setlist - wird rot, wenn das Ende nach der Zielzeit (Curfew) liegt.",
+    "parts": {
+      "caption": "Überschrift",
+      "target": "Ziel",
+      "estimate": "Schätzung"
+    }
+  },
+  "clock": {
+    "title": "Uhr",
+    "description": "Große, gut lesbare Digitaluhr für die Bühne.",
+    "parts": {
+      "seconds": "Sekunden"
+    }
+  },
+  "separator": {
+    "title": "Trenner",
+    "description": "Eine einfache Linie, um Dashboard-Bereiche optisch abzugrenzen."
+  },
+  "device-status": {
+    "title": "Geräte-Status",
+    "description": "Live-Verbindungsstatus eines einzelnen, konkret ausgewählten Geräts.",
+    "parts": {
+      "name": "Gerätename"
+    }
+  },
+  "custom-trigger": {
+    "title": "Trigger-Button",
+    "description": "Ein Knopf für jede Aktion: Show, Abschnitte, Wiedergabe oder ein Gerätebefehl - tastend, rastend oder zeitgesteuert."
+  },
+  "chord-reference": {
+    "title": "Akkord-Nachschlagen",
+    "description": "Grundton und Akkordart wählen: Noten, Intervalle, Gitarren-Griffbild und Klaviatur.",
+    "parts": {
+      "notes": "Töne",
+      "intervals": "Intervalle",
+      "guitar": "Griffbild",
+      "piano": "Klaviatur"
+    }
+  },
+  "circle-of-fifths": {
+    "title": "Quintenzirkel",
+    "description": "Tonart antippen: Paralleltonart, Dominante, Subdominante und Vorzeichen auf einen Blick.",
+    "parts": {
+      "relations": "Verwandte Tonarten",
+      "signature": "Vorzeichen"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { cacheKey } from './audioCache'
 import { scheduleReconcileAudioCache } from './audioStorageManager'
 import { resolveTrackForEntry } from './computeQueue'
 import { useQueue } from './queue'
+import { useRigCheckTrackKey } from './rigCheck'
 import { useAudioPinsStore } from '../store/useAudioPinsStore'
 import { useAudioSyncStore } from '../store/useAudioSyncStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -36,12 +37,16 @@ export function useAudioSyncReconciler(workspaceId: string) {
   // The stems practiced right now (docs/22 §3) - otherwise stems are never cached.
   const stemKeys = useStemPlaybackStore((state) => state.cacheKeys)
 
+  // While a Rig-Check run is open, every device loads its track before Start (#464, docs/24 §3).
+  const rigCheckKey = useRigCheckTrackKey()
+
   const alwaysKeepKeys = useMemo(() => {
     const keys = new Set<string>(stemKeys)
     if (currentVariant && currentTrack) keys.add(cacheKey(currentVariant.id, currentTrack.id))
+    if (rigCheckKey) keys.add(rigCheckKey)
     return keys
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVariant?.id, currentTrack?.id, stemKeys])
+  }, [currentVariant?.id, currentTrack?.id, stemKeys, rigCheckKey])
 
   useEffect(() => {
     scheduleReconcileAudioCache(mode, variants, activeSetlist, pinnedSongIds, alwaysKeepKeys, stemMode)

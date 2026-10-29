@@ -7,6 +7,25 @@ import { z } from 'zod'
  */
 const CapabilityStatusValueSchema = z.enum(['available', 'degraded', 'missing'])
 
+/** One editor analysis path scored against the Rig-Check's ground truth (#464, docs/24 §6). */
+export const RigCheckPathScoreSchema = z.object({
+  bpm: z.number().nullable(),
+  gridPoints: z.number().int().nonnegative(),
+  sections: z.array(
+    z.object({
+      name: z.string(),
+      label: z.string(),
+      beats: z.number().int().nonnegative(),
+      hitRate: z.number(),
+      meanAbsMs: z.number(),
+      maxAbsMs: z.number(),
+      slipRate: z.number(),
+      knownLimit: z.enum(['change-in-bar', 'silent']).nullable(),
+    }),
+  ),
+})
+export type RigCheckPathScore = z.infer<typeof RigCheckPathScoreSchema>
+
 /**
  * One event in a show's history. A "show" is simply every event sharing one `showId` -
  * there is no separate summary document, so there's nothing to keep in sync.
@@ -43,6 +62,13 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
      * song sat paused (stage banter, retuning), unlike the wider `endedAt - at` span. This is
      * the duration the Nachbericht should display. */
     activeMs: z.number().int().nonnegative(),
+    /** The song's planned length when it was played - track or variant length (#64: planned vs.
+     * actual). Absent when unknown, and on events from before 2026-10-22. */
+    plannedMs: z.number().int().nonnegative().optional(),
+    /** The pause the setlist planned after this song until the next one starts - its pause between
+     * songs, a transition item's length, 0 for "seamless" (#64; festivalClock's rules). Absent
+     * without a next entry, and on older events. */
+    plannedPauseAfterMs: z.number().int().nonnegative().optional(),
   }),
   z.object({
     id: z.string().min(1),
@@ -62,6 +88,9 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     songId: z.string().min(1),
     songTitle: z.string().min(1),
     cueId: z.string().min(1),
+    /** The variant the cue belongs to (#8: "Cue anpassen" in the Nachbericht edits it there).
+     * Absent on events from before 2026-10-22 - then the song's variant holding `cueId`. */
+    variantId: z.string().min(1).optional(),
     /** The cue's command, e.g. `kemper.selectRig`. */
     cueType: z.string().min(1),
     /** Who it went to - the Logical Device's name (or its id when it no longer exists). */
@@ -69,6 +98,61 @@ export const ShowLogEventSchema = z.discriminatedUnion('type', [
     ok: z.boolean(),
     /** Why it failed (device gone, no output, the device's own error). */
     message: z.string().max(300).optional(),
+  }),
+  /** A Rig-Check run (#464, docs/24 §5) - written by the master at Vorbereiten and updated at
+   * Start and at the end. Its `showId` is the run's own show, which marks that show as a
+   * Rig-Check in the Nachbericht. `previous`: what the show was on before, restored at the end. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('rig-check-run'),
+    /** When it was prepared. */
+    at: z.number().int().nonnegative(),
+    kind: z.enum(['quick', 'full']),
+    /** Generator version (rigCheckSong.ts) - results of different versions aren't comparable. */
+    version: z.number().int().positive(),
+    startedAt: z.number().int().nonnegative().optional(),
+    endedAt: z.number().int().nonnegative().optional(),
+    /** Ended with Abbrechen before or while it played. */
+    cancelled: z.boolean().optional(),
+    /** The analysis check of a full run (docs/24 §6, rigCheckAnalysis.ts), per editor path. */
+    analysis: z
+      .object({
+        sampleRate: z.number().int().positive(),
+        detect: RigCheckPathScoreSchema.nullable(),
+        refine: RigCheckPathScoreSchema.nullable(),
+      })
+      .optional(),
+    previous: z
+      .object({
+        activeSetlistId: z.string().nullable(),
+        activeEntryId: z.string().nullable(),
+        currentShowId: z.string().nullable(),
+        lastActivityAt: z.number().nullable(),
+      })
+      .optional(),
+  }),
+  /** One device's part of a Rig-Check run (#464): written by that device, one id per run and
+   * device - its state while the run is open, then the band's eye-and-ear verdict. */
+  z.object({
+    id: z.string().min(1),
+    showId: z.string().min(1),
+    type: z.literal('rig-check-device'),
+    /** When this device last updated it. */
+    at: z.number().int().nonnegative(),
+    deviceId: z.string().min(1),
+    deviceName: z.string().min(1).max(120),
+    /** 'practice': in Solo Üben - it does not follow the run. */
+    mode: z.enum(['gig', 'practice']),
+    trackReady: z.boolean(),
+    /** This device's clock against the Stage-Server's, and how much it varies (clockSync.ts). */
+    clockOffsetMs: z.number().nullable(),
+    clockJitterMs: z.number().nullable(),
+    /** Speaker, headphones, Bluetooth … (useAudioRouteStore) and the stored output latency for it. */
+    audioRoute: z.string().max(40),
+    outputLatencyMs: z.number().nullable(),
+    verdict: z.enum(['ok', 'problem']).nullable(),
+    note: z.string().max(300).optional(),
   }),
   z.object({
     id: z.string().min(1),

@@ -60,8 +60,11 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
   // whenever nothing is actually playing - frozen at the top of the song, same as page 0.
   // The clock is read per frame below, but the widget re-renders only when the active line or a
   // countdown second changes; the smooth scroll runs on its own frame loop (#457).
-  const { queue, elapsedNow, playbackStatus } = useShowModeCore()
+  const { queue, elapsedNow, playbackStatus, mode } = useShowModeCore()
   const playing = playbackStatus === 'playing'
+  // Chord shapes on a long press (#609) - never while a Gig song plays: an accidental press must
+  // not cover the lyrics on stage. Paused is fine - a moment to look a chord up (Marco, 2026-10-28).
+  const chordInfo = !(mode === 'gig' && playbackStatus === 'playing')
   const { currentSong, currentVariant } = queue
   const containerRef = useRef<HTMLDivElement>(null)
   // Each header part can be left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17).
@@ -267,6 +270,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
               fontSize={fontSize}
               chordFontSize={chordFontSize}
               commentFontSize={commentFontSize}
+              chordInfo={chordInfo}
             />
           </div>
         </>
@@ -278,6 +282,7 @@ export function PrompterWidget({ config }: { config: PrompterConfig }) {
             fontSize={fontSize}
             chordFontSize={chordFontSize}
             commentFontSize={commentFontSize}
+            chordInfo={chordInfo}
           />
         </div>
       )}

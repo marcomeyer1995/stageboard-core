@@ -1,7 +1,7 @@
 import type { PointerEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
-import { useVisualViewport } from '../lib/useVisualViewport'
+import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
+import { useSettledVisualViewport } from '../lib/useVisualViewport'
 
 /** The four characters ChordPro needs that phone keyboards hide behind a symbol page (#606). */
 export const CHORDPRO_KEYS = ['[', ']', '/', '|'] as const
@@ -46,8 +46,9 @@ interface ChordProKeyBarProps {
  * on the keyboard in the app and in the browser alike, and is gone when the keyboard closes.
  */
 export function ChordProKeyBar({ active, chords, onKey, onChord, onInsertMenu }: ChordProKeyBarProps) {
-  const visible = useVisualViewport()
-  const keyboardOpen = useTouchKeyboardOpen()
+  // Settled: the WebView's brief wrong height while the keyboard comes up must not place the bar.
+  const visible = useSettledVisualViewport()
+  const keyboardOpen = useSettledTouchKeyboardOpen()
   if (!active || !keyboardOpen || !visible) return null
 
   return createPortal(

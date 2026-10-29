@@ -1,5 +1,6 @@
 import { isSongEntry } from 'shared-types'
 import type { Setlist, SetlistEntry, ShowState, Song, SongEntry, SongVariant, TrackMeta } from 'shared-types'
+import { isRigCheckId } from './rigCheckSong'
 import { playableTracks } from './stems'
 
 /** Why a song entry has no variant to play (Marco, 2026-10-18): never another arrangement in its
@@ -135,10 +136,11 @@ export function computeQueue(
   const activeSetlist = setlists.find((setlist) => setlist.id === showState.activeSetlistId) ?? null
 
   // No active setlist: fall back to the whole catalog, one entry per song, in catalog order.
-  // The entry id doubles as the songId here since there's no setlist doc to own a stable id.
+  // The entry id doubles as the songId here since there's no setlist doc to own a stable id. The
+  // hidden Rig-Check song (#464) is never part of the catalog.
   const entries: SetlistEntry[] = activeSetlist
     ? activeSetlist.entries
-    : songs.map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
+    : songs.filter((song) => !isRigCheckId(song.id)).map((song) => ({ id: song.id, songId: song.id, variantId: null, trackId: null }))
 
   const orderedItems: QueueItem[] = entries.flatMap<QueueItem>((entry) => {
     if (!isSongEntry(entry)) return [{ entry, song: null, variant: null, variantIssue: null }]

@@ -3,6 +3,7 @@ import {
   computeSpectralFlux,
   detectBeats,
   detectFirstOnset,
+  detectOnsets,
   detectTempo,
 } from './audioAnalysis'
 
@@ -48,7 +49,8 @@ const SAMPLE_RATE = 44100
 describe('computeSpectralFlux', () => {
   it('is silent (all-zero) for a signal with no spectral change at all', () => {
     const envelope = computeSpectralFlux(new Float32Array(4410), SAMPLE_RATE)
-    expect(envelope.hopMs).toBe(15)
+    // 15 ms rounded to whole samples: 662 at 44.1 kHz.
+    expect(envelope.hopMs).toBeCloseTo((662 / 44100) * 1000, 9)
     expect(Array.from(envelope.flux).every((v) => v === 0)).toBe(true)
   })
 
@@ -60,6 +62,17 @@ describe('computeSpectralFlux', () => {
     // The peak should land close to 500ms (within a couple of frames/hops).
     const peakIndex = envelope.flux.indexOf(peak)
     expect(Math.abs(peakIndex * envelope.hopMs - 500)).toBeLessThanOrEqual(60)
+  })
+
+  // #464: frame times used the nominal 15 ms while the hop was 662 samples = 15.011 ms at 44.1 kHz -
+  // every onset ran 0.075 % early, ~90 ms after two minutes.
+  it.each([44100, 48000])('keeps onsets on time over a whole song at %i Hz - no drift', (rate) => {
+    const times = clickTimes(1000, 500, 240) // two minutes at 120 BPM
+    const onsets = detectOnsets(computeSpectralFlux(syntheticSignal(rate, 122_000, times, 40), rate)).map((o) => o.timeMs)
+    const errorAt = (t: number) => Math.min(...onsets.map((o) => Math.abs(o - t)))
+    const early = errorAt(times[1]!)
+    const late = errorAt(times[times.length - 1]!)
+    expect(late).toBeLessThanOrEqual(early + 16) // within one hop of the start's error, not 90 ms off
   })
 
   it('is empty for empty input, and produces at least one frame for input shorter than the FFT window', () => {
@@ -108,14 +121,15 @@ describe('detectFirstOnset', () => {
 })
 
 describe('detectTempo', () => {
-  // Quantization from the 15ms hop means the recovered bpm is never exact for an arbitrary
-  // tempo - a few bpm of tolerance is expected and fine, the result is always shown to the
-  // user in an editable field afterward.
+  // Between two frames since 2026-10-27 (parabolic peak): a whole-frame lag gave 121.2 for 120 and
+  // 111.1 for 109.8 (15 ms hop) - a grid 160 ms off after 8 bars. Within 1 BPM now on 20 s of clicks.
   const cases: Array<[nominalBpm: number, toleranceBpm: number]> = [
-    [120, 3],
+    [120, 1],
     [80, 1],
-    [140, 3],
+    [140, 1],
     [174, 1],
+    [101.2, 1],
+    [109.8, 1],
   ]
   for (const [bpm, tolerance] of cases) {
     it(`recovers close to ${bpm} BPM from a regular click train at that tempo`, () => {

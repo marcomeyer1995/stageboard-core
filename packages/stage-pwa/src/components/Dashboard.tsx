@@ -38,6 +38,7 @@ import { WidgetFrame } from './WidgetFrame'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { Button } from './ui'
 import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
+import { useWidgetText } from '../lib/widgetText'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -108,6 +109,7 @@ function toItems(layout: Layout): LayoutItem[] {
 }
 
 export function Dashboard() {
+  const widgetText = useWidgetText()
   const loaded = useDashboardsStore((state) => state.loaded)
   const resetNonce = useDashboardsStore((state) => state.resetNonce)
   const setLayout = useDashboardsStore((state) => state.setLayout)
@@ -471,7 +473,7 @@ export function Dashboard() {
                 return (
                   <div key={widget.i}>
                     <WidgetFrame
-                      title={definition.title}
+                      title={widgetText.title(definition)}
                       status={status}
                       isEditing={isEditing}
                       tooSmall={tooSmall.has(widget.i)}
@@ -480,7 +482,7 @@ export function Dashboard() {
                       onToggleFrameless={() => toggleFrameless(widget.i)}
                       compact={widget.compact === true}
                       onToggleCompact={() => toggleCompact(widget.i)}
-                      parts={definition.parts}
+                      parts={widgetText.parts(definition)}
                       hidden={widget.hidden}
                       onToggleHidden={(partId) => toggleHidden(widget.i, partId)}
                       configPanel={

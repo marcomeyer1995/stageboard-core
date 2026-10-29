@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Icon } from './Icon'
 import { Dialog, choiceRow } from './ui'
 import { CONTROL, DISABLED, FOCUS, HOVER } from './ui/styles'
+import { useTranslation } from 'react-i18next'
 
 const ROW = `flex h-stage w-full items-center gap-3 bg-control px-4 text-left text-lg text-ink ${CONTROL}`
 
@@ -19,7 +20,7 @@ export function PickRow({
   title,
   items,
   activeId,
-  emptyName = 'keine',
+  emptyName,
   onPick,
   readOnly = false,
   locked = false,
@@ -37,12 +38,13 @@ export function PickRow({
   lockedHint?: string
 }) {
   const [picking, setPicking] = useState(false)
+  const { t } = useTranslation(['menu', 'common'])
   const active = items.find((item) => item.id === activeId && item.id !== null)
   const label = (
     <span className="min-w-0 flex-1 truncate">
       {/* The group label beside the row already says it (Marco, 2026-10-17) - kept for screen readers. */}
       <span className="sr-only">{title}: </span>
-      {active?.name ?? emptyName}
+      {active?.name ?? emptyName ?? t('menu:none')}
     </span>
   )
 
@@ -55,7 +57,7 @@ export function PickRow({
         <Icon name="next" size="1.4rem" className="text-ink-faint" />
       </button>
       {picking && (
-        <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={() => setPicking(false)}>
+        <Dialog title={title} size="s" closeLabel={t('common:actions.cancel')} onClose={() => setPicking(false)}>
           <div className="flex flex-col gap-2" role="group" aria-label={title}>
             {items.map((item) => (
               <button

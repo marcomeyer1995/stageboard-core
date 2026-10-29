@@ -1,0 +1,74 @@
+{
+  "title": "Menu",
+  "group": {
+    "view": "View",
+    "mode": "Mode",
+    "master": "Master",
+    "setlist": "Setlist",
+    "band": "Band",
+    "display": "Display"
+  },
+  "iAm": "I am:",
+  "noProfile": "no profile",
+  "fullscreen": "Full screen",
+  "none": "none",
+  "session": {
+    "label": "Mode",
+    "gig": "Gig",
+    "practice": "Solo practice",
+    "gigHint": "Master token, shared show clock, backing-track plugin",
+    "practiceHint": "Local only, plays on this device",
+    "blocked": "Switching to Solo practice only works while no song is playing"
+  },
+  "setlist": {
+    "title": "Setlist",
+    "noneGig": "No setlist",
+    "nonePractice": "No setlist (whole catalog)",
+    "locked": "The setlist stays while a song is playing."
+  },
+  "band": {
+    "title": "Band",
+    "locked": "The band stays while a song is playing."
+  },
+  "profile": {
+    "title": "I am …",
+    "members": "Members",
+    "pinOf": "PIN of {{name}}",
+    "pinPlaceholder": "4-digit code",
+    "switch": "Switch",
+    "masterConfirm": "You are master right now - after switching to {{name}} this device no longer runs the show.",
+    "masterConfirmTitle": "Master",
+    "switchAnyway": "Switch anyway"
+  },
+  "master": {
+    "label": "Master",
+    "release": "Give up master",
+    "releaseConfirm": "The song is playing. Give up master anyway?",
+    "releaseButton": "Give up",
+    "someone": "Someone",
+    "allDevicesOf": "{{name}} (all devices)",
+    "youAll": "You are master – all your devices.",
+    "youThis": "You are master – this device only.",
+    "other": "{{name}} is master.",
+    "otherStale": "{{name}} is master – but not responding.",
+    "anotherDevice": "Another device",
+    "onlyAdmins": "Only admins/showmasters may take over.",
+    "holdForces": "Holding forces the takeover.",
+    "nobody": "Nobody is master.",
+    "shortAll": "all your devices",
+    "shortThis": "this device only",
+    "shortOther": "other device",
+    "shortStale": "{{name}} not responding",
+    "shortNobody": "nobody",
+    "holdToRelease": "Hold to give up",
+    "holdToTake": "Hold to take over",
+    "selfCheck": {
+      "sync-error": "Sync error: this device isn't running the show right now - the others wouldn't see it, and another device may have taken over. Use “Repair” under System → Stage server → Sync.",
+      "offline": "No connection to the Stage server: this device runs the show again once the connection is back.",
+      "unconfirmed": "The Stage server doesn't confirm this device as master - another device has probably taken over. This device isn't running the show right now."
+    }
+  },
+  "dashboards": {
+    "title": "Dashboards"
+  }
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CHORD_QUALITIES, lookUpChord, type ChordQualityId } from './chordReference'
-import { bassPitchClass, guitarShapeFor, soundedPitchClasses } from './guitarShapes'
+import { bassPitchClass, guitarShapeFor, guitarShapesFor, soundedPitchClasses } from './guitarShapes'
 
 /** The chord tones a shape may leave out: a fifth is commonly dropped from 6th/7th chords. */
 const OMITTABLE_INTERVALS = new Set(['5'])
@@ -53,6 +53,39 @@ describe('guitarShapeFor - fingering details', () => {
       for (const quality of CHORD_QUALITIES) {
         for (const fret of guitarShapeFor(root, quality.id as ChordQualityId)?.frets ?? []) {
           if (fret !== null) expect(fret).toBeGreaterThanOrEqual(0)
+        }
+      }
+    }
+  })
+})
+
+describe('guitarShapesFor - every place on the neck (Marco, 2026-10-28)', () => {
+  it('F: the barre at fret 1, then the A-form at fret 8 - no octave repeats from fret 12 up', () => {
+    const shapes = guitarShapesFor(5, 'maj')
+    expect(shapes.map((s) => s.frets)).toEqual([
+      [1, 3, 3, 2, 1, 1],
+      [null, 8, 10, 10, 10, 8],
+    ])
+    expect(shapes[0]!.barre).toEqual({ fret: 1, fromString: 0, toString: 5 })
+    expect(shapes[1]!.barre).toEqual({ fret: 8, fromString: 1, toString: 5 })
+  })
+
+  it('an open shape comes first and has no barre; the same frets never twice', () => {
+    const shapes = guitarShapesFor(0, 'maj')
+    expect(shapes[0]).toEqual({ frets: [null, 3, 2, 0, 1, 0], baseFret: 1 })
+    expect(new Set(shapes.map((s) => s.frets.join(','))).size).toBe(shapes.length)
+    // E: the E-form at fret 0 is the open E - no barre at the nut.
+    expect(guitarShapesFor(4, 'maj')[0]).toEqual({ frets: [0, 2, 2, 1, 0, 0], baseFret: 1 })
+  })
+
+  it('every shape of every chord sounds only chord tones, with the root in the bass, on the neck', () => {
+    for (let root = 0; root < 12; root++) {
+      for (const quality of CHORD_QUALITIES) {
+        const chord = lookUpChord(root, quality.id, 'sharp')
+        for (const shape of guitarShapesFor(root, quality.id as ChordQualityId)) {
+          for (const pc of soundedPitchClasses(shape.frets)) expect(chord.pitchClasses).toContain(pc)
+          expect(bassPitchClass(shape.frets)).toBe(root)
+          for (const fret of shape.frets) if (fret !== null) expect(fret).toBeLessThanOrEqual(15)
         }
       }
     }

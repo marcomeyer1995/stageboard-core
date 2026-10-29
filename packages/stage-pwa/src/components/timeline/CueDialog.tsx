@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { PLAYBACK_CUE_TARGET, type LogicalDevice, type ShowCue } from 'shared-types'
 import { commandsFor, fieldAnswered, fieldOptions, payloadFromAnswers } from '../../lib/deviceCommands'
 import { parseCuePayload } from '../../lib/timelineCues'
-import { playbackCueContent, playbackSwitches, type Switch } from '../../lib/playbackCues'
+import { playbackCueContent, playbackSwitches, type FadeUnit, type Switch, type TrackLevel } from '../../lib/playbackCues'
 import { INPUT } from '../ui/styles'
-import { Button, Dialog, Segmented } from '../ui'
+import { formatTimelineTime, parseTimelineTime } from '../../lib/timeline'
+import { Button, Dialog, Field, IconButton, Segmented } from '../ui'
 
 export type CueContent = Omit<ShowCue, 'id' | 'timeMs'>
 
@@ -22,17 +23,25 @@ export function CueDialog({
   onSubmit,
   onCancel,
   withPlayback = true,
+  initialTimeMs,
 }: {
   title: string
   devices: readonly LogicalDevice[]
   initial?: CueContent
-  onSubmit: (content: CueContent) => void
+  /** With `initialTimeMs` the second argument is the (maybe moved) song time. */
+  onSubmit: (content: CueContent, timeMs?: number) => void
   onCancel: () => void
+  /** Also offer the cue's song time - typed, or − / + in tenths (#8: "a bit earlier" after a show).
+   * The timeline moves a cue by dragging and leaves this out. */
+  initialTimeMs?: number
   /** Offer "Wiedergabe: Klick & Ansagen" (a timeline cue). Off in the action picker, where the
    * click has its own group "Wiedergabe" - one place for it, not two (Marco, 2026-10-18). */
   withPlayback?: boolean
 }) {
-  const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? '')
+  // One device and nothing else to pick (the Rig-Check's device cue): it is chosen already - the
+  // dialog said "Gerät wählen…" under the title "Rig-Check: Kemper" (2026-10-29).
+  const onlyDevice = !withPlayback && devices.length === 1 ? devices[0]!.id : ''
+  const [deviceId, setDeviceId] = useState(initial?.targetLogicalDeviceId ?? onlyDevice)
   const device = devices.find((d) => d.id === deviceId)
   const commands = device ? commandsFor(device.capability) : []
   const [commandType, setCommandType] = useState(initial && commands.some((c) => c.type === initial.type) ? initial.type : '')
@@ -44,22 +53,44 @@ export function CueDialog({
   const [freeType, setFreeType] = useState(initial?.type ?? '')
   const [freePayload, setFreePayload] = useState(initial?.payload ? JSON.stringify(initial.payload) : '')
   const [error, setError] = useState<string | null>(null)
+  const [timeText, setTimeText] = useState(initialTimeMs === undefined ? '' : formatTimelineTime(initialTimeMs))
+  const timeMs = initialTimeMs === undefined ? undefined : parseTimelineTime(timeText)
+  const stepTime = (deltaMs: number) => setTimeText(formatTimelineTime(Math.max(0, (timeMs ?? initialTimeMs ?? 0) + deltaMs)))
   // The own playback (#485): click and/or announcements off or on from here.
   const playback = deviceId === PLAYBACK_CUE_TARGET
   const initialSwitches = initial?.targetLogicalDeviceId === PLAYBACK_CUE_TARGET ? playbackSwitches(initial) : {}
   const [clickSwitch, setClickSwitch] = useState<Switch | ''>(initialSwitches.click ?? '')
   const [voiceSwitch, setVoiceSwitch] = useState<Switch | ''>(initialSwitches.voice ?? '')
+  // The backing track's level (#485): unchanged, a level in dB, muted, or back to as uploaded.
+  const initialTrack = initialSwitches.track
+  const [trackMode, setTrackMode] = useState<'same' | 'level' | 'mute' | 'normal'>(
+    !initialTrack ? 'same' : initialTrack.db === null ? 'mute' : initialTrack.db === 0 ? 'normal' : 'level',
+  )
+  const [trackDb, setTrackDb] = useState(initialTrack?.db ? String(initialTrack.db) : '-6')
+  const [fadeAmount, setFadeAmount] = useState(initialTrack?.fade ? String(initialTrack.fade.amount) : '0')
+  const [fadeUnit, setFadeUnit] = useState<FadeUnit>(initialTrack?.fade?.unit ?? 'bars')
+  const dbValue = Number(trackDb.replace(',', '.').replace('−', '-'))
+  const fadeValue = Number(fadeAmount.replace(',', '.'))
+  const trackValid = trackMode !== 'level' || (Number.isFinite(dbValue) && dbValue >= -60 && dbValue <= 12 && trackDb.trim() !== '')
+  const fadeValid = Number.isFinite(fadeValue) && fadeValue >= 0 && fadeAmount.trim() !== ''
+  const trackLevel: TrackLevel | undefined =
+    trackMode === 'same'
+      ? undefined
+      : { db: trackMode === 'mute' ? null : trackMode === 'normal' ? 0 : dbValue, ...(fadeValue > 0 ? { fade: { amount: fadeValue, unit: fadeUnit } } : {}) }
 
   const free = device !== undefined && commands.length === 0
-  const complete = playback
-    ? clickSwitch !== '' || voiceSwitch !== ''
+  const timeOk = initialTimeMs === undefined || timeMs !== null
+  const complete = !timeOk ? false : playback
+    ? (clickSwitch !== '' || voiceSwitch !== '' || trackMode !== 'same') && trackValid && (trackMode === 'same' || fadeValid)
     : free
       ? freeType.trim().length > 0
       : command !== undefined && command.fields.every((f) => fieldAnswered(f, answers[f.key]))
 
+  // The time goes along only where it was offered - the timeline's callers take one argument.
+  const done = (content: CueContent) => (initialTimeMs === undefined ? onSubmit(content) : onSubmit(content, timeMs ?? initialTimeMs))
   function submit() {
     if (playback) {
-      onSubmit(playbackCueContent({ click: clickSwitch || undefined, voice: voiceSwitch || undefined }))
+      done(playbackCueContent({ click: clickSwitch || undefined, voice: voiceSwitch || undefined, track: trackLevel }))
       return
     }
     if (!device) return
@@ -69,7 +100,7 @@ export function CueDialog({
         setError(parsed.error)
         return
       }
-      onSubmit({ targetLogicalDeviceId: device.id, type: freeType.trim(), payload: parsed.payload })
+      done({ targetLogicalDeviceId: device.id, type: freeType.trim(), payload: parsed.payload })
       return
     }
     if (!command) return
@@ -78,7 +109,7 @@ export function CueDialog({
       setError(parsed.error)
       return
     }
-    onSubmit({ targetLogicalDeviceId: device.id, type: command.type, payload: command.fields.length > 0 ? parsed.payload : undefined })
+    done({ targetLogicalDeviceId: device.id, type: command.type, payload: command.fields.length > 0 ? parsed.payload : undefined })
   }
 
   const select = `min-h-form px-3 text-base ${INPUT}`
@@ -122,7 +153,7 @@ export function CueDialog({
             <option value="" disabled>
               Gerät wählen…
             </option>
-            {withPlayback && <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick & Ansagen</option>}
+            {withPlayback && <option value={PLAYBACK_CUE_TARGET}>Wiedergabe: Klick, Ansagen & Track</option>}
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -152,7 +183,41 @@ export function CueDialog({
                 ]}
               />
             ))}
-            <p className="text-sm text-ink-muted">Gilt ab dieser Stelle bis zum nächsten solchen Cue. Der Klick setzt danach genau im Raster wieder ein.</p>
+            <Segmented
+              label="Track"
+              showLabel
+              value={trackMode}
+              onChange={setTrackMode}
+              options={[
+                { value: 'same', label: 'Unverändert' },
+                { value: 'level', label: 'dB' },
+                { value: 'mute', label: 'Stumm' },
+                { value: 'normal', label: 'Normal' },
+              ]}
+            />
+            {trackMode === 'level' && (
+              <Field label="Lautstärke in dB (0 = wie hochgeladen)" inputMode="decimal" value={trackDb} onChange={(e) => setTrackDb(e.target.value)} error={trackValid ? undefined : 'Zwischen −60 und +12 dB.'} />
+            )}
+            {trackMode !== 'same' && (
+              <div className="flex items-end gap-2">
+                <div className="w-28">
+                  <Field label="Übergang" inputMode="decimal" value={fadeAmount} onChange={(e) => setFadeAmount(e.target.value)} error={fadeValid ? undefined : 'Eine Zahl, 0 = sofort.'} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <Segmented
+                    label="Einheit"
+                    value={fadeUnit}
+                    onChange={setFadeUnit}
+                    options={[
+                      { value: 'bars', label: 'Takte' },
+                      { value: 'beats', label: 'Schläge' },
+                      { value: 'ms', label: 'ms' },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
+            <p className="text-sm text-ink-muted">Gilt ab dieser Stelle bis zum nächsten solchen Cue. Der Klick setzt danach genau im Raster wieder ein; der Track blendet über den Übergang (0 = sofort).</p>
           </>
         ) : free ? (
           <>
@@ -234,6 +299,24 @@ export function CueDialog({
               )
             })}
           </>
+        )}
+
+        {initialTimeMs !== undefined && (
+          <div>
+            <span className={`${label} mb-1`}>Zeit im Song</span>
+            <div className="flex items-center gap-2" role="group" aria-label="Zeit im Song">
+              <IconButton icon="decrease" label="0,1 s früher" onClick={() => stepTime(-100)} />
+              <input
+                aria-label="Zeit"
+                inputMode="decimal"
+                className={`min-w-0 flex-1 text-center tabular-nums ${select}`}
+                value={timeText}
+                onChange={(e) => setTimeText(e.target.value)}
+              />
+              <IconButton icon="increase" label="0,1 s später" onClick={() => stepTime(100)} />
+            </div>
+            {timeMs === null && <p className="mt-1 text-sm text-warn">Zeit als 1:23.4 eingeben.</p>}
+          </div>
         )}
 
         {error && <p className="text-sm text-danger">{error}</p>}
