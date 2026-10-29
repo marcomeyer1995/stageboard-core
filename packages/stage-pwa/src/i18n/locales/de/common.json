@@ -11,5 +11,49 @@
   "session": {
     "gig": "Gig",
     "practice": "Solo"
+  },
+  "actions": {
+    "done": "Fertig",
+    "cancel": "Abbrechen",
+    "back": "Zurück",
+    "smaller": "Kleiner",
+    "larger": "Größer"
+  },
+  "ui": {
+    "active": "Aktiv",
+    "explanation": "Erklärung",
+    "several": "Mehrere möglich",
+    "status": {
+      "ok": "OK",
+      "warning": "Warnung",
+      "error": "Fehler",
+      "off": "Aus"
+    }
+  },
+  "tiers": {
+    "gig": "Im Song",
+    "glance": "Zwischen Songs",
+    "rehearsal": "Probe",
+    "explain": "Wofür ein Widget gedacht ist - danach richten sich seine Größen. Im Song: wird mitten im Song bedient, die größten Knöpfe. Zwischen Songs: auf der Bühne, aber nur abgelesen oder zwischen den Songs bedient. Probe: nur für Probe und Vorbereitung, darf dichter sein."
+  },
+  "widgetLibrary": {
+    "title": "Widget hinzufügen",
+    "search": "Widget suchen…",
+    "noneFound": "Kein Widget gefunden.",
+    "noPreview": "Keine Vorschau",
+    "rehearsalInGig": "Für Probe gedacht - dieses Dashboard ist auch im Gig verfügbar.",
+    "noRoomTitle": "Kein Platz für „{{title}}“",
+    "noRoomText": "In voller Größe ({{w}} × {{h}}) ist auf diesem Dashboard kein Platz - es würde verkleinert und zeigt dann womöglich nicht alles. Anderes Dashboard wählen oder erst Platz schaffen.",
+    "addHereAnyway": "Trotzdem hier hinzufügen",
+    "newDashboard": "Neues Dashboard mit diesem Widget",
+    "categories": {
+      "performance": "Performance",
+      "monitoring": "Monitoring",
+      "show-control": "Show Control",
+      "system-crew": "System & Crew",
+      "utility": "Utility",
+      "reference": "Nachschlagen",
+      "post-show": "Nach der Show"
+    }
   }
 }

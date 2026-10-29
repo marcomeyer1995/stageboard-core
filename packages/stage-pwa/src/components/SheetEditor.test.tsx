@@ -130,11 +130,30 @@ describe('SheetEditor - header views Text · Vorschau · Timeline · Details (#6
 
   it('phone: while the text field has the focus, the variant row steps aside', async () => {
     stubViewport(phone)
+    // A phone with the keyboard up: ~400 px of page left.
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(400)
     const textarea = await renderLoaded()
     fireEvent.focus(textarea)
     expect(screen.queryByRole('combobox', { name: 'Variante' })).not.toBeInTheDocument()
     fireEvent.blur(textarea)
     expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+    height.mockRestore()
+  })
+
+  it('tablet in portrait: with enough height above the keyboard the variant row stays (Marco, 2026-10-28)', async () => {
+    stubViewport(phone)
+    // The page as the Redmi has it with the keyboard up - and the visible area's brief ~300 px
+    // blip while it comes up, which must not hide the row.
+    const height = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(652)
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: Object.assign(new EventTarget(), { height: 297, offsetTop: 0 }) })
+    try {
+      const textarea = await renderLoaded()
+      fireEvent.focus(textarea)
+      expect(screen.getByRole('combobox', { name: 'Variante' })).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(window, 'visualViewport')
+      height.mockRestore()
+    }
   })
 
   it('wide screen: text and preview side by side, no Vorschau tab', async () => {
@@ -405,5 +424,44 @@ describe('SheetEditor - text tools (#605)', () => {
     stubViewport(phone)
     await renderLoaded(song, '[G]fine\n[Am wrong')
     expect(await screen.findByText('Zeile 2: „[“ nicht geschlossen', undefined, { timeout: 2000 })).toBeInTheDocument()
+  })
+})
+
+describe('SheetEditor - a text fix for the other variants on save (#600)', () => {
+  it('offers the changed line to the variant that has it, nothing ticked; a ticked fix keeps that variant\'s timing', async () => {
+    stubViewport({ orientation: 'landscape' })
+    const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
+    const saveVariant = vi.fn(async () => {})
+    const live = { ...variant, id: 'live', label: 'Live', isDefault: false, chordProContent: '[Verse]\n[00:04.00] [C]Take my [G]hand' }
+    useSongVariantsStore.setState({ saveVariant, variants: [variant, live] })
+    const textarea = await renderLoaded()
+    fireEvent.change(textarea, { target: { value: '[Verse]\n[C]Take my [G]hands' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' })))
+
+    const row = screen.getByRole('checkbox', { name: /Live · Zeile 2/ })
+    expect(row).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(row)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern + 1 Änderung' })))
+    expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ id: 'variant-1', chordProContent: '[Verse]\n[C]Take my [G]hands' }))
+    expect(saveVariant).toHaveBeenCalledWith(expect.objectContaining({ id: 'live', chordProContent: '[Verse]\n[00:04.00] [C]Take my [G]hands' }))
+  })
+
+  it('"Abbrechen" saves nothing, and with no other variant sharing the line there is no question', async () => {
+    stubViewport({ orientation: 'landscape' })
+    const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
+    const saveVariant = vi.fn(async () => {})
+    const live = { ...variant, id: 'live', label: 'Live', isDefault: false, chordProContent: '[Verse]\n[C]Take my [G]hand' }
+    useSongVariantsStore.setState({ saveVariant, variants: [variant, live] })
+    const textarea = await renderLoaded()
+    fireEvent.change(textarea, { target: { value: '[Verse]\n[C]Take my [G]hands' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' })))
+    expect(saveVariant).not.toHaveBeenCalled()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    act(() => useSongVariantsStore.setState({ variants: [variant, { ...live, chordProContent: 'ganz anders' }] }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' })))
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(saveVariant).toHaveBeenCalledTimes(1)
   })
 })

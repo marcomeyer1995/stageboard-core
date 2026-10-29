@@ -3,6 +3,7 @@ import { useControlSize } from './PrepTier'
 import { Dialog } from './Dialog'
 import { IconButton } from './IconButton'
 import { CONTROL, DISABLED, FOCUS, SELECTED, type ControlSize } from './styles'
+import { useTranslation } from 'react-i18next'
 
 export interface MenuAction {
   label: string
@@ -25,6 +26,7 @@ export function choiceRow(chosen: boolean, idle = 'text-ink'): string {
 /** The open menu: the actions as full-width rows, dangerous ones in red and set apart at the
  * end; "Abbrechen" at the bottom (choosing an entry already closes it). */
 export function ActionMenuDialog({ title, actions, onClose }: { title: string; actions: MenuAction[]; onClose: () => void }) {
+  const { t } = useTranslation('common')
   const normal = actions.filter((a) => !a.danger)
   const danger = actions.filter((a) => a.danger)
   const row = (action: MenuAction) => (
@@ -42,7 +44,7 @@ export function ActionMenuDialog({ title, actions, onClose }: { title: string; a
     </button>
   )
   return (
-    <Dialog title={title} size="s" closeLabel="Abbrechen" onClose={onClose}>
+    <Dialog title={title} size="s" closeLabel={t('actions.cancel')} onClose={onClose}>
       {normal.length > 0 && <div className="flex flex-col gap-2">{normal.map(row)}</div>}
       {danger.length > 0 && <div className="flex flex-col gap-2 border-t border-line pt-3">{danger.map(row)}</div>}
     </Dialog>
