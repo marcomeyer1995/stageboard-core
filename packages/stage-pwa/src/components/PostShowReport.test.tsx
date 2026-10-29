@@ -144,4 +144,14 @@ describe('Shows tab - delete and protect (#610)', () => {
     await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['c', 'a']))
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2 Shows'), expect.anything())
   })
+
+  it('"Alle ohne gespielte Songs löschen" takes only the empty ones - the tab does not count them', async () => {
+    const { deleteShows } = setup([])
+    useShowLogStore.setState({ events: [...useShowLogStore.getState().events, start('d', t0 + 3e7)] })
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Shows' }))
+    expect(screen.getByRole('button', { name: 'Alle ungeschützten löschen (4, davon 1 ohne Songs)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Alle ohne gespielte Songs löschen (1)' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['d']))
+  })
 })

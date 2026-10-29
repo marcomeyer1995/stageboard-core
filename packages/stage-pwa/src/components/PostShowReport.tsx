@@ -242,6 +242,7 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
   const withContent = shows.filter((show) => !isEmpty(summarize(show)))
   const empty = shows.filter((show) => isEmpty(summarize(show)))
   const unprotected = shows.filter((show) => !isProtected(show))
+  const emptyUnprotected = empty.filter((show) => !isProtected(show))
 
   const remove = async (targets: ShowGroup[], title: string) => {
     if (targets.length === 0) return
@@ -288,8 +289,16 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
             scope="page"
             title="Shows"
             actions={[
+              // The usual tidy-up: the shows nothing was played in (a Play pressed by mistake, a
+              // reload) - folded away below, so the count in the tab doesn't include them.
               {
-                label: `Alle ungeschützten löschen (${unprotected.length})`,
+                label: `Alle ohne gespielte Songs löschen (${emptyUnprotected.length})`,
+                danger: true,
+                disabled: emptyUnprotected.length === 0,
+                onClick: () => void remove(emptyUnprotected, 'Shows ohne gespielte Songs löschen?'),
+              },
+              {
+                label: `Alle ungeschützten löschen (${unprotected.length}${emptyUnprotected.length > 0 ? `, davon ${emptyUnprotected.length} ohne Songs` : ''})`,
                 danger: true,
                 disabled: unprotected.length === 0,
                 onClick: () => void remove(unprotected, 'Alle ungeschützten Shows löschen?'),
