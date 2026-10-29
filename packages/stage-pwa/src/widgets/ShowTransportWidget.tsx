@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { VARIANT_ISSUE_LABEL } from '../lib/variantLabel'
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
@@ -62,6 +63,7 @@ function formatClock(ms: number): string {
  * all share one size).
  */
 export function ShowTransportWidget({ config }: { config: ShowTransportConfig }) {
+  const { t } = useTranslation('widgets')
   const { mode, queue, elapsedNow, playbackStatus, trackOverride, canControl, clickExtendMs, play, pause, stop, reset } =
     useShowModeCore()
   // The clock shows tenths at most - read every frame, re-rendered only when the text changes (#457).
@@ -102,7 +104,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   async function forward(event: ShowControlEvent) {
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, event)
-    setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+    setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
   }
 
   // No track attached at all (e.g. an a cappella song) is a normal, expected state, not an
@@ -115,7 +117,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
   // A transition item (#29) plays as a silent countdown with the same Play/Pause/Stop controls.
   const transitionItem = queue.currentEntry && isTransitionEntry(queue.currentEntry) ? queue.currentEntry : null
   if (!currentSong && !transitionItem) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Kein Song aktiv</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">{t('tr.noSong')}</div>
   }
 
   if (!canControl) {
@@ -123,7 +125,7 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
       // A small widget (the phone's grid) shows only the button - the sentence cut the button off
       // there (2026-10-16); the button's tooltip says the same.
       <div ref={boxRef} className="flex h-full min-h-0 flex-col items-center justify-center gap-2 overflow-hidden text-ink-soft">
-        {(box.height === 0 || box.height >= 140) && <span className="text-center text-base">Dieses Gerät hat aktuell keine Kontrolle über die Show</span>}
+        {(box.height === 0 || box.height >= 140) && <span className="text-center text-base">{t('tr.noControl')}</span>}
         <MasterTakeoverButton
           className="min-h-form rounded-control bg-control-strong px-4 text-base font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
         />
@@ -168,9 +170,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           }`}
         >
           {layout.iconButtons ? (
-            <Icon name="play" size="1.6em" label="Play" className="mx-auto" />
+            <Icon name="play" size="1.6em" label={t('tr.play')} className="mx-auto" />
           ) : (
-            <span style={{ fontSize: buttonFontSize }}>Play</span>
+            <span style={{ fontSize: buttonFontSize }}>{t('tr.play')}</span>
           )}
         </button>
         <button
@@ -186,9 +188,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           }`}
         >
           {layout.iconButtons ? (
-            <Icon name="pause" size="1.6em" label="Pause" className="mx-auto" />
+            <Icon name="pause" size="1.6em" label={t('tr.pause')} className="mx-auto" />
           ) : (
-            <span style={{ fontSize: buttonFontSize }}>Pause</span>
+            <span style={{ fontSize: buttonFontSize }}>{t('tr.pause')}</span>
           )}
         </button>
         <button
@@ -202,9 +204,9 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
           }`}
         >
           {layout.iconButtons ? (
-            <Icon name="stop" size="1.6em" label="Stop" className="mx-auto" />
+            <Icon name="stop" size="1.6em" label={t('tr.stop')} className="mx-auto" />
           ) : (
-            <span style={{ fontSize: buttonFontSize }}>Stop</span>
+            <span style={{ fontSize: buttonFontSize }}>{t('tr.stop')}</span>
           )}
         </button>
         {resetShown && (
@@ -214,19 +216,19 @@ export function ShowTransportWidget({ config }: { config: ShowTransportConfig })
             className="h-full min-h-0 rounded-control bg-control-strong px-1 font-bold uppercase tracking-wide text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
             {layout.iconButtons ? (
-              <Icon name="reset" size="1.6em" label="Reset" className="mx-auto" />
+              <Icon name="reset" size="1.6em" label={t('tr.reset')} className="mx-auto" />
             ) : (
-              <span style={{ fontSize: buttonFontSize }}>Reset</span>
+              <span style={{ fontSize: buttonFontSize }}>{t('tr.reset')}</span>
             )}
           </button>
         )}
       </div>
-      {layout.showHelper && remoteDeviceOutput && <p className="flex-none text-xs text-ink-faint">Audio läuft über ein anderes Gerät</p>}
-      {layout.showHelper && noLocalTrack && !transitionItem && <p className="flex-none text-xs text-ink-faint">Kein Track angehängt</p>}
+      {layout.showHelper && remoteDeviceOutput && <p className="flex-none text-xs text-ink-faint">{t('tr.remoteAudio')}</p>}
+      {layout.showHelper && noLocalTrack && !transitionItem && <p className="flex-none text-xs text-ink-faint">{t('w.noTrack')}</p>}
       {/* #231: the song is running past its originally authored end, via the live bar-extend
           trigger - shown whenever any extension is active, playing or not (a pause mid-extension
           shouldn't make the indicator flicker off). */}
-      {layout.showHelper && clickExtendMs > 0 && <p className="flex-none text-xs text-accent">Verlängert - läuft über die reguläre Länge hinaus</p>}
+      {layout.showHelper && clickExtendMs > 0 && <p className="flex-none text-xs text-accent">{t('tr.extended')}</p>}
       {(error ?? driverError) && <p className="flex-none text-xs text-danger">{error ?? driverError}</p>}
     </div>
   )
@@ -239,15 +241,16 @@ export function ShowTransportConfigPanel({
   config: ShowTransportConfig
   onChange: (next: ShowTransportConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <SizeRatioSlider
-        label="Titel & Uhr"
+        label={t('tr.titleClock')}
         ratio={config.titleSizeRatio ?? DEFAULT_TITLE_SIZE_RATIO}
         onChange={(titleSizeRatio) => onChange({ ...config, titleSizeRatio })}
       />
       <SizeRatioSlider
-        label="Buttons"
+        label={t('tr.buttons')}
         ratio={config.buttonsSizeRatio ?? DEFAULT_BUTTONS_SIZE_RATIO}
         onChange={(buttonsSizeRatio) => onChange({ ...config, buttonsSizeRatio })}
       />

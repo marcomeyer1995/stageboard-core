@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
@@ -37,6 +38,7 @@ type MicStatus = 'idle' | 'requesting' | 'listening' | 'denied' | 'insecure-cont
  * meant to wrap onto multiple lines, not a fit-to-content concern.
  */
 export function TunerWidget({ config }: { config: TunerConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showOctave = useShowPart('octave')
   const showCents = useShowPart('cents')
@@ -137,7 +139,7 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
             onClick={stopListening}
             className="rounded-control bg-control-strong px-[4cqw] py-[2cqh] text-[5.5cqh] font-medium text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
           >
-            Aus
+            {t('tun.off')}
           </button>
         </div>
       )}
@@ -203,28 +205,27 @@ export function TunerWidget({ config }: { config: TunerConfig }) {
               onClick={() => void start()}
               className="rounded-control bg-control-strong px-[5cqw] py-[2.5cqh] text-[6cqh] font-bold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover"
             >
-              Mikrofon aktivieren
+              {t('tun.enable')}
             </button>
           )}
           {status === 'requesting' && (
-            <p className="text-[5cqh] text-ink-faint">Warte auf Mikrofon-Zugriff…</p>
+            <p className="text-[5cqh] text-ink-faint">{t('tun.waiting')}</p>
           )}
           {status === 'insecure-context' && (
             <p className="px-[4cqw] text-center text-[4cqh] text-ink-faint">
-              Mikrofon braucht eine sichere Verbindung (HTTPS oder localhost) - im LAN per
-              http nicht verfügbar, unabhängig vom Gerät.
+              {t('tun.insecure')}
             </p>
           )}
           {status === 'unsupported' && (
             <p className="text-[4cqh] text-ink-faint">
-              Mikrofon wird von diesem Browser nicht unterstützt.
+              {t('tun.unsupported')}
             </p>
           )}
           {status === 'denied' && (
-            <p className="text-[4cqh] text-ink-faint">Kein Zugriff aufs Mikrofon.</p>
+            <p className="text-[4cqh] text-ink-faint">{t('tun.denied')}</p>
           )}
           {status === 'listening' && !note && (
-            <p className="text-[5cqh] text-ink-faint">Spiele eine Note…</p>
+            <p className="text-[5cqh] text-ink-faint">{t('tun.play')}</p>
           )}
         </div>
       )}
@@ -262,11 +263,12 @@ export function TunerConfigPanel({
   config: TunerConfig
   onChange: (next: TunerConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
-          <span>Empfindlichkeit</span>
+          <span>{t('tun.sensitivity')}</span>
           <span className="font-normal text-ink-faint">{config.minRms.toFixed(4)} RMS</span>
         </div>
         <input
@@ -279,13 +281,13 @@ export function TunerConfigPanel({
           className="h-form w-full accent-accent"
         />
         <div className="flex justify-between text-sm text-ink-faint">
-          <span>Unempfindlich</span>
-          <span>Empfindlich</span>
+          <span>{t('tun.insensitive')}</span>
+          <span>{t('tun.sensitive')}</span>
         </div>
       </label>
       <label className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
-          <span>Reaktionsgeschwindigkeit</span>
+          <span>{t('tun.speed')}</span>
           <span className="font-normal text-ink-faint">{config.smoothingWindow}</span>
         </div>
         <input
@@ -298,13 +300,13 @@ export function TunerConfigPanel({
           className="h-form w-full accent-accent"
         />
         <div className="flex justify-between text-sm text-ink-faint">
-          <span>Schnell</span>
-          <span>Stabil</span>
+          <span>{t('tun.fast')}</span>
+          <span>{t('tun.stable')}</span>
         </div>
       </label>
       <label className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-sm font-semibold text-ink-soft">
-          <span>Referenzton</span>
+          <span>{t('tun.reference')}</span>
           <span className="font-normal text-ink-faint">{config.referenceFrequency.toFixed(1)} Hz</span>
         </div>
         <input
@@ -318,24 +320,24 @@ export function TunerConfigPanel({
         />
         <div className="flex justify-between text-sm text-ink-faint">
           <span>400 Hz</span>
-          <span>440 Hz (Standard)</span>
+          <span>{t('tun.standard')}</span>
           <span>480 Hz</span>
         </div>
       </label>
       <Segmented
-        label="Notennamen"
+        label={t('tun.noteNames')}
         showLabel
         value={config.noteNaming}
         onChange={(value) => onChange({ ...config, noteNaming: value as TunerConfig['noteNaming'] })}
-        options={[{ value: 'sharp', label: 'Kreuz (F#)' }, { value: 'flat', label: 'B (Gb)' }]}
+        options={[{ value: 'sharp', label: t('w.sharp') }, { value: 'flat', label: t('w.flat') }]}
       />
       <SizeRatioSlider
-        label="Notenname"
+        label={t('w.noteName')}
         ratio={config.noteSizeRatio ?? DEFAULT_NOTE_SIZE_RATIO}
         onChange={(noteSizeRatio) => onChange({ ...config, noteSizeRatio })}
       />
       <SizeRatioSlider
-        label="Anzeige (Balken & Zeiger)"
+        label={t('tun.meter')}
         ratio={config.meterSizeRatio ?? DEFAULT_METER_SIZE_RATIO}
         onChange={(meterSizeRatio) => onChange({ ...config, meterSizeRatio })}
       />

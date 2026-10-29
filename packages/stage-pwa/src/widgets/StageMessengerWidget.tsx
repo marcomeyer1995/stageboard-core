@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
 import { AddRow, Button, IconButton, ToggleChip } from '../components/ui'
 import { INPUT } from '../components/ui/styles'
 import { useState } from 'react'
-import { FLASH_PRESETS, sendFlash } from '../lib/flash'
+import { flashPresets, sendFlash } from '../lib/flash'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { useContentFontSize } from '../lib/useContentFontSize'
 import { useProfilesStore } from '../store/useProfilesStore'
@@ -16,17 +17,18 @@ import type { StageMessengerConfig } from './stageMessengerConfig'
  * quick messages are this widget's own (⋯ → Einstellungen).
  */
 export function StageMessengerWidget({ config }: { config: StageMessengerConfig }) {
+  const { t } = useTranslation('widgets')
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const workspace = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId))
   const profiles = useProfilesStore((state) => state.profiles)
   const from = useActiveProfile()?.name
   const fontSize = useContentFontSize(config)
-  const presets = (config.presets ?? FLASH_PRESETS).map((preset) => preset.trim()).filter(Boolean)
+  const presets = (config.presets ?? flashPresets()).map((preset) => preset.trim()).filter(Boolean)
   const [to, setTo] = useState<string[]>([])
   const [text, setText] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
-  const recipients = to.length ? profiles.filter((p) => to.includes(p.id)).map((p) => p.name).join(', ') : 'alle'
+  const recipients = to.length ? profiles.filter((p) => to.includes(p.id)).map((p) => p.name).join(', ') : t('msg.everyone')
   const toggle = (id: string) => setTo((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]))
 
   async function send(message: string) {
@@ -35,10 +37,10 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
     const result = await sendFlash(workspaceId, trimmed.slice(0, 120), from, { username: workspace?.username, password: workspace?.couchPassword }, to)
     setStatus(
       result === 'sent'
-        ? `An ${recipients} gesendet: „${trimmed}“`
+        ? t('msg.sentTo', { to: recipients, text: trimmed })
         : result === 'not-signed-in'
-          ? 'Nicht gesendet - dieses Gerät ist nicht bei der Band angemeldet.'
-          : 'Nicht gesendet - Stage-Server nicht erreichbar.',
+          ? t('msg.notSignedIn')
+          : t('msg.offline'),
     )
     if (result === 'sent') setText('')
   }
@@ -46,9 +48,9 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-ink-soft" style={{ fontSize }}>
       {/* Pick several (docs/15 D7); "Alle" stays its own first chip that clears the others. */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Empfänger">
-        <span className="text-sm text-ink-faint">An</span>
-        <ToggleChip size="widget" label="Alle" selected={to.length === 0} onToggle={() => setTo([])} />
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('msg.recipients')}>
+        <span className="text-sm text-ink-faint">{t('msg.to')}</span>
+        <ToggleChip size="widget" label={t('msg.all')} selected={to.length === 0} onToggle={() => setTo([])} />
         {profiles.map((profile) => (
           <ToggleChip key={profile.id} size="widget" label={profile.name} selected={to.includes(profile.id)} onToggle={() => toggle(profile.id)} />
         ))}
@@ -71,12 +73,12 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
           value={text}
           maxLength={120}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Eigene Nachricht…"
-          aria-label={`Nachricht an ${recipients}`}
+          placeholder={t('msg.own')}
+          aria-label={t('msg.toAria', { to: recipients })}
           className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT}`}
         />
         <Button type="submit" variant="primary" size="widget" disabled={!text.trim()}>
-          Senden
+          {t('msg.send')}
         </Button>
       </form>
       {status && (
@@ -90,7 +92,8 @@ export function StageMessengerWidget({ config }: { config: StageMessengerConfig 
 
 /** ⋯ → Einstellungen: text size and the quick messages - change, add, remove, reorder. */
 export function StageMessengerConfigPanel({ config, onChange }: { config: StageMessengerConfig; onChange: (next: StageMessengerConfig) => void }) {
-  const presets = config.presets ?? FLASH_PRESETS
+  const { t } = useTranslation('widgets')
+  const presets = config.presets ?? flashPresets()
   const set = (next: string[]) => onChange({ ...config, presets: next })
   const move = (i: number, by: number) => {
     const next = [...presets]
@@ -101,14 +104,14 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
   return (
     <div className="flex flex-col gap-3">
       <ContentFontSizeConfigPanel config={config} onChange={onChange} />
-      <p className="text-base font-semibold text-ink">Schnellnachrichten</p>
-      <ul className="flex flex-col gap-2" aria-label="Schnellnachrichten">
+      <p className="text-base font-semibold text-ink">{t('msg.quick')}</p>
+      <ul className="flex flex-col gap-2" aria-label={t('msg.quick')}>
         {presets.map((preset, i) => (
           <li key={i} className="flex items-center gap-2">
             <input
               value={preset}
               maxLength={120}
-              aria-label={`Nachricht ${i + 1}`}
+              aria-label={t('msg.n', { n: i + 1 })}
               onChange={(e) => set(presets.map((p, j) => (j === i ? e.target.value : p)))}
               onBlur={() => set(presets.map((p) => p.trim()).filter(Boolean))}
               className={`h-form min-w-0 flex-1 min-w-0 px-3 text-base ${INPUT}`}
@@ -120,10 +123,10 @@ export function StageMessengerConfigPanel({ config, onChange }: { config: StageM
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <AddRow label="Neue Nachricht" disabled={presets.length >= 30} onClick={() => set([...presets, 'Neue Nachricht'])} />
+        <AddRow label={t('msg.new')} disabled={presets.length >= 30} onClick={() => set([...presets, t('msg.new')])} />
         {config.presets && (
           <Button variant="quiet" onClick={() => onChange({ ...config, presets: undefined })}>
-            Standard wiederherstellen
+            {t('msg.restore')}
           </Button>
         )}
       </div>

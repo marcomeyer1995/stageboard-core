@@ -99,7 +99,14 @@
     "description": "Solo Üben: die Spuren eines Songs (Schlagzeug, Bass, Gitarre …) statt des Tracks - je ein Regler, Stumm und Solo.",
     "parts": {
       "values": "Werte"
-    }
+    },
+    "loading": "Spuren werden geladen - bis dahin spielt der Track.",
+    "error": "Spuren konnten nicht geladen werden - es spielt der Track.",
+    "none": "Dieser Song hat keine Spuren. Im Song-Editor unter Audio: „Spuren trennen“ oder Stems hochladen.",
+    "noSong": "Kein Song gewählt.",
+    "onlyPractice": "Spuren spielen nur in Solo üben - im Gig spielt der Track.",
+    "on": "Spuren statt Track",
+    "set": "Spuren-Satz"
   },
   "track-override": {
     "title": "Variante & Track",
@@ -236,5 +243,290 @@
     "capo": "Capo",
     "authored": "Akkorde sind für Capo {{capo}} notiert.",
     "local": "Gilt nur auf diesem Gerät und nur für diesen Song."
+  },
+  "w": {
+    "size": "Größe",
+    "error": "Fehler",
+    "textSize": "Textgröße",
+    "choose": "wählen…",
+    "noSongs": "Keine Songs vorhanden",
+    "noTrack": "Kein Track angehängt",
+    "done": "Fertig",
+    "noteName": "Notenname",
+    "sharp": "Kreuz (F#)",
+    "flat": "B (Gb)",
+    "announcement": "Ansage",
+    "section": "Abschnitt",
+    "unknown": "Unbekannt",
+    "mute": "Stumm",
+    "solo": "Solo"
+  },
+  "loop": {
+    "onlyPractice": "Nur in Solo Üben verfügbar",
+    "caption": "Loop-Trainer",
+    "setA": "A setzen",
+    "setB": "B setzen",
+    "from": "Von Abschnitt",
+    "to": "Bis Ende von",
+    "pass": "Durchgang {{n}} · {{pct}} %",
+    "tempoRange": "Tempo {{from}} → {{to}} %",
+    "tempo": "Tempo {{pct}} %",
+    "stop": "Loop stoppen",
+    "starting": "Loop startet…",
+    "start": "Loop starten",
+    "tempoTitle": "Loop-Tempo",
+    "tempoLabel": "Tempo",
+    "trainer": "Speed Trainer",
+    "target": "Ziel",
+    "step": "Pro Durchgang +",
+    "passDisplay": "Durchgang-Anzeige",
+    "decrease": "{{label}} verringern",
+    "increase": "{{label}} erhöhen"
+  },
+  "active": {
+    "caption": "Aktive Setlist",
+    "none": "Keine"
+  },
+  "mix": {
+    "silentHere": "Im Gig spielt dieses Gerät keinen Ton - der Mix gilt hier fürs Üben und die Timeline."
+  },
+  "backup": {
+    "available": "Backup online",
+    "degraded": "Backup nicht erreichbar",
+    "missing": "Kein Backup-Plugin"
+  },
+  "chord": {
+    "root": "Grundton",
+    "quality": "Akkordart",
+    "noShape": "Kein Griffbild",
+    "name": "Akkordname"
+  },
+  "cof": {
+    "aria": "Quintenzirkel",
+    "description": "Beschreibung"
+  },
+  "click": {
+    "standard": "Standard",
+    "standardShort": "Std.",
+    "on": "An",
+    "off": "Aus",
+    "noOutput": "Kein Klick-Ausgabegerät eingerichtet",
+    "caption": "Klick",
+    "thisDevice": " · dieses Gerät"
+  },
+  "trig": {
+    "noAction": "Keine Aktion gewählt",
+    "noSwitch": "Schalter fehlt",
+    "noDevice": "Zielgerät fehlt",
+    "masterOnly": "Nur der Master steuert die Show",
+    "label": "Beschriftung",
+    "labelHint": "Leer oder „Trigger“: der Name des Schalters.",
+    "color": "Farbe",
+    "legacy": "Der bisherige Befehl hatte ungültiges JSON und wird ohne diese Werte gesendet - bitte neu wählen."
+  },
+  "switcher": {
+    "hint": "Zeigt dieselben Dashboards wie das Menü: ausblenden und sortieren unter ☰ → Dashboards → „Ordnen“, Gig/Solo in den Einstellungen des Dashboards.",
+    "orientation": "Ausrichtung",
+    "horizontal": "Horizontal (Leiste)",
+    "vertical": "Vertikal (Spalte)"
+  },
+  "dev": {
+    "available": "Online",
+    "degraded": "Nicht erreichbar",
+    "missing": "Nicht verbunden",
+    "caption": "Geräte-Status",
+    "none": "Kein Gerät ausgewählt",
+    "device": "Gerät",
+    "choose": "— Gerät wählen —"
+  },
+  "fest": {
+    "caption": "Voraussichtliches Ende",
+    "target": "Ziel {{time}} · ",
+    "over": "{{min}} Überzug",
+    "buffer": "{{min}} Puffer",
+    "setTarget": "Ziel-Ende in der Setlist setzen",
+    "estimated_one": "{{count}} Song geschätzt (Länge unbekannt)",
+    "estimated_other": "{{count}} Songs geschätzt (Länge unbekannt)",
+    "preview": "Ziel 23:00 · 5 min Überzug"
+  },
+  "light": {
+    "full": "Voll",
+    "dim": "Dimmen",
+    "chase": "Chase",
+    "color": "Farbwechsel"
+  },
+  "q": {
+    "drag": "Ziehen zum Sortieren",
+    "playNext": "Als nächstes spielen",
+    "remove": "Aus Queue entfernen",
+    "sort": "Sortieren",
+    "caption": "Queue",
+    "noSongs": "Keine Songs in der Setlist.",
+    "noSetlist": "Keine Setlist aktiv.",
+    "previewAnnouncement": "Ansage Merch-Stand"
+  },
+  "midi": {
+    "unsupported": "Kein WebMIDI",
+    "noDevice": "Kein Fußtaster",
+    "connected": "Fußtaster verbunden",
+    "simulate": "Fußtaster simulieren"
+  },
+  "next": {
+    "prevTitle": "Vorheriger Song",
+    "nextTitle": "Nächster Song",
+    "back": "Zurück",
+    "next": "Weiter"
+  },
+  "pr": {
+    "capo": "Capo {{capo}}",
+    "tuning": "Stimmung {{tuning}}",
+    "about": "ca. {{time}}",
+    "left": "noch {{s}} s",
+    "page": "Seite {{n}}",
+    "view": "Ansicht",
+    "chords": "Chords",
+    "title": "Titel",
+    "artist": "Interpret",
+    "pageSection": "Abschnitt (Paginated View)",
+    "keyLine": "Key/Tuning/Capo",
+    "comments": "Kommentare"
+  },
+  "qa": {
+    "strobe": "Strobo",
+    "blackout": "Blackout",
+    "sparks": "Kaltfunken",
+    "talkback": "Talkback"
+  },
+  "rc": {
+    "onlyGig": "Nur im Gig",
+    "askTitle": "Alle Tablets fragen, ob die Band bereit ist",
+    "caption": "Ready-Check",
+    "masterStarts": "Ready-Check startet der Master",
+    "endTitle": "Ready-Check beenden",
+    "end": "Ende"
+  },
+  "sj": {
+    "none": "Keine Abschnitte mit Zeit in der Timeline",
+    "noEnd": "Dieser Abschnitt hat kein bekanntes Ende - „Ende Takt“ wählen.",
+    "next": "Nächster Abschnitt: {{name}}",
+    "jump": "Sprung",
+    "repeating": "Wiederholt: {{name}}",
+    "masterOnly": "Springen kann der Master",
+    "whilePlaying": "Springen, während der Song läuft",
+    "aria": "Abschnitte",
+    "when": "Springen am",
+    "bar": "Ende Takt",
+    "section": "Ende Abschnitt",
+    "stopRepeat": "Wiederholung beenden",
+    "repeat": "Wiederholen"
+  },
+  "sep": {
+    "orientation": "Ausrichtung",
+    "horizontal": "Horizontal",
+    "vertical": "Vertikal",
+    "color": "Farbe"
+  },
+  "note": {
+    "noShow": "Noch keine Show aktiv.",
+    "none": "Noch keine Notizen.",
+    "placeholder": "Notiz hinzufügen…",
+    "add": "Hinzufügen"
+  },
+  "tr": {
+    "noSong": "Kein Song aktiv",
+    "noControl": "Dieses Gerät hat aktuell keine Kontrolle über die Show",
+    "play": "Play",
+    "pause": "Pause",
+    "stop": "Stop",
+    "reset": "Reset",
+    "remoteAudio": "Audio läuft über ein anderes Gerät",
+    "extended": "Verlängert - läuft über die reguläre Länge hinaus",
+    "titleClock": "Titel & Uhr",
+    "buttons": "Buttons"
+  },
+  "flash": {
+    "min5": "Noch 5 Minuten",
+    "lastSong": "Letzter Song",
+    "vamp": "VAMP",
+    "tune": "Gitarre stimmen",
+    "slower": "Langsamer",
+    "faster": "Schneller",
+    "end": "Schluss!"
+  },
+  "msg": {
+    "sentTo": "An {{to}} gesendet: „{{text}}“",
+    "notSignedIn": "Nicht gesendet - dieses Gerät ist nicht bei der Band angemeldet.",
+    "offline": "Nicht gesendet - Stage-Server nicht erreichbar.",
+    "everyone": "alle",
+    "recipients": "Empfänger",
+    "to": "An",
+    "all": "Alle",
+    "own": "Eigene Nachricht…",
+    "toAria": "Nachricht an {{to}}",
+    "send": "Senden",
+    "quick": "Schnellnachrichten",
+    "n": "Nachricht {{n}}",
+    "new": "Neue Nachricht",
+    "restore": "Standard wiederherstellen"
+  },
+  "sync": {
+    "caption": "Sync-Blitz - Geräte vergleichen",
+    "offset": "Offset {{offset}} ms · Drift {{drift}} ms"
+  },
+  "health": {
+    "available": "Online",
+    "degraded": "Gestört",
+    "missing": "Fehlt",
+    "caption": "System-Status",
+    "none": "Keine Plugins installiert.",
+    "clock": "Uhrzeit-Sync",
+    "server": "Stage-Server",
+    "notYet": "Noch nicht synchronisiert",
+    "detail": "Offset {{offset}} ms · Drift {{drift}} ms · vor {{s}}s"
+  },
+  "nudge": {
+    "onlyGig": "Nur im Gig-Modus verfügbar",
+    "caption": "Tempo-Korrektur",
+    "down": "Tempo verringern",
+    "resetTitle": "Auf 0 % zurücksetzen",
+    "up": "Tempo erhöhen",
+    "reset": "Zurücksetzen"
+  },
+  "to": {
+    "noTrack": "Kein Track angehängt",
+    "oneTrack": "Nur ein Track vorhanden - kein Wechsel nötig",
+    "noneShort": "keiner angehängt",
+    "oneShort": "nur einer vorhanden",
+    "variantPrefix": "Variante: ",
+    "trackPrefix": "Track: ",
+    "variant": "Variante",
+    "track": "Track"
+  },
+  "tun": {
+    "off": "Aus",
+    "enable": "Mikrofon aktivieren",
+    "waiting": "Warte auf Mikrofon-Zugriff…",
+    "insecure": "Mikrofon braucht eine sichere Verbindung (HTTPS oder localhost) - im LAN per http nicht verfügbar, unabhängig vom Gerät.",
+    "unsupported": "Mikrofon wird von diesem Browser nicht unterstützt.",
+    "denied": "Kein Zugriff aufs Mikrofon.",
+    "play": "Spiele eine Note…",
+    "sensitivity": "Empfindlichkeit",
+    "insensitive": "Unempfindlich",
+    "sensitive": "Empfindlich",
+    "speed": "Reaktionsgeschwindigkeit",
+    "fast": "Schnell",
+    "stable": "Stabil",
+    "reference": "Referenzton",
+    "standard": "440 Hz (Standard)",
+    "noteNames": "Notennamen",
+    "meter": "Anzeige (Balken & Zeiger)"
+  },
+  "met": {
+    "noSong": "Kein Song aktiv",
+    "countIn": "Einzählen…",
+    "waiting": "Wartet auf Play",
+    "display": "Anzeige",
+    "number": "Zahl (Beat im Takt)",
+    "dots": "Punkte (Taktposition)"
   }
 }

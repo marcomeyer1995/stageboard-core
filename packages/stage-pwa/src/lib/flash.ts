@@ -1,8 +1,11 @@
+import i18n from '../i18n'
 import { FLASH_DURATION_MS, type FlashMessage } from 'shared-types'
 import { getStageServerUrl } from './stageServer'
 
 /** Quick messages for the Stage-Messenger widget (#26). */
-export const FLASH_PRESETS = ['Noch 5 Minuten', 'Letzter Song', 'VAMP', 'Gitarre stimmen', 'Langsamer', 'Schneller', 'Schluss!']
+export function flashPresets(): string[] {
+  return (['min5', 'lastSong', 'vamp', 'tune', 'slower', 'faster', 'end'] as const).map((key) => i18n.t(`widgets:flash.${key}`))
+}
 
 export type SendFlashResult = 'sent' | 'not-signed-in' | 'unreachable'
 

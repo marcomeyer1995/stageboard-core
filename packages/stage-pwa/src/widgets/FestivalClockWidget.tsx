@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useLocale } from '../i18n'
 import { computeFestivalClock } from '../lib/festivalClock'
@@ -29,6 +30,7 @@ function formatMinutes(ms: number): string {
  * way (stageWidgetLayout.ts), and the remaining lines are single-line.
  */
 export function FestivalClockWidget({ config }: { config: FestivalClockConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const captionShown = useShowPart('caption')
   const targetShown = useShowPart('target')
@@ -44,7 +46,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
   const { showCaption, showEstimate } = festivalClockLayout(box.height, fontSize)
 
   if (queue.orderedItems.length === 0) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Keine Songs vorhanden</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">{t('w.noSongs')}</div>
   }
 
   const result = computeFestivalClock({
@@ -63,7 +65,7 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
     <div ref={boxRef} className="flex h-full w-full flex-col items-center justify-center gap-1 overflow-hidden text-center">
       {captionShown && showCaption && (
         <span className="max-w-full truncate text-xs font-bold uppercase tracking-widest text-ink-faint">
-          Voraussichtliches Ende
+          {t('fest.caption')}
         </span>
       )}
       <span
@@ -74,15 +76,15 @@ export function FestivalClockWidget({ config }: { config: FestivalClockConfig })
       </span>
       {!targetShown ? null : result.targetEnd !== null && result.overrunMs !== null ? (
         <span className={`max-w-full truncate text-sm font-semibold ${overtime ? 'text-danger' : 'text-ok'}`}>
-          Ziel {formatTime(result.targetEnd, locale)} ·{' '}
-          {overtime ? `${formatMinutes(result.overrunMs)} Überzug` : `${formatMinutes(result.overrunMs)} Puffer`}
+          {t('fest.target', { time: formatTime(result.targetEnd, locale) })}
+          {overtime ? t('fest.over', { min: formatMinutes(result.overrunMs) }) : t('fest.buffer', { min: formatMinutes(result.overrunMs) })}
         </span>
       ) : (
-        <span className="max-w-full truncate text-xs text-ink-faint">Ziel-Ende in der Setlist setzen</span>
+        <span className="max-w-full truncate text-xs text-ink-faint">{t('fest.setTarget')}</span>
       )}
       {estimateShown && showEstimate && result.estimatedSongs > 0 && (
         <span className="max-w-full truncate text-xs text-ink-faint">
-          {result.estimatedSongs} {result.estimatedSongs === 1 ? 'Song' : 'Songs'} geschätzt (Länge unbekannt)
+          {t('fest.estimated', { count: result.estimatedSongs })}
         </span>
       )}
     </div>
@@ -96,9 +98,10 @@ export function FestivalClockConfigPanel({
   config: FestivalClockConfig
   onChange: (next: FestivalClockConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />
@@ -107,11 +110,12 @@ export function FestivalClockConfigPanel({
 
 /** Static stand-in for the Widget Gallery - the real widget needs an active setlist. */
 export function FestivalClockWidgetPreview() {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-      <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">Voraussichtliches Ende</span>
+      <span className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('fest.caption')}</span>
       <span className="text-3xl font-bold tabular-nums text-danger">23:05</span>
-      <span className="text-sm font-semibold text-danger">Ziel 23:00 · 5 min Überzug</span>
+      <span className="text-sm font-semibold text-danger">{t('fest.preview')}</span>
     </div>
   )
 }

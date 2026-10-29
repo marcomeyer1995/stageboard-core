@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { DEFAULT_SIZE_RATIO, type CueGridConfig } from './cueGridConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
@@ -66,9 +67,10 @@ export function CueGridConfigPanel({
   config: CueGridConfig
   onChange: (next: CueGridConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

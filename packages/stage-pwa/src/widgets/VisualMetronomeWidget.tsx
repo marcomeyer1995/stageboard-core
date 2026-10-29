@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { Segmented } from '../components/ui'
 import { adjustedBpm, type Beat, beatAt, beatsPerBar } from '../lib/metronome'
@@ -46,6 +47,7 @@ function BeatDots({ beat, totalBeats }: { beat: Beat; totalBeats: number }) {
  * a follow-up issue since they need real output hardware to verify meaningfully).
  */
 export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showInfo = useShowPart('info')
   const { queue, elapsedMs, playbackStatus, liveTempoAdjustPercent } = useShowMode()
@@ -63,7 +65,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 rounded-container bg-surface text-ink-soft">
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
-          <span className={STATUS_TEXT}>Kein Song aktiv</span>
+          <span className={STATUS_TEXT}>{t('met.noSong')}</span>
         </div>
       </div>
     )
@@ -94,7 +96,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
         {/* Not playing at all, vs. playing but still before bar 1 (a count-in) -
             both read as "nothing to pulse yet" but are worth distinguishing in the label. */}
         <div className="flex w-full flex-1 items-center justify-center overflow-hidden">
-          <span className={STATUS_TEXT}>{playbackStatus === 'playing' ? 'Einzählen…' : 'Wartet auf Play'}</span>
+          <span className={STATUS_TEXT}>{playbackStatus === 'playing' ? t('met.countIn') : t('met.waiting')}</span>
         </div>
         {showInfo && (
           <span className="max-w-full truncate px-2 text-xs opacity-70 tabular-nums">
@@ -122,7 +124,7 @@ export function VisualMetronomeWidget({ config }: { config: MetronomeConfig }) {
       {/* Count-in bars (#25 follow-up) share the same pulsing display as the real song, so the
           band can still count along - this badge is the only thing marking it as lead-in, not
           the song's actual first bar. */}
-      {beat.isCountIn && <span className="text-xs uppercase tracking-wide text-ink-muted">Einzählen…</span>}
+      {beat.isCountIn && <span className="text-xs uppercase tracking-wide text-ink-muted">{t('met.countIn')}</span>}
       {config.style === 'beat-dots' ? (
         <div className="flex w-full flex-1 items-center justify-center">
           <BeatDots beat={beat} totalBeats={beatsPerBar(song.timeSignature)} />
@@ -166,17 +168,18 @@ export function MetronomeConfigPanel({
   config: MetronomeConfig
   onChange: (next: MetronomeConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <Segmented
-        label="Anzeige"
+        label={t('met.display')}
         showLabel
         value={config.style}
         onChange={(value) => onChange({ ...config, style: value as MetronomeConfig['style'] })}
-        options={[{ value: 'number', label: 'Zahl (Beat im Takt)' }, { value: 'beat-dots', label: 'Punkte (Taktposition)' }]}
+        options={[{ value: 'number', label: t('met.number') }, { value: 'beat-dots', label: t('met.dots') }]}
       />
       <SizeRatioSlider
-        label="Größe"
+        label={t('w.size')}
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
         onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
       />
