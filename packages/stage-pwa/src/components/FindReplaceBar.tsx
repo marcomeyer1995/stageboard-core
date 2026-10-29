@@ -175,7 +175,8 @@ export function FindReplaceBar({
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1">
+          {/* Never narrower than its three words - the ⓘ wrap below it on a phone instead of overlapping. */}
+          <div className="min-w-[17rem] flex-1">
           <Segmented
             label="Suchmodus"
             value={mode}
