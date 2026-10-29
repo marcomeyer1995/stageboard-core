@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { CAPABILITIES, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
 import { describeCue, commandsFor } from '../lib/deviceCommands'
 import { getServerTime } from '../lib/clockSync'
@@ -19,17 +21,10 @@ import { Group, Page } from './SystemSettings'
 import { CueDialog } from './timeline/CueDialog'
 import { Badge, Button, Section, Segmented } from './ui'
 
-const KIND_OPTIONS: { value: RigCheckKind; label: string }[] = [
-  { value: 'quick', label: 'Kurzcheck' },
-  { value: 'full', label: 'Voller Lauf' },
-]
+const KINDS: RigCheckKind[] = ['quick', 'full']
 
-const START_MESSAGE: Record<Exclude<StartResult, 'started'>, string> = {
-  'not-master': 'Nur der Master startet den Rig-Check.',
-  'no-run': 'Erst vorbereiten.',
-  busy: 'Gerade läuft ein Song - erst stoppen.',
-  'not-ready': 'Song oder Track sind auf diesem Gerät noch nicht angekommen - einen Moment.',
-}
+const startMessage = (t: TFunction<'rigcheck'>, result: Exclude<StartResult, 'started'>): string =>
+  ({ 'not-master': t('flow.notMasterStart'), 'no-run': t('flow.noRun'), busy: t('flow.songPlaying'), 'not-ready': t('flow.notReady') })[result]
 
 /** "1:05" for a duration in ms. */
 function formatLength(ms: number): string {
@@ -39,22 +34,25 @@ function formatLength(ms: number): string {
 
 /** One device's line in the live list and in the result. */
 export function RigCheckDeviceRow({ report, showVerdict }: { report: RigCheckDeviceReport; showVerdict: boolean }) {
+  const { t } = useTranslation('rigcheck')
   const route = ROUTE_LABEL[report.audioRoute as keyof typeof ROUTE_LABEL] ?? report.audioRoute
   return (
     <li className="flex flex-col gap-1 border-b border-line py-2 last:border-b-0">
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 text-base font-semibold text-ink">{report.deviceName}</span>
-        {report.mode === 'practice' && <Badge tone="warning">Solo Üben - folgt nicht</Badge>}
-        <Badge tone={report.trackReady ? 'neutral' : 'warning'}>{report.trackReady ? 'Track da' : 'Track lädt …'}</Badge>
-        {showVerdict && report.verdict === 'ok' && <Badge tone="accent">OK</Badge>}
-        {showVerdict && report.verdict === 'problem' && <Badge tone="danger">Problem</Badge>}
-        {showVerdict && report.verdict === null && <Badge>kein Urteil</Badge>}
+        {report.mode === 'practice' && <Badge tone="warning">{t('devices.practice')}</Badge>}
+        <Badge tone={report.trackReady ? 'neutral' : 'warning'}>{report.trackReady ? t('devices.trackReady') : t('devices.trackLoading')}</Badge>
+        {showVerdict && report.verdict === 'ok' && <Badge tone="accent">{t('devices.ok')}</Badge>}
+        {showVerdict && report.verdict === 'problem' && <Badge tone="danger">{t('devices.problem')}</Badge>}
+        {showVerdict && report.verdict === null && <Badge>{t('devices.noVerdict')}</Badge>}
       </div>
       <p className="text-sm text-ink-soft">
-        Uhr {report.clockOffsetMs === null ? 'noch nicht abgeglichen' : `${report.clockOffsetMs > 0 ? '+' : ''}${report.clockOffsetMs} ms zum Server${report.clockJitterMs !== null ? ` (± ${report.clockJitterMs} ms)` : ''}`}
+        {report.clockOffsetMs === null
+          ? t('devices.clockNotSynced')
+          : `${t('devices.clock', { offset: `${report.clockOffsetMs > 0 ? '+' : ''}${report.clockOffsetMs}` })}${report.clockJitterMs !== null ? ` ${t('devices.jitter', { jitter: report.clockJitterMs })}` : ''}`}
         {' · '}
         {route}
-        {report.outputLatencyMs !== null ? `, Latenz ${report.outputLatencyMs} ms` : ', Latenz nicht gemessen'}
+        {`, ${report.outputLatencyMs !== null ? t('devices.latency', { ms: report.outputLatencyMs }) : t('devices.latencyNone')}`}
       </p>
       {showVerdict && report.note && <p className="text-sm text-ink">„{report.note}“</p>}
     </li>
@@ -68,6 +66,7 @@ function commandDevicesOf(devices: readonly LogicalDevice[]): LogicalDevice[] {
 
 /** Geräte-Cues (docs/24 §3): one command per device, band-wide; admins change them. */
 function DeviceCues({ editable }: { editable: boolean }) {
+  const { t } = useTranslation('rigcheck')
   const settings = useBandSettingsStore((state) => state.settings)
   const save = useBandSettingsStore((state) => state.save)
   const devices = commandDevicesOf(useLogicalDevicesStore((state) => state.devices))
@@ -77,7 +76,7 @@ function DeviceCues({ editable }: { editable: boolean }) {
     void save({ ...settings, rigCheckCues: [...cues.filter((c) => c.targetLogicalDeviceId !== deviceId), ...(cue ? [cue] : [])] })
 
   if (devices.length === 0)
-    return <p className="text-sm text-ink-faint">Kein Gerät mit fertigen Befehlen eingerichtet (Bühnentechnik). Der Rig-Check prüft dann Klick, Track, Bildschirme und Sprung.</p>
+    return <p className="text-sm text-ink-faint">{t('cues.none')}</p>
   return (
     <>
       <ul className="flex flex-col">
@@ -87,12 +86,12 @@ function DeviceCues({ editable }: { editable: boolean }) {
             <li key={device.id} className="flex flex-wrap items-center gap-2 border-b border-line py-2 last:border-b-0">
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-ink">{device.name}</span>
-                <span className={`block text-sm ${cue ? 'text-ink-soft' : 'text-ink-faint'}`}>{cue ? describeCue(cue, device.capability) : 'nichts - bleibt unberührt'}</span>
+                <span className={`block text-sm ${cue ? 'text-ink-soft' : 'text-ink-faint'}`}>{cue ? describeCue(cue, device.capability) : t('cues.nothing')}</span>
               </span>
               {editable && (
                 <>
-                  <Button onClick={() => setEditing(device)}>{cue ? 'Ändern' : 'Wählen'}</Button>
-                  {cue && <Button onClick={() => setCue(device.id, null)}>Entfernen</Button>}
+                  <Button onClick={() => setEditing(device)}>{cue ? t('cues.change') : t('cues.choose')}</Button>
+                  {cue && <Button onClick={() => setCue(device.id, null)}>{t('cues.remove')}</Button>}
                 </>
               )}
             </li>
@@ -101,7 +100,7 @@ function DeviceCues({ editable }: { editable: boolean }) {
       </ul>
       {editing && (
         <CueDialog
-          title={`Rig-Check: ${editing.name}`}
+          title={t('cues.dialogTitle', { device: editing.name })}
           devices={[editing]}
           withPlayback={false}
           initial={cues.find((c) => c.targetLogicalDeviceId === editing.id)}
@@ -119,6 +118,7 @@ function DeviceCues({ editable }: { editable: boolean }) {
 /** "Analyse prüfen" (docs/24 §6): the timeline's analysis on the full run's track, on this device -
  * no devices, no playing. A completed full run stores the same in the Nachbericht. */
 function AnalysisGroup() {
+  const { t } = useTranslation('rigcheck')
   const events = useShowLogStore((state) => state.events)
   const [check, setCheck] = useState<AnalysisCheck | null>(null)
   const [state, setState] = useState<'idle' | 'running' | 'failed'>('idle')
@@ -136,13 +136,13 @@ function AnalysisGroup() {
   }
   return (
     <Group
-      title="Analyse-Prüfung"
-      info="Lässt die Analyse des Timeline-Editors („Track analysieren“) auf den Test-Song des vollen Laufs los und vergleicht mit dem, was die App weiß: liegt das Klick-Raster je Abschnitt auf dem Schlagzeug, und zählt es die Takte richtig? Läuft nur auf diesem Gerät, ohne Ton."
+      title={t('analysis.title')}
+      info={t('analysis.info')}
     >
       <Button disabled={state === 'running'} onClick={() => void run()}>
-        {state === 'running' ? 'Prüft …' : 'Analyse prüfen'}
+        {state === 'running' ? t('analysis.running') : t('analysis.run')}
       </Button>
-      {state === 'failed' && <p className="text-sm text-danger">Die Prüfung ist fehlgeschlagen.</p>}
+      {state === 'failed' && <p className="text-sm text-danger">{t('analysis.failed')}</p>}
       {shown && <RigCheckAnalysis check={shown} />}
     </Group>
   )
@@ -158,6 +158,7 @@ function runState(run: RigCheckRun | null, open: RigCheckRun | null): 'none' | '
  * device get ready, start - and the last run's result.
  */
 export function RigCheckView() {
+  const { t } = useTranslation('rigcheck')
   const events = useShowLogStore((state) => state.events)
   const isMaster = useShowStateStore((state) => state.isMaster)
   const playbackStatus = useShowStateStore((state) => state.state.playbackStatus)
@@ -183,57 +184,57 @@ export function RigCheckView() {
 
   const prepare = async () => {
     setBusy(true)
-    setMessage('Track wird erzeugt und hochgeladen …')
+    setMessage(t('flow.preparing'))
     const result = await prepareRigCheck(kind, storedCues ?? [])
     setBusy(false)
-    setMessage(result.ok ? null : `Vorbereiten fehlgeschlagen: ${result.message}`)
+    setMessage(result.ok ? null : t('flow.prepareFailed', { message: result.message }))
   }
   const start = async () => {
     setBusy(true)
     const result = await startRigCheck()
     setBusy(false)
-    setMessage(result === 'started' ? null : START_MESSAGE[result])
+    setMessage(result === 'started' ? null : startMessage(t, result))
   }
 
   return (
     <Page
-      title="Rig-Check"
-      info="Ein Test-Song, dessen Timing die App genau kennt. Der Master spielt ihn wie im Gig, alle anderen Geräte folgen. Klick und Beeps sollen zu einem Ton verschmelzen, die Prompter-Zeilen auf dem Schlag wechseln, die Geräte im Takt reagieren. Am Ende fragt jedes Gerät „Alles in Ordnung?“, das Ergebnis steht im Nachbericht."
+      title={t('title')}
+      info={t('info')}
     >
-      <Group title="Lauf" info="Kurzcheck bei jedem Soundcheck; den vollen Lauf nach einem neuen Aufbau - mit Tempowechseln, Dreiviertel, Pause und Wiedereinstieg.">
-        <Segmented label="Lauf" value={open?.kind ?? kind} onChange={setKind} options={KIND_OPTIONS.map((o) => ({ ...o, disabled: state === 'prepared' || state === 'running' }))} />
+      <Group title={t('kind.label')} info={t('kind.info')}>
+        <Segmented label={t('kind.label')} value={open?.kind ?? kind} onChange={setKind} options={KINDS.map((value) => ({ value, label: t(`kind.${value}`), disabled: state === 'prepared' || state === 'running' }))} />
         <p className="text-sm text-ink-soft">
-          {kind === 'quick' ? `Einzählen, 8 Takte 120, ein Sprung, 4 Takte 140 - Track ${formatLength(lengthMs)}.` : `Alle Abschnitte des Test-Songs - Track ${formatLength(lengthMs)}.`}
+          {t(kind === 'quick' ? 'kind.quickText' : 'kind.fullText', { length: formatLength(lengthMs) })}
         </p>
-        <Section title="Geräte-Cues" info="Was jedes Gerät im Rig-Check bekommt - ein Befehl, gesendet in Takt 5 (Kurzcheck) bzw. an vier Stellen (voller Lauf). Gilt für die ganze Band, nur Admins ändern es. Neu gewählt wirkt es beim nächsten Vorbereiten.">
+        <Section title={t('cues.title')} info={t('cues.info')}>
           <DeviceCues editable={isAdmin} />
         </Section>
       </Group>
 
-      <Group title="Ablauf" info="Vorbereiten erzeugt den Track (nur beim ersten Mal oder nach einem Update) und lädt ihn auf den Stage-Server; die anderen Geräte laden ihn dann. Start schaltet den Master auf den Test-Song (aus Solo Üben auf Gig) und drückt Play; danach kommt die vorige Setliste zurück.">
-        {!isMaster && <p className="text-base text-ink-soft">Nur der Master bereitet vor und startet. Dieses Gerät folgt im Gig-Modus.</p>}
+      <Group title={t('flow.title')} info={t('flow.info')}>
+        {!isMaster && <p className="text-base text-ink-soft">{t('flow.notMaster')}</p>}
         {isMaster && state !== 'prepared' && state !== 'running' && (
           <Button variant="primary" disabled={busy} onClick={() => void prepare()}>
-            Vorbereiten
+            {t('flow.prepare')}
           </Button>
         )}
         {state === 'prepared' && open && (
           <div className="flex gap-2">
             {isMaster && (
               <Button variant="primary" className="flex-1" disabled={busy || playbackStatus !== 'stopped' || !runIsPlayable(open)} onClick={() => void start()}>
-                Start
+                {t('flow.start')}
               </Button>
             )}
-            {isMaster && <Button onClick={() => void cancelRigCheck()}>Abbrechen</Button>}
+            {isMaster && <Button onClick={() => void cancelRigCheck()}>{t('flow.cancel')}</Button>}
           </div>
         )}
         {state === 'running' && (
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="accent">Läuft</Badge>
-            {isMaster && <Button onClick={() => void cancelRigCheck()}>Abbrechen</Button>}
+            <Badge tone="accent">{t('flow.running')}</Badge>
+            {isMaster && <Button onClick={() => void cancelRigCheck()}>{t('flow.cancel')}</Button>}
           </div>
         )}
-        {isMaster && state === 'prepared' && playbackStatus !== 'stopped' && <p className="text-sm text-warn">Gerade läuft ein Song - erst stoppen.</p>}
+        {isMaster && state === 'prepared' && playbackStatus !== 'stopped' && <p className="text-sm text-warn">{t('flow.songPlaying')}</p>}
         {message && <p className="text-sm text-ink-soft">{message}</p>}
       </Group>
 
@@ -241,11 +242,11 @@ export function RigCheckView() {
 
       {shown && (
         <Group
-          title={state === 'ended' ? (shown.cancelled ? 'Letzter Lauf (abgebrochen)' : 'Letzter Lauf') : 'Geräte'}
-          info="Jedes Gerät meldet sich selbst: ob es den Track hat, wie weit seine Uhr vom Stage-Server weg ist, worüber es spielt und welche Latenz dafür gespeichert ist. Fehlt ein Gerät, ist die App dort nicht offen oder nicht in dieser Band."
+          title={state === 'ended' ? (shown.cancelled ? t('devices.lastCancelled') : t('devices.last')) : t('devices.title')}
+          info={t('devices.info')}
         >
           {reports.length === 0 ? (
-            <p className="text-sm text-ink-faint">Noch kein Gerät gemeldet.</p>
+            <p className="text-sm text-ink-faint">{t('devices.none')}</p>
           ) : (
             <ul className="flex flex-col">
               {reports.map((report) => (

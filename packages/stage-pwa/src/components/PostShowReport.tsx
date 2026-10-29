@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import type { ShowLogEvent, SongVariant } from 'shared-types'
 import { pauseBefore } from '../lib/showPauses'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
@@ -17,12 +19,12 @@ import { RigCheckReport } from './RigCheckReport'
 import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
 
 function fmtTime(ms: number): string {
-  return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
+  return new Date(ms).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 /** Wall-clock time to the second - cues follow each other closely. */
 function fmtClock(ms: number): string {
-  return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(ms).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function fmtDuration(ms: number): string {
@@ -93,6 +95,7 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
   const variants = useSongVariantsStore((state) => state.variants)
   const saveVariant = useSongVariantsStore((state) => state.saveVariant)
   const devices = useLogicalDevicesStore((state) => state.devices)
+  const { t } = useTranslation('shows')
   const [editing, setEditing] = useState(false)
   const variant = variantOfCue(event, variants)
   const cue = variant?.cues.find((candidate) => candidate.id === event.cueId)
@@ -115,16 +118,16 @@ function CueRow({ event, className, prefix, suffix = '' }: { event: CueFired; cl
         {suffix}
       </span>
       <ActionMenu
-        title={`Cue ${what}`}
+        title={t('cueTitle', { what })}
         actions={[
           event.songId === RIG_CHECK_SONG_ID
-            ? { label: 'Cue anpassen (unter System → Rig-Check)', disabled: true, onClick: () => undefined }
-            : { label: cue ? 'Cue anpassen' : 'Cue anpassen (nicht mehr im Song)', disabled: !cue, onClick: () => setEditing(true) },
+            ? { label: t('cueAdjustRigCheck'), disabled: true, onClick: () => undefined }
+            : { label: cue ? t('cueAdjust') : t('cueAdjustGone'), disabled: !cue, onClick: () => setEditing(true) },
         ]}
       />
       {editing && cue && variant && (
         <CueDialog
-          title={`Cue in ${event.songTitle}${variant.isDefault ? '' : ` (${variant.label})`}`}
+          title={t('cueIn', { song: `${event.songTitle}${variant.isDefault ? '' : ` (${variant.label})`}` })}
           devices={devices}
           initial={cue}
           initialTimeMs={cue.timeMs}
@@ -150,16 +153,17 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
   const failedCues = cues.filter((event) => !event.ok)
   const playedMs = songs.reduce((sum, song) => sum + song.activeMs, 0)
   const longPauses = songs.slice(1).filter((song, i) => pauseBefore(songs[i], song).tooLong).length
+  const { t } = useTranslation('shows')
 
   return (
     <>
       <h2 className="text-xl font-bold">{fmtTime(show.startedAt)}</h2>
       <p className="mb-3 flex flex-wrap items-center gap-x-1 text-sm text-ink-muted">
-        {songs.length} {songs.length === 1 ? 'Song' : 'Songs'} · {fmtDuration(playedMs)} gespielt
-        {longPauses > 0 && <span className="font-semibold text-warn"> · {longPauses} {longPauses === 1 ? 'Pause' : 'Pausen'} zu lang</span>}
+        {t('songs', { count: songs.length })} · {t('played', { duration: fmtDuration(playedMs) })}
+        {longPauses > 0 && <span className="font-semibold text-warn"> · {t('pausesTooLong', { count: longPauses })}</span>}
         <InfoHint
-          label="Erklärung: geplant und gespielt"
-          text="Neben jedem Song, wie weit er von seiner geplanten Länge abwich. Pause = vom Ende des Songs davor bis dieser spielte, mit Einzählen und Unterbrechungen; markiert, wenn sie 15 s länger war als in der Setlist geplant."
+          label={t('playedExplainLabel')}
+          text={t('playedExplain')}
         />
       </p>
       {/* A Rig-Check's result (#464) under the show's own heading, above its songs. */}
@@ -172,8 +176,8 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
               {/* Planned vs. actual (#64): the pause before, marked when it ran too long. */}
               {pause && (
                 <p className={`pl-6 text-sm ${pause.tooLong ? 'font-semibold text-warn' : 'text-ink-faint'}`}>
-                  Pause {fmtDuration(pause.ms)}
-                  {pause.plannedMs !== null && ` · geplant ${fmtDuration(pause.plannedMs)}`}
+                  {t('pause', { duration: fmtDuration(pause.ms) })}
+                  {pause.plannedMs !== null && ` · ${t('planned', { duration: fmtDuration(pause.plannedMs) })}`}
                   {pause.tooLong && pause.plannedMs !== null && ` (${fmtDiff(pause.ms - pause.plannedMs)})`}
                 </p>
               )}
@@ -183,18 +187,18 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
                   {event.songTitle}
                 </span>
                 <span className="whitespace-nowrap text-sm text-ink-faint">
-                  {new Date(event.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {fmtDuration(event.activeMs)}
+                  {new Date(event.at).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })} · {fmtDuration(event.activeMs)}
                   {event.plannedMs !== undefined && ` (${fmtDiff(event.activeMs - event.plannedMs)})`}
                 </span>
               </div>
             </div>
           )
         })}
-        {songs.length === 0 && <p className="text-sm text-ink-faint">Kein Song lange genug gespielt.</p>}
+        {songs.length === 0 && <p className="text-sm text-ink-faint">{t('noSong')}</p>}
       </div>
       {notes.length > 0 && (
         <div className="mt-4 space-y-1">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">Notizen ({notes.length})</h3>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('notesHeading', { count: notes.length })}</h3>
           {notes.map((event) => (
             <p key={event.id} className="text-ink-soft">
               <Icon name="note" className="mr-1" />
@@ -206,7 +210,7 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
       {/* Cues (#8, Marco 2026-10-08): the ones that failed stay in sight, all of them fold away. */}
       {failedCues.length > 0 && (
         <div className="mt-4 space-y-1">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-danger">Cues fehlgeschlagen ({failedCues.length})</h3>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-danger">{t('cuesFailedHeading', { count: failedCues.length })}</h3>
           {failedCues.map((event) => (
             <CueRow key={event.id} event={event} className="text-sm text-danger" prefix={<Icon name="warning" className="mr-1" />} suffix={event.message ? ` - ${event.message}` : ''} />
           ))}
@@ -216,7 +220,7 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
         <details className="group mt-4">
           <summary className={`${FOLD} text-ink-soft`}>
             <FoldArrow />
-            Cues ({cues.length}{failedCues.length > 0 ? `, ${failedCues.length} fehlgeschlagen` : ''})
+            {failedCues.length > 0 ? t('cuesHeadingFailed', { count: cues.length, failed: failedCues.length }) : t('cuesHeading', { count: cues.length })}
           </summary>
           <div className="space-y-1 text-sm text-ink-soft">
             {cues.map((event) => (
@@ -229,7 +233,7 @@ function ShowSections({ show, authorName, children }: { show: ShowGroup; authorN
         <details className="group mt-4">
           <summary className={`${FOLD} text-warn`}>
             <FoldArrow />
-            Technik ({technical.length})
+            {t('technical', { count: technical.length })}
           </summary>
           <div className="space-y-1 text-sm text-warn">
             {technical.map((event) => (
@@ -297,6 +301,7 @@ function ShowRow({
   const summary = summarize(show)
   const rigCheck = rigCheckLabel(show.events)
   const verdicts = rigCheckVerdicts(show.events)
+  const { t } = useTranslation('shows')
   return (
     <div className="flex items-center gap-2">
       <button
@@ -309,29 +314,27 @@ function ShowRow({
           <span className="flex items-center gap-2 font-semibold">
             {fmtTime(show.startedAt)}
             {rigCheck && ` · ${rigCheck}`}
-            {locked && <Icon name="locked" label="Geschützt" className={selected ? '' : 'text-ink-soft'} />}
+            {locked && <Icon name="locked" label={t('protected')} className={selected ? '' : 'text-ink-soft'} />}
           </span>
           <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
-            {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
-            {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
-            {verdicts && verdicts.problems === 0 && verdicts.ok > 0 && ` · ${verdicts.ok} ${verdicts.ok === 1 ? 'Gerät' : 'Geräte'} OK`}
+            {t('songs', { count: summary.songs })} · {t('played', { duration: fmtDuration(summary.playedMs) })}
+            {summary.notes > 0 && ` · ${t('notes', { count: summary.notes })}`}
+            {verdicts && verdicts.problems === 0 && verdicts.ok > 0 && ` · ${t('devicesOk', { count: verdicts.ok })}`}
           </span>
           {verdicts && verdicts.problems > 0 && (
             <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>
-              Rig-Check: {verdicts.problems} {verdicts.problems === 1 ? 'Gerät' : 'Geräte'} mit Problem
+              {t('devicesProblem', { count: verdicts.problems })}
             </span>
           )}
           {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
-          {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} {summary.failedCues === 1 ? 'Cue' : 'Cues'} fehlgeschlagen</span>}
+          {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{t('cuesFailed', { count: summary.failedCues })}</span>}
         </span>
         <Icon name="next" className={selected ? '' : 'text-ink-faint'} />
       </button>
-      {actions && <ActionMenu title={`Show ${fmtTime(show.startedAt)}`} actions={actions} />}
+      {actions && <ActionMenu title={t('showTitle', { time: fmtTime(show.startedAt) })} actions={actions} />}
     </div>
   )
 }
-
-const showCount = (n: number) => `${n} ${n === 1 ? 'Show' : 'Shows'}`
 
 /**
  * The shows in the Bibliothek's "Shows" tab (the former System → Nachbericht, moved 2026-10-16:
@@ -353,12 +356,13 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
   const empty = shows.filter((show) => isEmpty(summarize(show)))
   const unprotected = shows.filter((show) => !isProtected(show))
   const emptyUnprotected = empty.filter((show) => !isProtected(show))
+  const { t } = useTranslation('shows')
 
   const remove = async (targets: ShowGroup[], title: string) => {
     if (targets.length === 0) return
-    const ok = await confirm(`${showCount(targets.length)} mit allen Songs, Notizen und Cues löschen - auf allen Geräten der Band. Das lässt sich nicht rückgängig machen.`, {
+    const ok = await confirm(t('deleteText', { shows: t('showCount', { count: targets.length }) }), {
       title,
-      confirmLabel: 'Löschen',
+      confirmLabel: t('delete'),
       danger: true,
     })
     if (ok) await deleteShows(targets.map((show) => show.showId))
@@ -367,9 +371,9 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
     editing
       ? [
           isProtected(show)
-            ? { label: 'Schutz aufheben', onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
-            : { label: 'Schützen', onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
-          { label: isProtected(show) ? 'Löschen (geschützt)' : 'Löschen', danger: true, disabled: isProtected(show), onClick: () => void remove([show], 'Show löschen?') },
+            ? { label: t('unprotect'), onClick: () => void setProtected(show.showId, false, profile?.id ?? null) }
+            : { label: t('protect'), onClick: () => void setProtected(show.showId, true, profile?.id ?? null) },
+          { label: isProtected(show) ? t('deleteProtected') : t('delete'), danger: true, disabled: isProtected(show), onClick: () => void remove([show], t('deleteOneTitle')) },
         ]
       : null
   const row = (show: ShowGroup) => (
@@ -387,43 +391,43 @@ export function ShowList({ shows, selectedId, onOpen }: { shows: ShowGroup[]; se
     <div className="flex flex-col gap-2">
       <div className="flex min-w-0 items-center gap-2">
         <span className="flex min-w-0 flex-1 items-center gap-1 text-sm text-ink-muted">
-          Automatisch erfasst
+          {t('recorded')}
           <InfoHint
-            label="Erklärung: Shows"
-            text="Wann eine Show begann, welche Songs wirklich gespielt wurden (mindestens 20 Sekunden aktiv), technische Ereignisse und Notizen von Band und Crew."
+            label={t('explainLabel')}
+            text={t('explain')}
           />
         </span>
-        {shows.length > 0 && <Button onClick={() => setEditing(!editing)}>{editing ? 'Fertig' : 'Bearbeiten'}</Button>}
+        {shows.length > 0 && <Button onClick={() => setEditing(!editing)}>{editing ? t('done') : t('edit')}</Button>}
         {editing && (
           <ActionMenu
             scope="page"
-            title="Shows"
+            title={t('menuTitle')}
             actions={[
               // The usual tidy-up: the shows nothing was played in (a Play pressed by mistake, a
               // reload) - folded away below, so the count in the tab doesn't include them.
               {
-                label: `Alle ohne gespielte Songs löschen (${emptyUnprotected.length})`,
+                label: t('deleteEmpty', { count: emptyUnprotected.length }),
                 danger: true,
                 disabled: emptyUnprotected.length === 0,
-                onClick: () => void remove(emptyUnprotected, 'Shows ohne gespielte Songs löschen?'),
+                onClick: () => void remove(emptyUnprotected, t('deleteEmptyTitle')),
               },
               {
-                label: `Alle ungeschützten löschen (${unprotected.length}${emptyUnprotected.length > 0 ? `, davon ${emptyUnprotected.length} ohne Songs` : ''})`,
+                label: emptyUnprotected.length > 0 ? t('deleteUnprotectedWithEmpty', { count: unprotected.length, empty: emptyUnprotected.length }) : t('deleteUnprotected', { count: unprotected.length }),
                 danger: true,
                 disabled: unprotected.length === 0,
-                onClick: () => void remove(unprotected, 'Alle ungeschützten Shows löschen?'),
+                onClick: () => void remove(unprotected, t('deleteUnprotectedTitle')),
               },
             ]}
           />
         )}
       </div>
-      {shows.length === 0 && <p className="text-sm text-ink-faint">Noch keine Show erfasst.</p>}
+      {shows.length === 0 && <p className="text-sm text-ink-faint">{t('none')}</p>}
       {withContent.map(row)}
       {empty.length > 0 && (
         <details className="group" open={editing || undefined}>
           <summary className={`${FOLD} text-ink-soft`}>
             <FoldArrow />
-            Ohne gespielte Songs ({empty.length})
+            {t('withoutSongs', { count: empty.length })}
           </summary>
           <div className="flex flex-col gap-2">{empty.map(row)}</div>
         </details>
@@ -437,13 +441,14 @@ export function ShowDetail({ showId }: { showId: string }) {
   const shows = useShows()
   const profiles = useProfilesStore((state) => state.profiles)
   const show = shows.find((candidate) => candidate.showId === showId)
+  const { t } = useTranslation('shows')
 
   function authorName(authorProfileId: string | null): string {
-    if (!authorProfileId) return 'Unbekannt'
-    return profiles.find((profile) => profile.id === authorProfileId)?.name ?? 'Unbekannt'
+    if (!authorProfileId) return t('unknownAuthor')
+    return profiles.find((profile) => profile.id === authorProfileId)?.name ?? t('unknownAuthor')
   }
 
-  if (!show) return <p className="text-ink-faint">Show wurde entfernt.</p>
+  if (!show) return <p className="text-ink-faint">{t('removed')}</p>
   return (
     <div className="text-ink">
       <ShowSections show={show} authorName={authorName}>

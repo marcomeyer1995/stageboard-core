@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getServerTime } from '../lib/clockSync'
 import { getDeviceId } from '../lib/deviceId'
 import { deviceReportId, verdictRun, writeOwnReport, type RigCheckDeviceReport } from '../lib/rigCheck'
@@ -15,6 +16,7 @@ const later = new Set<string>()
  * Asked for a quarter of an hour after the end, also on the master.
  */
 export function RigCheckVerdict() {
+  const { t } = useTranslation('rigcheck')
   const events = useShowLogStore((state) => state.events)
   useNow()
   const [problem, setProblem] = useState(false)
@@ -40,32 +42,32 @@ export function RigCheckVerdict() {
 
   return (
     <Dialog
-      title="Rig-Check: alles in Ordnung?"
+      title={t('verdict.title')}
       onClose={close}
-      closeLabel="Später"
+      closeLabel={t('verdict.later')}
       actions={
         problem ? (
           <>
-            <Button onClick={() => setProblem(false)}>Zurück</Button>
+            <Button onClick={() => setProblem(false)}>{t('verdict.back')}</Button>
             <Button variant="primary" onClick={() => void answer('problem')}>
-              Problem melden
+              {t('verdict.report')}
             </Button>
           </>
         ) : (
           <>
-            <Button onClick={() => setProblem(true)}>Problem …</Button>
+            <Button onClick={() => setProblem(true)}>{t('verdict.problem')}</Button>
             <Button variant="primary" onClick={() => void answer('ok')}>
-              Alles in Ordnung
+              {t('verdict.ok')}
             </Button>
           </>
         )
       }
     >
       {problem ? (
-        <TextArea label="Was war falsch?" rows={3} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Klick und Beeps klangen doppelt, Prompter zu spät" />
+        <TextArea label={t('verdict.whatWrong')} rows={3} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('verdict.placeholder')} />
       ) : (
         <p className="text-base text-ink">
-          Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?
+          {t('verdict.question')}
         </p>
       )}
     </Dialog>
