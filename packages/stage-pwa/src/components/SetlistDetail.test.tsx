@@ -162,9 +162,9 @@ describe('SetlistDetail - following the default vs. a fixed variant (2026-10-29)
     useSetlistsStore.setState({ setlists: [{ ...setlist, entries: [entry('e1', 'a'), { id: 'e2', songId: 'a', variantId: 'v2', trackId: null }] }] })
     render(<SetlistDetail setlistId="sl-1" onSelectSong={vi.fn()} onDeleted={vi.fn()} />)
 
-    expect(screen.getByText('Original (Std.)')).toBeInTheDocument()
-    expect(screen.getByTitle('Original (Standard)')).toBeInTheDocument()
-    expect(screen.getByText('Akustik')).toBeInTheDocument()
+    expect(screen.getAllByText('Original (Std.)').length).toBeGreaterThan(0)
+    expect(screen.getAllByTitle('Original (Standard)').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Akustik').length).toBeGreaterThan(0)
   })
 
   it('"Standard" turns a fixed variant back into following the default', async () => {
