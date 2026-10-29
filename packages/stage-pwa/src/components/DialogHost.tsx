@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { type DialogField, useDialogStore } from '../store/useDialogStore'
 import { useBackHandler } from '../lib/backNavigation'
-import { useVisualViewport } from '../lib/useVisualViewport'
+import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { Button, CheckRow, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 
@@ -36,7 +36,7 @@ export function DialogHost() {
   const resolveDestructive = useDialogStore((state) => state.resolveDestructive)
   const resolveUnsaved = useDialogStore((state) => state.resolveUnsaved)
   useBackHandler(request ? cancel : null)
-  const visible = useVisualViewport()
+  const visible = useSettledVisualViewport()
   const titleId = useId()
 
   if (!request) return null

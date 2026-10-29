@@ -112,7 +112,10 @@ export function computeSpectralFlux(samples: Float32Array, sampleRate: number, f
     }
     flux[i] = sumFlux
   }
-  return { flux, hopMs }
+  // The hop actually used: rounded to whole samples it is 15.011 ms at 44.1 kHz, not 15 - with
+  // the nominal value every frame time ran 0.075 % early, 90 ms after two minutes (found with the
+  // Rig-Check's ground truth, #464). Exact at 48 kHz, which is why tablets rarely showed it.
+  return { flux, hopMs: (hopSize / sampleRate) * 1000 }
 }
 
 export interface OnsetDetectionResult {
@@ -260,6 +263,20 @@ export function detectTempo(
     return sum
   }
 
+  // Between two frames: a whole-frame lag can only say 121.2 or 117.6 BPM for a song at 120 (15 ms
+  // hop: 500 ms is 33.3 frames) - and a grid at 121.2 is 160 ms off after 8 bars (found with the
+  // Rig-Check's ground truth, #464). A parabola through the peak and its neighbours finds the
+  // fraction between them; it stays within half a frame of the peak.
+  function refineLag(lag: number): number {
+    if (lag - 1 < minLag || lag + 1 > maxLag) return lag
+    const before = autocorrelationAt(lag - 1)
+    const at = autocorrelationAt(lag)
+    const after = autocorrelationAt(lag + 1)
+    const curvature = before - 2 * at + after
+    if (curvature >= 0) return lag // not a peak
+    return lag + Math.max(-0.5, Math.min(0.5, (0.5 * (before - after)) / curvature))
+  }
+
   let bestLag = -1
   let bestValue = -Infinity
   for (let lag = minLag; lag <= maxLag; lag++) {
@@ -285,7 +302,7 @@ export function detectTempo(
   }
 
   const chosenValue = chosenLag === bestLag ? bestValue : autocorrelationAt(chosenLag)
-  return { bpm: 60000 / (chosenLag * hopMs), confidence: Math.min(1, chosenValue / bestValue) }
+  return { bpm: 60000 / (refineLag(chosenLag) * hopMs), confidence: Math.min(1, chosenValue / bestValue) }
 }
 
 /** The nearest *clearly standing-out* onset peak to `centerMs`, within `windowMs` either side -

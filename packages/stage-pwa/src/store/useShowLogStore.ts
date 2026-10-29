@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import { randomId } from '../lib/id'
@@ -114,9 +115,9 @@ export const useShowLogStore = create<ShowLogState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = showLogChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
     const protections = showProtectionChanges()
-    protections.on('change', () => refreshProtections(set))
+    protections.on('change', coalesced(() => refreshProtections(set)))
     protectionHandle = protections
   },
   setProtected: async (showId, on, byProfileId) => {

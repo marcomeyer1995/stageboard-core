@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import { create } from 'zustand'
 import type { PracticeLogEntry } from 'shared-types'
 import type { LocalChangesHandle } from '../lib/localChanges'
@@ -25,7 +26,7 @@ export const usePracticeLogStore = create<PracticeLogState>((set) => ({
     set({ entries: [] })
     await refresh(set)
     changesHandle = practiceLogChanges()
-    changesHandle.on('change', () => refresh(set))
+    changesHandle.on('change', coalesced(() => refresh(set)))
   },
   add: async (entry) => {
     await putPracticeLogEntry(entry)

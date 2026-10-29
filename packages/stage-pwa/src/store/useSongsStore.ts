@@ -1,3 +1,4 @@
+import { coalesced } from '../lib/coalesced'
 import type { LocalChangesHandle } from '../lib/localChanges'
 import { create } from 'zustand'
 import type { Song } from 'shared-types'
@@ -66,7 +67,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     set({ loaded: true })
 
     changesHandle = songsChanges()
-    changesHandle.on('change', () => refreshSongs(set))
+    changesHandle.on('change', coalesced(() => refreshSongs(set)))
   },
   saveSong: async (song) => {
     await putSong(song)

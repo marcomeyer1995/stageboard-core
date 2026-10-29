@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '../Icon'
 import { FOCUS } from './styles'
+import { useTranslation } from 'react-i18next'
 
 /** Gap between the bubble and the screen edge, and between ⓘ and the bubble. */
 const EDGE_PX = 12
@@ -14,7 +15,9 @@ const MAX_WIDTH_PX = 320
  * The bubble lives in a portal, placed from ⓘ's position and kept on screen, so neither a
  * scrolling pane nor the phone's width cuts it off.
  */
-export function InfoHint({ text, label = 'Erklärung' }: { text: string; label?: string }) {
+export function InfoHint({ text, label: labelProp }: { text: string; label?: string }) {
+  const { t } = useTranslation('common')
+  const label = labelProp ?? t('ui.explanation')
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState<{ top: number; left: number; width: number; arrow: number; above: boolean } | null>(null)
   const button = useRef<HTMLButtonElement>(null)

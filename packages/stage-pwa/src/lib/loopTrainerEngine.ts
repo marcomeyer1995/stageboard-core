@@ -34,6 +34,15 @@ interface LoopRun {
 let audioContext: AudioContext | null = null
 let processorRegistered = false
 let run: LoopRun | null = null
+/** Bumped by every start and stop: a start still loading when another start or a stop comes in
+ * must not begin playing afterwards - it would sound on with nothing left to stop it (Fire,
+ * 2026-10-21: a second tap during the seconds-long decode left the first loop unstoppable). */
+let generation = 0
+
+/** A start that a newer start or a stop overtook while it was loading. */
+export interface LoopCancelled {
+  status: 'cancelled'
+}
 
 function getAudioContext(): AudioContext {
   if (!audioContext) audioContext = new AudioContext()
@@ -49,8 +58,9 @@ export interface LoopStartOptions {
 
 /** Starts (or restarts) the loop. Must be called from a user gesture - the AudioContext may
  * otherwise stay suspended under the browser's autoplay policy. */
-export async function startLoopEngine(options: LoopStartOptions): Promise<LocalAudioResult> {
+export async function startLoopEngine(options: LoopStartOptions): Promise<LocalAudioResult | LoopCancelled> {
   stopLoopEngine()
+  const mine = generation
   const lengthMs = options.endMs - options.startMs
   if (lengthMs < MIN_LOOP_MS) return { status: 'error', message: 'Der Loop ist zu kurz' }
 
@@ -67,6 +77,7 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
     }
 
     const decoded = await ctx.decodeAudioData(await options.blob.arrayBuffer())
+    if (mine !== generation) return { status: 'cancelled' }
     const firstFrame = Math.floor((options.startMs / 1000) * decoded.sampleRate)
     const lastFrame = Math.min(decoded.length, Math.ceil((options.endMs / 1000) * decoded.sampleRate))
     if (lastFrame - firstFrame < 1) return { status: 'error', message: 'Der Loop liegt außerhalb des Tracks' }
@@ -102,12 +113,14 @@ export async function startLoopEngine(options: LoopStartOptions): Promise<LocalA
     run = { source, node: stretch, startedAtSec, rates, lengthMs: sectionMs, startMs: options.startMs, endMs: options.endMs }
     return { status: 'ok' }
   } catch (error) {
+    if (mine !== generation) return { status: 'cancelled' }
     stopLoopEngine()
     return { status: 'error', message: error instanceof Error ? error.message : 'Loop konnte nicht gestartet werden' }
   }
 }
 
 export function stopLoopEngine(): void {
+  generation++
   if (!run) return
   try {
     run.source.stop()
