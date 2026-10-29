@@ -1865,7 +1865,7 @@ export function TimelineEditor(props: TimelineEditorProps) {
         {!hiddenLanes.has('notes') && <canvas ref={notesCanvas} className="absolute" style={{ left: 0, top: notesTop, width, height: NOTES_H }} data-testid="timeline-notes" />}
         {!hiddenLanes.has('cues') && <canvas ref={cueCanvas} className="absolute" style={{ left: 0, top: cueTop, width, height: CUE_H }} data-testid="timeline-cues" />}
         {playheadX >= 0 && playheadX <= width && (
-          <div className="pointer-events-none absolute top-0 h-full w-0.5 bg-danger" style={{ left: playheadX }} data-testid="timeline-playhead" />
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-0.5 bg-danger will-change-transform" style={{ transform: `translateX(${playheadX}px)` }} data-testid="timeline-playhead" />
         )}
         {stems.length > 0 && (
           <StemsToggle

@@ -42,6 +42,32 @@ export interface TrackClock {
  */
 export const SILENT_VOLUME = 0.0001
 
+/** Beyond this the clock jumps to the element's position (a seek, a stall) instead of easing. */
+export const RESYNC_MS = 50
+/** How far the element must have moved after play before the clock runs. Not less: Android
+ * reports a first step of ~17 ms right at play and then sits another ~250 ms (Redmi, 2026-10-28). */
+const START_MOVED_MS = 40
+/** ...but the clock runs after this at the latest, moved or not. */
+const START_WAIT_MAX_MS = 1000
+/** Deviations below this are the reports' own unevenness (measured ±13 ms) - left alone. */
+const FOLLOW_DEADBAND_MS = 20
+/** Share of a small deviation the clock takes per position report (~4 a second). */
+const FOLLOW_SHARE = 0.1
+
+/**
+ * Where the running clock goes on an element's position report. The reports come ~4 times a
+ * second and a little uneven on Android: snapping to each made the timeline's playhead jump 3 px
+ * and crawl 0.5 px four times a second - it pulsed (Redmi, 2026-10-28). Small deviations are now
+ * taken a tenth at a time (sub-pixel steps), real jumps at once.
+ */
+export function followPosition(elapsedMs: number, reportedMs: number): number {
+  const error = reportedMs - elapsedMs
+  if (Math.abs(error) > RESYNC_MS) return reportedMs
+  // The reports' own unevenness: leave it, a correction would only cost a render.
+  if (Math.abs(error) < FOLLOW_DEADBAND_MS) return elapsedMs
+  return elapsedMs + error * FOLLOW_SHARE
+}
+
 export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((ms: number) => number) | null>): TrackClock {
   const elapsedMs = useElapsedMs()
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -99,6 +125,13 @@ export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((
     return () => cancelAnimationFrame(frame)
   }, [isPlaying, trackLevel])
 
+  const startWait = useRef<number | null>(null)
+  function cancelStartWait() {
+    if (startWait.current !== null) cancelAnimationFrame(startWait.current)
+    startWait.current = null
+  }
+  useEffect(() => cancelStartWait, [])
+
   function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
@@ -112,21 +145,51 @@ export function useTrackClock(trackSrc: string | null, trackLevel?: RefObject<((
     ref: audioRef,
     src: trackSrc ?? undefined,
     onLoadedMetadata: (e) => setDuration(e.currentTarget.duration),
-    onPlay: () => {
+    onPlay: (e) => {
       setIsPlaying(true)
-      useClockStore.getState().start()
+      // The clock starts once the element really moves - Android's player sits ~200 ms on its
+      // position after play, and a clock running from the tap was then snapped back by the first
+      // position report: the playhead started, jumped back, started again (Redmi, 2026-10-28).
+      const audio = e.currentTarget
+      const fromMs = audio.currentTime * 1000
+      const since = performance.now()
+      cancelStartWait()
+      const check = () => {
+        const nowMs = audio.currentTime * 1000
+        if (nowMs - fromMs < START_MOVED_MS && performance.now() - since < START_WAIT_MAX_MS) {
+          startWait.current = requestAnimationFrame(check)
+          return
+        }
+        startWait.current = null
+        const clock = useClockStore.getState()
+        clock.start()
+        clock.seek(nowMs)
+      }
+      startWait.current = requestAnimationFrame(check)
     },
     onPause: () => {
+      cancelStartWait()
       setIsPlaying(false)
       useClockStore.getState().stop()
     },
     onEnded: () => {
+      cancelStartWait()
       setIsPlaying(false)
       useClockStore.getState().stop()
     },
     onTimeUpdate: (e) => {
-      setPosition(e.currentTarget.currentTime)
-      useClockStore.getState().seek(e.currentTarget.currentTime * 1000)
+      // Each report used to re-render the whole timeline twice - a late frame 4 times a second.
+      // The position shows whole seconds, and the clock only moves when it has to.
+      const currentTime = e.currentTarget.currentTime
+      setPosition((prev) => (Math.floor(prev) === Math.floor(currentTime) ? prev : currentTime))
+      const clock = useClockStore.getState()
+      const reportedMs = currentTime * 1000
+      if (!clock.isRunning) clock.seek(reportedMs)
+      else {
+        const elapsedMs = clock.getElapsedMs()
+        const nextMs = followPosition(elapsedMs, reportedMs)
+        if (nextMs !== elapsedMs) clock.seek(nextMs)
+      }
     },
     onSeeked: (e) => {
       useClockStore.getState().seek(e.currentTarget.currentTime * 1000)

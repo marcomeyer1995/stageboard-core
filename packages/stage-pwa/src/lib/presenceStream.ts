@@ -1,3 +1,4 @@
+import { deliverInBackground, dropFromInbox } from './inbox'
 import { DEFAULT_PRESENCE, type Presence } from 'shared-types'
 import { getStageServerUrl } from './stageServer'
 
@@ -20,13 +21,18 @@ export function subscribeToPresence(workspaceId: string, onPresence: (presence: 
   }
 
   const source = new EventSource(`${base}/workspaces/${encodeURIComponent(workspaceId)}/presence/stream`)
+  // A status, not a cue: applied in free time, the newest wins (docs/26 §3.1).
+  const channel = `presence:${workspaceId}`
   source.onmessage = (event) => {
     try {
-      onPresence(JSON.parse(event.data) as Presence)
+      deliverInBackground(channel, JSON.parse(event.data) as Presence, onPresence)
     } catch {
       // A malformed payload shouldn't crash the tablet - just skip this update.
     }
   }
 
-  return () => source.close()
+  return () => {
+    dropFromInbox(channel)
+    source.close()
+  }
 }
