@@ -165,5 +165,26 @@
     "password": "Passwort oder PIN",
     "ok": "OK",
     "isAdmin": "Dies ist ein Admin-Konto"
+  },
+  "roster": {
+    "who": "Wer ist alles bei {{band}} dabei?",
+    "intro": "Trag die Namen der übrigen Bandmitglieder ein - beliebig viele, nacheinander. Instrument/Rolle und Admin-Rechte kannst du später jederzeit im Menü anpassen.",
+    "you": "(du)",
+    "remove": "Entfernen",
+    "name": "Name",
+    "add": "Hinzufügen",
+    "next": "Weiter",
+    "whoAreYou": "Wer bist du?",
+    "founder": "Du gründest {{band}}. Dein Name und ein 4-stelliger PIN für dein Admin-Konto - den PIN kannst du später jederzeit in „Band“ ändern.",
+    "yourName": "Dein Name",
+    "pin": "4-stelliger PIN",
+    "discardAsk": "„{{band}}“ verwerfen und neu anfangen (z. B. bei einem Tippfehler)?",
+    "discard": "Verwerfen",
+    "restart": "Bandnamen falsch eingegeben? Neu anfangen"
+  },
+  "pick": {
+    "noLogin": "Kein Login - wähle dein Profil aus der Band-Liste.",
+    "none": "Noch keine Profile angelegt - ein Admin kann welche im Menü anlegen.",
+    "without": "Ohne Profil fortfahren"
   }
 }

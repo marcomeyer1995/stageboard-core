@@ -165,5 +165,26 @@
     "password": "Password or PIN",
     "ok": "OK",
     "isAdmin": "This is an admin account"
+  },
+  "roster": {
+    "who": "Who is in {{band}}?",
+    "intro": "Enter the names of the other band members - as many as you like, one after another. Instrument/role and admin rights can be changed in the menu at any time.",
+    "you": "(you)",
+    "remove": "Remove",
+    "name": "Name",
+    "add": "Add",
+    "next": "Next",
+    "whoAreYou": "Who are you?",
+    "founder": "You are founding {{band}}. Your name and a 4-digit PIN for your admin account - you can change the PIN in “Band” at any time.",
+    "yourName": "Your name",
+    "pin": "4-digit PIN",
+    "discardAsk": "Discard “{{band}}” and start over (e.g. after a typo)?",
+    "discard": "Discard",
+    "restart": "Typed the band name wrong? Start over"
+  },
+  "pick": {
+    "noLogin": "No login - choose your profile from the band list.",
+    "none": "No profiles yet - an admin can create some in the menu.",
+    "without": "Continue without a profile"
   }
 }

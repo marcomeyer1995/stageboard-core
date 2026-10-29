@@ -72,5 +72,44 @@
     "discard": "Discard",
     "keepEditing": "Keep editing",
     "typeToConfirm": "Type “{{text}}” to confirm"
+  },
+  "mt": {
+    "force": "Another device is the active master - force takeover",
+    "forceDenied": "Another device is the active master - only admin/showmaster may take over",
+    "stale": "The master device no longer responds",
+    "noControl": "This device currently has no control over the queue",
+    "forceButton": "Force takeover",
+    "claim": "Take over as master"
+  },
+  "rc": {
+    "title": "Ready check",
+    "question": "On stage, in-ears in, instrument on?",
+    "noProfile": "No profile chosen - this device cannot answer.",
+    "ready": "I am ready",
+    "close": "Close",
+    "failed": "No connection to the Stage server - please tap again.",
+    "askTitle": "Ask every tablet whether the band is ready",
+    "short": "Ready",
+    "unknown": "Unknown",
+    "waiting": "Waiting for: {{names}}",
+    "allReady": "All ready",
+    "endTitle": "End the ready check",
+    "end": "End"
+  },
+  "up": {
+    "available": "New app version {{version}} on the Stage server",
+    "failed": "The update could not be loaded – try again later. ({{reason}})",
+    "loading": "Loading…",
+    "update": "Update",
+    "later": "Later"
+  },
+  "rv": {
+    "title": "This device was removed",
+    "text": "An admin removed this device from the band. Contact an admin if that was a mistake - as soon as the device is allowed again, it continues here automatically."
+  },
+  "ar": {
+    "title": "Playback interrupted",
+    "text": "The browser blocked the automatic resume of the backing track. Tap to keep playing.",
+    "tap": "Tap to resume"
   }
 }

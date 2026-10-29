@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { checkForAppUpdate, installAppUpdate, updateFailureReason, type AppUpdate } from '../lib/native'
 import { useStageServerStore } from '../store/useStageServerStore'
@@ -8,6 +9,7 @@ import { useStageServerStore } from '../store/useStageServerStore'
  * Checked on start and whenever the paired server changes; "Später" hides it until the next start.
  */
 export function AppUpdateBanner() {
+  const { t } = useTranslation('common')
   const serverUrl = useStageServerStore((state) => state.url)
   const [update, setUpdate] = useState<AppUpdate | null>(null)
   const [dismissed, setDismissed] = useState(false)
@@ -28,7 +30,7 @@ export function AppUpdateBanner() {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-menu flex flex-wrap items-center justify-center gap-3 bg-accent px-4 py-3 sb-pad-safe-x sb-pad-safe-bottom text-accent-ink shadow-sb" role="status">
-      <span className="text-base font-semibold">{error ?? `Neue App-Version ${update.versionName} auf dem Stage-Server`}</span>
+      <span className="text-base font-semibold">{error ?? t('up.available', { version: update.versionName })}</span>
       <button
         type="button"
         disabled={busy}
@@ -39,15 +41,15 @@ export function AppUpdateBanner() {
           try {
             await installAppUpdate()
           } catch (err) {
-            setError(`Update konnte nicht geladen werden – später erneut versuchen. (${updateFailureReason(err)})`)
+            setError(t('up.failed', { reason: updateFailureReason(err) }))
           }
           setBusy(false)
         }}
       >
-        {busy ? 'Lädt…' : 'Aktualisieren'}
+        {busy ? t('up.loading') : t('up.update')}
       </button>
       <button type="button" className="min-h-form rounded-control px-4 text-base font-semibold underline" onClick={() => setDismissed(true)}>
-        Später
+        {t('up.later')}
       </button>
     </div>
   )
