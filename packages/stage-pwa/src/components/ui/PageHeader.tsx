@@ -24,8 +24,11 @@ interface PageHeaderProps {
   /** What this page can do (D8), the main one first: an icon on the phone, icon + word from 600 px
    * (900 px when there is a `middle`). */
   actions?: PageAction[]
-  /** ⋮ for the whole page (D9), always last. */
+  /** ⋮ for the whole page (D9), always last - also without rarer actions: the main actions open
+   * it with their icon and name (muscle memory: ⋮ is on every page, and explains the icons). */
   menu?: { title: string; actions: MenuAction[] }
+  /** The menu's title when there is no `menu` (the page's name). */
+  menuTitle?: string
   /** Its own row, never cut off - a setlist named "Rocknacht Halle 2026 - SOAT+Abadschen" stays readable. */
   title?: ReactNode
   /** Beside the title, e.g. the "Aktiv" badge. */
@@ -39,12 +42,18 @@ interface PageHeaderProps {
  * controls - ← left, the actions and ⋮ right - then the title in full and one grey line. The same
  * place and size on every page, so the hand finds them without looking.
  */
-export function PageHeader({ back, middle, status, actions = [], menu, title, titleExtra, subtitle }: PageHeaderProps) {
+export function PageHeader({ back, middle, status, actions = [], menu, menuTitle, title, titleExtra, subtitle }: PageHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   // One element per action, picked by width (the phone gets the icon, 600 px and up icon + word).
   // With views in the middle (song editor) words only from 900 px: at 601 px "Speichern" pushed
   // "Details" onto a second row.
   const wide = useMediaQuery(middle ? '(min-width: 900px)' : '(min-width: 600px)')
+  // ⋮ on every page: the main actions first, with symbol and name, then the rarer ones (2026-10-30).
+  const menuActions: MenuAction[] = [
+    ...actions.map((action) => ({ label: action.label, icon: action.icon, disabled: action.disabled, danger: action.variant === 'danger', onClick: action.onClick })),
+    ...(menu?.actions ?? []),
+  ]
+  const shownMenuTitle = menu?.title ?? menuTitle ?? (typeof title === 'string' ? title : '')
   return (
     <div className="flex flex-col gap-1">
       <div className="flex min-w-0 items-center gap-2">
@@ -75,10 +84,10 @@ export function PageHeader({ back, middle, status, actions = [], menu, title, ti
             />
           ),
         )}
-        {menu && (
+        {menuActions.length > 0 && (
           <>
-            <IconButton icon={menuIcon('page')} label={i18n.t('common:ui.menu', { title: menu.title })} onClick={() => setMenuOpen(true)} />
-            {menuOpen && <ActionMenuDialog title={menu.title} actions={menu.actions} onClose={() => setMenuOpen(false)} />}
+            <IconButton icon={menuIcon('page')} label={i18n.t('common:ui.menu', { title: shownMenuTitle })} onClick={() => setMenuOpen(true)} />
+            {menuOpen && <ActionMenuDialog title={shownMenuTitle} actions={menuActions} onClose={() => setMenuOpen(false)} />}
           </>
         )}
       </div>

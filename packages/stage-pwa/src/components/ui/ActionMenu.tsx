@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useControlSize } from './PrepTier'
 import { Dialog } from './Dialog'
 import { IconButton } from './IconButton'
+import { Icon, type IconName } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, SELECTED, type ControlSize } from './styles'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +12,8 @@ export interface MenuAction {
   onClick: () => void
   danger?: boolean
   disabled?: boolean
+  /** Shown before the label - a page's main action repeated in ⋮ with the symbol it has up top. */
+  icon?: IconName
 }
 
 const ROW = `flex min-h-form w-full items-center px-4 text-left text-base ${CONTROL} ${FOCUS} ${DISABLED}`
@@ -39,8 +42,9 @@ export function ActionMenuDialog({ title, actions, onClose }: { title: string; a
         onClose()
         action.onClick()
       }}
-      className={`${MENU_ROW} ${action.danger ? 'text-danger' : 'text-ink'}`}
+      className={`${MENU_ROW} gap-3 ${action.danger ? 'text-danger' : 'text-ink'}`}
     >
+      {action.icon && <Icon name={action.icon} size="1.2em" />}
       {action.label}
     </button>
   )

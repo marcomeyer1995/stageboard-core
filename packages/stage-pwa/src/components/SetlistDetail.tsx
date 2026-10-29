@@ -781,6 +781,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted, onBack }: Se
         // of its own (Marco, 2026-10-30). Also beside the list: it is the only way out.
         back={{ label: t('backToView'), onClick: () => void leaveEditing() }}
         actions={[{ icon: 'save', label: t('save'), variant: 'primary', onClick: () => void handleSave(), disabled: !setlist.name.trim() }]}
+        menuTitle={setlist.name}
       />
       <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
