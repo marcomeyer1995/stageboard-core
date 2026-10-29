@@ -642,5 +642,33 @@
     "field": "Hits from - the mix is usually more reliable",
     "mix": "Mix (whole track)",
     "go": "Analyse"
+  },
+  "rec": {
+    "failed": "Onset analysis failed (track not decodable?).",
+    "noWebMidi": "WebMIDI is not available (browser or permission).",
+    "noInput": "No MIDI input found.",
+    "intro": "Play the track and play on the device - every action is recorded as a cue at the track position.",
+    "noTrack": "No track is attached to this variant - cues need a track as their time axis.",
+    "pause": "Pause",
+    "play": "Play",
+    "recording": "Recording",
+    "device": "Device",
+    "noDevice": "No recordable device set up",
+    "choose": "Choose…",
+    "input": "MIDI input",
+    "refresh": "Re-read MIDI inputs",
+    "nothing": "Nothing recorded yet.",
+    "snapped": "snapped {{shift}} ms",
+    "skipped": "{{count}} message(s) without a matching event skipped.",
+    "analysing": "Analysing…",
+    "analyse": "Analyse onsets",
+    "found": "{{count}} onsets found",
+    "snap": "Snap cues",
+    "window": "Snap window",
+    "partStarts": "Section starts to the next onset:",
+    "noOnset": "no onset within ±{{ms}} ms",
+    "snapHint": "Snapping moves cues onto the next detected attack - with no promise that every section change has one.",
+    "apply": "Apply",
+    "applyN": "Apply ({{count}} cues)"
   }
 }

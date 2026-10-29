@@ -223,5 +223,18 @@
       "relations": "Related keys",
       "signature": "Key signature"
     }
+  },
+  "co": {
+    "decrease": "Decrease {{label}}",
+    "increase": "Increase {{label}}",
+    "keyIs": "Key: {{key}}",
+    "keyStep": "Key {{step}}",
+    "key": "Key",
+    "reset": "Reset",
+    "done": "Done",
+    "transpose": "Transpose",
+    "capo": "Capo",
+    "authored": "Chords are written for capo {{capo}}.",
+    "local": "Applies only on this device and only to this song."
   }
 }

@@ -642,5 +642,33 @@
     "field": "Treffer aus - der Mix ist meist zuverlässiger",
     "mix": "Mix (ganzer Track)",
     "go": "Analysieren"
+  },
+  "rec": {
+    "failed": "Onset-Analyse fehlgeschlagen (Track nicht dekodierbar?).",
+    "noWebMidi": "WebMIDI ist nicht verfügbar (Browser oder Berechtigung).",
+    "noInput": "Kein MIDI-Eingang gefunden.",
+    "intro": "Track abspielen und am Gerät spielen - jede Aktion wird als Cue an der Track-Position aufgenommen.",
+    "noTrack": "Für diese Variante ist kein Track angehängt - Cues brauchen einen Track als Zeitachse.",
+    "pause": "Pause",
+    "play": "Play",
+    "recording": "Aufnahme läuft",
+    "device": "Gerät",
+    "noDevice": "Kein aufnahmefähiges Gerät eingerichtet",
+    "choose": "Wählen…",
+    "input": "MIDI-Eingang",
+    "refresh": "MIDI-Eingänge neu einlesen",
+    "nothing": "Noch nichts aufgenommen.",
+    "snapped": "eingerastet {{shift}} ms",
+    "skipped": "{{count}} Nachricht(en) ohne passendes Ereignis übersprungen.",
+    "analysing": "Analysiere…",
+    "analyse": "Onsets analysieren",
+    "found": "{{count}} Onsets gefunden",
+    "snap": "Cues einrasten",
+    "window": "Einrast-Fenster",
+    "partStarts": "Abschnittsstarts zum nächsten Onset:",
+    "noOnset": "kein Onset innerhalb ±{{ms}} ms",
+    "snapHint": "Einrasten verschiebt Cues auf den nächsten erkannten Anschlag - ohne Zusage, dass jeder Abschnittswechsel einen hat.",
+    "apply": "Übernehmen",
+    "applyN": "Übernehmen ({{count}} Cues)"
   }
 }
