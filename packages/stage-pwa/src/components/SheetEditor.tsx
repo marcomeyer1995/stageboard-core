@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   SongSchema,
   SongVariantSchema,
@@ -19,7 +19,9 @@ import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { bracketProblems, transposeText } from '../lib/textTools'
 import { CleanupDialog } from './CleanupDialog'
-import { ReplaceDialog } from './ReplaceDialog'
+import { EditorBackdrop, type BackdropMark } from './EditorBackdrop'
+import { FindReplaceBar } from './FindReplaceBar'
+import type { TextMatch } from '../lib/textReplace'
 import { randomId } from '../lib/id'
 import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
@@ -148,6 +150,9 @@ interface SheetEditorProps {
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
 export const ROOMY_FOR_VARIANT_ROW_PX = 560
 
+/** Whether the song text shows its invisible characters (· → ¶) - per device. */
+const INVISIBLES_KEY = 'sb:editor-invisibles'
+
 export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const songs = useSongsStore((state) => state.songs)
   const saveSong = useSongsStore((state) => state.saveSong)
@@ -191,7 +196,39 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [pageMenuOpen, setPageMenuOpen] = useState(false)
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
   // Aufräumen / Suchen & Ersetzen open on the range they were started on (#605, 2026-10-29).
-  const [toolDialog, setToolDialog] = useState<{ kind: 'cleanup' | 'replace'; start: number; end: number; scope: string } | null>(null)
+  const [toolDialog, setToolDialog] = useState<{ kind: 'cleanup'; start: number; end: number; scope: string } | null>(null)
+  // Suchen & Ersetzen as a bar over the text, like Notepad++ (2026-10-29): open with the lines
+  // marked at that moment (or none), its matches drawn on the layer behind the text.
+  const [findBar, setFindBar] = useState<{ range: { start: number; end: number } | null } | null>(null)
+  const [findMarks, setFindMarks] = useState<{ marks: BackdropMark[]; current: TextMatch | null }>({ marks: [], current: null })
+  const onFindMarks = useCallback((marks: BackdropMark[], current: TextMatch | null) => setFindMarks({ marks, current }), [])
+  // The current search match in view: scrolled to a third of the field's height, the text cursor
+  // set on it (without focusing - no keyboard pops up).
+  useEffect(() => {
+    const match = findMarks.current
+    const textarea = textareaRef.current
+    if (!match || !textarea) return
+    const mark = textarea.parentElement?.querySelector<HTMLElement>('[data-testid="editor-backdrop"] [data-current]')
+    if (mark) textarea.scrollTop = Math.max(0, mark.offsetTop - textarea.clientHeight / 3)
+    textarea.setSelectionRange(match.start, match.end)
+  }, [findMarks])
+  // Invisible characters (· → ¶) on the layer behind the text - remembered on this device.
+  const [showInvisibles, setShowInvisibles] = useState(() => {
+    try {
+      return localStorage.getItem(INVISIBLES_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleInvisibles = () =>
+    setShowInvisibles((on) => {
+      try {
+        localStorage.setItem(INVISIBLES_KEY, on ? '0' : '1')
+      } catch {
+        // blocked storage: only for this session
+      }
+      return !on
+    })
   // The text before the last text tool ran (#605) - "Rückgängig" until the next edit by hand.
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
   // "+ Kommentar" / "+ Tab" dialogs (#608).
@@ -850,7 +887,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     { label: 'Transponieren …', onClick: () => void askTranspose() },
     { label: 'Akkordzeilen integrieren', onClick: () => applyTextTool('Akkordzeilen integriert', mergeChordLines) },
     { label: 'Aufräumen …', onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
-    { label: 'Suchen & Ersetzen …', onClick: () => setToolDialog({ kind: 'replace', ...toolRange() }) },
+    {
+      label: 'Suchen & Ersetzen …',
+      onClick: () => {
+        const range = toolRange()
+        setFindBar({ range: range.start === 0 && range.end === draft.chordProContent.length ? null : { start: range.start, end: range.end } })
+      },
+    },
   ]
 
   const insertActions: MenuAction[] = [
@@ -862,6 +905,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const pageActions: MenuAction[] = [
     { label: 'Einfügen …', onClick: () => setInsertMenuOpen(true) },
     { label: 'Textwerkzeuge …', onClick: () => setToolsMenuOpen(true) },
+    { label: showInvisibles ? 'Unsichtbare Zeichen ausblenden' : 'Unsichtbare Zeichen einblenden (¶)', onClick: toggleInvisibles },
     { label: 'Song importieren', onClick: () => setIsImporting(true) },
     {
       label: 'Tap-to-Sync starten',
@@ -1083,10 +1127,25 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           </Button>
         </div>
       )}
+      {findBar && (
+        <FindReplaceBar
+          content={draft.chordProContent}
+          range={findBar.range}
+          onMarks={onFindMarks}
+          onClose={() => setFindBar(null)}
+          onReplace={(after, label) => {
+            const before = draft.chordProContent
+            setDraft({ ...draft, chordProContent: after })
+            setToolUndo({ before, label })
+          }}
+        />
+      )}
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+      {(showInvisibles || findMarks.marks.length > 0) && <EditorBackdrop text={draft.chordProContent} textarea={textareaRef} showInvisibles={showInvisibles} marks={findMarks.marks} />}
       <textarea
         ref={textareaRef}
         aria-label="ChordPro-Text"
-        className={`min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE}`}
+        className={`relative min-h-0 flex-1 min-w-0 p-2 font-sb-mono text-base ${INPUT_FREE} ${showInvisibles || findMarks.marks.length > 0 ? '!bg-transparent' : ''}`}
         value={draft.chordProContent}
         onChange={(e) => {
           setDraft({ ...draft, chordProContent: e.target.value })
@@ -1108,6 +1167,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
         }}
         placeholder="[00:00.00] Come on baby [G] don't you wanna go"
       />
+      </div>
       {brackets.length > 0 && (
         <p role="status" className="text-sm text-warn">
           {brackets
@@ -1177,17 +1237,6 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
           onCancel={() => setToolDialog(null)}
           onApply={(after) => {
             applyTextTool('Aufgeräumt', () => after, toolDialog)
-            setToolDialog(null)
-          }}
-        />
-      )}
-      {toolDialog?.kind === 'replace' && (
-        <ReplaceDialog
-          text={draft.chordProContent.slice(toolDialog.start, toolDialog.end)}
-          scope={toolDialog.scope}
-          onCancel={() => setToolDialog(null)}
-          onApply={(after, count) => {
-            applyTextTool(`${count}× ersetzt`, () => after, toolDialog)
             setToolDialog(null)
           }}
         />

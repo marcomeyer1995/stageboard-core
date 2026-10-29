@@ -1,78 +1,91 @@
 /**
- * "Suchen & Ersetzen" (#605, regular expressions Marco 2026-10-29): literally by default, or as a
- * regular expression with groups ($1, $2, $<name>, $&) in the replacement - always over the lines
- * (^ and $ mean the start and end of a line), case-sensitive or not.
+ * "Suchen & Ersetzen" (#605; like Notepad++, Marco 2026-10-29): three modes - normal (the text
+ * literally), extended (normal plus \n, \t, \\ as line break, tab, backslash) and regular
+ * expression (groups $1, $2, $<name>, $& in the replacement) - always over the lines (^ and $ mean
+ * the start and end of a line), case-sensitive or not, whole words only or not.
  */
+export type SearchMode = 'normal' | 'extended' | 'regex'
+
 export interface ReplaceOptions {
   find: string
   replacement: string
-  regex: boolean
+  mode: SearchMode
   caseSensitive: boolean
+  wholeWord?: boolean
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+/** Extended mode's escapes: \n, \t, \\. */
+export const unescapeExtended = (text: string) => text.replace(/\\([nt\\])/g, (_, c: string) => (c === 'n' ? '\n' : c === 't' ? '\t' : '\\'))
+
 /** The pattern as a JS RegExp, or why it isn't one. */
-export function buildMatcher(options: Pick<ReplaceOptions, 'find' | 'regex' | 'caseSensitive'>): { re: RegExp } | { error: string } | null {
+export function buildMatcher(options: Pick<ReplaceOptions, 'find' | 'mode' | 'caseSensitive' | 'wholeWord'>): { re: RegExp } | { error: string } | null {
   if (!options.find) return null
+  const source = options.mode === 'regex' ? options.find : escapeRegExp(options.mode === 'extended' ? unescapeExtended(options.find) : options.find)
   try {
-    return { re: new RegExp(options.regex ? options.find : escapeRegExp(options.find), `gm${options.caseSensitive ? '' : 'i'}`) }
+    // Whole words: no letter (umlauts too), digit or _ right before or after - without the u flag,
+    // which would refuse escapes people commonly write (`\-`, `\:`).
+    return { re: new RegExp(options.wholeWord ? `(?<![\\w\\u00C0-\\u024F])(?:${source})(?![\\w\\u00C0-\\u024F])` : source, `gm${options.caseSensitive ? '' : 'i'}`) }
   } catch (err) {
     return { error: err instanceof Error ? err.message.replace(/^Invalid regular expression: /, '') : String(err) }
   }
 }
 
-/** Every match replaced - with how many there were. An empty match (e.g. `^` alone) still counts once per place. */
-export function replaceText(content: string, options: ReplaceOptions): { content: string; count: number } | { error: string } {
-  const matcher = buildMatcher(options)
-  if (!matcher) return { content, count: 0 }
-  if ('error' in matcher) return matcher
-  let count = 0
-  const next = content.replace(matcher.re, (...args: unknown[]) => {
-    count += 1
-    // Literal mode: the replacement is the text itself, no $ meanings.
-    if (!options.regex) return options.replacement
-    const match = args[0] as string
-    const last = args[args.length - 1]
-    const named = typeof last === 'object' && last !== null ? (last as Record<string, string | undefined>) : undefined
-    const groups = args.slice(1, named ? -3 : -2) as (string | undefined)[]
-    return options.replacement.replace(/\$(\$|&|\d{1,2}|<([^>]+)>)/g, (token, what: string, name: string | undefined) => {
-      if (what === '$') return '$'
-      if (what === '&') return match
-      if (name !== undefined) return named?.[name] ?? ''
-      const index = Number(what)
-      return index >= 1 && index <= groups.length ? (groups[index - 1] ?? '') : token
-    })
+/** The replacement for one match: literal in normal mode, \n/\t in extended, groups in regex. */
+function expand(options: ReplaceOptions, match: RegExpExecArray): string {
+  if (options.mode === 'normal') return options.replacement
+  if (options.mode === 'extended') return unescapeExtended(options.replacement)
+  return options.replacement.replace(/\$(\$|&|\d{1,2}|<([^>]+)>)/g, (token, what: string, name: string | undefined) => {
+    if (what === '$') return '$'
+    if (what === '&') return match[0]
+    if (name !== undefined) return match.groups?.[name] ?? ''
+    const index = Number(what)
+    return index >= 1 && index < match.length ? (match[index] ?? '') : token
   })
-  return { content: next, count }
 }
 
-export interface PreviewLine {
-  /** 1-based line in the text before. */
+/** One match: where in the text (offsets into the whole text), its line, and what it becomes. */
+export interface TextMatch {
+  start: number
+  end: number
+  /** 1-based line of its start. */
   line: number
-  before: string
-  after: string
+  replacement: string
 }
 
-/** The lines a replacement changes, before and after - for the preview (up to `max`). A
- * replacement that adds or removes line breaks shows the changed stretch as one entry. */
-export function previewChanges(before: string, after: string, max = 20): { lines: PreviewLine[]; more: number } {
-  const a = before.split('\n')
-  const b = after.split('\n')
-  if (a.length === b.length) {
-    const changed = a.flatMap((line, i) => (line !== b[i] ? [{ line: i + 1, before: line, after: b[i]! }] : []))
-    return { lines: changed.slice(0, max), more: Math.max(0, changed.length - max) }
+/** Every match in `content` - only within [from, to) when given (the marked lines). */
+export function findMatches(content: string, options: ReplaceOptions, from = 0, to = content.length): TextMatch[] | { error: string } {
+  const matcher = buildMatcher(options)
+  if (!matcher) return []
+  if ('error' in matcher) return matcher
+  const scope = content.slice(from, to)
+  const re = matcher.re
+  const out: TextMatch[] = []
+  let line = content.slice(0, from).split('\n').length
+  let counted = 0
+  for (let m = re.exec(scope); m !== null; m = re.exec(scope)) {
+    if (m[0] === '') re.lastIndex += 1 // an empty match (e.g. ^) - move on, or it loops
+    for (let i = counted; i < m.index; i++) if (scope[i] === '\n') line += 1
+    counted = m.index
+    out.push({ start: from + m.index, end: from + m.index + m[0].length, line, replacement: expand(options, m) })
+    if (out.length >= 10000) break
   }
-  // Line count changed: the stretch between the common start and the common end.
-  let start = 0
-  while (start < a.length && start < b.length && a[start] === b[start]) start += 1
-  let endA = a.length
-  let endB = b.length
-  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
-    endA -= 1
-    endB -= 1
-  }
-  return { lines: [{ line: start + 1, before: a.slice(start, endA).join('⏎'), after: b.slice(start, endB).join('⏎') }], more: 0 }
+  return out
+}
+
+/** Every match replaced - with how many there were. */
+export function replaceText(content: string, options: ReplaceOptions, from = 0, to = content.length): { content: string; count: number } | { error: string } {
+  const matches = findMatches(content, options, from, to)
+  if ('error' in matches) return matches
+  let next = content
+  for (const match of [...matches].reverse()) next = next.slice(0, match.start) + match.replacement + next.slice(match.end)
+  return { content: next, count: matches.length }
+}
+
+/** One match replaced (Notepad++'s "Ersetzen"). */
+export function replaceOne(content: string, match: TextMatch): string {
+  return content.slice(0, match.start) + match.replacement + content.slice(match.end)
 }
 
 /** A building block for the pattern, with what it means - the regex builder's buttons. */

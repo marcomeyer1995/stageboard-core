@@ -423,17 +423,33 @@ describe('SheetEditor - text tools (#605)', () => {
     expect(textarea.value).toBe('[G]     [D]\nHello World\nC     F\nSecond line')
   })
 
-  it('Suchen & Ersetzen with a regular expression: preview first, then replaced on the selected lines only', async () => {
+  it('Suchen & Ersetzen is a bar over the text (like Notepad++): regex with a group, marked in the text, only the marked lines, Ersetzen one by one', async () => {
     stubViewport(phone)
-    const textarea = await renderLoaded(song, '[Am]  la\n[G]   lu')
-    textarea.setSelectionRange(0, 3)
+    const textarea = await renderLoaded(song, '[Am]  la\n[G]   lu\n[C]  li')
+    textarea.setSelectionRange(0, 12)
     await runTool('Suchen & Ersetzen …')
-    fireEvent.click(screen.getByRole('switch', { name: /Reguläre Ausdrücke/ }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Suchen' }), { target: { value: '^\\[(\\w+)\\]\\s+' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Ersetzen durch' }), { target: { value: '[$1]' } })
-    expect(screen.getByRole('region', { name: 'Vorschau' })).toHaveTextContent('[Am]la')
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '1× ersetzen' })))
-    expect(textarea.value).toBe('[Am]la\n[G]   lu')
+    const bar = screen.getByRole('region', { name: 'Suchen & Ersetzen' })
+    fireEvent.click(within(bar).getByRole('radio', { name: 'Regex' }))
+    fireEvent.change(within(bar).getByRole('textbox', { name: 'Suchen' }), { target: { value: '^\\[(\\w+)\\]\\s+' } })
+    fireEvent.change(within(bar).getByRole('textbox', { name: 'Ersetzen durch' }), { target: { value: '[$1]' } })
+    // Only the two marked lines count; the matches are drawn on the layer behind the text.
+    expect(within(bar).getByText('1/2')).toBeInTheDocument()
+    expect(screen.getByTestId('editor-backdrop').querySelectorAll('mark')).toHaveLength(2)
+    await act(async () => fireEvent.click(within(bar).getByRole('button', { name: 'Ersetzen' })))
+    expect(textarea.value).toBe('[Am]la\n[G]   lu\n[C]  li')
+    await act(async () => fireEvent.click(within(bar).getByRole('button', { name: 'Alle ersetzen (1)' })))
+    expect(textarea.value).toBe('[Am]la\n[G]lu\n[C]  li')
+  })
+
+  it('shows invisible characters on the layer behind the text - · → ¶ - from the page menu', async () => {
+    stubViewport(phone)
+    await renderLoaded(song, 'a b\tc\nd')
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Song-Editor' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /Unsichtbare Zeichen einblenden/ })))
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('·')
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('→')
+    expect(screen.getByTestId('editor-backdrop').textContent).toContain('¶')
+    localStorage.clear()
   })
 
   it('names an unclosed bracket with its line once typing has paused', async () => {
