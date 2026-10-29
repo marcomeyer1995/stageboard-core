@@ -150,6 +150,9 @@ interface SheetEditorProps {
 /** Visible height (keyboard up) from which the variant row stays above the text while typing. */
 export const ROOMY_FOR_VARIANT_ROW_PX = 560
 
+/** Visible height below which the editor's page header steps aside while the keyboard is up. */
+export const ROOMY_FOR_HEADER_PX = 400
+
 /** Visible height from which the search bar shows all its rows (a tablet in portrait without the keyboard). */
 export const ROOMY_FOR_FULL_SEARCH_PX = 760
 
@@ -1119,7 +1122,11 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const roomPx = visible?.height ?? (typeof window === 'undefined' ? 0 : window.innerHeight)
   // What the keyboard covers of the page (landscape) - the text pane ends above it.
   const keyboardCover = keyboardOpen && visible && typeof window !== 'undefined' ? Math.max(0, window.innerHeight - (visible.offsetTop + visible.height)) : 0
-  const typingOnPhone = textFocused && !isPanel && roomPx < ROOMY_FOR_VARIANT_ROW_PX
+  // Two columns too: in landscape with the keyboard up only ~250 px are left (Redmi, 2026-10-29).
+  const typingOnPhone = textFocused && roomPx < ROOMY_FOR_VARIANT_ROW_PX
+  // Even less (landscape, keyboard up): the page header steps aside as well while typing - it is
+  // back the moment the keyboard goes down.
+  const headerAside = keyboardOpen && roomPx < ROOMY_FOR_HEADER_PX
   // The search bar with little room (keyboard up, landscape, a phone): one row, and the variant
   // row steps aside - on the Redmi with the keyboard up only two lines of text were left (2026-10-29).
   const compactSearch = roomPx < ROOMY_FOR_FULL_SEARCH_PX || (typeof window !== 'undefined' && window.innerWidth < 600)
@@ -1231,7 +1238,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   return (
     <div className="flex h-full flex-col gap-2 sb-app-bg p-3 text-ink max-[599px]:p-2">
-      {pageHeader}
+      {!headerAside && pageHeader}
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex min-h-0 flex-1 flex-col">
         {view === 'timeline' ? (
