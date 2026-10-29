@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { VerifyWorkspaceAdmin, type VerifiedAdmin } from './VerifyWorkspaceAdmin'
 import { useBackHandler } from '../lib/backNavigation'
 import { Badge, Button, MENU_ROW } from './ui'
+import { useTranslation } from 'react-i18next'
 
 type Step = 'closing' | 'pick-band' | 'target' | 'committing'
 
@@ -36,6 +37,7 @@ export function SwitchServerBandWizard({
   activeWorkspaceId: string | null
   onClose: (switched: boolean) => void
 }) {
+  const { t } = useTranslation('system')
   useBackHandler(() => onClose(false))
   const activateWorkspaceHardware = useWorkspaceStore((state) => state.activateWorkspaceHardware)
   const activateProfile = useWorkspaceStore((state) => state.activateProfile)
@@ -101,8 +103,8 @@ export function SwitchServerBandWizard({
         {step === 'pick-band' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold">Zu welcher Band wechseln?</h2>
-              <p className="mt-1 text-sm text-ink-muted">Alle Bands auf diesem Stage-Server.</p>
+              <h2 className="text-xl font-bold">{t('sw.which')}</h2>
+              <p className="mt-1 text-sm text-ink-muted">{t('sw.all')}</p>
             </div>
             <ul className="space-y-2">
               {bands.map((band) => {
@@ -119,14 +121,14 @@ export function SwitchServerBandWizard({
                       className={`${MENU_ROW} justify-between font-semibold text-ink ${isActive ? 'outline outline-2 -outline-offset-2 outline-accent disabled:opacity-100' : ''}`}
                     >
                       <span>{band.workspaceName}</span>
-                      {isActive && <Badge tone="accent">Aktiv</Badge>}
+                      {isActive && <Badge tone="accent">{t('sw.active')}</Badge>}
                     </button>
                   </li>
                 )
               })}
             </ul>
             <div className="flex border-t border-line pt-3">
-              <Button onClick={() => onClose(false)}>Abbrechen</Button>
+              <Button onClick={() => onClose(false)}>{t('cancel')}</Button>
             </div>
           </div>
         )}
@@ -141,7 +143,7 @@ export function SwitchServerBandWizard({
           />
         )}
 
-        {step === 'committing' && <p className="text-center text-sm text-ink-muted">Wechsle Band…</p>}
+        {step === 'committing' && <p className="text-center text-sm text-ink-muted">{t('sw.switching')}</p>}
       </div>
     </div>
   )

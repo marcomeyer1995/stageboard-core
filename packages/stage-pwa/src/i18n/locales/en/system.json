@@ -133,5 +133,64 @@
     "install": "Install version {{version}}",
     "current": "Up to date - the Stage server has no newer version.",
     "none": "The Stage server offers no app (or can't be reached)."
+  },
+  "srv": {
+    "pairedWith": "Paired with ",
+    "notPaired": "Not paired with a Stage server yet.",
+    "connectedTo": "Connected to ",
+    "manual": "(entered by hand)",
+    "automatic": "(automatic)",
+    "unknown": "No Stage server known.",
+    "overrideWarn": "This manual address replaces the automatic one{{automatic}} on this device. If it's no longer right, this device won't reach the Stage server.",
+    "reset": "Reset to automatic",
+    "advanced": "Advanced: use another address",
+    "address": "Address of the Stage server",
+    "addressExplainLabel": "Explanation: address of the Stage server",
+    "addressExplain": "Only needed when this device didn't load the app from the Stage server. Leave it empty or enter the automatic address = automatic.",
+    "placeholder": "e.g. https://stageboard.local",
+    "addressAria": "Stage server address"
+  },
+  "syncState": {
+    "idle": "In sync",
+    "syncing": "Syncing…",
+    "offline": "Offline",
+    "error": "Error",
+    "progress": "{{label}} ({{progress}}%)",
+    "cantRepair": "Can't repair here - leave the band with “Remove from this device” and join again.",
+    "repairTitle": "Repair sync",
+    "code": "Access code for “{{band}}”",
+    "repair": "Repair"
+  },
+  "hw": {
+    "slow": "Stage server answers slowly…",
+    "loading": "Loading…",
+    "unreachable": "Stage server unreachable.",
+    "unpaired": "Not paired with a Stage server yet - search under System → Stage server.",
+    "active": "Active: ",
+    "none": "none",
+    "slowShort": "answering slowly…",
+    "refreshing": "refreshing…",
+    "switch": "Switch band…"
+  },
+  "sw": {
+    "which": "Switch to which band?",
+    "all": "All bands on this Stage server.",
+    "active": "Active",
+    "switching": "Switching band…"
+  },
+  "cancel": "Cancel",
+  "adm": {
+    "title": "Admin of “{{band}}”",
+    "checking": "Checking…",
+    "code": "Enter the band's code.",
+    "who": "Who are you?",
+    "pinKnown": "Enter the signed-in admin's PIN.",
+    "pin": "Enter the PIN.",
+    "code8": "8-digit code",
+    "next": "Next",
+    "noAdmins": "No admins found in this band.",
+    "pin4": "4-digit PIN",
+    "confirm": "Confirm",
+    "other": "Choose another admin"
   }
 }

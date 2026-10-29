@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { INPUT_FREE } from './ui/styles'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 type Step = 'checking' | 'code' | 'roster' | 'pin'
 
@@ -56,6 +57,7 @@ export function VerifyWorkspaceAdmin({
   onVerified: (admin: VerifiedAdmin) => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation('system')
   const getAccessCode = useWorkspaceStore((state) => state.getAccessCode)
   const fetchRoster = useWorkspaceStore((state) => state.fetchRoster)
   const verifyAdminPin = useWorkspaceStore((state) => state.verifyAdminPin)
@@ -123,12 +125,12 @@ export function VerifyWorkspaceAdmin({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Admin von „{workspaceName}“</h2>
+        <h2 className="text-xl font-bold">{t('adm.title', { band: workspaceName })}</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          {step === 'checking' && 'Prüfe…'}
-          {step === 'code' && 'Code der Band eingeben.'}
-          {step === 'roster' && 'Wer bist du?'}
-          {step === 'pin' && (useKnownProfile ? 'PIN des angemeldeten Admins eingeben.' : 'PIN eingeben.')}
+          {step === 'checking' && t('adm.checking')}
+          {step === 'code' && t('adm.code')}
+          {step === 'roster' && t('adm.who')}
+          {step === 'pin' && (useKnownProfile ? t('adm.pinKnown') : t('adm.pin'))}
         </p>
       </div>
 
@@ -143,20 +145,20 @@ export function VerifyWorkspaceAdmin({
           <input
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="8-stelliger Code"
+            placeholder={t('adm.code8')}
             inputMode="numeric"
             autoFocus
             className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || manualCode.trim().length === 0}>
-            {busy ? '…' : 'Weiter'}
+            {busy ? '…' : t('adm.next')}
           </Button>
         </form>
       )}
 
       {step === 'roster' && (
         <>
-          {admins.length === 0 && <p className="text-sm text-ink-muted">Keine Admins in dieser Band gefunden.</p>}
+          {admins.length === 0 && <p className="text-sm text-ink-muted">{t('adm.noAdmins')}</p>}
           <ul className="space-y-2">
             {admins.map((member) => (
               <li key={member.profileId}>
@@ -188,13 +190,13 @@ export function VerifyWorkspaceAdmin({
           <input
             value={pinInput}
             onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="4-stelliger PIN"
+            placeholder={t('adm.pin4')}
             inputMode="numeric"
             autoFocus
             className={`h-form min-w-0 flex-1 min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <Button variant="primary" className="flex-shrink-0" type="submit" disabled={busy || pinInput.length !== 4}>
-            {busy ? '…' : 'Bestätigen'}
+            {busy ? '…' : t('adm.confirm')}
           </Button>
         </form>
       )}
@@ -209,12 +211,12 @@ export function VerifyWorkspaceAdmin({
           }}
           className="min-h-form w-full text-center text-base text-ink-soft underline"
         >
-          Anderer Admin wählen
+          {t('adm.other')}
         </button>
       )}
 
       <div className="flex border-t border-line pt-3">
-        <Button onClick={onCancel}>Abbrechen</Button>
+        <Button onClick={onCancel}>{t('cancel')}</Button>
       </div>
     </div>
   )

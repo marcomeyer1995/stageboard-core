@@ -133,5 +133,64 @@
     "install": "Version {{version}} installieren",
     "current": "Aktuell – der Stage-Server hat keine neuere Version.",
     "none": "Der Stage-Server bietet keine App an (oder ist nicht erreichbar)."
+  },
+  "srv": {
+    "pairedWith": "Gekoppelt mit ",
+    "notPaired": "Noch mit keinem Stage-Server gekoppelt.",
+    "connectedTo": "Verbunden mit ",
+    "manual": "(manuell eingetragen)",
+    "automatic": "(automatisch)",
+    "unknown": "Kein Stage-Server bekannt.",
+    "overrideWarn": "Diese manuelle Adresse ersetzt auf diesem Gerät die automatische{{automatic}}. Stimmt sie nicht mehr, erreicht dieses Gerät den Stage-Server nicht.",
+    "reset": "Zurücksetzen auf automatisch",
+    "advanced": "Erweitert: andere Adresse verwenden",
+    "address": "Adresse des Stage-Servers",
+    "addressExplainLabel": "Erklärung: Adresse des Stage-Servers",
+    "addressExplain": "Nur nötig, wenn dieses Gerät die App nicht vom Stage-Server geladen hat. Leer lassen oder die automatische Adresse eintragen = automatisch.",
+    "placeholder": "z.B. https://stageboard.local",
+    "addressAria": "Stage-Server-Adresse"
+  },
+  "syncState": {
+    "idle": "Synchronisiert",
+    "syncing": "Synchronisiere…",
+    "offline": "Offline",
+    "error": "Fehler",
+    "progress": "{{label}} ({{progress}}%)",
+    "cantRepair": "Reparatur hier nicht möglich - Band unter „Von diesem Gerät entfernen“ verlassen und neu beitreten.",
+    "repairTitle": "Sync reparieren",
+    "code": "Zugangscode für „{{band}}“",
+    "repair": "Reparieren"
+  },
+  "hw": {
+    "slow": "Stage-Server antwortet langsam…",
+    "loading": "Lade…",
+    "unreachable": "Stage-Server nicht erreichbar.",
+    "unpaired": "Noch mit keinem Stage-Server gekoppelt - unter System → Stage-Server suchen.",
+    "active": "Aktiv: ",
+    "none": "keine",
+    "slowShort": "antwortet langsam…",
+    "refreshing": "aktualisiere…",
+    "switch": "Band wechseln…"
+  },
+  "sw": {
+    "which": "Zu welcher Band wechseln?",
+    "all": "Alle Bands auf diesem Stage-Server.",
+    "active": "Aktiv",
+    "switching": "Wechsle Band…"
+  },
+  "cancel": "Abbrechen",
+  "adm": {
+    "title": "Admin von „{{band}}“",
+    "checking": "Prüfe…",
+    "code": "Code der Band eingeben.",
+    "who": "Wer bist du?",
+    "pinKnown": "PIN des angemeldeten Admins eingeben.",
+    "pin": "PIN eingeben.",
+    "code8": "8-stelliger Code",
+    "next": "Weiter",
+    "noAdmins": "Keine Admins in dieser Band gefunden.",
+    "pin4": "4-stelliger PIN",
+    "confirm": "Bestätigen",
+    "other": "Anderer Admin wählen"
   }
 }

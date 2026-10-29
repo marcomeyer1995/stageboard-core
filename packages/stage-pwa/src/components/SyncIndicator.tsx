@@ -4,13 +4,9 @@ import { useDialogStore } from '../store/useDialogStore'
 import { deriveOwnProfileId, useWorkspaceStore } from '../store/useWorkspaceStore'
 import { Icon, type IconName } from './Icon'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
-const STATUS_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
-  idle: { icon: 'check', label: 'Synchronisiert' },
-  syncing: { icon: 'cloud', label: 'Synchronisiere…' },
-  offline: { icon: 'blocked', label: 'Offline' },
-  error: { icon: 'warning', label: 'Fehler' },
-}
+const STATUS_ICON: Record<SyncStatus, IconName> = { idle: 'check', syncing: 'cloud', offline: 'blocked', error: 'warning' }
 
 /**
  * Discreet by design (docs/07): a text row inside AppMenu, not a floating badge over the
@@ -38,22 +34,24 @@ const STATUS_TEXT: Record<SyncStatus, { icon: IconName; label: string }> = {
  * no second prompt needed, and it's simply ignored server-side for a non-admin profile.
  */
 export function SyncIndicator() {
+  const { t } = useTranslation('system')
   const status = useSyncStore((state) => deriveSyncStatus(state.streams, state.browserOffline))
   const progress = useSyncStore((state) => deriveSyncProgress(state.progress))
   const workspace = useWorkspaceStore((state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId))
   const joinAsMember = useWorkspaceStore((state) => state.joinAsMember)
   const promptText = useDialogStore((state) => state.promptText)
   const alert = useDialogStore((state) => state.alert)
-  const { icon, label } = STATUS_TEXT[status]
-  const displayLabel = status === 'syncing' && progress !== null ? `${label} (${progress}%)` : label
+  const icon = STATUS_ICON[status]
+  const label = t(`syncState.${status}`)
+  const displayLabel = status === 'syncing' && progress !== null ? t('syncState.progress', { label, progress }) : label
 
   async function repair() {
     const profileId = workspace && (workspace.ownProfileId ?? deriveOwnProfileId(workspace, getDeviceId()))
     if (!workspace || !profileId) {
-      void alert('Reparatur hier nicht möglich - Band unter „Von diesem Gerät entfernen" verlassen und neu beitreten.')
+      void alert(t('syncState.cantRepair'))
       return
     }
-    const code = await promptText('Sync reparieren', { label: `Zugangscode für „${workspace.name}"` })
+    const code = await promptText(t('syncState.repairTitle'), { label: t('syncState.code', { band: workspace.name }) })
     if (!code) return
     await joinAsMember(workspace.id, workspace.name, code, profileId, code.slice(-4))
   }
@@ -71,7 +69,7 @@ export function SyncIndicator() {
       </div>
       {status === 'error' && (
         <Button onClick={() => void repair()}>
-          Reparieren
+          {t('syncState.repair')}
         </Button>
       )}
     </div>
