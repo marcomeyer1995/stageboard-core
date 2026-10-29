@@ -1058,7 +1058,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const previewPane = (
     <div ref={previewRef} className="min-h-0 flex-1 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb min-[600px]:p-6">
-      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} />
+      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} chordInfo />
     </div>
   )
 
