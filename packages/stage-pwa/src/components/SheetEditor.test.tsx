@@ -404,7 +404,10 @@ describe('SheetEditor - text tools (#605)', () => {
   it('Aufräumen on the whole text, then Rückgängig brings the text back', async () => {
     stubViewport(phone)
     const textarea = await renderLoaded(song, '[am]Hello  \n\n\n\nWorld')
-    await runTool('Aufräumen')
+    await runTool('Aufräumen …')
+    // The rules dialog (2026-10-29): the defaults, how many places, then apply.
+    expect(screen.getByRole('dialog', { name: 'Aufräumen' })).toHaveTextContent('der ganze Text')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Aufräumen \(\d+ Stellen\)$/ })))
     expect(textarea.value).toBe('[Am]Hello\n\nWorld')
     fireEvent.click(screen.getByRole('button', { name: 'Rückgängig' }))
     expect(textarea.value).toBe('[am]Hello  \n\n\n\nWorld')
@@ -416,8 +419,21 @@ describe('SheetEditor - text tools (#605)', () => {
     const textarea = await renderLoaded(song, text)
     textarea.setSelectionRange(0, 3)
     // The chord line alone is selected - its lyric line below is not, so it stays a chord line.
-    await runTool('Akkordzeilen zusammenführen')
+    await runTool('Akkordzeilen integrieren')
     expect(textarea.value).toBe('[G]     [D]\nHello World\nC     F\nSecond line')
+  })
+
+  it('Suchen & Ersetzen with a regular expression: preview first, then replaced on the selected lines only', async () => {
+    stubViewport(phone)
+    const textarea = await renderLoaded(song, '[Am]  la\n[G]   lu')
+    textarea.setSelectionRange(0, 3)
+    await runTool('Suchen & Ersetzen …')
+    fireEvent.click(screen.getByRole('switch', { name: /Reguläre Ausdrücke/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Suchen' }), { target: { value: '^\\[(\\w+)\\]\\s+' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ersetzen durch' }), { target: { value: '[$1]' } })
+    expect(screen.getByRole('region', { name: 'Vorschau' })).toHaveTextContent('[Am]la')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '1× ersetzen' })))
+    expect(textarea.value).toBe('[Am]la\n[G]   lu')
   })
 
   it('names an unclosed bracket with its line once typing has paused', async () => {

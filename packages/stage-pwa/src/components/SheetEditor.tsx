@@ -17,7 +17,9 @@ import { clickTimeline, gridFromBeats, gridStretches } from '../lib/beatGrid'
 import { formatTimelineTime } from '../lib/timeline'
 import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
-import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
+import { bracketProblems, transposeText } from '../lib/textTools'
+import { CleanupDialog } from './CleanupDialog'
+import { ReplaceDialog } from './ReplaceDialog'
 import { randomId } from '../lib/id'
 import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
@@ -188,6 +190,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [pageMenuOpen, setPageMenuOpen] = useState(false)
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  // Aufräumen / Suchen & Ersetzen open on the range they were started on (#605, 2026-10-29).
+  const [toolDialog, setToolDialog] = useState<{ kind: 'cleanup' | 'replace'; start: number; end: number; scope: string } | null>(null)
   // The text before the last text tool ran (#605) - "Rückgängig" until the next edit by hand.
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
   // "+ Kommentar" / "+ Tab" dialogs (#608).
@@ -803,21 +807,25 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     />
   )
 
-  /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
-  const applyTextTool = (label: string, tool: (text: string) => string) => {
+  /** What a text tool works on (#605): the selected lines, or the whole text without a selection. */
+  const toolRange = () => {
     const textarea = textareaRef.current
     const before = draft.chordProContent
     let start = textarea?.selectionStart ?? 0
     let end = textarea?.selectionEnd ?? 0
-    if (start === end) {
-      start = 0
-      end = before.length
-    } else {
-      // Whole lines: a chord line and its lyric belong together.
-      start = before.lastIndexOf('\n', start - 1) + 1
-      const lineEnd = before.indexOf('\n', end)
-      end = lineEnd === -1 ? before.length : lineEnd
-    }
+    if (start === end) return { start: 0, end: before.length, scope: 'der ganze Text' }
+    // Whole lines: a chord line and its lyric belong together.
+    start = before.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = before.indexOf('\n', end)
+    end = lineEnd === -1 ? before.length : lineEnd
+    const lines = before.slice(start, end).split('\n').length
+    return { start, end, scope: `die markierten Zeilen (${lines})` }
+  }
+
+  /** Runs a text tool on the selected lines, or on the whole text without a selection (#605). */
+  const applyTextTool = (label: string, tool: (text: string) => string, range = toolRange()) => {
+    const before = draft.chordProContent
+    const { start, end } = range
     const after = before.slice(0, start) + tool(before.slice(start, end)) + before.slice(end)
     if (after === before) {
       setToolUndo(null)
@@ -836,32 +844,13 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
     applyTextTool(`Transponiert ${signedSteps(steps)}`, (text) => transposeText(text, steps, draft.key))
   }
 
-  const askReplace = async () => {
-    const result = await promptFields(
-      'Suchen & Ersetzen',
-      [
-        { key: 'find', label: 'Suchen' },
-        { key: 'replace', label: 'Ersetzen durch' },
-      ],
-      'Alle ersetzen',
-    )
-    if (!result?.find) return
-    let count = 0
-    applyTextTool('Ersetzt', (text) => {
-      const replaced = replaceAllText(text, result.find, result.replace ?? '')
-      count = replaced.count
-      return replaced.content
-    })
-    if (count > 0) setToolUndo((undo) => (undo ? { ...undo, label: `${count}× ersetzt` } : undo))
-  }
-
   // In the text itself (#605) - for imported or pasted charts; the variant's own transpose stays
   // in Song-Angaben.
   const toolActions: MenuAction[] = [
     { label: 'Transponieren …', onClick: () => void askTranspose() },
-    { label: 'Akkordzeilen zusammenführen', onClick: () => applyTextTool('Akkordzeilen zusammengeführt', mergeChordLines) },
-    { label: 'Aufräumen', onClick: () => applyTextTool('Aufgeräumt', cleanupText) },
-    { label: 'Suchen & Ersetzen …', onClick: () => void askReplace() },
+    { label: 'Akkordzeilen integrieren', onClick: () => applyTextTool('Akkordzeilen integriert', mergeChordLines) },
+    { label: 'Aufräumen …', onClick: () => setToolDialog({ kind: 'cleanup', ...toolRange() }) },
+    { label: 'Suchen & Ersetzen …', onClick: () => setToolDialog({ kind: 'replace', ...toolRange() }) },
   ]
 
   const insertActions: MenuAction[] = [
@@ -1181,6 +1170,28 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       </div>
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
+      {toolDialog?.kind === 'cleanup' && (
+        <CleanupDialog
+          text={draft.chordProContent.slice(toolDialog.start, toolDialog.end)}
+          scope={toolDialog.scope}
+          onCancel={() => setToolDialog(null)}
+          onApply={(after) => {
+            applyTextTool('Aufgeräumt', () => after, toolDialog)
+            setToolDialog(null)
+          }}
+        />
+      )}
+      {toolDialog?.kind === 'replace' && (
+        <ReplaceDialog
+          text={draft.chordProContent.slice(toolDialog.start, toolDialog.end)}
+          scope={toolDialog.scope}
+          onCancel={() => setToolDialog(null)}
+          onApply={(after, count) => {
+            applyTextTool(`${count}× ersetzt`, () => after, toolDialog)
+            setToolDialog(null)
+          }}
+        />
+      )}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
       {textFix && <TextFixDialog offers={textFix.offers} onSave={textFix.resolve} onCancel={() => textFix.resolve(null)} />}
       {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
