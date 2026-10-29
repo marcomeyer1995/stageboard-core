@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { capabilitiesLabel } from '../lib/pluginCatalog'
 import { useShowLogStore } from '../store/useShowLogStore'
@@ -6,7 +6,7 @@ import { useProfilesStore } from '../store/useProfilesStore'
 import { Icon } from './Icon'
 import { CONTROL, FOCUS, HOVER, SELECTED } from './ui/styles'
 import { RigCheckReport } from './RigCheckReport'
-import { rigCheckLabel } from '../lib/rigCheck'
+import { rigCheckLabel, rigCheckVerdicts } from '../lib/rigCheck'
 
 function fmtTime(ms: number): string {
   return new Date(ms).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
@@ -58,7 +58,7 @@ type CueFired = Extract<ShowLogEvent, { type: 'cue-fired' }>
  * "Technik (n)" line - they used to sit between the songs, dozens of "click-track: degraded →
  * available" lines burying the setlist that was actually played (GUI audit 2026-09-26).
  */
-function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: string | null) => string }) {
+function ShowSections({ show, authorName, children }: { show: ShowGroup; authorName: (id: string | null) => string; children?: ReactNode }) {
   const byTime = [...show.events].sort((a, b) => a.at - b.at)
   const songs = byTime.filter((event): event is SongPlayed => event.type === 'song-played')
   const notes = byTime.filter((event): event is Note => event.type === 'note')
@@ -74,6 +74,8 @@ function ShowSections({ show, authorName }: { show: ShowGroup; authorName: (id: 
       <p className="mb-3 text-sm text-ink-muted">
         {songs.length} {songs.length === 1 ? 'Song' : 'Songs'} · {fmtDuration(playedMs)} gespielt
       </p>
+      {/* A Rig-Check's result (#464) under the show's own heading, above its songs. */}
+      {children}
       <div className="space-y-1 text-base">
         {songs.map((event, index) => (
           <div key={event.id} className="flex items-center justify-between gap-2">
@@ -183,6 +185,7 @@ export function countShowsWithContent(shows: ShowGroup[]): number {
 function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolean; onOpen: () => void }) {
   const summary = summarize(show)
   const rigCheck = rigCheckLabel(show.events)
+  const verdicts = rigCheckVerdicts(show.events)
   return (
     <button
       type="button"
@@ -198,7 +201,13 @@ function ShowRow({ show, selected, onOpen }: { show: ShowGroup; selected: boolea
         <span className={`block text-sm ${selected ? '' : 'text-ink-muted'}`}>
           {summary.songs} {summary.songs === 1 ? 'Song' : 'Songs'} · {fmtDuration(summary.playedMs)} gespielt
           {summary.notes > 0 && ` · ${summary.notes} ${summary.notes === 1 ? 'Notiz' : 'Notizen'}`}
+          {verdicts && verdicts.problems === 0 && verdicts.ok > 0 && ` · ${verdicts.ok} ${verdicts.ok === 1 ? 'Gerät' : 'Geräte'} OK`}
         </span>
+        {verdicts && verdicts.problems > 0 && (
+          <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>
+            Rig-Check: {verdicts.problems} {verdicts.problems === 1 ? 'Gerät' : 'Geräte'} mit Problem
+          </span>
+        )}
         {/* Its own line in red - a badge beside the text squeezed it to one word per line on the phone. */}
         {summary.failedCues > 0 && <span className={`block text-sm font-semibold ${selected ? '' : 'text-danger'}`}>{summary.failedCues} Cues fehlgeschlagen</span>}
       </span>
@@ -246,8 +255,9 @@ export function ShowDetail({ showId }: { showId: string }) {
   if (!show) return <p className="text-ink-faint">Show wurde entfernt.</p>
   return (
     <div className="text-ink">
-      <RigCheckReport events={show.events} />
-      <ShowSections show={show} authorName={authorName} />
+      <ShowSections show={show} authorName={authorName}>
+        <RigCheckReport events={show.events} />
+      </ShowSections>
     </div>
   )
 }

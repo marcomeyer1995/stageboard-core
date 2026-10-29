@@ -31,6 +31,7 @@ const { useShowStateStore } = await import('../store/useShowStateStore')
 const { useSongsStore } = await import('../store/useSongsStore')
 const { useSongVariantsStore } = await import('../store/useSongVariantsStore')
 const { useSetlistsStore } = await import('../store/useSetlistsStore')
+const { useAppModeStore } = await import('../store/useAppModeStore')
 
 let state: ShowState
 let events: ShowLogEvent[]
@@ -128,6 +129,13 @@ describe('startRigCheck', () => {
     expect(run.previous).toEqual({ activeSetlistId: 'gig-setlist', activeEntryId: 'e7', currentShowId: 'tonight', lastActivityAt: 123 })
     expect(events.some((e) => e.type === 'show-started' && e.showId === 'r1')).toBe(true)
   })
+
+  it('a master in Solo Üben goes to Gig first - it plays the run like the band hears it', async () => {
+    useAppModeStore.setState({ mode: 'practice' })
+    await append(preparedRun())
+    expect(await rig.startRigCheck()).toBe('started')
+    expect(useAppModeStore.getState().mode).toBe('gig')
+  })
 })
 
 describe('useRigCheckDriver', () => {
@@ -197,5 +205,14 @@ describe('device reports', () => {
     const reports = rig.runReports(events, 'r1')
     expect(reports).toHaveLength(1)
     expect(reports[0]).toMatchObject({ id: rig.deviceReportId('r1', getDeviceId()), trackReady: true, verdict: 'problem', note: 'Prompter zu spät', mode: 'gig' })
+  })
+
+  it('counts the answers for the show list; a real show has none', async () => {
+    const run = preparedRun() as RigCheckRun
+    await append(run)
+    expect(rig.rigCheckVerdicts(events)).toEqual({ ok: 0, problems: 0 })
+    await rig.writeOwnReport(run, true, { verdict: 'problem', note: '' })
+    expect(rig.rigCheckVerdicts(events)).toEqual({ ok: 0, problems: 1 })
+    expect(rig.rigCheckVerdicts([])).toBeNull()
   })
 })

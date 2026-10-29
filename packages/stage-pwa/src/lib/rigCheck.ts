@@ -192,6 +192,9 @@ export async function startRigCheck(): Promise<StartResult> {
   if (!run || run.startedAt !== undefined) return 'no-run'
   if (store.state.playbackStatus !== 'stopped') return 'busy'
   if (!runIsPlayable(run)) return 'not-ready'
+  // The master plays the run like a gig: in Solo Üben it played its own song while the band
+  // followed the Rig-Check - and the band's audio device played nothing (Redmi, 2026-10-29).
+  if (useAppModeStore.getState().mode !== 'gig' && !useAppModeStore.getState().setMode('gig')) return 'busy'
   const at = Math.round(now)
   await saveRun({ ...run, startedAt: at, previous: previousOf(store.state) })
   await useShowLogStore.getState().append({ id: `show-started-${run.showId}`, showId: run.showId, type: 'show-started', at })
@@ -409,4 +412,12 @@ export function rigCheckLabel(showEvents: readonly ShowLogEvent[]): string | nul
   const run = showEvents.find(isRun)
   if (!run) return null
   return `Rig-Check · ${run.kind === 'quick' ? 'Kurz' : 'Voll'}${run.cancelled ? ' (abgebrochen)' : ''}`
+}
+
+/** How the devices of a show's Rig-Check answered - for its line in the show list. */
+export function rigCheckVerdicts(showEvents: readonly ShowLogEvent[]): { ok: number; problems: number } | null {
+  const run = showEvents.find(isRun)
+  if (!run) return null
+  const reports = runReports(showEvents, run.showId)
+  return { ok: reports.filter((r) => r.verdict === 'ok').length, problems: reports.filter((r) => r.verdict === 'problem').length }
 }
