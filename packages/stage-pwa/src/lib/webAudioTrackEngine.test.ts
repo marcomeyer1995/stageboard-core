@@ -8,6 +8,7 @@ import {
   jumpCrossfadeMs,
   loadWebAudioTrack,
   preloadWebAudioTrack,
+  setWebAudioTrackLevelCurve,
   syncWebAudioTrack,
 } from './webAudioTrackEngine'
 
@@ -42,6 +43,8 @@ interface FakeNode {
   rate: number
 }
 const nodes: FakeNode[] = []
+/** Every gain node created, in order - the first one of a test is the track's level node (#485). */
+const gains: { gain: Record<string, ReturnType<typeof vi.fn>>; connect: ReturnType<typeof vi.fn> }[] = []
 const ctx = {
   state: 'running',
   get currentTime() {
@@ -51,7 +54,11 @@ const ctx = {
   resume: vi.fn(async () => {}),
   decodeAudioData: vi.fn(async (data: ArrayBuffer) => fakeBuffer(`full:${new TextDecoder().decode(data)}`, DURATION_S)),
   createBuffer: (_channels: number, length: number) => fakeBuffer('joined', length / SR),
-  createGain: () => ({ gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), setValueCurveAtTime: vi.fn(), cancelScheduledValues: vi.fn() }, connect: vi.fn() }),
+  createGain: () => {
+    const gain = { gain: { setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), setValueCurveAtTime: vi.fn(), cancelScheduledValues: vi.fn() }, connect: vi.fn() }
+    gains.push(gain)
+    return gain
+  },
   createBufferSource: () => {
     const node: FakeNode = { buffer: null, when: NaN, offset: NaN, stoppedAt: null, rate: 1 }
     nodes.push(node)
@@ -105,6 +112,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   wallMs = 1_000_000
   nodes.length = 0
+  gains.length = 0
   decoded.clear()
   vi.spyOn(Date, 'now').mockImplementation(() => wallMs)
   vi.spyOn(performance, 'now').mockImplementation(() => wallMs)
@@ -334,3 +342,54 @@ describe('webAudioTrackEngine, crossfade length per device (#479)', () => {
   })
 })
 
+describe('track level by cue (#485)', () => {
+  // Normal until 20 s, down to half over 20-22 s, then muted at once from 30 s.
+  const curve = [
+    { timeMs: 0, gain: 1 },
+    { timeMs: 20_000, gain: 1 },
+    { timeMs: 22_000, gain: 0.5 },
+    { timeMs: 30_000, gain: 0.5 },
+    { timeMs: 30_010, gain: 0 },
+  ]
+
+  it('plays the voices through one level node into the track mix', async () => {
+    setWebAudioTrackLevelCurve(curve)
+    await loadWebAudioTrack('v', 'a')
+    syncWebAudioTrack(() => 5_000, true)
+    const level = gains[0]!
+    // The voice's own gain plays into the level node, not straight into the mix.
+    expect(gains[1]!.connect).toHaveBeenCalledWith(level)
+  })
+
+  it('schedules the curve ahead from the song time: the level now, then a ramp to every point in the window', async () => {
+    setWebAudioTrackLevelCurve(curve)
+    await loadWebAudioTrack('v', 'a')
+    const at = audioNow()
+    syncWebAudioTrack(() => 21_500, true)
+    const param = gains[0]!.gain
+    expect(param.cancelScheduledValues).toHaveBeenCalledWith(at)
+    // Mid-fade: three quarters of the way from 1 to 0.5.
+    expect(param.setValueAtTime).toHaveBeenLastCalledWith(0.625, at)
+    expect(param.linearRampToValueAtTime).toHaveBeenCalledWith(0.5, at + 0.5) // the fade's end at 22 s
+    expect(param.linearRampToValueAtTime).toHaveBeenLastCalledWith(0.5, at + 1)
+  })
+
+  it('a seek or jump lands on the level of the new song time', async () => {
+    setWebAudioTrackLevelCurve(curve)
+    await loadWebAudioTrack('v', 'a')
+    syncWebAudioTrack(() => 10_000, true)
+    wallMs += 100
+    const at = audioNow()
+    syncWebAudioTrack(() => 31_000, true) // jumped past the mute
+    expect(gains[0]!.gain.setValueAtTime).toHaveBeenLastCalledWith(0, at)
+  })
+
+  it('without track cues the level stays as uploaded', async () => {
+    setWebAudioTrackLevelCurve([])
+    await loadWebAudioTrack('v', 'a')
+    const at = audioNow()
+    syncWebAudioTrack(() => 12_000, true)
+    expect(gains[0]!.gain.setValueAtTime).toHaveBeenLastCalledWith(1, at)
+    expect(gains[0]!.gain.linearRampToValueAtTime).not.toHaveBeenCalled()
+  })
+})

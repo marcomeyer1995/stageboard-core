@@ -19,6 +19,7 @@ import { pluginProviding } from '../lib/capabilities'
 import { parseChordPro, songChords, sourcePosition } from '../lib/chordpro'
 import { bracketProblems, cleanupText, replaceAllText, transposeText } from '../lib/textTools'
 import { randomId } from '../lib/id'
+import { applyCueAnchors } from '../lib/cueAnchors'
 import { isStandard, parseTuning, signedSteps, soundingKey, stageTuning, tuningLabel, variantChordShift } from '../lib/pitch'
 import { KeyTuningField } from './KeyTuningField'
 import { TuningSelect } from './TuningSelect'
@@ -36,6 +37,8 @@ import { useSettledTouchKeyboardOpen } from '../lib/useTouchKeyboardOpen'
 import { useSettledVisualViewport } from '../lib/useVisualViewport'
 import { CommentListEditor } from './CommentListEditor'
 import { InsertCommentDialog, InsertTabDialog } from './InsertNoteDialogs'
+import { TextFixDialog, type TextFixPick } from './TextFixDialog'
+import { applyTextFixes, textFixOffers, type TextFixOffer } from '../lib/variantTextFix'
 import { TabImportOverlay, type ImportedSongData } from './TabImportOverlay'
 import { TrackManagerField } from './TrackManagerField'
 import { TimelineEditor } from './timeline/TimelineEditor'
@@ -189,6 +192,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
   const [toolUndo, setToolUndo] = useState<{ before: string; label: string } | null>(null)
   // "+ Kommentar" / "+ Tab" dialogs (#608).
   const [noteDialog, setNoteDialog] = useState<'comment' | 'tab' | null>(null)
+  // On save: the changed lines other variants still have (#600) - answered with the picks, or null for "Abbrechen".
+  const [textFix, setTextFix] = useState<{ offers: TextFixOffer[]; resolve: (picks: TextFixPick[] | null) => void } | null>(null)
   // The text as it was a moment ago - the bracket hint follows it, not every keystroke (#605:
   // must not slow typing on a phone, and a "[Am" being typed is not a mistake yet).
   const [settledText, setSettledText] = useState('')
@@ -408,7 +413,8 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       clickTrackEnabled: draft.clickTrackEnabled,
       chordProContent: draft.chordProContent,
       timecodes: draft.timecodes,
-      cues: draft.cues,
+      // Anchored cues at their bar and beat, also after a tempo change in the details (#483).
+      cues: applyCueAnchors(draft.cues, clickTimeline({ beatGrid: draft.beatGrid, bpm: draft.bpm, timeSignature: draft.timeSignature })),
       ...(draft.beatGrid ? { beatGrid: draft.beatGrid } : {}),
       countInEnabled: draft.countInEnabled,
       countInBars: draft.countInBars,
@@ -448,9 +454,39 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       return false
     }
 
+    // The same text fix for the other variants (#600): offered line by line, each variant's own
+    // timing tags stay. "Abbrechen" there means nothing is saved.
+    const others = variantsForSong.filter((v) => v.id !== variant.id)
+    const stored = variantsForSong.find((v) => v.id === variant.id)
+    const offers = stored ? textFixOffers(stored.chordProContent, variant.chordProContent, others) : []
+    let fixed: SongVariant[] = []
+    if (offers.length > 0) {
+      const picks = await new Promise<TextFixPick[] | null>((resolve) =>
+        setTextFix({
+          offers,
+          resolve: (answer) => {
+            setTextFix(null)
+            resolve(answer)
+          },
+        }),
+      )
+      if (picks === null) return false
+      fixed = others.flatMap((other) => {
+        const fixes = picks.flatMap(({ offer, target }) => {
+          const place = offers[offer].targets[target]
+          return place.variantId === other.id ? [{ lineIndex: place.lineIndex, after: offers[offer].after }] : []
+        })
+        return fixes.length > 0 ? [{ ...other, chordProContent: applyTextFixes(other.chordProContent, fixes) }] : []
+      })
+    }
+    // A fixed default variant carries its new text into the Song mirror too.
+    const fixedDefault = fixed.find((v) => v.isDefault)
+    const songToSave = fixedDefault ? { ...songResult.data, chordProContent: fixedDefault.chordProContent } : songResult.data
+
     setError(null)
-    await saveSong(songResult.data)
+    await saveSong(songToSave)
     await saveVariant(variantResult.data)
+    for (const other of fixed) await saveVariant(other)
     savedDraft.current = JSON.stringify(draft)
     setSavedAt(Date.now())
     return true
@@ -1027,7 +1063,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
 
   const previewPane = (
     <div ref={previewRef} className="min-h-0 flex-1 overflow-y-auto rounded-container border border-line bg-surface p-4 shadow-sb min-[600px]:p-6">
-      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} />
+      <ChordProLyrics lines={preview} activeIndex={caretIndex} onSourceTap={jumpToSource} chordInfo />
     </div>
   )
 
@@ -1146,6 +1182,7 @@ export function SheetEditor({ songId, variantId, onBack }: SheetEditorProps) {
       {pageMenuOpen && <ActionMenuDialog title="Song-Editor" actions={pageActions} onClose={() => setPageMenuOpen(false)} />}
       {toolsMenuOpen && <ActionMenuDialog title="Textwerkzeuge" actions={toolActions} onClose={() => setToolsMenuOpen(false)} />}
       {insertMenuOpen && <ActionMenuDialog title="Einfügen" actions={insertActions} onClose={() => setInsertMenuOpen(false)} />}
+      {textFix && <TextFixDialog offers={textFix.offers} onSave={textFix.resolve} onCancel={() => textFix.resolve(null)} />}
       {noteDialog === 'comment' && <InsertCommentDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {noteDialog === 'tab' && <InsertTabDialog onInsert={insertLinesAtCaret} onClose={() => setNoteDialog(null)} />}
       {isImporting && (

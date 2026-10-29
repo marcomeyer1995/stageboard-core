@@ -1,13 +1,12 @@
 import { Segmented } from './ui'
 import { useAppModeStore, type SessionMode } from '../store/useAppModeStore'
 import { useShowStateStore } from '../store/useShowStateStore'
+import { useTranslation } from 'react-i18next'
 
-const OPTIONS: { mode: SessionMode; label: string; hint: string }[] = [
-  { mode: 'gig', label: 'Gig', hint: 'Master-Token, geteilte Show-Uhr, Backing-Track-Plugin' },
-  { mode: 'practice', label: 'Solo Üben', hint: 'Rein lokal, Wiedergabe über dieses Gerät' },
+const OPTIONS: { mode: SessionMode; label: 'session.gig' | 'session.practice'; hint: 'session.gigHint' | 'session.practiceHint' }[] = [
+  { mode: 'gig', label: 'session.gig', hint: 'session.gigHint' },
+  { mode: 'practice', label: 'session.practice', hint: 'session.practiceHint' },
 ]
-
-const BLOCKED_TITLE = 'Wechsel zu Solo Üben erst möglich, wenn gerade kein Song läuft'
 
 /**
  * Gig vs. Practice (useAppModeStore.ts) - per-device, so switching this on one tablet never
@@ -25,24 +24,26 @@ export function SessionModeControl() {
   const setMode = useAppModeStore((state) => state.setMode)
   const gigPlaying = useShowStateStore((state) => state.state.playbackStatus === 'playing')
   const isBlocked = mode === 'gig' && gigPlaying
+  const { t } = useTranslation('menu')
+  const blockedTitle = t('session.blocked')
 
   return (
     <div className="flex flex-col gap-2">
       <Segmented
-        label="Modus"
+        label={t('session.label')}
         size="stage"
         value={mode}
         onChange={setMode}
         options={OPTIONS.map((option) => ({
           value: option.mode,
-          label: option.label,
+          label: t(option.label),
           disabled: isBlocked && option.mode !== mode,
-          title: isBlocked && option.mode !== mode ? BLOCKED_TITLE : option.hint,
+          title: isBlocked && option.mode !== mode ? blockedTitle : t(option.hint),
         }))}
       />
       {/* Only why Solo Üben is locked - the plain explanation became the tooltip, so ☰ fits one
           landscape screen (Marco, 2026-10-16). */}
-      {isBlocked && <p className="text-sm text-ink-faint">{BLOCKED_TITLE}</p>}
+      {isBlocked && <p className="text-sm text-ink-faint">{blockedTitle}</p>}
     </div>
   )
 }

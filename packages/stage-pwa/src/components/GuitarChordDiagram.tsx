@@ -2,12 +2,13 @@ import type { GuitarShape } from '../lib/guitarShapes'
 
 const STRINGS = 6
 const FRETS_SHOWN = 5
-const LEFT = 22
+// Room left of the strings for a two-digit position ("13fr") clear of a barre's rounded end.
+const LEFT = 36
 const STRING_GAP = 15.2
 const TOP = 34
 const FRET_GAP = 20
 
-/** A guitar chord box (#24): six strings, five frets, dots where to press, `x`/`o` above the
+/** A guitar chord box (#24): six strings, five frets, dots where to press (a bar for a barre), `x`/`o` above the
  * muted/open strings, and the starting fret when the shape sits above the nut. Drawn up to 11rem
  * wide, so the 11-12 unit labels render at about the 16px stage floor (at 9rem they were 12px). */
 export function GuitarChordDiagram({ shape }: { shape: GuitarShape }) {
@@ -31,9 +32,21 @@ export function GuitarChordDiagram({ shape }: { shape: GuitarShape }) {
         <line key={`string-${string}`} x1={stringX(string)} x2={stringX(string)} y1={TOP} y2={TOP + FRET_GAP * FRETS_SHOWN} className="stroke-ink-faint" strokeWidth={1} />
       ))}
       {shape.baseFret > 1 && (
-        <text x={2} y={TOP + FRET_GAP * 0.65} className="fill-ink" fontSize={11} fontWeight={700}>
+        <text x={LEFT - 9} y={TOP + FRET_GAP * 0.65} textAnchor="end" className="fill-ink" fontSize={11} fontWeight={700}>
           {shape.baseFret}fr
         </text>
+      )}
+      {shape.barre && (
+        // The index finger across the strings, as in any chord chart (an F is a barre, not six dots).
+        <rect
+          data-testid="barre"
+          x={stringX(shape.barre.fromString) - 5.6}
+          y={TOP + (shape.barre.fret - shape.baseFret) * FRET_GAP + FRET_GAP / 2 - 5.6}
+          width={stringX(shape.barre.toString) - stringX(shape.barre.fromString) + 11.2}
+          height={11.2}
+          rx={5.6}
+          className="fill-accent"
+        />
       )}
       {shape.frets.map((fret, string) => {
         const x = stringX(string)
