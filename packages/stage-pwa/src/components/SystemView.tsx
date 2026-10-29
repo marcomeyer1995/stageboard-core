@@ -12,19 +12,10 @@ import { DebugConsoleView } from './DebugConsoleView'
 import { useActiveProfile } from '../lib/useActiveProfile'
 import { Tabs } from './ui'
 import { useTabSwipe } from '../lib/useTabSwipe'
+import { useTranslation } from 'react-i18next'
 
 /** Names and order Marco chose 2026-10-16 (docs/15 §9 step 3): by scope - this device, the
  * band, the server - instead of the old mix where one tab held device, band and server settings. */
-const TAB_LABEL: Record<SystemTab, string> = {
-  device: 'Dieses Gerät',
-  band: 'Band',
-  hardware: 'Bühnentechnik',
-  devices: 'Tablets & Handys',
-  rigcheck: 'Rig-Check',
-  server: 'Stage-Server',
-  plugins: 'Add-ons',
-  debug: 'Diagnose',
-}
 
 /** Mirrors LibraryView.tsx's own two-pane breakpoint (Tailwind's `lg`, min-width 1024px) -
  * once the screen is wide enough that Bibliothek would show both its panes side by side
@@ -61,6 +52,7 @@ function useIsWideScreen(): boolean {
  * Backup is always there: the Stage-Server's own backup targets (admins, #363) and local snapshots.
  */
 export function SystemView() {
+  const { t } = useTranslation('system')
   // Live-Debug-Console (#14) only for crew and admins - nothing a musician needs on stage.
   const roles = useActiveProfile()?.stageRoles ?? []
   const showDebug = roles.includes('admin') || roles.includes('crew')
@@ -98,8 +90,8 @@ export function SystemView() {
         <>
           <DebugConsoleView />
           {/* A fallback, not a setting to tune (Marco, 2026-10-16): Web Audio has been the default since 2026-10-15. */}
-          <section aria-label="Wiedergabe (Test)" className="flex max-w-4xl flex-col gap-2 px-4 pb-4">
-            <h2 className="text-lg font-bold text-ink">Wiedergabe (Test)</h2>
+          <section aria-label={t('playbackTest')} className="flex max-w-4xl flex-col gap-2 px-4 pb-4">
+            <h2 className="text-lg font-bold text-ink">{t('playbackTest')}</h2>
             <WebAudioTrackSettings />
           </section>
           {/* The stand-ins that only log - for trying things out, not for the stage - and the device
@@ -124,7 +116,7 @@ export function SystemView() {
     return (
       <div className="flex h-full sb-app-bg text-ink">
         <div className="flex w-56 flex-shrink-0 flex-col overflow-y-auto border-r border-line bg-surface py-2">
-          <Tabs label="System" orientation="vertical" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: TAB_LABEL[candidate] }))} />
+          <Tabs label={t('label')} orientation="vertical" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: t(`tabs.${candidate}`) }))} />
         </div>
         <div className="flex-1 overflow-y-auto">{content}</div>
       </div>
@@ -139,7 +131,7 @@ export function SystemView() {
       {/* Page navigation = underline tabs (docs/15). They wrap onto a second row instead of
           scrolling sideways - a scrolling strip hid Band/Plugins on the phone (#373). */}
       <div className="sticky top-0 z-content border-b border-line bg-surface px-2 pt-1">
-        <Tabs label="System" value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: TAB_LABEL[candidate] }))} />
+        <Tabs label={t('label')} value={activeTab} onChange={setTab} tabs={tabs.map((candidate) => ({ value: candidate, label: t(`tabs.${candidate}`) }))} />
       </div>
 
       {content}

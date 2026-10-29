@@ -1,4 +1,5 @@
 import 'i18next'
+import type system from './locales/de/system.json'
 import type common from './locales/de/common.json'
 import type statusbar from './locales/de/statusbar.json'
 import type menu from './locales/de/menu.json'
@@ -15,6 +16,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'common'
     resources: {
+      system: typeof system
       common: typeof common
       statusbar: typeof statusbar
       menu: typeof menu

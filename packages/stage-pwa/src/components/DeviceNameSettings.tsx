@@ -3,6 +3,7 @@ import { getDeviceId } from '../lib/deviceId'
 import { useDevicesStore } from '../store/useDevicesStore'
 import { INPUT_FREE } from './ui/styles'
 import { Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Lets this device rename itself in the workspace's DeviceRegistry (#10's first slice) - the
@@ -12,6 +13,7 @@ import { Button } from './ui'
  * per-device access control riding on this (that's the roster/profile system's job).
  */
 export function DeviceNameSettings() {
+  const { t } = useTranslation('system')
   const devices = useDevicesStore((state) => state.devices)
   const rename = useDevicesStore((state) => state.rename)
   const deviceId = getDeviceId()
@@ -30,11 +32,11 @@ export function DeviceNameSettings() {
         type="text"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Name dieses Geräts"
+        placeholder={t('deviceName.placeholder')}
         className={`h-form flex-1 min-w-0 px-4 text-base placeholder:text-ink-faint ${INPUT_FREE}`}
       />
       <Button onClick={() => void rename(deviceId, draft.trim())} disabled={!dirty}>
-        Speichern
+        {t('save')}
       </Button>
     </div>
   )

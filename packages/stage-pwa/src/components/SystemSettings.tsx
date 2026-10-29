@@ -15,6 +15,7 @@ import { KeybindingSettings } from './KeybindingSettings'
 import { LanguageSettings } from './LanguageSettings'
 import { FlashSettings } from './FlashSettings'
 import { OutputRoutingSettings } from './OutputRoutingSettings'
+import { useTranslation } from 'react-i18next'
 
 /**
  * One visibly separate group (#371: the flat list of seven same-looking sections was "chaotic,
@@ -32,6 +33,7 @@ export function Group({
   shared?: boolean
   children: ReactNode
 }) {
+  const { t } = useTranslation('system')
   return (
     <section
       aria-label={title}
@@ -40,7 +42,7 @@ export function Group({
       {/* What the card is for sits behind ⓘ (docs/15 D12, #625) - read once, then only in the way. */}
       <header className="flex min-w-0 items-center gap-1">
         <h3 className="min-w-0 text-lg font-bold text-ink">{title}</h3>
-        <InfoHint text={info} label={`Erklärung: ${title}`} />
+        <InfoHint text={info} label={t('explain', { title })} />
       </header>
       {children}
     </section>
@@ -49,11 +51,12 @@ export function Group({
 
 /** A labelled setting inside a group; `info` is its explanation behind ⓘ (docs/15 D12). */
 function Section({ title, info, children }: { title: string; info?: string; children: ReactNode }) {
+  const { t } = useTranslation('system')
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-3 first-of-type:border-t-0 first-of-type:pt-0">
       <div className="flex min-w-0 items-center gap-1">
         <p className="min-w-0 text-sm font-semibold uppercase tracking-wide text-ink-soft">{title}</p>
-        {info && <InfoHint text={info} label={`Erklärung: ${title}`} />}
+        {info && <InfoHint text={info} label={t('explain', { title })} />}
       </div>
       {children}
     </div>
@@ -62,11 +65,12 @@ function Section({ title, info, children }: { title: string; info?: string; chil
 
 /** One System tab's page: its title, one sentence of what it covers, its groups. */
 export function Page({ title, info, children }: { title: string; info: string; children: ReactNode }) {
+  const { t } = useTranslation('system')
   return (
     <div className="flex max-w-3xl flex-col gap-4 p-4">
       <header className="flex min-w-0 items-center gap-1">
         <h1 className="min-w-0 text-2xl font-bold text-ink">{title}</h1>
-        <InfoHint text={info} label={`Erklärung: ${title}`} />
+        <InfoHint text={info} label={t('explain', { title })} />
       </header>
       {children}
     </div>
@@ -82,63 +86,64 @@ export function Page({ title, info, children }: { title: string; info: string; c
 
 /** System → Dieses Gerät: name, look, controls and storage of this tablet or phone only. */
 export function DeviceSettings() {
+  const { t } = useTranslation('system')
   return (
-    <Page title="Dieses Gerät" info="Gilt nur für dieses Tablet oder Handy.">
-      <Group title="Gerät" info="Wie dieses Gerät in der Band heißt und welche Sprache es spricht.">
-        <Section title="Gerätename">
+    <Page title={t('device.title')} info={t('device.info')}>
+      <Group title={t('device.group')} info={t('device.groupInfo')}>
+        <Section title={t('device.name')}>
           <DeviceNameSettings />
         </Section>
         {/* Both languages in the title: found also by someone who can't read the current one (#456). */}
-        <Section title="Sprache · Language">
+        <Section title={t('device.language')}>
           <LanguageSettings />
         </Section>
       </Group>
 
-      <Group title="Aussehen" info="Farben, Schrift und die Leiste oben.">
-        <Section title="Darstellung">
+      <Group title={t('device.look')} info={t('device.lookInfo')}>
+        <Section title={t('device.theme')}>
           <ThemeSwitcher />
         </Section>
-        <Section title="Textgröße" info={'Gilt für Prompter, Live-Queue, Show-Notizen und System-Status - pro Widget im „⋯“-Menü überschreibbar.'}>
+        <Section title={t('device.textSize')} info={t('device.textSizeInfo')}>
           <TextSizeSettings />
         </Section>
-        <Section title="Statusleiste">
+        <Section title={t('device.statusBar')}>
           <StatusBarSettingsEntry />
         </Section>
       </Group>
 
-      <Group title="Fußschalter & Tasten" info="Bluetooth-Pedal oder Tastatur: Show, Abschnitte, Wiedergabe, Prompter und Gerätebefehle - tastend, rastend oder zeitgesteuert.">
+      <Group title={t('device.pedals')} info={t('device.pedalsInfo')}>
         <Section
-          title="Zuordnung"
-          info="Bluetooth-Pedal (z. B. AirTurn, PageFlip) wie eine Tastatur koppeln, dann hier Zuordnungen anlegen. Wirkt auf den Dashboards. Show und Abschnitte steuert nur, wer die Show steuern darf (der Master); Gerätebefehle und Prompter blättern gehen auf jedem Gerät."
+          title={t('device.mapping')}
+          info={t('device.mappingInfo')}
         >
           <KeybindingSettings />
         </Section>
       </Group>
 
-      <Group title="Blitzmeldungen" info="Nachrichten aus dem Stage-Messenger und Hinweise aus dem Songtext ({alert: …}) groß über den Bildschirm.">
-        <Section title="Auf diesem Gerät">
+      <Group title={t('device.flash')} info={t('device.flashInfo')}>
+        <Section title={t('device.onThisDevice')}>
           <FlashSettings />
         </Section>
       </Group>
 
-      <Group title="Ton" info="Wie dieses Gerät Track, Klick und Ansagen ausgibt.">
+      <Group title={t('device.sound')} info={t('device.soundInfo')}>
         <Section
-          title="Ausgang"
-          info="Getrennt kommt der Klick nur auf eine Seite des Kopfhörer- oder Line-Ausgangs, der Track (in Mono) auf die andere. Mit einem Y-Kabel oder einer Stereo-DI geht die Klick-Seite in den In-Ear-Mix, die Track-Seite zur PA - das Publikum hört keinen Klick. Gilt für Klick und Ansagen überall und für den Track im Gig. In Solo Üben und im Timeline-Editor spielt der Track noch über ein Audio-Element und bleibt auf beiden Seiten."
+          title={t('device.output')}
+          info={t('device.outputInfo')}
         >
           <OutputRoutingSettings />
         </Section>
       </Group>
 
-      <Group title="Speicher" info="Welche Audiodateien dieses Gerät für die Songs vorhält.">
-        <Section title="Speicher & Sync">
+      <Group title={t('device.storage')} info={t('device.storageInfo')}>
+        <Section title={t('device.storageSync')}>
           <AudioSyncSettings />
         </Section>
       </Group>
 
       {isNativeApp() && (
-        <Group title="App" info="Version der StageBoard-App und Updates vom Stage-Server.">
-          <Section title="Version">
+        <Group title={t('device.app')} info={t('device.appInfo')}>
+          <Section title={t('device.version')}>
             <AppVersionSettings />
           </Section>
         </Group>
@@ -149,25 +154,26 @@ export function DeviceSettings() {
 
 /** System → Stage-Server: the connection, which band its hardware serves, and its backups. */
 export function StageServerPage() {
+  const { t } = useTranslation('system')
   return (
-    <Page title="Stage-Server" info="Die Verbindung dieses Geräts und was der Server für die ganze Band tut.">
-      <Group title="Verbindung" info="Mit welchem Stage-Server dieses Gerät spricht und ob die Band-Daten synchron sind.">
-        <Section title="Stage-Server">
+    <Page title={t('server.title')} info={t('server.info')}>
+      <Group title={t('server.connection')} info={t('server.connectionInfo')}>
+        <Section title={t('server.server')}>
           <StageServerSettings />
         </Section>
-        <Section title="Synchronisation">
+        <Section title={t('server.sync')}>
           <SyncIndicator />
         </Section>
       </Group>
 
-      <Group title="Aktive Band - gilt für alle" info="Welche Band die Hardware des Stage-Servers gerade nutzt. Eine Änderung wirkt auf alle Geräte." shared>
-        <Section title="Aktive Band (Hardware)">
+      <Group title={t('server.activeBand')} info={t('server.activeBandInfo')} shared>
+        <Section title={t('server.activeBandHw')}>
           <WorkspaceHardwareSettings />
         </Section>
       </Group>
 
       {/* A card like every other topic of the page (2026-10-20: it sat bare below the cards). */}
-      <Group title="Backup" info="Wie der Stage-Server die Band-Daten sichert, und Snapshots zum Mitnehmen.">
+      <Group title={t('server.backup')} info={t('server.backupInfo')}>
         <BackupManager />
       </Group>
     </Page>
