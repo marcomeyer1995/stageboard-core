@@ -69,6 +69,10 @@ public class MainActivity extends BridgeActivity {
      */
     private void followKeyboard() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return;
+        // Android must not shorten the window itself as well: on the Fire it never grew back once
+        // the keyboard closed - the page stayed short with a grey band below it until the app
+        // restarted (2026-10-29). The WebView's margin below is the only thing that gives way.
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         View decor = getWindow().getDecorView();
         Rect visible = new Rect();
         int[] onScreen = new int[2];
@@ -81,8 +85,7 @@ public class MainActivity extends BridgeActivity {
             // Measured against where the WebView's container really ends - not the screen height:
             // when Android itself shortens the container too, the keyboard must not count twice.
             parent.getLocationOnScreen(onScreen);
-            int bottom = onScreen[1] + parent.getHeight();
-            int covered = Math.max(0, bottom - visible.bottom);
+            int covered = Math.max(0, onScreen[1] + parent.getHeight() - visible.bottom);
             // A sliver (a navigation bar showing briefly) is not a keyboard.
             int keyboard = covered > decor.getHeight() * 0.15 ? covered : 0;
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
@@ -90,13 +93,10 @@ public class MainActivity extends BridgeActivity {
                 params.bottomMargin = keyboard;
                 webView.setLayoutParams(params);
             }
-            // The Fire shortens the window for the keyboard itself, but the keyboard going away
-            // lays nothing out there: the page stayed short with a grey band below it until the
-            // app restarted (2026-10-29). While the page is short for a keyboard, look again a
+            // The keyboard going away may lay nothing out: while one is counted, look again a
             // little later.
-            boolean shortened = keyboard > 0 || bottom < decor.getHeight() * 0.85;
             decor.removeCallbacks(relayout);
-            if (shortened) decor.postDelayed(relayout, KEYBOARD_RECHECK_MS);
+            if (keyboard > 0) decor.postDelayed(relayout, KEYBOARD_RECHECK_MS);
         });
     }
 
