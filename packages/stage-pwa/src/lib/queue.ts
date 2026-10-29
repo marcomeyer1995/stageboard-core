@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { isSongEntry, isTransitionEntry, type ShowState } from 'shared-types'
-import { computeQueue, type Queue } from './computeQueue'
+import { cachedQueue, computeQueue, type Queue } from './computeQueue'
 import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
@@ -17,11 +18,14 @@ import { useSongVariantsStore } from '../store/useSongVariantsStore'
 export function useQueue(): Queue & { isMaster: boolean } {
   const songs = useSongsStore((state) => state.songs)
   const setlists = useSetlistsStore((state) => state.setlists)
-  const showState = useShowStateStore((state) => state.state)
+  // Only what the queue is made of - not the whole show state, which changes with every patch.
+  const activeSetlistId = useShowStateStore((state) => state.state.activeSetlistId)
+  const activeEntryId = useShowStateStore((state) => state.state.activeEntryId)
   const isMaster = useShowStateStore((state) => state.isMaster)
   const variants = useSongVariantsStore((state) => state.variants)
 
-  return { ...computeQueue(songs, setlists, showState, variants), isMaster }
+  const queue = cachedQueue('gig', songs, setlists, activeSetlistId, activeEntryId, variants)
+  return useMemo(() => ({ ...queue, isMaster }), [queue, isMaster])
 }
 
 /** Non-reactive equivalent for imperative callers (e.g. the MIDI trigger handler). */

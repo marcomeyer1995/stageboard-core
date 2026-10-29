@@ -6,7 +6,11 @@ import { NextSongWidget } from './NextSongWidget'
 import { useShowMode } from '../lib/showMode'
 import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
 
-vi.mock('../lib/showMode', () => ({ useShowMode: vi.fn() }))
+vi.mock('../lib/showMode', () => {
+  const show = vi.fn()
+  // Widgets read the clock only where they show it (#457) - the same mocked show for every hook.
+  return { useShowMode: show, useShowModeCore: () => ({ ...show(), elapsedNow: () => show()?.elapsedMs ?? null }), useShowModeOnDemand: show }
+})
 vi.mock('../components/ReadyCheckControl', () => ({
   ReadyCheckControl: ({ compact }: { compact?: boolean }) => <button type="button">{compact ? 'Ready' : 'Ready-Check'}</button>,
 }))

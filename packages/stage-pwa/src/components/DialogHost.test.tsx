@@ -1,5 +1,6 @@
+import { VIEWPORT_SETTLE_MS } from '../lib/useVisualViewport'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDialogStore } from '../store/useDialogStore'
 import { DialogHost } from './DialogHost'
 
@@ -188,11 +189,16 @@ describe('DialogHost - destructive confirmation (#361)', () => {
       })
       expect(screen.getByTestId('dialog-host').style.height).toBe('800px')
 
-      // Keyboard opens: the visible area shrinks to 420 px.
+      // Keyboard opens: the visible area shrinks to 420 px - taken once it held still, so the
+      // WebView's brief wrong height on the way never draws the dialog twice (2026-10-28).
+      vi.useFakeTimers()
       act(() => {
         vv.height = 420
         listeners.resize()
       })
+      expect(screen.getByTestId('dialog-host').style.height).toBe('800px')
+      act(() => vi.advanceTimersByTime(VIEWPORT_SETTLE_MS))
+      vi.useRealTimers()
       expect(screen.getByTestId('dialog-host').style.height).toBe('420px')
       expect(screen.getByTestId('dialog-host').style.top).toBe('0px')
       // A dialog with a text field opens at the top, out of the keyboard's way.

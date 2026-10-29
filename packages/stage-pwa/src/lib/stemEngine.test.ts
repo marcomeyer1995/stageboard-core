@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getTrack } from './songVariantsDb'
 import { openTrackStream, type TrackStream } from './trackStream'
-import { __resetStemsForTests, __stemStatsForTests, loadStems, setStemGains, syncStems } from './stemEngine'
+import { __resetStemsForTests, setStemLevelCurve, __stemStatsForTests, loadStems, setStemGains, syncStems } from './stemEngine'
 
 vi.mock('./songVariantsDb', () => ({ getTrack: vi.fn() }))
 vi.mock('./trackStream', () => ({ openTrackStream: vi.fn() }))
@@ -45,7 +45,13 @@ interface FakeNode {
 }
 const nodes: FakeNode[] = []
 const gains: {
-  gain: { value: number; setTargetAtTime: ReturnType<typeof vi.fn> }
+  gain: {
+    value: number
+    setTargetAtTime: ReturnType<typeof vi.fn>
+    setValueAtTime: ReturnType<typeof vi.fn>
+    cancelScheduledValues: ReturnType<typeof vi.fn>
+    linearRampToValueAtTime: ReturnType<typeof vi.fn>
+  }
   connect: ReturnType<typeof vi.fn>
 }[] = []
 const ctx = {
@@ -59,7 +65,7 @@ const ctx = {
   createBuffer: (_channels: number, length: number) => fakeBuffer('joined', length / SR),
   createGain: () => {
     const gain = {
-      gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
+      gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn(), setValueCurveAtTime: vi.fn(), cancelScheduledValues: vi.fn(), linearRampToValueAtTime: vi.fn() },
       connect: vi.fn(),
       disconnect: vi.fn(),
     }
@@ -213,6 +219,22 @@ describe('stemEngine (docs/22 §3)', () => {
     expect(stemGains.map((g) => g.gain.setTargetAtTime.mock.calls[g.gain.setTargetAtTime.mock.calls.length - 1]?.[0])).toEqual([0.5, 0, 1])
   })
 
+  it('plays the track level cues (#485) on the stems\' sum - muted inside, a fade ahead', async () => {
+    await loadStems('v', STEMS)
+    const bus = gains[0]!
+    setStemLevelCurve([
+      { timeMs: 0, gain: 1 },
+      { timeMs: 40_000, gain: 1 },
+      { timeMs: 42_000, gain: 0 },
+    ])
+    syncStems(() => 45_000, true)
+    expect(bus.gain.setValueAtTime).toHaveBeenLastCalledWith(0, expect.any(Number))
+    syncStems(() => 39_500, true)
+    wallMs += 100
+    syncStems(() => 39_600, true)
+    expect(bus.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, expect.any(Number))
+  })
+
   it('restarts all stems at the new position after a jump', async () => {
     await loadStems('v', STEMS)
     await run(10_000, 500)
@@ -228,5 +250,35 @@ describe('stemEngine (docs/22 §3)', () => {
     await run(5_000, 200)
     syncStems(() => null, false)
     expect(sorted().every((n) => n.stoppedAt !== null || n.when > audioNow() + 10)).toBe(true)
+  })
+})
+
+describe('stemEngine - a section jump in Solo Üben (#479, 2026-10-22)', () => {
+  it('brings the target in at the bar line, crossfaded, and keeps it without a restart', async () => {
+    await loadStems('v', ['mix'])
+    // Song 10 s at the start; the jump: at song 14 s back to 4 s (id = its wall time).
+    const startWall = wallMs
+    const jump = { id: 1, boundaryMs: 14_000, toMs: 4_000 }
+    const song = () => {
+      const t = 10_000 + (wallMs - startWall)
+      return t >= jump.boundaryMs ? jump.toMs + (t - jump.boundaryMs) : t
+    }
+    const audioAtSong = audioNow() + (14 - 10)
+    for (let i = 0; i < 400; i++) {
+      syncStems(song, true, () => (10_000 + (wallMs - startWall) < 14_500 ? jump : null))
+      wallMs += 16
+      await vi.advanceTimersByTimeAsync(16)
+    }
+    await flush()
+    const stats = __stemStatsForTests()
+    expect(stats.jumps).toBe(1)
+    expect(stats.reschedules).toBe(0)
+    // The target's first piece starts 15 ms before the bar line, 15 ms before 4 s in the song.
+    const target = sorted().find((n) => Math.abs(n.when - (audioAtSong - 0.015)) < 0.02 && n.stoppedAt === null)
+    expect(target).toBeDefined()
+    // The section before plays out under the crossfade (200 ms), then stops.
+    const old = sorted().filter((n) => n.when < audioAtSong - 0.1 && n.stoppedAt !== null)
+    expect(old.length).toBeGreaterThan(0)
+    expect(Math.max(...old.map((n) => n.stoppedAt!))).toBeCloseTo(audioAtSong - 0.015 + 0.2, 2)
   })
 })

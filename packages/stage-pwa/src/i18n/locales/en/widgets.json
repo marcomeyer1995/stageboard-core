@@ -1,0 +1,227 @@
+{
+  "prompter": {
+    "title": "Prompter",
+    "description": "Lyrics and chords, as smooth scroll or paginated view.",
+    "parts": {
+      "title": "Title",
+      "artist": "Artist",
+      "key": "Key"
+    }
+  },
+  "live-queue": {
+    "title": "Live queue",
+    "description": "The next songs of the setlist, with \"Play next\".",
+    "parts": {
+      "caption": "Caption",
+      "numbers": "Numbers",
+      "variant": "Variant",
+      "duration": "Duration"
+    }
+  },
+  "next-song": {
+    "title": "Next song",
+    "description": "Current and next song, back/next.",
+    "parts": {
+      "current": "Current",
+      "next": "Next"
+    }
+  },
+  "section-jump": {
+    "title": "Sections",
+    "description": "The song's sections from the timeline: the master jumps at the next bar or section end, or repeats a section - every device follows.",
+    "parts": {
+      "when": "Jump moment",
+      "loop": "Repeat"
+    }
+  },
+  "ready-check": {
+    "title": "Ready check",
+    "description": "The master asks whether everyone is ready and sees who is still missing; everyone else confirms in the notice.",
+    "parts": {
+      "missing": "Who is missing"
+    }
+  },
+  "active-setlist": {
+    "title": "Active setlist",
+    "description": "Shows which setlist is active - also without live queue/next song.",
+    "parts": {
+      "caption": "Caption",
+      "count": "Number of songs"
+    }
+  },
+  "show-transport": {
+    "title": "Show transport",
+    "description": "Play/pause/stop/reset for the current song - Gig or Solo practice, with or without a backing-track plugin.",
+    "parts": {
+      "title": "Song title",
+      "time": "Time",
+      "reset": "Reset"
+    }
+  },
+  "visual-metronome": {
+    "title": "Visual metronome",
+    "description": "Flashes in time with the active song (BPM/meter), downbeat in its own colour.",
+    "parts": {
+      "info": "Tempo & meter"
+    }
+  },
+  "loop-trainer": {
+    "title": "Loop trainer",
+    "description": "Solo practice: loops a part of the backing track seamlessly, optionally faster with every pass (pitch stays).",
+    "parts": {
+      "caption": "Caption"
+    }
+  },
+  "tempo-nudge": {
+    "title": "Tempo correction",
+    "description": "Live +/- adjustment of the click/metronome tempo without changing the song's BPM.",
+    "parts": {
+      "caption": "Caption"
+    }
+  },
+  "click-track": {
+    "title": "Click",
+    "description": "Synthesized click/metronome sound, on/off - plays on the device set up as click output.",
+    "parts": {
+      "caption": "Caption",
+      "state": "On/off"
+    }
+  },
+  "audio-mix": {
+    "title": "My mix",
+    "description": "Volume of track, click and announcements on this device - a fader and mute each.",
+    "parts": {
+      "hint": "Hint"
+    }
+  },
+  "stems": {
+    "title": "Stems",
+    "description": "Solo practice: a song's parts (drums, bass, guitar …) instead of the track - a fader, mute and solo each.",
+    "parts": {
+      "values": "Values"
+    }
+  },
+  "track-override": {
+    "title": "Variant & track",
+    "description": "Switches a song's backing track for now (e.g. \"1 guitar\" instead of \"no guitar\"); in Solo practice also the variant."
+  },
+  "midi-status": {
+    "title": "Foot switch",
+    "description": "State of the MIDI foot switch, jump to the next song part.",
+    "parts": {
+      "simulate": "Simulate"
+    }
+  },
+  "dashboard-switcher": {
+    "title": "Dashboard switcher",
+    "description": "Large buttons to switch between dashboards."
+  },
+  "iem-more-me": {
+    "title": "More me (IEM)",
+    "description": "Your own faders for the in-ear mix.",
+    "parts": {
+      "names": "Channel names",
+      "values": "Values"
+    }
+  },
+  "quick-actions": {
+    "title": "Quick actions",
+    "description": "Large buttons for ad-hoc show cues."
+  },
+  "lighting-cues": {
+    "title": "Lighting cues",
+    "description": "Large buttons for light cues on the DMX desk.",
+    "parts": {
+      "last": "Last"
+    }
+  },
+  "system-health": {
+    "title": "System status",
+    "description": "Traffic-light overview of all plugin capabilities, for setup/soundcheck.",
+    "parts": {
+      "plugins": "Plugins",
+      "sync": "Clock sync"
+    }
+  },
+  "sync-check": {
+    "title": "Sync check",
+    "description": "Flashes with the server clock - hold two devices side by side and check that they blink together.",
+    "parts": {
+      "caption": "Caption",
+      "offset": "Offset & drift"
+    }
+  },
+  "tuner": {
+    "title": "Tuner",
+    "description": "Chromatic tuner using the tablet's microphone.",
+    "parts": {
+      "octave": "Octave",
+      "cents": "Cents & Hz"
+    }
+  },
+  "stage-messenger": {
+    "title": "Stage messenger",
+    "description": "Flash a short message to everyone or single musicians: \"5 minutes left\", \"Tune guitar\", your own quick messages."
+  },
+  "show-notes": {
+    "title": "Show notes",
+    "description": "Live notes from band and crew, visible in the show report.",
+    "parts": {
+      "author": "Author",
+      "input": "Input"
+    }
+  },
+  "backup-status": {
+    "title": "Backup status",
+    "description": "At-a-glance indicator whether the backup plugin is reachable."
+  },
+  "festival-clock": {
+    "title": "Festival clock",
+    "description": "Expected end of the rest of the setlist - turns red when it ends after the target time (curfew).",
+    "parts": {
+      "caption": "Caption",
+      "target": "Target",
+      "estimate": "Estimate"
+    }
+  },
+  "clock": {
+    "title": "Clock",
+    "description": "Large, easy-to-read digital clock for the stage.",
+    "parts": {
+      "seconds": "Seconds"
+    }
+  },
+  "separator": {
+    "title": "Separator",
+    "description": "A simple line to set dashboard areas apart."
+  },
+  "device-status": {
+    "title": "Device status",
+    "description": "Live connection state of one chosen device.",
+    "parts": {
+      "name": "Device name"
+    }
+  },
+  "custom-trigger": {
+    "title": "Trigger button",
+    "description": "A button for any action: show, sections, playback or a device command - momentary, latching or timed."
+  },
+  "chord-reference": {
+    "title": "Chord lookup",
+    "description": "Pick a root and chord type: notes, intervals, guitar shape and keyboard.",
+    "parts": {
+      "notes": "Notes",
+      "intervals": "Intervals",
+      "guitar": "Guitar shape",
+      "piano": "Keyboard"
+    }
+  },
+  "circle-of-fifths": {
+    "title": "Circle of fifths",
+    "description": "Tap a key: relative key, dominant, subdominant and key signature at a glance.",
+    "parts": {
+      "relations": "Related keys",
+      "signature": "Key signature"
+    }
+  }
+}

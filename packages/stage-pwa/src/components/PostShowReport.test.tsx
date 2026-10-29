@@ -63,7 +63,7 @@ describe('PostShowReport (GUI audit 2026-09-26)', () => {
       events: [{ id: 'start', showId: 'show', type: 'show-started', at: t0 }, song(1, 'Highway to Hell'), cue(1, true), cue(2, false, 'kein MIDI-Ausgang'), cue(3, true)],
     } as never)
     render(<Shows />)
-    fireEvent.click(screen.getByText('1 Cues fehlgeschlagen'))
+    fireEvent.click(screen.getByText('1 Cue fehlgeschlagen'))
     expect(screen.getByText('Cues fehlgeschlagen (1)')).toBeInTheDocument()
     expect(screen.getByText(/kemper.selectRig → Marcos Kemper - kein MIDI-Ausgang/)).toBeInTheDocument()
     expect(screen.getByText('Cues (3, 1 fehlgeschlagen)').closest('details')).not.toHaveAttribute('open')
@@ -144,5 +144,72 @@ describe('Nachbericht - "Cue anpassen" saves into the variant (#8)', () => {
     fireEvent.click(screen.getByText(/1 Song · 3:20 gespielt/))
     fireEvent.click(screen.getByRole('button', { name: 'Menü: Cue kemper.selectRig' }))
     expect(screen.getByRole('button', { name: 'Cue anpassen (unter System → Rig-Check)' })).toBeDisabled()
+  })
+})
+
+const { useDialogStore } = await import('../store/useDialogStore')
+
+describe('Shows tab - delete and protect (#610)', () => {
+  const start = (showId: string, at: number): ShowLogEvent => ({ id: `start-${showId}`, showId, type: 'show-started', at })
+  const played = (showId: string, at: number): ShowLogEvent =>
+    ({ id: `p-${showId}`, showId, type: 'song-played', at: at + 1000, endedAt: at + 100_000, songId: 'x', songTitle: 'Tush', activeMs: 60_000 }) as ShowLogEvent
+
+  function setup(protectedShowIds: string[]) {
+    useProfilesStore.setState({ profiles: [] })
+    const setProtected = vi.fn(async () => undefined)
+    const deleteShows = vi.fn(async (ids: readonly string[]) => ids.length)
+    useShowLogStore.setState({
+      events: [start('a', t0), played('a', t0), start('b', t0 + 1e7), played('b', t0 + 1e7), start('c', t0 + 2e7), played('c', t0 + 2e7)],
+      protectedShowIds,
+      setProtected,
+      deleteShows,
+    } as never)
+    const confirm = vi.fn(async () => true)
+    useDialogStore.setState({ confirm } as never)
+    render(<Shows />)
+    return { setProtected, deleteShows, confirm }
+  }
+
+  it('offers nothing to delete or protect until "Bearbeiten"; a protected show shows its lock anyway', () => {
+    setup(['b'])
+    expect(screen.queryByRole('button', { name: /^Menü: Show \d/ })).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText('Geschützt')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    expect(screen.getAllByRole('button', { name: /^Menü: Show \d/ })).toHaveLength(3)
+  })
+
+  it('deletes one show after the in-app confirm; a protected one cannot be deleted, only unprotected', async () => {
+    const { deleteShows, setProtected, confirm } = setup(['b'])
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    const menus = screen.getAllByRole('button', { name: /^Menü: Show \d/ })
+    // Newest first: c, b, a.
+    fireEvent.click(menus[1])
+    expect(screen.getByRole('button', { name: 'Löschen (geschützt)' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Schutz aufheben' }))
+    expect(setProtected).toHaveBeenCalledWith('b', false, null)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Menü: Show \d/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['c']))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('1 Show'), expect.objectContaining({ danger: true }))
+  })
+
+  it('"Alle ungeschützten löschen" leaves the protected show out and names the count', async () => {
+    const { deleteShows, confirm } = setup(['b'])
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Shows' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Alle ungeschützten löschen (2)' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['c', 'a']))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('2 Shows'), expect.anything())
+  })
+
+  it('"Alle ohne gespielte Songs löschen" takes only the empty ones - the tab does not count them', async () => {
+    const { deleteShows } = setup([])
+    useShowLogStore.setState({ events: [...useShowLogStore.getState().events, start('d', t0 + 3e7)] })
+    fireEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Menü: Shows' }))
+    expect(screen.getByRole('button', { name: 'Alle ungeschützten löschen (4, davon 1 ohne Songs)' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Alle ohne gespielte Songs löschen (1)' }))
+    await vi.waitFor(() => expect(deleteShows).toHaveBeenCalledWith(['d']))
   })
 })

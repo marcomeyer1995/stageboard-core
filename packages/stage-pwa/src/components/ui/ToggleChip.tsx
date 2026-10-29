@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useControlSize } from './PrepTier'
 import { Icon } from '../Icon'
 import { CONTROL, DISABLED, FOCUS, HOVER, SIZE, type ControlSize } from './styles'
+import { useTranslation } from 'react-i18next'
 
 export interface ToggleChipProps {
   label: string
@@ -47,7 +48,7 @@ export function ToggleChip({ label, selected, onToggle, disabled, title, size: s
 /** A group of chips under one question, with the "several allowed" hint (docs/15 §4). */
 export function ChipGroup({
   label,
-  hint = 'Mehrere möglich',
+  hint: hintProp,
   showLabel = false,
   children,
 }: {
@@ -57,6 +58,9 @@ export function ChipGroup({
   showLabel?: boolean
   children: ReactNode
 }) {
+  const { t } = useTranslation('common')
+  // Unset: the usual "several allowed"; null: no hint.
+  const hint = hintProp === undefined ? t('ui.several') : hintProp
   return (
     <div role="group" aria-label={label} className="flex flex-col gap-2">
       {showLabel && <p className="text-sm font-semibold text-ink-soft">{label}</p>}
