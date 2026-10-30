@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import {
@@ -40,6 +41,7 @@ import { Icon } from './Icon'
 import { AddRow, Badge, Dialog, Field, Button, InfoHint, choiceRow } from './ui'
 import { INPUT } from './ui/styles'
 import { useVisibleSongs } from '../lib/visibleCatalog'
+import { useTranslation } from 'react-i18next'
 
 interface SetlistDetailProps {
   setlistId: string
@@ -91,6 +93,7 @@ function VariantPicker({
   issue: VariantIssue | null
   onSelect: (variantId: string) => void
 }) {
+  const { t } = useTranslation('library')
   const [open, setOpen] = useState(false)
   const selectedLabel = issue ? VARIANT_ISSUE_LABEL[issue] : (variants.find((v) => v.id === selectedId)?.label ?? '')
 
@@ -99,7 +102,7 @@ function VariantPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Variante wählen"
+        title={t('variant.choose')}
         // The whole name, wrapping onto more lines - it used to be cut to "Auto: music-tem…",
         // which left two detected variants of one song indistinguishable (GUI audit 2026-09-26).
         // Under the song title, at its own width (#414): a fixed 144 px in the row left a phone's
@@ -114,7 +117,7 @@ function VariantPicker({
       </button>
       {open && (
         // Choosing one already closes it - so the way out is "Abbrechen" (docs/15 D6).
-        <Dialog title="Variante" size="s" closeLabel="Abbrechen" onClose={() => setOpen(false)}>
+        <Dialog title={t('variant.title')} size="s" closeLabel={t('cancel')} onClose={() => setOpen(false)}>
           <div className="flex flex-col gap-2">
             {variants.map((variant) => (
               <button
@@ -137,32 +140,25 @@ function VariantPicker({
   )
 }
 
-const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string; itemHint: string }[] = [
-  {
-    type: 'manual',
-    label: 'Manuell',
-    hint: 'Wiedergabe stoppt am Ende, der nächste Song wird von Hand gestartet.',
-    itemHint: 'Läuft nicht von selbst weiter - mit „Weiter" von Hand.',
+const TRANSITION_OPTIONS: { type: TransitionType; label: string; hint: string; itemHint: string }[] = (
+  [
+    ['manual', 'manual'],
+    ['next-ready', 'nextReady'],
+    ['seamless', 'seamless'],
+    ['delayed', 'delayed'],
+  ] as const
+).map(([type, key]) => ({
+  type,
+  get label() {
+    return i18n.t(`library:tr.${key}`)
   },
-  {
-    type: 'next-ready',
-    label: 'Nächster bereit',
-    hint: 'Stoppt am Ende und stellt den nächsten Song bereit - Start von Hand.',
-    itemHint: 'Nach Ablauf der Dauer wird der nächste Eintrag bereitgestellt - Start von Hand.',
+  get hint() {
+    return i18n.t(`library:tr.${key}Hint`)
   },
-  {
-    type: 'seamless',
-    label: 'Nahtlos',
-    hint: 'Der nächste Song startet sofort, ohne Pause und ohne Einzähler.',
-    itemHint: 'Nach Ablauf der Dauer startet der nächste Eintrag sofort, ohne Einzähler.',
+  get itemHint() {
+    return i18n.t(`library:tr.${key}Item`)
   },
-  {
-    type: 'delayed',
-    label: 'Mit Pause',
-    hint: 'Der nächste Song startet nach einer festen Pause, mit Einzähler.',
-    itemHint: 'Nach Ablauf der Dauer und einer weiteren Pause startet der nächste Eintrag, mit Einzähler.',
-  },
-]
+}))
 
 /** Per-entry "what happens when this song ends" (#232) - same portal-dialog shape as
  * VariantPicker above, for the same reason (a row-embedded popup gets clipped by the scrolling
@@ -180,6 +176,7 @@ function TransitionPicker({
   isItem?: boolean
   onChange: (type: TransitionType, delayMs: number) => void
 }) {
+  const { t } = useTranslation('library')
   const [open, setOpen] = useState(false)
   const current = TRANSITION_OPTIONS.find((option) => option.type === type) ?? TRANSITION_OPTIONS[0]!
 
@@ -188,7 +185,7 @@ function TransitionPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={`Übergang zum nächsten Eintrag: ${current.label}`}
+        title={t('tr.buttonTitle', { label: current.label })}
         className={`h-form min-w-form flex-shrink-0 rounded-control px-3 text-base [@media(hover:hover)]:hover:bg-control-strong-hover ${
           type === 'manual' ? 'text-ink-faint' : 'bg-control-strong text-ink'
         }`}
@@ -199,8 +196,8 @@ function TransitionPicker({
         </span>
       </button>
       {open && (
-        <Dialog title={isItem ? 'Übergang nach der Ansage' : 'Übergang zum nächsten Song'} size="s" onClose={() => setOpen(false)}>
-          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Übergang">
+        <Dialog title={isItem ? t('tr.afterItem') : t('tr.toNext')} size="s" onClose={() => setOpen(false)}>
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label={t('tr.aria')}>
             {TRANSITION_OPTIONS.map((option) => (
               <button
                 key={option.type}
@@ -217,7 +214,7 @@ function TransitionPicker({
           </div>
           {type === 'delayed' && (
             <Field
-              label="Pause (Sekunden)"
+              label={t('tr.pause')}
               type="number"
               min={0}
               step={1}
@@ -262,6 +259,7 @@ function EntryRow({
   onSetTransition,
   onRemove,
 }: EntryRowProps) {
+  const { t } = useTranslation('library')
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entry.id,
   })
@@ -269,7 +267,7 @@ function EntryRow({
   // no other variant stands in for it (Marco, 2026-10-18).
   const { variant: resolved, issue } = resolveVariantForEntry(entry, songVariants)
   const selectedVariantId = resolved?.id ?? ''
-  const title = song?.title ?? '(unbekannter Song)'
+  const title = song?.title ?? t('unknownSong')
 
   return (
     <li
@@ -285,7 +283,7 @@ function EntryRow({
         {...attributes}
         style={{ touchAction: 'none' }}
         className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
-        aria-label="Ziehen zum Sortieren"
+        aria-label={t('drag')}
       >
         ⠿
       </button>
@@ -318,7 +316,7 @@ function EntryRow({
       <OverflowMenu
         title={title}
         variant="flat"
-        actions={[{ label: 'Entfernen', danger: true, onClick: () => onRemove(index) }]}
+        actions={[{ label: t('remove'), danger: true, onClick: () => onRemove(index) }]}
       />
     </li>
   )
@@ -327,6 +325,7 @@ function EntryRow({
 /** Settings for the Festival Clock widget (#28): the curfew and the time assumptions behind its
  * prediction. Collapsed by default - most setlists never need it (progressive disclosure). */
 function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next: Setlist) => void }) {
+  const { t } = useTranslation('library')
   const inputClass = `h-form !w-24 px-2 text-right ${INPUT}`
   function commitSeconds(field: 'defaultTransitionMs' | 'defaultSongDurationMs', text: string) {
     const seconds = Number(text.trim().replace(',', '.'))
@@ -336,11 +335,12 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
   return (
     <details className="rounded-container border border-line px-3 py-2 text-base text-ink-soft">
       <summary className="cursor-pointer select-none py-3 font-medium text-ink-muted">
-        Zeitplan (Festival-Uhr){setlist.targetEndTime ? ` · Ende ${setlist.targetEndTime}` : ''}
+        {t('sched.title')}
+        {setlist.targetEndTime ? t('sched.end', { time: setlist.targetEndTime }) : ''}
       </summary>
       <div className="mt-2 flex flex-col gap-2">
         <label className="flex items-center justify-between gap-2">
-          Endzeit (Curfew)
+          {t('sched.curfew')}
           <input
             type="time"
             value={setlist.targetEndTime ?? ''}
@@ -349,7 +349,7 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
           />
         </label>
         <label className="flex items-center justify-between gap-2">
-          Pause zwischen Songs (Sekunden)
+          {t('sched.pause')}
           <input
             key={`pause-${setlist.defaultTransitionMs ?? ''}`}
             type="number"
@@ -362,10 +362,10 @@ function ScheduleSettings({ setlist, onSave }: { setlist: Setlist; onSave: (next
         </label>
         <label className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1">
-            Songlänge ohne Track (Sekunden)
+            {t('sched.songLength')}
             <InfoHint
-              label="Erklärung: Songlänge ohne Track"
-              text="Grundlage für die voraussichtliche Endzeit. Songs mit hinterlegtem Track zählen mit ihrer echten Länge."
+              label={t('sched.songLengthLabel')}
+              text={t('sched.songLengthInfo')}
             />
           </span>
           <input
@@ -404,6 +404,7 @@ interface TransitionItemRowProps {
 /** A non-song item (#29): announcement/pause. Same drag handle as EntryRow; tapping the title
  * edits it. Shown distinctly (accent text + "Ansage" tag) so it can't be mistaken for a song. */
 function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: TransitionItemRowProps) {
+  const { t } = useTranslation('library')
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
   const heading = isHeadingEntry(entry)
   return (
@@ -420,7 +421,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         {...attributes}
         style={{ touchAction: 'none' }}
         className="flex h-form w-form flex-shrink-0 cursor-grab items-center justify-center text-ink-faint active:cursor-grabbing"
-        aria-label="Ziehen zum Sortieren"
+        aria-label={t('drag')}
       >
         ⠿
       </button>
@@ -429,7 +430,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
           <span className="text-sm font-bold uppercase tracking-widest text-accent">{entry.title}</span>
         ) : (
           <>
-            <span className="mr-2"><Badge tone="accent">Ansage</Badge></span>
+            <span className="mr-2"><Badge tone="accent">{t('item.announcement')}</Badge></span>
             <span className="italic">{entry.title}</span>
           </>
         )}
@@ -449,8 +450,8 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
         title={entry.title}
         variant="flat"
         actions={[
-          { label: 'Bearbeiten', onClick: () => onEdit(entry) },
-          { label: 'Entfernen', danger: true, onClick: () => onRemove(index) },
+          { label: t('edit'), onClick: () => onEdit(entry) },
+          { label: t('remove'), danger: true, onClick: () => onRemove(index) },
         ]}
       />
     </li>
@@ -464,6 +465,7 @@ function TransitionItemRow({ entry, index, onEdit, onSetTransition, onRemove }: 
  * Escape or a click outside - `mousedown`, not `click`, so it fires before a dropdown button's
  * own click would otherwise be pre-empted by an intervening blur. */
 function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: string) => void }) {
+  const { t } = useTranslation('library')
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -492,7 +494,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1 text-sm text-ink-muted">
-      Song hinzufügen
+      {t('addSong')}
       <input
         type="text"
         value={query}
@@ -504,7 +506,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
         onKeyDown={(e) => {
           if (e.key === 'Escape') setOpen(false)
         }}
-        placeholder="Songs durchsuchen…"
+        placeholder={t('searchSongs')}
         className={`h-form px-4 text-base ${INPUT}`}
       />
       {open && (
@@ -514,7 +516,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
         // the room the entry list already occupies.
         <ul className="absolute inset-x-0 bottom-full z-content mb-1 max-h-64 overflow-y-auto rounded-container border border-line bg-surface shadow-sb">
           {filtered.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-ink-faint">Keine Songs gefunden.</li>
+            <li className="px-4 py-3 text-sm text-ink-faint">{t('noSongsFound')}</li>
           ) : (
             filtered.map((song) => (
               <li key={song.id}>
@@ -523,7 +525,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
                   onClick={() => pick(song.id)}
                   className="block w-full truncate px-4 py-3 text-left text-base text-ink [@media(hover:hover)]:hover:bg-control-hover"
                 >
-                  {song.title || '(ohne Titel)'}
+                  {song.title || t('untitled')}
                   {song.artist && <span className="text-ink-faint"> — {song.artist}</span>}
                 </button>
               </li>
@@ -543,6 +545,7 @@ function AddSongCombobox({ songs, onAdd }: { songs: Song[]; onAdd: (songId: stri
  * component lives in LibraryView now.
  */
 export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDetailProps) {
+  const { t } = useTranslation('library')
   const songs = useVisibleSongs()
   const variants = useSongVariantsStore((state) => state.variants)
   const setlists = useSetlistsStore((state) => state.setlists)
@@ -601,9 +604,9 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
 
   async function handleDuplicate() {
     if (!setlist) return
-    const name = await promptText('Setlist duplizieren', {
-      label: 'Name der Kopie',
-      defaultValue: `${setlist.name} (Kopie)`,
+    const name = await promptText(t('duplicateSetlist'), {
+      label: t('copyNameLabel'),
+      defaultValue: t('copyName', { name: setlist.name }),
     })
     if (!name?.trim()) return
     // Copies what is shown, unsaved changes included.
@@ -614,8 +617,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     if (!stored) return
     const setlist = stored
     const confirmed = await confirm(
-      `"${setlist.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
-      { confirmLabel: 'Löschen', danger: true },
+      t('deleteSetlist', { name: setlist.name }),
+      { confirmLabel: t('delete'), danger: true },
     )
     if (!confirmed) {
       return
@@ -656,19 +659,19 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   }
 
   const transitionFields = (entry?: TransitionEntry, defaultStyle: ItemStyle = 'announcement') => [
-    { key: 'title', label: 'Titel (z. B. "Ansage Merch-Stand" oder "Set 2")', defaultValue: entry?.title ?? '' },
+    { key: 'title', label: t('item.titleField'), defaultValue: entry?.title ?? '' },
     {
       key: 'style',
-      label: 'Darstellung',
+      label: t('item.style'),
       type: 'radio' as const,
       defaultValue: entry?.style ?? defaultStyle,
       options: [
-        { value: 'announcement', label: 'Ansage / Pause' },
-        { value: 'heading', label: 'Abschnitts-Überschrift (z. B. Set 1)' },
+        { value: 'announcement', label: t('item.styleAnnouncement') },
+        { value: 'heading', label: t('item.styleHeading') },
       ],
     },
-    { key: 'notes', label: 'Notizen für die Band (optional)', type: 'textarea' as const, defaultValue: entry?.notes ?? '' },
-    { key: 'seconds', label: 'Dauer (Sekunden, optional - für automatischen Übergang)', defaultValue: secondsText(entry?.estimatedDurationMs) },
+    { key: 'notes', label: t('item.notes'), type: 'textarea' as const, defaultValue: entry?.notes ?? '' },
+    { key: 'seconds', label: t('item.seconds'), defaultValue: secondsText(entry?.estimatedDurationMs) },
   ]
 
   /** Adds an announcement/pause between songs (#29) - a real queue position with notes, no audio. */
@@ -676,9 +679,9 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
     if (!setlist) return
     const heading = defaultStyle === 'heading'
     const result = await promptFields(
-      heading ? 'Abschnitt hinzufügen' : 'Ansage / Pause hinzufügen',
+      heading ? t('item.addHeading') : t('item.addAnnouncement'),
       transitionFields(undefined, defaultStyle),
-      'Hinzufügen',
+      t('item.add'),
     )
     if (!result?.title?.trim()) return
     const item: TransitionEntry = {
@@ -694,7 +697,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
 
   async function editTransition(entry: TransitionEntry) {
     if (!setlist) return
-    const result = await promptFields('Eintrag bearbeiten', transitionFields(entry), 'Speichern')
+    const result = await promptFields(t('item.edit'), transitionFields(entry), t('save'))
     if (!result?.title?.trim()) return
     const updated: TransitionEntry = {
       ...entry,
@@ -727,7 +730,7 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
   }
 
   if (!setlist || !stored) {
-    return <p className="text-ink-faint">Setlist wurde entfernt.</p>
+    return <p className="text-ink-faint">{t('setlistRemoved')}</p>
   }
 
   if (!editing) {
@@ -743,8 +746,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           setEditing(true)
         }}
         menu={[
-          { label: 'Duplizieren', onClick: () => void handleDuplicate() },
-          { label: 'Löschen', danger: true, onClick: () => void handleDelete() },
+          { label: t('row.duplicate'), onClick: () => void handleDuplicate() },
+          { label: t('delete'), danger: true, onClick: () => void handleDelete() },
         ]}
         onSelectSong={onSelectSong}
       />
@@ -761,17 +764,17 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
       {/* Editing (Marco, 2026-10-07): nothing is stored before "Speichern"; "Abbrechen" drops it. */}
       <div className="flex items-center justify-end gap-2">
         <Button onClick={() => void leaveEditing()}>
-          Abbrechen
+          {t('cancel')}
         </Button>
         <Button variant="primary" onClick={() => void handleSave()} disabled={!setlist.name.trim()}>
-          Speichern
+          {t('save')}
         </Button>
       </div>
-      <Field label="Name" value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
+      <Field label={t('name')} value={setlist.name} onChange={(e) => update({ ...setlist, name: e.target.value })} />
       {/* For sorting the Bibliothek by gig (Marco, 2026-10-07) - optional, a plain date. */}
       <div className="max-w-56">
         <Field
-          label="Auftrittsdatum"
+          label={t('gigDate')}
           type="date"
           value={setlist.performanceDate ?? ''}
           onChange={(e) => update({ ...setlist, performanceDate: e.target.value || undefined })}
@@ -816,8 +819,8 @@ export function SetlistDetail({ setlistId, onSelectSong, onDeleted }: SetlistDet
           <AddSongCombobox songs={songs} onAdd={addSong} />
         </div>
         <div className="flex gap-2">
-          <AddRow inline label="Ansage / Pause" onClick={() => void addTransition('announcement')} />
-          <AddRow inline label="Abschnitt" onClick={() => void addTransition('heading')} />
+          <AddRow inline label={t('addAnnouncement')} onClick={() => void addTransition('announcement')} />
+          <AddRow inline label={t('addHeading')} onClick={() => void addTransition('heading')} />
         </div>
       </div>
     </div>

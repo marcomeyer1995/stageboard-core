@@ -1,9 +1,11 @@
+import i18n from '../i18n'
 import { isSongEntry, isTransitionEntry, type Setlist } from 'shared-types'
 import { useSongsStore } from '../store/useSongsStore'
 import { useSongVariantsStore } from '../store/useSongVariantsStore'
 import { formatItemSeconds } from '../lib/formatItemDuration'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { Badge, Button } from './ui'
+import { useTranslation } from 'react-i18next'
 
 interface SetlistPreviewProps {
   setlist: Setlist
@@ -20,7 +22,7 @@ interface SetlistPreviewProps {
 /** "Do., 24.12.2026" from "2026-12-24". */
 function formatDate(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(year, month - 1, day).toLocaleDateString(i18n.language, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /**
@@ -29,14 +31,15 @@ function formatDate(iso: string): string {
  * (de)activating stays here, since that's what a show reaches for.
  */
 export function SetlistPreview({ setlist, active, canActivate, onActivate, onDeactivate, onEdit, menu, onSelectSong }: SetlistPreviewProps) {
+  const { t } = useTranslation('library')
   const songs = useSongsStore((state) => state.songs)
   const variants = useSongVariantsStore((state) => state.variants)
   const songCount = setlist.entries.filter(isSongEntry).length
   const facts = [
-    `${songCount} ${songCount === 1 ? 'Song' : 'Songs'}`,
-    setlist.targetEndTime && `Ende ${setlist.targetEndTime}`,
-    setlist.defaultTransitionMs !== undefined && `Pause ${Math.round(setlist.defaultTransitionMs / 1000)} s`,
-    setlist.defaultSongDurationMs !== undefined && `Songlänge ${Math.round(setlist.defaultSongDurationMs / 1000)} s`,
+    t('pv.songs', { count: songCount }),
+    setlist.targetEndTime && t('pv.end', { time: setlist.targetEndTime }),
+    setlist.defaultTransitionMs !== undefined && t('pv.pause', { s: Math.round(setlist.defaultTransitionMs / 1000) }),
+    setlist.defaultSongDurationMs !== undefined && t('pv.songLength', { s: Math.round(setlist.defaultSongDurationMs / 1000) }),
   ].filter((fact): fact is string => !!fact)
 
   let songNumber = 0
@@ -47,19 +50,19 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 text-2xl font-bold text-ink">
             <span className="truncate">{setlist.name}</span>
-            {active && <Badge tone="accent">Aktiv</Badge>}
+            {active && <Badge tone="accent">{t('active')}</Badge>}
           </h2>
-          {setlist.performanceDate && <p className="text-ink-faint">Auftritt {formatDate(setlist.performanceDate)}</p>}
+          {setlist.performanceDate && <p className="text-ink-faint">{t('pv.gig', { date: formatDate(setlist.performanceDate) })}</p>}
         </div>
         <OverflowMenu title={setlist.name} actions={menu} scope="page" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={onEdit}>
-          Bearbeiten
+          {t('edit')}
         </Button>
         <Button onClick={active ? onDeactivate : onActivate} disabled={!canActivate}>
-          {active ? 'Deaktivieren' : 'Aktivieren'}
+          {active ? t('pv.deactivate') : t('pv.activate')}
         </Button>
       </div>
 
@@ -72,7 +75,7 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
       </div>
 
       {setlist.entries.length === 0 ? (
-        <p className="text-ink-faint">Noch leer - „Bearbeiten“ fügt Songs hinzu.</p>
+        <p className="text-ink-faint">{t('pv.empty')}</p>
       ) : (
         <ol className="flex flex-col gap-1">
           {setlist.entries.map((entry) => {
@@ -101,7 +104,7 @@ export function SetlistPreview({ setlist, active, canActivate, onActivate, onDea
                 >
                   <span className="w-6 flex-shrink-0 text-right tabular-nums text-ink-faint">{songNumber}</span>
                   <span className="min-w-0 truncate">
-                    {song ? song.title || '(ohne Titel)' : <span className="text-ink-faint">Song fehlt</span>}
+                    {song ? song.title || t('untitled') : <span className="text-ink-faint">{t('pv.songMissing')}</span>}
                     {song?.artist && <span className="text-ink-faint"> — {song.artist}</span>}
                     {variant && <span className="text-ink-faint"> · {variant.label}</span>}
                   </span>
