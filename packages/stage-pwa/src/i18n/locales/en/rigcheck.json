@@ -75,7 +75,9 @@
     "input": {
       "mic": "microphone",
       "cable": "cable"
-    }
+    },
+    "saveLatency": "Save new latency ({{ms}} ms)",
+    "latencySaved": "Saved: {{ms}} ms for {{route}}"
   },
   "analysis": {
     "title": "Analysis check",
@@ -115,7 +117,12 @@
     "ok": "All good",
     "whatWrong": "What was wrong?",
     "placeholder": "e.g. click and beeps sounded doubled, prompter late",
-    "question": "Did click and beeps sound like one, did the prompter change on the beat, did the jump come everywhere at once, and did your device react to its cue?"
+    "question": "Did click and beeps sound like one, did the prompter change on the beat, did the jump come everywhere at once, and did your device react to its cue?",
+    "measuredLate": "Click {{ms}} ms late (measured)",
+    "measuredEarly": "Click {{ms}} ms early (measured)",
+    "measuredJitter": "Click varies by ± {{ms}} ms (measured)",
+    "measuredMissing": "Only {{matched}} of {{total}} clicks heard (measured)",
+    "measuredFailed": "Click not measured: {{message}}"
   },
   "masterOnly": "Only the master prepares the rig check.",
   "thisDevice": "This device",

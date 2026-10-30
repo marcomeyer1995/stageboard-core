@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { AudioRouteSchema, CAPABILITIES, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
+import { AUDIO_OUTPUT, AudioRouteSchema, CAPABILITIES, latencyProfileId, PLAYBACK_CUE_TARGET, type LogicalDevice } from 'shared-types'
 import { describeCue, commandsFor } from '../lib/deviceCommands'
 import { getServerTime } from '../lib/clockSync'
 import { routeLabel } from '../lib/latencyProfiles'
@@ -19,7 +19,8 @@ import { useWorkspaceStore } from '../store/useWorkspaceStore'
 import { RigCheckAnalysis } from './RigCheckAnalysis'
 import { Group, Page } from './SystemSettings'
 import { RigCheckInputs } from './RigCheckInputs'
-import { currentSlot, measuredVerdict, measureRoundRunning, startMeasureRound } from '../lib/rigCheckMeasure'
+import { correctedLatencyMs, currentSlot, measuredVerdict, measureRoundRunning, startMeasureRound } from '../lib/rigCheckMeasure'
+import { useLatencyProfilesStore } from '../store/useLatencyProfilesStore'
 import { CueDialog } from './timeline/CueDialog'
 import { Badge, Button, Section, Segmented } from './ui'
 
@@ -43,7 +44,46 @@ function MeasuredLine({ report, slotted }: { report: RigCheckDeviceReport; slott
     : measured.offsetMs === null || !measured.reliable
       ? t('devices.measuredUnclear', { matched: measured.matched, total: measured.total })
       : t('devices.measured', { offset: signed(measured.offsetMs), jitter: Math.round(measured.jitterMs ?? 0), matched: measured.matched, total: measured.total })
-  return <p className={`text-sm font-semibold ${verdict === 'ok' ? 'text-ok' : 'text-danger'}`}>{`${text} · ${via}`}</p>
+  return (
+    <>
+      <p className={`text-sm font-semibold ${verdict === 'ok' ? 'text-ok' : 'text-danger'}`}>{`${text} · ${via}`}</p>
+      {verdict === 'problem' && <SaveLatency report={report} measured={measured} />}
+    </>
+  )
+}
+
+/** Red with a clear value: take it over for that device and route, like "Übernehmen" after
+ * "Messen" (docs/24 §7.3). */
+function SaveLatency({ report, measured }: { report: RigCheckDeviceReport; measured: NonNullable<RigCheckDeviceReport['measured']> }) {
+  const { t } = useTranslation('rigcheck')
+  const save = useLatencyProfilesStore((state) => state.save)
+  const [saved, setSaved] = useState(false)
+  const latencyMs = correctedLatencyMs(measured)
+  const route = AudioRouteSchema.safeParse(measured.audioRoute)
+  if (latencyMs === null || !route.success) return null
+  if (saved) return <p className="text-sm text-ink-soft">{t('devices.latencySaved', { ms: latencyMs, route: routeLabel(route.data) })}</p>
+  return (
+    <div>
+      <Button
+        onClick={() =>
+          void save({
+            id: latencyProfileId(report.deviceId, AUDIO_OUTPUT, route.data),
+            deviceId: report.deviceId,
+            output: AUDIO_OUTPUT,
+            route: route.data,
+            latencyMs,
+            jitterMs: measured.jitterMs ?? 0,
+            source: 'measured',
+            measuredAt: Date.now(),
+            sensor: 'sound',
+            samples: measured.matched,
+          }).then(() => setSaved(true))
+        }
+      >
+        {t('devices.saveLatency', { ms: latencyMs })}
+      </Button>
+    </div>
+  )
 }
 
 /** "1:05" for a duration in ms. */

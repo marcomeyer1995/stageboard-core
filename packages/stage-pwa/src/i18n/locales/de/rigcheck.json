@@ -75,7 +75,9 @@
     "input": {
       "mic": "Mikrofon",
       "cable": "Kabel"
-    }
+    },
+    "saveLatency": "Latenz neu speichern ({{ms}} ms)",
+    "latencySaved": "Gespeichert: {{ms}} ms für {{route}}"
   },
   "analysis": {
     "title": "Analyse-Prüfung",
@@ -115,7 +117,12 @@
     "ok": "Alles in Ordnung",
     "whatWrong": "Was war falsch?",
     "placeholder": "z. B. Klick und Beeps klangen doppelt, Prompter zu spät",
-    "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?"
+    "question": "Klangen Klick und Beeps wie ein Ton, wechselte der Prompter auf dem Schlag, kam der Sprung überall gleichzeitig, und hat dein Gerät auf seinen Cue reagiert?",
+    "measuredLate": "Klick {{ms}} ms zu spät (gemessen)",
+    "measuredEarly": "Klick {{ms}} ms zu früh (gemessen)",
+    "measuredJitter": "Klick schwankt um ± {{ms}} ms (gemessen)",
+    "measuredMissing": "Nur {{matched}} von {{total}} Klicks gehört (gemessen)",
+    "measuredFailed": "Klick nicht gemessen: {{message}}"
   },
   "masterOnly": "Nur der Master bereitet den Rig-Check vor.",
   "thisDevice": "Dieses Gerät",

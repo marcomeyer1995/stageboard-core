@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
 import type { ShowLogEvent } from 'shared-types'
 import { measureInputFor, runAudioCalibration } from './audioCalibration'
@@ -58,6 +59,24 @@ export function measuredVerdict(measured: MeasuredClick | undefined): 'ok' | 'pr
   if (measured.error || measured.offsetMs === null || !measured.reliable) return 'problem'
   const allHeard = measured.matched >= measured.total
   return Math.abs(measured.offsetMs) <= OFFSET_LIMIT_MS && (measured.jitterMs ?? 0) <= JITTER_LIMIT_MS && allHeard ? 'ok' : 'problem'
+}
+
+/** The note a red measurement pre-fills in "Alles in Ordnung?" (docs/24 §7.3) - the musician can
+ * change it, the verdict stays theirs. */
+export function measuredNote(measured: MeasuredClick): string {
+  if (measured.error) return i18n.t('rigcheck:verdict.measuredFailed', { message: measured.error })
+  if (measured.offsetMs === null || !measured.reliable || measured.matched < measured.total)
+    return i18n.t('rigcheck:verdict.measuredMissing', { matched: measured.matched, total: measured.total })
+  if (Math.abs(measured.offsetMs) > OFFSET_LIMIT_MS)
+    return i18n.t(measured.offsetMs > 0 ? 'rigcheck:verdict.measuredLate' : 'rigcheck:verdict.measuredEarly', { ms: Math.round(Math.abs(measured.offsetMs)) })
+  return i18n.t('rigcheck:verdict.measuredJitter', { ms: Math.round(measured.jitterMs ?? 0) })
+}
+
+/** The latency the device should have for that route: what it played with plus what was still
+ * off - null when the measurement gives no clear value. */
+export function correctedLatencyMs(measured: MeasuredClick): number | null {
+  if (measured.error || measured.offsetMs === null || !measured.reliable) return null
+  return Math.round(measured.storedMs + measured.offsetMs)
 }
 
 /**
