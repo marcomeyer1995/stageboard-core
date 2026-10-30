@@ -55,4 +55,22 @@ describe('song-played in the Nachbericht (#409 review)', () => {
     const played = (append.mock.calls as unknown as Array<[{ type: string; plannedPauseAfterMs?: number }]>).find(([event]) => event.type === 'song-played')?.[0]
     expect(played?.plannedPauseAfterMs).toBe(25_000)
   })
+
+  it('logs the time really played - not where the song stood after a jump (#64, #479)', async () => {
+    const setlist: Setlist = { id: 'sl', name: 'Gig', createdAt: 0, entries: [{ id: 'e1', songId: 'a', variantId: null, trackId: null }, { id: 'e2', songId: 'b', variantId: null, trackId: null }] }
+    useSongsStore.setState({ songs: [song('a'), song('b')] })
+    useSetlistsStore.setState({ setlists: [setlist] })
+    const append = vi.fn(async () => {})
+    useShowLogStore.setState({ append })
+    const base = useShowStateStore.getState().state
+    // Song time 90 s, of which a jump leapt over 30 s; a loop then repeated 20 s: 80 s played.
+    useShowStateStore.setState({
+      isMaster: true,
+      applyPatch: vi.fn(async () => {}),
+      state: { ...base, activeSetlistId: 'sl', activeEntryId: 'e1', activeEntryStartedAt: 1000, currentShowId: 'show-1', playbackStatus: 'paused', playbackStartedAt: null, playbackAccumulatedMs: 90_000, playbackSkippedMs: 30_000 - 20_000 },
+    })
+    await advanceToNextSong()
+    const played = (append.mock.calls as unknown as Array<[{ type: string; activeMs?: number }]>).find(([event]) => event.type === 'song-played')?.[0]
+    expect(played?.activeMs).toBe(80_000)
+  })
 })
