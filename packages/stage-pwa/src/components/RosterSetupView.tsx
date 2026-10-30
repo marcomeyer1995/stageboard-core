@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useDialogStore } from '../store/useDialogStore'
@@ -55,6 +56,7 @@ type Phase = 'founder' | 'members' | 'summary'
  * comment on `needsRosterSetup` for the full story).
  */
 export function RosterSetupView() {
+  const { t } = useTranslation('band')
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const workspaceName = useWorkspaceStore(
     (state) => state.workspaces.find((w) => w.id === state.activeWorkspaceId)?.name,
@@ -126,10 +128,9 @@ export function RosterSetupView() {
           <BackToWorkingBandLink />
 
           <div>
-            <h1 className="text-2xl font-bold">Wer ist alles bei {workspaceName} dabei?</h1>
+            <h1 className="text-2xl font-bold">{t('roster.who', { band: workspaceName })}</h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Trag die Namen der übrigen Bandmitglieder ein - beliebig viele, nacheinander. Instrument/Rolle und
-              Admin-Rechte kannst du später jederzeit im Menü anpassen.
+              {t('roster.intro')}
             </p>
           </div>
 
@@ -142,7 +143,7 @@ export function RosterSetupView() {
                 >
                   <span className="font-semibold">
                     {profile.name}
-                    {profile.id === founderId && <span className="ml-2 text-xs text-ink-faint">(du)</span>}
+                    {profile.id === founderId && <span className="ml-2 text-xs text-ink-faint">{t('roster.you')}</span>}
                   </span>
                   {profile.id !== founderId && (
                     <button
@@ -150,7 +151,7 @@ export function RosterSetupView() {
                       onClick={() => void remove(profile.id)}
                       className="min-h-form inline-flex items-center text-base text-ink-faint underline"
                     >
-                      Entfernen
+                      {t('roster.remove')}
                     </button>
                   )}
                 </li>
@@ -162,7 +163,7 @@ export function RosterSetupView() {
             <input
               value={memberName}
               onChange={(e) => setMemberName(e.target.value)}
-              placeholder="Name"
+              placeholder={t('roster.name')}
               autoFocus
               className={`h-form min-w-0 flex-1 min-w-0 px-3 ${INPUT_FREE}`}
             />
@@ -171,12 +172,12 @@ export function RosterSetupView() {
               disabled={!memberName.trim()}
               className="flex-shrink-0 rounded-control border border-line bg-surface px-4 min-h-form font-semibold disabled:opacity-40"
             >
-              Hinzufügen
+              {t('roster.add')}
             </button>
           </form>
 
           <Button variant="primary" fullWidth onClick={handleMembersDone}>
-            Weiter
+            {t('roster.next')}
           </Button>
         </div>
       </div>
@@ -189,10 +190,9 @@ export function RosterSetupView() {
         <BackToWorkingBandLink />
 
         <div>
-          <h1 className="text-2xl font-bold">Wer bist du?</h1>
+          <h1 className="text-2xl font-bold">{t('roster.whoAreYou')}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Du gründest {workspaceName}. Dein Name und ein 4-stelliger PIN für dein Admin-Konto - den PIN kannst du
-            später jederzeit in "Band" ändern.
+            {t('roster.founder', { band: workspaceName })}
           </p>
         </div>
 
@@ -200,19 +200,19 @@ export function RosterSetupView() {
           <input
             value={founderName}
             onChange={(e) => setFounderName(e.target.value)}
-            placeholder="Dein Name"
+            placeholder={t('roster.yourName')}
             autoFocus
             className={`h-form min-w-0 px-3 ${INPUT_FREE}`}
           />
           <input
             value={founderPin}
             onChange={(e) => setFounderPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="4-stelliger PIN"
+            placeholder={t('roster.pin')}
             inputMode="numeric"
             className={`h-form min-w-0 px-3 text-center text-lg tracking-widest ${INPUT_FREE}`}
           />
           <Button variant="primary" fullWidth type="submit" disabled={busy || !founderName.trim() || founderPin.length !== 4}>
-            {busy ? '…' : 'Weiter'}
+            {busy ? '…' : t('roster.next')}
           </Button>
         </form>
 
@@ -233,15 +233,15 @@ export function RosterSetupView() {
           <button
             type="button"
             onClick={async () => {
-              const confirmed = await confirm(`"${workspaceName}" verwerfen und neu anfangen (z.B. bei einem Tippfehler)?`, {
-                confirmLabel: 'Verwerfen',
+              const confirmed = await confirm(t('roster.discardAsk', { band: workspaceName }), {
+                confirmLabel: t('roster.discard'),
                 danger: true,
               })
               if (confirmed) void deleteWorkspace(workspaceId)
             }}
             className="min-h-form w-full text-center text-base text-ink-soft underline"
           >
-            Bandnamen falsch eingegeben? Neu anfangen
+            {t('roster.restart')}
           </button>
         )}
       </div>

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { BeatGrid, GridPoint } from 'shared-types'
 import { clickTimeline, gridStretches, MAX_STRETCH_BPM, MIN_STRETCH_BPM, setPoint } from './beatGrid'
 
@@ -365,7 +366,7 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   if (!startPoint)
     return {
       kind: 'refused',
-      reason: 'Zu wenige Schläge getippt - mindestens zwei Takte lang mittippen.',
+      reason: i18n.t('messages:tooFewTaps'),
     }
 
   // The curve as song times, hung from the start bar's current position (for the preview).
@@ -381,7 +382,7 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
     barBeats.push(rel)
   }
   if (barBeats.length < 2) {
-    return { kind: 'refused', reason: 'Zu wenige Schläge getippt - mindestens zwei Takte lang mittippen.' }
+    return { kind: 'refused', reason: i18n.t('messages:tooFewTaps') }
   }
   const endBar = startBar + barBeats.length - 1
   const next = points.find((p) => p.bar > endBar) ?? null
@@ -394,7 +395,7 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   if (!split)
     return {
       kind: 'refused',
-      reason: 'Aus den Tipps ließ sich kein Raster bilden - noch einmal gleichmäßiger mittippen.',
+      reason: i18n.t('messages:noGridFromTaps'),
     }
 
   // Keep the points outside the passage; the passage gets the fitted ones, hung from the start bar.
@@ -409,7 +410,7 @@ export function gridFromTappedCurve(grid: BeatGrid, bpm: number, timeSignature: 
   if (!result)
     return {
       kind: 'refused',
-      reason: `Die Tempoänderung ab Takt ${startBar} passt nicht zum nächsten Ausrichtungspunkt (Takt ${next?.bar}).`,
+      reason: i18n.t('messages:curveMismatch', { bar: startBar, next: next?.bar }),
     }
   const gradualFrom = new Set(
     split.knots

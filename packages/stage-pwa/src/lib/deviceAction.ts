@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { ShowControlEvent } from 'shared-types'
 import { pluginProviding } from './capabilities'
 import { capabilityTiming } from './capabilityTiming'
@@ -27,7 +28,7 @@ export async function fireDeviceAction(targetLogicalDeviceId: string, type: stri
   const installed = usePluginsStore.getState().installed
   const deviceId = useShowStateStore.getState().deviceId
   const device = resolveHardwareBindingById(devices, targetLogicalDeviceId)
-  if (!device) return 'Gerät nicht gefunden'
+  if (!device) return i18n.t('messages:deviceNotFound')
   const pluginId = device.pluginId ?? pluginProviding(installed, device.capability)
   const engine = resolveHardwareEngine(device, deviceId, pluginId, supportsLocalExecution(installed, device.capability))
   const at = scheduledAt === undefined ? undefined : Math.max(0, Math.round(scheduledAt))
@@ -37,19 +38,19 @@ export async function fireDeviceAction(targetLogicalDeviceId: string, type: stri
   if (engine === 'local-mine') {
     await preloadDynamicTranslator(device.capability, installed, getStageServerUrl() ?? null)
     const translator = getTranslator(device.capability)
-    if (!translator) return 'Kein Treiber für dieses Gerät'
+    if (!translator) return i18n.t('messages:noDriver')
     await translator(event)
     return null
   }
   if (engine === 'local-other') {
     const result = await triggerDeviceControl(useWorkspaceStore.getState().activeWorkspaceId, device.executionTarget!, device.capability, event)
-    return result.status === 'error' ? (result.message ?? 'Fehler') : null
+    return result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null
   }
   if (engine === 'plugin' && pluginId) {
     const result = await triggerShowControl(pluginId, event)
-    return result.status === 'error' ? (result.message ?? 'Fehler') : null
+    return result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null
   }
-  return 'Gerät nicht erreichbar'
+  return i18n.t('messages:deviceUnreachable')
 }
 
 function waitUntil(serverTime: number): Promise<void> {

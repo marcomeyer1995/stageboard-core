@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useEffect, useState } from 'react'
 import { getServerTime } from '../lib/clockSync'
@@ -55,6 +56,7 @@ function formatClock(ms: number, format: SyncClockFormat = 'full'): string {
  * that (stageWidgetLayout.ts).
  */
 export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const captionShown = useShowPart('caption')
   const offsetShown = useShowPart('offset')
@@ -82,12 +84,12 @@ export function SyncCheckWidget({ config }: { config: SyncCheckConfig }) {
       </div>
       {captionShown && layout.showCaption && (
         <span className="max-w-full truncate px-2 text-xs uppercase tracking-widest opacity-70">
-          Sync-Blitz - Geräte vergleichen
+          {t('sync.caption')}
         </span>
       )}
       {offsetShown && layout.showOffset && lastSyncedAt !== null && (
         <span className="max-w-full truncate px-2 text-xs opacity-70">
-          {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms`}
+          {t('sync.offset', { offset: `${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)}`, drift: driftMs === null ? '?' : Math.round(driftMs) })}
         </span>
       )}
     </div>
@@ -101,9 +103,10 @@ export function SyncCheckConfigPanel({
   config: SyncCheckConfig
   onChange: (next: SyncCheckConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import type { CapabilityStatus } from '../lib/capabilities'
 import { useCapabilities } from '../lib/useCapabilities'
@@ -7,9 +9,15 @@ import { useClockSyncStore } from '../store/useClockSyncStore'
 import type { ContentFontSizeConfig } from './contentFontSizeConfig'
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
-  available: 'Online',
-  degraded: 'Gestört',
-  missing: 'Fehlt',
+  get available() {
+    return i18n.t('widgets:health.available')
+  },
+  get degraded() {
+    return i18n.t('widgets:health.degraded')
+  },
+  get missing() {
+    return i18n.t('widgets:health.missing')
+  },
 }
 
 const STATUS_DOT: Record<CapabilityStatus, string> = {
@@ -36,6 +44,7 @@ const DRIFT_WARN_THRESHOLD_MS = 15
  * performing musician needs cluttering their own Station.
  */
 export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showPlugins = useShowPart('plugins')
   const showSync = useShowPart('sync')
@@ -47,8 +56,8 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
 
   return (
     <div className="flex h-full flex-col gap-1 overflow-y-auto text-ink-soft" style={{ fontSize }}>
-      {showPlugins && <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">System-Status</p>}
-      {showPlugins && entries.length === 0 && <p className="text-ink-faint">Keine Plugins installiert.</p>}
+      {showPlugins && <p className="text-xs font-bold uppercase tracking-widest text-ink-faint">{t('health.caption')}</p>}
+      {showPlugins && entries.length === 0 && <p className="text-ink-faint">{t('health.none')}</p>}
       {showPlugins && entries.map(([capability, status]) => (
         <div
           key={capability}
@@ -67,13 +76,13 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
 
       {showSync && (
       <>
-      <p className="mt-2 text-xs font-bold uppercase tracking-widest text-ink-faint">Uhrzeit-Sync</p>
+      <p className="mt-2 text-xs font-bold uppercase tracking-widest text-ink-faint">{t('health.clock')}</p>
       <div className="flex items-center justify-between gap-2 rounded-control bg-control px-2 py-1">
-        <span className="text-ink">Stage-Server</span>
+        <span className="text-ink">{t('health.server')}</span>
         {lastSyncedAt === null ? (
           <span className="flex items-center gap-[0.4em]">
             <span className="inline-block rounded-full bg-control-strong-hover" style={{ width: '0.5em', height: '0.5em' }} />
-            Noch nicht synchronisiert
+            {t('health.notYet')}
           </span>
         ) : (
           <span className="flex items-center gap-[0.4em]">
@@ -83,7 +92,7 @@ export function SystemHealthWidget({ config }: { config: ContentFontSizeConfig }
               }`}
               style={{ width: '0.5em', height: '0.5em' }}
             />
-            {`Offset ${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)} ms · Drift ${driftMs === null ? '?' : Math.round(driftMs)} ms · vor ${Math.max(0, Math.round((now - lastSyncedAt) / 1000))}s`}
+            {t('health.detail', { offset: `${offsetMs >= 0 ? '+' : ''}${Math.round(offsetMs)}`, drift: driftMs === null ? '?' : Math.round(driftMs), s: Math.max(0, Math.round((now - lastSyncedAt) / 1000)) })}
           </span>
         )}
       </div>

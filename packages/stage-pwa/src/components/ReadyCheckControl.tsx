@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useReadyCheck } from '../lib/useReadyCheck'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useShowStateStore } from '../store/useShowStateStore'
@@ -8,6 +9,7 @@ import { Icon } from './Icon'
 /** `compact`: "Ready" / "3/4" for narrow widgets. `buttonClassName` lets the host widget size the
  * buttons (Next Song fills its height with them - lib/gigWidgetLayout.ts). */
 export function ReadyCheckControl({ compact = false, buttonClassName }: { compact?: boolean; buttonClassName?: string } = {}) {
+  const { t } = useTranslation('common')
   const startReadyCheck = useShowStateStore((state) => state.startReadyCheck)
   const endReadyCheck = useShowStateStore((state) => state.endReadyCheck)
   const profiles = useProfilesStore((state) => state.profiles)
@@ -16,24 +18,24 @@ export function ReadyCheckControl({ compact = false, buttonClassName }: { compac
 
   if (!checkId || !status) {
     return (
-      <button type="button" onClick={() => void startReadyCheck()} title="Alle Tablets fragen, ob die Band bereit ist" className={buttonClass}>
-        {compact ? 'Ready' : 'Ready-Check'}
+      <button type="button" onClick={() => void startReadyCheck()} title={t('rc.askTitle')} className={buttonClass}>
+        {compact ? t('rc.short') : t('rc.title')}
       </button>
     )
   }
 
-  const missing = status.missingProfileIds.map((id) => profiles.find((profile) => profile.id === id)?.name ?? 'Unbekannt')
+  const missing = status.missingProfileIds.map((id) => profiles.find((profile) => profile.id === id)?.name ?? t('rc.unknown'))
   return (
     <div className="flex h-full items-center gap-2">
       <span
-        title={missing.length > 0 ? `Warten auf: ${missing.join(', ')}` : 'Alle bereit'}
+        title={missing.length > 0 ? t('rc.waiting', { names: missing.join(', ') }) : t('rc.allReady')}
         className={`font-bold tabular-nums ${status.allReady ? 'text-ok' : 'text-ink'}`}
       >
         {status.allReady && <Icon name="check" className="mr-1" />}
         {status.ready}/{status.total}{compact ? '' : ' bereit'}
       </span>
-      <button type="button" onClick={() => void endReadyCheck()} title="Ready-Check beenden" className={buttonClass}>
-        Ende
+      <button type="button" onClick={() => void endReadyCheck()} title={t('rc.endTitle')} className={buttonClass}>
+        {t('rc.end')}
       </button>
     </div>
   )

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useTouchSizes } from '../components/ui/PrepTier'
 import { LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from '../lib/metronome'
@@ -25,6 +26,7 @@ const STEP_PERCENT = 1
  * tile (Marco, 2026-09-14).
  */
 export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const { mode, liveTempoAdjustPercent, setLiveTempoAdjustPercent, nudgeLiveTempoAdjustPercent, canControl } =
@@ -39,7 +41,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
   if (mode !== 'gig') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Nur im Gig-Modus verfügbar
+        {t('nudge.onlyGig')}
       </div>
     )
   }
@@ -58,11 +60,11 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
 
   return (
     <div ref={boxRef} className="flex h-full flex-col items-center gap-2 text-ink-soft">
-      {showCaption && layout.showLabel && <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">Tempo-Korrektur</span>}
+      {showCaption && layout.showLabel && <span className="flex-none text-xs uppercase tracking-widest text-ink-faint">{t('nudge.caption')}</span>}
       <div className="flex min-h-0 w-full flex-1 items-center justify-center gap-3">
         <button
           type="button"
-          aria-label="Tempo verringern"
+          aria-label={t('nudge.down')}
           disabled={!canControl || atMin}
           onClick={() => nudgeLiveTempoAdjustPercent(-STEP_PERCENT)}
           className={stepClass}
@@ -73,7 +75,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
         {!layout.resetAsButton && liveTempoAdjustPercent !== 0 ? (
           <button
             type="button"
-            title="Auf 0 % zurücksetzen"
+            title={t('nudge.resetTitle')}
             disabled={!canControl}
             onClick={() => setLiveTempoAdjustPercent(0)}
             style={{ fontSize: valueFontSize }}
@@ -91,7 +93,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
         )}
         <button
           type="button"
-          aria-label="Tempo erhöhen"
+          aria-label={t('nudge.up')}
           disabled={!canControl || atMax}
           onClick={() => nudgeLiveTempoAdjustPercent(STEP_PERCENT)}
           className={stepClass}
@@ -106,7 +108,7 @@ export function TempoNudgeWidget({ config }: { config: TempoNudgeConfig }) {
           onClick={() => setLiveTempoAdjustPercent(0)}
           className="h-form flex-none rounded-control bg-control-strong px-4 font-semibold text-ink [@media(hover:hover)]:hover:bg-control-strong-hover disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Zurücksetzen
+          {t('nudge.reset')}
         </button>
       )}
     </div>
@@ -120,9 +122,10 @@ export function TempoNudgeConfigPanel({
   config: TempoNudgeConfig
   onChange: (next: TempoNudgeConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Segmented, Select } from '../components/ui'
 import type { SeparatorConfig } from './separatorConfig'
 import { WIDGET_COLORS, WIDGET_COLOR_LINE } from './widgetColors'
@@ -23,17 +24,18 @@ export function SeparatorConfigPanel({
   config: SeparatorConfig
   onChange: (next: SeparatorConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-2">
       <Segmented
-        label="Ausrichtung"
+        label={t('sep.orientation')}
         showLabel
         value={config.orientation}
         onChange={(value) => onChange({ ...config, orientation: value as SeparatorConfig['orientation'] })}
-        options={[{ value: 'horizontal', label: 'Horizontal' }, { value: 'vertical', label: 'Vertikal' }]}
+        options={[{ value: 'horizontal', label: t('sep.horizontal') }, { value: 'vertical', label: t('sep.vertical') }]}
       />
       <Select
-        label="Farbe"
+        label={t('sep.color')}
         value={config.color}
         onChange={(e) => onChange({ ...config, color: e.target.value as SeparatorConfig['color'] })}
         options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}

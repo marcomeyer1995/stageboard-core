@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useState } from 'react'
 import { Icon } from './Icon'
 import { ActionMenuDialog, menuIcon } from './ui'
@@ -72,7 +73,7 @@ export function OverflowMenu({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title="Menü öffnen"
+          title={i18n.t('common:ui.openMenu')}
           className={
             variant === 'flat'
               ? `flex ${size} flex-shrink-0 items-center justify-center rounded-control text-lg leading-none text-ink-faint [@media(hover:hover)]:hover:bg-control-hover [@media(hover:hover)]:hover:text-ink`

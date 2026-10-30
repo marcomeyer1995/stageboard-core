@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import type { LogicalDevice, PluginInstallation, ShowCue } from 'shared-types'
 import { pluginProviding } from './capabilities'
 import { capabilityTiming } from './capabilityTiming'
@@ -42,14 +43,14 @@ export interface CueOutcome {
  * comment already gives.
  */
 /** A tablet add-on's device that no tablet was chosen for in Bühnentechnik. */
-export const TABLET_ONLY_MESSAGE = 'Hängt an keinem Gerät - in Bühnentechnik ein Tablet wählen'
+export const TABLET_ONLY_MESSAGE = i18n.t('messages:noTablet')
 
 export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcome | null> {
   // Click/announcement cues (#485) are played by the audio drivers, not sent to hardware.
   if (isPlaybackCue(cue)) return null
   const logicalDevice = resolveHardwareBindingById(ctx.logicalDevices, cue.targetLogicalDeviceId)
   // A cue for a device that no longer exists is a missed cue - reported by the master only.
-  if (!logicalDevice) return ctx.sendsServerCues ? { target: cue.targetLogicalDeviceId, ok: false, message: 'Gerät nicht gefunden (gelöscht?)' } : null
+  if (!logicalDevice) return ctx.sendsServerCues ? { target: cue.targetLogicalDeviceId, ok: false, message: i18n.t('messages:deviceGone') } : null
 
   const pluginId = logicalDevice.pluginId ?? pluginProviding(ctx.installed, logicalDevice.capability)
   const engine = resolveHardwareEngine(
@@ -61,7 +62,7 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
 
   const target = logicalDevice.name
   const outcome = (result: { status: string; message?: string } | undefined): CueOutcome =>
-    !result ? { target, ok: false, message: 'Kein Treiber für dieses Gerät' } : { target, ok: result.status === 'ok', ...(result.status === 'ok' || !result.message ? {} : { message: result.message }) }
+    !result ? { target, ok: false, message: i18n.t('messages:noDriver') } : { target, ok: result.status === 'ok', ...(result.status === 'ok' || !result.message ? {} : { message: result.message }) }
   const event = { type: cue.type, payload: cue.payload, logicalDeviceId: logicalDevice.id }
   const scheduledAt = ctx.timing ? Math.max(0, Math.round(ctx.timing.scheduledAt)) : undefined
   try {
@@ -88,7 +89,7 @@ export async function fireCue(cue: ShowCue, ctx: FireContext): Promise<CueOutcom
     return { target, ok: false, message: err instanceof Error ? err.message : String(err) }
   }
   // Nothing anywhere can send it (no plugin installed, nothing bound) - missed, said by the master.
-  if (engine === 'none') return ctx.sendsServerCues ? { target, ok: false, message: 'Kein Plugin oder Gerät führt diesen Cue aus' } : null
+  if (engine === 'none') return ctx.sendsServerCues ? { target, ok: false, message: i18n.t('messages:noExecutor') } : null
   return null
 }
 

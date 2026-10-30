@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { trackElementVolume, useAudioMixStore } from './audioMix'
 import { getTrack } from './songVariantsDb'
 
@@ -93,7 +94,7 @@ export function loadLocalTrack(variantId: string, trackId: string, atMs: number)
       return { status: 'ok' }
     }
     const blob = await getTrack(variantId, trackId)
-    if (!blob) return { status: 'error', message: 'Kein Track gefunden' }
+    if (!blob) return { status: 'error', message: i18n.t('messages:noTrackFound') }
 
     if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
     currentObjectUrl = URL.createObjectURL(blob)
@@ -145,7 +146,7 @@ export async function playLocalTrack(atMs: number): Promise<LocalAudioResult> {
     return { status: 'ok' }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') return { status: 'ok' }
-    return { status: 'error', message: 'Wiedergabe durch den Browser blockiert - bitte antippen' }
+    return { status: 'error', message: i18n.t('messages:blocked') }
   }
 }
 

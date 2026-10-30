@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { create } from 'zustand'
 
 export interface DialogField {
@@ -95,7 +96,7 @@ interface DialogState {
  */
 export const useDialogStore = create<DialogState>()((set, get) => ({
   request: null,
-  promptFields: (title, fields, submitLabel = 'OK') =>
+  promptFields: (title, fields, submitLabel = i18n.t('common:dialog.ok')) =>
     new Promise((resolve) => {
       set({ request: { kind: 'prompt', title, fields, submitLabel, resolve } })
     }),
@@ -114,7 +115,7 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
           kind: 'confirm',
           title: options.title ?? message,
           message: options.title ? message : undefined,
-          confirmLabel: options.confirmLabel ?? 'OK',
+          confirmLabel: options.confirmLabel ?? i18n.t('common:dialog.ok'),
           danger: options.danger ?? false,
           resolve,
         },
@@ -143,7 +144,7 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   },
   askUnsaved: () =>
     new Promise((resolve) => {
-      set({ request: { kind: 'unsaved', title: 'Ungespeicherte Änderungen', resolve } })
+      set({ request: { kind: 'unsaved', title: i18n.t('common:dialog.unsavedTitle'), resolve } })
     }),
   resolveUnsaved: (value) => {
     const request = get().request

@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { CAPABILITIES, type CapabilityId, type ShowCue } from 'shared-types'
 import { KEMPER_CAPABILITY, MG30_CAPABILITY, RC500_CAPABILITY } from '../midiDeviceProtocols'
 import { KEMPER_COMMANDS } from './kemper'
@@ -85,19 +86,19 @@ export function payloadFromAnswers(fields: readonly CommandField[], answers: Rec
     switch (field.kind) {
       case 'int': {
         const n = Number(raw)
-        if (!raw || !Number.isInteger(n) || n < field.min || n > field.max) return { error: `${field.label}: ganze Zahl von ${field.min} bis ${field.max}.` }
+        if (!raw || !Number.isInteger(n) || n < field.min || n > field.max) return { error: i18n.t('messages:fieldInt', { label: field.label, min: field.min, max: field.max }) }
         payload[field.key] = n
         break
       }
       case 'number': {
         const n = Number(raw.replace(',', '.'))
-        if (!raw || !Number.isFinite(n)) return { error: `${field.label}: eine Zahl${field.unit ? ` in ${field.unit}` : ''}.` }
+        if (!raw || !Number.isFinite(n)) return { error: (field.unit ? i18n.t('messages:fieldNumberUnit', { label: field.label, unit: field.unit }) : i18n.t('messages:fieldNumber', { label: field.label })) }
         payload[field.key] = n
         break
       }
       case 'choice': {
         const option = field.options.find((o) => String(o.value) === raw)
-        if (!option) return { error: `${field.label}: bitte auswählen.` }
+        if (!option) return { error: i18n.t('messages:fieldChoose', { label: field.label }) }
         payload[field.key] = option.value
         break
       }
@@ -105,7 +106,7 @@ export function payloadFromAnswers(fields: readonly CommandField[], answers: Rec
         payload[field.key] = raw === 'true'
         break
       case 'text': {
-        if (!raw && !field.optional) return { error: `${field.label}: bitte ausfüllen.` }
+        if (!raw && !field.optional) return { error: i18n.t('messages:fieldFill', { label: field.label }) }
         const problem = raw ? (field.validate?.(raw) ?? null) : null
         if (problem) return { error: `${field.label}: ${problem}` }
         if (raw) payload[field.key] = raw

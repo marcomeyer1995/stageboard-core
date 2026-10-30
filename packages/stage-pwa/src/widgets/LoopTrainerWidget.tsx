@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useShowPart } from '../lib/widgetParts'
 import { Button, Dialog, Select, Switch } from '../components/ui'
@@ -35,15 +36,16 @@ function Stepper({
   disabled?: boolean
   onChange: (next: number) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-ink-faint">{label}</span>
       <div className="flex items-center gap-2">
-        <button type="button" aria-label={`${label} verringern`} disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - step))} className={stepperButton}>
+        <button type="button" aria-label={t('loop.decrease', { label })} disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - step))} className={stepperButton}>
           −
         </button>
         <span className="min-w-12 text-center font-bold tabular-nums text-ink">{value} %</span>
-        <button type="button" aria-label={`${label} erhöhen`} disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + step))} className={stepperButton}>
+        <button type="button" aria-label={t('loop.increase', { label })} disabled={disabled || value >= max} onClick={() => onChange(Math.min(max, value + step))} className={stepperButton}>
           +
         </button>
       </div>
@@ -58,6 +60,7 @@ function Stepper({
  * clock must never allow one tablet to do.
  */
 export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showCaption = useShowPart('caption')
   const { mode, queue, elapsedMs } = useShowMode()
@@ -74,7 +77,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   if (mode !== 'practice') {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-        Nur in Solo Üben verfügbar
+        {t('loop.onlyPractice')}
       </div>
     )
   }
@@ -82,7 +85,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
   const { currentEntry, currentSong, currentVariant } = queue
   const track = resolveTrackForEntry(currentEntry, currentVariant, trackOverride)
   if (!currentEntry || !currentSong || !currentVariant || !track) {
-    return <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">Kein Track angehängt</div>
+    return <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">{t('w.noTrack')}</div>
   }
 
   const entryId = currentEntry.id
@@ -95,15 +98,15 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto text-sm text-ink-soft">
-      {showCaption && <span className="text-xs uppercase tracking-widest text-ink-faint">Loop-Trainer</span>}
+      {showCaption && <span className="text-xs uppercase tracking-widest text-ink-faint">{t('loop.caption')}</span>}
 
       <div className="flex items-center gap-2">
         <Button disabled={!canSetPoint} onClick={() => update({ startMs: Math.round(elapsedMs ?? 0) })}>
-          A setzen
+          {t('loop.setA')}
         </Button>
         <span className="font-bold tabular-nums text-ink">{settings.startMs === null ? '–' : formatLoopTime(settings.startMs)}</span>
         <Button disabled={!canSetPoint} onClick={() => update({ endMs: Math.round(elapsedMs ?? 0) })} className="ml-auto">
-          B setzen
+          {t('loop.setB')}
         </Button>
         <span className="font-bold tabular-nums text-ink">{settings.endMs === null ? '–' : formatLoopTime(settings.endMs)}</span>
       </div>
@@ -111,21 +114,21 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       {sections.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           <Select
-            label="Von Abschnitt"
+            label={t('loop.from')}
             disabled={stored.active}
             className="min-w-0"
             value=""
             onChange={(e) => e.target.value !== '' && update({ startMs: Number(e.target.value) })}
-            options={[{ value: '', label: 'wählen…' }, ...sections.map((section) => ({ value: String(section.startMs), label: section.label }))]}
+            options={[{ value: '', label: t('w.choose') }, ...sections.map((section) => ({ value: String(section.startMs), label: section.label }))]}
           />
           <Select
-            label="Bis Ende von"
+            label={t('loop.to')}
             disabled={stored.active}
             className="min-w-0"
             value=""
             onChange={(e) => e.target.value !== '' && update({ endMs: Number(e.target.value) })}
             options={[
-              { value: '', label: 'wählen…' },
+              { value: '', label: t('w.choose') },
               ...sections.filter((section) => section.endMs !== null).map((section) => ({ value: String(section.endMs ?? 0), label: section.label })),
             ]}
           />
@@ -138,15 +141,15 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
         <Button className="min-w-0 flex-1" disabled={stored.active} onClick={() => setTempoOpen(true)}>
           <span style={{ fontSize }} className="truncate tabular-nums">
             {playing
-              ? `Durchgang ${playing.pass + 1} · ${Math.round(playing.rate * 100)} %`
+              ? t('loop.pass', { n: playing.pass + 1, pct: Math.round(playing.rate * 100) })
               : settings.trainerEnabled
-                ? `Tempo ${settings.startPercent} → ${settings.targetPercent} %`
-                : `Tempo ${settings.startPercent} %`}
+                ? t('loop.tempoRange', { from: settings.startPercent, to: settings.targetPercent })
+                : t('loop.tempo', { pct: settings.startPercent })}
           </span>
         </Button>
         {stored.active ? (
           <Button className="min-w-0 flex-1" variant="primary" icon="stop" onClick={stopLoopTrainer}>
-            Loop stoppen
+            {t('loop.stop')}
           </Button>
         ) : (
           <Button
@@ -159,7 +162,7 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
               void startLoopTrainer().finally(() => setStarting(false))
             }}
           >
-            {starting ? 'Loop startet…' : 'Loop starten'}
+            {starting ? t('loop.starting') : t('loop.start')}
           </Button>
         )}
       </div>
@@ -167,14 +170,14 @@ export function LoopTrainerWidget({ config }: { config: LoopTrainerWidgetConfig 
       {stored.error && <p className="text-xs text-danger">{stored.error}</p>}
 
       {tempoOpen && (
-        <Dialog title="Loop-Tempo" onClose={() => setTempoOpen(false)}>
+        <Dialog title={t('loop.tempoTitle')} onClose={() => setTempoOpen(false)}>
           <div className="flex flex-col gap-3">
-            <Stepper label="Tempo" value={settings.startPercent} min={25} max={150} step={5} onChange={(startPercent) => update({ startPercent })} />
-            <Switch label="Speed Trainer" checked={settings.trainerEnabled} onChange={(trainerEnabled) => update({ trainerEnabled })} />
+            <Stepper label={t('loop.tempoLabel')} value={settings.startPercent} min={25} max={150} step={5} onChange={(startPercent) => update({ startPercent })} />
+            <Switch label={t('loop.trainer')} checked={settings.trainerEnabled} onChange={(trainerEnabled) => update({ trainerEnabled })} />
             {settings.trainerEnabled && (
               <>
-                <Stepper label="Ziel" value={settings.targetPercent} min={25} max={150} step={5} onChange={(targetPercent) => update({ targetPercent })} />
-                <Stepper label="Pro Durchgang +" value={settings.stepPercent} min={1} max={20} step={1} onChange={(stepPercent) => update({ stepPercent })} />
+                <Stepper label={t('loop.target')} value={settings.targetPercent} min={25} max={150} step={5} onChange={(targetPercent) => update({ targetPercent })} />
+                <Stepper label={t('loop.step')} value={settings.stepPercent} min={1} max={20} step={1} onChange={(stepPercent) => update({ stepPercent })} />
               </>
             )}
           </div>
@@ -191,9 +194,10 @@ export function LoopTrainerConfigPanel({
   config: LoopTrainerWidgetConfig
   onChange: (next: LoopTrainerWidgetConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Durchgang-Anzeige"
+      label={t('loop.passDisplay')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

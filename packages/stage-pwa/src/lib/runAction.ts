@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { isSongEntry } from 'shared-types'
 import type { Action, Release, SequenceStep, WaitUnit } from './actions'
 import { needsShowControl } from './actions'
@@ -133,7 +134,7 @@ function runSteps(steps: readonly SequenceStep[], show: Show): Promise<string | 
  * the prompter always. Returns a short reason when nothing happened, else null.
  */
 export async function runAction(action: Action, show: Show): Promise<string | null> {
-  if (needsShowControl(action) && !show.canControl) return 'Nur der Master steuert die Show'
+  if (needsShowControl(action) && !show.canControl) return i18n.t('messages:masterOnly')
   switch (action.kind) {
     case 'show':
       await runShow(action.op, show)
@@ -209,7 +210,7 @@ async function runSection(action: Extract<Action, { kind: 'section' }>, show: Sh
     return null
   }
   const now = songSectionsNow(show)
-  if (!now || now.sections.length === 0) return 'Keine Abschnitte im Song'
+  if (!now || now.sections.length === 0) return i18n.t('messages:noSections')
   const elapsed = show.elapsedMs ?? 0
   const index = sectionIndexAt(now.sections, elapsed)
   const current = now.sections[index]
@@ -218,7 +219,7 @@ async function runSection(action: Extract<Action, { kind: 'section' }>, show: Sh
       await setSectionLoop(null)
       return null
     }
-    if (!current) return 'Kein Abschnitt spielt gerade'
+    if (!current) return i18n.t('messages:noSectionPlaying')
     await setSectionLoop(current)
     return null
   }
@@ -230,9 +231,9 @@ async function runSection(action: Extract<Action, { kind: 'section' }>, show: Sh
     const named = now.sections.filter((s) => s.label.trim().toLowerCase() === (action.label ?? '').trim().toLowerCase())
     target = named.find((s) => s.startMs > elapsed) ?? named[0]
   }
-  if (!target) return action.op === 'jump' ? `Kein Abschnitt „${action.label ?? ''}“ im Song` : 'Kein Abschnitt dort'
+  if (!target) return action.op === 'jump' ? i18n.t('messages:noSectionNamed', { name: action.label ?? '' }) : i18n.t('messages:noSectionThere')
   const result = await queueSectionJump(target, action.when ?? 'section', now.sections, now.timeline)
-  return result === 'queued' ? null : result === 'not-playing' ? 'Springen, während der Song läuft' : result === 'no-boundary' ? 'Kein Ende für diesen Abschnitt bekannt' : 'Nur der Master steuert die Show'
+  return result === 'queued' ? null : result === 'not-playing' ? i18n.t('messages:jumpWhilePlaying') : result === 'no-boundary' ? 'Kein Ende für diesen Abschnitt bekannt' : i18n.t('messages:masterOnly')
 }
 
 async function runPlayback(op: Extract<Action, { kind: 'playback' }>['op'], show: Show): Promise<string | null> {
@@ -245,7 +246,7 @@ async function runPlayback(op: Extract<Action, { kind: 'playback' }>['op'], show
   else if (op === 'click-song') show.setClickTrackOverride(null)
   else if (op === 'click-toggle') {
     const song = show.queue.currentArrangement
-    if (!song) return 'Kein Song'
+    if (!song) return i18n.t('messages:noSong')
     show.setClickTrackOverride(effectiveClickEnabled(song.clickTrackEnabled, show.clickTrackOverride) ? 'off' : 'on')
   }
   return null

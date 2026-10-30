@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ResponsiveGridLayout,
@@ -39,6 +40,7 @@ import { useActiveProfile } from '../lib/useActiveProfile'
 import { Button } from './ui'
 import { DashboardWidgetTypes } from '../lib/dashboardWidgets'
 import { useWidgetText } from '../lib/widgetText'
+import { useTranslation } from 'react-i18next'
 
 /** docs/07 section 3: phone, tablet portrait, tablet landscape, stage monitor. */
 const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = { xl: 1600, lg: 1024, md: 640, sm: 0 }
@@ -69,7 +71,7 @@ function minSizeFor(dashboard: DashboardDoc, cell?: CellSize): (instanceId: stri
 }
 
 /** Human name of a breakpoint for the edit-mode banner. */
-const BREAKPOINT_LABEL: Record<Breakpoint, string> = { sm: 'Handy', md: 'Hochformat', lg: 'Querformat', xl: 'großer Bildschirm' }
+const BREAKPOINT_LABEL = (breakpoint: Breakpoint): string => i18n.t(`dashboard:bp.${breakpoint}`)
 
 function layoutFor(dashboard: DashboardDoc, breakpoint: Breakpoint, items?: LayoutItem[]): LayoutItem[] {
   // Clamped on read, not only on write: a dashboard stored before the grid had bounds - or
@@ -109,6 +111,7 @@ function toItems(layout: Layout): LayoutItem[] {
 }
 
 export function Dashboard() {
+  const { t } = useTranslation('dashboard')
   const widgetText = useWidgetText()
   const loaded = useDashboardsStore((state) => state.loaded)
   const resetNonce = useDashboardsStore((state) => state.resetNonce)
@@ -310,12 +313,12 @@ export function Dashboard() {
   )
 
   if (!loaded) {
-    return <div className="flex h-full items-center justify-center text-ink-faint">Lade …</div>
+    return <div className="flex h-full items-center justify-center text-ink-faint">{t('loading')}</div>
   }
   if (!active) {
     return (
       <div className="flex h-full items-center justify-center text-ink-faint">
-        Kein Dashboard vorhanden
+        {t('none')}
       </div>
     )
   }
@@ -360,17 +363,19 @@ export function Dashboard() {
         // true size (#370), so nothing may take height away from the grid.
         <div className="absolute inset-x-3 bottom-3 z-bars flex flex-wrap items-center gap-3 rounded-container border border-line bg-surface px-3 py-2 shadow-sb">
           <span className="text-warn">
-            {BREAKPOINT_LABEL[breakpoint]}: {current.squeezed} {current.squeezed === 1 ? 'Widget ist' : 'Widgets sind'} zu
-            klein (außerhalb des Bearbeitens wird {current.source === 'derived' ? 'ein abgeleitetes Layout' : current.source === 'stacked' ? 'alles untereinander' : 'eine korrigierte Anordnung'}{' '}
-            gezeigt).
+            {t('squeezed', {
+              bp: BREAKPOINT_LABEL(breakpoint),
+              count: current.squeezed,
+              shown: current.source === 'derived' ? t('shown.derived') : current.source === 'stacked' ? t('shown.stacked') : t('shown.repaired'),
+            })}
           </span>
           {current.source !== 'stored' && (
             <Button variant="primary" size="stage" onClick={() => void save({ ...active, layouts: { ...active.layouts, [breakpoint]: current.items } })}>
               {current.source === 'repaired'
-                ? 'Zu kleine Widgets neu platzieren'
+                ? t('fix.repaired')
                 : current.source === 'stacked'
-                  ? 'Untereinander übernehmen'
-                  : `Aus ${BREAKPOINT_LABEL[current.derivedFrom ?? 'md']} übernehmen`}
+                  ? t('fix.stacked')
+                  : t('fix.derived', { bp: BREAKPOINT_LABEL(current.derivedFrom ?? 'md') })}
             </Button>
           )}
         </div>
@@ -453,15 +458,13 @@ export function Dashboard() {
                   return (
                     <div key={widget.i}>
                       <WidgetFrame
-                        title="Unbekanntes Widget"
+                        title={t('unknownWidget')}
                         status="missing"
                         isEditing={isEditing}
                         onRemove={() => removeWidget(widget.i)}
                       >
                         <div className="flex h-full items-center justify-center text-center text-sm text-ink-faint">
-                          Unbekannter Widget-Typ „{widget.type}" - vermutlich in einem App-Update
-                          entfernt. Über „⋯" → „Entfernen" kann es aus dem Dashboard genommen
-                          werden.
+                          {t('unknownWidgetText', { type: widget.type })}
                         </div>
                       </WidgetFrame>
                     </div>

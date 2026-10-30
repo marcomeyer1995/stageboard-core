@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { useId } from 'react'
 import { IconButton } from './IconButton'
 import { InfoHint } from './InfoHint'
@@ -18,7 +19,7 @@ export function Stepper({ label, info, value, unit, min, max, step = 1, onChange
           {label}
         </span>
         {/* Its explanation behind ⓘ (docs/15 D12). */}
-        {info && <InfoHint text={info} label={`Erklärung: ${label}`} />}
+        {info && <InfoHint text={info} label={i18n.t('common:ui.explain', { label: label })} />}
       </span>
       <div className="flex items-center gap-2" role="group" aria-labelledby={labelId}>
         <IconButton icon="decrease" label={t('actions.smaller')} onClick={() => set(value - step)} disabled={value <= min} />

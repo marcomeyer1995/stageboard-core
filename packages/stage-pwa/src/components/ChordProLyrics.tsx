@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { memo, useCallback, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import type { ChordProLine } from '../lib/chordpro'
 import { stageFontSize } from '../lib/stageSize'
@@ -130,7 +131,7 @@ export function ChordProLyrics({
   }
 
   if (lines.length === 0) {
-    return <p className="text-ink-faint">Kein Text.</p>
+    return <p className="text-ink-faint">{i18n.t('common:ui.noText')}</p>
   }
 
   return (

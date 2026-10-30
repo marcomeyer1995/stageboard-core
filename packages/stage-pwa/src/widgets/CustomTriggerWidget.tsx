@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Field, Select } from '../components/ui'
 import { useId, useState } from 'react'
 import { BehaviorEditor } from '../components/BehaviorEditor'
@@ -23,6 +24,7 @@ const INACTIVE_CLASS = 'bg-control-strong text-ink [@media(hover:hover)]:hover:b
  * anyone. A button set up before is read as the device command it always sent.
  */
 export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig }) {
+  const { t } = useTranslation('widgets')
   // The clock only at a press (#457).
   const show = useShowModeOnDemand()
   const devices = useLogicalDevicesStore((s) => s.devices)
@@ -43,13 +45,13 @@ export function CustomTriggerWidget({ config }: { config: CustomTriggerConfig })
   const own = behavior?.kind === 'switch' ? sw?.behavior : behavior
   const first = own && own.kind !== 'switch' ? (own.kind === 'latching' ? own.on : own.press) : null
   const reason = !behavior
-    ? 'Keine Aktion gewählt'
+    ? t('trig.noAction')
     : behavior.kind === 'switch' && !sw
-      ? 'Schalter fehlt'
+      ? t('trig.noSwitch')
       : first?.kind === 'device' && !resolveHardwareBindingById(devices, first.targetLogicalDeviceId)
-        ? 'Zielgerät fehlt'
+        ? t('trig.noDevice')
         : first && needsShowControl(first) && !show.canControl
-          ? 'Nur der Master steuert die Show'
+          ? t('trig.masterOnly')
           : null
 
   const report = (result: Promise<string | null> | null) => void result?.then(setError)
@@ -103,23 +105,24 @@ export function CustomTriggerConfigPanel({
   config: CustomTriggerConfig
   onChange: (next: CustomTriggerConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <div className="flex flex-col gap-3">
       <Field
-        label="Beschriftung"
+        label={t('trig.label')}
         value={config.label}
         onChange={(e) => onChange({ ...config, label: e.target.value })}
-        hint={config.action?.kind === 'switch' ? 'Leer oder „Trigger“: der Name des Schalters.' : undefined}
+        hint={config.action?.kind === 'switch' ? t('trig.labelHint') : undefined}
       />
       {config.action?.kind !== 'switch' && (
         <Select
-          label="Farbe"
+          label={t('trig.color')}
           value={config.color}
           onChange={(e) => onChange({ ...config, color: e.target.value as CustomTriggerConfig['color'] })}
           options={WIDGET_COLORS.map((color) => ({ value: color, label: color }))}
         />
       )}
-      {legacyPayloadUnreadable(config) && <p className="text-sm text-warn">Der bisherige Befehl hatte ungültiges JSON und wird ohne diese Werte gesendet - bitte neu wählen.</p>}
+      {legacyPayloadUnreadable(config) && <p className="text-sm text-warn">{t('trig.legacy')}</p>}
       <BehaviorEditor
         initial={triggerBehaviorOf(config)}
         onChange={(action) => {
@@ -127,7 +130,7 @@ export function CustomTriggerConfigPanel({
         }}
       />
       <SizeRatioSlider
-        label="Größe"
+        label={t('w.size')}
         ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
         onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
       />

@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect } from 'react'
 import { type DetectedHardware, hardwareKeyFor, type HardwareId, matchDetectedHardware, type PluginInstallation } from 'shared-types'
 import { getDeviceId } from './deviceId'
@@ -179,9 +180,9 @@ export async function handleDetected(detected: DetectedHardware) {
     // above, so there's nowhere else the confirmation needs to navigate first).
     const shouldCreate = await useDialogStore
       .getState()
-      .confirm(`Für "${label}" (${match.name}) ist noch keine passende Rolle vorhanden.`, {
-        title: 'Neues Gerät erkannt',
-        confirmLabel: 'Gerät erstellen',
+      .confirm(i18n.t('messages:noRoleFor', { label, name: match.name }), {
+        title: i18n.t('messages:newDeviceTitle'),
+        confirmLabel: i18n.t('messages:createDevice'),
       })
     if (shouldCreate) {
       useHardwareSetupWizardStore.getState().requestNewDevice({ name: label, pluginId: match.id, capability: match.capabilities[0] ?? null })
@@ -190,11 +191,11 @@ export async function handleDetected(detected: DetectedHardware) {
   }
 
   const result = await useDialogStore.getState().promptFields(
-    `Neues Gerät: ${label}`,
+    i18n.t('messages:newDevice', { label }),
     [
       {
         key: 'logicalDeviceId',
-        label: 'Welche Rolle soll dieses Gerät spielen?',
+        label: i18n.t('messages:whichRole'),
         type: 'radio',
         defaultValue: '',
         options: candidates.map((device) => ({ value: device.id, label: device.name })),

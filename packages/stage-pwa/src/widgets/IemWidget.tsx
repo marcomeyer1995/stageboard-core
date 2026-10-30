@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useShowPart } from '../lib/widgetParts'
 import { useState } from 'react'
 import { CAPABILITIES } from 'shared-types'
@@ -34,6 +35,7 @@ import { stageFontSize } from '../lib/stageSize'
 const CHANNELS = ['Mein Gesang', 'Meine Gitarre', 'Band'] as const
 
 export function IemWidget({ config }: { config: IemConfig }) {
+  const { t } = useTranslation('widgets')
   // Parts left out under "Anzeigen" in the ⋯ menu (Marco, 2026-10-17: declutter every widget).
   const showNames = useShowPart('names')
   const showValues = useShowPart('values')
@@ -61,13 +63,13 @@ export function IemWidget({ config }: { config: IemConfig }) {
         type: 'set_volume',
         payload: { channel, volume },
       })
-      setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+      setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
       return
     }
     setOwnLevels((prev) => ({ ...prev, [channel]: volume }))
     if (!pluginId) return
     const result = await triggerShowControl(pluginId, { type: 'set_volume', payload: { channel, volume } })
-    setError(result.status === 'error' ? (result.message ?? 'Fehler') : null)
+    setError(result.status === 'error' ? (result.message ?? t('w.error')) : null)
   }
 
   const levels = usesLocalMixerStore ? { ...ownLevels, ...localVolumes } : ownLevels
@@ -115,9 +117,10 @@ export function IemWidget({ config }: { config: IemConfig }) {
 }
 
 export function IemConfigPanel({ config, onChange }: { config: IemConfig; onChange: (next: IemConfig) => void }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Größe"
+      label={t('w.size')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

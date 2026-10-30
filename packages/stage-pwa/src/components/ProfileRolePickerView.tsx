@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useActiveProfileStore } from '../store/useActiveProfileStore'
 import { useProfilesStore } from '../store/useProfilesStore'
 import { useWorkspaceStore } from '../store/useWorkspaceStore'
@@ -16,6 +17,7 @@ import { Button } from './ui'
  * gone entirely, at Marco's explicit request - this picker shows just the name now.
  */
 export function ProfileRolePickerView() {
+  const { t } = useTranslation('band')
   const workspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
   const profiles = useProfilesStore((state) => state.profiles)
   const setActive = useActiveProfileStore((state) => state.setActive)
@@ -25,12 +27,12 @@ export function ProfileRolePickerView() {
       <div className="w-full max-w-sm py-4">
         <BackToWorkingBandLink />
 
-        <h1 className="text-2xl font-bold">Wer bist du?</h1>
-        <p className="mt-1 text-sm text-ink-muted">Kein Login - wähle dein Profil aus der Band-Liste.</p>
+        <h1 className="text-2xl font-bold">{t('roster.whoAreYou')}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t('pick.noLogin')}</p>
 
         <div className="mt-4 space-y-2">
           {profiles.length === 0 && (
-            <p className="text-sm text-ink-faint">Noch keine Profile angelegt - ein Admin kann welche im Menü anlegen.</p>
+            <p className="text-sm text-ink-faint">{t('pick.none')}</p>
           )}
           {profiles.map((profile) => (
             <button
@@ -45,7 +47,7 @@ export function ProfileRolePickerView() {
         </div>
 
         <Button fullWidth className="mt-4" onClick={() => setActive(workspaceId, null)}>
-          Ohne Profil fortfahren
+          {t('pick.without')}
         </Button>
       </div>
     </div>

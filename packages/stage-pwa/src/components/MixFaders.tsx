@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { MIX_LABELS, MIX_MAX, MIX_SOURCES, useAudioMixStore } from '../lib/audioMix'
 import { Slider, ToggleChip, type ControlSize } from './ui'
 
@@ -9,6 +10,7 @@ const percent = (level: number) => Math.round(level * 100)
  * source, for the Timeline's dialog.
  */
 export function MixFaders({ orientation, fontSize, size = 'form' }: { orientation: 'vertical' | 'horizontal'; fontSize?: number; size?: ControlSize }) {
+  const { t } = useTranslation('widgets')
   const mix = useAudioMixStore((state) => state.mix)
   const setLevel = useAudioMixStore((state) => state.setLevel)
   const setMuted = useAudioMixStore((state) => state.setMuted)
@@ -29,7 +31,7 @@ export function MixFaders({ orientation, fontSize, size = 'form' }: { orientatio
                 onChange={(value) => setLevel(source, value / 100)}
               />
             </div>
-            <ToggleChip label="Stumm" selected={mix[source].muted} onToggle={(muted) => setMuted(source, muted)} size={size} />
+            <ToggleChip label={t('w.mute')} selected={mix[source].muted} onToggle={(muted) => setMuted(source, muted)} size={size} />
           </div>
         ))}
       </div>
@@ -54,7 +56,7 @@ export function MixFaders({ orientation, fontSize, size = 'form' }: { orientatio
             className={`h-full min-h-0 w-2 flex-1 appearance-none rounded-control bg-control-strong [writing-mode:vertical-lr] [direction:rtl] ${mix[source].muted ? 'opacity-40' : ''}`}
           />
           <span className="font-sb-mono text-ink">{mix[source].muted ? 'stumm' : `${percent(mix[source].level)} %`}</span>
-          <ToggleChip label="Stumm" selected={mix[source].muted} onToggle={(muted) => setMuted(source, muted)} size={size} />
+          <ToggleChip label={t('w.mute')} selected={mix[source].muted} onToggle={(muted) => setMuted(source, muted)} size={size} />
         </div>
       ))}
     </div>

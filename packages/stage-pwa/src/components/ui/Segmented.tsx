@@ -1,3 +1,4 @@
+import i18n from '../../i18n'
 import { CONTROL, DISABLED, FOCUS, SELECTED, SIZE, type ControlSize, HOVER } from './styles'
 import { useControlSize } from './PrepTier'
 import { InfoHint } from './InfoHint'
@@ -70,7 +71,7 @@ export function Segmented<T extends string>({ options, value, onChange, label, s
       {(showLabel || info) && (
         <div className="flex min-w-0 items-center gap-1">
           {showLabel && <p className="min-w-0 text-sm font-semibold text-ink-soft">{label}</p>}
-          {info && <InfoHint text={info} label={`Erklärung: ${label}`} />}
+          {info && <InfoHint text={info} label={i18n.t('common:ui.explain', { label: label })} />}
         </div>
       )}
       {bar}

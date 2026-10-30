@@ -28,7 +28,14 @@
       "warning": "Warnung",
       "error": "Fehler",
       "off": "Aus"
-    }
+    },
+    "explain": "Erklärung: {{label}}",
+    "menu": "Menü: {{title}}",
+    "tapToClose": "Tippen zum Schließen",
+    "noShape": "Kein Griffbild",
+    "cancel": "Abbrechen",
+    "openMenu": "Menü öffnen",
+    "noText": "Kein Text."
   },
   "tiers": {
     "gig": "Im Song",
@@ -62,5 +69,60 @@
     "bluetooth": "Bluetooth",
     "usb": "USB-Audio",
     "unknown": "unbekannt (Browser)"
+  },
+  "dialog": {
+    "cancel": "Abbrechen",
+    "ok": "OK",
+    "unsavedTitle": "Ungespeicherte Änderungen",
+    "unsaved": "Du hast Änderungen, die noch nicht gespeichert sind.",
+    "save": "Speichern",
+    "discard": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten",
+    "typeToConfirm": "Zum Bestätigen „{{text}}“ eingeben"
+  },
+  "mt": {
+    "force": "Ein anderes Gerät ist aktiv Master - Übernahme erzwingen",
+    "forceDenied": "Ein anderes Gerät ist aktiv Master - nur Admin/Showmaster dürfen übernehmen",
+    "stale": "Das Master-Gerät antwortet nicht mehr",
+    "noControl": "Dieses Gerät hat aktuell keine Kontrolle über die Queue",
+    "forceButton": "Übernahme erzwingen",
+    "claim": "Master übernehmen"
+  },
+  "rc": {
+    "title": "Ready-Check",
+    "question": "Auf der Bühne, In-Ears sitzen, Instrument an?",
+    "noProfile": "Kein Profil gewählt - dieses Gerät kann nicht antworten.",
+    "ready": "Ich bin bereit",
+    "close": "Schließen",
+    "failed": "Keine Verbindung zum Stage-Server - bitte nochmal tippen.",
+    "askTitle": "Alle Tablets fragen, ob die Band bereit ist",
+    "short": "Ready",
+    "unknown": "Unbekannt",
+    "waiting": "Warten auf: {{names}}",
+    "allReady": "Alle bereit",
+    "endTitle": "Ready-Check beenden",
+    "end": "Ende"
+  },
+  "up": {
+    "available": "Neue App-Version {{version}} auf dem Stage-Server",
+    "failed": "Update konnte nicht geladen werden – später erneut versuchen. ({{reason}})",
+    "loading": "Lädt…",
+    "update": "Aktualisieren",
+    "later": "Später"
+  },
+  "rv": {
+    "title": "Dieses Gerät wurde entfernt",
+    "text": "Ein Admin hat dieses Gerät aus der Band entfernt. Wende dich an einen Admin, wenn das ein Irrtum war - sobald das Gerät wieder zugelassen wird, geht es hier automatisch weiter."
+  },
+  "ar": {
+    "title": "Wiedergabe unterbrochen",
+    "text": "Der Browser hat die automatische Fortsetzung des Backing-Tracks blockiert. Zum Weiterspielen antippen.",
+    "tap": "Antippen zum Fortsetzen"
+  },
+  "sync": {
+    "idle": "Synchronisiert",
+    "syncing": "Synchronisiere…",
+    "offline": "Offline",
+    "error": "Fehler"
   }
 }

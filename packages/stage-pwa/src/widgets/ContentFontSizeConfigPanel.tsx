@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { DEFAULT_SIZE_RATIO, type ContentFontSizeConfig } from './contentFontSizeConfig'
 import { SizeRatioSlider } from './SizeRatioSlider'
 
@@ -11,9 +12,10 @@ export function ContentFontSizeConfigPanel({
   config: ContentFontSizeConfig
   onChange: (next: ContentFontSizeConfig) => void
 }) {
+  const { t } = useTranslation('widgets')
   return (
     <SizeRatioSlider
-      label="Textgröße"
+      label={t('w.textSize')}
       ratio={config.sizeRatio ?? DEFAULT_SIZE_RATIO}
       onChange={(sizeRatio) => onChange({ ...config, sizeRatio })}
     />

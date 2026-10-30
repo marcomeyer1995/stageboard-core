@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { resumeWebAudio, webAudioTrackEnabled } from '../lib/webAudioTrackEngine'
 import { playLocalTrack } from '../lib/localAudioEngine'
 import { gigElapsedMsNow } from '../lib/usePlaybackElapsedMs'
@@ -30,6 +31,7 @@ import { useLocalAudioOutputStore } from '../store/useLocalAudioOutputStore'
  * its reactive subscription.
  */
 export function AudioResumeOverlay() {
+  const { t } = useTranslation('common')
   const audioBlocked = useLocalAudioOutputStore((state) => state.audioBlocked)
 
   if (!audioBlocked) return null
@@ -47,17 +49,16 @@ export function AudioResumeOverlay() {
 
   return (
     <div className="fixed inset-0 z-takeover flex flex-col items-center justify-center gap-6 bg-alarm/95 sb-pad-safe [--sb-pad:1.5rem] text-center">
-      <p className="text-2xl font-bold text-alarm-ink">Wiedergabe unterbrochen</p>
+      <p className="text-2xl font-bold text-alarm-ink">{t('ar.title')}</p>
       <p className="max-w-sm text-base text-alarm-ink/80">
-        Der Browser hat die automatische Fortsetzung des Backing-Tracks blockiert. Zum
-        Weiterspielen antippen.
+        {t('ar.text')}
       </p>
       <button
         type="button"
         onClick={() => void resume()}
         className="animate-pulse rounded-control bg-alarm-ink px-8 py-4 text-xl font-bold uppercase tracking-wide text-alarm [@media(hover:hover)]:hover:bg-alarm-ink/90"
       >
-        Antippen zum Fortsetzen
+        {t('ar.tap')}
       </button>
     </div>
   )

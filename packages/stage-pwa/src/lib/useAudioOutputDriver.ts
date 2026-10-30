@@ -1,3 +1,4 @@
+import i18n from '../i18n'
 import { useEffect, useRef } from 'react'
 import type { PlaybackStatus } from 'shared-types'
 import { CAPABILITIES } from 'shared-types'
@@ -107,7 +108,7 @@ export function useAudioOutputDriver(): void {
       return
     }
     void loadLocalTrack(currentVariant.id, track.id, elapsedMsRef.current ?? 0).then((result) => {
-      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? 'Fehler') : null })
+      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usesLocalEngine, currentSong?.id, currentVariant?.id, track?.id])
@@ -123,7 +124,7 @@ export function useAudioOutputDriver(): void {
       return
     }
     void loadWebAudioTrack(currentVariant.id, track.id).then((result) => {
-      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? 'Fehler') : null })
+      useLocalAudioOutputStore.setState({ error: result.status === 'error' ? (result.message ?? i18n.t('messages:error')) : null })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webAudio, currentSong?.id, currentVariant?.id, track?.id])
