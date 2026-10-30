@@ -2,6 +2,7 @@ import i18n from '../../i18n'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CAPABILITIES, type BeatGrid, type ShowCue } from 'shared-types'
 import { applySectionTempo, beatsBetween, clickTimeline, gridStretches, newGrid, removePoint, renumberBars, setMeter, setPoint, tempoFromTaps } from '../../lib/beatGrid'
+import { scaleSongTempo } from '../../lib/tempoScale'
 import { gridFromTappedCurve, type CurveGridResult } from '../../lib/tempoCurve'
 import { refineGrid, type RefineResult } from '../../lib/gridRefine'
 import { startClick, stopClick } from '../../lib/clickEngine'
@@ -1417,6 +1418,13 @@ export function TimelineEditor(props: TimelineEditorProps) {
     }
   }
 
+  /** Tempo ×2 / ÷2 (#654): the detection heard a fast song at half its tempo - or the other way. */
+  function scaleTempo(factor: 2 | 0.5) {
+    setSelection(null)
+    commit({ ...current, ...scaleSongTempo({ bpm, beatGrid, timeSignature, cues, chordProContent: content }, factor) })
+    setNotice(factor === 2 ? t('tl.doubled') : t('tl.halved'))
+  }
+
   async function clearGrid() {
     if (!(await confirm(t('tl.clearAsk'), { confirmLabel: t('delete'), danger: true }))) return
     setSelection(null)
@@ -1812,6 +1820,12 @@ export function TimelineEditor(props: TimelineEditorProps) {
             {detecting ? t('tl.analysingShort') : t('tl.analyse')}
           </Button>
         )}
+        <Button disabled={tapMode !== null} title={t('tl.doubleTitle')} onClick={() => scaleTempo(2)}>
+          {t('tl.double')}
+        </Button>
+        <Button disabled={tapMode !== null} title={t('tl.halfTitle')} onClick={() => scaleTempo(0.5)}>
+          {t('tl.half')}
+        </Button>
         <Button disabled={quality.length === 0} onClick={jumpToNextProblem}>
           {t('tl.nextProblem')}
         </Button>

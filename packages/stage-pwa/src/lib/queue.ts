@@ -5,7 +5,7 @@ import { getServerTime } from './clockSync'
 import { randomId } from './id'
 import { clickTimeline } from './beatGrid'
 import { barMsAt, countInLeadMs, LIVE_TEMPO_ADJUST_LIMIT_PERCENT } from './metronome'
-import { ARMED_TRANSPORT, computeActiveMs, transportOf, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
+import { ARMED_TRANSPORT, computeActiveMs, computePlayedMs, transportOf, pause as pauseTransport, play as playTransport, PLAY_LEAD_MS, type PlayOptions, type TransportState } from './playbackTransport'
 import { finalizeSongPlay, LENGTH_MARGIN_MS, shouldStartNewShow, UNKNOWN_LENGTH_CAP_MS } from './showLogTracking'
 import { songDurationMs, stoppedNearEnd } from './entryDuration'
 import { plannedPauseAfterMs } from './festivalClock'
@@ -45,7 +45,7 @@ function currentTransport(state: ShowState): TransportState {
 
 export function transportPatch(t: TransportState): Partial<ShowState> {
   // Any transport change ends "Beendet" (#27) - only stopSongAtTrackEnd sets it.
-  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, trackEnded: false }
+  return { playbackStatus: t.status, playbackStartedAt: t.startedAt, playbackAccumulatedMs: t.accumulatedMs, playbackJump: t.jump ?? null, playbackSkippedMs: t.skippedMs ?? 0, trackEnded: false }
 }
 
 /** Rearms the current entry: no time accumulated, no active-entry-started marker - what both
@@ -61,12 +61,15 @@ function finalizeCurrentSong(state: ShowState, now: number): void {
   const { currentEntry, currentSong, currentVariant, orderedItems, activeSetlist } = getQueueSnapshot()
   if (currentEntry === null || currentSong === null || state.activeEntryStartedAt === null) return
 
-  const activeMs = computeActiveMs(currentTransport(state), now)
+  // The time really played, not where the song stood (#64): jumps and loops (#479) leap in song time.
+  const positionMs = computeActiveMs(currentTransport(state), now)
+  const activeMs = computePlayedMs(currentTransport(state), now)
   const showId = state.currentShowId ?? randomId()
   // Never more than the song's length (+ click extension + margin) - #404.
   const length = isSongEntry(currentEntry) ? songDurationMs(currentEntry, currentVariant, state.trackOverride)?.ms : undefined
   const maxActiveMs = (length ?? UNKNOWN_LENGTH_CAP_MS) + (state.clickExtendMs ?? 0) + LENGTH_MARGIN_MS
-  const result = finalizeSongPlay({ songId: currentSong.id, songTitle: currentSong.title }, state.activeEntryStartedAt, activeMs, now, showId, maxActiveMs)
+  // The "never stopped" cap (#404) stays on the song time - a long loop is not a song left running.
+  const result = finalizeSongPlay({ songId: currentSong.id, songTitle: currentSong.title }, state.activeEntryStartedAt, activeMs, now, showId, maxActiveMs + (activeMs - positionMs))
   // The same play-through always gets the same id: in 'Pro Person' master mode (#85) every
   // device of the master finalizes it - with a random id each, the Nachbericht (and "Geprobt")
   // counted the song twice; with one id the copies are one document (#409 review).

@@ -13,7 +13,7 @@
   "pausesTooLong_one": "{{count}} pause too long",
   "pausesTooLong_other": "{{count}} pauses too long",
   "playedExplainLabel": "Explanation: planned and played",
-  "playedExplain": "Beside each song, how far it was off its planned length. Pause = from the end of the song before until this one played, count-in and interruptions included; marked when it was 15 s longer than the setlist planned.",
+  "playedExplain": "Played = the time that really ran: a skipped part doesn't count, a loop counts each time. Beside each song, how far it was off its planned length. Pause = from the end of the song before until this one played, count-in and interruptions included; marked when it was 15 s longer than the setlist planned.",
   "pause": "Pause {{duration}}",
   "planned": "planned {{duration}}",
   "noSong": "No song played long enough.",

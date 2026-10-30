@@ -104,6 +104,16 @@ describe('TimelineEditor (docs/14 §5a)', () => {
     expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
   })
 
+  it('Tempo ×2 / ÷2 (#654): every bar becomes two, and back - undoable', () => {
+    const { onChange } = setup({ beatGrid })
+    fireEvent.click(tool('Tempo ×2'))
+    const doubled = onChange.mock.lastCall![0] as { bpm: number; beatGrid: { points: { bar: number }[] } }
+    expect(doubled.bpm).toBe(240)
+    expect(doubled.beatGrid.points.map((p) => p.bar)).toEqual(beatGrid.points.map((p) => 2 * (p.bar - 1) + 1))
+    fireEvent.click(screen.getByLabelText('Rückgängig'))
+    expect(onChange).toHaveBeenLastCalledWith({ beatGrid, bpm: 120, chordProContent: '', cues: [] })
+  })
+
   it('has nothing to clear without a grid', () => {
     setup()
     expect(tool('Raster löschen')).toBeDisabled()
